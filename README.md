@@ -29,3 +29,4 @@ npm run electron:build
 - [ ] 云存档
 - [ ] 自动存档
 - [ ] 完善README
+- [ ] 存档导入导出

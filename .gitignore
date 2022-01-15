@@ -22,5 +22,8 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-#Electron-builder output
+# Electron-builder output
 /dist_electron
+
+# 原始设计文档
+design
