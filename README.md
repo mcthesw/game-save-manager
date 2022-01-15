@@ -1,24 +1,31 @@
 # game-save-manager
 
-## Project setup
+## 普通用户
+### 启动
+在Release页面下载已经打包好的文件，放在你喜欢的地方，左键双击以启动
+### 问题提交
+## 开发者
+
+### 安装依赖
 ```
 npm install
 ```
 
-### Compiles and hot-reloads for development
+### 调试运行
 ```
-npm run serve
-```
-
-### Compiles and minifies for production
-```
-npm run build
+npm run electron:serve
 ```
 
-### Lints and fixes files
+### 编译打包
 ```
-npm run lint
+npm run electron:build
 ```
 
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+## 目标
+代码注释中的TODO标志代表目标
+- [] 实现自动识别部分游戏
+- [] 历史版本管理
+- [] 注释信息
+- [] 云存档
+- [] 自动存档
+- [] 完善README
