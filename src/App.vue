@@ -2,7 +2,7 @@
 	<el-container>
 		<el-aside width="150px">
 			<el-menu
-				router="true"
+				router
 				default-active="/management"
 			>
 				<el-menu-item index="/management">
@@ -54,14 +54,18 @@ export default defineComponent({
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
+body,html,#app {
+        margin: 0px;
+		height: 100%;
+}
 
-el-container {
+.el-container {
 	width: 100%;
 	height: 100%;
 }
 .el-aside,
 .el-main {
-	height: 100%;
+	margin: 0px;
 }
 
 a {
