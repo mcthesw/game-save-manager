@@ -1,31 +1,7 @@
 <template>
 	<el-container>
 		<el-aside width="150px">
-			<el-menu
-				router
-				default-active="/management"
-			>
-				<el-menu-item index="/management">
-					<el-icon>
-						<files />
-					</el-icon>存档管理
-				</el-menu-item>
-				<el-menu-item index="/in-out">
-					<el-icon>
-						<promotion />
-					</el-icon>导入导出
-				</el-menu-item>
-				<el-menu-item index="/add-game">
-					<el-icon>
-						<document-add />
-					</el-icon>添加游戏
-				</el-menu-item>
-				<el-menu-item index="/about">
-					<el-icon>
-						<info-filled />
-					</el-icon>关于
-				</el-menu-item>
-			</el-menu>
+			<MainSideBar/>
 		</el-aside>
 		<el-main>
 			<transition
@@ -38,13 +14,12 @@
 	</el-container>
 </template>
 
-<script lang="ts">
-import { DocumentAdd, Files, Promotion, InfoFilled } from '@element-plus/icons-vue'
-import { defineComponent } from 'vue'
+<script lang="ts">import { defineComponent } from 'vue'
+import MainSideBar from './components/MainSideBar.vue'
 
 export default defineComponent({
 	name: 'App',
-	components: { DocumentAdd, Files, Promotion, InfoFilled },
+	components: { MainSideBar},
 })
 </script>
 
