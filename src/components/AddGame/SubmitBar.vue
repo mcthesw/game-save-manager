@@ -20,14 +20,15 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue'
-import { Check, RefreshRight, Download } from '@element-plus/icons-vue'
+import { Check, RefreshRight, Download, MagicStick } from '@element-plus/icons-vue'
 
 export default defineComponent({
 	setup() { },
-	components: { Check, RefreshRight, Download },
+	components: { Check, RefreshRight, Download, MagicStick },
 	data() {
 		return {
 			buttons: [
+				{ text: "修改已有配置", type: null, icon: "MagicStick" },
 				{ text: "导入配置合集", type: "primary", icon: "Download" },
 				{ text: "保存配置", type: "success", icon: "Check" },
 				{ text: "重置当前配置", type: "danger", icon: "RefreshRight" },
