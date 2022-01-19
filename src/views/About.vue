@@ -23,9 +23,6 @@ import { defineComponent } from 'vue'
 const { shell } = window.require('electron');
 
 export default defineComponent({
-	setup() {
-
-	},
 	methods: {
 		source_click(href: string) { shell.openExternal(href) }
 	}
