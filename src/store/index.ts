@@ -2,7 +2,7 @@ import { createStore } from 'vuex'
 
 export default createStore({
   state: {
-    "version":"v0.1",
+    "version":"0.1",
   },
   mutations: {
   },

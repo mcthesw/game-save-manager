@@ -25,7 +25,7 @@ export default defineComponent({
 		// 提示这是早期版本
 		ElNotification({
 			title: "提示",
-			message: "这是一个早期测试版本，不能保证稳定性，请小心使用",
+			message: "这是一个早期测试版本，不能保证稳定性，请谨慎使用",
 			type: "warning",
 			duration: 3000,
 		})

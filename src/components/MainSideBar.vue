@@ -25,7 +25,6 @@ export default defineComponent({
 		return {
 			links: [
 				{ text: "存档管理", link: "/management", icon: "Files" },
-				{ text: "导入导出", link: "/in-out", icon: "Promotion" },
 				{ text: "添加游戏", link: "/add-game", icon: "DocumentAdd" },
 				{ text: "关于", link: "/about", icon: "InfoFilled" },
 			]

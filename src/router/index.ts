@@ -2,7 +2,6 @@ import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 import Home from '../views/Home.vue'
 import AddGame from '../views/AddGame.vue'
 import About from '../views/About.vue'
-import InOut from '../views/InOut.vue'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -18,10 +17,7 @@ const routes: Array<RouteRecordRaw> = [
   }, {
     path: '/add-game',
     component: AddGame
-  },{
-    path: '/in-out',
-    component: InOut
-  }
+  },
 ]
 
 const router = createRouter({
