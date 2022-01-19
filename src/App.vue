@@ -1,7 +1,7 @@
 <template>
 	<el-container>
 		<el-aside width="150px">
-			<MainSideBar/>
+			<MainSideBar />
 		</el-aside>
 		<el-main>
 			<transition
@@ -16,10 +16,20 @@
 
 <script lang="ts">import { defineComponent } from 'vue'
 import MainSideBar from './components/MainSideBar.vue'
+import { ElNotification } from 'element-plus'
 
 export default defineComponent({
 	name: 'App',
-	components: { MainSideBar},
+	components: { MainSideBar },
+	mounted() {
+		// 提示这是早期版本
+		ElNotification({
+			title: "提示",
+			message: "这是一个早期测试版本，不能保证稳定性，请小心使用",
+			type: "warning",
+			duration: 3000,
+		})
+	},
 })
 </script>
 
@@ -29,9 +39,11 @@ export default defineComponent({
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
-body,html,#app {
-        margin: 0px;
-		height: 100%;
+body,
+html,
+#app {
+	margin: 0px;
+	height: 100%;
 }
 
 .el-container {
