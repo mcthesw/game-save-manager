@@ -6,10 +6,7 @@
 			:content="button.text"
 			placement="top"
 		>
-			<el-button
-				:type="button.type"
-				circle
-			>
+			<el-button :type="button.type" circle>
 				<el-icon>
 					<component :is="button.icon" />
 				</el-icon>
@@ -19,11 +16,16 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue'
-import { Check, RefreshRight, Download, MagicStick } from '@element-plus/icons-vue'
+import { defineComponent } from "vue";
+import {
+	Check,
+	RefreshRight,
+	Download,
+	MagicStick,
+} from "@element-plus/icons-vue";
 
 export default defineComponent({
-	setup() { },
+	setup() {},
 	components: { Check, RefreshRight, Download, MagicStick },
 	data() {
 		return {
@@ -32,10 +34,10 @@ export default defineComponent({
 				{ text: "导入配置合集", type: "primary", icon: "Download" },
 				{ text: "保存配置", type: "success", icon: "Check" },
 				{ text: "重置当前配置", type: "danger", icon: "RefreshRight" },
-			]
-		}
-	}
-})
+			],
+		};
+	},
+});
 </script>
 
 <style>

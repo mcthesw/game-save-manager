@@ -10,15 +10,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue'
-import SubmitBar from '@/components/AddGame/SubmitBar.vue'
-import MainContent from '@/components/AddGame/MainContent.vue'
-const { ipcRenderer } = require('electron')
+import { defineComponent } from "vue";
+import SubmitBar from "@/components/AddGame/SubmitBar.vue";
+import MainContent from "@/components/AddGame/MainContent.vue";
+const { ipcRenderer } = require("electron");
 
 export default defineComponent({
-	setup() { },
-	components: { SubmitBar, MainContent }
-})
+	setup() {},
+	components: { SubmitBar, MainContent },
+});
 </script>
 
 <style>
