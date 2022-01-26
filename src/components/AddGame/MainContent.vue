@@ -35,6 +35,7 @@
 <script lang="ts">
 import { defineComponent, onMounted } from "vue";
 import { DocumentAdd } from "@element-plus/icons-vue";
+import { ElNotification } from "element-plus";
 const { ipcRenderer } = require("electron");
 
 export default defineComponent({
@@ -74,6 +75,26 @@ export default defineComponent({
 		choose_game_icon() {
 			// 选择游戏图标地址
 			ipcRenderer.send("choose_game_icon");
+		},
+		import_config() {
+			// 导入已有配置
+		},
+		save_config() {
+			// 保存当前配置
+		},
+		reset_config() {
+			// 重置当前配置
+			this.game_name = "";
+			this.save_path = "";
+			this.game_path = "";
+			this.game_icon_src =
+				"https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png";
+			ElNotification({
+				title: "提示",
+				message: "重置成功",
+				type: "success",
+				duration: 1000,
+			});
 		},
 	},
 });
