@@ -1,42 +1,70 @@
 <template>
-	<el-card class="game-info">
-		<div class="top-part">
-			<img class="game-icon" :src="game_icon_src" />
-		</div>
-		<div style="padding: 14px" class="input-container">
-			<div class="bottom">
-				<el-button @click="choose_game_icon()" type="text" class="button"
-					>选择游戏图标
-				</el-button>
-				<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />
-				<el-input v-model="save_path" placeholder="请选择存档路径（必须）">
-					<template #append>
-						<el-button @click="choose_save_directory()">
-							<el-icon>
-								<document-add />
-							</el-icon>
-						</el-button>
-					</template>
-				</el-input>
-				<el-input v-model="game_path" placeholder="请选择游戏启动文件">
-					<template #append>
-						<el-button @click="choose_executable_file()">
-							<el-icon>
-								<document-add />
-							</el-icon>
-						</el-button>
-					</template>
-				</el-input>
+	<el-main>
+		<el-card class="game-info">
+			<div class="top-part">
+				<img class="game-icon" :src="game_icon_src" />
 			</div>
-		</div>
-	</el-card>
+			<div style="padding: 14px" class="input-container">
+				<div class="bottom">
+					<el-button @click="choose_game_icon()" type="text" class="button"
+						>选择游戏图标
+					</el-button>
+					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />
+					<el-input v-model="save_path" placeholder="请选择存档路径（必须）">
+						<template #append>
+							<el-button @click="choose_save_directory()">
+								<el-icon>
+									<document-add />
+								</el-icon>
+							</el-button>
+						</template>
+					</el-input>
+					<el-input v-model="game_path" placeholder="请选择游戏启动文件">
+						<template #append>
+							<el-button @click="choose_executable_file()">
+								<el-icon>
+									<document-add />
+								</el-icon>
+							</el-button>
+						</template>
+					</el-input>
+				</div>
+			</div>
+		</el-card>
+	</el-main>
+	<el-footer>
+		<el-container class="submit-bar">
+			<el-tooltip
+				v-for="button in buttons"
+				:key="button.id"
+				:content="button.text"
+				placement="top"
+			>
+				<el-button
+					@click="submit_handler(button.method)"
+					:type="button.type"
+					circle
+				>
+					<el-icon>
+						<component :is="button.icon" />
+					</el-icon>
+				</el-button>
+			</el-tooltip>
+		</el-container>
+	</el-footer>
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted } from "vue";
+import { defineComponent } from "vue";
 import { DocumentAdd } from "@element-plus/icons-vue";
 import { ElNotification } from "element-plus";
 const { ipcRenderer } = require("electron");
+import {
+	Check,
+	RefreshRight,
+	Download,
+	MagicStick,
+} from "@element-plus/icons-vue";
 
 export default defineComponent({
 	mounted() {
@@ -53,7 +81,7 @@ export default defineComponent({
 			this.game_icon_src = arg;
 		});
 	},
-	components: { DocumentAdd },
+	components: { DocumentAdd, Check, RefreshRight, Download, MagicStick },
 	data() {
 		return {
 			game_name: "", // 写入游戏名
@@ -61,6 +89,32 @@ export default defineComponent({
 			game_path: "", // 选择游戏启动程序
 			game_icon_src:
 				"https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png",
+			buttons: [
+				{
+					text: "修改已保存的配置",
+					type: null,
+					icon: "MagicStick",
+					method: "change",
+				},
+				{
+					text: "导入配置合集",
+					type: "primary",
+					icon: "Download",
+					method: "import",
+				},
+				{
+					text: "保存当前编辑的配置",
+					type: "success",
+					icon: "Check",
+					method: "save",
+				},
+				{
+					text: "重置当前配置",
+					type: "danger",
+					icon: "RefreshRight",
+					method: "reset",
+				},
+			],
 		};
 	},
 	methods: {
@@ -76,13 +130,18 @@ export default defineComponent({
 			// 选择游戏图标地址
 			ipcRenderer.send("choose_game_icon");
 		},
-		import_config() {
-			// 导入已有配置
+		submit_handler(button_method: string) {
+			// 映射按钮的ID和他们要触发的方法
+			// !下面一行代码暂时不知道怎么修复报错
+			this[button_method]();
 		},
-		save_config() {
-			// 保存当前配置
+		import() {
+			// TODO:导入已有配置
 		},
-		reset_config() {
+		save() {
+			// TODO:保存当前配置
+		},
+		reset() {
 			// 重置当前配置
 			this.game_name = "";
 			this.save_path = "";
@@ -114,5 +173,8 @@ export default defineComponent({
 }
 .el-input {
 	margin-top: 10px;
+}
+.submit-bar {
+	justify-content: flex-end;
 }
 </style>
