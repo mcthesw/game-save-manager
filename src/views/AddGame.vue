@@ -7,7 +7,6 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import MainContent from "@/components/AddGame/MainContent.vue";
-const { ipcRenderer } = require("electron");
 
 export default defineComponent({
 	setup() {},

@@ -4,22 +4,20 @@
 			<MainSideBar />
 		</el-aside>
 		<el-main>
-			<transition
-				name="fade"
-				mode="in-out"
-			>
+			<transition name="fade" mode="in-out">
 				<router-view />
 			</transition>
 		</el-main>
 	</el-container>
 </template>
 
-<script lang="ts">import { defineComponent } from 'vue'
-import MainSideBar from './components/MainSideBar.vue'
-import { ElNotification } from 'element-plus'
+<script lang="ts">
+import { defineComponent } from "vue";
+import MainSideBar from "./components/MainSideBar.vue";
+import { ElNotification } from "element-plus";
 
 export default defineComponent({
-	name: 'App',
+	name: "App",
 	components: { MainSideBar },
 	mounted() {
 		// 提示这是早期版本
@@ -28,9 +26,9 @@ export default defineComponent({
 			message: "这是一个早期测试版本，不能保证稳定性，请谨慎使用",
 			type: "warning",
 			duration: 3000,
-		})
+		});
 	},
-})
+});
 </script>
 
 <style>

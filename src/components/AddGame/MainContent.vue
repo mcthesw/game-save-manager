@@ -54,7 +54,8 @@
 	</el-footer>
 </template>
 
-<script lang="ts">
+<script>
+// !为了不让 submit_handler 报错，这里不使用 lang="ts"
 import { defineComponent } from "vue";
 import { DocumentAdd } from "@element-plus/icons-vue";
 import { ElNotification } from "element-plus";
@@ -130,9 +131,8 @@ export default defineComponent({
 			// 选择游戏图标地址
 			ipcRenderer.send("choose_game_icon");
 		},
-		submit_handler(button_method: string) {
+		submit_handler(button_method) {
 			// 映射按钮的ID和他们要触发的方法
-			// !下面一行代码暂时不知道怎么修复报错
 			this[button_method]();
 		},
 		import() {

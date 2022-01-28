@@ -107,7 +107,9 @@ ipcMain.on("choose_game_icon", async (Event, arg) => {
     properties: ["openFile"],
     filters: [{ name: "可识别图片", extensions: ["jpg", "png", "ico"] }],
   });
-  const icon = nativeImage.createFromPath((await path).filePaths[0])
-  if (icon == undefined){return}
+  const icon = nativeImage.createFromPath((await path).filePaths[0]);
+  if (icon == undefined) {
+    return;
+  }
   Event.reply("choose_game_icon_reply", icon.toDataURL());
 });
