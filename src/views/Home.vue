@@ -59,7 +59,7 @@ export default defineComponent({
 
 <style>
 .home-top-bar {
-	width: 96%;
+	width: 98%;
 	height: 50px;
 	padding-right: 10px;
 	padding-left: 10px;
