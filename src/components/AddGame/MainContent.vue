@@ -6,8 +6,8 @@
 			</div>
 			<div style="padding: 14px" class="input-container">
 				<div class="bottom">
-					<el-button @click="choose_game_icon()" type="text" class="button"
-						>选择游戏图标
+					<el-button @click="choose_game_icon()" type="text" class="button">
+						选择游戏图标(请使用方形图片)
 					</el-button>
 					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />
 					<el-input v-model="save_path" placeholder="请选择存档路径（必须）">
@@ -129,6 +129,7 @@ export default defineComponent({
 		},
 		choose_game_icon() {
 			// 选择游戏图标地址
+			// TODO:需要优化图片选择，自由切割和压缩到指定大小
 			ipcRenderer.send("choose_game_icon");
 		},
 		submit_handler(button_method) {
