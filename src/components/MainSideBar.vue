@@ -7,7 +7,7 @@
 				<span>存档管理</span>
 			</template>
 			<el-menu-item
-				v-for="save in save_file.saves.default"
+				v-for="save in save_file"
 				:key="save.id"
 				:index="'/management/' + save.name"
 			>
@@ -46,13 +46,7 @@ export default defineComponent({
 	computed: {
 		save_file() {
 			// TODO:读取json文件，通过commit放入store
-			return {
-				save_version: "V0",
-				saves: {
-					default: [{ name: "黑魂3" }, { name: "星露谷物语" }],
-					custom: [],
-				},
-			};
+			return store.state.save_file.games.default
 		},
 	},
 });

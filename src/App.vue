@@ -1,6 +1,6 @@
 <template>
 	<el-container>
-		<el-aside width="150px">
+		<el-aside width="200px">
 			<MainSideBar />
 		</el-aside>
 		<el-main>
@@ -59,11 +59,14 @@ html,
 .el-main {
 	margin: 0px;
 }
+.el-aside{
+	overflow-x: unset;
+}
+
 
 a {
 	text-decoration: none;
 }
-
 .fade-enter-from,
 .fade-leave-to {
 	opacity: 0;
