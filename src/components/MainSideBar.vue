@@ -31,17 +31,19 @@ import {
 	Files,
 	Promotion,
 	InfoFilled,
-	HotWater
+	HotWater,
+	Setting
 } from "@element-plus/icons-vue";
 import { store } from "@/store";
 
 export default defineComponent({
-	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater},
+	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater, Setting},
 	data() {
 		return {
 			links: [
 				{ text: "欢迎界面", link: "/home", icon: "HotWater" },
 				{ text: "添加游戏", link: "/add-game", icon: "DocumentAdd" },
+				{ text: "设置", link: "/settings", icon: "Setting" },
 				{ text: "关于", link: "/about", icon: "InfoFilled" },
 			],
 		};

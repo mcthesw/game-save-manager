@@ -3,6 +3,7 @@ import Home from "../views/Home.vue";
 import AddGame from "../views/AddGame.vue";
 import About from "../views/About.vue";
 import GameManage from "../views/GameManage.vue"
+import Settings from "../views/Settings.vue"
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -24,6 +25,9 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/management/:name",
     component:GameManage,
+  },{
+    path: "/setting",
+    component:Settings,
   },
 ];
 
