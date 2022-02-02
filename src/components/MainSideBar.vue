@@ -1,24 +1,26 @@
 <template>
 	<el-menu class="main-side-bar" router default-active="/management">
-		<!-- 下方是存档栏 -->
-		<el-sub-menu index="0">
-			<template #title>
-				<el-icon><Files></Files></el-icon>
-				<span>存档管理</span>
-			</template>
-			<el-menu-item
-				v-for="save in save_file"
-				:key="save.id"
-				:index="'/management/' + save.name"
-			>
-				{{ save.name }}
+		<el-scrollbar>
+			<!-- 下方是存档栏 -->
+			<el-sub-menu index="0">
+				<template #title>
+					<el-icon><Files></Files></el-icon>
+					<span>存档管理</span>
+				</template>
+				<el-menu-item
+					v-for="save in save_file"
+					:key="save.id"
+					:index="'/management/' + save.name"
+				>
+					{{ save.name }}
+				</el-menu-item>
+			</el-sub-menu>
+			<!-- 下方是常规按钮 -->
+			<el-menu-item v-for="link in links" :index="link.link" :key="link.key">
+				<el-icon> <component :is="link.icon"></component> </el-icon>
+				<span>{{ link.text }}</span>
 			</el-menu-item>
-		</el-sub-menu>
-		<!-- 下方是常规按钮 -->
-		<el-menu-item v-for="link in links" :index="link.link" :key="link.key">
-			<el-icon> <component :is="link.icon"></component> </el-icon
-			>{{ link.text }}
-		</el-menu-item>
+		</el-scrollbar>
 	</el-menu>
 </template>
 
@@ -46,7 +48,7 @@ export default defineComponent({
 	computed: {
 		save_file() {
 			// TODO:读取json文件，通过commit放入store
-			return store.state.save_file.games.default
+			return store.state.save_file.games.default;
 		},
 	},
 });

@@ -8,11 +8,14 @@ interface OneGameInfo {
   game_path?: string;
   icon: string;
 }
+interface OneGameInfoArray {
+  [index: number]: OneGameInfo;
+}
 interface GamesInfo {
   save_version: string;
   games: {
-    default: [OneGameInfo];
-    custom?: [OneGameInfo];
+    default: OneGameInfoArray;
+    custom?: OneGameInfoArray;
   };
 }
 export interface State {
@@ -27,12 +30,29 @@ export const store = createStore<State>({
   state: {
     version: "0.1.0",
     save_file: {
-      save_version:"V0",
-      games:{
-        default:[
-          {name:"黑魂3",save_path:"鬼",icon:"怕"}
-        ]
-      }
+      save_version: "V0",
+      games: {
+        default: [
+          { name: "黑魂3", save_path: "鬼", icon: "怕" },
+          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
+          { name: "传送门2", save_path: "鬼", icon: "怕" },
+          { name: "黑魂3", save_path: "鬼", icon: "怕" },
+          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
+          { name: "传送门2", save_path: "鬼", icon: "怕" },
+          { name: "黑魂3", save_path: "鬼", icon: "怕" },
+          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
+          { name: "传送门2", save_path: "鬼", icon: "怕" },
+          { name: "黑魂3", save_path: "鬼", icon: "怕" },
+          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
+          { name: "传送门2", save_path: "鬼", icon: "怕" },
+          { name: "黑魂3", save_path: "鬼", icon: "怕" },
+          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
+          { name: "传送门2", save_path: "鬼", icon: "怕" },
+          { name: "黑魂3", save_path: "鬼", icon: "怕" },
+          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
+          { name: "传送门2", save_path: "鬼", icon: "怕" },
+        ],
+      },
     },
   },
   mutations: {
