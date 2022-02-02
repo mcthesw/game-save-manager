@@ -50,7 +50,7 @@ export default defineComponent({
 .home-container > h2 {
 	margin-right: auto;
 	margin-left: auto;
-	margin-bottom: 1em;
+	margin-bottom: 2em;
 	display: block;
 	font-size: 2em;
 }
@@ -62,5 +62,6 @@ export default defineComponent({
 	width: 25%;
 }
 .new {
+	margin-top: 200px;
 }
 </style>
