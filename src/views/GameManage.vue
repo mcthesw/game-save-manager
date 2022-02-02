@@ -89,17 +89,17 @@ export default defineComponent({
 					inputErrorMessage: "无效的输入",
 				}
 			)
-				.catch(() => {
-					ElNotification({
-						type: "info",
-						message: "您取消了删除该存档管理",
-					});
-				})
 				.then(() => {
 					// TODO:完成删除该存档管理操作，并且跳转回主界面
 					ElNotification({
 						type: "info",
 						message: "您删除了该存档管理",
+					});
+				})
+				.catch(() => {
+					ElNotification({
+						type: "info",
+						message: "您取消了这次操作",
 					});
 				});
 		},
