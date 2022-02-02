@@ -30,7 +30,7 @@ import {
 	Promotion,
 	InfoFilled,
 } from "@element-plus/icons-vue";
-import store from "@/store";
+import { store } from "@/store";
 
 export default defineComponent({
 	components: { DocumentAdd, Files, Promotion, InfoFilled },
@@ -47,7 +47,7 @@ export default defineComponent({
 		save_file() {
 			// TODO:读取json文件，通过commit放入store
 			return {
-				version: "V0",
+				save_version: "V0",
 				saves: {
 					default: [{ name: "黑魂3" }, { name: "星露谷物语" }],
 					custom: [],
@@ -59,7 +59,7 @@ export default defineComponent({
 </script>
 
 <style>
-.main-side-bar{
+.main-side-bar {
 	height: 100%;
 }
 </style>
