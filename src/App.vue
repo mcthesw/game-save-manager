@@ -15,6 +15,7 @@
 import { defineComponent } from "vue";
 import MainSideBar from "./components/MainSideBar.vue";
 import { ElNotification } from "element-plus";
+import store from "./store";
 
 export default defineComponent({
 	name: "App",
@@ -27,7 +28,13 @@ export default defineComponent({
 			type: "warning",
 			duration: 3000,
 		});
+		this.get_saved_games()
 	},
+	methods:{
+		get_saved_games(){
+			store.dispatch('get_saved_games')
+		}
+	}
 });
 </script>
 
