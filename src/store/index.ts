@@ -36,21 +36,7 @@ export const store = createStore<State>({
           { name: "黑魂3", save_path: "鬼", icon: "怕" },
           { name: "星露谷物语", save_path: "鬼", icon: "怕" },
           { name: "传送门2", save_path: "鬼", icon: "怕" },
-          { name: "黑魂3", save_path: "鬼", icon: "怕" },
-          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
-          { name: "传送门2", save_path: "鬼", icon: "怕" },
-          { name: "黑魂3", save_path: "鬼", icon: "怕" },
-          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
-          { name: "传送门2", save_path: "鬼", icon: "怕" },
-          { name: "黑魂3", save_path: "鬼", icon: "怕" },
-          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
-          { name: "传送门2", save_path: "鬼", icon: "怕" },
-          { name: "黑魂3", save_path: "鬼", icon: "怕" },
-          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
-          { name: "传送门2", save_path: "鬼", icon: "怕" },
-          { name: "黑魂3", save_path: "鬼", icon: "怕" },
-          { name: "星露谷物语", save_path: "鬼", icon: "怕" },
-          { name: "传送门2", save_path: "鬼", icon: "怕" },
+          { name: "帝国时代4", save_path: "鬼", icon: "怕" },
         ],
       },
     },
@@ -60,7 +46,8 @@ export const store = createStore<State>({
   },
   actions: {
     get_saved_games(context) {
-      // TODO:读取json文件，通过commit放入store
+      // TODO: 读取json文件，通过commit放入store
+      // TODO: 流程基本是这样的，先读取本地存在的游戏存档集合，然后把其中有的游戏都加到state内
     },
   },
   modules: {},

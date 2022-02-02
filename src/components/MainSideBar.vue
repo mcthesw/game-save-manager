@@ -1,8 +1,8 @@
 <template>
-	<el-menu class="main-side-bar" router default-active="/management">
+	<el-menu class="main-side-bar" router default-active="/home">
 		<el-scrollbar>
 			<!-- 下方是存档栏 -->
-			<el-sub-menu index="0">
+			<el-sub-menu index="management">
 				<template #title>
 					<el-icon><Files></Files></el-icon>
 					<span>存档管理</span>
@@ -31,15 +31,16 @@ import {
 	Files,
 	Promotion,
 	InfoFilled,
+	HotWater
 } from "@element-plus/icons-vue";
 import { store } from "@/store";
 
 export default defineComponent({
-	components: { DocumentAdd, Files, Promotion, InfoFilled },
+	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater},
 	data() {
 		return {
 			links: [
-				{ text: "存档管理(临时)", link: "/management", icon: "Files" },
+				{ text: "欢迎界面", link: "/home", icon: "HotWater" },
 				{ text: "添加游戏", link: "/add-game", icon: "DocumentAdd" },
 				{ text: "关于", link: "/about", icon: "InfoFilled" },
 			],

@@ -1,5 +1,7 @@
 {
   "name": "game-save-manager",
+  "author": {"name": "Sworld","url": "https://github.com/mcthesw"},
+  "description": "一个简单的游戏存档管理工具",
   "version": "0.1.0",
   "private": true,
   "scripts": {
