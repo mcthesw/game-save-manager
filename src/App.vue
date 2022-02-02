@@ -1,65 +1,82 @@
 <template>
-  <el-container>
-    <el-aside width="150px">
-      <el-menu router="true" default-active="/management">
-        <el-menu-item index="/management"><el-icon><files /></el-icon>存档管理</el-menu-item>
-        <el-menu-item index="/in-out"><el-icon><promotion /></el-icon>导入导出</el-menu-item>
-        <el-menu-item index="/add-game"><el-icon><document-add /></el-icon>添加游戏</el-menu-item>
-        <el-menu-item index="/about"><el-icon><info-filled /></el-icon>关于</el-menu-item>
-      </el-menu>
-    </el-aside>
-    <el-main>
-      <transition name="fade" mode="out-in">
-        <router-view />
-      </transition>
-      <search style="width: 1em; height: 1em; margin-right: 8px" />
-    </el-main>
-  </el-container>
+	<el-container>
+		<el-aside width="200px">
+			<MainSideBar />
+		</el-aside>
+		<el-main>
+			<transition name="fade" mode="in-out">
+				<router-view />
+			</transition>
+		</el-main>
+	</el-container>
 </template>
 
 <script lang="ts">
-import { DocumentAdd, Files, Promotion, InfoFilled } from '@element-plus/icons-vue'
-import { defineComponent } from 'vue'
+import { defineComponent } from "vue";
+import MainSideBar from "./components/MainSideBar.vue";
+import { ElNotification } from "element-plus";
+import { store } from "./store";
+
 export default defineComponent({
-  name: 'App',
-  components: { DocumentAdd, Files, Promotion, InfoFilled }
-})
+	name: "App",
+	components: { MainSideBar },
+	mounted() {
+		// 提示这是早期版本
+		ElNotification({
+			title: "提示",
+			message: "这是一个早期测试版本，不能保证稳定性，请谨慎使用",
+			type: "warning",
+			duration: 3000,
+		});
+		this.get_saved_games();
+	},
+	methods: {
+		get_saved_games() {
+			store.dispatch("get_saved_games");
+		},
+	},
+});
 </script>
 
 <style>
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+	font-family: Avenir, Helvetica, Arial, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+body,
+html,
+#app {
+	margin: 0px;
+	height: 100%;
 }
 
-html, body, #app, .el-container {
-  /* 设置内部填充为0，几个布局元素之间没有间距 */
-  padding: 0px;
-  /* 外部间距也是如此设置 */
-  margin: 0px;
-  /* 统一设置高度为100% */
-  height: 100%;
+.el-container {
+	width: 100%;
+	height: 100%;
+}
+.el-aside,
+.el-main {
+	margin: 0px;
+}
+.el-aside{
+	overflow-x: unset;
 }
 
-el-container {
-  width: 90vw;
-  height: 90vh;
-}
 
 a {
-  text-decoration: none;
+	text-decoration: none;
 }
-
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
+.fade-enter-from,
+.fade-leave-to {
+	opacity: 0;
 }
 
 .fade-enter-active {
-  transition: all 0.8s ease-out;
+	transition: all 0.8s ease-out;
 }
 
 .fade-leave-active {
-  transition: all 0.4s ease-in;
+	transition: all 0.4s ease-in;
 }
 </style>
