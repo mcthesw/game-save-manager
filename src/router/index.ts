@@ -11,7 +11,7 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: "/",
-    redirect: "/management",
+    redirect: "/home",
   },
   {
     path: "/add-game",

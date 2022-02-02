@@ -2,7 +2,7 @@
 	<el-menu class="main-side-bar" router default-active="/home">
 		<el-scrollbar>
 			<!-- 下方是存档栏 -->
-			<el-sub-menu index="management">
+			<el-sub-menu index="/management">
 				<template #title>
 					<el-icon><Files></Files></el-icon>
 					<span>存档管理</span>
