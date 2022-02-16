@@ -28,7 +28,7 @@ export const key: InjectionKey<Store<State>> = Symbol();
 
 export const store = createStore<State>({
   state: {
-    version: "0.1.0",
+    version: "0.0.0",
     save_file: {
       save_version: "V0",
       games: {
@@ -42,12 +42,13 @@ export const store = createStore<State>({
     },
   },
   mutations: {
-    get_saved_games(state, saves_from_file: GamesInfo) {},
-  },
-  actions: {
-    get_saved_games(context) {
+    get_saved_games(state, saves_from_file: GamesInfo) {
       // TODO: 读取json文件，通过commit放入store
       // TODO: 流程基本是这样的，先读取本地存在的游戏存档集合，然后把其中有的游戏都加到state内
+    },
+    get_config(state, config) {
+      console.log("获取到配置文件:", config);
+      state.version = config.version;
     },
   },
   modules: {},

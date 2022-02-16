@@ -1,4 +1,5 @@
 import { ipcMain, shell, dialog, nativeImage } from "electron";
+import { get_config } from "./config";
 
 export function init_ipc() {
   ipcMain.on("open_url", async (Event, arg) => {
@@ -38,5 +39,11 @@ export function init_ipc() {
       return;
     }
     Event.reply("choose_game_icon_reply", icon.toDataURL());
+  });
+
+  ipcMain.on("get_config", async (Event, arg) => {
+    // 返回本地的配置文件
+    let config = get_config();
+    Event.reply("reply_config", config);
   });
 }

@@ -64,8 +64,8 @@ export default defineComponent({
 				{
 					date: "2022-2-2 22:37",
 					describe: "我狂写",
-					save_path: "",
-					game_name: "",
+					tags:[],
+					path: "",
 				},
 			],
 			game: {
