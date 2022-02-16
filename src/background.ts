@@ -1,6 +1,6 @@
 "use strict";
 
-import { app, protocol, BrowserWindow, nativeImage } from "electron";
+import { app, protocol, BrowserWindow, nativeImage, shell } from "electron";
 import { ipcMain, dialog } from "electron";
 import { createProtocol } from "vue-cli-plugin-electron-builder/lib";
 import installExtension, { VUEJS3_DEVTOOLS } from "electron-devtools-installer";
@@ -81,35 +81,9 @@ if (isDevelopment) {
   }
 }
 
-ipcMain.on("choose_save_directory", async (Event, arg) => {
-  // 选择游戏存档目录
-  const path = dialog.showOpenDialog({
-    title: "请选择存档路径",
-    properties: ["openDirectory"],
-  });
-  Event.reply("choose_save_directory_reply", await path);
-});
-
-ipcMain.on("choose_executable_file", async (Event, arg) => {
-  // 选择游戏可执行文件
-  const path = dialog.showOpenDialog({
-    title: "选择游戏可执行文件",
-    properties: ["openFile"],
-    filters: [{ name: "可执行程序", extensions: ["exe", "bat", "cmd", "jar"] }],
-  });
-  Event.reply("choose_executable_file_reply", await path);
-});
-
-ipcMain.on("choose_game_icon", async (Event, arg) => {
-  // 选择游戏图标
-  const path = dialog.showOpenDialog({
-    title: "选择游戏图标",
-    properties: ["openFile"],
-    filters: [{ name: "可识别图片", extensions: ["jpg", "png", "ico"] }],
-  });
-  const icon = nativeImage.createFromPath((await path).filePaths[0]);
-  if (icon == undefined) {
-    return;
-  }
-  Event.reply("choose_game_icon_reply", icon.toDataURL());
-});
+// !下面是自定义的模块
+import { config_check } from "./background/config";
+import { init_ipc } from "./background/ipcHandler";
+// !下面是自定义的启动时执行的东西
+config_check();
+init_ipc();
