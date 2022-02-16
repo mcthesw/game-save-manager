@@ -33,12 +33,12 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-const { shell } = window.require("electron");
+const { ipcRenderer } = require("electron");
 
 export default defineComponent({
 	methods: {
-		source_click(href: string) {
-			shell.openExternal(href);
+		source_click(url: string) {
+			ipcRenderer.send("open_url",url)
 		},
 	},
 });

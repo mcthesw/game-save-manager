@@ -12,6 +12,9 @@
 			</el-button>
 		</div>
 		<!-- 下面是游戏信息 -->
+		<div>
+			{{ game.name }}
+		</div>
 		<!-- 下面是主体部分 -->
 		<el-card class="saves-container">
 			<!-- 存档应当用点击展开+内部表格的方式来展示 -->
@@ -65,11 +68,18 @@ export default defineComponent({
 					game_name: "",
 				},
 			],
+			game: {
+				name: "",
+				save_path: "",
+				game_path: "",
+				icon: "",
+			},
 		};
 	},
 	methods: {
 		load_game(name) {
 			// TODO: 在路由切换后，把当前游戏的信息读取到data的table_data中
+			this.game.name = name;
 		},
 		button_handler(func) {
 			// 触发按钮绑定的方法
@@ -113,7 +123,6 @@ export default defineComponent({
 				if (newVal == {}) {
 					return;
 				}
-				console.log(oldVal, "-->", newVal);
 				this.load_game(newVal.name);
 			}
 		);
