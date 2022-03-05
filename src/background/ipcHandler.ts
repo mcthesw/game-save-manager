@@ -1,6 +1,12 @@
 import { ipcMain, shell, dialog, nativeImage } from "electron";
 import { get_config } from "./config";
-import { get_game_saves_info, backup_save, apply_backup } from "./saveManager";
+import {
+    get_game_saves_info,
+    backup_save,
+    apply_backup,
+    create_game_backup,
+} from "./saveManager";
+import { Config, Game, Saves, Save } from "./saveTypes";
 
 export function init_ipc() {
     ipcMain.on("open_url", async (Event, arg) => {
@@ -55,11 +61,25 @@ export function init_ipc() {
     });
 
     ipcMain.on("backup", (Event, args) => {
-        let game_name = args[0];
-        let describe = args[1];
-        let tags = args[2];
+        let game_name = args.game_name;
+        let describe = args.describe;
+        let tags = args.tags;
 
         backup_save(game_name, describe, tags);
         Event.reply("reply_backup", true);
+    });
+
+    ipcMain.on("add_game", (Event, arg) => {
+        console.log("保存游戏信息：", arg);
+        if (arg.game_path) {
+            create_game_backup(
+                arg.game_name,
+                arg.save_path,
+                arg.icon,
+                arg.game_path
+            );
+        } else {
+            create_game_backup(arg.game_name, arg.save_path, arg.icon);
+        }
     });
 }

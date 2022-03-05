@@ -6,7 +6,12 @@
 			</div>
 			<div style="padding: 14px" class="input-container">
 				<div class="bottom">
-					<el-button @click="choose_game_icon()" type="text" class="button" disabled>
+					<el-button
+						@click="choose_game_icon()"
+						type="text"
+						class="button"
+						disabled
+					>
 						选择游戏图标(请使用方形图片)
 					</el-button>
 					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />
@@ -81,6 +86,23 @@ export default defineComponent({
 			// 选择游戏图标地址
 			this.game_icon_src = arg;
 		});
+		ipcRenderer.on("reply_add_game", (Event, arg) => {
+			if (arg) {
+				ElNotification({
+					title: "提示",
+					message: "添加成功",
+					type: "success",
+					duration: 1000,
+				});
+			} else {
+				ElNotification({
+					title: "错误",
+					message: "添加存档失败，请保证游戏名无重复",
+					type: "warning",
+					duration: 1000,
+				});
+			}
+		});
 	},
 	components: { DocumentAdd, Check, RefreshRight, Download, MagicStick },
 	data() {
@@ -140,7 +162,14 @@ export default defineComponent({
 			// TODO:导入已有配置
 		},
 		save() {
-			// TODO:保存当前配置
+			// 保存当前配置
+			console.log("保存当前编辑的配置")
+			ipcRenderer.send("add_game", {
+				game_name: this.game_name,
+				save_path: this.save_path,
+				icon: this.game_icon_src,
+				game_path: this.game_path,
+			});
 		},
 		reset() {
 			// 重置当前配置
