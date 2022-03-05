@@ -1,11 +1,12 @@
 import { ipcMain, shell, dialog, nativeImage } from "electron";
 import { get_config } from "./config";
-import { get_game_saves_info } from "./saveManager";
+import { get_game_saves_info, backup_save, apply_backup } from "./saveManager";
 
 export function init_ipc() {
-    ipcMain.on("open_url", async (_, arg) => {
+    ipcMain.on("open_url", async (Event, arg) => {
         // 打开URL
         shell.openExternal(arg);
+        Event.reply("reply_open_url",true)
     });
     ipcMain.on("choose_save_directory", async (Event) => {
         // 选择游戏存档目录
@@ -13,7 +14,7 @@ export function init_ipc() {
             title: "请选择存档路径",
             properties: ["openDirectory"],
         });
-        Event.reply("choose_save_directory_reply", await path);
+        Event.reply("reply_choose_save_directory", await path);
     });
 
     ipcMain.on("choose_executable_file", async (Event) => {
@@ -28,7 +29,7 @@ export function init_ipc() {
                 },
             ],
         });
-        Event.reply("choose_executable_file_reply", await path);
+        Event.reply("reply_choose_executable_file", await path);
     });
 
     ipcMain.on("choose_game_icon", async (Event) => {
@@ -44,12 +45,21 @@ export function init_ipc() {
         if (icon == undefined) {
             return;
         }
-        Event.reply("choose_game_icon_reply", icon.toDataURL());
+        Event.reply("reply_choose_game_icon", icon.toDataURL());
     });
 
     ipcMain.on("get_config", async (Event) => {
         // 返回本地的配置文件
         let config = get_config();
         Event.reply("reply_config", config);
+    });
+
+    ipcMain.on("backup", (Event, args) => {
+        let game_name = args[0];
+        let describe = args[1];
+        let tags = args[2];
+
+        backup_save(game_name, describe, tags);
+        Event.reply("reply_backup", true)
     });
 }

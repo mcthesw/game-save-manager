@@ -69,15 +69,15 @@ import {
 
 export default defineComponent({
 	mounted() {
-		ipcRenderer.on("choose_save_directory_reply", (Event, arg) => {
+		ipcRenderer.on("reply_choose_save_directory", (Event, arg) => {
 			// 选择游戏存档目录
 			this.save_path = arg.filePaths[0] ? arg.filePaths[0] : this.save_path;
 		});
-		ipcRenderer.on("choose_executable_file_reply", (Event, arg) => {
+		ipcRenderer.on("reply_choose_executable_file", (Event, arg) => {
 			// 选择游戏存档目录
 			this.game_path = arg.filePaths[0] ? arg.filePaths[0] : this.game_path;
 		});
-		ipcRenderer.on("choose_game_icon_reply", (Event, arg) => {
+		ipcRenderer.on("reply_choose_game_icon", (Event, arg) => {
 			// 选择游戏图标地址
 			this.game_icon_src = arg;
 		});
