@@ -92,16 +92,17 @@ export default defineComponent({
 					title: "提示",
 					message: "添加成功",
 					type: "success",
-					duration: 1000,
+					duration: 2000,
 				});
 			} else {
 				ElNotification({
 					title: "错误",
 					message: "添加存档失败，请保证游戏名无重复",
 					type: "warning",
-					duration: 1000,
+					duration: 2000,
 				});
 			}
+			ipcRenderer.send("get_config");
 		});
 	},
 	components: { DocumentAdd, Check, RefreshRight, Download, MagicStick },

@@ -94,7 +94,9 @@ function create_save_folder(game_name: string, icon: string) {
         icon: icon,
     };
 
-    fs.mkdirSync(path.join(config.backup_path));
+    if(!fs.existsSync(path.join(config.backup_path))){
+        fs.mkdirSync(path.join(config.backup_path));
+    }
     fs.mkdirSync(path.join(config.backup_path, game_name));
     fs.writeFileSync(
         path.join(config.backup_path, game_name, "Saves.json"),

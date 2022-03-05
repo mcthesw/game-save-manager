@@ -81,5 +81,6 @@ export function init_ipc() {
         } else {
             create_game_backup(arg.game_name, arg.save_path, arg.icon);
         }
+        Event.reply("reply_add_game", true);
     });
 }

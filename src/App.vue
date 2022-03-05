@@ -23,14 +23,11 @@ export default defineComponent({
 	components: { MainSideBar },
 	mounted() {
 		// 提示这是早期版本
-		ipcRenderer.on("reply_config", (Event,arg)=>{
+		ipcRenderer.on("reply_config", (Event, arg) => {
 			// 获取到的config的json
-			store.commit("get_config",arg)
-		})
-		ipcRenderer.on("reply_saved_games", (Event,arg)=>{
-			// TODO:未完成
-			store.commit("get_saved_games",arg);
-		})
+			console.log("获取到了config文件", arg);
+			store.commit("get_config", arg);
+		});
 
 		ElNotification({
 			title: "提示",
@@ -41,7 +38,7 @@ export default defineComponent({
 		this.get_config();
 	},
 	methods: {
-		get_config(){
+		get_config() {
 			// 获取本程序配置文件
 			ipcRenderer.send("get_config");
 		},
@@ -70,10 +67,9 @@ html,
 .el-main {
 	margin: 0px;
 }
-.el-aside{
+.el-aside {
 	overflow-x: unset;
 }
-
 
 a {
 	text-decoration: none;

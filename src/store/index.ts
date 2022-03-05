@@ -20,7 +20,7 @@ export const store = createStore<State>({
   },
   mutations: {
     get_config(state, config:Config) {
-      console.log("获取到配置文件:", config);
+      console.log("已经装载配置文件");
       state.config = config;
     },
   },
