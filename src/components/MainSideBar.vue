@@ -8,11 +8,11 @@
 					<span>存档管理</span>
 				</template>
 				<el-menu-item
-					v-for="save in save_file"
-					:key="save.id"
-					:index="'/management/' + save.name"
+					v-for="game in Object.keys(games)"
+					:key="game.id"
+					:index="'/management/' + game"
 				>
-					{{ save.name }}
+					{{ game }}
 				</el-menu-item>
 			</el-sub-menu>
 			<!-- 下方是常规按钮 -->
@@ -32,12 +32,12 @@ import {
 	Promotion,
 	InfoFilled,
 	HotWater,
-	Setting
+	Setting,
 } from "@element-plus/icons-vue";
 import { store } from "@/store";
 
 export default defineComponent({
-	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater, Setting},
+	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater, Setting },
 	data() {
 		return {
 			links: [
@@ -49,9 +49,9 @@ export default defineComponent({
 		};
 	},
 	computed: {
-		save_file() {
+		games() {
 			// TODO:读取json文件，通过commit放入store
-			return store.state.save_file.games.default;
+			return store.state.config.games;
 		},
 	},
 });
