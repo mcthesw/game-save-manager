@@ -24,6 +24,10 @@ export function get_config() {
     return config;
 }
 
+export function set_config(config: Config) {
+    fs.writeFileSync("./GameSaveManager.config.json", JSON.stringify(config));
+}
+
 export function config_check() {
     // 每次程序启动时的检查
     if (!fs.existsSync("./GameSaveManager.config.json")) {

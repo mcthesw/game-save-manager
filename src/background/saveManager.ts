@@ -1,6 +1,6 @@
 import { compress_to_file, extract_to_folder } from "./archive";
 import { Config, Game, Saves, Save } from "./saveTypes";
-import { get_config } from "./config";
+import { get_config, set_config } from "./config";
 import path from "path";
 import moment from "moment";
 import fs from "fs";
@@ -69,4 +69,39 @@ export function apply_backup(game_name: string, date: TimeLike) {
     let backup_path = path.join(config.backup_path, game_name, date + ".zip");
 
     extract_to_folder(backup_path, game_save_path);
+}
+
+function create_save_folder(game_name: string, icon: string) {
+    let config = get_config();
+    let saves: Saves = {
+        name: game_name,
+        saves: [],
+        icon: icon,
+    };
+
+    fs.mkdirSync(path.join(config.backup_path, game_name));
+    fs.writeFileSync(
+        path.join(config.backup_path, game_name, "Saves.json"),
+        JSON.stringify(saves)
+    );
+}
+
+export function create_game_backup(
+    game_name: string,
+    save_path: string,
+    icon: string,
+    game_path?: string
+) {
+    let game: Game = {
+        save_path: save_path,
+    };
+    if (game_path) {
+        game.game_path = game_name;
+    }
+
+    let config = get_config();
+    config.games[game_name] = game;
+
+    create_save_folder(game_name, icon);
+    set_config(config);
 }
