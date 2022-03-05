@@ -6,8 +6,8 @@ function init_config() {
     console.log("初始化配置文件");
     let default_config: Config = {
         version: "0.0.1",
-        saves_path: "./save_data",
-        games: [],
+        backup_path: "./save_data",
+        games: {},
     };
 
     fs.writeFileSync(

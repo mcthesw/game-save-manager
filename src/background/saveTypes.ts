@@ -1,22 +1,20 @@
-import { PathLike, TimeLike } from "original-fs";
+import { TimeLike } from "original-fs";
 
 export interface Game {
     /**
-     * 游戏名
-     */
-    name: string;
-    /**
      * 游戏存档路径
      */
-    save_path: PathLike;
-    /**
-     * 游戏图标
-     */
-    icon: string;
+    save_path: string;
     /**
      * 游戏启动路径
      */
-    game_path?: PathLike;
+    game_path?: string;
+}
+export interface Games{
+    /**
+     * 使用游戏名来找到游戏信息
+     */
+    [name:string]:Game,
 }
 export interface Config {
     /**
@@ -26,16 +24,16 @@ export interface Config {
     /**
      * 本软件管理的存档存放路径
      */
-    saves_path: PathLike;
+    backup_path: string;
     /**
      * 各个游戏信息
      */
-    games: Array<Game>;
+    games: Games;
 }
 
 export interface Save {
     /**
-     * 存档的日期时间
+     * 存档的日期时间(和Saves中的游戏名可确定唯一存档)
      */
     date: TimeLike;
     /**
@@ -49,7 +47,7 @@ export interface Save {
     /**
      * 当前存档压缩包存放的路径
      */
-    path: PathLike;
+    path: string;
 }
 export interface Saves {
     /**
@@ -60,4 +58,8 @@ export interface Saves {
      * 存档信息
      */
     saves: Array<Save>;
+    /**
+     * 游戏图标,可以是base64也可以是url
+     */
+    icon: string;
 }
