@@ -26,7 +26,7 @@
 				"
 				>发布地址</el-link
 			>
-			<span class="version">版本号: {{ $store.state.version }}</span>
+			<span class="version">版本号: {{ $store.state.config.version }}</span>
 		</el-footer>
 	</el-container>
 </template>

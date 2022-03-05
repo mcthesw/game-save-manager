@@ -6,7 +6,7 @@ export function init_ipc() {
     ipcMain.on("open_url", async (Event, arg) => {
         // 打开URL
         shell.openExternal(arg);
-        Event.reply("reply_open_url",true)
+        Event.reply("reply_open_url", true);
     });
     ipcMain.on("choose_save_directory", async (Event) => {
         // 选择游戏存档目录
@@ -60,6 +60,6 @@ export function init_ipc() {
         let tags = args[2];
 
         backup_save(game_name, describe, tags);
-        Event.reply("reply_backup", true)
+        Event.reply("reply_backup", true);
     });
 }
