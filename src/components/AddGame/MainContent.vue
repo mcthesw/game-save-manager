@@ -6,7 +6,7 @@
 			</div>
 			<div style="padding: 14px" class="input-container">
 				<div class="bottom">
-					<el-button @click="choose_game_icon()" type="text" class="button">
+					<el-button @click="choose_game_icon()" type="text" class="button" disabled="true">
 						选择游戏图标(请使用方形图片)
 					</el-button>
 					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />

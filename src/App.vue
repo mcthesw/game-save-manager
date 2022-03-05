@@ -38,16 +38,12 @@ export default defineComponent({
 			type: "warning",
 			duration: 3000,
 		});
-		this.get_saved_games();
 		this.get_config();
 	},
 	methods: {
 		get_config(){
 			// 获取本程序配置文件
 			ipcRenderer.send("get_config");
-		},
-		get_saved_games() {
-			ipcRenderer.send("get_saved_games");
 		},
 	},
 });
