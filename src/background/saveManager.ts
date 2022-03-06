@@ -1,4 +1,8 @@
-import { compress_to_file, extract_to_folder } from "./archive";
+import {
+    clear_folder_recursive,
+    compress_to_file,
+    extract_to_folder,
+} from "./archive";
 import { Config, Game, Saves, Save } from "./saveTypes";
 import { get_config, set_config } from "./config";
 import path from "path";
@@ -94,7 +98,7 @@ function create_save_folder(game_name: string, icon: string) {
         icon: icon,
     };
 
-    if(!fs.existsSync(path.join(config.backup_path))){
+    if (!fs.existsSync(path.join(config.backup_path))) {
         fs.mkdirSync(path.join(config.backup_path));
     }
     fs.mkdirSync(path.join(config.backup_path, game_name));
@@ -128,5 +132,38 @@ export function create_game_backup(
     config.games[game_name] = game;
 
     create_save_folder(game_name, icon);
+    set_config(config);
+}
+/**
+ * 删除某个游戏的单个存档
+ * @param game_name 游戏名
+ * @param save_date 存档名（同时也是存档日期）
+ */
+export function delete_save(game_name: string, save_date: string) {
+    let config = get_config();
+    let save_path = path.join(config.backup_path, game_name, save_date);
+    fs.unlinkSync(save_path);
+
+    let saves = get_game_saves_info(game_name);
+    let index = saves.saves.findIndex((item) => item.date == save_date);
+    if (index == -1) {
+        throw "Save is not exists.";
+    }
+    delete saves.saves[index];
+
+    set_game_saves_info(game_name, saves);
+}
+/**
+ * 删除单个游戏
+ * @param game_name 被删除的游戏名
+ */
+export function delete_game(game_name: string) {
+    // 先删除该游戏的存档文件夹
+    let config = get_config();
+    let backup_path = path.join(config.backup_path, game_name);
+    clear_folder_recursive(backup_path);
+
+    // 再删除游戏在配置文件内的信息
+    delete config.games[game_name];
     set_config(config);
 }
