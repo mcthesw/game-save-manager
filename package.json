@@ -1,6 +1,9 @@
 {
   "name": "game-save-manager",
-  "author": {"name": "Sworld","url": "https://github.com/mcthesw"},
+  "author": {
+    "name": "Sworld",
+    "url": "https://github.com/mcthesw"
+  },
   "description": "一个简单的游戏存档管理工具",
   "version": "0.1.0",
   "private": true,
@@ -15,8 +18,13 @@
   "main": "background.js",
   "dependencies": {
     "@element-plus/icons-vue": "^0.2.4",
+    "@types/archiver": "^5.3.1",
+    "@types/moment": "^2.13.0",
+    "@types/unzip": "^0.1.1",
+    "@types/unzipper": "^0.10.5",
     "core-js": "^3.6.5",
     "element-plus": "^1.3.0-beta.5",
+    "unzipper": "^0.10.11",
     "vue": "^3.0.0",
     "vue-router": "^4.0.0-0",
     "vuex": "^4.0.0-0"

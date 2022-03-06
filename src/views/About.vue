@@ -26,19 +26,19 @@
 				"
 				>发布地址</el-link
 			>
-			<span class="version">版本号: {{ $store.state.version }}</span>
+			<span class="version">版本号: {{ $store.state.config.version }}</span>
 		</el-footer>
 	</el-container>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-const { shell } = window.require("electron");
+const { ipcRenderer } = require("electron");
 
 export default defineComponent({
 	methods: {
-		source_click(href: string) {
-			shell.openExternal(href);
+		source_click(url: string) {
+			ipcRenderer.send("open_url",url)
 		},
 	},
 });

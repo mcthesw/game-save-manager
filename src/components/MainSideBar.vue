@@ -1,18 +1,18 @@
 <template>
-	<el-menu class="main-side-bar" router default-active="/home">
+	<el-menu class="main-side-bar" default-active="/home" @select="select_handler">
 		<el-scrollbar>
 			<!-- 下方是存档栏 -->
-			<el-sub-menu index="/management">
+			<el-sub-menu index="1">
 				<template #title>
 					<el-icon><Files></Files></el-icon>
 					<span>存档管理</span>
 				</template>
 				<el-menu-item
-					v-for="save in save_file"
-					:key="save.id"
-					:index="'/management/' + save.name"
+					v-for="game in Object.keys(games)"
+					:key="game.id"
+					:index="'/management/' + game"
 				>
-					{{ save.name }}
+					{{ game }}
 				</el-menu-item>
 			</el-sub-menu>
 			<!-- 下方是常规按钮 -->
@@ -31,27 +31,35 @@ import {
 	Files,
 	Promotion,
 	InfoFilled,
-	HotWater
+	HotWater,
+	Setting,
 } from "@element-plus/icons-vue";
 import { store } from "@/store";
 
 export default defineComponent({
-	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater},
+	components: { DocumentAdd, Files, Promotion, InfoFilled, HotWater, Setting },
 	data() {
 		return {
 			links: [
 				{ text: "欢迎界面", link: "/home", icon: "HotWater" },
 				{ text: "添加游戏", link: "/add-game", icon: "DocumentAdd" },
+				{ text: "设置", link: "/settings", icon: "Setting" },
 				{ text: "关于", link: "/about", icon: "InfoFilled" },
 			],
 		};
 	},
 	computed: {
-		save_file() {
+		games() {
 			// TODO:读取json文件，通过commit放入store
-			return store.state.save_file.games.default;
+			return store.state.config.games;
 		},
 	},
+	methods:{
+		select_handler(key:string, keyPath:string){
+			console.log("导航至",keyPath[keyPath.length-1])
+			this.$router.push(keyPath[keyPath.length-1]);
+		}
+	}
 });
 </script>
 

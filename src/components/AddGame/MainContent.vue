@@ -6,7 +6,12 @@
 			</div>
 			<div style="padding: 14px" class="input-container">
 				<div class="bottom">
-					<el-button @click="choose_game_icon()" type="text" class="button">
+					<el-button
+						@click="choose_game_icon()"
+						type="text"
+						class="button"
+						disabled
+					>
 						选择游戏图标(请使用方形图片)
 					</el-button>
 					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />
@@ -69,17 +74,35 @@ import {
 
 export default defineComponent({
 	mounted() {
-		ipcRenderer.on("choose_save_directory_reply", (Event, arg) => {
+		ipcRenderer.on("reply_choose_save_directory", (Event, arg) => {
 			// 选择游戏存档目录
 			this.save_path = arg.filePaths[0] ? arg.filePaths[0] : this.save_path;
 		});
-		ipcRenderer.on("choose_executable_file_reply", (Event, arg) => {
+		ipcRenderer.on("reply_choose_executable_file", (Event, arg) => {
 			// 选择游戏存档目录
 			this.game_path = arg.filePaths[0] ? arg.filePaths[0] : this.game_path;
 		});
-		ipcRenderer.on("choose_game_icon_reply", (Event, arg) => {
+		ipcRenderer.on("reply_choose_game_icon", (Event, arg) => {
 			// 选择游戏图标地址
 			this.game_icon_src = arg;
+		});
+		ipcRenderer.on("reply_add_game", (Event, arg) => {
+			if (arg) {
+				ElNotification({
+					title: "提示",
+					message: "添加成功",
+					type: "success",
+					duration: 2000,
+				});
+			} else {
+				ElNotification({
+					title: "错误",
+					message: "添加存档失败，请保证游戏名无重复",
+					type: "warning",
+					duration: 2000,
+				});
+			}
+			ipcRenderer.send("get_config");
 		});
 	},
 	components: { DocumentAdd, Check, RefreshRight, Download, MagicStick },
@@ -138,9 +161,27 @@ export default defineComponent({
 		},
 		import() {
 			// TODO:导入已有配置
+			ElNotification({
+				type:"warning",
+				message:"--WIP-- 这个功能尚未完成"
+			})
+		},
+		change(){
+			// TODO:改变已有配置
+			ElNotification({
+				type:"warning",
+				message:"--WIP-- 这个功能尚未完成"
+			})
 		},
 		save() {
-			// TODO:保存当前配置
+			// 保存当前配置
+			console.log("保存当前编辑的配置")
+			ipcRenderer.send("add_game", {
+				game_name: this.game_name,
+				save_path: this.save_path,
+				icon: this.game_icon_src,
+				game_path: this.game_path,
+			});
 		},
 		reset() {
 			// 重置当前配置

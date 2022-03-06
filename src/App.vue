@@ -16,23 +16,31 @@ import { defineComponent } from "vue";
 import MainSideBar from "./components/MainSideBar.vue";
 import { ElNotification } from "element-plus";
 import { store } from "./store";
+import { ipcRenderer } from "electron";
 
 export default defineComponent({
 	name: "App",
 	components: { MainSideBar },
 	mounted() {
 		// 提示这是早期版本
+		ipcRenderer.on("reply_config", (Event, arg) => {
+			// 获取到的config的json
+			console.log("获取到了config文件", arg);
+			store.commit("get_config", arg);
+		});
+
 		ElNotification({
 			title: "提示",
 			message: "这是一个早期测试版本，不能保证稳定性，请谨慎使用",
 			type: "warning",
 			duration: 3000,
 		});
-		this.get_saved_games();
+		this.get_config();
 	},
 	methods: {
-		get_saved_games() {
-			store.dispatch("get_saved_games");
+		get_config() {
+			// 获取本程序配置文件
+			ipcRenderer.send("get_config");
 		},
 	},
 });
@@ -59,10 +67,9 @@ html,
 .el-main {
 	margin: 0px;
 }
-.el-aside{
+.el-aside {
 	overflow-x: unset;
 }
-
 
 a {
 	text-decoration: none;
