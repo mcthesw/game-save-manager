@@ -145,7 +145,11 @@ export function create_game_backup(
  */
 export function delete_save(game_name: string, save_date: string) {
     let config = get_config();
-    let save_path = path.join(config.backup_path, game_name, save_date);
+    let save_path = path.join(
+        config.backup_path,
+        game_name,
+        save_date + ".zip"
+    );
     fs.unlinkSync(save_path);
 
     let saves = get_game_saves_info(game_name);
@@ -154,6 +158,9 @@ export function delete_save(game_name: string, save_date: string) {
         throw "Save is not exists.";
     }
     delete saves.saves[index];
+    saves.saves = saves.saves.filter((item) => {
+        return item != undefined;
+    });
 
     set_game_saves_info(game_name, saves);
 }

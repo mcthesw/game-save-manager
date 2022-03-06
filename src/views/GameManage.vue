@@ -38,8 +38,16 @@
 					</template>
 					<template #default="scope">
 						<!-- scope.$index和scope.row可以被使用 -->
-						<el-button size="small">应用</el-button>
-						<el-button size="small" type="danger">删除</el-button>
+						<el-button size="small" @click="apply_save(scope.row.date)">
+							应用
+						</el-button>
+						<el-button
+							size="small"
+							type="danger"
+							@click="del_save(scope.row.date)"
+						>
+							删除
+						</el-button>
 					</template>
 				</el-table-column>
 			</el-table>
@@ -114,6 +122,27 @@ export default defineComponent({
 				type: type,
 				message: message,
 			});
+			ipcRenderer.send("get_game_backup", {
+				game_name: this.$route.params.name,
+			});
+		});
+		ipcRenderer.on("reply_delete_save", (Event, arg) => {
+			let type;
+			let message;
+			if (arg) {
+				type = "success";
+				message = "删除成功";
+			} else {
+				type = "error";
+				message = "删除失败";
+			}
+			ElNotification({
+				type: type,
+				message: message,
+			});
+			ipcRenderer.send("get_game_backup", {
+				game_name: this.$route.params.name,
+			});
 		});
 
 		ipcRenderer.send("get_game_backup", {
@@ -122,7 +151,7 @@ export default defineComponent({
 	},
 	methods: {
 		load_game(saves) {
-			// TODO: 在路由切换后，把当前游戏的信息读取到data的table_data中
+			// 在路由切换后，把当前游戏的信息读取到data的table_data中
 			this.game.name = saves.name;
 			this.table_data = saves.saves;
 		},
@@ -137,9 +166,17 @@ export default defineComponent({
 				describe: this.describe,
 				tags: [],
 			});
+			this.describe == "";
 		},
 		load_latest_save() {},
 		launch_game() {},
+		del_save(date) {
+			ipcRenderer.send("delete_save", {
+				game_name: this.game.name,
+				save_date: date,
+			});
+		},
+		apply_save(date) {},
 		del_cur() {
 			ElMessageBox.prompt(
 				"如果确定删除的话，请输入yes，否则请点击取消。这个操作将会抹除已经备份过的该游戏的所有存档，并且把该游戏从已识别列表中去除",
