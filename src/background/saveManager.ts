@@ -20,7 +20,7 @@ import { TimeLike } from "original-fs";
  */
 export function get_game_saves_info(game_name: string) {
     let config = get_config();
-    let game_save_path = config.games[game_name].save_path;
+    let game_save_path = path.join(config.backup_path,game_name);
     let saves: Saves = (config = JSON.parse(
         fs.readFileSync(path.join(game_save_path, "Saves.json")).toString()
     ));
@@ -75,12 +75,12 @@ export function backup_save(
 /**
  * 通过指定游戏名和存档时间来恢复备份
  * @param game_name 游戏名
- * @param date 存档时间
+ * @param save_date 存档时间
  */
-export function apply_backup(game_name: string, date: TimeLike) {
+export function apply_backup(game_name: string, save_date: TimeLike) {
     let config = get_config();
     let game_save_path = config.games[game_name].save_path;
-    let backup_path = path.join(config.backup_path, game_name, date + ".zip");
+    let backup_path = path.join(config.backup_path, game_name, save_date + ".zip");
 
     extract_to_folder(backup_path, game_save_path);
 }

@@ -5,6 +5,8 @@ import {
     backup_save,
     apply_backup,
     create_game_backup,
+    delete_save,
+    delete_game,
 } from "./saveManager";
 import { Config, Game, Saves, Save } from "./saveTypes";
 
@@ -83,4 +85,24 @@ export function init_ipc() {
         }
         Event.reply("reply_add_game", true);
     });
+
+    ipcMain.on("apply_backup", (Event, arg) => {
+        console.log("开始恢复存档", arg);
+        apply_backup(arg.game_name, arg.save_date);
+        Event.reply("reply_apply_backup", true);
+    });
+    ipcMain.on("delete_save", (Event, arg) => {
+        console.log("删除单个存档", arg);
+        delete_save(arg.game_name, arg.save_date);
+        Event.reply("reply_delete_save", true);
+    });
+    ipcMain.on("delete_game", (Event, arg) => {
+        console.log("删除游戏存档管理", arg);
+        delete_game(arg.game_name);
+        Event.reply("reply_delete_game", true);
+    });
+    ipcMain.on("get_game_backup",(Event, arg)=>{
+        let saves = get_game_saves_info(arg.game_name)
+        Event.reply("reply_get_game_backup", saves)
+    })
 }

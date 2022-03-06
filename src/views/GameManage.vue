@@ -13,7 +13,6 @@
 		</div>
 		<!-- 下面是游戏信息 -->
 		<div>
-			{{ game.name }}
 		</div>
 		<!-- 下面是主体部分 -->
 		<el-card class="saves-container">
@@ -49,6 +48,8 @@
 // !这里不使用lang = 'ts'是为了保证button_handler运行
 import { defineComponent } from "vue";
 import { ElMessageBox, ElNotification } from "element-plus";
+import { ipcRenderer } from "electron";
+import { Config, Game, Saves, Save } from "../background/saveTypes";
 
 export default defineComponent({
 	components: {},
@@ -64,7 +65,7 @@ export default defineComponent({
 				{
 					date: "2022-2-2 22:37",
 					describe: "我狂写",
-					tags:[],
+					tags: [],
 					path: "",
 				},
 			],
@@ -76,16 +77,42 @@ export default defineComponent({
 			},
 		};
 	},
+	mounted() {
+		ipcRenderer.on("reply_get_game_backup", (Event, arg) => {
+			this.load_game(arg);
+		});
+		ipcRenderer.on("reply_delete_game", (Event, arg) => {
+			if (!arg) {
+				ElNotification({
+					type: "warning",
+					message: "删除失败",
+				});
+				return;
+			}
+			ElNotification({
+				type: "info",
+				message: "您删除了该存档管理",
+			});
+			this.$router.push("/home");
+			ipcRenderer.send("get_config");
+		});
+		ipcRenderer.send("get_game_backup", {
+			game_name: this.$route.params.name,
+		});
+	},
 	methods: {
-		load_game(name) {
+		load_game(saves) {
 			// TODO: 在路由切换后，把当前游戏的信息读取到data的table_data中
-			this.game.name = name;
+			this.game.name = saves.name;
+			this.table_data = saves.saves;
 		},
 		button_handler(func) {
 			// 触发按钮绑定的方法
 			this[func]();
 		},
-		create_new_save() {},
+		create_new_save() {
+			// TODO:实现tags
+		},
 		load_latest_save() {},
 		launch_game() {},
 		del_cur() {
@@ -100,11 +127,8 @@ export default defineComponent({
 				}
 			)
 				.then(() => {
-					// TODO:完成删除该存档管理操作，并且跳转回主界面
-					ElNotification({
-						type: "info",
-						message: "您删除了该存档管理",
-					});
+					// TODO:跳转回主界面
+					ipcRenderer.send("delete_game", { game_name: this.game.name });
 				})
 				.catch(() => {
 					ElNotification({
@@ -120,10 +144,13 @@ export default defineComponent({
 			// TODO:需要根据路由来切换游戏
 			() => this.$route.params,
 			(newVal, oldVal) => {
-				if (newVal == {}) {
+				console.log("选中游戏", newVal.name);
+				if (!newVal.name) {
 					return;
 				}
-				this.load_game(newVal.name);
+				ipcRenderer.send("get_game_backup", {
+					game_name: newVal.name,
+				});
 			}
 		);
 	},

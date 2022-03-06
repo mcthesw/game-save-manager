@@ -1,8 +1,8 @@
 <template>
-	<el-menu class="main-side-bar" router default-active="/home">
+	<el-menu class="main-side-bar" default-active="/home" @select="select_handler">
 		<el-scrollbar>
 			<!-- 下方是存档栏 -->
-			<el-sub-menu index="/management">
+			<el-sub-menu index="1">
 				<template #title>
 					<el-icon><Files></Files></el-icon>
 					<span>存档管理</span>
@@ -54,6 +54,12 @@ export default defineComponent({
 			return store.state.config.games;
 		},
 	},
+	methods:{
+		select_handler(key:string, keyPath:string){
+			console.log("导航至",keyPath[keyPath.length-1])
+			this.$router.push(keyPath[keyPath.length-1]);
+		}
+	}
 });
 </script>
 
