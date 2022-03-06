@@ -150,6 +150,7 @@ export function delete_save(game_name: string, save_date: string) {
         game_name,
         save_date + ".zip"
     );
+    console.log("删除单个存档文件", save_path)
     fs.unlinkSync(save_path);
 
     let saves = get_game_saves_info(game_name);

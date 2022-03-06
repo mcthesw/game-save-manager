@@ -144,6 +144,21 @@ export default defineComponent({
 				game_name: this.$route.params.name,
 			});
 		});
+		ipcRenderer.on("reply_apply_backup", (Event, arg) => {
+			let type;
+			let message;
+			if (arg) {
+				type = "success";
+				message = "恢复成功";
+			} else {
+				type = "error";
+				message = "恢复失败";
+			}
+			ElNotification({
+				type: type,
+				message: message,
+			});
+		});
 
 		ipcRenderer.send("get_game_backup", {
 			game_name: this.$route.params.name,
@@ -169,14 +184,29 @@ export default defineComponent({
 			this.describe == "";
 		},
 		load_latest_save() {},
-		launch_game() {},
+		launch_game() {
+			if (this.game.game_path.length < 4) {
+				ElNotification({
+					type: "warning",
+					message: "您并没有储存过该游戏的启动方式",
+				});
+				return;
+			} else {
+				ipcRenderer.send("open_url", this.game.game_path);
+			}
+		},
 		del_save(date) {
 			ipcRenderer.send("delete_save", {
 				game_name: this.game.name,
 				save_date: date,
 			});
 		},
-		apply_save(date) {},
+		apply_save(date) {
+			ipcRenderer.send("apply_backup", {
+				game_name: this.game.name,
+				save_date: date,
+			});
+		},
 		del_cur() {
 			ElMessageBox.prompt(
 				"如果确定删除的话，请输入yes，否则请点击取消。这个操作将会抹除已经备份过的该游戏的所有存档，并且把该游戏从已识别列表中去除",
