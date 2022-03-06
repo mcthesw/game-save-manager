@@ -20,7 +20,7 @@ import { TimeLike } from "original-fs";
  */
 export function get_game_saves_info(game_name: string) {
     let config = get_config();
-    let game_save_path = path.join(config.backup_path,game_name);
+    let game_save_path = path.join(config.backup_path, game_name);
     let saves: Saves = (config = JSON.parse(
         fs.readFileSync(path.join(game_save_path, "Saves.json")).toString()
     ));
@@ -34,9 +34,9 @@ export function get_game_saves_info(game_name: string) {
  */
 function set_game_saves_info(game_name: string, new_saves: Saves) {
     let config = get_config();
-    let game_save_path = config.games[game_name].save_path;
+    let saves_path = config.backup_path;
     fs.writeFileSync(
-        path.join(game_save_path, "Saves.json"),
+        path.join(saves_path, game_name, "Saves.json"),
         JSON.stringify(new_saves)
     );
 }
@@ -80,7 +80,11 @@ export function backup_save(
 export function apply_backup(game_name: string, save_date: TimeLike) {
     let config = get_config();
     let game_save_path = config.games[game_name].save_path;
-    let backup_path = path.join(config.backup_path, game_name, save_date + ".zip");
+    let backup_path = path.join(
+        config.backup_path,
+        game_name,
+        save_date + ".zip"
+    );
 
     extract_to_folder(backup_path, game_save_path);
 }

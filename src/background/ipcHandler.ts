@@ -62,10 +62,11 @@ export function init_ipc() {
         Event.reply("reply_config", config);
     });
 
-    ipcMain.on("backup", (Event, args) => {
-        let game_name = args.game_name;
-        let describe = args.describe;
-        let tags = args.tags;
+    ipcMain.on("backup", (Event, arg) => {
+        let game_name = arg.game_name;
+        let describe = arg.describe;
+        let tags = arg.tags;
+        console.log("备份游戏存档",arg)
 
         backup_save(game_name, describe, tags);
         Event.reply("reply_backup", true);

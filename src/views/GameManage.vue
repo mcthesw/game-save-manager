@@ -100,6 +100,22 @@ export default defineComponent({
 			this.$router.push("/home");
 			ipcRenderer.send("get_config");
 		});
+		ipcRenderer.on("reply_backup", (Event, arg) => {
+			let type;
+			let message;
+			if (arg) {
+				type = "success";
+				message = "备份成功";
+			} else {
+				type = "error";
+				message = "备份失败";
+			}
+			ElNotification({
+				type: type,
+				message: message,
+			});
+		});
+
 		ipcRenderer.send("get_game_backup", {
 			game_name: this.$route.params.name,
 		});
@@ -115,7 +131,12 @@ export default defineComponent({
 			this[func]();
 		},
 		create_new_save() {
-			// TODO:实现tags
+			// TODO:实现tags或者删除tags
+			ipcRenderer.send("backup", {
+				game_name: this.game.name,
+				describe: this.describe,
+				tags: [],
+			});
 		},
 		load_latest_save() {},
 		launch_game() {},
