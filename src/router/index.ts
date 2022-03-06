@@ -26,7 +26,7 @@ const routes: Array<RouteRecordRaw> = [
     path: "/management/:name",
     component:GameManage,
   },{
-    path: "/setting",
+    path: "/settings",
     component:Settings,
   },
 ];

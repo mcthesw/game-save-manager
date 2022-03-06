@@ -1,5 +1,7 @@
 <template>
-	<el-container class="setting" direction="vertical"> </el-container>
+	<el-container class="setting" direction="vertical">
+		本页尚未完成
+	</el-container>
 </template>
 
 <script lang="ts">
