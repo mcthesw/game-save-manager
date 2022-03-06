@@ -33,7 +33,7 @@ export function compress_to_file(
     archive.finalize();
 }
 
-function clear_folder_recursive(folder_path: string) {
+export function clear_folder_recursive(folder_path: string) {
     let files = fs.readdirSync(folder_path);
     files.forEach((file) => {
         let cur_path = path.join(folder_path, file);
@@ -46,7 +46,6 @@ function clear_folder_recursive(folder_path: string) {
     fs.rmdirSync(folder_path);
 }
 
-
 /**
  * 清空目标文件夹,然后把一个压缩文件内容解压到那
  * @param source_file_path 压缩文件
@@ -56,8 +55,11 @@ export function extract_to_folder(
     source_file_path: string,
     target_path: string
 ) {
+    if (!path.isAbsolute(target_path)) {
+        throw "Path is not absolute path.";
+    }
     clear_folder_recursive(target_path);
-    
+
     fs.createReadStream(source_file_path).pipe(
         unzipper.Extract({ path: target_path })
     );
