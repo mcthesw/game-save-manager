@@ -162,20 +162,20 @@ export default defineComponent({
 		import() {
 			// TODO:导入已有配置
 			ElNotification({
-				type:"warning",
-				message:"--WIP-- 这个功能尚未完成"
-			})
+				type: "warning",
+				message: "--WIP-- 这个功能尚未完成",
+			});
 		},
-		change(){
+		change() {
 			// TODO:改变已有配置
 			ElNotification({
-				type:"warning",
-				message:"--WIP-- 这个功能尚未完成"
-			})
+				type: "warning",
+				message: "--WIP-- 这个功能尚未完成",
+			});
 		},
 		save() {
 			// 保存当前配置
-			console.log("保存当前编辑的配置")
+			console.log("保存当前编辑的配置");
 			ipcRenderer.send("add_game", {
 				game_name: this.game_name,
 				save_path: this.save_path,
@@ -197,6 +197,9 @@ export default defineComponent({
 				duration: 1000,
 			});
 		},
+	},
+	beforeUnmount() {
+		ipcRenderer.removeAllListeners();
 	},
 });
 </script>
