@@ -22,7 +22,7 @@
 			<!-- 存档应当用点击展开+内部表格的方式来展示 -->
 			<!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
 			<!-- 下面是测试用数据，最后需要被替换成v-for生成的时间轴卡片 -->
-			<el-table :data="table_data" style="width: 100%">
+			<el-table :data="filter_table" style="width: 100%">
 				<el-table-column label="备份日期" prop="date" width="200px" />
 				<el-table-column label="描述" prop="describe" />
 				<el-table-column align="right">
@@ -31,8 +31,7 @@
 						<el-input
 							v-model="search"
 							size="small"
-							placeholder="输入以搜索标签"
-							disabled
+							placeholder="输入以搜索描述"
 							clearable
 						/>
 					</template>
@@ -229,7 +228,13 @@ export default defineComponent({
 				});
 		},
 	},
-	computed: {},
+	computed: {
+		filter_table() {
+			return this.table_data.filter(
+				(data) => !this.search || data.describe.includes(this.search)
+			);
+		},
+	},
 	created() {
 		this.$watch(
 			// TODO:需要根据路由来切换游戏
