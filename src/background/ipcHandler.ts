@@ -9,6 +9,7 @@ import {
     delete_game,
 } from "./saveManager";
 import { Config, Game, Saves, Save } from "./saveTypes";
+import { exec } from 'child_process';
 
 export function init_ipc() {
     ipcMain.on("open_url", async (Event, arg) => {
@@ -105,5 +106,10 @@ export function init_ipc() {
     ipcMain.on("get_game_backup",(Event, arg)=>{
         let saves = get_game_saves_info(arg.game_name)
         Event.reply("reply_get_game_backup", saves)
+    })
+
+    ipcMain.on("open_exe",(Event,arg)=>{
+        console.log("启动游戏", arg)
+        exec(arg);
     })
 }

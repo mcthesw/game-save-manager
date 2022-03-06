@@ -5,7 +5,7 @@ function init_config() {
     // 初始化配置文件
     console.log("初始化配置文件");
     let default_config: Config = {
-        version: "0.0.1",
+        version: "0.1.1",
         backup_path: "./save_data",
         games: {},
     };

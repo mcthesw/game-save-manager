@@ -59,7 +59,8 @@
 import { defineComponent } from "vue";
 import { ElMessageBox, ElNotification } from "element-plus";
 import { ipcRenderer } from "electron";
-import { Config, Game, Saves, Save } from "../background/saveTypes";
+import { store } from "@/store";
+import path from "path";
 
 export default defineComponent({
 	components: {},
@@ -163,11 +164,20 @@ export default defineComponent({
 			game_name: this.$route.params.name,
 		});
 	},
+	beforeUnmount() {
+		ipcRenderer.removeAllListeners();
+	},
 	methods: {
 		load_game(saves) {
 			// 在路由切换后，把当前游戏的信息读取到data的table_data中
 			this.game.name = saves.name;
 			this.table_data = saves.saves;
+			this.game.save_path = path.join(
+				store.state.config.backup_path,
+				this.game.name
+			);
+			this.game.game_path = store.state.config.games[this.game.name].game_path;
+			this.game.icon = saves.icon;
 		},
 		button_handler(func) {
 			// 触发按钮绑定的方法
@@ -183,25 +193,24 @@ export default defineComponent({
 			this.describe == "";
 		},
 		load_latest_save() {
-			if(this.table_data[0].date){
-				this.apply_save(this.table_data[0].date)
-			}else{
+			if (this.table_data[0].date) {
+				this.apply_save(this.table_data[0].date);
+			} else {
 				ElNotification({
 					type: "error",
 					message: "发生了错误，可能您没有任何存档",
 				});
 			}
-			
 		},
 		launch_game() {
-			if (this.game.game_path.length < 4) {
+			if (this.game.game_path == undefined || this.game.game_path.length < 4) {
 				ElNotification({
 					type: "error",
 					message: "您并没有储存过该游戏的启动方式",
 				});
 				return;
 			} else {
-				ipcRenderer.send("open_url", this.game.game_path);
+				ipcRenderer.send("open_exe", this.game.game_path);
 			}
 		},
 		del_save(date) {

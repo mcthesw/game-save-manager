@@ -129,7 +129,7 @@ export function create_game_backup(
         save_path: save_path,
     };
     if (game_path) {
-        game.game_path = game_name;
+        game.game_path = game_path;
     }
 
     let config = get_config();
