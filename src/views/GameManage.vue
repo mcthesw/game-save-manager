@@ -1,7 +1,7 @@
 <template>
 	<div class="manage-container">
 		<!-- 下面是顶栏部分 -->
-		<div class="manage-top-bar">
+		<el-card class="manage-top-bar">
 			<template v-for="button in top_buttons" :key="button.id">
 				<el-button type="primary" round @click="button_handler(button.method)">
 					{{ button.text }}
@@ -10,10 +10,13 @@
 			<el-button type="danger" round @click="del_cur()">
 				删除该存档管理
 			</el-button>
-		</div>
-		<!-- 下面是游戏信息 -->
-		<div>
-		</div>
+
+			<!-- 下面是当前存档描述信息 -->
+
+			<el-input v-model="describe" placeholder="请输入新存档描述信息">
+				<template #prepend>{{ this.game.name }}的新存档: </template>
+			</el-input>
+		</el-card>
 		<!-- 下面是主体部分 -->
 		<el-card class="saves-container">
 			<!-- 存档应当用点击展开+内部表格的方式来展示 -->
@@ -63,8 +66,8 @@ export default defineComponent({
 			search: "",
 			table_data: [
 				{
-					date: "2022-2-2 22:37",
-					describe: "我狂写",
+					date: "",
+					describe: "这是一条错误信息，正常情况不会出现",
 					tags: [],
 					path: "",
 				},
@@ -75,6 +78,7 @@ export default defineComponent({
 				game_path: "",
 				icon: "",
 			},
+			describe: "",
 		};
 	},
 	mounted() {
@@ -127,7 +131,6 @@ export default defineComponent({
 				}
 			)
 				.then(() => {
-					// TODO:跳转回主界面
 					ipcRenderer.send("delete_game", { game_name: this.game.name });
 				})
 				.catch(() => {
@@ -160,13 +163,11 @@ export default defineComponent({
 <style>
 .manage-top-bar {
 	width: 98%;
-	height: 50px;
 	padding-right: 10px;
 	padding-left: 10px;
 	margin: auto;
-	margin-bottom: 10px;
+	margin-bottom: 5px;
 
-	background-color: #409eff;
 	display: flex;
 	border-radius: 10px;
 	align-items: center;
