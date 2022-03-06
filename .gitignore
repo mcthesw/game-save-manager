@@ -27,3 +27,7 @@ pnpm-debug.log*
 
 # 原始设计文档
 design
+
+# 测试用文件
+GameSaveManager.config.json
+save_data/
