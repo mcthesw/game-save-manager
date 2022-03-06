@@ -161,6 +161,17 @@ export default defineComponent({
 		},
 		import() {
 			// TODO:导入已有配置
+			ElNotification({
+				type:"warning",
+				message:"--WIP-- 这个功能尚未完成"
+			})
+		},
+		change(){
+			// TODO:改变已有配置
+			ElNotification({
+				type:"warning",
+				message:"--WIP-- 这个功能尚未完成"
+			})
 		},
 		save() {
 			// 保存当前配置

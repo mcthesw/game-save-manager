@@ -182,11 +182,21 @@ export default defineComponent({
 			});
 			this.describe == "";
 		},
-		load_latest_save() {},
+		load_latest_save() {
+			if(this.table_data[0].date){
+				this.apply_save(this.table_data[0].date)
+			}else{
+				ElNotification({
+					type: "error",
+					message: "发生了错误，可能您没有任何存档",
+				});
+			}
+			
+		},
 		launch_game() {
 			if (this.game.game_path.length < 4) {
 				ElNotification({
-					type: "warning",
+					type: "error",
 					message: "您并没有储存过该游戏的启动方式",
 				});
 				return;
