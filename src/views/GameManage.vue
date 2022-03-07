@@ -23,7 +23,7 @@
 			<!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
 			<!-- 下面是测试用数据，最后需要被替换成v-for生成的时间轴卡片 -->
 			<el-table :data="filter_table" style="width: 100%">
-				<el-table-column label="备份日期" prop="date" width="200px" sortable/>
+				<el-table-column label="备份日期" prop="date" width="200px" sortable />
 				<el-table-column label="描述" prop="describe" />
 				<el-table-column align="right">
 					<template #header>
@@ -37,16 +37,24 @@
 					</template>
 					<template #default="scope">
 						<!-- scope.$index和scope.row可以被使用 -->
-						<el-button size="small" @click="apply_save(scope.row.date)">
-							应用
-						</el-button>
-						<el-button
-							size="small"
-							type="danger"
-							@click="del_save(scope.row.date)"
+						<el-popconfirm
+							title="确定覆盖现有存档?"
+							@confirm="apply_save(scope.row.date)"
 						>
-							删除
-						</el-button>
+							<template #reference>
+								<el-button size="small"> 应用 </el-button>
+							</template>
+						</el-popconfirm>
+						<el-popconfirm
+							title="确定要删除?"
+							@confirm="del_save(scope.row.date)"
+						>
+							<template #reference>
+								<el-button size="small" type="danger">
+									删除
+								</el-button></template
+							>
+						</el-popconfirm>
 					</template>
 				</el-table-column>
 			</el-table>
