@@ -66,7 +66,7 @@ export function backup_save(
     };
 
     let saves = get_game_saves_info(game_name);
-    saves.saves.push(save_info);
+    saves.saves.unshift(save_info);
 
     set_game_saves_info(game_name, saves);
     compress_to_file(game_save_path, backup_path, date);
@@ -150,7 +150,7 @@ export function delete_save(game_name: string, save_date: string) {
         game_name,
         save_date + ".zip"
     );
-    console.log("删除单个存档文件", save_path)
+    console.log("删除单个存档文件", save_path);
     fs.unlinkSync(save_path);
 
     let saves = get_game_saves_info(game_name);
