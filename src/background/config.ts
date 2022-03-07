@@ -1,14 +1,15 @@
 import fs from "fs";
 import { Config } from "./saveTypes";
 
+export let default_config: Config = {
+    version: "0.1.2",
+    backup_path: "./save_data",
+    games: {},
+};
+
 function init_config() {
     // 初始化配置文件
     console.log("初始化配置文件");
-    let default_config: Config = {
-        version: "0.1.1",
-        backup_path: "./save_data",
-        games: {},
-    };
 
     fs.writeFileSync(
         "./GameSaveManager.config.json",
@@ -30,7 +31,17 @@ export function set_config(config: Config) {
 
 export function config_check() {
     // 每次程序启动时的检查
+    // 存档是否存在
     if (!fs.existsSync("./GameSaveManager.config.json")) {
         init_config();
+    }
+    let config = get_config();
+
+    // 检查版本
+    if (config.version != default_config.version) {
+        console.log("检测到老版本config");
+        config.version = default_config.version;
+        console.log("执行升级config版本")
+        set_config(config);
     }
 }
