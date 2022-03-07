@@ -23,11 +23,11 @@
 			<!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
 			<!-- 下面是测试用数据，最后需要被替换成v-for生成的时间轴卡片 -->
 			<el-table :data="filter_table" style="width: 100%">
-				<el-table-column label="备份日期" prop="date" width="200px" />
+				<el-table-column label="备份日期" prop="date" width="200px" sortable/>
 				<el-table-column label="描述" prop="describe" />
 				<el-table-column align="right">
 					<template #header>
-						<!-- 暂时禁止搜索，之后做 -->
+						<!-- 搜索 -->
 						<el-input
 							v-model="search"
 							size="small"
@@ -250,7 +250,10 @@ export default defineComponent({
 	computed: {
 		filter_table() {
 			return this.table_data.filter(
-				(data) => !this.search || data.describe.includes(this.search)
+				(data) =>
+					!this.search ||
+					data.describe.includes(this.search) ||
+					data.date.includes(this.search)
 			);
 		},
 	},
