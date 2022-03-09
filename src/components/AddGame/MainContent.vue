@@ -199,7 +199,10 @@ export default defineComponent({
 		},
 	},
 	beforeUnmount() {
-		ipcRenderer.removeAllListeners();
+		ipcRenderer.removeAllListeners("reply_choose_save_directory");
+		ipcRenderer.removeAllListeners("reply_choose_executable_file");
+		ipcRenderer.removeAllListeners("reply_choose_game_icon");
+		ipcRenderer.removeAllListeners("reply_add_game");
 	},
 });
 </script>

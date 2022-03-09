@@ -113,8 +113,8 @@ export default defineComponent({
 				type: "info",
 				message: "您删除了该存档管理",
 			});
-			this.$router.push("/home");
 			ipcRenderer.send("get_config");
+			this.$router.push("/home");
 		});
 		ipcRenderer.on("reply_backup", (Event, arg) => {
 			let type;
@@ -173,7 +173,11 @@ export default defineComponent({
 		});
 	},
 	beforeUnmount() {
-		ipcRenderer.removeAllListeners();
+		ipcRenderer.removeAllListeners("reply_get_game_backup");
+		ipcRenderer.removeAllListeners("reply_delete_game");
+		ipcRenderer.removeAllListeners("reply_backup");
+		ipcRenderer.removeAllListeners("reply_delete_save");
+		ipcRenderer.removeAllListeners("reply_apply_backup");
 	},
 	methods: {
 		load_game(saves) {
