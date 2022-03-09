@@ -95,6 +95,7 @@ export default defineComponent({
 				icon: "",
 			},
 			describe: "",
+			button_enabled: true,
 		};
 	},
 	mounted() {
@@ -197,12 +198,24 @@ export default defineComponent({
 		},
 		create_new_save() {
 			// TODO:实现tags或者删除tags
+			if (!this.button_enabled) {
+				ElNotification({
+					type: "error",
+					message: "无法在一秒内进行多次存档",
+				});
+				return;
+			}
 			ipcRenderer.send("backup", {
 				game_name: this.game.name,
 				describe: this.describe,
 				tags: [],
 			});
 			this.describe == "";
+			this.button_enabled = false;
+			let that = this;
+			setTimeout(()=>{
+				that.button_enabled = true;
+			}, 1000);
 		},
 		load_latest_save() {
 			if (this.table_data[0].date) {
