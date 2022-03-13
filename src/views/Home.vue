@@ -8,21 +8,43 @@
 			</div>
 			<div class="describe">
 				<h3>安全</h3>
-				<p>此软件无联机功能，你可以通过坚果云来备份自己的存档，实现“云存档”的功能</p>
+				<p>
+					此软件无联机功能，你可以通过坚果云来备份自己的存档，实现“云存档”的功能
+				</p>
 			</div>
 			<div class="describe">
 				<h3>自由</h3>
-				<p>这个软件属于开源世界，你可以轻易访问到它的源代码，有能者可以为它贡献代码</p>
+				<p>
+					这个软件属于开源世界，你可以轻易访问到它的源代码，有能者可以为它贡献代码
+				</p>
 			</div>
 		</div>
-		<div class="new">
-			<p>第一次使用？不妨按照以下步骤来操作</p>
-			<el-steps :space="200" :active="3" simple>
-				<el-step title="自动识别存档" :icon="Edit"></el-step>
-				<el-step title="进入存档管理" :icon="Files"></el-step>
-				<el-step title="开始备份！" :icon="UploadFilled"></el-step>
-			</el-steps>
-		</div>
+		<el-container class="new" direction="horizontal">
+			<el-result title="导入游戏">
+				<template #icon>
+					<Edit />
+				</template>
+				<template #extra>
+					<el-button type="primary" @click="go_add_game()">跳转</el-button>
+				</template>
+			</el-result>
+			<el-result title="进入存档管理">
+				<template #icon>
+					<Files />
+				</template>
+				<template #extra>
+					<el-button type="primary" @click="go_game_manage()">提示</el-button>
+				</template>
+			</el-result>
+			<el-result title="开始备份！">
+				<template #icon>
+					<UploadFilled />
+				</template>
+				<template #extra>
+					<el-button type="primary" @click="go_backup()">提示</el-button>
+				</template>
+			</el-result>
+		</el-container>
 	</el-container>
 </template>
 
@@ -32,13 +54,30 @@ import { Edit, UploadFilled, Files } from "@element-plus/icons-vue";
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { ElNotification } from "element-plus";
 
 export default defineComponent({
 	components: {},
 	data() {
 		return {};
 	},
-	methods: {},
+	methods: {
+		go_add_game() {
+			this.$router.push("/add-game");
+		},
+		go_game_manage(){
+			ElNotification({
+				type:"info",
+				message:"请单击左侧\"存档管理\""
+			})
+		},
+		go_backup(){
+			ElNotification({
+				type:"info",
+				message:"请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
+			})
+		}
+	},
 	computed: {},
 });
 </script>
@@ -54,7 +93,7 @@ export default defineComponent({
 	display: block;
 	font-size: 2em;
 }
-.describe-container{
+.describe-container {
 	display: flex;
 	justify-content: space-around;
 }
@@ -62,6 +101,7 @@ export default defineComponent({
 	width: 25%;
 }
 .new {
-	margin-top: 200px;
+	margin-top: 100px;
+	justify-content: space-around;
 }
 </style>

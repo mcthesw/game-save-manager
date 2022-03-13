@@ -4,7 +4,7 @@
 			<h2>该软件是一个开源的，由Sworld主导的游戏存档管理软件</h2>
 			<p>
 				设计该软件的初衷是为了方便玩家们管理自己的游戏存档，但是由于游戏数量众多，难以一一适配，
-				所以部分游戏能够做到自动识别，而更多的游戏只能靠手动导入，如果你感兴趣的话，可以联系我以提交已有的游戏存档位置。
+				所以游戏路径只能靠手动导入，如果你感兴趣的话，可以尝试参与改善本项目。
 			</p>
 			<h2>支持我</h2>
 			<p>
@@ -13,18 +13,53 @@
 			<p>
 				如果你是普通用户，可以考虑请我喝杯饮料，我将会把你的昵称放在捐赠名单上以表示感谢。
 			</p>
+			<el-container direction="horizontal" class="thanks-container">
+				<div class="thanks">
+					<el-scrollbar>
+						<h1>感谢名单</h1>
+						<el-timeline>
+							<el-timeline-item
+								v-for="thank in thanks"
+								:key="thank.id"
+								:timestamp="thank.describe"
+							>
+								{{ thank.name }}
+							</el-timeline-item>
+						</el-timeline>
+					</el-scrollbar>
+				</div>
+				<div class="frames">
+					<el-scrollbar>
+						<h1>使用框架</h1>
+						<el-timeline>
+							<el-timeline-item
+								v-for="frame in frames"
+								:key="frame.id"
+								:timestamp="frame.describe"
+							>
+								{{ frame.name }}
+							</el-timeline-item>
+						</el-timeline>
+					</el-scrollbar>
+				</div>
+			</el-container>
 		</el-main>
 		<el-footer>
 			<el-link
 				@click="source_click('https://gitee.com/sworldS/game-save-manager')"
-				>开源地址</el-link
+				>Gitee</el-link
+			>
+			|
+			<el-link
+				@click="source_click('https://github.com/mcthesw/game-save-manager')"
+				>Github</el-link
 			>
 			|
 			<el-link
 				@click="
 					source_click('https://gitee.com/sworldS/game-save-manager/releases/')
 				"
-				>发布地址</el-link
+				>国内发布地址</el-link
 			>
 			<span class="version">版本号: {{ $store.state.config.version }}</span>
 		</el-footer>
@@ -38,8 +73,24 @@ const { ipcRenderer } = require("electron");
 export default defineComponent({
 	methods: {
 		source_click(url: string) {
-			ipcRenderer.send("open_url",url)
+			ipcRenderer.send("open_url", url);
 		},
+	},
+	data() {
+		return {
+			thanks: [
+				{ name: "Sworld", describe: "本项目的创始者" },
+				{ name: "勺子", describe: "早期测试者" },
+				{ name: "Wali", describe: "早期测试者" },
+				{ name: "土拨鼠", describe: "早期测试者" },
+				{ name: "蟹哥", describe: "早期测试者" },
+			],
+			frames: [
+				{ name: "Vue3", describe: "前端框架" },
+				{ name: "Element-plus", describe: "UI框架" },
+				{ name: "Electron", describe: "桌面应用框架" },
+			],
+		};
 	},
 });
 </script>
@@ -50,5 +101,19 @@ export default defineComponent({
 	font-size: 0.8rem;
 	text-align: right;
 	float: right;
+}
+.thanks-container {
+	justify-content: space-around;
+	margin-top: 20px;
+	height: 250px;
+}
+.frames,
+.thanks {
+	width: 45%;
+	height: 250px;
+}
+.thanks h1,
+.frames h1 {
+	margin-top: 0;
 }
 </style>

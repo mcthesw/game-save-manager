@@ -50,7 +50,6 @@ export default defineComponent({
 	},
 	computed: {
 		games() {
-			// TODO:读取json文件，通过commit放入store
 			return store.state.config.games;
 		},
 	},
