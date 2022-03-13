@@ -131,10 +131,10 @@ export default defineComponent({
 					method: "change",
 				},
 				{
-					text: "导入配置合集",
+					text: "自动识别本地游戏",
 					type: "primary",
 					icon: "Download",
-					method: "import",
+					method: "search_local",
 				},
 				{
 					text: "保存当前编辑的配置",
@@ -169,7 +169,7 @@ export default defineComponent({
 			// 映射按钮的ID和他们要触发的方法
 			this[button_method]();
 		},
-		import() {
+		search_local() {
 			// TODO:导入已有配置
 			ElNotification({
 				type: "warning",
