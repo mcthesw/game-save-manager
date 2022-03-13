@@ -14,8 +14,15 @@
 					>
 						选择游戏图标(请使用方形图片)
 					</el-button>
-					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" />
+					<el-input v-model="game_name" placeholder="请输入游戏名（必须）" >
+						<template #prepend>
+							游戏名称
+						</template>
+					</el-input>
 					<el-input v-model="save_path" placeholder="请选择存档路径（必须）">
+						<template #prepend>
+							存档目录
+						</template>
 						<template #append>
 							<el-button @click="choose_save_directory()">
 								<el-icon>
@@ -24,7 +31,10 @@
 							</el-button>
 						</template>
 					</el-input>
-					<el-input v-model="game_path" placeholder="请选择游戏启动文件">
+					<el-input v-model="game_path" placeholder="请选择游戏启动文件（非必须）">
+						<template #prepend>
+							启动文件
+						</template>
 						<template #append>
 							<el-button @click="choose_executable_file()">
 								<el-icon>
@@ -97,7 +107,7 @@ export default defineComponent({
 			} else {
 				ElNotification({
 					title: "错误",
-					message: "添加存档失败，请保证游戏名无重复",
+					message: "添加存档失败，请保证游戏名无重复且输入正确无误",
 					type: "warning",
 					duration: 2000,
 				});

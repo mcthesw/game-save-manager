@@ -10,6 +10,7 @@ import {
 } from "./saveManager";
 import { Config, Game, Saves, Save } from "./saveTypes";
 import { exec } from "child_process";
+import fs from "original-fs";
 
 export function init_ipc() {
     ipcMain.on("open_url", async (Event, arg) => {
@@ -74,7 +75,20 @@ export function init_ipc() {
     });
 
     ipcMain.on("add_game", (Event, arg) => {
+        if (!arg.game_name || !arg.save_path || !fs.existsSync(arg.game_path)) {
+            // 参数是否存在，且目录存在
+            Event.reply("reply_add_game", false);
+            console.log("参数不存在，或者目标文件夹不存在")
+            return;
+        }
+        if (Object.keys(get_config().games).includes(arg.game_name)) {
+            // 检查游戏名是否重复
+            Event.reply("reply_add_game", false);
+            console.log("游戏名重复")
+            return;
+        }
         console.log("保存游戏信息：", arg);
+        // 添加游戏存档
         if (arg.game_path) {
             create_game_backup(
                 arg.game_name,
