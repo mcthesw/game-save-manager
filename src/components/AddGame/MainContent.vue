@@ -174,6 +174,13 @@ export default defineComponent({
 			});
 		},
 		save() {
+			if(this.game_name==""||this.save_path==""){
+				ElNotification({
+					type:"error",
+					message:"请至少输入游戏名和存档路径"
+				})
+				return
+			}
 			// 保存当前配置
 			console.log("保存当前编辑的配置");
 			ipcRenderer.send("add_game", {
