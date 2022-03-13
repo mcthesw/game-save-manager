@@ -84,7 +84,6 @@ export default defineComponent({
 				{
 					date: "",
 					describe: "这是一条错误信息，正常情况不会出现",
-					tags: [],
 					path: "",
 				},
 			],
@@ -197,7 +196,6 @@ export default defineComponent({
 			this[func]();
 		},
 		create_new_save() {
-			// TODO:实现tags或者删除tags
 			if (!this.button_enabled) {
 				ElNotification({
 					type: "error",
@@ -208,7 +206,6 @@ export default defineComponent({
 			ipcRenderer.send("backup", {
 				game_name: this.game.name,
 				describe: this.describe,
-				tags: [],
 			});
 			this.describe == "";
 			this.button_enabled = false;

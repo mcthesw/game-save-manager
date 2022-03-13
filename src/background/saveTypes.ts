@@ -41,10 +41,6 @@ export interface Save {
      */
     describe: string;
     /**
-     * 标签(WIP)
-     */
-    tags: Array<string>;
-    /**
      * 当前存档压缩包存放的路径
      */
     path: string;

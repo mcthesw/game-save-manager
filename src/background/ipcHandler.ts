@@ -11,6 +11,7 @@ import {
 import { Config, Game, Saves, Save } from "./saveTypes";
 import { exec } from "child_process";
 import fs from "original-fs";
+import path from "path"
 
 export function init_ipc() {
     ipcMain.on("open_url", async (Event, arg) => {
@@ -67,15 +68,14 @@ export function init_ipc() {
     ipcMain.on("backup", (Event, arg) => {
         let game_name = arg.game_name;
         let describe = arg.describe;
-        let tags = arg.tags;
         console.log("备份游戏存档", arg);
 
-        backup_save(game_name, describe, tags);
+        backup_save(game_name, describe);
         Event.reply("reply_backup", true);
     });
 
     ipcMain.on("add_game", (Event, arg) => {
-        if (!arg.game_name || !arg.save_path || !fs.existsSync(arg.game_path)) {
+        if (!arg.game_name || !arg.save_path || !fs.existsSync(path.join(arg.game_path))) {
             // 参数是否存在，且目录存在
             Event.reply("reply_add_game", false);
             console.log("参数不存在，或者目标文件夹不存在")

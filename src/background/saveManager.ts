@@ -45,12 +45,10 @@ function set_game_saves_info(game_name: string, new_saves: Saves) {
  * 通过输入必要的信息来备份指定游戏的存档
  * @param game_name 需要备份的游戏名
  * @param describe 当前存档的描述信息
- * @param tags 当前存档的标签
  */
 export function backup_save(
     game_name: string,
     describe: string,
-    tags: Array<string>
 ) {
     let config = get_config();
     let game_save_path = config.games[game_name].save_path;
@@ -61,7 +59,6 @@ export function backup_save(
     let save_info: Save = {
         date: date,
         describe: describe,
-        tags: tags,
         path: path.join(backup_path, date + ".zip"),
     };
 
