@@ -2,7 +2,7 @@ import fs from "fs";
 import { Config } from "./saveTypes";
 
 export let default_config: Config = {
-    version: "0.1.6",
+    version: "0.1.7",
     backup_path: "./save_data",
     games: {},
     settings:{
