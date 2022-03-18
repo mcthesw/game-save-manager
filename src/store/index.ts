@@ -1,6 +1,7 @@
 import { InjectionKey } from "vue";
 import { createStore, Store } from "vuex";
 import { Config, Game, Saves, Save, Games } from "../background/saveTypes";
+import {default_config} from "../background/config"
 
 // 为 store state 声明类型
 export interface State {
@@ -12,11 +13,7 @@ export const key: InjectionKey<Store<State>> = Symbol();
 
 export const store = createStore<State>({
   state: {
-    config:{
-      version:"0.0.0",
-      backup_path:"",
-      games:{}
-    }
+    config:default_config
   },
   mutations: {
     get_config(state, config:Config) {

@@ -2,9 +2,14 @@ import fs from "fs";
 import { Config } from "./saveTypes";
 
 export let default_config: Config = {
-    version: "0.1.4",
+    version: "0.1.6",
     backup_path: "./save_data",
     games: {},
+    settings:{
+        prompt_when_not_described:false,
+        double_check_when_apply_save:true,
+        double_check_when_delete_save:true,
+    }
 };
 
 function init_config() {

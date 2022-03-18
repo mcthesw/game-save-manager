@@ -1,5 +1,5 @@
 import { ipcMain, shell, dialog, nativeImage } from "electron";
-import { get_config } from "./config";
+import { get_config,set_config } from "./config";
 import {
     get_game_saves_info,
     backup_save,
@@ -126,4 +126,10 @@ export function init_ipc() {
         console.log("启动游戏", arg);
         exec(arg);
     });
+
+    ipcMain.on("set_config",(Event,arg)=>{
+        console.log("更改配置文件",arg)
+        set_config(arg);
+        Event.reply("reply_set_config",true);
+    })
 }

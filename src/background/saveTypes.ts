@@ -10,11 +10,11 @@ export interface Game {
      */
     game_path?: string;
 }
-export interface Games{
+export interface Games {
     /**
      * 使用游戏名来找到游戏信息
      */
-    [name:string]:Game,
+    [name: string]: Game;
 }
 export interface Config {
     /**
@@ -29,6 +29,10 @@ export interface Config {
      * 各个游戏信息
      */
     games: Games;
+    /**
+     * 存档管理器的配置信息
+     */
+    settings:Settings;
 }
 
 export interface Save {
@@ -58,4 +62,10 @@ export interface Saves {
      * 游戏图标,可以是base64也可以是url
      */
     icon: string;
+}
+
+export interface Settings {
+    prompt_when_not_described: boolean;
+    double_check_when_apply_save: boolean;
+    double_check_when_delete_save: boolean;
 }
