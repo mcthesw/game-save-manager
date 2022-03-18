@@ -13,20 +13,6 @@
 				/>
 				<span>当未描述存档时，弹出提示</span>
 			</div>
-			<div class="setting-box">
-				<ElSwitch
-					v-model="config.settings.double_check_when_apply_save"
-					:loading="loading"
-				/>
-				<span>应用存档时二次确认</span>
-			</div>
-			<div class="setting-box">
-				<ElSwitch
-					v-model="config.settings.double_check_when_delete_save"
-					:loading="loading"
-				/>
-				<span>删除存档时二次确认</span>
-			</div>
 		</el-card>
 	</el-container>
 </template>

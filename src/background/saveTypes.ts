@@ -65,7 +65,8 @@ export interface Saves {
 }
 
 export interface Settings {
+    /**
+     * 是否允许不输入描述就存档
+     */
     prompt_when_not_described: boolean;
-    double_check_when_apply_save: boolean;
-    double_check_when_delete_save: boolean;
 }

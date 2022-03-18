@@ -7,8 +7,6 @@ export let default_config: Config = {
     games: {},
     settings:{
         prompt_when_not_described:false,
-        double_check_when_apply_save:true,
-        double_check_when_delete_save:true,
     }
 };
 

@@ -196,6 +196,25 @@ export default defineComponent({
 			this[func]();
 		},
 		create_new_save() {
+			// 先检查配置中的prompt_when_not_described（是否允许不输入描述就存档）
+			if (
+				store.state.config.settings.prompt_when_not_described &&
+				!this.describe
+			) {
+				ElMessageBox.confirm("你没有给这个存档提供描述，继续吗？", "警告", {
+					confirmButtonText: "坚持保存",
+					cancelButtonText: "取消",
+					type: "warning",
+				})
+					.then(() => {
+						this.send_save_to_background();
+					})
+					.catch(() => {});
+			} else {
+				this.send_save_to_background();
+			}
+		},
+		send_save_to_background() {
 			if (!this.button_enabled) {
 				ElNotification({
 					type: "error",
@@ -210,7 +229,7 @@ export default defineComponent({
 			this.describe == "";
 			this.button_enabled = false;
 			let that = this;
-			setTimeout(()=>{
+			setTimeout(() => {
 				that.button_enabled = true;
 			}, 1000);
 		},
