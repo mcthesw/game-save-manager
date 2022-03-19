@@ -83,7 +83,7 @@ export default defineComponent({
 				{ name: "勺子", describe: "早期测试者" },
 				{ name: "Wali", describe: "早期测试者" },
 				{ name: "土拨鼠", describe: "早期测试者" },
-				{ name: "蟹哥", describe: "早期测试者" },
+				{ name: "布莱泽", describe: "早期测试者" },
 			],
 			frames: [
 				{ name: "Vue3", describe: "前端框架" },
