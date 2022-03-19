@@ -81,6 +81,7 @@ import {
 	Download,
 	MagicStick,
 } from "@element-plus/icons-vue";
+import router from "@/router";
 
 export default defineComponent({
 	mounted() {
@@ -177,11 +178,7 @@ export default defineComponent({
 			});
 		},
 		change() {
-			// TODO:改变已有配置
-			ElNotification({
-				type: "warning",
-				message: "--WIP-- 这个功能尚未完成",
-			});
+			router.push("/change-game-info");
 		},
 		save() {
 			if(this.game_name==""||this.save_path==""){

@@ -8,7 +8,7 @@ import {
     delete_save,
     delete_game,
 } from "./saveManager";
-import { Config, Game, Saves, Save } from "./saveTypes";
+import { Config, Games, Game, Saves, Save } from "./saveTypes";
 import { exec } from "child_process";
 import fs from "original-fs";
 import path from "path"
@@ -97,7 +97,7 @@ export function init_ipc() {
                 arg.game_path
             );
         } else {
-            create_game_backup(arg.game_name, arg.save_path, arg.icon);
+            create_game_backup(arg.game_name, arg.save_path, arg.icon," ");
         }
         Event.reply("reply_add_game", true);
     });
@@ -131,5 +131,13 @@ export function init_ipc() {
         console.log("更改配置文件",arg)
         set_config(arg);
         Event.reply("reply_set_config",true);
+    })
+
+    ipcMain.on("set_game_infos",(Event,arg)=>{
+        let config = get_config();
+        console.log("更新游戏信息",arg)
+        config.games = arg;
+        set_config(config);
+        Event.reply("reply_set_game_infos",true)
     })
 }

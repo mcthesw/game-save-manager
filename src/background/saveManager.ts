@@ -32,7 +32,7 @@ export function get_game_saves_info(game_name: string) {
  * @param game_name 游戏名
  * @param new_saves 修改后的存档集合信息
  */
-function set_game_saves_info(game_name: string, new_saves: Saves) {
+export function set_game_saves_info(game_name: string, new_saves: Saves) {
     let config = get_config();
     let saves_path = config.backup_path;
     fs.writeFileSync(
@@ -120,7 +120,7 @@ export function create_game_backup(
     game_name: string,
     save_path: string,
     icon: string,
-    game_path?: string
+    game_path: string
 ) {
     let game: Game = {
         save_path: save_path,
