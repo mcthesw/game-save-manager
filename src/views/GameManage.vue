@@ -76,7 +76,7 @@ export default defineComponent({
 		return {
 			top_buttons: [
 				{ text: "创建新存档", method: "create_new_save" },
-				{ text: "装载最新的存档", method: "load_latest_save" },
+				{ text: "用最新存档覆盖", method: "load_latest_save" },
 				{ text: "启动游戏", method: "launch_game" },
 			],
 			search: "",

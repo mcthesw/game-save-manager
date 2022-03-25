@@ -6,7 +6,7 @@ module.exports = {
         productName: "游戏存档管理",
         win:{
           target:"zip",
-          icon:"./public/icon.ico"
+          //icon:"./public/icon.png"
         }
       },
     },

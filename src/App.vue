@@ -14,7 +14,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import MainSideBar from "./components/MainSideBar.vue";
-import { ElNotification } from "element-plus";
+import { ElMessageBox, ElNotification } from "element-plus";
 import { store } from "./store";
 import { ipcRenderer } from "electron";
 
@@ -27,6 +27,19 @@ export default defineComponent({
 			// 获取到的config的json
 			console.log("获取到了config文件", arg);
 			store.commit("get_config", arg);
+		});
+
+		ipcRenderer.on("unknown_config_version", (Event, arg) => {
+			if (arg) {
+				ElMessageBox.alert(
+					"检测到未知或太老的配置版本，无法继续使用，请关闭该软件并正确升级",
+					"警告",
+					{
+						type: "error",
+						confirmButtonText: "我已了解",
+					}
+				);
+			}
 		});
 
 		ElNotification({

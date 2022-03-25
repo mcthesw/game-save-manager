@@ -69,4 +69,8 @@ export interface Settings {
      * 是否允许不输入描述就存档
      */
     prompt_when_not_described: boolean;
+    /**
+     * 是否在应用存档时进行额外备份
+     */
+    extra_backup_when_apply:boolean;
 }

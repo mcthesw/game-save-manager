@@ -82,8 +82,32 @@ export function apply_backup(game_name: string, save_date: TimeLike) {
         game_name,
         save_date + ".zip"
     );
-
+    if(config.settings.extra_backup_when_apply){
+        create_extra_backup(game_name)
+    }
     extract_to_folder(backup_path, game_save_path);
+}
+
+/**
+ * 创建额外备份
+ * @param game_name 游戏名
+ */
+function create_extra_backup(game_name:string){
+    let config = get_config();
+    let game_save_path = config.games[game_name].save_path;
+    let extra_backup_path = path.join(config.backup_path, game_name,"extra_backup");
+
+    if(!fs.existsSync(extra_backup_path)){fs.mkdirSync(extra_backup_path)};
+    fs.readdir(extra_backup_path,(err,files)=>{
+        if(files && files.length>=5){
+            files.sort();
+            console.log("删除额外备份: ",files[0])
+            fs.unlinkSync(path.join(extra_backup_path,files[0]));
+        }
+    })
+
+    let date = moment().format("被覆盖时间YYYY-MM-DD_HH-mm-ss");
+    compress_to_file(game_save_path, extra_backup_path, date);
 }
 
 /**
