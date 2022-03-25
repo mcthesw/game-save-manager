@@ -17,6 +17,7 @@ import path from "path"
 export function init_ipc() {
     ipcMain.on("open_url", async (Event, arg) => {
         // 打开URL
+        console.log("打开URL",arg)
         shell.openExternal(arg);
         Event.reply("reply_open_url", true);
     });

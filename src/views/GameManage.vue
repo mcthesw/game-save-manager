@@ -78,7 +78,6 @@ export default defineComponent({
 				{ text: "创建新存档", method: "create_new_save" },
 				{ text: "用最新存档覆盖", method: "load_latest_save" },
 				{ text: "启动游戏", method: "launch_game" },
-				{text:"打开额外备份",method:""}
 			],
 			search: "",
 			table_data: [
@@ -197,10 +196,6 @@ export default defineComponent({
 		ipcRenderer.removeAllListeners("reply_apply_backup_with_extra_backup");
 	},
 	methods: {
-		open_extra_backup(){
-			let url = path.join(store.state.config.backup_path,this.game.name,"extra_backup")
-			ipcRenderer.send("open_url",url)
-		},
 		load_game(saves) {
 			// 在路由切换后，把当前游戏的信息读取到data的table_data中
 			this.game.name = saves.name;
