@@ -9,7 +9,7 @@ import path from "path";
  * @param target_path 存档zip文件的路径
  * @param file_name 目标文件名
  */
-export function compress_to_file(
+export async function compress_to_file(
     source_path: string,
     target_path: string,
     file_name: string
@@ -30,7 +30,7 @@ export function compress_to_file(
     // 通过管道把输出流存到文件
     archive.pipe(output);
     archive.directory(source_path, false);
-    archive.finalize();
+    await archive.finalize();
 }
 
 export function clear_folder_recursive(folder_path: string) {
@@ -51,7 +51,7 @@ export function clear_folder_recursive(folder_path: string) {
  * @param source_file_path 压缩文件
  * @param target_path 目标文件夹
  */
-export function extract_to_folder(
+export async function extract_to_folder(
     source_file_path: string,
     target_path: string
 ) {
@@ -60,7 +60,7 @@ export function extract_to_folder(
     }
     clear_folder_recursive(target_path);
 
-    fs.createReadStream(source_file_path).pipe(
-        unzipper.Extract({ path: target_path })
-    );
+    await unzipper.Open.file(source_file_path)
+    .then(d => d.extract({path:target_path}))
+    console.log("解压成功")
 }

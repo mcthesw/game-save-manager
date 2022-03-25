@@ -46,7 +46,7 @@ export function set_game_saves_info(game_name: string, new_saves: Saves) {
  * @param game_name 需要备份的游戏名
  * @param describe 当前存档的描述信息
  */
-export function backup_save(
+export async function backup_save(
     game_name: string,
     describe: string,
 ) {
@@ -66,7 +66,7 @@ export function backup_save(
     saves.saves.unshift(save_info);
 
     set_game_saves_info(game_name, saves);
-    compress_to_file(game_save_path, backup_path, date);
+    await compress_to_file(game_save_path, backup_path, date);
 }
 
 /**
@@ -74,7 +74,7 @@ export function backup_save(
  * @param game_name 游戏名
  * @param save_date 存档时间
  */
-export function apply_backup(game_name: string, save_date: TimeLike) {
+export async function apply_backup(game_name: string, save_date: TimeLike) {
     let config = get_config();
     let game_save_path = config.games[game_name].save_path;
     let backup_path = path.join(
@@ -82,17 +82,14 @@ export function apply_backup(game_name: string, save_date: TimeLike) {
         game_name,
         save_date + ".zip"
     );
-    if(config.settings.extra_backup_when_apply){
-        create_extra_backup(game_name)
-    }
-    extract_to_folder(backup_path, game_save_path);
+    await extract_to_folder(backup_path, game_save_path);
 }
 
 /**
  * 创建额外备份
  * @param game_name 游戏名
  */
-function create_extra_backup(game_name:string){
+export async function create_extra_backup(game_name:string){
     let config = get_config();
     let game_save_path = config.games[game_name].save_path;
     let extra_backup_path = path.join(config.backup_path, game_name,"extra_backup");
@@ -107,7 +104,7 @@ function create_extra_backup(game_name:string){
     })
 
     let date = moment().format("被覆盖时间YYYY-MM-DD_HH-mm-ss");
-    compress_to_file(game_save_path, extra_backup_path, date);
+    await compress_to_file(game_save_path, extra_backup_path, date);
 }
 
 /**

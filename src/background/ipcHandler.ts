@@ -7,6 +7,7 @@ import {
     create_game_backup,
     delete_save,
     delete_game,
+    create_extra_backup,
 } from "./saveManager";
 import { Config, Games, Game, Saves, Save } from "./saveTypes";
 import { exec } from "child_process";
@@ -65,12 +66,12 @@ export function init_ipc() {
         Event.reply("reply_config", config);
     });
 
-    ipcMain.on("backup", (Event, arg) => {
+    ipcMain.on("backup", async (Event, arg) => {
         let game_name = arg.game_name;
         let describe = arg.describe;
         console.log("备份游戏存档", arg);
 
-        backup_save(game_name, describe);
+        await backup_save(game_name, describe);
         Event.reply("reply_backup", true);
     });
 
@@ -102,11 +103,19 @@ export function init_ipc() {
         Event.reply("reply_add_game", true);
     });
 
-    ipcMain.on("apply_backup", (Event, arg) => {
+    ipcMain.on("apply_backup", async (Event, arg) => {
         console.log("开始恢复存档", arg);
-        apply_backup(arg.game_name, arg.save_date);
+        await apply_backup(arg.game_name, arg.save_date);
+        console.log("恢复完成",arg);
         Event.reply("reply_apply_backup", true);
     });
+
+    ipcMain.on("apply_backup_with_extra_backup",async (Event, arg)=>{
+        console.log("首先进行额外备份")
+        await create_extra_backup(arg.game_name);
+        Event.reply("reply_apply_backup_with_extra_backup",[true,arg]);
+    });
+
     ipcMain.on("delete_save", (Event, arg) => {
         console.log("删除单个存档", arg);
         delete_save(arg.game_name, arg.save_date);

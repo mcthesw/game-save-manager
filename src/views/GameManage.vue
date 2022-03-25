@@ -78,6 +78,7 @@ export default defineComponent({
 				{ text: "创建新存档", method: "create_new_save" },
 				{ text: "用最新存档覆盖", method: "load_latest_save" },
 				{ text: "启动游戏", method: "launch_game" },
+				{text:"打开额外备份",method:""}
 			],
 			search: "",
 			table_data: [
@@ -94,7 +95,9 @@ export default defineComponent({
 				icon: "",
 			},
 			describe: "",
-			button_enabled: true,
+			backup_button_time_limit: true, // 两次备份时间间隔1秒
+			backup_button_backup_limit: true, // 上次没备份好禁止再备份或读取
+			apply_button_apply_limit: true, // 上次未恢复好禁止读取或备份
 		};
 	},
 	mounted() {
@@ -119,6 +122,7 @@ export default defineComponent({
 		ipcRenderer.on("reply_backup", (Event, arg) => {
 			let type;
 			let message;
+			console.log("备份结果:", arg);
 			if (arg) {
 				type = "success";
 				message = "备份成功";
@@ -130,6 +134,7 @@ export default defineComponent({
 				type: type,
 				message: message,
 			});
+			this.backup_button_backup_limit = true;
 			ipcRenderer.send("get_game_backup", {
 				game_name: this.$route.params.name,
 			});
@@ -166,6 +171,17 @@ export default defineComponent({
 				type: type,
 				message: message,
 			});
+			this.apply_button_apply_limit = true;
+		});
+		ipcRenderer.on("reply_apply_backup_with_extra_backup", (Event, arg) => {
+			if (!arg[0]) {
+				throw "在reply_apply_backup_with_extra_backup中发生未知错误";
+			}
+			ElNotification({ message: "已经创建额外备份", type: "success" });
+			ipcRenderer.send("apply_backup", {
+				game_name: arg[1].game_name,
+				save_date: arg[1].save_date,
+			});
 		});
 
 		ipcRenderer.send("get_game_backup", {
@@ -178,8 +194,13 @@ export default defineComponent({
 		ipcRenderer.removeAllListeners("reply_backup");
 		ipcRenderer.removeAllListeners("reply_delete_save");
 		ipcRenderer.removeAllListeners("reply_apply_backup");
+		ipcRenderer.removeAllListeners("reply_apply_backup_with_extra_backup");
 	},
 	methods: {
+		open_extra_backup(){
+			let url = path.join(store.state.config.backup_path,this.game.name,"extra_backup")
+			ipcRenderer.send("open_url",url)
+		},
 		load_game(saves) {
 			// 在路由切换后，把当前游戏的信息读取到data的table_data中
 			this.game.name = saves.name;
@@ -215,10 +236,28 @@ export default defineComponent({
 			}
 		},
 		send_save_to_background() {
-			if (!this.button_enabled) {
+			ElNotification({
+				type: "info",
+				message: "当该游戏存档大时操作会很久，请等提示成功后再进行其他操作",
+			});
+			if (!this.backup_button_time_limit) {
 				ElNotification({
 					type: "error",
 					message: "无法在一秒内进行多次存档",
+				});
+				return;
+			}
+			if (!this.backup_button_backup_limit) {
+				ElNotification({
+					type: "error",
+					message: "上次备份还未完成，请等待",
+				});
+				return;
+			}
+			if (!this.apply_button_apply_limit) {
+				ElNotification({
+					type: "warning",
+					message: "上次覆盖还未完成，请等待",
 				});
 				return;
 			}
@@ -227,10 +266,11 @@ export default defineComponent({
 				describe: this.describe,
 			});
 			this.describe == "";
-			this.button_enabled = false;
+			this.backup_button_time_limit = false;
+			this.backup_button_backup_limit = false;
 			let that = this;
 			setTimeout(() => {
-				that.button_enabled = true;
+				that.backup_button_time_limit = true;
 			}, 1000);
 		},
 		load_latest_save() {
@@ -261,10 +301,37 @@ export default defineComponent({
 			});
 		},
 		apply_save(date) {
-			ipcRenderer.send("apply_backup", {
-				game_name: this.game.name,
-				save_date: date,
+			ElNotification({
+				type: "info",
+				message: "当该游戏存档大时操作会很久，请等提示成功后再进行其他操作",
 			});
+
+			if (!this.apply_button_apply_limit) {
+				ElNotification({
+					type: "warning",
+					message: "上次覆盖还未完成，请等待",
+				});
+				return;
+			}
+			if (!this.backup_button_backup_limit) {
+				ElNotification({
+					type: "error",
+					message: "上次备份还未完成，请等待",
+				});
+				return;
+			}
+			if (store.state.config.settings.extra_backup_when_apply) {
+				ipcRenderer.send("apply_backup_with_extra_backup", {
+					game_name: this.game.name,
+					save_date: date,
+				});
+			} else {
+				ipcRenderer.send("apply_backup", {
+					game_name: this.game.name,
+					save_date: date,
+				});
+			}
+			this.apply_button_apply_limit = false;
 		},
 		del_cur() {
 			ElMessageBox.prompt(
