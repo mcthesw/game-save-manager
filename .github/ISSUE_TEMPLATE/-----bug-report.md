@@ -1,5 +1,5 @@
 ---
-name: 错误报告Bug report
+name: 错误报告 Bug report
 about: 创建帮助我们改进的报告 Create a report to help us improve
 title: "[错误/BUG]"
 labels: bug
