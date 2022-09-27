@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **新功能描述 Describe the feature**
-你可以简要描述你期望的新功能具体是什么样的。
+你可以简要描述你期望的新功能是什么样的。
 You can briefly describe what new features you expect
 
 **应用场景简述 Application scenario**
