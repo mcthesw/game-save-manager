@@ -1,3 +1,10 @@
+/*
+ * @Author: PlanC
+ * @Date: 2022-09-28 12:13:50
+ * @LastEditTime: 2022-09-28 12:49:00
+ * @FilePath: \game-save-manager\src\background.ts
+ */
+
 "use strict";
 
 import { app, protocol, BrowserWindow, nativeImage, shell } from "electron";
@@ -59,7 +66,7 @@ app.on("ready", async () => {
     // Install Vue Devtools
     try {
       await installExtension(VUEJS3_DEVTOOLS);
-    } catch (e) {
+    } catch (e:any) {
       console.error("Vue Devtools failed to install:", e.toString());
     }
   }

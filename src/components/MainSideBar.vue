@@ -9,14 +9,14 @@
 				</template>
 				<el-menu-item
 					v-for="game in Object.keys(games)"
-					:key="game.id"
+					:key="game"
 					:index="'/management/' + game"
 				>
 					{{ game }}
 				</el-menu-item>
 			</el-sub-menu>
 			<!-- 下方是常规按钮 -->
-			<el-menu-item v-for="link in links" :index="link.link" :key="link.key">
+			<el-menu-item v-for="link in links" :index="link.link" :key="link.text">
 				<el-icon> <component :is="link.icon"></component> </el-icon>
 				<span>{{ link.text }}</span>
 			</el-menu-item>

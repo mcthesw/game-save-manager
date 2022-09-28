@@ -1,3 +1,10 @@
+<!--
+ * @Author: PlanC
+ * @Date: 2022-09-28 12:13:50
+ * @LastEditTime: 2022-09-28 12:25:06
+ * @FilePath: \game-save-manager\src\views\Home.vue
+-->
+
 <template>
 	<el-container class="home-container" direction="vertical">
 		<h2>你好 世界</h2>
@@ -55,6 +62,8 @@ import { Edit, UploadFilled, Files } from "@element-plus/icons-vue";
 <script lang="ts">
 import { defineComponent } from "vue";
 import { ElNotification } from "element-plus";
+import { store } from "../store";
+import axios from "axios";
 
 export default defineComponent({
 	components: {},
@@ -76,9 +85,33 @@ export default defineComponent({
 				type:"info",
 				message:"请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
 			})
-		}
+		},
+        update_prog(url:String) {
+            console.log(url);
+            // TODO: 下载并覆盖本地程序
+        }
 	},
 	computed: {},
+    // 创建页面前执行查找更新版本号模式
+    beforeCreate: function() {
+        // https://api.github.com/repos/mcthesw/game-save-manager/releases/latest
+        var that = this;
+        var version = store.getters.getConfig.version;
+        // 获取github release latest频道的更新数据
+        axios
+            .get("https://api.github.com/repos/mcthesw/game-save-manager/releases/latest")
+            .then(function (response) {
+                if (version === response.data.tag_name) {
+                    console.log("latest");
+                }
+                else {
+                    that.update_prog(response.data.zipball_url);
+                }
+            })
+            .catch(function (err) {
+                console.log(err);
+            });
+    }
 });
 </script>
 

@@ -1,3 +1,10 @@
+/*
+ * @Author: PlanC
+ * @Date: 2022-09-28 12:13:50
+ * @LastEditTime: 2022-09-28 12:49:47
+ * @FilePath: \game-save-manager\src\store\index.ts
+ */
+
 import { InjectionKey } from "vue";
 import { createStore, Store } from "vuex";
 import { Config, Game, Saves, Save, Games } from "../background/saveTypes";
@@ -14,6 +21,9 @@ export const key: InjectionKey<Store<State>> = Symbol();
 export const store = createStore<State>({
   state: {
     config:default_config
+  },
+  getters: {
+	get_config: state => state.config,
   },
   mutations: {
     get_config(state, config:Config) {

@@ -1,8 +1,14 @@
+<!--
+ * @Author: PlanC
+ * @Date: 2022-09-28 12:13:50
+ * @LastEditTime: 2022-09-28 12:48:04
+ * @FilePath: \game-save-manager\src\views\ChangeGameInfo.vue
+-->
 <template>
 	<el-container class="change-game-info">
 		<el-main>
 			<el-scrollbar>
-				<el-card v-for="game in Object.keys(this.games)" :key="game.id">
+				<el-card v-for="game in Object.keys(games)" :key="game">
 					<el-tag>游戏名：{{ game }}</el-tag>
 					<el-input v-model="games[game].save_path">
 						<template #prepend>存档目录</template>

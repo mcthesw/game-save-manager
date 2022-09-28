@@ -1,3 +1,10 @@
+<!--
+ * @Author: PlanC
+ * @Date: 2022-09-28 12:13:50
+ * @LastEditTime: 2022-09-28 12:47:58
+ * @FilePath: \game-save-manager\src\views\GameManage.vue
+-->
+
 <template>
 	<div class="manage-container">
 		<!-- 下面是顶栏部分 -->
@@ -78,6 +85,7 @@ export default defineComponent({
 				{ text: "创建新存档", method: "create_new_save" },
 				{ text: "用最新存档覆盖", method: "load_latest_save" },
 				{ text: "启动游戏", method: "launch_game" },
+				{ text: "打开存档文件夹", method: "open_save_folder"},
 			],
 			search: "",
 			table_data: [
@@ -89,7 +97,8 @@ export default defineComponent({
 			],
 			game: {
 				name: "",
-				save_path: "",
+				backup_path: "", // 原save_path，现改为backup_path，备份存档位置
+				save_path: "", // 游戏存档位置
 				game_path: "",
 				icon: "",
 			},
@@ -200,10 +209,11 @@ export default defineComponent({
 			// 在路由切换后，把当前游戏的信息读取到data的table_data中
 			this.game.name = saves.name;
 			this.table_data = saves.saves;
-			this.game.save_path = path.join(
+			this.game.backup_path = path.join(
 				store.state.config.backup_path,
 				this.game.name
 			);
+			this.game.save_path = store.getters.getConfig.games[this.game.name].save_path;
 			this.game.game_path = store.state.config.games[this.game.name].game_path;
 			this.game.icon = saves.icon;
 		},
@@ -288,6 +298,14 @@ export default defineComponent({
 			} else {
 				ipcRenderer.send("open_exe", this.game.game_path);
 			}
+		},
+		open_save_folder() {
+			// 初始化node-cmd实例
+			var cmd = require("node-cmd");
+			// debug输出
+			console.log(this.game.save_path);
+			// 打开存档目录
+			cmd.run("explorer " + this.game.save_path);
 		},
 		del_save(date) {
 			ipcRenderer.send("delete_save", {

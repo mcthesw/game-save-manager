@@ -20,7 +20,7 @@
 						<el-timeline>
 							<el-timeline-item
 								v-for="thank in thanks"
-								:key="thank.id"
+								:key="thank.name"
 								:timestamp="thank.describe"
 							>
 								{{ thank.name }}
@@ -34,7 +34,7 @@
 						<el-timeline>
 							<el-timeline-item
 								v-for="frame in frames"
-								:key="frame.id"
+								:key="frame.name"
 								:timestamp="frame.describe"
 							>
 								{{ frame.name }}
@@ -61,13 +61,14 @@
 				"
 				>国内发布地址</el-link
 			>
-			<span class="version">版本号: {{ $store.state.config.version }}</span>
+			<span class="version">版本号: {{ version }}</span>
 		</el-footer>
 	</el-container>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { store } from "../store";
 const { ipcRenderer } = require("electron");
 
 export default defineComponent({
@@ -78,6 +79,7 @@ export default defineComponent({
 	},
 	data() {
 		return {
+			version: store.getters.config.version,
 			thanks: [
 				{ name: "Sworld", describe: "本项目的创始者" },
 				{ name: "勺子", describe: "早期测试者" },
