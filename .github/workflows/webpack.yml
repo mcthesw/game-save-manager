@@ -13,8 +13,7 @@ jobs:
     strategy:
       matrix:
         node-version: [16.x,]
-        os: [windows-latest,]
-        # ,ubuntu-latest,macos-latest
+        os: [windows-latest,ubuntu-latest,macos-latest]
     
     steps:
     - uses: actions/checkout@v3
@@ -33,12 +32,8 @@ jobs:
         npx browserslist@latest --update-db
         npm run electron:build
     
-    - name: Cleanup Artifacts
-      run: |
-        npx rimraf "dist_electron/!(*.zip)"
-    
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v3.1.0
       with:
         name: ${{ matrix.os }}
-        path: ./dist_electron
+        path: ./dist_electron/*.zip
