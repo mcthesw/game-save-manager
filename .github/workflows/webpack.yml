@@ -26,7 +26,8 @@ jobs:
 
     - name: Install modules
       run: |
-        npm install
+        # 使用yarn的原因 https://blog.csdn.net/qq_38238956/article/details/124720842
+        yarn
     - name: Build
       run: |
         npx browserslist@latest --update-db
