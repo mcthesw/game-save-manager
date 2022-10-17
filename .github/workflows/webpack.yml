@@ -30,6 +30,7 @@ jobs:
     - name: Build
       run: |
         npx browserslist@latest --update-db
+        yarn
         npm run electron:build
     
     - name: Upload a Build Artifact
