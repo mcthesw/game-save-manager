@@ -27,11 +27,12 @@ jobs:
     - name: Install modules
       run: |
         npm install
-    - name: build
+    - name: Build
       run: |
+        npx browserslist@latest --update-db
         npm run electron:build
     
-    - name: cleanup artifacts
+    - name: Cleanup Artifacts
       run: |
         npx rimraf "dist_electron/!(*.zip)"
     
