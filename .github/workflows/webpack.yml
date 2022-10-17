@@ -1,0 +1,43 @@
+name: NodeJS with Webpack
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        node-version: [16.x,]
+        os: [windows-latest,]
+        # ,ubuntu-latest,macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - name: Install modules
+      run: |
+        npm install
+    - name: Build
+      run: |
+        npx browserslist@latest --update-db
+        npm run electron:build
+    
+    - name: Cleanup Artifacts
+      run: |
+        npx rimraf "dist_electron/!(*.zip)"
+    
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: ${{ matrix.os }}
+        path: ./dist_electron
