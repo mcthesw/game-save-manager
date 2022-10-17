@@ -3,7 +3,7 @@ module.exports = {
     electronBuilder: {
       nodeIntegration: true,
       builderOptions: {
-        productName: "游戏存档管理",
+        productName: "GameSaveManager",
         win:{
           target:"zip",
           //icon:"./public/icon.png"
@@ -11,7 +11,7 @@ module.exports = {
         linux:{
           target:"zip"
         },
-        macos:{
+        mac:{
           target:"zip"
         }
       },
