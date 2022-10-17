@@ -28,6 +28,7 @@ npm run electron:serve
 
 #### 打包构建:robot:
 默认的配置是只有 Windows 系统下的压缩包，你可以修改 [vue.config.js](vue.config.js) 来定制打包方法
+定制文档：[Electron-builder](https://www.electron.build/)
 打包指令如下
 ```
 npm run electron:build
