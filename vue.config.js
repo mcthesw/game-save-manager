@@ -7,6 +7,12 @@ module.exports = {
         win:{
           target:"zip",
           //icon:"./public/icon.png"
+        },
+        linux:{
+          target:"zip"
+        },
+        macos:{
+          target:"zip"
         }
       },
     },
