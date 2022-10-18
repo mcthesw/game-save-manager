@@ -32,6 +32,8 @@ jobs:
         npx browserslist@latest --update-db
         yarn
         npm run electron:build
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v3.1.0
