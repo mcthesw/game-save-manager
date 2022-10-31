@@ -5,7 +5,7 @@
 [下个版本计划](https://github.com/mcthesw/game-save-manager/milestone/1)
 ## 普通用户指南:ghost:
 #### 启动程序 :sunglasses:
-在[ Release 页面](https://github.com/mcthesw/game-save-manager/releases)([国内地址](https://gitee.com/sworldS/game-save-manager/releases/))下载已经打包好的文件，放在你喜欢的地方(最好有着充足的储存空间，且无权限限制)，左键双击其中的EXE文件以启动该软件。
+在[ Release 页面](https://github.com/mcthesw/game-save-manager/releases)([国内地址](https://gitee.com/sworldS/game-save-manager/releases/))下载已经打包好的文件，放在你喜欢的地方(最好有着充足的储存空间，且无权限限制)，可以放入OneDrive网盘，在多个设备自动同步数据，左键双击其中的EXE文件以启动该软件。
 
 该软件暂时没有制作安装包的计划，因为备份的存档目前是放在软件安装目录下的，如果使用安装包的话有可能会有一些权限的问题需要处理，而且默认安装是放在C盘的，备份多了之后体积可能也是个问题，而现在的重点可能并不在这，之后可能会加入安装包
 
