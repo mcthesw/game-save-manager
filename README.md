@@ -17,13 +17,18 @@
 
 随着版本的更新，我会逐步完善文档和优化结构，敬请期待
 #### 安装依赖:space_invader:
+首先安装 pnpm
 ```
-npm install
+npm i -g pnpm@latest
+```
+如果你已经安装，或者安装完成后，可以开始安装依赖
+```
+pnpm i
 ```
 
 #### 调试运行:dizzy:
 ```
-npm run electron:serve
+pnpm run electron:serve
 ```
 
 #### 打包构建:robot:
@@ -31,10 +36,5 @@ npm run electron:serve
 定制文档：[Electron-builder](https://www.electron.build/)
 打包指令如下
 ```
-npm run electron:build
-```
-如果你在中国，且下载速度缓慢，请尝试换源
-```
-npm config set registry https://registry.npm.taobao.org
-npm config set electron_mirror https://npm.taobao.org/mirrors/electron/
+pnpm run electron:build
 ```
