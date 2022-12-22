@@ -4,9 +4,6 @@
 			<MainSideBar />
 		</el-aside>
 		<el-main>
-			<!-- <transition name="fade" mode="in-out">
-				<router-view />
-			</transition> -->
 			<router-view v-slot="{ Component }">
 				<transition name="fade" mode="out-in">
 					<component :is="Component" />
