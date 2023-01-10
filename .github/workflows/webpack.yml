@@ -24,8 +24,8 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - name: Build
       run: |
-        npx browserslist@latest --update-db
-        yarn
+        npm i -g pnpm@latest
+        pnpm i
         npm run electron:build
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
