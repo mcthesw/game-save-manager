@@ -21,6 +21,8 @@
 ```
 npm i -g pnpm@latest
 ```
+如果您在中国，可以使用镜像加速 electron 的下载，请参考 [.npmrc](.npmrc) 的注释
+
 如果你已经安装，或者安装完成后，可以开始安装依赖
 ```
 pnpm i
