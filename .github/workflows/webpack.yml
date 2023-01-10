@@ -26,7 +26,7 @@ jobs:
       run: |
         npm i -g pnpm@latest
         pnpm i
-        npm run electron:build
+        pnpm run electron:build
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
