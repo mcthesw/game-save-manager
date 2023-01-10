@@ -4,22 +4,14 @@
 			<h1>个性化设置</h1>
 			<el-button @click="submit_config()">保存修改</el-button>
 			<el-button @click="abort_change()">放弃修改</el-button>
-			<el-button @click="reset_settings()" type="danger"
-				>恢复默认配置</el-button
-			>
+			<el-button @click="reset_settings()" type="danger">恢复默认配置</el-button>
 			<br />
 			<div class="setting-box">
-				<ElSwitch
-					v-model="config.settings.prompt_when_not_described"
-					:loading="loading"
-				/>
+				<ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
 				<span>当未描述存档时，弹出提示</span>
 			</div>
 			<div class="setting-box">
-				<ElSwitch
-					v-model="config.settings.extra_backup_when_apply"
-					:loading="loading"
-				/>
+				<ElSwitch v-model="config.settings.extra_backup_when_apply" :loading="loading" />
 				<span>在应用存档时进行额外备份（在 ./save_data/游戏名/extra_backup 文件夹内）</span>
 			</div>
 		</el-card>
@@ -103,6 +95,7 @@ export default defineComponent({
 .el-switch {
 	margin-right: 20px;
 }
+
 .setting-box {
 	margin-top: 10px;
 }

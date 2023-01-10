@@ -4,9 +4,11 @@
 			<MainSideBar />
 		</el-aside>
 		<el-main>
-			<transition name="fade" mode="in-out">
-				<router-view />
-			</transition>
+			<router-view v-slot="{ Component }">
+				<transition name="fade" mode="out-in">
+					<component :is="Component" />
+				</transition>
+			</router-view>
 		</el-main>
 	</el-container>
 </template>
@@ -65,6 +67,7 @@ export default defineComponent({
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
+
 body,
 html,
 #app {
@@ -76,10 +79,12 @@ html,
 	width: 100%;
 	height: 100%;
 }
+
 .el-aside,
 .el-main {
 	margin: 0px;
 }
+
 .el-aside {
 	overflow-x: unset;
 }
@@ -87,16 +92,17 @@ html,
 a {
 	text-decoration: none;
 }
+
 .fade-enter-from,
 .fade-leave-to {
 	opacity: 0;
 }
 
 .fade-enter-active {
-	transition: all 0.8s ease-out;
+	transition: all 0.3s ease-out;
 }
 
 .fade-leave-active {
-	transition: all 0.4s ease-in;
+	transition: all 0.2s ease-in;
 }
 </style>
