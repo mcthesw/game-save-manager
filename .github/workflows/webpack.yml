@@ -24,8 +24,6 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - name: Build
       run: |
-        npm i -g pnpm@latest
-        pnpm i
         npx browserslist@latest --update-db
         yarn
         npm run electron:build
