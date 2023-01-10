@@ -22,19 +22,16 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
-
-    - name: Install modules
-      run: |
-        # 使用yarn的原因 https://blog.csdn.net/qq_38238956/article/details/124720842
-        yarn
     - name: Build
       run: |
+        npm i -g pnpm@latest
+        pnpm i
         npx browserslist@latest --update-db
         yarn
         npm run electron:build
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v3.1.0
       with:
