@@ -1,3 +1,17 @@
+<script lang="ts" setup>
+import MainSideBar from "./components/MainSideBar.vue";
+import { ElNotification } from "element-plus";
+
+ElNotification({
+	title: "提示",
+	message: "这是一个早期测试版本，不能保证稳定性，请谨慎使用",
+	type: "warning",
+	duration: 3000,
+});
+
+
+</script>
+
 <template>
 	<el-container>
 		<el-aside width="200px">
@@ -13,57 +27,13 @@
 	</el-container>
 </template>
 
-<script lang="ts">
-import { defineComponent } from "vue";
-import MainSideBar from "./components/MainSideBar.vue";
-import { ElMessageBox, ElNotification } from "element-plus";
-import { store } from "./store";
-import { ipcRenderer } from "electron";
-
-export default defineComponent({
-	name: "App",
-	components: { MainSideBar },
-	mounted() {
-		// 提示这是早期版本
-		ipcRenderer.on("reply_config", (Event, arg) => {
-			// 获取到的config的json
-			console.log("获取到了config文件", arg);
-			store.commit("get_config", arg);
-		});
-
-		ipcRenderer.on("unknown_config_version", (Event, arg) => {
-			if (arg) {
-				ElMessageBox.alert(
-					"检测到未知或太老的配置版本，无法继续使用，请关闭该软件并正确升级",
-					"警告",
-					{
-						type: "error",
-						confirmButtonText: "我已了解",
-					}
-				);
-			}
-		});
-
-		ElNotification({
-			title: "提示",
-			message: "这是一个早期测试版本，不能保证稳定性，请谨慎使用",
-			type: "warning",
-			duration: 3000,
-		});
-		this.get_config();
-	},
-	methods: {
-		get_config() {
-			// 获取本程序配置文件
-			ipcRenderer.send("get_config");
-		},
-	},
-});
-</script>
-
 <style>
+@font-face{
+    font-family: 'OppoSans';
+    src: url('./assets/fonts/OPPOSans-M.ttf') format('truetype');
+}
 #app {
-	font-family: Avenir, Helvetica, Arial, sans-serif;
+	font-family:'OppoSans', Helvetica, Arial, sans-serif;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
