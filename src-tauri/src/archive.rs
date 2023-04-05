@@ -63,7 +63,7 @@ where
 
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
 pub fn compress_to_file(
-    save_paths: Vec<SaveUnit>,
+    save_paths: &Vec<SaveUnit>,
     backup_path: &PathBuf,
     date: &str,
 ) -> Result<()> {
@@ -91,7 +91,7 @@ pub fn compress_to_file(
 
 /// Decompress a zip file to their original path
 pub fn decompress_from_file(
-    save_paths: Vec<SaveUnit>,
+    save_paths: &Vec<SaveUnit>,
     backup_path: &PathBuf,
     date: &str,
 ) -> Result<()> {
