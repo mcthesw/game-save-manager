@@ -1,8 +1,11 @@
 use std::{
     fs::{self, File},
-    io::{self, BufReader, Read, Seek, Write},
+    io::{BufReader, Read, Seek, Write},
     path::PathBuf,
 };
+
+use fs_extra::dir::move_dir;
+use fs_extra::file::move_file;
 
 use anyhow::{Ok, Result};
 use zip::ZipWriter;
@@ -10,9 +13,9 @@ use zip::ZipWriter;
 use crate::config::{SaveUnit, SaveUnitType};
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
-/// 
+///
 /// Write `origin` folder to zip `writer`, the files will in `prefix_path`
-/// 
+///
 /// Normally, `prefix_path` should be the file name of the `origin` folder
 fn add_directory<T>(
     writer: &mut ZipWriter<T>,
@@ -29,12 +32,12 @@ where
     let mut buffer = Vec::new();
 
     while let Some(next) = paths.pop() {
-        let directory_entry_iter = std::fs::read_dir(next)?;
+        let directory_entry_iter = fs::read_dir(next)?;
 
         for entry in directory_entry_iter {
             let entry = entry?;
             let entry_path = entry.path();
-            let entry_metadata = std::fs::metadata(&entry_path)?;
+            let entry_metadata = fs::metadata(&entry_path)?;
             if entry_metadata.is_file() {
                 let mut f = File::open(&entry_path)?;
                 f.read_to_end(&mut buffer)?;
@@ -92,24 +95,34 @@ pub fn decompress_from_file(
     backup_path: &PathBuf,
     date: &str,
 ) -> Result<()> {
-    let file = File::open(backup_path.join([date, ".zip"].concat()))?;
-    let mut zip = zip::ZipArchive::new(file)?;
-    // TODO: Extract files from zip
-    save_paths.iter().try_for_each(|x: &SaveUnit| {
-        let target_path = PathBuf::from(&x.path);
-        let name = target_path.file_name().unwrap().to_str().unwrap(); //FIXME: how to remove unwrap?
-        match x.unit_type {
-            SaveUnitType::File => {
-                let mut target_file = fs::File::create(&target_path)?;
-                let mut backup_file = zip.by_name(&name)?;
-                io::copy(&mut backup_file, &mut target_file)?;
+    let file_path = backup_path.join([date, ".zip"].concat());
+    let tmp_folder = PathBuf::from("./tmp");
+    let file = File::open(&file_path)?;
+    let mut archive = zip::ZipArchive::new(file)?;
+    fs::create_dir_all(&tmp_folder)?;
+    archive.extract(&tmp_folder)?;
+    save_paths
+        .iter()
+        .try_for_each(|unit| {
+            let unit_path = PathBuf::from(&unit.path);
+            match unit.unit_type {
+                SaveUnitType::File => {
+                    let option = fs_extra::file::CopyOptions::new().overwrite(true);
+                    let original_path = tmp_folder.join(unit_path.file_name().unwrap());
+                    move_file(&original_path, &unit_path, &option)?;
+                }
+                SaveUnitType::Folder => {
+                    let option = fs_extra::dir::CopyOptions::new().overwrite(true);
+                    let original_path = tmp_folder.join(unit_path.file_name().unwrap());
+                    let target_path = unit_path.parent().unwrap();
+                    if !target_path.exists(){
+                        fs::create_dir_all(target_path)?;
+                    }
+                    move_dir(&original_path, &target_path, &option)?;
+                }
             }
-            SaveUnitType::Folder => {
-                // TODO: handle folder
-            }
-        }
-        Ok(())
-    })?;
-
+            Ok(())
+        })?;
+    fs::remove_dir_all(tmp_folder)?;
     Ok(())
 }
