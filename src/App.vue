@@ -1,6 +1,12 @@
 <script lang="ts" setup>
 import MainSideBar from "./components/MainSideBar.vue";
 import { ElNotification } from "element-plus";
+import { useConfig } from "./stores/ConfigFile";
+import { invoke } from "@tauri-apps/api/tauri";
+let config = useConfig();
+invoke("local_config_check").then((x)=>{
+	config.refresh(); // TODO:Handle old version config
+});
 
 ElNotification({
 	title: "提示",
@@ -8,6 +14,8 @@ ElNotification({
 	type: "warning",
 	duration: 3000,
 });
+
+
 
 
 </script>

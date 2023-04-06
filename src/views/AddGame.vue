@@ -5,20 +5,16 @@ import {
     Check,
     RefreshRight,
     Download,
-    MagicStick,
 } from "@element-plus/icons-vue";
 import { ElNotification } from "element-plus";
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
+import { useConfig } from "../stores/ConfigFile";
+import { invoke } from '@tauri-apps/api/tauri'
+import { Game, SaveUnit } from "../schemas/saveTypes";
 const router = useRouter();
-
+let config = useConfig();
 const buttons = [
-    {
-        text: "修改已保存的配置",
-        type: "",
-        icon: MagicStick,
-        method: change,
-    },
     {
         text: "自动识别本地游戏",
         type: "primary",
@@ -41,22 +37,50 @@ const buttons = [
 
 
 const game_name = ref("") // 写入游戏名
-let save_path = reactive([]) // 选择游戏存档目录
+let save_paths: Array<SaveUnit> = reactive(new Array<SaveUnit>()) // 选择游戏存档目录
 const game_path = ref("") // 选择游戏启动程序
 const game_icon_src = ref("https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png")
 
-function choose_save_directory() {
-    // TODO:选择游戏存档目录
+function check_save_unit_unique(p: string) {
+    if (save_paths.find((x) => x.path == p)) {
+        ElNotification({
+            title: "错误",
+            message: "该软件暂不支持同名文件/文件夹出现",
+            type: "error",
+            duration: 3000,
+        });
+        return false;
+    }
+    return true;
+}
+function add_save_directory() {
+    invoke("choose_save_dir").then((dir) => {
+        if (!dir || !check_save_unit_unique(dir as string)) { return }
+        let unit: SaveUnit = {
+            unit_type: "Folder",
+            path: dir as string
+        }
+        save_paths.push(unit)
+    })
+}
+function add_save_file() {
+    invoke("choose_save_file").then((file) => {
+        if (!file || !check_save_unit_unique(file as string)) { return }
+        let unit: SaveUnit = {
+            unit_type: "File",
+            path: file as string
+        }
+        save_paths.push(unit)
+    })
 }
 function choose_executable_file() {
-    // TODO:选择游戏启动程序
+    invoke("choose_save_file").then((file) => {
+        console.log(file)
+    })
 }
-function choose_game_icon() {
-    // TODO:选择游戏图标地址
-    // TODO:需要优化图片选择，自由切割和压缩到指定大小
-}
+
 function submit_handler(button_method: Function) {
-    // TODO:映射按钮的ID和他们要触发的方法
+    // 映射按钮的ID和他们要触发的方法
     button_method();
 }
 function search_local() {
@@ -66,30 +90,35 @@ function search_local() {
         message: "--WIP-- 这个功能尚未完成",
     });
 }
-function change() {
-    router.push("/change-game-info");
-}
 function save() {
-    if (game_name.value == "" || save_path.length == 0) {
+    if (game_name.value == "" || save_paths.length == 0) {
         ElNotification({
             type: "error",
             message: "请至少输入游戏名和一个存档路径"
         })
         return
     }
-    // TODO保存当前配置
-    console.log("保存当前编辑的配置");
-    // ipcRenderer.send("add_game", {
-    // 	game_name: game_name.value,
-    // 	save_path: save_path.value,
-    // 	icon: game_icon_src.value,
-    // 	game_path: game_path.value,
-    // });
+    let game: Game = {
+        name: game_name.value,
+        save_paths: save_paths,
+        game_path: game_path.value
+    }
+    invoke("add_game", { game: game }).then((x) => {
+        console.log(x);
+        reset();
+        config.refresh();
+        ElNotification({
+            title: "提示",
+            message: "添加成功",
+            type: "success",
+            duration: 1000,
+        });
+    })
 }
 function reset() {
     // 重置当前配置
     game_name.value = "";
-    save_path = reactive([]);
+    save_paths = reactive([]);
     game_path.value = "";
     game_icon_src.value =
         "https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png";
@@ -102,13 +131,7 @@ function reset() {
 }
 
 function deleteRow(index: number) {
-    save_path.splice(index, 1);
-}
-function addPath() {
-    // save_path.push({
-    //     path: "",
-    //     type: "",
-    // });
+    save_paths.splice(index, 1);
 }
 </script>
 
@@ -135,8 +158,8 @@ function addPath() {
                     </template>
                 </el-input>
             </div>
-            <el-table :data="save_path" class="save-table">
-                <el-table-column fixed prop="type" label="类型" width="120" />
+            <el-table :data="save_paths" class="save-table" :height="300">
+                <el-table-column fixed prop="unit_type" label="类型" width="120" />
                 <el-table-column label="控制" width="120">
                     <template #default="scope">
                         <el-button link type="primary" size="small" @click.prevent="deleteRow(scope.$index)">
@@ -146,7 +169,8 @@ function addPath() {
                 </el-table-column>
                 <el-table-column prop="path" label="路径" />
             </el-table>
-            <el-button type="primary" @click="addPath">添加存档文件/文件夹</el-button>
+            <el-button type="primary" @click="add_save_directory">添加存档文件夹</el-button>
+            <el-button type="primary" @click="add_save_file">添加存档文件</el-button>
         </el-card>
         <el-container class="submit-bar">
             <el-tooltip v-for="button in buttons" :key="button.text" :content="button.text" placement="top">

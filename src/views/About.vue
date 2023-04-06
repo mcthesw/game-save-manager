@@ -1,9 +1,14 @@
 <script lang="ts" setup>
+import { Game } from "../schemas/saveTypes";
 import { useConfig } from "../stores/ConfigFile";
+import { invoke } from '@tauri-apps/api/tauri'
+
 const config = useConfig();
 function source_click(url: string) {
-    //TODO 进入链接
-}
+    console.log(url);
+    invoke("open_url", { url: url }).then((v: any) => { console.log(v) }).catch((x: any) => { console.log(x) })
+};
+
 const thanks = [
     { name: "Sworld", describe: "本项目的创始者" },
     { name: "勺子", describe: "早期测试者" },
@@ -62,8 +67,8 @@ const frames = [
             <el-link @click="source_click('https://github.com/mcthesw/game-save-manager')">Github</el-link>
             |
             <el-link @click="
-                source_click('https://gitee.com/sworldS/game-save-manager/releases/')
-            ">国内发布地址</el-link>
+                source_click('https://game.sworld.club/')
+            ">官方网站</el-link>
             <span class="version">版本号: {{ config.version }}</span>
         </el-footer>
     </el-container>

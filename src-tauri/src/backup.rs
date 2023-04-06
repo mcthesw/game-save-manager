@@ -1,7 +1,8 @@
-use crate::archive;
-use crate::config::{get_config, Game, SaveUnit, SaveUnitType};
-use anyhow::Result;
+use crate::archive::{compress_to_file, decompress_from_file};
+use crate::config::{get_config, set_config, Game};
+use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
+use std::path::{PathBuf};
 use std::{fs, path};
 
 /// A backup is a zip file that contains
@@ -16,40 +17,136 @@ struct Backup {
 
 /// A backups info is a json file in a backup folder for a game.
 /// It contains the name of the game,
-/// all backups' path
-/// and the icon of the game
+/// and all backups' path
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BackupsInfo {
     name: String,
     backups: Vec<Backup>,
-    icon: String,
 }
 
-pub fn get_backups_info(name: &str) -> Result<BackupsInfo> {
+pub fn get_backups_info(game: &Game) -> Result<BackupsInfo> {
     let config = get_config()?;
-    let backup_path = path::Path::new(&config.backup_path).join(name);
+    let backup_path = path::Path::new(&config.backup_path).join(&game.name).join("Backups.json");
     let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
     Ok(backup_info)
 }
 
-pub fn set_backups_info(name: &str, new_info: BackupsInfo) -> Result<()> {
+pub fn set_backups_info(game: &Game, new_info: BackupsInfo) -> Result<()> {
     let config = get_config()?;
-    let saves_path = path::Path::new(&config.backup_path).join(name);
+    let saves_path = path::Path::new(&config.backup_path).join(&game.name).join("Backups.json");
     fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
     Ok(())
 }
 
-pub fn backup_save(name: &str, describe: &str) -> Result<()> {
+pub fn backup_save(game: &Game, describe: &str) -> Result<()> {
     let config = get_config()?;
-    if let Some(game) = config.games.into_iter().find(move |x| x.name.eq(name)) {
-        let backup_path = path::Path::new(&config.backup_path).join(name); // the backup zip file should be placed here
-        let date = chrono::Local::now()
-            .format("YYYY-MM-DD_HH-mm-ss")
-            .to_string();
-        let save_paths = game.save_paths; // everything you should copy
-        archive::compress_to_file(save_paths, &backup_path, &date)?;
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("Game not exists"))
+    let backup_path = path::Path::new(&config.backup_path).join(&game.name); // the backup zip file should be placed here
+    let date = chrono::Local::now()
+        .format("%Y-%m-%d_%H-%M-%S")
+        .to_string();
+    let save_paths = &game.save_paths; // everything you should copy
+    compress_to_file(save_paths, &backup_path, &date)?;
+
+    let file_path = backup_path.join([&date, ".zip"].concat());
+    let backups_info = Backup {
+        date,
+        describe: describe.to_string(),
+        path: file_path.to_str().unwrap().to_string(),
+    };
+    let mut infos = get_backups_info(game)?;
+    infos.backups.push(backups_info);
+    set_backups_info(game, infos)?;
+    Ok(())
+}
+
+pub fn apply_backup(game: &Game, save_date: &str) -> Result<()> {
+    let config = get_config()?;
+    let backup_path = path::Path::new(&config.backup_path).join(&game.name);
+    decompress_from_file(&game.save_paths, &backup_path, &save_date)?;
+    Ok(())
+}
+
+// pub fn create_extra_backup(game: &Game) -> Result<()> {
+//     let config = get_config()?;
+//     let save_paths = &game.save_paths;
+//     let extra_backup_path = path::Path::new(&config.backup_path)
+//         .join(&game.name)
+//         .join("extra_backup");
+
+//     if !extra_backup_path.exists() {
+//         fs::create_dir_all(&extra_backup_path)?;
+//     }
+
+//     let extra_backups = extra_backup_path.read_dir()?;
+//     let mut extra_backups:Vec<_> = extra_backups.collect();
+//     if extra_backups.len() >= 5 {
+//         //FIXME:How to remove unwrap?
+//         extra_backups
+//             .sort_by(|x, y| {
+//                 x.unwrap()
+//                     .metadata()
+//                     .unwrap()
+//                     .created()
+//                     .unwrap()
+//                     .cmp(&y.unwrap().metadata().unwrap().created().unwrap())
+//             });
+//         let oldest = extra_backups.first().unwrap().unwrap();
+//         fs::remove_file(&oldest.path())?;
+//     }
+//     let date = chrono::Local::now()
+//         .format("Overwrite:YYYY-MM-DD_HH-mm-ss")
+//         .to_string();
+//     compress_to_file(&game.save_paths, &extra_backup_path, &date)?;
+//     Ok(())
+// }
+
+fn create_backup_folder(name: &str) -> Result<()> {
+    let config = get_config()?;
+    let info = BackupsInfo {
+        name: name.to_string(),
+        backups: Vec::new(),
+    };
+    let backup_path = PathBuf::from(&config.backup_path).join(name);
+    if !backup_path.exists() {
+        fs::create_dir_all(&backup_path)?;
     }
+    fs::write(
+        &backup_path.join("Backups.json"),
+        serde_json::to_string_pretty(&info)?,
+    )?;
+
+    Ok(())
+}
+
+pub fn create_game_backup(
+    game:Game
+) -> Result<()> {
+    let mut config = get_config()?;
+    create_backup_folder(&game.name)?;
+    config.games.push(game);
+    set_config(config)?;
+    Ok(())
+}
+
+pub fn delete_backup(game: &Game, date: &str) -> Result<()> {
+    let config = get_config()?;
+    let save_path = PathBuf::from(&config.backup_path)
+        .join(&game.name)
+        .join(date.to_string() + ".zip");
+    fs::remove_file(save_path)?;
+
+    let mut saves = get_backups_info(game)?;
+    saves.backups.retain(|x| x.date != date);
+    set_backups_info(game, saves)?;
+    Ok(())
+}
+
+pub fn delete_game(game: &Game) -> Result<()> {
+    let mut config = get_config()?;
+    let backup_path = PathBuf::from(&config.backup_path).join(&game.name);
+    fs::remove_dir_all(backup_path)?;
+
+    config.games.retain(|x| x.name == game.name);
+    set_config(config)?;
+    Ok(())
 }
