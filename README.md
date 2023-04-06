@@ -16,25 +16,5 @@
 有能力的话，你也可以亲自参与这个项目，改善这个存档管理器，请 fork 本仓库然后提交 PR，或者提出Issue也是很好的
 
 随着版本的更新，我会逐步完善文档和优化结构，敬请期待
-#### 安装依赖:space_invader:
-首先安装 pnpm
-```
-npm i -g pnpm@latest
-```
-如果您在中国，可以使用镜像加速 electron 的下载，请参考 [.npmrc](.npmrc) 的注释
 
-如果你已经安装，或者安装完成后，可以开始安装依赖
-```
-pnpm i
-```
-
-#### 调试运行:dizzy:
-```
-pnpm run tauri dev
-```
-
-#### 打包构建:robot:
-打包指令如下
-```
-pnpm run tauri build
-```
+当前，新版(V1.0.0 alpha)的文档正在编辑中，如果你在寻找旧版基于Electron框架的开发者指南，请看[旧版分支](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
