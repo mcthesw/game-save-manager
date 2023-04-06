@@ -58,9 +58,17 @@ fn default_config() -> Config {
     }
 }
 
+/// Set settings to original state
+pub fn reset_settings() -> Result<()>{
+    let settings = default_config().settings;
+    let mut config = get_config()?;
+    config.settings = settings;
+    set_config(config)
+}
+
 /// Create a config file
 fn init_config() -> Result<()> {
-    println!("初始化配置文件");
+    println!("Init config file.");
     fs::write(
         "./GameSaveManager.config.json",
         serde_json::to_string_pretty(&default_config())?,

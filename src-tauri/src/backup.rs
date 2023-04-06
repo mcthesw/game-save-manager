@@ -1,8 +1,8 @@
-use crate::archive::{self, compress_to_file, decompress_from_file};
-use crate::config::{self, get_config, set_config, Game, SaveUnit, SaveUnitType};
+use crate::archive::{compress_to_file, decompress_from_file};
+use crate::config::{get_config, set_config, Game};
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::{fs, path};
 
 /// A backup is a zip file that contains
@@ -26,14 +26,14 @@ pub struct BackupsInfo {
 
 pub fn get_backups_info(game: &Game) -> Result<BackupsInfo> {
     let config = get_config()?;
-    let backup_path = path::Path::new(&config.backup_path).join(&game.name);
+    let backup_path = path::Path::new(&config.backup_path).join(&game.name).join("Backups.json");
     let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
     Ok(backup_info)
 }
 
 pub fn set_backups_info(game: &Game, new_info: BackupsInfo) -> Result<()> {
     let config = get_config()?;
-    let saves_path = path::Path::new(&config.backup_path).join(&game.name);
+    let saves_path = path::Path::new(&config.backup_path).join(&game.name).join("Backups.json");
     fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
     Ok(())
 }
@@ -42,10 +42,10 @@ pub fn backup_save(game: &Game, describe: &str) -> Result<()> {
     let config = get_config()?;
     let backup_path = path::Path::new(&config.backup_path).join(&game.name); // the backup zip file should be placed here
     let date = chrono::Local::now()
-        .format("YYYY-MM-DD_HH-mm-ss")
+        .format("%Y-%m-%d_%H-%M-%S")
         .to_string();
     let save_paths = &game.save_paths; // everything you should copy
-    archive::compress_to_file(save_paths, &backup_path, &date)?;
+    compress_to_file(save_paths, &backup_path, &date)?;
 
     let file_path = backup_path.join([&date, ".zip"].concat());
     let backups_info = Backup {
@@ -136,7 +136,7 @@ pub fn delete_backup(game: &Game, date: &str) -> Result<()> {
     fs::remove_file(save_path)?;
 
     let mut saves = get_backups_info(game)?;
-    saves.backups.retain(|x| x.date == date);
+    saves.backups.retain(|x| x.date != date);
     set_backups_info(game, saves)?;
     Ok(())
 }

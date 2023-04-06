@@ -23,7 +23,9 @@ fn main() {
             ipc_handler::delete_backup,
             ipc_handler::delete_game,
             ipc_handler::get_backups_info,
-            ipc_handler::set_config
+            ipc_handler::set_config,
+            ipc_handler::reset_settings,
+            ipc_handler::backup_save
 
         ])
         .run(tauri::generate_context!())

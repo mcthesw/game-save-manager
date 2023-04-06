@@ -46,7 +46,7 @@ export interface Backup {
      */
     path: string;
 }
-export interface Backups {
+export interface BackupsInfo {
     /**
      * 游戏名(判断存档组的唯一标识)
      */

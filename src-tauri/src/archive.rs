@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{BufReader, Read, Seek, Write},
+    io::{Read, Seek, Write},
     path::PathBuf,
 };
 
@@ -72,10 +72,15 @@ pub fn compress_to_file(
     save_paths.into_iter().try_for_each(|x| {
         match x.unit_type {
             SaveUnitType::File => {
-                let original_file = File::open(&x.path)?;
-                let buf_reader = BufReader::new(original_file);
-                zip.start_file(&x.path, zip::write::FileOptions::default())?;
-                zip.write_all(buf_reader.buffer())?;
+                let path = PathBuf::from(&x.path);
+                let mut original_file = File::open(&path)?;
+                let mut buf = vec![];
+                original_file.read_to_end(&mut buf)?;
+                zip.start_file(
+                    &path.file_name().unwrap().to_str().unwrap().to_string(),
+                    zip::write::FileOptions::default(),
+                )?;
+                zip.write_all(&buf)?;
             }
             SaveUnitType::Folder => {
                 let path = PathBuf::from(&x.path);
@@ -101,28 +106,26 @@ pub fn decompress_from_file(
     let mut archive = zip::ZipArchive::new(file)?;
     fs::create_dir_all(&tmp_folder)?;
     archive.extract(&tmp_folder)?;
-    save_paths
-        .iter()
-        .try_for_each(|unit| {
-            let unit_path = PathBuf::from(&unit.path);
-            match unit.unit_type {
-                SaveUnitType::File => {
-                    let option = fs_extra::file::CopyOptions::new().overwrite(true);
-                    let original_path = tmp_folder.join(unit_path.file_name().unwrap());
-                    move_file(&original_path, &unit_path, &option)?;
-                }
-                SaveUnitType::Folder => {
-                    let option = fs_extra::dir::CopyOptions::new().overwrite(true);
-                    let original_path = tmp_folder.join(unit_path.file_name().unwrap());
-                    let target_path = unit_path.parent().unwrap();
-                    if !target_path.exists(){
-                        fs::create_dir_all(target_path)?;
-                    }
-                    move_dir(&original_path, &target_path, &option)?;
-                }
+    save_paths.iter().try_for_each(|unit| {
+        let unit_path = PathBuf::from(&unit.path);
+        match unit.unit_type {
+            SaveUnitType::File => {
+                let option = fs_extra::file::CopyOptions::new().overwrite(true);
+                let original_path = tmp_folder.join(unit_path.file_name().unwrap());
+                move_file(&original_path, &unit_path, &option)?;
             }
-            Ok(())
-        })?;
+            SaveUnitType::Folder => {
+                let option = fs_extra::dir::CopyOptions::new().overwrite(true);
+                let original_path = tmp_folder.join(unit_path.file_name().unwrap());
+                let target_path = unit_path.parent().unwrap();
+                if !target_path.exists() {
+                    fs::create_dir_all(target_path)?;
+                }
+                move_dir(&original_path, &target_path, &option)?;
+            }
+        }
+        Ok(())
+    })?;
     fs::remove_dir_all(tmp_folder)?;
     Ok(())
 }

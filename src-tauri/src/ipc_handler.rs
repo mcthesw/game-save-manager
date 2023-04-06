@@ -99,3 +99,15 @@ pub async fn get_backups_info(game:Game) -> Result<BackupsInfo,String> {
 pub async fn set_config(config:Config) -> Result<(),String> {
     config::set_config(config).map_err(|e|e.to_string())
 }
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn reset_settings() -> Result<(),String> {
+    config::reset_settings().map_err(|e|e.to_string())
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn backup_save(game:Game,describe:String) -> Result<(),String> {
+    backup::backup_save(&game,&describe).map_err(|e|e.to_string())
+}

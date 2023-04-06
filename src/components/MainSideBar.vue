@@ -42,7 +42,7 @@ function select_handler(key: string, keyPath: string) {
                     </el-icon>
                     <span>存档管理</span>
                 </template>
-                <el-menu-item v-for="game in games" :key="game.name" :index="'/management/' + game">
+                <el-menu-item v-for="game in games" :key="game.name" :index="'/management/' + game.name">
                     {{ game.name }}
                 </el-menu-item>
             </el-sub-menu>
