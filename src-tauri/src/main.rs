@@ -17,6 +17,13 @@ fn main() {
             ipc_handler::choose_save_dir,
             ipc_handler::get_local_config,
             ipc_handler::add_game,
+            ipc_handler::local_config_check,
+            ipc_handler::apply_backup,
+            ipc_handler::apply_backup_with_extra_backup,
+            ipc_handler::delete_backup,
+            ipc_handler::delete_game,
+            ipc_handler::get_backups_info,
+            ipc_handler::set_config
 
         ])
         .run(tauri::generate_context!())

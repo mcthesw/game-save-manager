@@ -46,6 +46,7 @@ pub async fn choose_save_dir() -> Option<String> {
 #[tauri::command]
 pub async fn get_local_config() -> Result<Config,String> {
     match get_config() {
+        // TODO:Handle old version config
         Ok(config)=>Ok(config),
         Err(e)=>Err(e.to_string())
     }

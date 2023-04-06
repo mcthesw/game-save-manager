@@ -8,6 +8,9 @@ import {
     Setting,
 } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
+import { useConfig } from "../stores/ConfigFile";
+
+let config = useConfig();
 
 const links = [
     { text: "欢迎界面", link: "/home", icon: HotWater },
@@ -17,8 +20,7 @@ const links = [
 ];
 
 const games = computed(() => {
-    // TODO: 从pinia中获取游戏列表
-    return ["123", "456"];
+    return config.games;
 });
 
 const router = useRouter()
@@ -40,8 +42,8 @@ function select_handler(key: string, keyPath: string) {
                     </el-icon>
                     <span>存档管理</span>
                 </template>
-                <el-menu-item v-for="game in Object.keys(games)" :key="game" :index="'/management/' + game">
-                    {{ game }}
+                <el-menu-item v-for="game in games" :key="game.name" :index="'/management/' + game">
+                    {{ game.name }}
                 </el-menu-item>
             </el-sub-menu>
             <!-- 下方是常规按钮 -->

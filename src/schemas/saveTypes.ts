@@ -1,5 +1,5 @@
 export interface SaveUnit{
-    unit_type:"file"|"folder";
+    unit_type:"File"|"Folder";
     path:string;
 }
 export interface Game {
@@ -55,10 +55,6 @@ export interface Backups {
      * 存档信息
      */
     backups: Array<Backup>;
-    /**
-     * 游戏图标,可以是base64也可以是url
-     */
-    icon: string;
 }
 
 export interface Settings {
@@ -73,7 +69,7 @@ export interface Settings {
 }
 
 export let default_config: Config = {
-    version: "0.4.0",
+    version: "1.0.0 alpha",
     backup_path: "./save_data",
     games: [],
     settings:{
