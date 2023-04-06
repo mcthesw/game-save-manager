@@ -48,7 +48,7 @@ pub struct Config {
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("0.4.0"),
+        version: String::from("1.0.0 alpha"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {
@@ -58,9 +58,17 @@ fn default_config() -> Config {
     }
 }
 
+/// Set settings to original state
+pub fn reset_settings() -> Result<()>{
+    let settings = default_config().settings;
+    let mut config = get_config()?;
+    config.settings = settings;
+    set_config(config)
+}
+
 /// Create a config file
 fn init_config() -> Result<()> {
-    println!("初始化配置文件");
+    println!("Init config file.");
     fs::write(
         "./GameSaveManager.config.json",
         serde_json::to_string_pretty(&default_config())?,
@@ -86,8 +94,7 @@ pub fn set_config(config: Config) -> Result<()> {
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-#[tauri::command]
-async fn config_check() -> Result<String> {
+pub fn config_check() -> Result<()> {
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
@@ -97,7 +104,7 @@ async fn config_check() -> Result<String> {
         //TODO:需要完成旧版本到新版本的迁移
         todo!();
     }
-    Ok(serde_json::to_string(&config)?) // return the config json
+    Ok(()) // return the config json
 }
 
 #[cfg(test)]

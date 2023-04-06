@@ -1,22 +1,28 @@
 <script lang="ts" setup>
-import { Config,default_config } from "../schemas/saveTypes";
+import { Config, default_config } from "../schemas/saveTypes";
 import { ElNotification } from "element-plus";
 import { reactive, ref } from "vue";
 import { useConfig } from "../stores/ConfigFile";
+import { invoke } from "@tauri-apps/api/tauri";
 
 
-const config: Config = reactive(JSON.parse(JSON.stringify(default_config)))
+const config = useConfig()
 const loading = ref(false)
 
 function load_config() {
-    // TODO:读取已有Config
-    // ipcRenderer.send("get_config");
-    // setTimeout(set_view_config, 100);
+    config.refresh()
 }
 function submit_config() {
     loading.value = true;
-    // TODO:提交config
-    // ipcRenderer.send("set_config", config);
+    invoke("set_config", { config: config }).then((x) => {
+        loading.value = false;
+        console.log(x);
+        ElNotification({
+            type: "success",
+            message: "设置成功",
+        });
+        load_config()
+    })
 }
 function abort_change() {
     ElNotification({
@@ -26,15 +32,14 @@ function abort_change() {
     load_config();
 }
 function reset_settings() {
-    config.settings = JSON.parse(
-        JSON.stringify(default_config)
-    ).settings;
-    ElNotification({
-        type: "warning",
-        message: "注意，保存后该重置才会生效",
-    });
+    invoke("reset_settings").then((x) => {
+        ElNotification({
+            type: "success",
+            message: "重置成功",
+        });
+        load_config();
+    })
 }
-//TODO: 需要仔细确认
 
 
 </script>
@@ -45,7 +50,11 @@ function reset_settings() {
             <h1>个性化设置</h1>
             <el-button @click="submit_config()">保存修改</el-button>
             <el-button @click="abort_change()">放弃修改</el-button>
-            <el-button @click="reset_settings()" type="danger">恢复默认配置</el-button>
+            <el-popconfirm title="确认重置?" :on-confirm="reset_settings">
+                <template #reference>
+                    <el-button type="danger">恢复默认配置</el-button>
+                </template>
+            </el-popconfirm>
             <br />
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
