@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{backup, config};
 // create_extra_backup
 use crate::config::{Config, config_check, Game, get_config};
@@ -110,4 +112,15 @@ pub async fn reset_settings() -> Result<(),String> {
 #[tauri::command]
 pub async fn backup_save(game:Game,describe:String) -> Result<(),String> {
     backup::backup_save(&game,&describe).map_err(|e|e.to_string())
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn open_backup_folder(game: Game) -> bool {
+    let config = get_config().unwrap();
+    let p = PathBuf::from(&config.backup_path).join(&game.name);
+    match open::that(p) {
+        Err(_) => false,
+        Ok(_) => true
+    }
 }
