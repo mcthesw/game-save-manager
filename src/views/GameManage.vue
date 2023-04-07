@@ -13,6 +13,7 @@ const top_buttons = [
     { text: "创建新存档", method: create_new_save },
     { text: "用最新存档覆盖", method: load_latest_save },
     { text: "启动游戏", method: launch_game },
+    { text: "打开备份文件夹", method: open_backup_folder }
 ]
 
 const search = ref("");
@@ -219,6 +220,13 @@ function del_cur() {
                 message: "您取消了这次操作",
             });
         });
+}
+
+function open_backup_folder() {
+    invoke("open_backup_folder", { game: game.value })
+        .then((x) => {
+            console.log(x)
+        })
 }
 
 const filter_table = computed(
