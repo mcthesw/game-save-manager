@@ -10,10 +10,7 @@ use crate::backup::BackupsInfo;
 #[allow(unused)]
 #[tauri::command]
 pub async fn open_url(url: String) -> bool {
-    match open::that(url) {
-        Err(_) => false,
-        Ok(_) => true
-    }
+    open::that(url).is_ok()
 }
 
 #[allow(unused)]
@@ -118,9 +115,6 @@ pub async fn backup_save(game:Game,describe:String) -> Result<(),String> {
 #[tauri::command]
 pub async fn open_backup_folder(game: Game) -> bool {
     let config = get_config().unwrap();
-    let p = PathBuf::from(&config.backup_path).join(&game.name);
-    match open::that(p) {
-        Err(_) => false,
-        Ok(_) => true
-    }
+    let p = PathBuf::from(&config.backup_path).join(game.name);
+    open::that(p).is_ok()
 }
