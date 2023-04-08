@@ -62,7 +62,7 @@ pub fn backup_save(game: &Game, describe: &str) -> Result<()> {
 pub fn apply_backup(game: &Game, save_date: &str) -> Result<()> {
     let config = get_config()?;
     let backup_path = path::Path::new(&config.backup_path).join(&game.name);
-    decompress_from_file(&game.save_paths, &backup_path, &save_date)?;
+    decompress_from_file(&game.save_paths, &backup_path, save_date)?;
     Ok(())
 }
 
@@ -111,7 +111,7 @@ fn create_backup_folder(name: &str) -> Result<()> {
         fs::create_dir_all(&backup_path)?;
     }
     fs::write(
-        &backup_path.join("Backups.json"),
+        backup_path.join("Backups.json"),
         serde_json::to_string_pretty(&info)?,
     )?;
 
