@@ -30,8 +30,8 @@ pub struct Game {
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
-    prompt_when_not_described: bool,
-    extra_backup_when_apply: bool,
+    pub prompt_when_not_described: bool,
+    pub extra_backup_when_apply: bool,
 }
 
 /// The software's configuration

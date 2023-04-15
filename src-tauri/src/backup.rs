@@ -62,43 +62,41 @@ pub fn backup_save(game: &Game, describe: &str) -> Result<()> {
 pub fn apply_backup(game: &Game, save_date: &str) -> Result<()> {
     let config = get_config()?;
     let backup_path = path::Path::new(&config.backup_path).join(&game.name);
-    decompress_from_file(&game.save_paths, &backup_path, save_date)?;
+    if config.settings.extra_backup_when_apply{
+        create_extra_backup(&game)?;
+    }
+    decompress_from_file(&game.save_paths, &backup_path, &save_date)?;
     Ok(())
 }
 
-// pub fn create_extra_backup(game: &Game) -> Result<()> {
-//     let config = get_config()?;
-//     let save_paths = &game.save_paths;
-//     let extra_backup_path = path::Path::new(&config.backup_path)
-//         .join(&game.name)
-//         .join("extra_backup");
+pub fn create_extra_backup(game: &Game) -> Result<()> {
+    let config = get_config()?;
+    let extra_backup_path = path::Path::new(&config.backup_path)
+        .join(&game.name)
+        .join("extra_backup");
 
-//     if !extra_backup_path.exists() {
-//         fs::create_dir_all(&extra_backup_path)?;
-//     }
+    if !extra_backup_path.exists() {
+        fs::create_dir_all(&extra_backup_path)?;
+    }
 
-//     let extra_backups = extra_backup_path.read_dir()?;
-//     let mut extra_backups:Vec<_> = extra_backups.collect();
-//     if extra_backups.len() >= 5 {
-//         //FIXME:How to remove unwrap?
-//         extra_backups
-//             .sort_by(|x, y| {
-//                 x.unwrap()
-//                     .metadata()
-//                     .unwrap()
-//                     .created()
-//                     .unwrap()
-//                     .cmp(&y.unwrap().metadata().unwrap().created().unwrap())
-//             });
-//         let oldest = extra_backups.first().unwrap().unwrap();
-//         fs::remove_file(&oldest.path())?;
-//     }
-//     let date = chrono::Local::now()
-//         .format("Overwrite:YYYY-MM-DD_HH-mm-ss")
-//         .to_string();
-//     compress_to_file(&game.save_paths, &extra_backup_path, &date)?;
-//     Ok(())
-// }
+    let extra_backups_dir:Vec<_> = extra_backup_path.read_dir()?.collect();
+    let mut extra_backups = Vec::new();
+    if extra_backups_dir.len() >= 5 {
+        extra_backups_dir.into_iter().try_for_each(|f|{
+            extra_backups.push(f?.file_name().into_string().unwrap());
+            Ok(())
+        })?;
+        extra_backups.sort();
+        let oldest = extra_backups.first().unwrap();// 一定要改好这一行
+        println!("oldest{:?}",oldest);
+        fs::remove_file(extra_backup_path.join(&oldest))?;
+    }
+    let date = chrono::Local::now()
+        .format("Overwrite_%Y-%m-%d_%H-%M-%S")
+        .to_string();
+    compress_to_file(&game.save_paths, &extra_backup_path, &date)?;
+    Ok(())
+}
 
 fn create_backup_folder(name: &str) -> Result<()> {
     let config = get_config()?;
@@ -146,7 +144,7 @@ pub fn delete_game(game: &Game) -> Result<()> {
     let backup_path = PathBuf::from(&config.backup_path).join(&game.name);
     fs::remove_dir_all(backup_path)?;
 
-    config.games.retain(|x| x.name == game.name);
+    config.games.retain(|x| x.name != game.name);
     set_config(config)?;
     Ok(())
 }

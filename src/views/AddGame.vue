@@ -75,7 +75,8 @@ function add_save_file() {
 }
 function choose_executable_file() {
     invoke("choose_save_file").then((file) => {
-        console.log(file)
+        console.log(file);
+        game_path.value = file as string;
     })
 }
 

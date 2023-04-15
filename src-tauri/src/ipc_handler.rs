@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use crate::{backup, config};
-// create_extra_backup
 use crate::config::{Config, config_check, Game, get_config};
 use anyhow::{Result};
 use native_dialog::{FileDialog};
