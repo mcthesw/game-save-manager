@@ -70,12 +70,6 @@ pub async fn apply_backup(game:Game,date:String) -> Result<(),String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn apply_backup_with_extra_backup(game:Game,date:String) -> Result<(),String> {
-    todo!() //TODO:增加该功能
-}
-
-#[allow(unused)]
-#[tauri::command]
 pub async fn delete_backup(game:Game,date:String) -> Result<(),String> {
     backup::delete_backup(&game,&date).map_err(|e|e.to_string())
 }
