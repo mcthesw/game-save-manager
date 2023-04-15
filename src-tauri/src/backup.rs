@@ -63,9 +63,9 @@ pub fn apply_backup(game: &Game, save_date: &str) -> Result<()> {
     let config = get_config()?;
     let backup_path = path::Path::new(&config.backup_path).join(&game.name);
     if config.settings.extra_backup_when_apply{
-        create_extra_backup(&game)?;
+        create_extra_backup(game)?;
     }
-    decompress_from_file(&game.save_paths, &backup_path, &save_date)?;
+    decompress_from_file(&game.save_paths, &backup_path, save_date)?;
     Ok(())
 }
 
@@ -89,7 +89,7 @@ pub fn create_extra_backup(game: &Game) -> Result<()> {
         extra_backups.sort();
         let oldest = extra_backups.first().unwrap();// 一定要改好这一行
         println!("oldest{:?}",oldest);
-        fs::remove_file(extra_backup_path.join(&oldest))?;
+        fs::remove_file(extra_backup_path.join(oldest))?;
     }
     let date = chrono::Local::now()
         .format("Overwrite_%Y-%m-%d_%H-%M-%S")
