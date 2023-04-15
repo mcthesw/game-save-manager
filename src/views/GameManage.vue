@@ -168,25 +168,17 @@ function apply_save(date: string) {
         });
         return;
     }
-    if (config.settings.extra_backup_when_apply) {
-        // TODO: Complete with extra backup
-        // ipcRenderer.send("apply_backup_with_extra_backup", {
-        //     game_name: this.game.name,
-        //     save_date: date,
-        // });
-    } else {
-        invoke("apply_backup", { game: game.value, date: date })
-            .then((x) => {
-                ElNotification({
-                    type: "success",
-                    message: "恢复成功",
-                });
-                apply_button_apply_limit = true;
-                console.log(x)
-                refresh_backups_info();
-            })
-    }
     apply_button_apply_limit = false;
+    invoke("apply_backup", { game: game.value, date: date })
+        .then((x) => {
+            ElNotification({
+                type: "success",
+                message: "恢复成功",
+            });
+            apply_button_apply_limit = true;
+            console.log(x)
+            refresh_backups_info();
+        })
 }
 
 function load_latest_save() {
