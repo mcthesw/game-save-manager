@@ -1,8 +1,6 @@
 name: rust-clippy analyze
 
 on:
-  push:
-    branches: [ "v1-tauri", v0-electron ]
   pull_request:
     # The branches below must be a subset of the branches above
     branches: [ "v1-tauri", v0-electron ]
@@ -17,6 +15,7 @@ jobs:
         components: clippy
     - uses: giraffate/clippy-action@v1
       with:
+        filter_mode: nofilter
         workdir: ./src-tauri
         reporter: 'github-pr-review'
         github_token: ${{ secrets.GITHUB_TOKEN }}
