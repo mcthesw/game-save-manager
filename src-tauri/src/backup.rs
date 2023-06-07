@@ -75,10 +75,16 @@ pub fn create_extra_backup(game: &Game) -> Result<()> {
         .join(&game.name)
         .join("extra_backup");
 
+    // Create extra backup
     if !extra_backup_path.exists() {
         fs::create_dir_all(&extra_backup_path)?;
     }
+    let date = chrono::Local::now()
+        .format("Overwrite_%Y-%m-%d_%H-%M-%S")
+        .to_string();
+    compress_to_file(&game.save_paths, &extra_backup_path, &date)?;
 
+    // Delete oldest extra backup if there are more than 5 file
     let extra_backups_dir:Vec<_> = extra_backup_path.read_dir()?.collect();
     let mut extra_backups = Vec::new();
     if extra_backups_dir.len() >= 5 {
@@ -91,10 +97,6 @@ pub fn create_extra_backup(game: &Game) -> Result<()> {
         println!("oldest{:?}",oldest);
         fs::remove_file(extra_backup_path.join(oldest))?;
     }
-    let date = chrono::Local::now()
-        .format("Overwrite_%Y-%m-%d_%H-%M-%S")
-        .to_string();
-    compress_to_file(&game.save_paths, &extra_backup_path, &date)?;
     Ok(())
 }
 
