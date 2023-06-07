@@ -1,14 +1,14 @@
 use std::{
     fs::{self, File},
     io::{Read, Seek, Write},
-    path::{PathBuf, Path},
+    path::{Path, PathBuf},
 };
 
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 
 use anyhow::{Ok, Result};
-use zip::ZipWriter;
+use zip::{write::FileOptions, ZipWriter};
 
 use crate::config::{SaveUnit, SaveUnitType};
 
@@ -17,15 +17,17 @@ use crate::config::{SaveUnit, SaveUnitType};
 /// Write `origin` folder to zip `writer`, the files will in `prefix_path`
 ///
 /// Normally, `prefix_path` should be the file name of the `origin` folder
-fn add_directory<T>(
-    writer: &mut ZipWriter<T>,
-    origin: &PathBuf,
-    prefix_path: &Path,
-) -> Result<()>
+fn add_directory<T>(writer: &mut ZipWriter<T>, origin: &PathBuf, prefix_path: &Path) -> Result<()>
 where
     T: std::io::Write,
     T: Seek,
 {
+    // Create the folder in zip
+    let new_dir_path = prefix_path.to_path_buf();
+    writer.add_directory(
+        new_dir_path.to_str().unwrap().to_string(),
+        FileOptions::default(),
+    )?;
     let mut paths = Vec::new();
     paths.push(origin);
 
@@ -38,12 +40,11 @@ where
             let entry = entry?;
             let entry_path = entry.path();
             let entry_metadata = fs::metadata(&entry_path)?;
+            let mut cur_path = prefix_path.to_path_buf();
+            cur_path = cur_path.join(&entry.file_name());
             if entry_metadata.is_file() {
                 let mut f = File::open(&entry_path)?;
                 f.read_to_end(&mut buffer)?;
-                let mut cur_path = prefix_path.to_path_buf();
-                cur_path = cur_path.join(entry.file_name());
-
                 writer.start_file(
                     cur_path.to_str().unwrap(),
                     zip::write::FileOptions::default(),
@@ -51,8 +52,6 @@ where
                 writer.write_all(&buffer)?;
                 buffer.clear();
             } else if entry_metadata.is_dir() {
-                let mut cur_path = prefix_path.to_path_buf();
-                cur_path = cur_path.join(&entry.file_name());
                 add_directory(writer, &entry_path, &cur_path)?;
             }
         }
@@ -62,12 +61,9 @@ where
 }
 
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
-pub fn compress_to_file(
-    save_paths: &[SaveUnit],
-    backup_path: &Path,
-    date: &str,
-) -> Result<()> {
-    let file = File::create(backup_path.join([date, ".zip"].concat()))?;
+pub fn compress_to_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str) -> Result<()> {
+    let zip_path = backup_path.join([date, ".zip"].concat());
+    let file = File::create(&zip_path)?;
     let mut zip = ZipWriter::new(file);
     save_paths.iter().try_for_each(|x| {
         match x.unit_type {
@@ -90,16 +86,18 @@ pub fn compress_to_file(
         }
         Ok(())
     })?;
-    zip.finish()?;
-    Ok(())
+    match zip.finish() {
+        Result::Ok(_) => Ok(()),
+        Err(e) => {
+            // Delete zip file when write failed
+            fs::remove_file(zip_path)?;
+            Err(e.into())
+        }
+    }
 }
 
 /// Decompress a zip file to their original path
-pub fn decompress_from_file(
-    save_paths: &[SaveUnit],
-    backup_path: &Path,
-    date: &str,
-) -> Result<()> {
+pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str) -> Result<()> {
     let file_path = backup_path.join([date, ".zip"].concat());
     let tmp_folder = PathBuf::from("./tmp");
     let file = File::open(file_path)?;
@@ -110,6 +108,7 @@ pub fn decompress_from_file(
         let unit_path = PathBuf::from(&unit.path);
         match unit.unit_type {
             SaveUnitType::File => {
+                // TODO:测试该文件不存在的情况
                 let option = fs_extra::file::CopyOptions::new().overwrite(true);
                 let original_path = tmp_folder.join(unit_path.file_name().unwrap());
                 move_file(original_path, &unit_path, &option)?;
