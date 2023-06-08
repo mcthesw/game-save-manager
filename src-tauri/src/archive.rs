@@ -66,23 +66,26 @@ pub fn compress_to_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str)
     let file = File::create(&zip_path)?;
     let mut zip = ZipWriter::new(file);
     save_paths.iter().try_for_each(|x| {
-        match x.unit_type {
-            SaveUnitType::File => {
-                let path = PathBuf::from(&x.path);
-                let mut original_file = File::open(&path)?;
-                let mut buf = vec![];
-                original_file.read_to_end(&mut buf)?;
-                zip.start_file(
-                    &path.file_name().unwrap().to_str().unwrap().to_string(),
-                    zip::write::FileOptions::default(),
-                )?;
-                zip.write_all(&buf)?;
+        let path = PathBuf::from(&x.path);
+        if path.exists() {
+            match x.unit_type {
+                SaveUnitType::File => {
+                    let mut original_file = File::open(&path)?;
+                    let mut buf = vec![];
+                    original_file.read_to_end(&mut buf)?;
+                    zip.start_file(
+                        &path.file_name().unwrap().to_str().unwrap().to_string(),
+                        zip::write::FileOptions::default(),
+                    )?;
+                    zip.write_all(&buf)?;
+                }
+                SaveUnitType::Folder => {
+                    let root = PathBuf::from(path.file_name().unwrap());
+                    add_directory(&mut zip, &path, &root)?;
+                }
             }
-            SaveUnitType::Folder => {
-                let path = PathBuf::from(&x.path);
-                let root = PathBuf::from(path.file_name().unwrap());
-                add_directory(&mut zip, &path, &root)?;
-            }
+        }else {
+            // TODO：提醒用户一些文件不见了
         }
         Ok(())
     })?;
@@ -105,25 +108,32 @@ pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &
     fs::create_dir_all(&tmp_folder)?;
     archive.extract(&tmp_folder)?;
     save_paths.iter().try_for_each(|unit| {
-        let unit_path = PathBuf::from(&unit.path);
-        match unit.unit_type {
-            SaveUnitType::File => {
-                // TODO:测试该文件不存在的情况
-                let option = fs_extra::file::CopyOptions::new().overwrite(true);
-                let original_path = tmp_folder.join(unit_path.file_name().unwrap());
-                move_file(original_path, &unit_path, &option)?;
-            }
-            SaveUnitType::Folder => {
-                let option = fs_extra::dir::CopyOptions::new().overwrite(true);
-                let original_path = tmp_folder.join(unit_path.file_name().unwrap());
-                let target_path = unit_path.parent().unwrap();
-                if !target_path.exists() {
-                    fs::create_dir_all(target_path)?;
+        let unit_path = PathBuf::from(&unit.path); // Target location path
+        let original_path = tmp_folder.join(unit_path.file_name().unwrap()); // Temp file location path
+        if original_path.exists() {
+            match unit.unit_type {
+                SaveUnitType::File => {
+                    let option = fs_extra::file::CopyOptions::new().overwrite(true);
+                    let prefix_root = unit_path.parent().unwrap();
+                    if !prefix_root.exists() {
+                        fs::create_dir_all(&prefix_root)?;
+                    }
+                    move_file(original_path, &unit_path, &option)?;
                 }
-                move_dir(original_path, target_path, &option)?;
+                SaveUnitType::Folder => {
+                    let option = fs_extra::dir::CopyOptions::new().overwrite(true);
+                    let target_path = unit_path.parent().unwrap();
+                    if !target_path.exists() {
+                        fs::create_dir_all(target_path)?;
+                    }
+                    move_dir(original_path, target_path, &option)?;
+                }
             }
+            Ok(())
+        } else {
+            // TODO:提醒用户存在问题，特定文件不存在于压缩包中
+            Ok(())
         }
-        Ok(())
     })?;
     fs::remove_dir_all(tmp_folder)?;
     Ok(())

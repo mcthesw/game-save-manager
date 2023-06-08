@@ -26,7 +26,6 @@ fn main() {
             ipc_handler::reset_settings,
             ipc_handler::backup_save,
             ipc_handler::open_backup_folder
-
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
