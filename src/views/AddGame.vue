@@ -6,12 +6,13 @@ import {
     RefreshRight,
     Download,
 } from "@element-plus/icons-vue";
-import { ElNotification } from "element-plus";
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from '@tauri-apps/api/tauri'
 import { Game, SaveUnit } from "../schemas/saveTypes";
+import { show_error, show_warning } from "../utils/notifications";
+import { show_success } from "../utils/notifications";
 const router = useRouter();
 let config = useConfig();
 const buttons = [
@@ -43,12 +44,7 @@ const game_icon_src = ref("https://shadow.elemecdn.com/app/element/hamburger.9cf
 
 function check_save_unit_unique(p: string) {
     if (save_paths.find((x) => x.path == p)) {
-        ElNotification({
-            title: "错误",
-            message: "该软件暂不支持同名文件/文件夹出现",
-            type: "error",
-            duration: 3000,
-        });
+        show_error("该软件暂不支持同名文件/文件夹出现");
         return false;
     }
     return true;
@@ -61,7 +57,9 @@ function add_save_directory() {
             path: dir as string
         }
         save_paths.push(unit)
-    })
+    }).catch(
+        (e)=>{console.log(e)}
+    )
 }
 function add_save_file() {
     invoke("choose_save_file").then((file) => {
@@ -71,13 +69,17 @@ function add_save_file() {
             path: file as string
         }
         save_paths.push(unit)
-    })
+    }).catch(
+        (e)=>{console.log(e)}
+    )
 }
 function choose_executable_file() {
     invoke("choose_save_file").then((file) => {
         console.log(file);
         game_path.value = file as string;
-    })
+    }).catch(
+        (e)=>{console.log(e)}
+    )
 }
 
 function submit_handler(button_method: Function) {
@@ -86,17 +88,11 @@ function submit_handler(button_method: Function) {
 }
 function search_local() {
     // TODO:导入已有配置
-    ElNotification({
-        type: "warning",
-        message: "--WIP-- 这个功能尚未完成",
-    });
+    show_warning("--WIP-- 这个功能尚未完成");
 }
 function save() {
     if (game_name.value == "" || save_paths.length == 0) {
-        ElNotification({
-            type: "error",
-            message: "请至少输入游戏名和一个存档路径"
-        })
+        show_error("请至少输入游戏名和一个存档路径");
         return
     }
     let game: Game = {
@@ -106,29 +102,19 @@ function save() {
     }
     invoke("add_game", { game: game }).then((x) => {
         console.log(x);
-        reset();
+        reset(false);
         config.refresh();
-        ElNotification({
-            title: "提示",
-            message: "添加成功",
-            type: "success",
-            duration: 1000,
-        });
+        show_success("添加成功");
     })
 }
-function reset() {
+function reset(show_notification: boolean = true) {
     // 重置当前配置
     game_name.value = "";
     save_paths = reactive([]);
     game_path.value = "";
     game_icon_src.value =
         "https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png";
-    ElNotification({
-        title: "提示",
-        message: "重置成功",
-        type: "success",
-        duration: 1000,
-    });
+    if (show_notification) { show_success("重置成功"); }
 }
 
 function deleteRow(index: number) {
@@ -159,7 +145,11 @@ function deleteRow(index: number) {
                     </template>
                 </el-input>
             </div>
-            <el-table :data="save_paths" class="save-table" :height="300">
+            <div class="add-button-area">
+                <el-button type="primary" @click="add_save_directory">添加存档文件夹</el-button>
+                <el-button type="primary" @click="add_save_file">添加存档文件</el-button>
+            </div>
+            <el-table :data="save_paths" class="save-table">
                 <el-table-column fixed prop="unit_type" label="类型" width="120" />
                 <el-table-column label="控制" width="120">
                     <template #default="scope">
@@ -170,8 +160,6 @@ function deleteRow(index: number) {
                 </el-table-column>
                 <el-table-column prop="path" label="路径" />
             </el-table>
-            <el-button type="primary" @click="add_save_directory">添加存档文件夹</el-button>
-            <el-button type="primary" @click="add_save_file">添加存档文件</el-button>
         </el-card>
         <el-container class="submit-bar">
             <el-tooltip v-for="button in buttons" :key="button.text" :content="button.text" placement="top">
@@ -228,6 +216,10 @@ function deleteRow(index: number) {
     float: left;
     height: 200px;
     width: 200px;
+}
+
+.add-button-area {
+    margin-top: 20px;
 }
 
 .submit-bar {
