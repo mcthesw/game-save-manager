@@ -10,7 +10,9 @@ use fs_extra::file::move_file;
 use anyhow::{Ok, Result};
 use zip::{write::FileOptions, ZipWriter};
 
-use crate::config::{SaveUnit, SaveUnitType};
+use crate::{config::{SaveUnit, SaveUnitType}, errors::BackupZipError};
+
+
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
 ///
@@ -61,52 +63,56 @@ where
 }
 
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
-pub fn compress_to_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str) -> Result<()> {
-    let zip_path = backup_path.join([date, ".zip"].concat());
+pub fn compress_to_file(
+    save_paths: &[SaveUnit],
+    zip_path: &Path,
+) -> Result<(), BackupZipError> {
+    let mut not_exist_files = Vec::new();
     let file = File::create(&zip_path)?;
     let mut zip = ZipWriter::new(file);
     save_paths.iter().try_for_each(|x| {
-        let path = PathBuf::from(&x.path);
-        if path.exists() {
+        let unit_path = PathBuf::from(&x.path);
+        if unit_path.exists() {
             match x.unit_type {
                 SaveUnitType::File => {
-                    let mut original_file = File::open(&path)?;
+                    let mut original_file = File::open(&unit_path)?;
                     let mut buf = vec![];
                     original_file.read_to_end(&mut buf)?;
                     zip.start_file(
-                        &path.file_name().unwrap().to_str().unwrap().to_string(),
+                        &unit_path.file_name().unwrap().to_str().unwrap().to_string(),
                         zip::write::FileOptions::default(),
                     )?;
                     zip.write_all(&buf)?;
                 }
                 SaveUnitType::Folder => {
-                    let root = PathBuf::from(path.file_name().unwrap());
-                    add_directory(&mut zip, &path, &root)?;
+                    let root = PathBuf::from(unit_path.file_name().unwrap());
+                    add_directory(&mut zip, &unit_path, &root)?;
                 }
             }
-        }else {
-            // TODO：提醒用户一些文件不见了
+        } else {
+            not_exist_files.push(unit_path);
         }
         Ok(())
     })?;
-    match zip.finish() {
-        Result::Ok(_) => Ok(()),
-        Err(e) => {
-            // Delete zip file when write failed
-            fs::remove_file(zip_path)?;
-            Err(e.into())
-        }
+    zip.finish()?;
+    if not_exist_files.len() != 0 {
+        Err(BackupZipError::NotExists(not_exist_files))
+    } else {
+        Result::Ok(())
     }
 }
 
 /// Decompress a zip file to their original path
-pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str) -> Result<()> {
-    let file_path = backup_path.join([date, ".zip"].concat());
-    let tmp_folder = PathBuf::from("./tmp");
-    let file = File::open(file_path)?;
-    let mut archive = zip::ZipArchive::new(file)?;
+pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str) -> Result<(),BackupZipError> {
+    let mut not_exist_files = Vec::new();
+    let zip_path = backup_path.join([date, ".zip"].concat());
+    let file = File::open(zip_path)?;
+    let mut zip = zip::ZipArchive::new(file)?;
+
+    let tmp_folder = PathBuf::from("./tmp"); //TODO: tmp dir
     fs::create_dir_all(&tmp_folder)?;
-    archive.extract(&tmp_folder)?;
+    zip.extract(&tmp_folder)?;
+
     save_paths.iter().try_for_each(|unit| {
         let unit_path = PathBuf::from(&unit.path); // Target location path
         let original_path = tmp_folder.join(unit_path.file_name().unwrap()); // Temp file location path
@@ -129,12 +135,11 @@ pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &
                     move_dir(original_path, target_path, &option)?;
                 }
             }
-            Ok(())
         } else {
-            // TODO:提醒用户存在问题，特定文件不存在于压缩包中
-            Ok(())
+            not_exist_files.push(original_path)
         }
+        Ok(())
     })?;
-    fs::remove_dir_all(tmp_folder)?;
-    Ok(())
+    fs::remove_dir_all(tmp_folder)?;//TODO:tmp dir
+    Result::Ok(())
 }

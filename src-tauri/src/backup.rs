@@ -1,5 +1,6 @@
 use crate::archive::{compress_to_file, decompress_from_file};
 use crate::config::{get_config, set_config, Game};
+use crate::errors::BackupZipError;
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -41,34 +42,40 @@ impl Game {
         fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
         Ok(())
     }
-    pub fn backup_save(&self, describe: &str) -> Result<()> {
+    pub fn backup_save(&self, describe: &str) -> Result<(), BackupZipError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name); // the backup zip file should be placed here
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let save_paths = &self.save_paths; // everything you should copy
-        compress_to_file(save_paths, &backup_path, &date)?;
 
-        let file_path = backup_path.join([&date, ".zip"].concat());
+        let zip_path = backup_path.join([&date, ".zip"].concat());
+        if let Err(e) = compress_to_file(save_paths, &zip_path){
+            // delete the zip if failed to write
+            fs::remove_file(&zip_path)?;
+            return Err(e)
+        }
+            
+
         let backups_info = Backup {
             date,
             describe: describe.to_string(),
-            path: file_path.to_str().unwrap().to_string(),
+            path: zip_path.to_str().unwrap().to_string(),
         };
         let mut infos = self.get_backups_info()?;
         infos.backups.push(backups_info);
         self.set_backups_info(infos)?;
-        Ok(())
+        Result::Ok(())
     }
-    pub fn apply_backup(&self, save_date: &str) -> Result<()> {
+    pub fn apply_backup(&self, save_date: &str) -> Result<(), BackupZipError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name);
         if config.settings.extra_backup_when_apply {
             self.create_extra_backup()?;
         }
         decompress_from_file(&self.save_paths, &backup_path, save_date)?;
-        Ok(())
+        Result::Ok(())
     }
-    pub fn create_extra_backup(&self) -> Result<()> {
+    pub fn create_extra_backup(&self) -> Result<(), BackupZipError> {
         let config = get_config()?;
         let extra_backup_path = path::Path::new(&config.backup_path)
             .join(&self.name)
@@ -81,7 +88,8 @@ impl Game {
         let date = chrono::Local::now()
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
-        compress_to_file(&self.save_paths, &extra_backup_path, &date)?;
+        let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
+        compress_to_file(&self.save_paths, zip_path)?;
 
         // Delete oldest extra backup if there are more than 5 file
         let extra_backups_dir: Vec<_> = extra_backup_path.read_dir()?.collect();
@@ -96,7 +104,7 @@ impl Game {
             println!("oldest{:?}", oldest);
             fs::remove_file(extra_backup_path.join(oldest))?;
         }
-        Ok(())
+        Result::Ok(())
     }
     pub fn delete_backup(&self, date: &str) -> Result<()> {
         let config = get_config()?;

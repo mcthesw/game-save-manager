@@ -6,6 +6,7 @@
 mod config;
 mod backup;
 mod archive;
+mod errors;
 mod ipc_handler;
 
 fn main() {
