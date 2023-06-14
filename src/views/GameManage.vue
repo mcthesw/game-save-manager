@@ -1,13 +1,15 @@
 <script lang="ts" setup>
 //TODO: Add error handler
-import { Ref, computed, defineComponent, reactive, ref, watch } from "vue";
-import { ElMessageBox, ElNotification } from "element-plus";
+import { Ref, computed, ref, watch } from "vue";
+import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/tauri";
 import { useConfig } from "../stores/ConfigFile";
-import { BackupsInfo, Game, SaveUnit } from "../schemas/saveTypes";
+import { BackupsInfo, Game } from "../schemas/saveTypes";
 import { useRoute, useRouter } from "vue-router";
+import { show_error, show_info, show_success, show_warning } from "../utils/notifications";
 
 let config = useConfig();
+let router = useRouter();
 let route = useRoute();
 const top_buttons = [
     { text: "创建新存档", method: create_new_save },
@@ -57,46 +59,37 @@ function refresh_backups_info() {
             let infos = v as BackupsInfo;
             table_data.value = infos.backups;
             console.log(v)
-        })
+        }).catch(
+            (e) => { console.log(e) }
+        )
 }
 
 function send_save_to_background() {
-    ElNotification({
-        type: "info",
-        message: "当该游戏存档大时操作会很久，请等提示成功后再进行其他操作",
-    });
+    show_info("当该游戏存档大时操作会很久，请等提示成功后再进行其他操作");
     if (!backup_button_time_limit) {
-        ElNotification({
-            type: "error",
-            message: "无法在一秒内进行多次存档",
-        });
+        show_error("无法在一秒内进行多次存档");
         return;
     }
     if (!backup_button_backup_limit) {
-        ElNotification({
-            type: "error",
-            message: "上次备份还未完成，请等待",
-        });
+        show_error("上次备份还未完成，请等待");
         return;
     }
     if (!apply_button_apply_limit) {
-        ElNotification({
-            type: "warning",
-            message: "上次覆盖还未完成，请等待",
-        });
+        show_error("上次覆盖还未完成，请等待");
         return;
     }
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
     invoke("backup_save", { game: game.value, describe: describe.value })
         .then((x) => {
+            show_success("备份成功");
+        }).catch(
+            (e) => { console.log(e) }
+        ).finally(() => {
             backup_button_backup_limit = true
             refresh_backups_info();
-            ElNotification({
-                type: "success",
-                message: "备份成功",
-            });
         })
+
     describe.value == "";
     setTimeout(() => {
         backup_button_time_limit = true;
@@ -123,16 +116,15 @@ function create_new_save() {
 
 function launch_game() {
     if (game.value.game_path == undefined || game.value.game_path.length < 1) {
-        ElNotification({
-            type: "error",
-            message: "您并没有储存过该游戏的启动方式",
-        });
+        show_error("您并没有储存过该游戏的启动方式");
         return;
     } else {
         invoke("open_url", { url: game.value.game_path })
             .then((x) => {
                 console.log(x)
-            })
+            }).catch(
+                (e) => { console.log(e) }
+            )
     }
 }
 
@@ -141,62 +133,41 @@ function del_save(date: string) {
     invoke("delete_backup", { game: game.value, date: date }).then((x) => {
         console.log(x)
         refresh_backups_info();
-        ElNotification({
-            type: "success",
-            message: "删除成功",
-        });
-    })
+        show_success("删除成功");
+    }).catch(
+        (e) => { console.log(e) }
+    )
 }
 
 function apply_save(date: string) {
-    ElNotification({
-        type: "info",
-        message: "当该游戏存档大时操作会很久，请等提示成功后再进行其他操作",
-    });
+    show_warning("当该游戏存档大时操作会很久，请等提示成功后再进行其他操作");
 
     if (!apply_button_apply_limit) {
-        ElNotification({
-            type: "warning",
-            message: "上次覆盖还未完成，请等待",
-        });
+        show_error("上次覆盖还未完成，请等待");
         return;
     }
     if (!backup_button_backup_limit) {
-        ElNotification({
-            type: "error",
-            message: "上次备份还未完成，请等待",
-        });
+        show_error("上次备份还未完成，请等待")
         return;
     }
-    if (config.settings.extra_backup_when_apply) {
-        // TODO: Complete with extra backup
-        // ipcRenderer.send("apply_backup_with_extra_backup", {
-        //     game_name: this.game.name,
-        //     save_date: date,
-        // });
-    } else {
-        invoke("apply_backup", { game: game.value, date: date })
-            .then((x) => {
-                ElNotification({
-                    type: "success",
-                    message: "恢复成功",
-                });
-                apply_button_apply_limit = true;
-                console.log(x)
-                refresh_backups_info();
-            })
-    }
     apply_button_apply_limit = false;
+    invoke("apply_backup", { game: game.value, date: date })
+        .then((x) => {
+            show_success("恢复成功");
+            console.log(x)
+        }).catch((e) => {
+            console.log(e)
+        }).finally(() => {
+            apply_button_apply_limit = true;
+            refresh_backups_info();
+        })
 }
 
 function load_latest_save() {
     if (table_data.value[0].date) {
         apply_save(table_data.value[0].date);
     } else {
-        ElNotification({
-            type: "error",
-            message: "发生了错误，可能您没有任何存档",
-        });
+        show_error("发生了错误，可能您没有任何存档");
     }
 }
 
@@ -213,12 +184,13 @@ function del_cur() {
     )
         .then(() => {
             invoke("delete_game", { game: game.value })
+            setTimeout(() => {
+                config.refresh()
+                router.back()
+            }, 100)
         })
         .catch(() => {
-            ElNotification({
-                type: "info",
-                message: "您取消了这次操作",
-            });
+            show_info("您取消了这次操作");
         });
 }
 
@@ -226,7 +198,9 @@ function open_backup_folder() {
     invoke("open_backup_folder", { game: game.value })
         .then((x) => {
             console.log(x)
-        })
+        }).catch(
+            (e) => { console.log(e) }
+        )
 }
 
 const filter_table = computed(

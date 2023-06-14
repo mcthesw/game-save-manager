@@ -22,6 +22,7 @@ zip = "0.5.13"
 fs_extra = "1.3.0"
 open = "4.0.1"
 native-dialog = "0.6.3"
+thiserror = "1.0.40"
 
 [features]
 # by default Tauri runs in production mode

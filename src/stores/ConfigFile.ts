@@ -9,7 +9,7 @@ export const useConfig = defineStore('config', {
             invoke("get_local_config").then((c) => {
                 console.log("Get local config:", c);
                 this.$state = c as Config
-            })
+            }).catch((e) => { console.log(e) })
         }
     }
 });

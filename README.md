@@ -11,7 +11,7 @@
 
 #### 问题提交 | 功能建议 :confused:
 请点击这里：[Github Issue](https://github.com/mcthesw/game-save-manager/issues/new/choose)
-你也可以在小黑盒、[哔哩哔哩](https://space.bilibili.com/4087637)给我提出建议，我会看到会尽快回复的，不过最好还是在 Github 提出 Issue
+，你也可以在小黑盒、[哔哩哔哩](https://space.bilibili.com/4087637)给我提出建议，我会看到会尽快回复的，不过最好还是在 Github 提出 Issue，这里还有一个官方 QQ 群 [837390423](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=2zkfioUwcqA-Y2ZZqfnhjhQcOUEfcYFD&authKey=7eFKqarle0w7QUsFXZbp%2BLkIvEI0ORoggsnNATOSU6maYiu9mSWSTRxcSorp9eex&noverify=0&group_code=837390423)
 ## 开发者指南:smile_cat:
 有能力的话，你也可以亲自参与这个项目，改善这个存档管理器，请 fork 本仓库然后提交 PR，或者提出Issue也是很好的
 
