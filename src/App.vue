@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import MainSideBar from "./components/MainSideBar.vue";
-import { show_warning } from "./utils/notifications"
+import { show_error, show_info, show_warning } from "./utils/notifications"
 import { useConfig } from "./stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event"
+import { IpcNotification, EventWrapper } from "./schemas/events";
 
 let config = useConfig();
 invoke("local_config_check").then((x) => {
@@ -14,9 +15,13 @@ invoke("local_config_check").then((x) => {
 
 show_warning("这是一个早期测试版本，不能保证稳定性，请谨慎使用");
 
-listen('Test', (event: any) => {
-	// event.payload 才是实际的结构体
-	console.log(event)
+listen('Notification', (event: unknown) => {
+	let ev = (event as EventWrapper<IpcNotification>).payload
+	switch (ev.level) {
+		case "info": show_info(ev.msg, ev.title); break;
+		case "warning": show_warning(ev.msg, ev.title); break;
+		case "error": show_error(ev.msg, ev.title); break;
+	}
 });
 
 </script>
