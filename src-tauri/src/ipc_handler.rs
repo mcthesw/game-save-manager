@@ -1,11 +1,26 @@
-use std::path::PathBuf;
-
 use crate::backup::BackupsInfo;
 use crate::config::{config_check, get_config, Config, Game};
+use crate::errors::*;
 use crate::{backup, config};
 use anyhow::Result;
 use native_dialog::FileDialog;
-use tauri::{AppHandle, Manager};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use tauri::Window;
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+enum NotificationLevel {
+    info,
+    warning,
+    error,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct IpcNotification {
+    level: NotificationLevel,
+    title: String,
+    msg: String,
+}
 
 // TODO:把错误文本改为有可读性的
 #[allow(unused)]
@@ -62,13 +77,13 @@ pub async fn add_game(game: Game) -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn apply_backup(game: Game, date: String) -> Result<(), String> {
-    game.apply_backup(&date).map_err(|e| e.to_string())
+pub async fn apply_backup(game: Game, date: String, window: Window) -> Result<(), String> {
+    handle_backup_err(game.apply_backup(&date), window)
 }
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn delete_backup(game: Game, date: String,app_handle:AppHandle) -> Result<(), String> {
+pub async fn delete_backup(game: Game, date: String) -> Result<(), String> {
     game.delete_backup(&date).map_err(|e| e.to_string())
 }
 
@@ -98,8 +113,8 @@ pub async fn reset_settings() -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn backup_save(game: Game, describe: String) -> Result<(), String> {
-    game.backup_save(&describe).map_err(|e| e.to_string())
+pub async fn backup_save(game: Game, describe: String, window: Window) -> Result<(), String> {
+    handle_backup_err(game.backup_save(&describe), window)
 }
 
 #[allow(unused)]
@@ -108,4 +123,39 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
     let config = get_config().unwrap();
     let p = PathBuf::from(&config.backup_path).join(game.name);
     Ok(open::that(p).is_ok())
+}
+
+fn handle_backup_err(res: Result<(), BackupZipError>, window: Window) -> Result<(), String> {
+    if let Err(e) = res {
+        if let BackupZipError::NotExists(files) = &e {
+            files.iter().for_each(|file| {
+                window
+                    .emit(
+                        "Notification",
+                        IpcNotification {
+                            level: NotificationLevel::error,
+                            title: "文件不存在".to_string(),
+                            msg: format!("文件 {:?} 不存在，无法进行备份或恢复", file),
+                        },
+                    )
+                    .unwrap();
+            });
+        }
+        return Err(format!("{}", e));
+    }
+    Ok(())
+}
+
+mod test {
+    use super::*;
+
+    #[test]
+    fn test1() {
+        let a = serde_json::to_string(&IpcNotification {
+            level: NotificationLevel::error,
+            title: "title1".to_string(),
+            msg: "msg1".to_string()
+        }).unwrap();
+        assert_eq!(a,"{\"level\":\"error\",\"title\":\"title1\",\"msg\":\"msg1\"}")
+    }
 }
