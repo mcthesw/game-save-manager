@@ -5,6 +5,7 @@ use crate::config::{config_check, get_config, Config, Game};
 use crate::{backup, config};
 use anyhow::Result;
 use native_dialog::FileDialog;
+use tauri::{AppHandle, Manager};
 
 // TODO:把错误文本改为有可读性的
 #[allow(unused)]
@@ -62,25 +63,25 @@ pub async fn add_game(game: Game) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn apply_backup(game: Game, date: String) -> Result<(), String> {
-    backup::apply_backup(&game, &date).map_err(|e| e.to_string())
+    game.apply_backup(&date).map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn delete_backup(game: Game, date: String) -> Result<(), String> {
-    backup::delete_backup(&game, &date).map_err(|e| e.to_string())
+pub async fn delete_backup(game: Game, date: String,app_handle:AppHandle) -> Result<(), String> {
+    game.delete_backup(&date).map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
 #[tauri::command]
 pub async fn delete_game(game: Game) -> Result<(), String> {
-    backup::delete_game(&game).map_err(|e| e.to_string())
+    game.delete().map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
 #[tauri::command]
 pub async fn get_backups_info(game: Game) -> Result<BackupsInfo, String> {
-    backup::get_backups_info(&game).map_err(|e| e.to_string())
+    game.get_backups_info().map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -98,7 +99,7 @@ pub async fn reset_settings() -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn backup_save(game: Game, describe: String) -> Result<(), String> {
-    backup::backup_save(&game, &describe).map_err(|e| e.to_string())
+    game.backup_save(&describe).map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
