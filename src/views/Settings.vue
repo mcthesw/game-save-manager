@@ -1,9 +1,8 @@
 <script lang="ts" setup>
-import { Config, default_config } from "../schemas/saveTypes";
-import { ElNotification } from "element-plus";
-import { reactive, ref } from "vue";
+import { ref } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
+import { show_success } from "../utils/notifications";
 
 
 const config = useConfig()
@@ -17,28 +16,23 @@ function submit_config() {
     invoke("set_config", { config: config }).then((x) => {
         loading.value = false;
         console.log(x);
-        ElNotification({
-            type: "success",
-            message: "设置成功",
-        });
+        show_success("设置成功");
         load_config()
-    })
+    }).catch(
+        (e) => { console.log(e) }
+    )
 }
 function abort_change() {
-    ElNotification({
-        type: "success",
-        message: "重置成功",
-    });
+    show_success("重置成功");
     load_config();
 }
 function reset_settings() {
     invoke("reset_settings").then((x) => {
-        ElNotification({
-            type: "success",
-            message: "重置成功",
-        });
+        show_success("重置成功");
         load_config();
-    })
+    }).catch(
+        (e) => { console.log(e) }
+    )
 }
 
 

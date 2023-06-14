@@ -6,6 +6,7 @@
 mod config;
 mod backup;
 mod archive;
+mod errors;
 mod ipc_handler;
 
 fn main() {
@@ -19,7 +20,6 @@ fn main() {
             ipc_handler::add_game,
             ipc_handler::local_config_check,
             ipc_handler::apply_backup,
-            ipc_handler::apply_backup_with_extra_backup,
             ipc_handler::delete_backup,
             ipc_handler::delete_game,
             ipc_handler::get_backups_info,
@@ -27,7 +27,6 @@ fn main() {
             ipc_handler::reset_settings,
             ipc_handler::backup_save,
             ipc_handler::open_backup_folder
-
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

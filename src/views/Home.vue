@@ -50,24 +50,18 @@
 
 <script lang="ts" setup>
 import { Edit, UploadFilled, Files } from "@element-plus/icons-vue";
-import { ElNotification } from "element-plus";
 import { useRouter } from "vue-router";
+import { show_info } from "../utils/notifications";
 const router = useRouter();
 
 function go_add_game() {
     router.push("/add-game");
 }
 function go_game_manage() {
-    ElNotification({
-        type: "info",
-        message: "请单击左侧\"存档管理\""
-    })
+    show_info("请单击左侧\"存档管理\"");
 }
 function go_backup() {
-    ElNotification({
-        type: "info",
-        message: "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
-    })
+    show_info("请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理");
 }
 </script>
 
@@ -96,4 +90,5 @@ function go_backup() {
 .new {
     margin-top: 100px;
     justify-content: space-around;
-}</style>
+}
+</style>
