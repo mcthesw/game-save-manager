@@ -1,35 +1,35 @@
 import { ElNotification } from "element-plus";
 
-function show_error(message: string) {
+function show_error(message: string,title="错误") {
     return ElNotification({
-        title: "错误",
+        title,
         message,
         type: "error",
         duration: 3000,
     });
 }
 
-function show_warning(message: string) {
+function show_warning(message: string,title="警告") {
     return ElNotification({
-        title: "警告",
+        title,
         message,
         type: "warning",
         duration: 3000,
     });
 }
 
-function show_success(message: string) {
+function show_success(message: string,title="成功") {
     return ElNotification({
-        title: "成功",
+        title,
         message,
         type: "success",
         duration: 1000,
     });
 }
 
-function show_info(message: string) {
+function show_info(message: string,title="信息提示") {
     return ElNotification({
-        title: "信息提示",
+        title,
         message,
         type: "info",
         duration: 3000,

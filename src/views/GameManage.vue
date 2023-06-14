@@ -82,12 +82,14 @@ function send_save_to_background() {
     backup_button_backup_limit = false;
     invoke("backup_save", { game: game.value, describe: describe.value })
         .then((x) => {
-            backup_button_backup_limit = true
-            refresh_backups_info();
             show_success("备份成功");
         }).catch(
             (e) => { console.log(e) }
-        )
+        ).finally(() => {
+            backup_button_backup_limit = true
+            refresh_backups_info();
+        })
+
     describe.value == "";
     setTimeout(() => {
         backup_button_time_limit = true;
@@ -152,11 +154,12 @@ function apply_save(date: string) {
     invoke("apply_backup", { game: game.value, date: date })
         .then((x) => {
             show_success("恢复成功");
-            apply_button_apply_limit = true;
             console.log(x)
-            refresh_backups_info();
         }).catch((e) => {
             console.log(e)
+        }).finally(() => {
+            apply_button_apply_limit = true;
+            refresh_backups_info();
         })
 }
 
