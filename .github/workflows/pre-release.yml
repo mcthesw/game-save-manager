@@ -1,6 +1,8 @@
 name: pre-release
-on: [push, workflow_dispatch]
-
+on:
+  push:
+    branches:
+      - v1-tauri
 jobs:
   create-release:
     permissions:
