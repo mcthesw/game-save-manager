@@ -2,9 +2,7 @@ name: release
 on:
   push:
     tags:
-      - "v*"
-    branches:
-      - v1-tauri
+      - "v1*"
 jobs:
   create-release:
     permissions:
