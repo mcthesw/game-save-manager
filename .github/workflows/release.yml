@@ -15,3 +15,5 @@ jobs:
         with:
           repo_token: "${{ secrets.RELEASE_TOKEN }}"
           prerelease: false
+          files: |
+            LICENSE
