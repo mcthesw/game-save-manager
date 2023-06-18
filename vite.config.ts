@@ -35,4 +35,8 @@ export default defineConfig({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
+  define: {
+    OS_PLATFORM: `"${process.platform}"`,
+    WIN_PORTABLE: !!process.env.VITE_WIN_PORTABLE
+  }
 });
