@@ -44,11 +44,14 @@
       },
       "resources": [],
       "shortDescription": "",
-      "targets": "all",
+      "targets": ["appimage","deb","nsis","dmg"],
       "windows": {
-        "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
-        "timestampUrl": ""
+        "timestampUrl": "",
+        "nsis": {
+          "languages": ["English","SimpChinese","TradChinese"],
+          "installMode": "both"
+        }
       }
     },
     "security": {
