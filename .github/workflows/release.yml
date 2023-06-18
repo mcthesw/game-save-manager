@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - v1-tauri
 jobs:
   create-release:
     permissions:
