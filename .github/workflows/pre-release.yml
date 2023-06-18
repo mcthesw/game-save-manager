@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - v1-tauri
+      - v1-tauri-dev
 jobs:
   create-release:
     permissions:
