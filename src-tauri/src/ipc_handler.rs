@@ -3,8 +3,8 @@ use crate::config::{config_check, get_config, Config, Game};
 use crate::errors::*;
 use crate::{backup, config};
 use anyhow::Result;
-use native_dialog::FileDialog;
 use serde::{Deserialize, Serialize};
+use tauri::api::dialog;
 use std::path::PathBuf;
 use tauri::Window;
 
@@ -32,13 +32,9 @@ pub async fn open_url(url: String) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn choose_save_file() -> Result<String, String> {
-    if let Ok(path) = FileDialog::new().show_open_single_file() {
-        Ok(path
-            .unwrap_or_default()
-            .to_str()
-            .unwrap_or_default()
-            .to_string())
-    } else {
+    if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_file(){
+        Ok(path.to_string_lossy().into_owned())
+    }else {
         Err("Failed to open dialog.".to_string())
     }
 }
@@ -46,13 +42,9 @@ pub async fn choose_save_file() -> Result<String, String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn choose_save_dir() -> Result<String, String> {
-    if let Ok(path) = FileDialog::new().show_open_single_dir() {
-        Ok(path
-            .unwrap_or_default()
-            .to_str()
-            .unwrap_or_default()
-            .to_string())
-    } else {
+    if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_folder(){
+        Ok(path.to_string_lossy().into_owned())
+    }else {
         Err("Failed to open dialog.".to_string())
     }
 }
