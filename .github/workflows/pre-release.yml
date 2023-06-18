@@ -15,3 +15,5 @@ jobs:
           automatic_release_tag: latest
           prerelease: true
           title: "Bleeding edge/前沿版本"
+          files: |
+            LICENSE
