@@ -11,14 +11,14 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.0.10",
-    "@tauri-apps/api": "^1.2.0",
+    "@tauri-apps/api": "^1.4.0",
     "element-plus": "^2.2.31",
     "pinia": "^2.0.30",
     "vue": "^3.2.45",
     "vue-router": "^4.1.6"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^1.2.2",
+    "@tauri-apps/cli": "^1.4.0",
     "@types/node": "^18.7.10",
     "@vitejs/plugin-vue": "^4.0.0",
     "typescript": "^4.6.4",
