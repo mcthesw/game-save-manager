@@ -1,0 +1,17 @@
+name: pre-release
+on: [push, workflow_dispatch]
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Github release
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.RELEASE_TOKEN }}"
+          automatic_release_tag: latest
+          prerelease: true
+          title: "Bleeding edge/前沿版本"
