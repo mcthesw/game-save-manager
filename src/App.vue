@@ -42,13 +42,8 @@ listen('Notification', (event: unknown) => {
 </template>
 
 <style>
-@font-face {
-	font-family: 'OppoSans';
-	src: url('./assets/fonts/OPPOSans-M.ttf') format('truetype');
-}
-
 #app {
-	font-family: 'OppoSans', Helvetica, Arial, sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
