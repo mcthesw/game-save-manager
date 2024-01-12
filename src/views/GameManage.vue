@@ -15,7 +15,8 @@ const top_buttons = [
     { text: "创建新存档", method: create_new_save },
     { text: "用最新存档覆盖", method: load_latest_save },
     { text: "启动游戏", method: launch_game },
-    { text: "打开备份文件夹", method: open_backup_folder }
+    { text: "打开备份文件夹", method: open_backup_folder },
+    { text: "修改存档管理", method: edit_cur}
 ]
 
 const search = ref("");
@@ -201,6 +202,17 @@ function open_backup_folder() {
         }).catch(
             (e) => { console.log(e) }
         )
+}
+
+// 点击按钮后，，跳转到添加游戏页面
+function edit_cur() {
+    config.refresh()
+    router.push({
+        name: "add-game",
+        params: {
+            name: game.value.name,
+        },
+    });
 }
 
 const filter_table = computed(

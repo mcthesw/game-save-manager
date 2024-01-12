@@ -1,5 +1,5 @@
 use crate::archive::{compress_to_file, decompress_from_file};
-use crate::config::{get_config, set_config, Game};
+use crate::config::{get_config, set_config, Game, Config};
 use crate::errors::BackupZipError;
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
@@ -150,7 +150,19 @@ fn create_backup_folder(name: &str) -> Result<()> {
 pub fn create_game_backup(game: Game) -> Result<()> {
     let mut config = get_config()?;
     create_backup_folder(&game.name)?;
-    config.games.push(game);
+
+    // 查找是否存在与新游戏中的 `name` 字段相同的游戏
+    let pos = config.games.iter().position(|g| g.name == game.name);
+    match pos {
+        Some(index) => {
+            // 如果找到了，就用新的游戏覆盖它
+            config.games[index] = game;
+        }
+        None => {
+            // 如果没有找到，就将新的游戏添加到 `games` 数组中
+            config.games.push(game);
+        }
+    }
     set_config(config)?;
     Ok(())
 }
