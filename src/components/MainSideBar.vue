@@ -7,7 +7,7 @@ import {
     HotWater,
     Setting,
 } from "@element-plus/icons-vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useConfig } from "../stores/ConfigFile";
 
 let config = useConfig();
@@ -24,6 +24,7 @@ const games = computed(() => {
 });
 
 const router = useRouter()
+const route = useRoute()
 function select_handler(key: string, keyPath: string) {
     console.log("导航至", keyPath[keyPath.length - 1]);
     router.push(keyPath[keyPath.length - 1]);
@@ -32,7 +33,7 @@ function select_handler(key: string, keyPath: string) {
 </script>
 
 <template>
-    <el-menu class="main-side-bar" default-active="/home" :select="select_handler" :router="true">
+    <el-menu class="main-side-bar" :default-active="route.path" :select="select_handler" :router="true">
         <el-scrollbar>
             <!-- 下方是存档栏 -->
             <el-sub-menu index="1">
