@@ -4,7 +4,7 @@ import AddGame from "../views/AddGame.vue";
 import About from "../views/About.vue";
 import GameManage from "../views/GameManage.vue";
 import Settings from "../views/Settings.vue";
-import ChangeGameInfo from "../views/ChangeGameInfo.vue";
+import { useConfig } from "../stores/ConfigFile";
 
 const routes: Array<RouteRecordRaw> = [
     {
@@ -25,6 +25,14 @@ const routes: Array<RouteRecordRaw> = [
     },
     {
         path: "/management/:name",
+        beforeEnter: (to, from) => {
+            const store = useConfig();
+            // 避免访问到不存在的游戏
+            const name = to.params.name
+            if (!name || !store.games.find((x) => x.name == name)) {
+                return "/home"
+            }
+        },
         component: GameManage,
     },
     {
