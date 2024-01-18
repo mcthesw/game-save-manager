@@ -5,7 +5,12 @@ import { useConfig } from "./stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event"
 import { IpcNotification, EventWrapper } from "./schemas/events";
+import { useDark } from '@vueuse/core'
 
+// load dark mode status
+useDark()
+
+// load config
 let config = useConfig();
 invoke("local_config_check").then((x) => {
 	config.refresh(); // TODO:Handle old version config
