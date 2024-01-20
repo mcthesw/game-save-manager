@@ -7,6 +7,7 @@ import { useConfig } from "../stores/ConfigFile";
 import { BackupsInfo, Game } from "../schemas/saveTypes";
 import { useRoute, useRouter } from "vue-router";
 import { show_error, show_info, show_success, show_warning } from "../utils/notifications";
+import SaveLocationDrawer from "../components/SaveLocationDrawer.vue";
 
 let config = useConfig();
 let router = useRouter();
@@ -16,10 +17,12 @@ const top_buttons = [
     { text: "用最新存档覆盖", method: load_latest_save },
     { text: "启动游戏", method: launch_game },
     { text: "打开备份文件夹", method: open_backup_folder },
+    { text: "查看受管理文件", method: () => { drawer.value = !drawer.value; } },
     { text: "修改存档管理", method: edit_cur}
 ]
 
-const search = ref("");
+const search = ref(""); // 搜索时使用的字符串
+const drawer = ref(false); // 是否显示存档位置侧栏
 
 let table_data = ref([
     {
@@ -48,7 +51,6 @@ watch(
         let name = newValue.name;
         console.log("Current game:", name)
         game.value = config.games.find((x) => x.name == name) as Game;
-        console.log(game.value)
         refresh_backups_info()
     },
     { immediate: true }
@@ -59,7 +61,7 @@ function refresh_backups_info() {
         .then((v) => {
             let infos = v as BackupsInfo;
             table_data.value = infos.backups;
-            console.log(v)
+            console.log("Backup infos:",v)
         }).catch(
             (e) => { console.log(e) }
         )
@@ -276,6 +278,8 @@ const filter_table = computed(
                 </el-table-column>
             </el-table>
         </el-card>
+        <!-- 下面是存档所在位置侧栏部分 -->
+        <save-location-drawer v-if="game.save_paths" v-model="drawer" :locations="game.save_paths" @closed="drawer = false" />
     </div>
 </template>
 
