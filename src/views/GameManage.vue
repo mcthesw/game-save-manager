@@ -17,8 +17,7 @@ const top_buttons = [
     { text: "用最新存档覆盖", method: load_latest_save },
     { text: "启动游戏", method: launch_game },
     { text: "打开备份文件夹", method: open_backup_folder },
-    { text: "查看受管理文件", method: () => { drawer.value = !drawer.value; } },
-    { text: "修改存档管理", method: edit_cur}
+    { text: "查看受管理文件", method: () => { drawer.value = !drawer.value; } }
 ]
 
 const search = ref(""); // 搜索时使用的字符串
@@ -208,13 +207,28 @@ function open_backup_folder() {
 
 // 点击按钮后，，跳转到添加游戏页面
 function edit_cur() {
-    config.refresh()
-    router.push({
-        name: "add-game",
-        params: {
-            name: game.value.name,
-        },
-    });
+    ElMessageBox.prompt(
+        "如果确定修改的话，请输入yes，否则请点击取消。",
+        "提示",
+        {
+            confirmButtonText: "确定",
+            cancelButtonText: "取消",
+            inputPattern: /yes/,
+            inputErrorMessage: "无效的输入",
+        }
+    )
+        .then(() => {
+            config.refresh()
+            router.push({
+                name: "edit-game",
+                params: {
+                    name: game.value.name,
+                },
+            });
+        })
+        .catch(() => {
+            show_info("您取消了这次操作");
+        });
 }
 
 const filter_table = computed(
@@ -238,6 +252,10 @@ const filter_table = computed(
                     {{ button.text }}
                 </el-button>
             </template>
+
+            <el-button type="danger" round @click="edit_cur()">
+                修改存档管理
+            </el-button>
             <el-button type="danger" round @click="del_cur()">
                 删除该存档管理
             </el-button>
