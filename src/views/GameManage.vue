@@ -209,7 +209,7 @@ function open_backup_folder() {
 // 点击按钮后，，跳转到添加游戏页面
 function edit_cur() {
     ElMessageBox.prompt(
-        "如果确定修改的话，请输入yes，否则请点击取消。",
+        "如果确定修改的话，请输入yes，否则请点击取消。1. 旧存档将保留，但使用旧存档只会恢复与当前受管理文件有交集的部分；2. 若游戏名称被修改，将新增一个存档管理，原存档管理将保留。",
         "提示",
         {
             confirmButtonText: "确定",
