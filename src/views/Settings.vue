@@ -79,6 +79,10 @@ function move_down(game: Game) {
                 <span>启用夜间模式</span>
             </div>
             <div class="setting-box">
+                <ElSwitch v-model="config.settings.show_edit_button" :loading="loading" />
+                <span>在存档管理界面显示修改按钮</span>
+            </div>
+            <div class="setting-box">
                 <ElCollapse>
                     <ElCollapseItem title="调整游戏展示顺序（需要保存设置）">
                         <ElTable :data="config.games" :border="true">

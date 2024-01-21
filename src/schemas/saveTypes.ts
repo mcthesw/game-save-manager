@@ -66,6 +66,10 @@ export interface Settings {
      * 是否在应用存档时进行额外备份
      */
     extra_backup_when_apply:boolean;
+    /**
+     * 是否显示“修改存档管理”按钮
+     */
+    show_edit_button:boolean;
 }
 
 export let default_config: Config = {
@@ -75,5 +79,6 @@ export let default_config: Config = {
     settings:{
         prompt_when_not_described:false,
         extra_backup_when_apply:true,
+        show_edit_button:false,
     }
 };

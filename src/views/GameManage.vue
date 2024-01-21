@@ -41,6 +41,7 @@ let describe = ref("");
 let backup_button_time_limit = true; // 两次备份时间间隔1秒
 let backup_button_backup_limit = true; // 上次没备份好禁止再备份或读取
 let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
+let showEditButton = config.settings.show_edit_button;
 
 // Init game info
 watch(
@@ -253,7 +254,7 @@ const filter_table = computed(
                 </el-button>
             </template>
 
-            <el-button type="danger" round @click="edit_cur()">
+            <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
                 修改存档管理
             </el-button>
             <el-button type="danger" round @click="del_cur()">
