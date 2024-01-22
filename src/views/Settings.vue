@@ -20,19 +20,19 @@ function submit_settings() {
     invoke("set_config", { config: config }).then((x) => {
         loading.value = false;
         console.log(x);
-        show_success($t("reset_success"));
+        show_success($t("settings.reset_success"));
         load_config()
     }).catch(
         (e) => { console.log(e) }
     )
 }
 function abort_change() {
-    show_success($t("reset_success"));
+    show_success($t("settings.reset_success"));
     load_config();
 }
 function reset_settings() {
     invoke("reset_settings").then((x) => {
-        show_success($t("reset_success"));
+        show_success($t("settings.reset_success"));
         load_config();
     }).catch(
         (e) => { console.log(e) }
@@ -58,37 +58,37 @@ function move_down(game: Game) {
 <template>
     <el-container class="setting" direction="vertical">
         <el-card>
-            <h1>{{ $t("customizable_settings") }}</h1>
-            <el-button @click="submit_settings()">{{ $t("submit_settings") }}</el-button>
-            <el-button @click="abort_change()">{{ $t("abort_change") }}</el-button>
-            <el-popconfirm :title="$t('confirm_reset')" :on-confirm="reset_settings">
+            <h1>{{ $t("settings.customizable_settings") }}</h1>
+            <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
+            <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
+            <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
                 <template #reference>
-                    <el-button type="danger">{{ $t("reset_settings") }}</el-button>
+                    <el-button type="danger">{{ $t("settings.reset_settings") }}</el-button>
                 </template>
             </el-popconfirm>
             <br />
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
-                <span>{{ $t("prompt_when_not_described") }}</span>
+                <span>{{ $t("settings.prompt_when_not_described") }}</span>
             </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.extra_backup_when_apply" :loading="loading" />
-                <span>{{ $t("extra_backup_when_apply") }}</span>
+                <span>{{ $t("settings.extra_backup_when_apply") }}</span>
             </div>
             <div class="setting-box">
                 <ElSwitch :value="isDark" :loading="loading" @change="toggleDark()" />
-                <span>{{ $t("enable_dark_mode") }}</span>
+                <span>{{ $t("settings.enable_dark_mode") }}</span>
             </div>
             <div class="setting-box">
                 <ElCollapse>
-                    <ElCollapseItem :title="$t('adjust_game_order')">
+                    <ElCollapseItem :title="$t('settings.adjust_game_order')">
                         <ElTable :data="config.games" :border="true">
-                            <ElTableColumn prop="name" :label="$t('name')" width="180" />
-                            <ElTableColumn prop="game_path" :label="$t('game_path')" />
-                            <ElTableColumn fixed="right" :label="$t('operation')" width="120">
+                            <ElTableColumn prop="name" :label="$t('settings.name')" width="180" />
+                            <ElTableColumn prop="game_path" :label="$t('settings.game_path')" />
+                            <ElTableColumn fixed="right" :label="$t('settings.operation')" width="120">
                                 <template #default="scope">
-                                    <el-button link type="primary" size="small" @click="move_up(scope.row)">{{ $t("move_up") }}</el-button>
-                                    <el-button link type="primary" size="small" @click="move_down(scope.row)">{{ $t("move_down") }}</el-button>
+                                    <el-button link type="primary" size="small" @click="move_up(scope.row)">{{ $t("settings.move_up") }}</el-button>
+                                    <el-button link type="primary" size="small" @click="move_down(scope.row)">{{ $t("settings.move_down") }}</el-button>
                                 </template>
                             </ElTableColumn>
                         </ElTable>

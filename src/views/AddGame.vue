@@ -13,23 +13,24 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { Game, SaveUnit } from "../schemas/saveTypes";
 import { show_error, show_warning } from "../utils/notifications";
 import { show_success } from "../utils/notifications";
+import { $t } from "../i18n";
 const router = useRouter();
 let config = useConfig();
 const buttons = [
     {
-        text: "自动识别本地游戏",
+        text: $t('addgame.search_local'),
         type: "primary",
         icon: Download,
         method: search_local,
     },
     {
-        text: "保存当前编辑的配置",
+        text: $t('addgame.save_current_profile'),
         type: "success",
         icon: Check,
         method: save,
     },
     {
-        text: "重置当前配置",
+        text: $t('addgame.reset_current_profile'),
         type: "danger",
         icon: RefreshRight,
         method: reset,
@@ -44,7 +45,7 @@ const game_icon_src = ref("https://shadow.elemecdn.com/app/element/hamburger.9cf
 
 function check_save_unit_unique(p: string) {
     if (save_paths.find((x) => x.path == p)) {
-        show_error("该软件暂不支持同名文件/文件夹出现");
+        show_error($t('addgame.duplicated_filename_error'));
         return false;
     }
     return true;
@@ -88,11 +89,11 @@ function submit_handler(button_method: Function) {
 }
 function search_local() {
     // TODO:导入已有配置
-    show_warning("--WIP-- 这个功能尚未完成");
+    show_warning($t('addgame.wip_warning'));
 }
 function save() {
     if (game_name.value == "" || save_paths.length == 0) {
-        show_error("请至少输入游戏名和一个存档路径");
+        show_error($t('addgame.no_name_error'));
         return
     }
     let game: Game = {
@@ -104,7 +105,7 @@ function save() {
         console.log(x);
         reset(false);
         config.refresh();
-        show_success("添加成功");
+        show_success($t('addgame.add_game_success'));
     })
 }
 function reset(show_notification: boolean = true) {
@@ -114,7 +115,8 @@ function reset(show_notification: boolean = true) {
     game_path.value = "";
     game_icon_src.value =
         "https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png";
-    if (show_notification) { show_success("重置成功"); }
+    // This is a first occurrence of a i18n text duplication. How to handle this?
+    if (show_notification) { show_success($t('settings.reset_success')); }
 }
 
 function deleteRow(index: number) {
@@ -127,15 +129,13 @@ function deleteRow(index: number) {
         <el-card class="game-info">
             <div class="top-part">
                 <img class="game-icon" :src="game_icon_src" />
-                <el-input v-model="game_name" placeholder="请输入游戏名（必须）" class="game-name">
+                <el-input v-model="game_name" :placeholder="$t('addgame.input_game_name_prompt')" class="game-name">
                     <template #prepend>
-                        游戏名称
-                    </template>
+                        {{ $t('addgame.game_name') }} </template>
                 </el-input>
-                <el-input v-model="game_path" placeholder="请选择游戏启动文件（非必须）" class="game-path">
+                <el-input v-model="game_path" :placeholder="$t('addgame.input_game_launch_path_prompt')" class="game-path">
                     <template #prepend>
-                        启动文件
-                    </template>
+                        {{ $t('addgame.game_launch_path') }} </template>
                     <template #append>
                         <el-button @click="choose_executable_file()">
                             <el-icon>
@@ -146,19 +146,18 @@ function deleteRow(index: number) {
                 </el-input>
             </div>
             <div class="add-button-area">
-                <el-button type="primary" @click="add_save_directory">添加存档文件夹</el-button>
-                <el-button type="primary" @click="add_save_file">添加存档文件</el-button>
+                <el-button type="primary" @click="add_save_directory">{{ $t('addgame.add_save_directory') }}</el-button>
+                <el-button type="primary" @click="add_save_file">{{ $t('addgame.add_save_file') }}</el-button>
             </div>
             <el-table :data="save_paths" class="save-table">
-                <el-table-column fixed prop="unit_type" label="类型" width="120" />
-                <el-table-column label="控制" width="120">
+                <el-table-column fixed prop="unit_type" :label="$t('addgame.type')" width="120" />
+                <el-table-column :label="$t('addgame.operations')" width="120">
                     <template #default="scope">
                         <el-button link type="primary" size="small" @click.prevent="deleteRow(scope.$index)">
-                            移除
-                        </el-button>
+                            {{ $t('addgame.remove') }} </el-button>
                     </template>
                 </el-table-column>
-                <el-table-column prop="path" label="路径" />
+                <el-table-column prop="path" :label="$t('addgame.path')" />
             </el-table>
         </el-card>
         <el-container class="submit-bar">
