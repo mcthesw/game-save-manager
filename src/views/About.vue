@@ -12,6 +12,8 @@ function source_click(url: string) {
 
 const thanks = [
     { name: "Sworld", describe: $t('about.project_initiator') },
+    { name: "Itsusinn逸新", describe: $t('about.developer') },
+    { name: "AsterNighT", describe: $t('about.developer') },
     { name: "勺子", describe: $t('about.ea_tester') },
     { name: "Wali", describe: $t('about.ea_tester') },
     { name: "土拨鼠", describe: $t('about.ea_tester') },
@@ -65,7 +67,7 @@ const frames = [
             |
             <el-link @click="
                 source_click('https://game.sworld.club/')
-            ">{{ $t('about.official_website') }}</el-link>
+                ">{{ $t('about.official_website') }}</el-link>
             <span class="version">{{ $t('about.version', [config.version]) }}</span>
         </el-footer>
     </el-container>
