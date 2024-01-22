@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { $t } from "../i18n";
 import { Game } from "../schemas/saveTypes";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from '@tauri-apps/api/tauri'
@@ -10,38 +11,34 @@ function source_click(url: string) {
 };
 
 const thanks = [
-    { name: "Sworld", describe: "本项目的创始者" },
-    { name: "勺子", describe: "早期测试者" },
-    { name: "Wali", describe: "早期测试者" },
-    { name: "土拨鼠", describe: "早期测试者" },
-    { name: "布莱泽", describe: "早期测试者" },
+    { name: "Sworld", describe: $t('about.project_initiator') },
+    { name: "勺子", describe: $t('about.ea_tester') },
+    { name: "Wali", describe: $t('about.ea_tester') },
+    { name: "土拨鼠", describe: $t('about.ea_tester') },
+    { name: "布莱泽", describe: $t('about.ea_tester') },
 ]
 const frames = [
-    { name: "Vue3", describe: "前端框架" },
-    { name: "Tauri", describe: "桌面应用框架" },
-    { name: "Element-plus", describe: "UI框架" },
+    { name: "Vue3", describe: $t('about.frontend_framework') },
+    { name: "Tauri", describe: $t('about.desktop_framework') },
+    { name: "Element-plus", describe: $t('about.ui_framework') },
 ]
 </script>
 
 <template>
     <el-container>
         <el-main class="about-content">
-            <h2>该软件是一个开源的，由Sworld主导的游戏存档管理软件</h2>
+            <h2>{{ $t('about.content_1') }}</h2>
             <p>
-                设计该软件的初衷是为了方便玩家们管理自己的游戏存档，但是由于游戏数量众多，难以一一适配，
-                所以游戏路径只能靠手动导入，如果你感兴趣的话，可以尝试参与改善本项目。
-            </p>
-            <h2>支持我</h2>
+                {{ $t('about.content_2') }} </p>
+            <h2>{{ $t('about.support_me') }}</h2>
             <p>
-                你可以点击下方的“开源地址”，在上面为我点一个Star，这是对我很大的鼓励，也可以通过开源平台为这个项目贡献代码和提出问题。
-            </p>
+                {{ $t('about.support_me_content_1') }} </p>
             <p>
-                如果你是普通用户，可以考虑请我喝杯饮料，我会非常感激。
-            </p>
+                {{ $t('about.support_me_content_2') }} </p>
             <el-container direction="horizontal" class="thanks-container">
                 <div class="thanks">
                     <el-scrollbar>
-                        <h1>感谢名单</h1>
+                        <h1>{{ $t('about.thank_you_list') }}</h1>
                         <el-timeline>
                             <el-timeline-item v-for="thank in thanks" :key="thank.name" :timestamp="thank.describe">
                                 {{ thank.name }}
@@ -51,7 +48,7 @@ const frames = [
                 </div>
                 <div class="frames">
                     <el-scrollbar>
-                        <h1>使用框架</h1>
+                        <h1>{{ $t('about.frameworks') }}</h1>
                         <el-timeline>
                             <el-timeline-item v-for="frame in frames" :key="frame.name" :timestamp="frame.describe">
                                 {{ frame.name }}
@@ -68,8 +65,8 @@ const frames = [
             |
             <el-link @click="
                 source_click('https://game.sworld.club/')
-            ">官方网站</el-link>
-            <span class="version">版本号: {{ config.version }}</span>
+            ">{{ $t('about.official_website') }}</el-link>
+            <span class="version">{{ $t('about.version', [config.version]) }}</span>
         </el-footer>
     </el-container>
 </template>
