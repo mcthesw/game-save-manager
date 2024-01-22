@@ -9,6 +9,7 @@ import {
 } from "@element-plus/icons-vue";
 import { useRoute, useRouter } from "vue-router";
 import { useConfig } from "../stores/ConfigFile";
+import { $t } from "../i18n";
 
 let config = useConfig();
 
@@ -26,7 +27,7 @@ const games = computed(() => {
 const router = useRouter()
 const route = useRoute()
 function select_handler(key: string, keyPath: string) {
-    console.log("导航至", keyPath[keyPath.length - 1]);
+    console.log($t('misc.navigate_to'), keyPath[keyPath.length - 1]);
     router.push(keyPath[keyPath.length - 1]);
 }
 
@@ -41,7 +42,7 @@ function select_handler(key: string, keyPath: string) {
                     <el-icon>
                         <Files></Files>
                     </el-icon>
-                    <span>存档管理</span>
+                    <span>{{ $t('misc.save_manage') }}</span>
                 </template>
                 <el-menu-item v-for="game in games" :key="game.name" :index="'/management/' + game.name">
                     {{ game.name }}

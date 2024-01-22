@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event"
 import { IpcNotification, EventWrapper } from "./schemas/events";
 import { useDark } from '@vueuse/core'
+import { $t } from "./i18n";
 
 // load dark mode status
 useDark()
@@ -18,7 +19,7 @@ invoke("local_config_check").then((x) => {
 	console.log(e)
 });
 
-show_warning("这是一个早期测试版本，不能保证稳定性，请谨慎使用");
+show_warning($t('app.early_access_warning'));
 
 listen('Notification', (event: unknown) => {
 	let ev = (event as EventWrapper<IpcNotification>).payload

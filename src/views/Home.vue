@@ -1,47 +1,45 @@
 <template>
     <el-container class="home-container" direction="vertical">
-        <h2>你好 世界</h2>
+        <h2>{{ $t('home.hello_world') }}</h2>
         <div class="describe-container">
             <div class="describe">
-                <h3>简洁</h3>
-                <p>不添加推广、贴片广告等无用功能，尽量保证界面为功能服务</p>
+                <h3>{{ $t('home.simple') }}</h3>
+                <p>{{ $t('home.simple_explained') }}</p>
             </div>
             <div class="describe">
-                <h3>安全</h3>
+                <h3>{{ $t('home.safe') }}</h3>
                 <p>
-                    此软件无联机功能，你可以通过坚果云来备份自己的存档，实现“云存档”的功能
-                </p>
+                    {{ $t('home.safe_explained') }} </p>
             </div>
             <div class="describe">
-                <h3>自由</h3>
+                <h3>{{ $t('home.free') }}</h3>
                 <p>
-                    这个软件属于开源世界，你可以轻易访问到它的源代码，有能者可以为它贡献代码
-                </p>
+                    {{ $t('home.free_explained') }} </p>
             </div>
         </div>
         <el-container class="new" direction="horizontal">
-            <el-result title="导入游戏">
+            <el-result :title="$t('home.import_game')">
                 <template #icon>
                     <Edit />
                 </template>
                 <template #extra>
-                    <el-button type="primary" @click="go_add_game()">跳转</el-button>
+                    <el-button type="primary" @click="go_add_game()">{{ $t('home.go_add_game') }}</el-button>
                 </template>
             </el-result>
-            <el-result title="进入存档管理">
+            <el-result :title="$t('home.go_save_manage')">
                 <template #icon>
                     <Files />
                 </template>
                 <template #extra>
-                    <el-button type="primary" @click="go_game_manage()">提示</el-button>
+                    <el-button type="primary" @click="go_game_manage()">{{ $t('home.hint') }}</el-button>
                 </template>
             </el-result>
-            <el-result title="开始备份！">
+            <el-result :title="$t('home.start_backup')">
                 <template #icon>
                     <UploadFilled />
                 </template>
                 <template #extra>
-                    <el-button type="primary" @click="go_backup()">提示</el-button>
+                    <el-button type="primary" @click="go_backup()">{{ $t('home.hint') }}</el-button>
                 </template>
             </el-result>
         </el-container>
@@ -52,16 +50,17 @@
 import { Edit, UploadFilled, Files } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
 import { show_info } from "../utils/notifications";
+import { $t } from "../i18n";
 const router = useRouter();
 
 function go_add_game() {
     router.push("/add-game");
 }
 function go_game_manage() {
-    show_info("请单击左侧\"存档管理\"");
+    show_info($t('home.go_game_manage_hint'))
 }
 function go_backup() {
-    show_info("请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理");
+    show_info($t('home.go_backup_hint'));
 }
 </script>
 

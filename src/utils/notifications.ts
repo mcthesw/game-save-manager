@@ -1,6 +1,7 @@
 import { ElNotification } from "element-plus";
+import { $t } from "../i18n";
 
-function show_error(message: string,title="错误") {
+function show_error(message: string,title=$t('misc.error')) {
     return ElNotification({
         title,
         message,
@@ -9,7 +10,7 @@ function show_error(message: string,title="错误") {
     });
 }
 
-function show_warning(message: string,title="警告") {
+function show_warning(message: string,title=$t('misc.warning')) {
     return ElNotification({
         title,
         message,
@@ -18,7 +19,7 @@ function show_warning(message: string,title="警告") {
     });
 }
 
-function show_success(message: string,title="成功") {
+function show_success(message: string,title=$t('misc.success')) {
     return ElNotification({
         title,
         message,
@@ -27,7 +28,7 @@ function show_success(message: string,title="成功") {
     });
 }
 
-function show_info(message: string,title="信息提示") {
+function show_info(message: string,title=$t('misc.info')) {
     return ElNotification({
         title,
         message,
