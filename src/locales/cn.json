@@ -29,8 +29,8 @@
     "hint": "提示",
     "start_backup": "开始备份！",
     "go_save_manage": "进入存档管理",
-    "go_game_manage_hint": "请单击左侧\\\"存档管理\\\"",
-    "go_backup_hint": "请在\\\"存档管理\\\"栏目下单击游戏名，在新界面中进行存档管理"
+    "go_game_manage_hint": "请单击左侧\"存档管理\"",
+    "go_backup_hint": "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
   },
   "manage": {
     "create_new_save": "创建新存档",
@@ -92,6 +92,7 @@
   "about": {
     "project_initiator": "本项目的创始者",
     "ea_tester": "早期测试者",
+    "developer":"项目开发者",
     "frontend_framework": "前端框架",
     "desktop_framework": "桌面应用框架",
     "ui_framework": "UI框架",
