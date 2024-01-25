@@ -131,18 +131,18 @@ impl Game {
 
 fn create_backup_folder(name: &str) -> Result<()> {
     let config = get_config()?;
-    let info: BackupsInfo;
+
     let backup_path = PathBuf::from(&config.backup_path).join(name);
-    if !backup_path.exists() {
+    let info: BackupsInfo = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
-        info = BackupsInfo {
+        BackupsInfo {
             name: name.to_string(),
             backups: Vec::new(),
-        };
+        }
     } else {
         // 如果已经存在，info从原来的文件中读取
         let bytes = fs::read(backup_path.join("Backups.json"));
-        info = serde_json::from_slice(&bytes?)?;
+        serde_json::from_slice(&bytes?)?
     }
     fs::write(
         backup_path.join("Backups.json"),
