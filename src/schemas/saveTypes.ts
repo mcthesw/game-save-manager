@@ -67,7 +67,7 @@ export interface Settings {
      */
     extra_backup_when_apply:boolean;
     /**
-     * 是否显示“修改存档管理”按钮
+     * 是否显示"修改存档管理"按钮
      */
     show_edit_button:boolean;
 }

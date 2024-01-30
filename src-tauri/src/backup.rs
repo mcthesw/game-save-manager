@@ -143,7 +143,7 @@ fn create_backup_folder(name: &str) -> Result<()> {
         // 如果已经存在，info从原来的文件中读取
         let bytes = fs::read(backup_path.join("Backups.json"));
         serde_json::from_slice(&bytes?)?
-    }
+    };
     fs::write(
         backup_path.join("Backups.json"),
         serde_json::to_string_pretty(&info)?,

@@ -20,7 +20,7 @@ function submit_settings() {
     invoke("set_config", { config: config }).then((x) => {
         loading.value = false;
         console.log(x);
-        show_success($t("settings.reset_success"));
+        show_success($t("settings.submit_success"));
         load_config()
     }).catch(
         (e) => { console.log(e) }
@@ -81,7 +81,7 @@ function move_down(game: Game) {
             </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.show_edit_button" :loading="loading" />
-                <span>在存档管理界面显示修改按钮</span>
+                <span>{{ $t("settings.enable_edit_manage") }}</span>
             </div>
             <div class="setting-box">
                 <ElCollapse>
