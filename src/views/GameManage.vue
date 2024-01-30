@@ -8,16 +8,17 @@ import { BackupsInfo, Game } from "../schemas/saveTypes";
 import { useRoute, useRouter } from "vue-router";
 import { show_error, show_info, show_success, show_warning } from "../utils/notifications";
 import SaveLocationDrawer from "../components/SaveLocationDrawer.vue";
+import { $t } from "../i18n";
 
 let config = useConfig();
 let router = useRouter();
 let route = useRoute();
 const top_buttons = [
-    { text: "创建新存档", method: create_new_save },
-    { text: "用最新存档覆盖", method: load_latest_save },
-    { text: "启动游戏", method: launch_game },
-    { text: "打开备份文件夹", method: open_backup_folder },
-    { text: "查看受管理文件", method: () => { drawer.value = !drawer.value; } }
+    { text: $t('manage.create_new_save'), method: create_new_save },
+    { text: $t('manage.load_latest_save'), method: load_latest_save },
+    { text: $t('manage.launch_game'), method: launch_game },
+    { text: $t('manage.open_backup_folder'), method: open_backup_folder },
+    { text: $t('manage.show_drawer'), method: () => { drawer.value = !drawer.value; } }
 ]
 
 const search = ref(""); // 搜索时使用的字符串
@@ -26,7 +27,7 @@ const drawer = ref(false); // 是否显示存档位置侧栏
 let table_data = ref([
     {
         date: "",
-        describe: "这是一条错误信息，正常情况不会出现",
+        describe: $t('manage.error_info'),
         path: "",
     },
 ]);
@@ -68,24 +69,24 @@ function refresh_backups_info() {
 }
 
 function send_save_to_background() {
-    show_info("当该游戏存档大时操作会很久，请等提示成功后再进行其他操作");
+    show_info($t('manage.wait_for_prompt_hint'));
     if (!backup_button_time_limit) {
-        show_error("无法在一秒内进行多次存档");
+        show_error($t('manage.save_too_fast_error'));
         return;
     }
     if (!backup_button_backup_limit) {
-        show_error("上次备份还未完成，请等待");
+        show_error($t('manage.last_backup_unfinished_error'));
         return;
     }
     if (!apply_button_apply_limit) {
-        show_error("上次覆盖还未完成，请等待");
+        show_error($t('manage.last_overwrite_unfinished_error'));
         return;
     }
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
     invoke("backup_save", { game: game.value, describe: describe.value })
         .then((x) => {
-            show_success("备份成功");
+            show_success($t('manage.backup_success'));
         }).catch(
             (e) => { console.log(e) }
         ).finally(() => {
@@ -103,9 +104,9 @@ function create_new_save() {
     if (
         config.settings.prompt_when_not_described && !describe.value
     ) {
-        ElMessageBox.confirm("你没有给这个存档提供描述，继续吗？", "警告", {
-            confirmButtonText: "坚持保存",
-            cancelButtonText: "取消",
+        ElMessageBox.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
+            confirmButtonText: $t('manage.confirm_save'),
+            cancelButtonText: $t('manage.cancel'),
             type: "warning",
         })
             .then(() => {
@@ -119,7 +120,7 @@ function create_new_save() {
 
 function launch_game() {
     if (game.value.game_path == undefined || game.value.game_path.length < 1) {
-        show_error("您并没有储存过该游戏的启动方式");
+        show_error($t('manage.no_launch_path_error'));
         return;
     } else {
         invoke("open_url", { url: game.value.game_path })
@@ -136,27 +137,27 @@ function del_save(date: string) {
     invoke("delete_backup", { game: game.value, date: date }).then((x) => {
         console.log(x)
         refresh_backups_info();
-        show_success("删除成功");
+        show_success($t('manage.delete_success'));
     }).catch(
         (e) => { console.log(e) }
     )
 }
 
 function apply_save(date: string) {
-    show_warning("当该游戏存档大时操作会很久，请等提示成功后再进行其他操作");
+    show_warning($t('manage.wait_for_prompt_hint'));
 
     if (!apply_button_apply_limit) {
-        show_error("上次覆盖还未完成，请等待");
+        show_error($t('manage.last_overwrite_unfinished_error'));
         return;
     }
     if (!backup_button_backup_limit) {
-        show_error("上次备份还未完成，请等待")
+        show_error($t('manage.last_backup_unfinished_error'))
         return;
     }
     apply_button_apply_limit = false;
     invoke("apply_backup", { game: game.value, date: date })
         .then((x) => {
-            show_success("恢复成功");
+            show_success($t('manage.recover_success'));
             console.log(x)
         }).catch((e) => {
             console.log(e)
@@ -170,19 +171,19 @@ function load_latest_save() {
     if (table_data.value[0].date) {
         apply_save(table_data.value[0].date);
     } else {
-        show_error("发生了错误，可能您没有任何存档");
+        show_error($t('manage.no_backup_error'));
     }
 }
 
 function del_cur() {
     ElMessageBox.prompt(
-        "如果确定删除的话，请输入yes，否则请点击取消。这个操作将会抹除已经备份过的该游戏的所有存档，并且把该游戏从已识别列表中去除",
-        "提示",
+        $t('manage.delete_prompt'),
+        $t('home.hint'),
         {
-            confirmButtonText: "确定",
-            cancelButtonText: "取消",
+            confirmButtonText: $t('manage.confirm'),
+            cancelButtonText: $t('manage.cancel'),
             inputPattern: /yes/,
-            inputErrorMessage: "无效的输入",
+            inputErrorMessage: $t('manage.invalid_input_error'),
         }
     )
         .then(() => {
@@ -193,7 +194,7 @@ function del_cur() {
             }, 100)
         })
         .catch(() => {
-            show_info("您取消了这次操作");
+            show_info($t('manage.operation_canceled'));
         });
 }
 
@@ -258,13 +259,12 @@ const filter_table = computed(
                 修改存档管理
             </el-button>
             <el-button type="danger" round @click="del_cur()">
-                删除该存档管理
-            </el-button>
+                {{ $t('manage.delete_save_manage') }} </el-button>
 
             <!-- 下面是当前存档描述信息 -->
 
-            <el-input v-model="describe" placeholder="请输入新存档描述信息">
-                <template #prepend>{{ game.name }}的新存档: </template>
+            <el-input v-model="describe" :placeholder="$t('manage.input_description_prompt')">
+                <template #prepend>{{ $t('manage.new_save_of', [game.name]) }} </template>
             </el-input>
         </el-card>
         <!-- 下面是主体部分 -->
@@ -273,25 +273,24 @@ const filter_table = computed(
             <!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
             <!-- 下面是测试用数据，最后需要被替换成v-for生成的时间轴卡片 -->
             <el-table :data="filter_table" style="width: 100%">
-                <el-table-column label="备份日期" prop="date" width="200px" sortable />
-                <el-table-column label="描述" prop="describe" />
+                <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
+                <el-table-column :label="$t('manage.description')" prop="describe" />
                 <el-table-column align="right">
                     <template #header>
                         <!-- 搜索 -->
-                        <el-input v-model="search" size="small" placeholder="输入以搜索描述" clearable />
+                        <el-input v-model="search" size="small" :placeholder="$t('manage.input_description_search_prompt')" clearable />
                     </template>
                     <template #default="scope">
                         <!-- scope.$index和scope.row可以被使用 -->
-                        <el-popconfirm title="确定覆盖现有存档?" @confirm="apply_save(scope.row.date)">
+                        <el-popconfirm :title="$t('manage.confirm_overwrite_prompt')" @confirm="apply_save(scope.row.date)">
                             <template #reference>
-                                <el-button size="small"> 应用 </el-button>
+                                <el-button size="small"> {{ $t('manage.apply') }} </el-button>
                             </template>
                         </el-popconfirm>
-                        <el-popconfirm title="确定要删除?" @confirm="del_save(scope.row.date)">
+                        <el-popconfirm :title="$t('manage.confirm_delete_prompt')" @confirm="del_save(scope.row.date)">
                             <template #reference>
                                 <el-button size="small" type="danger">
-                                    删除
-                                </el-button></template>
+                                    {{ $t('manage.delete') }} </el-button></template>
                         </el-popconfirm>
                     </template>
                 </el-table-column>
