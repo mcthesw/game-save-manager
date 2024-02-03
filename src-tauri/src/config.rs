@@ -22,7 +22,7 @@ pub struct SaveUnit {
 /// A game struct contains the save units and the game's launcher
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Game {
-    pub name:String,
+    pub name: String,
     pub save_paths: Vec<SaveUnit>,
     pub game_path: Option<String>,
 }
@@ -32,6 +32,15 @@ pub struct Game {
 pub struct Settings {
     pub prompt_when_not_described: bool,
     pub extra_backup_when_apply: bool,
+    #[serde(default = "default_false")]
+    pub show_edit_button: bool,
+}
+
+fn default_false()->bool{
+    false
+}
+fn default_true()->bool{
+    true
 }
 
 /// The software's configuration
@@ -54,12 +63,13 @@ fn default_config() -> Config {
         settings: Settings {
             prompt_when_not_described: false,
             extra_backup_when_apply: true,
+            show_edit_button: false,
         },
     }
 }
 
 /// Set settings to original state
-pub fn reset_settings() -> Result<()>{
+pub fn reset_settings() -> Result<()> {
     let settings = default_config().settings;
     let mut config = get_config()?;
     config.settings = settings;

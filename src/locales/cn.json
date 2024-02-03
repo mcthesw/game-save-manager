@@ -3,6 +3,7 @@
     "reset_success": "重置成功",
     "customizable_settings": "个性化设置",
     "submit_settings": "保存修改",
+    "submit_success": "保存修改成功",
     "abort_change": "放弃修改",
     "confirm_reset": "确认重置?",
     "reset_settings": "恢复默认配置",
@@ -14,7 +15,8 @@
     "game_path": "启动路径",
     "operation": "操作",
     "move_up": "上移",
-    "move_down": "下移"
+    "move_down": "下移",
+    "enable_edit_manage": "在存档管理界面显示修改按钮"
   },
   "home": {
     "hello_world": "你好 世界",
@@ -65,7 +67,9 @@
     "confirm_overwrite_prompt": "确定覆盖现有存档?",
     "apply": "应用",
     "confirm_delete_prompt": "确定要删除?",
-    "delete": "删除"
+    "delete": "删除",
+    "change_info": "修改备份",
+    "change_prompt": "注意，这是一个不推荐使用的危险功能。如果确定修改的话，请输入yes，否则请点击取消。旧存档将保留，但使用旧存档只会恢复与当前受管理文件有交集的部分；若游戏名称必须修改，将新增一个存档管理，原存档管理将保留"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",

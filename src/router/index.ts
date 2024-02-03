@@ -20,6 +20,11 @@ const routes: Array<RouteRecordRaw> = [
         component: AddGame,
     },
     {
+        path: "/edit-game/:name",
+        component: AddGame,
+        name: "edit-game"
+    },
+    {
         path: "/home",
         component: Home,
     },

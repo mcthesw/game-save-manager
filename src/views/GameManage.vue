@@ -18,7 +18,7 @@ const top_buttons = [
     { text: $t('manage.load_latest_save'), method: load_latest_save },
     { text: $t('manage.launch_game'), method: launch_game },
     { text: $t('manage.open_backup_folder'), method: open_backup_folder },
-    { text: $t('manage.show_drawer'), method: () => { drawer.value = !drawer.value; } }
+    { text: $t('manage.show_drawer'), method: () => { drawer.value = !drawer.value; } },
 ]
 
 const search = ref(""); // 搜索时使用的字符串
@@ -42,6 +42,7 @@ let describe = ref("");
 let backup_button_time_limit = true; // 两次备份时间间隔1秒
 let backup_button_backup_limit = true; // 上次没备份好禁止再备份或读取
 let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
+let showEditButton = config.settings.show_edit_button;
 
 // Init game info
 watch(
@@ -84,7 +85,7 @@ function send_save_to_background() {
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
     invoke("backup_save", { game: game.value, describe: describe.value })
-        .then((x) => {
+        .then((_) => {
             show_success($t('manage.backup_success'));
         }).catch(
             (e) => { console.log(e) }
@@ -93,7 +94,7 @@ function send_save_to_background() {
             refresh_backups_info();
         })
 
-    describe.value == "";
+    describe.value = "";
     setTimeout(() => {
         backup_button_time_limit = true;
     }, 1000);
@@ -206,6 +207,32 @@ function open_backup_folder() {
         )
 }
 
+// 点击按钮后，跳转到添加游戏页面
+function edit_cur() {
+    ElMessageBox.prompt(
+        $t('manage.change_prompt'),
+        $t('misc.info'),
+        {
+            confirmButtonText: $t('manage.confirm'),
+            cancelButtonText: $t('manage.cancel'),
+            inputPattern: /yes/,
+            inputErrorMessage: $t('manage.invalid_input_error'),
+        }
+    )
+        .then(() => {
+            config.refresh()
+            router.push({
+                name: "edit-game",
+                params: {
+                    name: game.value.name,
+                },
+            });
+        })
+        .catch(() => {
+            show_info($t('manage.operation_canceled'));
+        });
+}
+
 const filter_table = computed(
     () => {
         return table_data.value.filter(
@@ -222,25 +249,29 @@ const filter_table = computed(
     <div class="manage-container">
         <!-- 下面是顶栏部分 -->
         <el-card class="manage-top-bar">
-            <template v-for="button in top_buttons" :key="button.id">
+            <template v-for="button in top_buttons" :key="button.text">
                 <el-button type="primary" round @click="button.method">
                     {{ button.text }}
                 </el-button>
             </template>
+
+            <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
+                {{ $t('manage.change_info') }}
+            </el-button>
             <el-button type="danger" round @click="del_cur()">
-                {{ $t('manage.delete_save_manage') }} </el-button>
+                {{ $t('manage.delete_save_manage') }}
+            </el-button>
 
             <!-- 下面是当前存档描述信息 -->
 
             <el-input v-model="describe" :placeholder="$t('manage.input_description_prompt')">
-                <template #prepend>{{ $t('manage.new_save_of', [game.name]) }} </template>
+                <template #prepend>{{ game.name + $t('manage.new_save_of') }} </template>
             </el-input>
         </el-card>
         <!-- 下面是主体部分 -->
         <el-card class="saves-container">
             <!-- 存档应当用点击展开+内部表格的方式来展示 -->
             <!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
-            <!-- 下面是测试用数据，最后需要被替换成v-for生成的时间轴卡片 -->
             <el-table :data="filter_table" style="width: 100%">
                 <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
                 <el-table-column :label="$t('manage.description')" prop="describe" />
@@ -259,7 +290,8 @@ const filter_table = computed(
                         <el-popconfirm :title="$t('manage.confirm_delete_prompt')" @confirm="del_save(scope.row.date)">
                             <template #reference>
                                 <el-button size="small" type="danger">
-                                    {{ $t('manage.delete') }} </el-button></template>
+                                    {{ $t('manage.delete') }} </el-button>
+                            </template>
                         </el-popconfirm>
                     </template>
                 </el-table-column>
@@ -275,10 +307,9 @@ const filter_table = computed(
     width: 98%;
     padding-right: 10px;
     padding-left: 10px;
-    margin: auto;
-    margin-bottom: 5px;
+  margin: auto auto 5px;
 
-    display: flex;
+  display: flex;
     border-radius: 10px;
     align-items: center;
     color: aliceblue;
