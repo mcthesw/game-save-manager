@@ -131,14 +131,19 @@ impl Game {
 
 fn create_backup_folder(name: &str) -> Result<()> {
     let config = get_config()?;
-    let info = BackupsInfo {
-        name: name.to_string(),
-        backups: Vec::new(),
-    };
+
     let backup_path = PathBuf::from(&config.backup_path).join(name);
-    if !backup_path.exists() {
+    let info: BackupsInfo = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
-    }
+        BackupsInfo {
+            name: name.to_string(),
+            backups: Vec::new(),
+        }
+    } else {
+        // 如果已经存在，info从原来的文件中读取
+        let bytes = fs::read(backup_path.join("Backups.json"));
+        serde_json::from_slice(&bytes?)?
+    };
     fs::write(
         backup_path.join("Backups.json"),
         serde_json::to_string_pretty(&info)?,
@@ -150,7 +155,19 @@ fn create_backup_folder(name: &str) -> Result<()> {
 pub fn create_game_backup(game: Game) -> Result<()> {
     let mut config = get_config()?;
     create_backup_folder(&game.name)?;
-    config.games.push(game);
+
+    // 查找是否存在与新游戏中的 `name` 字段相同的游戏
+    let pos = config.games.iter().position(|g| g.name == game.name);
+    match pos {
+        Some(index) => {
+            // 如果找到了，就用新的游戏覆盖它
+            config.games[index] = game;
+        }
+        None => {
+            // 如果没有找到，就将新的游戏添加到 `games` 数组中
+            config.games.push(game);
+        }
+    }
     set_config(config)?;
     Ok(())
 }

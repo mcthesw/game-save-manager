@@ -13,6 +13,9 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { Game, SaveUnit } from "../schemas/saveTypes";
 import { show_error, show_warning } from "../utils/notifications";
 import { show_success } from "../utils/notifications";
+import { watchEffect, watch } from "vue";
+import { useRoute } from "vue-router";
+const route = useRoute();
 import { $t } from "../i18n";
 const router = useRouter();
 let config = useConfig();
@@ -42,6 +45,24 @@ const game_name = ref("") // 写入游戏名
 let save_paths: Array<SaveUnit> = reactive(new Array<SaveUnit>()) // 选择游戏存档目录
 const game_path = ref("") // 选择游戏启动程序
 const game_icon_src = ref("https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png")
+const is_editing = ref(false) // 是否正在编辑已有的游戏
+
+// init info when navigate from GameManage.vue
+watchEffect(() => {
+    const gameName = route.params.name;
+    if (gameName) {
+        const gameConfig = config.games.find(game => game.name === gameName);
+        if (gameConfig) {
+            is_editing.value = true;
+            game_name.value = gameConfig.name;
+            save_paths = gameConfig.save_paths;
+            game_path.value = gameConfig.game_path || '';
+        } else {
+            show_error($t('addgame.change_target_not_exists_error'),gameName);
+            router.back();
+        }
+    }
+});
 
 function check_save_unit_unique(p: string) {
     if (save_paths.find((x) => x.path == p)) {
@@ -103,9 +124,15 @@ function save() {
     }
     invoke("add_game", { game: game }).then((x) => {
         console.log(x);
+        if (is_editing.value) {
+            is_editing.value = false;
+            show_success($t('addgame.change_game_success'));
+            router.back();
+        } else {
+            show_success($t('addgame.add_game_success'));
+        }
         reset(false);
         config.refresh();
-        show_success($t('addgame.add_game_success'));
     })
 }
 function reset(show_notification: boolean = true) {
