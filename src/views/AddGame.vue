@@ -58,7 +58,7 @@ watchEffect(() => {
             save_paths = gameConfig.save_paths;
             game_path.value = gameConfig.game_path || '';
         } else {
-            show_error($t('addgame.change_target_not_exists_error'),gameName);
+            show_error($t('addgame.change_target_not_exists_error') + gameName);
             router.back();
         }
     }
@@ -80,7 +80,7 @@ function add_save_directory() {
         }
         save_paths.push(unit)
     }).catch(
-        (e)=>{console.log(e)}
+        (e) => { console.log(e) }
     )
 }
 function add_save_file() {
@@ -92,7 +92,7 @@ function add_save_file() {
         }
         save_paths.push(unit)
     }).catch(
-        (e)=>{console.log(e)}
+        (e) => { console.log(e) }
     )
 }
 function choose_executable_file() {
@@ -100,7 +100,7 @@ function choose_executable_file() {
         console.log(file);
         game_path.value = file as string;
     }).catch(
-        (e)=>{console.log(e)}
+        (e) => { console.log(e) }
     )
 }
 
