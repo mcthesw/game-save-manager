@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { SaveUnit } from '../schemas/saveTypes';
 import { show_error, show_success } from '../utils/notifications';
+import { $t } from "../i18n";
 
 const props = defineProps({
     locations: Array<SaveUnit>,
@@ -8,19 +9,19 @@ const props = defineProps({
 
 function copy(s: string) {
     navigator.clipboard.writeText(s).then(() => {
-        show_success("复制成功")
+        show_success($t("misc.success"))
     }).catch(() => {
-        show_error("复制失败");
+        show_error($t("misc.error"));
     })
 }
 
 </script>
 
 <template>
-    <el-drawer  title="以下是受管理文件列表" size="70%" :on-closed="() => { $emit('closed') }">
+    <el-drawer  :title="$t('save_location_drawer.drawer_title')" size="70%" :on-closed="() => { $emit('closed') }">
         <el-table :data="locations" style="width: 100%" :border="true">
-            <el-table-column prop="unit_type" label="类别" width="70" />
-            <el-table-column prop="path" label="路径（单击以复制）">
+            <el-table-column prop="unit_type" :label="$t('save_location_drawer.type')" width="70" />
+            <el-table-column prop="path" :label="$t('save_location_drawer.prompt')">
                 <template #default="scope">
                         <ElLink  @click="copy(scope.row.path)">
                             {{ scope.row.path }}
