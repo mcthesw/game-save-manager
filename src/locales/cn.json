@@ -96,7 +96,7 @@
   "about": {
     "project_initiator": "本项目的创始者",
     "ea_tester": "早期测试者",
-    "developer":"项目开发者",
+    "developer": "项目开发者",
     "frontend_framework": "前端框架",
     "desktop_framework": "桌面应用框架",
     "ui_framework": "UI框架",
@@ -117,5 +117,12 @@
     "info": "信息提示",
     "navigate_to": "导航至",
     "save_manage": "存档管理"
-  }
+  },
+  "sidebar": {
+    "homepage": "欢迎界面",
+    "add_game": "添加游戏",
+    "settings": "设置",
+    "about": "关于"
+  },
+  "save_location_drawer": {}
 }
