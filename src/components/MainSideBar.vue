@@ -14,10 +14,10 @@ import { $t } from "../i18n";
 let config = useConfig();
 
 const links = [
-    { text: "欢迎界面", link: "/home", icon: HotWater },
-    { text: "添加游戏", link: "/add-game", icon: DocumentAdd },
-    { text: "设置", link: "/settings", icon: Setting },
-    { text: "关于", link: "/about", icon: InfoFilled },
+    { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
+    { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },
+    { text: $t("sidebar.settings"), link: "/settings", icon: Setting },
+    { text: $t("sidebar.about"), link: "/about", icon: InfoFilled },
 ];
 
 const games = computed(() => {

@@ -68,7 +68,7 @@ const frames = [
             <el-link @click="
                 source_click('https://game.sworld.club/')
                 ">{{ $t('about.official_website') }}</el-link>
-            <span class="version">{{ $t('about.version', [config.version]) }}</span>
+            <span class="version">{{ $t('about.version')+ config.version }}</span>
         </el-footer>
     </el-container>
 </template>
