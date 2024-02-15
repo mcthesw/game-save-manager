@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+// TODO:需要处理catch块的错误
 import { ref } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -19,7 +20,6 @@ function submit_settings() {
     loading.value = true;
     invoke("set_config", { config: config }).then((x) => {
         loading.value = false;
-        console.log(x);
         show_success($t("settings.submit_success"));
         load_config()
     }).catch(

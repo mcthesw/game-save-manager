@@ -68,7 +68,7 @@ pub fn compress_to_file(
     zip_path: &Path,
 ) -> Result<(), BackupZipError> {
     let mut not_exist_files = Vec::new();
-    let file = File::create(&zip_path)?;
+    let file = File::create(zip_path)?;
     let mut zip = ZipWriter::new(file);
     save_paths.iter().try_for_each(|x| {
         let unit_path = PathBuf::from(&x.path);
@@ -95,7 +95,7 @@ pub fn compress_to_file(
         Ok(())
     })?;
     zip.finish()?;
-    if not_exist_files.len() != 0 {
+    if !not_exist_files.is_empty() {
         Err(BackupZipError::NotExists(not_exist_files))
     } else {
         Result::Ok(())
@@ -122,7 +122,7 @@ pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &
                     let option = fs_extra::file::CopyOptions::new().overwrite(true);
                     let prefix_root = unit_path.parent().unwrap();
                     if !prefix_root.exists() {
-                        fs::create_dir_all(&prefix_root)?;
+                        fs::create_dir_all(prefix_root)?;
                     }
                     move_file(original_path, &unit_path, &option)?;
                 }
@@ -136,6 +136,7 @@ pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &
                 }
             }
         } else {
+            // TODO:处理不存在的文件，反馈给前端
             not_exist_files.push(original_path)
         }
         Ok(())

@@ -1,9 +1,11 @@
-export interface SaveUnit{
-    unit_type:"File"|"Folder";
-    path:string;
+import type { Backend } from "./BackendTypes";
+
+export interface SaveUnit {
+    unit_type: "File" | "Folder";
+    path: string;
 }
 export interface Game {
-    name:string,
+    name: string,
     /**
      * 游戏存档路径
      */
@@ -29,7 +31,7 @@ export interface Config {
     /**
      * 存档管理器的配置信息
      */
-    settings:Settings;
+    settings: Settings;
 }
 
 export interface Backup {
@@ -57,6 +59,21 @@ export interface BackupsInfo {
     backups: Array<Backup>;
 }
 
+export interface CloudSettings {
+    /**
+     * 是否启用随时同步
+     */
+    always_sync: boolean;
+    /**
+     * 自动同步间隔，单位为分钟，为0则不自动同步
+     */
+    auto_sync_interval: number;
+    /**
+     * 同步的后端设置
+     */
+    backend: Backend;
+}
+
 export interface Settings {
     /**
      * 是否允许不输入描述就存档
@@ -65,20 +82,33 @@ export interface Settings {
     /**
      * 是否在应用存档时进行额外备份
      */
-    extra_backup_when_apply:boolean;
+    extra_backup_when_apply: boolean;
     /**
      * 是否显示"修改存档管理"按钮
      */
-    show_edit_button:boolean;
+    show_edit_button: boolean;
+    /**
+     * 云存储设置
+     */
+    cloud_settings: CloudSettings;
 }
 
 export let default_config: Config = {
     version: "1.0.0 alpha",
     backup_path: "./save_data",
     games: [],
-    settings:{
-        prompt_when_not_described:false,
-        extra_backup_when_apply:true,
-        show_edit_button:false,
+    settings: {
+        prompt_when_not_described: false,
+        extra_backup_when_apply: true,
+        show_edit_button: false,
+        cloud_settings: {
+            always_sync: false,
+            auto_sync_interval: 0,
+            backend: {
+                type: "Disabled",
+            }
+        }
     }
 };
+
+export { Backend };

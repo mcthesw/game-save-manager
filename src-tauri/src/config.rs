@@ -4,6 +4,8 @@ use std::{fs, path};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::cloud::{Backend, CloudSettings};
+
 /// A save unit should be a file or a folder
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SaveUnitType {
@@ -30,17 +32,28 @@ pub struct Game {
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
+    #[serde(default = "default_true")]
     pub prompt_when_not_described: bool,
+    #[serde(default = "default_true")]
     pub extra_backup_when_apply: bool,
     #[serde(default = "default_false")]
     pub show_edit_button: bool,
+    #[serde(default = "default_cloud_settings")]
+    pub cloud_settings: CloudSettings,
 }
 
-fn default_false()->bool{
+fn default_false() -> bool {
     false
 }
-fn default_true()->bool{
+fn default_true() -> bool {
     true
+}
+fn default_cloud_settings() -> CloudSettings {
+    CloudSettings {
+        always_sync: false,
+        auto_sync_interval: 0,
+        backend: Backend::Disabled,
+    }
 }
 
 /// The software's configuration
@@ -64,6 +77,7 @@ fn default_config() -> Config {
             prompt_when_not_described: false,
             extra_backup_when_apply: true,
             show_edit_button: false,
+            cloud_settings: default_cloud_settings(),
         },
     }
 }
@@ -99,6 +113,11 @@ pub fn set_config(config: Config) -> Result<()> {
         serde_json::to_string_pretty(&config)?,
     )?;
     Ok(())
+}
+
+pub fn get_config_metadata() -> Result<fs::Metadata> {
+    let file = File::open("./GameSaveManager.config.json")?;
+    Ok(file.metadata()?)
 }
 
 /// Check the config file exists or not

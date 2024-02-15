@@ -1,11 +1,12 @@
 use crate::backup::BackupsInfo;
+use crate::cloud::Backend;
 use crate::config::{config_check, get_config, Config, Game};
 use crate::errors::*;
 use crate::{backup, config};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tauri::api::dialog;
 use std::path::PathBuf;
+use tauri::api::dialog;
 use tauri::Window;
 
 #[allow(non_camel_case_types)]
@@ -32,9 +33,9 @@ pub async fn open_url(url: String) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn choose_save_file() -> Result<String, String> {
-    if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_file(){
+    if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_file() {
         Ok(path.to_string_lossy().into_owned())
-    }else {
+    } else {
         Err("Failed to open dialog.".to_string())
     }
 }
@@ -42,9 +43,9 @@ pub async fn choose_save_file() -> Result<String, String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn choose_save_dir() -> Result<String, String> {
-    if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_folder(){
+    if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_folder() {
         Ok(path.to_string_lossy().into_owned())
-    }else {
+    } else {
         Err("Failed to open dialog.".to_string())
     }
 }
@@ -117,6 +118,15 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
     Ok(open::that(p).is_ok())
 }
 
+#[allow(unused)]
+#[tauri::command]
+pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
+    match backend.check().await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("{:#?}", e)),
+    }
+}
+
 fn handle_backup_err(res: Result<(), BackupZipError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
         if let BackupZipError::NotExists(files) = &e {
@@ -146,8 +156,12 @@ mod test {
         let a = serde_json::to_string(&IpcNotification {
             level: NotificationLevel::error,
             title: "title1".to_string(),
-            msg: "msg1".to_string()
-        }).unwrap();
-        assert_eq!(a,"{\"level\":\"error\",\"title\":\"title1\",\"msg\":\"msg1\"}")
+            msg: "msg1".to_string(),
+        })
+        .unwrap();
+        assert_eq!(
+            a,
+            "{\"level\":\"error\",\"title\":\"title1\",\"msg\":\"msg1\"}"
+        )
     }
 }
