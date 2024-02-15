@@ -8,6 +8,7 @@ mod backup;
 mod archive;
 mod errors;
 mod ipc_handler;
+mod cloud;
 
 fn main() {
     tauri::Builder::default()
@@ -26,7 +27,8 @@ fn main() {
             ipc_handler::set_config,
             ipc_handler::reset_settings,
             ipc_handler::backup_save,
-            ipc_handler::open_backup_folder
+            ipc_handler::open_backup_folder,
+            ipc_handler::check_cloud_backend,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
