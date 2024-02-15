@@ -121,12 +121,54 @@
   "sidebar": {
     "homepage": "欢迎界面",
     "add_game": "添加游戏",
+    "sync_settings": "同步",
     "settings": "设置",
     "about": "关于"
   },
   "save_location_drawer": {
-    "drawer_title":"以下是受管理文件列表",
-    "type":"类别",
-    "prompt":"路径（单击以复制）"
+    "drawer_title": "以下是受管理文件列表",
+    "type": "类别",
+    "prompt": "路径（单击以复制）"
+  },
+  "sync_settings": {
+    "title": "同步设置",
+    "reset_success": "重置成功",
+    "submit_success": "保存修改成功",
+    "last_sync": "上次同步时间：",
+    "always_sync": "随时同步",
+    "warning": "警告：使用该功能前务必阅读教程，否则可能导致数据丢失",
+    "manual_link": "教程地址",
+    "always_sync_hint": "添加、删除存档时自动同步，第一次使用请先上传，再启动随时同步",
+    "manual_sync": "手动同步",
+    "save_button": "保存设置",
+    "abort_button": "放弃更改",
+    "test_button": "测试可用性",
+    "auto_sync_interval": "同步间隔",
+    "interval_hint": "设置为0则关闭自动同步（暂不可用）",
+    "backend": "同步后端",
+    "backend_hint": "选择云存档的服务后端",
+    "sync_success": "同步成功",
+    "sync_failed": "同步失败",
+    "sync_syncing": "同步中",
+    "notification": "若增加/减少了游戏或调整了同步设置，则下一次上传会覆盖云端文件，多端用户请小心使用",
+    "start_test": "开始测试，若长时间无响应请检查设置和网络连接",
+    "test_success": "测试通过，该云存档后端可用",
+    "test_failed": "测试失败，请检查设置和网络连接",
+    "unknown_backend": "使用了未知的云存档后端，请检查设置",
+    "upload_success": "上传成功，云端文件已经更新",
+    "upload_failed": "上传失败，请检查设置和网络连接",
+    "download_success": "下载成功，本地文件已经更新",
+    "download_failed": "下载失败，请检查设置和网络连接",
+    "confirm_upload_all": "确定上传所有存档？这会覆盖云端的配置，输入yes以继续",
+    "confirm_download_all": "确定下载所有存档？这会覆盖本地的配置，输入yes以继续",
+    "confirm": "确定",
+    "cancel": "取消",
+    "invalid_input_error": "无效的输入",
+    "canceled": "取消动作",
+    "webdav": {
+      "endpoint": "WebDAV地址",
+      "username": "用户名",
+      "password": "密码"
+    }
   }
 }

@@ -4,6 +4,7 @@ import AddGame from "../views/AddGame.vue";
 import About from "../views/About.vue";
 import GameManage from "../views/GameManage.vue";
 import Settings from "../views/Settings.vue";
+import SyncSettings from "../views/SyncSettings.vue";
 import { useConfig } from "../stores/ConfigFile";
 
 const routes: Array<RouteRecordRaw> = [
@@ -40,6 +41,11 @@ const routes: Array<RouteRecordRaw> = [
         },
         component: GameManage,
     },
+    {
+        path: "/sync-settings",
+        component: SyncSettings
+    }
+    ,
     {
         path: "/settings",
         component: Settings,
