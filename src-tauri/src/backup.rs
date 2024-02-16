@@ -10,10 +10,10 @@ use std::{fs, path};
 /// all the file that the save unit has declared.
 /// The date is the unique indicator for a backup
 #[derive(Debug, Serialize, Deserialize)]
-struct Backup {
-    date: String,
-    describe: String,
-    path: String, // like "D:\\SaveManager\save_data\Game1\date.zip"
+pub struct Backup {
+    pub date: String,
+    pub describe: String,
+    pub path: String, // like "D:\\SaveManager\save_data\Game1\date.zip"
 }
 
 /// A backups info is a json file in a backup folder for a game.
@@ -21,8 +21,8 @@ struct Backup {
 /// and all backups' path
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BackupsInfo {
-    name: String,
-    backups: Vec<Backup>,
+    pub name: String,
+    pub backups: Vec<Backup>,
 }
 
 impl Game {
@@ -34,11 +34,16 @@ impl Game {
         let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
         Ok(backup_info)
     }
-    pub fn set_backups_info(&self, new_info: BackupsInfo) -> Result<()> {
+    pub fn set_backups_info(&self, new_info: &BackupsInfo) -> Result<()> {
         let config = get_config()?;
         let saves_path = path::Path::new(&config.backup_path)
             .join(&self.name)
             .join("Backups.json");
+        // 处理文件夹不存在的情况，一般发生在初次下载云存档时
+        let prefix_root = saves_path.parent().unwrap();
+        if !prefix_root.exists() {
+            fs::create_dir_all(prefix_root)?;
+        }
         fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
         Ok(())
     }
@@ -49,12 +54,11 @@ impl Game {
         let save_paths = &self.save_paths; // everything you should copy
 
         let zip_path = backup_path.join([&date, ".zip"].concat());
-        if let Err(e) = compress_to_file(save_paths, &zip_path){
+        if let Err(e) = compress_to_file(save_paths, &zip_path) {
             // delete the zip if failed to write
             fs::remove_file(&zip_path)?;
-            return Err(e)
+            return Err(e);
         }
-            
 
         let backups_info = Backup {
             date,
@@ -63,7 +67,13 @@ impl Game {
         };
         let mut infos = self.get_backups_info()?;
         infos.backups.push(backups_info);
-        self.set_backups_info(infos)?;
+        self.set_backups_info(&infos)?;
+
+        // 云同步处理
+        // if config.settings.cloud_settings.always_sync{
+        //     let backend = &config.settings.cloud_settings.backend;
+        //     backend.upload_backup_info(infos).await.unwrap();
+        // }
         Result::Ok(())
     }
     pub fn apply_backup(&self, save_date: &str) -> Result<(), BackupZipError> {
@@ -115,7 +125,7 @@ impl Game {
 
         let mut saves = self.get_backups_info()?;
         saves.backups.retain(|x| x.date != date);
-        self.set_backups_info(saves)?;
+        self.set_backups_info(&saves)?;
         Ok(())
     }
     pub fn delete(&self) -> Result<()> {
@@ -124,7 +134,7 @@ impl Game {
         fs::remove_dir_all(backup_path)?;
 
         config.games.retain(|x| x.name != self.name);
-        set_config(config)?;
+        set_config(&config)?;
         Ok(())
     }
 }
@@ -168,6 +178,6 @@ pub fn create_game_backup(game: Game) -> Result<()> {
             config.games.push(game);
         }
     }
-    set_config(config)?;
+    set_config(&config)?;
     Ok(())
 }

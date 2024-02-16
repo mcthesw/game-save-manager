@@ -3,12 +3,12 @@
     windows_subsystem = "windows"
 )]
 
-mod config;
-mod backup;
 mod archive;
+mod backup;
+mod cloud;
+mod config;
 mod errors;
 mod ipc_handler;
-mod cloud;
 
 fn main() {
     tauri::Builder::default()
@@ -29,6 +29,8 @@ fn main() {
             ipc_handler::backup_save,
             ipc_handler::open_backup_folder,
             ipc_handler::check_cloud_backend,
+            ipc_handler::cloud_upload_all,
+            ipc_handler::cloud_download_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
