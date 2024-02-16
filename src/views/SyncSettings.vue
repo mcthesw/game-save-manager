@@ -100,7 +100,7 @@ function upload_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_upload_all", {}).then((res) => {
+    invoke("cloud_upload_all", { backend: webdav_settings.value }).then((res) => {
       show_success($t("sync_settings.upload_success"))
     }).catch((err) => {
       show_error($t("sync_settings.upload_failed"))
@@ -122,7 +122,7 @@ function download_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_download_all", {}).then((res) => {
+    invoke("cloud_download_all", { backend: webdav_settings.value }).then((res) => {
       show_success($t("sync_settings.download_success"))
     }).catch((err) => {
       show_error($t("sync_settings.download_failed"))
