@@ -87,7 +87,7 @@ pub fn reset_settings() -> Result<()> {
     let settings = default_config().settings;
     let mut config = get_config()?;
     config.settings = settings;
-    set_config(config)
+    set_config(&config)
 }
 
 /// Create a config file
@@ -107,7 +107,8 @@ pub fn get_config() -> Result<Config> {
 }
 
 /// Replace the config file with a new config struct
-pub fn set_config(config: Config) -> Result<()> {
+pub fn set_config(config: &Config) -> Result<()> {
+    // TODO:处理云同步
     fs::write(
         "./GameSaveManager.config.json",
         serde_json::to_string_pretty(&config)?,

@@ -1,3 +1,7 @@
+use std::fs;
+
+use crate::backup::BackupsInfo;
+use crate::config::{get_config, set_config, Config};
 use opendal::services;
 use opendal::Operator;
 use serde::{Deserialize, Serialize};
@@ -28,8 +32,8 @@ pub struct CloudSettings {
 
 impl Backend {
     /// 获取 Operator 实例
-    fn get_op(&self) -> Result<Operator, BackendError> {
-        let builder = match self {
+    pub fn get_op(&self) -> Result<Operator, BackendError> {
+        let mut builder = match self {
             Backend::Disabled => {
                 return Err(BackendError::Disabled);
             }
@@ -45,6 +49,7 @@ impl Backend {
                 builder
             }
         };
+        builder.root("/game-save-manager");
         Ok(Operator::new(builder)?.finish())
     }
 
@@ -54,11 +59,14 @@ impl Backend {
         Ok(())
     }
 
-    /// 上传文件
-    pub async fn upload(&self, cloud_path: &str, local_path: &str) -> Result<(), BackendError> {
-        let data = std::fs::read(local_path)?;
-        self.get_op()?.write(cloud_path, data).await?;
-        Ok(())
+    /// 上传单个游戏的配置文件
+    pub async fn upload_backup_info(&self, info: BackupsInfo) -> Result<(), BackendError> {
+        todo!()
+    }
+
+    // 上传配置文件
+    pub async fn upload_config(&self) -> Result<(), BackendError> {
+        todo!()
     }
 
     /// 删除文件
@@ -68,43 +76,66 @@ impl Backend {
     }
 }
 
-// async fn sync() -> Result<(), BackendError> {
-//     // TODO:重做错误处理
-//     // 获取设置，检查是否启用
-//     let settings = get_config().unwrap().settings.cloud_settings;
-//     match settings.backend {
-//         Backend::Disabled => {
-//             return Err(BackendError::Disabled);
-//         }
-//         _ => {}
-//     }
+pub async fn upload_all(op: Operator) -> Result<(), BackendError> {
+    let config = get_config().unwrap();
+    // 上传配置文件
+    op.write(
+        "/GameSaveManager.config.json",
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .await
+    .unwrap();
+    // 依次上传所有游戏的存档记录和存档
+    for game in config.games {
+        let backup_path = format!("./save_data/{}", game.name);
+        let backup_info = game.get_backups_info().unwrap();
+        // 写入存档记录
+        op.write(
+            &format!("{}/Backups.json", &backup_path),
+            serde_json::to_string_pretty(&backup_info).unwrap(),
+        )
+        .await
+        .unwrap();
+        // 写入存档zip文件（不包括额外备份）
+        for backup in backup_info.backups {
+            let save_path = format!("{}/{}.zip", &backup_path, backup.date);
+            println!("uploading {}", save_path);
+            op.write(&save_path, fs::read(&save_path).unwrap())
+                .await
+                .unwrap();
+        }
+    }
+    Ok(())
+}
 
-//     let op = settings.backend.get_op()?;
-//     // 获取配置文件，检查是否需要同步
-//     let new_config = get_config().unwrap();
-//     if op.is_exist("GameSaveManager.config.json").await? {
-//         let local_modified = get_config_metadata().unwrap().modified().unwrap();
-//         let remote_modified = op
-//             .stat("GameSaveManager.config.json")
-//             .await?
-//             .last_modified()
-//             .unwrap();
-//         println!("Local: {:?}, Remote: {:?}", local_modified, remote_modified);
-//         // 本地配置文件与远程版本比较并合并
-//     }
-//     // 上传合并后的配置文件
-//     op.write(
-//         "GameSaveManager.config.json",
-//         serde_json::to_string_pretty(&new_config).unwrap(),
-//     );
-
-//     // 同步存档文件
-//     todo!()
-// }
-
-// fn merge_config(remote: Config) -> Result<Config, BackendError> {
-//     // TODO:现在只实现上传功能，后面需要补全合并功能
-//     // TODO:做错误处理
-//     let local = get_config().unwrap();
-//     Ok(local)
-// }
+pub async fn download_all(op: Operator) -> Result<(), BackendError> {
+    // 下载配置文件
+    let config = String::from_utf8(op.read("/GameSaveManager.config.json").await.unwrap()).unwrap();
+    let config: Config = serde_json::from_str(&config).unwrap();
+    set_config(&config).unwrap();
+    // 依次下载所有游戏的存档记录和存档
+    for game in config.games {
+        let backup_path = format!("./save_data/{}", game.name);
+        let backup_info = op
+            .read(&format!("{}/Backups.json", &backup_path))
+            .await
+            .unwrap();
+        let backup_info: BackupsInfo =
+            serde_json::from_str(&String::from_utf8(backup_info).unwrap()).unwrap();
+        game.set_backups_info(&backup_info).unwrap();
+        // 写入存档记录
+        fs::write(
+            &format!("{}/Backups.json", &backup_path),
+            serde_json::to_string_pretty(&backup_info).unwrap(),
+        )
+        .unwrap();
+        // 写入存档zip文件（不包括额外备份）
+        for backup in backup_info.backups {
+            let save_path = format!("{}/{}.zip", &backup_path, backup.date);
+            println!("downloading {}", save_path);
+            let data = op.read(&save_path).await.unwrap();
+            fs::write(&save_path, &data).unwrap();
+        }
+    }
+    Ok(())
+}

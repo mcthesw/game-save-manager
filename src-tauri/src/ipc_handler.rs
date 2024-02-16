@@ -1,5 +1,5 @@
 use crate::backup::BackupsInfo;
-use crate::cloud::Backend;
+use crate::cloud::{self, upload_all, Backend};
 use crate::config::{config_check, get_config, Config, Game};
 use crate::errors::*;
 use crate::{backup, config};
@@ -95,7 +95,7 @@ pub async fn get_backups_info(game: Game) -> Result<BackupsInfo, String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn set_config(config: Config) -> Result<(), String> {
-    config::set_config(config).map_err(|e| e.to_string())
+    config::set_config(&config).map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -122,6 +122,28 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
 #[tauri::command]
 pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
     match backend.check().await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("{:#?}", e)),
+    }
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
+    // TODO:错误处理
+    let op = backend.get_op().unwrap();
+    match upload_all(op).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("{:#?}", e)),
+    }
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
+    // TODO:错误处理
+    let op = backend.get_op().unwrap();
+    match cloud::download_all(op).await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{:#?}", e)),
     }
