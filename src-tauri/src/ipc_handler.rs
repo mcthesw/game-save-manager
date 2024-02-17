@@ -77,13 +77,13 @@ pub async fn apply_backup(game: Game, date: String, window: Window) -> Result<()
 #[allow(unused)]
 #[tauri::command]
 pub async fn delete_backup(game: Game, date: String) -> Result<(), String> {
-    game.delete_backup(&date).map_err(|e| e.to_string())
+    game.delete_backup(&date).await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
 #[tauri::command]
 pub async fn delete_game(game: Game) -> Result<(), String> {
-    game.delete().map_err(|e| e.to_string())
+    game.delete().await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -107,7 +107,7 @@ pub async fn reset_settings() -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn backup_save(game: Game, describe: String, window: Window) -> Result<(), String> {
-    handle_backup_err(game.backup_save(&describe), window)
+    handle_backup_err(game.backup_save(&describe).await, window)
 }
 
 #[allow(unused)]
@@ -132,7 +132,7 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
 pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
     // TODO:错误处理
     let op = backend.get_op().unwrap();
-    match upload_all(op).await {
+    match upload_all(&op).await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{:#?}", e)),
     }
@@ -143,15 +143,15 @@ pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
 pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
     // TODO:错误处理
     let op = backend.get_op().unwrap();
-    match cloud::download_all(op).await {
+    match cloud::download_all(&op).await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{:#?}", e)),
     }
 }
 
-fn handle_backup_err(res: Result<(), BackupZipError>, window: Window) -> Result<(), String> {
+fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
-        if let BackupZipError::NotExists(files) = &e {
+        if let BackupError::BackupFileError(BackupFileError::NotExists(files)) = &e {
             files.iter().for_each(|file| {
                 window
                     .emit(

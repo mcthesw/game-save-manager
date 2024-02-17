@@ -59,16 +59,6 @@ impl Backend {
         Ok(())
     }
 
-    /// 上传单个游戏的配置文件
-    pub async fn upload_backup_info(&self, info: BackupsInfo) -> Result<(), BackendError> {
-        todo!()
-    }
-
-    // 上传配置文件
-    pub async fn upload_config(&self) -> Result<(), BackendError> {
-        todo!()
-    }
-
     /// 删除文件
     pub async fn delete(&self, cloud_path: &str) -> Result<(), BackendError> {
         self.get_op()?.delete(cloud_path).await?;
@@ -76,15 +66,10 @@ impl Backend {
     }
 }
 
-pub async fn upload_all(op: Operator) -> Result<(), BackendError> {
+pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
     let config = get_config().unwrap();
     // 上传配置文件
-    op.write(
-        "/GameSaveManager.config.json",
-        serde_json::to_string_pretty(&config).unwrap(),
-    )
-    .await
-    .unwrap();
+    upload_config(&op).await.unwrap();
     // 依次上传所有游戏的存档记录和存档
     for game in config.games {
         let backup_path = format!("./save_data/{}", game.name);
@@ -108,7 +93,7 @@ pub async fn upload_all(op: Operator) -> Result<(), BackendError> {
     Ok(())
 }
 
-pub async fn download_all(op: Operator) -> Result<(), BackendError> {
+pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
     // 下载配置文件
     let config = String::from_utf8(op.read("/GameSaveManager.config.json").await.unwrap()).unwrap();
     let config: Config = serde_json::from_str(&config).unwrap();
@@ -137,5 +122,30 @@ pub async fn download_all(op: Operator) -> Result<(), BackendError> {
             fs::write(&save_path, &data).unwrap();
         }
     }
+    Ok(())
+}
+
+/// 上传单个游戏的配置文件
+pub async fn upload_backup_info(op: &Operator, info: BackupsInfo) -> Result<(), BackendError> {
+    let backup_path = format!("./save_data/{}", info.name);
+    op.write(
+        &format!("{}/Backups.json", &backup_path),
+        serde_json::to_string_pretty(&info).unwrap(),
+    )
+    .await
+    .unwrap();
+    Ok(())
+}
+
+// 上传配置文件
+pub async fn upload_config(op: &Operator) -> Result<(), BackendError> {
+    let config = get_config().unwrap();
+    // 上传配置文件
+    op.write(
+        "/GameSaveManager.config.json",
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .await
+    .unwrap();
     Ok(())
 }

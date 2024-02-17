@@ -10,9 +10,10 @@ use fs_extra::file::move_file;
 use anyhow::{Ok, Result};
 use zip::{write::FileOptions, ZipWriter};
 
-use crate::{config::{SaveUnit, SaveUnitType}, errors::BackupZipError};
-
-
+use crate::{
+    config::{SaveUnit, SaveUnitType},
+    errors::BackupFileError,
+};
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
 ///
@@ -63,10 +64,7 @@ where
 }
 
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
-pub fn compress_to_file(
-    save_paths: &[SaveUnit],
-    zip_path: &Path,
-) -> Result<(), BackupZipError> {
+pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), BackupFileError> {
     let mut not_exist_files = Vec::new();
     let file = File::create(zip_path)?;
     let mut zip = ZipWriter::new(file);
@@ -96,14 +94,18 @@ pub fn compress_to_file(
     })?;
     zip.finish()?;
     if !not_exist_files.is_empty() {
-        Err(BackupZipError::NotExists(not_exist_files))
+        Err(BackupFileError::NotExists(not_exist_files))
     } else {
         Result::Ok(())
     }
 }
 
 /// Decompress a zip file to their original path
-pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &str) -> Result<(),BackupZipError> {
+pub fn decompress_from_file(
+    save_paths: &[SaveUnit],
+    backup_path: &Path,
+    date: &str,
+) -> Result<(), BackupFileError> {
     let mut not_exist_files = Vec::new();
     let zip_path = backup_path.join([date, ".zip"].concat());
     let file = File::open(zip_path)?;
@@ -141,6 +143,6 @@ pub fn decompress_from_file(save_paths: &[SaveUnit], backup_path: &Path, date: &
         }
         Ok(())
     })?;
-    fs::remove_dir_all(tmp_folder)?;//TODO:tmp dir
+    fs::remove_dir_all(tmp_folder)?; //TODO:tmp dir
     Result::Ok(())
 }
