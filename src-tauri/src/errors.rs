@@ -1,39 +1,46 @@
 use std::{io, path::PathBuf};
-
-use serde::{Deserialize, Serialize};
-use zip::result::ZipError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum BackupZipError {
-    #[error("Cannot create file")]
+pub enum BackupFileError {
+    #[error("Cannot create file: {0:#?}")]
     CreateFileFailed(#[from] std::io::Error),
-    #[error("File to backup not exists")]
+    #[error("File to backup not exists: {0:#?}")]
     NotExists(Vec<PathBuf>),
-    #[error("Cannot write zip file")]
-    ZipError(#[from] ZipError),
-    #[error("Unknown error")]
+    #[error("Cannot write zip file: {0:#?}")]
+    ZipError(#[from] zip::result::ZipError),
+    #[error(transparent)]
     Others(#[from] anyhow::Error),
 }
 
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Error)]
 pub enum BackendError {
-    /// 未选择后端
+    #[error("Backend is disabled")]
     Disabled,
-    IoError(String),
-    Unexpected(String),
+    #[error("IO error: {0:#?}")]
+    IoError(#[from] io::Error),
+    #[error("Opendal error: {0:#?}")]
+    CloudError(#[from] opendal::Error),
+    #[error(transparent)]
+    Unexpected(#[from] anyhow::Error),
 }
 
-impl From<io::Error> for BackendError {
-    fn from(err: io::Error) -> Self {
-        Self::IoError(err.to_string())
-    }
-    
+#[derive(Debug, Error)]
+pub enum BackupError {
+    #[error("Backend error: {0:#?}")]
+    BackendError(#[from] BackendError),
+    #[error("Backup file error: {0:#?}")]
+    BackupFileError(#[from] BackupFileError),
+    #[error("Deserialize error: {0:#?}")]
+    DeserializeError(#[from] serde_json::Error),
+    #[error("IO error: {0:#?}")]
+    IoError(#[from] io::Error),
+    #[error(transparent)]
+    Others(#[from] anyhow::Error),
 }
-impl From<opendal::Error> for BackendError {
-    // TODO:完成更完善的错误处理
-    fn from(err: opendal::Error) -> Self {
-        Self::Unexpected(err.to_string())
+
+impl From<opendal::Error> for BackupError {
+    fn from(e: opendal::Error) -> Self {
+        Self::BackendError(BackendError::CloudError(e))
     }
 }

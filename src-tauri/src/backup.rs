@@ -1,7 +1,7 @@
 use crate::archive::{compress_to_file, decompress_from_file};
+use crate::cloud::{upload_backup_info, upload_config};
 use crate::config::{get_config, set_config, Game};
-use crate::errors::BackupZipError;
-use anyhow::{Ok, Result};
+use crate::errors::BackupError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{fs, path};
@@ -26,7 +26,7 @@ pub struct BackupsInfo {
 }
 
 impl Game {
-    pub fn get_backups_info(&self) -> Result<BackupsInfo> {
+    pub fn get_backups_info(&self) -> Result<BackupsInfo, BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path)
             .join(&self.name)
@@ -34,7 +34,7 @@ impl Game {
         let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
         Ok(backup_info)
     }
-    pub fn set_backups_info(&self, new_info: &BackupsInfo) -> Result<()> {
+    pub fn set_backups_info(&self, new_info: &BackupsInfo) -> Result<(), BackupError> {
         let config = get_config()?;
         let saves_path = path::Path::new(&config.backup_path)
             .join(&self.name)
@@ -47,7 +47,7 @@ impl Game {
         fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
         Ok(())
     }
-    pub fn backup_save(&self, describe: &str) -> Result<(), BackupZipError> {
+    pub async fn backup_save(&self, describe: &str) -> Result<(), BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name); // the backup zip file should be placed here
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
@@ -57,7 +57,7 @@ impl Game {
         if let Err(e) = compress_to_file(save_paths, &zip_path) {
             // delete the zip if failed to write
             fs::remove_file(&zip_path)?;
-            return Err(e);
+            return Err(BackupError::BackupFileError(e));
         }
 
         let backups_info = Backup {
@@ -69,14 +69,23 @@ impl Game {
         infos.backups.push(backups_info);
         self.set_backups_info(&infos)?;
 
-        // 云同步处理
-        // if config.settings.cloud_settings.always_sync{
-        //     let backend = &config.settings.cloud_settings.backend;
-        //     backend.upload_backup_info(infos).await.unwrap();
-        // }
+        // 随时同步到云端
+        if config.settings.cloud_settings.always_sync {
+            let op = config.settings.cloud_settings.backend.get_op()?;
+            // 上传存档记录信息
+            upload_backup_info(&op, infos).await?;
+            // 上传对应压缩包
+            // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
+            let p = zip_path
+                .iter()
+                .map(|s| s.to_str().unwrap())
+                .collect::<Vec<_>>()
+                .join("/");
+            op.write(&p, fs::read(&zip_path).unwrap()).await.unwrap();
+        }
         Result::Ok(())
     }
-    pub fn apply_backup(&self, save_date: &str) -> Result<(), BackupZipError> {
+    pub fn apply_backup(&self, save_date: &str) -> Result<(), BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name);
         if config.settings.extra_backup_when_apply {
@@ -85,7 +94,7 @@ impl Game {
         decompress_from_file(&self.save_paths, &backup_path, save_date)?;
         Result::Ok(())
     }
-    pub fn create_extra_backup(&self) -> Result<(), BackupZipError> {
+    pub fn create_extra_backup(&self) -> Result<(), BackupError> {
         let config = get_config()?;
         let extra_backup_path = path::Path::new(&config.backup_path)
             .join(&self.name)
@@ -107,7 +116,7 @@ impl Game {
         if extra_backups_dir.len() >= 5 {
             extra_backups_dir.into_iter().try_for_each(|f| {
                 extra_backups.push(f?.file_name().into_string().unwrap());
-                Ok(())
+                Result::<(), std::io::Error>::Ok(())
             })?;
             extra_backups.sort();
             let oldest = extra_backups.first().unwrap(); // 一定要改好这一行
@@ -116,30 +125,54 @@ impl Game {
         }
         Result::Ok(())
     }
-    pub fn delete_backup(&self, date: &str) -> Result<()> {
+    pub async fn delete_backup(&self, date: &str) -> Result<(), BackupError> {
         let config = get_config()?;
         let save_path = PathBuf::from(&config.backup_path)
             .join(&self.name)
             .join(date.to_string() + ".zip");
-        fs::remove_file(save_path)?;
+        fs::remove_file(&save_path)?;
 
         let mut saves = self.get_backups_info()?;
         saves.backups.retain(|x| x.date != date);
         self.set_backups_info(&saves)?;
+
+        // 随时同步到云端
+        if config.settings.cloud_settings.always_sync {
+            let op = config.settings.cloud_settings.backend.get_op()?;
+            // 上传存档记录信息
+            upload_backup_info(&op, saves).await?;
+            // 删除对应压缩包
+            // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
+            let p = save_path
+                .iter()
+                .map(|s| s.to_str().unwrap())
+                .collect::<Vec<_>>()
+                .join("/");
+            op.delete(&p).await?;
+        }
         Ok(())
     }
-    pub fn delete(&self) -> Result<()> {
+    pub async fn delete(&self) -> Result<(), BackupError> {
         let mut config = get_config()?;
         let backup_path = PathBuf::from(&config.backup_path).join(&self.name);
-        fs::remove_dir_all(backup_path)?;
+        fs::remove_dir_all(&backup_path)?;
 
         config.games.retain(|x| x.name != self.name);
         set_config(&config)?;
+
+        // 随时同步到云端
+        if config.settings.cloud_settings.always_sync {
+            let op = config.settings.cloud_settings.backend.get_op()?;
+            op.remove_all(&backup_path.to_str().unwrap()).await?;
+            // 也上传新的配置文件
+            upload_config(&op).await?;
+        }
+
         Ok(())
     }
 }
 
-fn create_backup_folder(name: &str) -> Result<()> {
+fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     let config = get_config()?;
 
     let backup_path = PathBuf::from(&config.backup_path).join(name);
@@ -162,7 +195,7 @@ fn create_backup_folder(name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn create_game_backup(game: Game) -> Result<()> {
+pub fn create_game_backup(game: Game) -> Result<(), BackupError> {
     let mut config = get_config()?;
     create_backup_folder(&game.name)?;
 
