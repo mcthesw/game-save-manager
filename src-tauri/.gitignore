@@ -4,3 +4,6 @@
 
 GameSaveManager.config.json
 /save_data/
+
+/.vscode/
+/.idea/
