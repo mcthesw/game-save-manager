@@ -171,8 +171,17 @@ impl Game {
         // 随时同步到云端
         if config.settings.cloud_settings.always_sync {
             let op = config.settings.cloud_settings.backend.get_op()?;
-            op.remove_all(backup_path.to_str().ok_or(BackupError::NonePathError)?)
-                .await?;
+            println!(
+                "{:#?}",
+                backup_path.to_str().ok_or(BackupError::NonePathError)?
+            );
+            // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
+            let p = backup_path
+                .iter()
+                .map(|s| s.to_str().ok_or(BackupError::NonePathError))
+                .collect::<Result<Vec<&str>, BackupError>>()?
+                .join("/");
+            op.remove_all(&p).await?;
             // 也上传新的配置文件
             upload_config(&op).await?;
         }
