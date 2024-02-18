@@ -15,8 +15,8 @@ import { show_error, show_warning } from "../utils/notifications";
 import { show_success } from "../utils/notifications";
 import { watchEffect, watch } from "vue";
 import { useRoute } from "vue-router";
-const route = useRoute();
 import { $t } from "../i18n";
+const route = useRoute();
 const router = useRouter();
 let config = useConfig();
 const buttons = [
