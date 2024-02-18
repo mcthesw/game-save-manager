@@ -65,7 +65,9 @@ pub async fn local_config_check() -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn add_game(game: Game) -> Result<(), String> {
-    backup::create_game_backup(game).await.map_err(|e| e.to_string())
+    backup::create_game_backup(game)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[allow(unused)]

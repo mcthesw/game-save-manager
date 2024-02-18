@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-//TODO: Add error handler
 import { Ref, computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -62,9 +61,12 @@ function refresh_backups_info() {
         .then((v) => {
             let infos = v as BackupsInfo;
             table_data.value = infos.backups;
-            console.log("Backup infos:",v)
+            console.log("Backup infos:", v)
         }).catch(
-            (e) => { console.log(e) }
+            (e) => {
+                console.log(e)
+                show_error($t('error.get_backups_info_failed'));
+            }
         )
 }
 
@@ -88,7 +90,10 @@ function send_save_to_background() {
         .then((_) => {
             show_success($t('manage.backup_success'));
         }).catch(
-            (e) => { console.log(e) }
+            (e) => {
+                console.log(e)
+                show_error($t('error.backup_failed'))
+            }
         ).finally(() => {
             backup_button_backup_limit = true
             refresh_backups_info();
@@ -127,7 +132,10 @@ function launch_game() {
             .then((x) => {
                 console.log(x)
             }).catch(
-                (e) => { console.log(e) }
+                (e) => {
+                    console.log(e)
+                    show_error($t("error.open_url_failed"))
+                }
             )
     }
 }
@@ -139,7 +147,10 @@ function del_save(date: string) {
         refresh_backups_info();
         show_success($t('manage.delete_success'));
     }).catch(
-        (e) => { console.log(e) }
+        (e) => {
+            console.log(e)
+            show_error($t('error.delete_backup_failed'))
+        }
     )
 }
 
@@ -161,6 +172,7 @@ function apply_save(date: string) {
             console.log(x)
         }).catch((e) => {
             console.log(e)
+            show_error($t('error.apply_backup_failed'))
         }).finally(() => {
             apply_button_apply_limit = true;
             refresh_backups_info();
@@ -187,7 +199,10 @@ function del_cur() {
         }
     )
         .then(() => {
-            invoke("delete_game", { game: game.value })
+            invoke("delete_game", { game: game.value }).catch((e) => {
+                console.log(e)
+                show_error($t('error.delete_game_failed'))
+            });
             setTimeout(() => {
                 config.refresh()
                 router.back()
@@ -200,10 +215,11 @@ function del_cur() {
 
 function open_backup_folder() {
     invoke("open_backup_folder", { game: game.value })
-        .then((x) => {
-            console.log(x)
-        }).catch(
-            (e) => { console.log(e) }
+        .catch(
+            (e) => {
+                console.log(e)
+                show_error($t('error.open_backup_folder_failed'))
+            }
         )
 }
 
@@ -278,7 +294,8 @@ const filter_table = computed(
                 <el-table-column align="right">
                     <template #header>
                         <!-- 搜索 -->
-                        <el-input v-model="search" size="small" :placeholder="$t('manage.input_description_search_prompt')" clearable />
+                        <el-input v-model="search" size="small" :placeholder="$t('manage.input_description_search_prompt')"
+                            clearable />
                     </template>
                     <template #default="scope">
                         <!-- scope.$index和scope.row可以被使用 -->
@@ -298,7 +315,8 @@ const filter_table = computed(
             </el-table>
         </el-card>
         <!-- 下面是存档所在位置侧栏部分 -->
-        <save-location-drawer v-if="game.save_paths" v-model="drawer" :locations="game.save_paths" @closed="drawer = false" />
+        <save-location-drawer v-if="game.save_paths" v-model="drawer" :locations="game.save_paths"
+            @closed="drawer = false" />
     </div>
 </template>
 
@@ -307,9 +325,9 @@ const filter_table = computed(
     width: 98%;
     padding-right: 10px;
     padding-left: 10px;
-  margin: auto auto 5px;
+    margin: auto auto 5px;
 
-  display: flex;
+    display: flex;
     border-radius: 10px;
     align-items: center;
     color: aliceblue;

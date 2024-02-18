@@ -170,5 +170,21 @@
       "username": "用户名",
       "password": "密码"
     }
+  },
+  "error": {
+    "open_url_failed": "无法打开链接",
+    "config_load_failed": "配置文件加载失败，可能是因为配置文件损坏或者不存在",
+    "choose_save_dir_error": "选择存档文件夹时发生错误",
+    "choose_save_file_error": "选择存档文件时发生错误",
+    "choose_executable_file_error": "选择可执行文件时发生错误",
+    "add_game_failed": "添加游戏失败",
+    "get_backups_info_failed": "获取备份信息失败",
+    "backup_failed": "备份失败，检查日志以获取更多信息",
+    "delete_backup_failed": "删除备份失败，检查日志以获取更多信息",
+    "apply_backup_failed": "应用备份失败，检查日志以获取更多信息",
+    "delete_game_failed": "删除游戏失败",
+    "open_backup_folder_failed": "打开备份文件夹失败",
+    "set_config_failed": "设置配置失败",
+    "reset_settings_failed": "重置设置失败"
   }
 }
