@@ -3,7 +3,6 @@
 // 之后每次启动该软件，如果在其他机子做过修改，应当手动从云端下载，用新的数据覆盖本地
 // 如果没有，则不需要任何操作，之后更新了自动同步功能就可以启动时自动下载，避免手动操作
 
-// TODO:处理catch块
 import { ref } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -81,7 +80,10 @@ function submit_settings() {
     show_success($t("sync_settings.submit_success"));
     load_config()
   }).catch(
-    (e) => { console.log(e) }
+    (e) => {
+      console.log(e)
+      show_error($t("error.set_config_failed"))
+    }
   )
 }
 function abort_change() {
@@ -134,7 +136,12 @@ function download_all() {
 }
 
 function open_manual() {
-  invoke("open_url", { url: "https://game.sworld.club/sync" })
+  invoke("open_url", { url: "https://game.sworld.club/sync" }).catch(
+    (e) => {
+      console.log(e)
+      show_error($t("error.open_url_failed"))
+    }
+  )
 }
 </script>
 

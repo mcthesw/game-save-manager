@@ -17,6 +17,7 @@ invoke("local_config_check").then((x) => {
 	config.refresh(); // TODO:Handle old version config
 }).catch((e) => {
 	console.log(e)
+	show_error($t('error.config_load_failed'))
 });
 
 show_warning($t('app.early_access_warning'));

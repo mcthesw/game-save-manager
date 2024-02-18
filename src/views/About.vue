@@ -3,11 +3,15 @@ import { $t } from "../i18n";
 import { Game } from "../schemas/saveTypes";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from '@tauri-apps/api/tauri'
+import { show_error } from "../utils/notifications";
 
 const config = useConfig();
 function source_click(url: string) {
     console.log(url);
-    invoke("open_url", { url: url }).then((v: any) => { console.log(v) }).catch((x: any) => { console.log(x) })
+    invoke("open_url", { url: url }).then((v: any) => { console.log(v) }).catch((x: any) => {
+        console.log(x)
+        show_error($t("error.open_url_failed"))
+    })
 };
 
 const thanks = [
@@ -68,7 +72,7 @@ const frames = [
             <el-link @click="
                 source_click('https://game.sworld.club/')
                 ">{{ $t('about.official_website') }}</el-link>
-            <span class="version">{{ $t('about.version')+ config.version }}</span>
+            <span class="version">{{ $t('about.version') + config.version }}</span>
         </el-footer>
     </el-container>
 </template>
