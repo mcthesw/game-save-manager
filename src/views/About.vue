@@ -70,8 +70,11 @@ const frames = [
             <el-link @click="source_click('https://github.com/mcthesw/game-save-manager')">Github</el-link>
             |
             <el-link @click="
-                source_click('https://game.sworld.club/')
-                ">{{ $t('about.official_website') }}</el-link>
+                source_click('https://game.sworld.club/')">
+                {{ $t('about.official_website') }}
+            </el-link>
+            |
+            <el-link @click="source_click('https://help.sworld.club/')">{{ $t('about.help') }}</el-link>
             <span class="version">{{ $t('about.version') + config.version }}</span>
         </el-footer>
     </el-container>
