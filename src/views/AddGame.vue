@@ -80,7 +80,10 @@ function add_save_directory() {
         }
         save_paths.push(unit)
     }).catch(
-        (e) => { console.log(e) }
+        (e) => {
+            console.log(e)
+            show_error($t('error.choose_save_dir_error'));
+        }
     )
 }
 function add_save_file() {
@@ -92,7 +95,10 @@ function add_save_file() {
         }
         save_paths.push(unit)
     }).catch(
-        (e) => { console.log(e) }
+        (e) => {
+            console.log(e)
+            show_error($t('error.choose_save_file_error'));
+        }
     )
 }
 function choose_executable_file() {
@@ -100,7 +106,10 @@ function choose_executable_file() {
         console.log(file);
         game_path.value = file as string;
     }).catch(
-        (e) => { console.log(e) }
+        (e) => {
+            console.log(e)
+            show_error($t('error.choose_executable_file_error'));
+        }
     )
 }
 
@@ -133,7 +142,10 @@ function save() {
         }
         reset(false);
         config.refresh();
-    })
+    }).catch((e) => {
+        console.log(e);
+        show_error($t('error.add_game_failed'));
+    });
 }
 function reset(show_notification: boolean = true) {
     // 重置当前配置

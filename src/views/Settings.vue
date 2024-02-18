@@ -1,9 +1,8 @@
 <script lang="ts" setup>
-// TODO:需要处理catch块的错误
 import { ref } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
-import { show_success } from "../utils/notifications";
+import { show_error, show_success } from "../utils/notifications";
 import { Game } from "../schemas/saveTypes";
 import { useDark, useToggle } from '@vueuse/core'
 import { $t } from "../i18n";
@@ -23,7 +22,10 @@ function submit_settings() {
         show_success($t("settings.submit_success"));
         load_config()
     }).catch(
-        (e) => { console.log(e) }
+        (e) => {
+            console.log(e)
+            show_error($t("error.set_config_failed"))
+        }
     )
 }
 function abort_change() {
@@ -35,7 +37,10 @@ function reset_settings() {
         show_success($t("settings.reset_success"));
         load_config();
     }).catch(
-        (e) => { console.log(e) }
+        (e) => {
+            console.log(e)
+            show_error($t("error.reset_settings_failed"))
+        }
     )
 }
 
@@ -91,8 +96,10 @@ function move_down(game: Game) {
                             <ElTableColumn prop="game_path" :label="$t('settings.game_path')" />
                             <ElTableColumn fixed="right" :label="$t('settings.operation')" width="120">
                                 <template #default="scope">
-                                    <el-button link type="primary" size="small" @click="move_up(scope.row)">{{ $t("settings.move_up") }}</el-button>
-                                    <el-button link type="primary" size="small" @click="move_down(scope.row)">{{ $t("settings.move_down") }}</el-button>
+                                    <el-button link type="primary" size="small" @click="move_up(scope.row)">{{
+                                        $t("settings.move_up") }}</el-button>
+                                    <el-button link type="primary" size="small" @click="move_down(scope.row)">{{
+                                        $t("settings.move_down") }}</el-button>
                                 </template>
                             </ElTableColumn>
                         </ElTable>
