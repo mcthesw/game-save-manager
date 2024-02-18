@@ -7,7 +7,6 @@ use std::{
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 
-use anyhow::{Ok, Result};
 use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
@@ -20,7 +19,11 @@ use crate::{
 /// Write `origin` folder to zip `writer`, the files will in `prefix_path`
 ///
 /// Normally, `prefix_path` should be the file name of the `origin` folder
-fn add_directory<T>(writer: &mut ZipWriter<T>, origin: &PathBuf, prefix_path: &Path) -> Result<()>
+fn add_directory<T>(
+    writer: &mut ZipWriter<T>,
+    origin: &PathBuf,
+    prefix_path: &Path,
+) -> Result<(), BackupFileError>
 where
     T: std::io::Write,
     T: Seek,
@@ -28,7 +31,10 @@ where
     // Create the folder in zip
     let new_dir_path = prefix_path.to_path_buf();
     writer.add_directory(
-        new_dir_path.to_str().unwrap().to_string(),
+        new_dir_path
+            .to_str()
+            .ok_or(BackupFileError::NonePathError)?
+            .to_string(),
         FileOptions::default(),
     )?;
     let mut paths = Vec::new();
@@ -49,7 +55,7 @@ where
                 let mut f = File::open(&entry_path)?;
                 f.read_to_end(&mut buffer)?;
                 writer.start_file(
-                    cur_path.to_str().unwrap(),
+                    cur_path.to_str().ok_or(BackupFileError::NonePathError)?,
                     zip::write::FileOptions::default(),
                 )?;
                 writer.write_all(&buffer)?;
@@ -77,20 +83,28 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), 
                     let mut buf = vec![];
                     original_file.read_to_end(&mut buf)?;
                     zip.start_file(
-                        &unit_path.file_name().unwrap().to_str().unwrap().to_string(),
+                        unit_path
+                            .file_name()
+                            .ok_or(BackupFileError::NonePathError)?
+                            .to_str()
+                            .ok_or(BackupFileError::NonePathError)?,
                         zip::write::FileOptions::default(),
                     )?;
                     zip.write_all(&buf)?;
                 }
                 SaveUnitType::Folder => {
-                    let root = PathBuf::from(unit_path.file_name().unwrap());
+                    let root = PathBuf::from(
+                        unit_path
+                            .file_name()
+                            .ok_or(BackupFileError::NonePathError)?,
+                    );
                     add_directory(&mut zip, &unit_path, &root)?;
                 }
             }
         } else {
             not_exist_files.push(unit_path);
         }
-        Ok(())
+        Result::<(), BackupFileError>::Ok(())
     })?;
     zip.finish()?;
     if !not_exist_files.is_empty() {
@@ -117,12 +131,16 @@ pub fn decompress_from_file(
 
     save_paths.iter().try_for_each(|unit| {
         let unit_path = PathBuf::from(&unit.path); // Target location path
-        let original_path = tmp_folder.join(unit_path.file_name().unwrap()); // Temp file location path
+        let original_path = tmp_folder.join(
+            unit_path
+                .file_name()
+                .ok_or(BackupFileError::NonePathError)?,
+        ); // Temp file location path
         if original_path.exists() {
             match unit.unit_type {
                 SaveUnitType::File => {
                     let option = fs_extra::file::CopyOptions::new().overwrite(true);
-                    let prefix_root = unit_path.parent().unwrap();
+                    let prefix_root = unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                     if !prefix_root.exists() {
                         fs::create_dir_all(prefix_root)?;
                     }
@@ -130,7 +148,7 @@ pub fn decompress_from_file(
                 }
                 SaveUnitType::Folder => {
                     let option = fs_extra::dir::CopyOptions::new().overwrite(true);
-                    let target_path = unit_path.parent().unwrap();
+                    let target_path = unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                     if !target_path.exists() {
                         fs::create_dir_all(target_path)?;
                     }
@@ -141,7 +159,7 @@ pub fn decompress_from_file(
             // TODO:处理不存在的文件，反馈给前端
             not_exist_files.push(original_path)
         }
-        Ok(())
+        Result::<(), BackupFileError>::Ok(())
     })?;
     fs::remove_dir_all(tmp_folder)?; //TODO:tmp dir
     Result::Ok(())

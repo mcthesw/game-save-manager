@@ -65,7 +65,7 @@ pub async fn local_config_check() -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn add_game(game: Game) -> Result<(), String> {
-    backup::create_game_backup(game).map_err(|e| e.to_string())
+    backup::create_game_backup(game).await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -95,13 +95,13 @@ pub async fn get_backups_info(game: Game) -> Result<BackupsInfo, String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn set_config(config: Config) -> Result<(), String> {
-    config::set_config(&config).map_err(|e| e.to_string())
+    config::set_config(&config).await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
 #[tauri::command]
 pub async fn reset_settings() -> Result<(), String> {
-    config::reset_settings().map_err(|e| e.to_string())
+    config::reset_settings().await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -130,7 +130,6 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
-    // TODO:错误处理
     let op = backend.get_op().unwrap();
     match upload_all(&op).await {
         Ok(_) => Ok(()),
@@ -141,7 +140,6 @@ pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
-    // TODO:错误处理
     let op = backend.get_op().unwrap();
     match cloud::download_all(&op).await {
         Ok(_) => Ok(()),
@@ -171,6 +169,7 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
 }
 
 mod test {
+    #[allow(unused)]
     use super::*;
 
     #[test]
