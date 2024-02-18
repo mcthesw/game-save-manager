@@ -58,36 +58,27 @@ impl Backend {
         self.get_op()?.check().await?;
         Ok(())
     }
-
-    /// 删除文件
-    pub async fn delete(&self, cloud_path: &str) -> Result<(), BackendError> {
-        self.get_op()?.delete(cloud_path).await?;
-        Ok(())
-    }
 }
 
 pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
-    let config = get_config().unwrap();
+    let config = get_config()?;
     // 上传配置文件
-    upload_config(&op).await.unwrap();
+    upload_config(op).await?;
     // 依次上传所有游戏的存档记录和存档
     for game in config.games {
         let backup_path = format!("./save_data/{}", game.name);
-        let backup_info = game.get_backups_info().unwrap();
+        let backup_info = game.get_backups_info()?;
         // 写入存档记录
         op.write(
             &format!("{}/Backups.json", &backup_path),
-            serde_json::to_string_pretty(&backup_info).unwrap(),
+            serde_json::to_string_pretty(&backup_info)?,
         )
-        .await
-        .unwrap();
+        .await?;
         // 写入存档zip文件（不包括额外备份）
         for backup in backup_info.backups {
             let save_path = format!("{}/{}.zip", &backup_path, backup.date);
             println!("uploading {}", save_path);
-            op.write(&save_path, fs::read(&save_path).unwrap())
-                .await
-                .unwrap();
+            op.write(&save_path, fs::read(&save_path)?).await?;
         }
     }
     Ok(())
@@ -95,31 +86,26 @@ pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
 
 pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
     // 下载配置文件
-    let config = String::from_utf8(op.read("/GameSaveManager.config.json").await.unwrap()).unwrap();
-    let config: Config = serde_json::from_str(&config).unwrap();
-    set_config(&config).unwrap();
+    let config = String::from_utf8(op.read("/GameSaveManager.config.json").await?)?;
+    let config: Config = serde_json::from_str(&config)?;
+    set_config(&config).await?;
     // 依次下载所有游戏的存档记录和存档
     for game in config.games {
         let backup_path = format!("./save_data/{}", game.name);
-        let backup_info = op
-            .read(&format!("{}/Backups.json", &backup_path))
-            .await
-            .unwrap();
-        let backup_info: BackupsInfo =
-            serde_json::from_str(&String::from_utf8(backup_info).unwrap()).unwrap();
-        game.set_backups_info(&backup_info).unwrap();
+        let backup_info = op.read(&format!("{}/Backups.json", &backup_path)).await?;
+        let backup_info: BackupsInfo = serde_json::from_str(&String::from_utf8(backup_info)?)?;
+        game.set_backups_info(&backup_info)?;
         // 写入存档记录
         fs::write(
             &format!("{}/Backups.json", &backup_path),
-            serde_json::to_string_pretty(&backup_info).unwrap(),
-        )
-        .unwrap();
+            serde_json::to_string_pretty(&backup_info)?,
+        )?;
         // 写入存档zip文件（不包括额外备份）
         for backup in backup_info.backups {
             let save_path = format!("{}/{}.zip", &backup_path, backup.date);
             println!("downloading {}", save_path);
-            let data = op.read(&save_path).await.unwrap();
-            fs::write(&save_path, &data).unwrap();
+            let data = op.read(&save_path).await?;
+            fs::write(&save_path, &data)?;
         }
     }
     Ok(())
@@ -130,22 +116,20 @@ pub async fn upload_backup_info(op: &Operator, info: BackupsInfo) -> Result<(), 
     let backup_path = format!("./save_data/{}", info.name);
     op.write(
         &format!("{}/Backups.json", &backup_path),
-        serde_json::to_string_pretty(&info).unwrap(),
+        serde_json::to_string_pretty(&info)?,
     )
-    .await
-    .unwrap();
+    .await?;
     Ok(())
 }
 
 // 上传配置文件
 pub async fn upload_config(op: &Operator) -> Result<(), BackendError> {
-    let config = get_config().unwrap();
+    let config = get_config()?;
     // 上传配置文件
     op.write(
         "/GameSaveManager.config.json",
-        serde_json::to_string_pretty(&config).unwrap(),
+        serde_json::to_string_pretty(&config)?,
     )
-    .await
-    .unwrap();
+    .await?;
     Ok(())
 }

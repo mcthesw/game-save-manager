@@ -1,10 +1,10 @@
 use std::fs::File;
 use std::{fs, path};
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::cloud::{Backend, CloudSettings};
+use crate::errors::ConfigError;
 
 /// A save unit should be a file or a folder
 #[derive(Debug, Serialize, Deserialize)]
@@ -83,15 +83,15 @@ fn default_config() -> Config {
 }
 
 /// Set settings to original state
-pub fn reset_settings() -> Result<()> {
+pub async fn reset_settings() -> Result<(),ConfigError> {
     let settings = default_config().settings;
     let mut config = get_config()?;
     config.settings = settings;
-    set_config(&config)
+    set_config(&config).await
 }
 
 /// Create a config file
-fn init_config() -> Result<()> {
+fn init_config() -> Result<(),ConfigError> {
     println!("Init config file.");
     fs::write(
         "./GameSaveManager.config.json",
@@ -101,30 +101,30 @@ fn init_config() -> Result<()> {
 }
 
 /// Get the current config file
-pub fn get_config() -> Result<Config> {
+pub fn get_config() -> Result<Config,ConfigError> {
     let file = File::open("./GameSaveManager.config.json")?;
     Ok(serde_json::from_reader(file)?)
 }
 
 /// Replace the config file with a new config struct
-pub fn set_config(config: &Config) -> Result<()> {
-    // TODO:处理云同步
+pub async fn set_config(config: &Config) -> Result<(),ConfigError> {
     fs::write(
         "./GameSaveManager.config.json",
         serde_json::to_string_pretty(&config)?,
     )?;
+    // 处理云同步，上传新的配置文件
+    if config.settings.cloud_settings.always_sync {
+        let op = config.settings.cloud_settings.backend.get_op()?;
+        crate::cloud::upload_config(&op).await?;
+    }
     Ok(())
 }
 
-pub fn get_config_metadata() -> Result<fs::Metadata> {
-    let file = File::open("./GameSaveManager.config.json")?;
-    Ok(file.metadata()?)
-}
 
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-pub fn config_check() -> Result<()> {
+pub fn config_check() -> Result<(),ConfigError> {
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;

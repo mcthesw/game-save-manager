@@ -40,7 +40,7 @@ impl Game {
             .join(&self.name)
             .join("Backups.json");
         // 处理文件夹不存在的情况，一般发生在初次下载云存档时
-        let prefix_root = saves_path.parent().unwrap();
+        let prefix_root = saves_path.parent().ok_or(BackupError::NonePathError)?;
         if !prefix_root.exists() {
             fs::create_dir_all(prefix_root)?;
         }
@@ -63,7 +63,10 @@ impl Game {
         let backups_info = Backup {
             date,
             describe: describe.to_string(),
-            path: zip_path.to_str().unwrap().to_string(),
+            path: zip_path
+                .to_str()
+                .ok_or(BackupError::NonePathError)?
+                .to_string(),
         };
         let mut infos = self.get_backups_info()?;
         infos.backups.push(backups_info);
@@ -78,10 +81,10 @@ impl Game {
             // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
             let p = zip_path
                 .iter()
-                .map(|s| s.to_str().unwrap())
-                .collect::<Vec<_>>()
+                .map(|s| s.to_str().ok_or(BackupError::NonePathError))
+                .collect::<Result<Vec<&str>, BackupError>>()?
                 .join("/");
-            op.write(&p, fs::read(&zip_path).unwrap()).await.unwrap();
+            op.write(&p, fs::read(&zip_path)?).await?;
         }
         Result::Ok(())
     }
@@ -115,11 +118,16 @@ impl Game {
         let mut extra_backups = Vec::new();
         if extra_backups_dir.len() >= 5 {
             extra_backups_dir.into_iter().try_for_each(|f| {
-                extra_backups.push(f?.file_name().into_string().unwrap());
-                Result::<(), std::io::Error>::Ok(())
+                extra_backups.push(
+                    f?.file_name()
+                        .to_str()
+                        .ok_or(BackupError::NonePathError)?
+                        .to_string(),
+                );
+                Result::<(), BackupError>::Ok(())
             })?;
             extra_backups.sort();
-            let oldest = extra_backups.first().unwrap(); // 一定要改好这一行
+            let oldest = extra_backups.first().ok_or(BackupError::NonePathError)?; // 一定要改好这一行
             println!("oldest{:?}", oldest);
             fs::remove_file(extra_backup_path.join(oldest))?;
         }
@@ -145,8 +153,8 @@ impl Game {
             // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
             let p = save_path
                 .iter()
-                .map(|s| s.to_str().unwrap())
-                .collect::<Vec<_>>()
+                .map(|s| s.to_str().ok_or(BackupError::NonePathError))
+                .collect::<Result<Vec<&str>, BackupError>>()?
                 .join("/");
             op.delete(&p).await?;
         }
@@ -158,12 +166,13 @@ impl Game {
         fs::remove_dir_all(&backup_path)?;
 
         config.games.retain(|x| x.name != self.name);
-        set_config(&config)?;
+        set_config(&config).await?;
 
         // 随时同步到云端
         if config.settings.cloud_settings.always_sync {
             let op = config.settings.cloud_settings.backend.get_op()?;
-            op.remove_all(&backup_path.to_str().unwrap()).await?;
+            op.remove_all(backup_path.to_str().ok_or(BackupError::NonePathError)?)
+                .await?;
             // 也上传新的配置文件
             upload_config(&op).await?;
         }
@@ -172,7 +181,7 @@ impl Game {
     }
 }
 
-fn create_backup_folder(name: &str) -> Result<(), BackupError> {
+async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     let config = get_config()?;
 
     let backup_path = PathBuf::from(&config.backup_path).join(name);
@@ -192,12 +201,19 @@ fn create_backup_folder(name: &str) -> Result<(), BackupError> {
         serde_json::to_string_pretty(&info)?,
     )?;
 
+    // 处理云同步
+    if config.settings.cloud_settings.always_sync {
+        let op = config.settings.cloud_settings.backend.get_op()?;
+        // 上传存档记录信息
+        upload_backup_info(&op, info).await?;
+    }
+
     Ok(())
 }
 
-pub fn create_game_backup(game: Game) -> Result<(), BackupError> {
+pub async fn create_game_backup(game: Game) -> Result<(), BackupError> {
     let mut config = get_config()?;
-    create_backup_folder(&game.name)?;
+    create_backup_folder(&game.name).await?;
 
     // 查找是否存在与新游戏中的 `name` 字段相同的游戏
     let pos = config.games.iter().position(|g| g.name == game.name);
@@ -211,6 +227,6 @@ pub fn create_game_backup(game: Game) -> Result<(), BackupError> {
             config.games.push(game);
         }
     }
-    set_config(&config)?;
+    set_config(&config).await?;
     Ok(())
 }
