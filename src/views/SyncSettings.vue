@@ -136,7 +136,7 @@ function download_all() {
 }
 
 function open_manual() {
-  invoke("open_url", { url: "https://game.sworld.club/sync" }).catch(
+  invoke("open_url", { url: "https://help.sworld.club/docs/extras/cloud" }).catch(
     (e) => {
       console.log(e)
       show_error($t("error.open_url_failed"))

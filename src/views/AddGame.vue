@@ -168,6 +168,9 @@ function deleteRow(index: number) {
         <el-card class="game-info">
             <div class="top-part">
                 <img class="game-icon" :src="game_icon_src" />
+                <div class="bold">
+                    {{ $t("addgame.warning_for_save_file") }}
+                </div>
                 <el-input v-model="game_name" :placeholder="$t('addgame.input_game_name_prompt')" class="game-name">
                     <template #prepend>
                         {{ $t('addgame.game_name') }} </template>
@@ -212,6 +215,12 @@ function deleteRow(index: number) {
 </template>
 
 <style scoped>
+.bold {
+    margin-left: 10px;
+    font-weight: bold;
+    color: #000000;
+}
+
 .save-table {
     margin-top: 20px;
     margin-bottom: 20px;

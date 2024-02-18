@@ -88,7 +88,8 @@
     "type": "类型",
     "operations": "控制",
     "remove": "移除",
-    "path": "路径"
+    "path": "路径",
+    "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"
@@ -108,7 +109,8 @@
     "thank_you_list": "感谢名单",
     "frameworks": "使用框架",
     "official_website": "官方网站",
-    "version": "版本号: {0}"
+    "version": "版本号: {0}",
+    "help": "帮助文档"
   },
   "misc": {
     "error": "错误",
