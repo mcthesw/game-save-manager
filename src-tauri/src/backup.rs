@@ -16,17 +16,17 @@ pub struct Backup {
     pub path: String, // like "D:\\SaveManager\save_data\Game1\date.zip"
 }
 
-/// A backups info is a json file in a backup folder for a game.
+/// A backup list info is a json file in a backup folder for a game.
 /// It contains the name of the game,
 /// and all backups' path
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BackupsInfo {
+pub struct BackupListInfo {
     pub name: String,
     pub backups: Vec<Backup>,
 }
 
 impl Game {
-    pub fn get_backups_info(&self) -> Result<BackupsInfo, BackupError> {
+    pub fn get_backup_list_info(&self) -> Result<BackupListInfo, BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path)
             .join(&self.name)
@@ -34,7 +34,7 @@ impl Game {
         let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
         Ok(backup_info)
     }
-    pub fn set_backups_info(&self, new_info: &BackupsInfo) -> Result<(), BackupError> {
+    pub fn set_backup_list_info(&self, new_info: &BackupListInfo) -> Result<(), BackupError> {
         let config = get_config()?;
         let saves_path = path::Path::new(&config.backup_path)
             .join(&self.name)
@@ -60,7 +60,7 @@ impl Game {
             return Err(BackupError::BackupFileError(e));
         }
 
-        let backups_info = Backup {
+        let backup_list_info = Backup {
             date,
             describe: describe.to_string(),
             path: zip_path
@@ -68,9 +68,9 @@ impl Game {
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
         };
-        let mut infos = self.get_backups_info()?;
-        infos.backups.push(backups_info);
-        self.set_backups_info(&infos)?;
+        let mut infos = self.get_backup_list_info()?;
+        infos.backups.push(backup_list_info);
+        self.set_backup_list_info(&infos)?;
 
         // 随时同步到云端
         if config.settings.cloud_settings.always_sync {
@@ -88,13 +88,13 @@ impl Game {
         }
         Result::Ok(())
     }
-    pub fn apply_backup(&self, save_date: &str) -> Result<(), BackupError> {
+    pub fn apply_backup(&self, date: &str) -> Result<(), BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name);
         if config.settings.extra_backup_when_apply {
             self.create_extra_backup()?;
         }
-        decompress_from_file(&self.save_paths, &backup_path, save_date)?;
+        decompress_from_file(&self.save_paths, &backup_path, date)?;
         Result::Ok(())
     }
     pub fn create_extra_backup(&self) -> Result<(), BackupError> {
@@ -140,9 +140,9 @@ impl Game {
             .join(date.to_string() + ".zip");
         fs::remove_file(&save_path)?;
 
-        let mut saves = self.get_backups_info()?;
+        let mut saves = self.get_backup_list_info()?;
         saves.backups.retain(|x| x.date != date);
-        self.set_backups_info(&saves)?;
+        self.set_backup_list_info(&saves)?;
 
         // 随时同步到云端
         if config.settings.cloud_settings.always_sync {
@@ -188,15 +188,27 @@ impl Game {
 
         Ok(())
     }
+    pub async fn set_backup_describe(&self, date: &str, describe: &str) -> Result<(), BackupError> {
+        let mut saves = self.get_backup_list_info()?;
+        let pos = saves.backups.iter().position(|x| x.date == date).ok_or(
+            BackupError::BackupNotExist {
+                name: self.name.clone(),
+                date: date.to_string(),
+            },
+        )?;
+        saves.backups[pos].describe = describe.to_string();
+        self.set_backup_list_info(&saves)?;
+        Ok(())
+    }
 }
 
 async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     let config = get_config()?;
 
     let backup_path = PathBuf::from(&config.backup_path).join(name);
-    let info: BackupsInfo = if !backup_path.exists() {
+    let info: BackupListInfo = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
-        BackupsInfo {
+        BackupListInfo {
             name: name.to_string(),
             backups: Vec::new(),
         }
