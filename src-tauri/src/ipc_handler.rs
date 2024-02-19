@@ -1,4 +1,4 @@
-use crate::backup::BackupsInfo;
+use crate::backup::BackupListInfo;
 use crate::cloud::{self, upload_all, Backend};
 use crate::config::{config_check, get_config, Config, Game};
 use crate::errors::*;
@@ -90,8 +90,8 @@ pub async fn delete_game(game: Game) -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn get_backups_info(game: Game) -> Result<BackupsInfo, String> {
-    game.get_backups_info().map_err(|e| e.to_string())
+pub async fn get_backup_list_info(game: Game) -> Result<BackupListInfo, String> {
+    game.get_backup_list_info().map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -147,6 +147,14 @@ pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{:#?}", e)),
     }
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn set_backup_describe(game: Game, date: String, describe: String) -> Result<(), String> {
+    game.set_backup_describe(&date, &describe)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {

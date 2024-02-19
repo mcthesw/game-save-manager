@@ -1,6 +1,7 @@
 use std::{io, path::PathBuf, string::FromUtf8Error};
 use thiserror::Error;
 
+
 #[derive(Debug, Error)]
 pub enum BackupFileError {
     #[error("Cannot create file: {0:#?}")]
@@ -53,6 +54,8 @@ impl From<BackupError> for BackendError {
 
 #[derive(Debug, Error)]
 pub enum BackupError {
+    #[error("Backup for {name} not exists: {date}")]
+    BackupNotExist { name: String, date: String },
     #[error("Backend error: {0:#?}")]
     BackendError(#[from] BackendError),
     #[error("Backup file error: {0:#?}")]
@@ -88,5 +91,5 @@ pub enum ConfigError {
     #[error("IO error: {0:#?}")]
     IoError(#[from] io::Error),
     #[error("Backend error: {0:#?}")]
-    BackendError(#[from] BackendError)
+    BackendError(#[from] BackendError),
 }
