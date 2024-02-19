@@ -16,7 +16,17 @@
     "operation": "操作",
     "move_up": "上移",
     "move_down": "下移",
-    "enable_edit_manage": "在存档管理界面显示修改按钮"
+    "enable_edit_manage": "在存档管理界面显示修改按钮",
+    "backup_all": "备份所有存档",
+    "backup_all_hint": "这个操作会备份所有游戏的存档，可能会花费较长时间，确定请输入yes",
+    "apply_all": "应用所有存档",
+    "apply_all_hint": "这是一个高危动作，可能会花费较长时间，你确定要覆盖所有游戏的存档吗？确定请输入yes",
+    "confirm": "确定",
+    "cancel": "取消",
+    "invalid_input_error": "无效的输入",
+    "success": "操作成功",
+    "failed": "操作失败",
+    "operation_canceled": "您取消了这次操作"
   },
   "home": {
     "hello_world": "你好 世界",

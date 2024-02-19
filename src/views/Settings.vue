@@ -2,10 +2,11 @@
 import { ref } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
-import { show_error, show_success } from "../utils/notifications";
+import { show_error, show_info, show_success } from "../utils/notifications";
 import { Game } from "../schemas/saveTypes";
 import { useDark, useToggle } from '@vueuse/core'
 import { $t } from "../i18n";
+import { ElMessageBox } from "element-plus";
 
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
@@ -58,6 +59,58 @@ function move_down(game: Game) {
     }
 }
 
+function backup_all() {
+    ElMessageBox.prompt(
+        $t('settings.backup_all_hint'),
+        $t('home.hint'),
+        {
+            confirmButtonText: $t('settings.confirm'),
+            cancelButtonText: $t('settings.cancel'),
+            inputPattern: /yes/,
+            inputErrorMessage: $t('settings.invalid_input_error'),
+        }
+    )
+        .then(() => {
+            invoke("backup_all").then((x) => {
+                show_success($t("settings.success"));
+            }).catch(
+                (e) => {
+                    console.log(e)
+                    show_error($t("error.failed"))
+                }
+            )
+        })
+        .catch(() => {
+            show_info($t('setting.operation_canceled'));
+        });
+}
+
+function apply_all() {
+    ElMessageBox.prompt(
+        $t('settings.apply_all_hint'),
+        $t('home.hint'),
+        {
+            confirmButtonText: $t('settings.confirm'),
+            cancelButtonText: $t('settings.cancel'),
+            inputPattern: /yes/,
+            inputErrorMessage: $t('settings.invalid_input_error'),
+        }
+    )
+        .then(() => {
+            invoke("apply_all").then((x) => {
+                show_success($t("settings.success"));
+            }).catch(
+                (e) => {
+                    console.log(e)
+                    show_error($t("error.failed"))
+                }
+            )
+        })
+        .catch(() => {
+            show_info($t('setting.operation_canceled'));
+        });
+}
+
 </script>
 
 <template>
@@ -71,6 +124,12 @@ function move_down(game: Game) {
                     <el-button type="danger">{{ $t("settings.reset_settings") }}</el-button>
                 </template>
             </el-popconfirm>
+            <el-button @click="backup_all" type="danger">
+                {{ $t("settings.backup_all") }}
+            </el-button>
+            <el-button @click="apply_all" type="danger">
+                {{ $t("settings.apply_all") }}
+            </el-button>
             <br />
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
