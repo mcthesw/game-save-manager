@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { Ref, computed, ref, watch } from "vue";
-import { ElMessageBox } from "element-plus";
+import { ElInput, ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/tauri";
 import { useConfig } from "../stores/ConfigFile";
 import { BackupsInfo, Game } from "../schemas/saveTypes";
@@ -57,7 +57,7 @@ watch(
 )
 
 function refresh_backups_info() {
-    invoke("get_backups_info", { game: game.value })
+    invoke("get_backup_list_info", { game: game.value })
         .then((v) => {
             let infos = v as BackupsInfo;
             table_data.value = infos.backups;
@@ -65,7 +65,7 @@ function refresh_backups_info() {
         }).catch(
             (e) => {
                 console.log(e)
-                show_error($t('error.get_backups_info_failed'));
+                show_error($t('error.get_backup_list_failed'));
             }
         )
 }
@@ -177,6 +177,30 @@ function apply_save(date: string) {
             apply_button_apply_limit = true;
             refresh_backups_info();
         })
+}
+
+function change_describe(date: string) {
+    ElMessageBox.prompt($t('manage.input_description_prompt'), $t('manage.change_description'), {
+        confirmButtonText: $t('manage.confirm'),
+        cancelButtonText: $t('manage.cancel'),
+        inputValue: table_data.value.find((x) => x.date == date)?.describe,
+    })
+        .then(({ value }) => {
+            invoke("set_backup_describe", { game: game.value, date: date, describe: value })
+                .then((x) => {
+                    console.log(x)
+                    refresh_backups_info();
+                    show_success($t('manage.change_description_success'));
+                }).catch(
+                    (e) => {
+                        console.log(e)
+                        show_error($t('error.change_description_failed'))
+                    }
+                )
+        })
+        .catch(() => {
+            show_info($t('manage.operation_canceled'));
+        });
 }
 
 function load_latest_save() {
@@ -304,6 +328,9 @@ const filter_table = computed(
                                 <el-button size="small"> {{ $t('manage.apply') }} </el-button>
                             </template>
                         </el-popconfirm>
+                        <el-button size="small" @click="change_describe(scope.row.date)">
+                            {{ $t('manage.change_describe') }}
+                        </el-button>
                         <el-popconfirm :title="$t('manage.confirm_delete_prompt')" @confirm="del_save(scope.row.date)">
                             <template #reference>
                                 <el-button size="small" type="danger">

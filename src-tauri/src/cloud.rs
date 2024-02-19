@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::backup::BackupsInfo;
+use crate::backup::BackupListInfo;
 use crate::config::{get_config, set_config, Config};
 use opendal::services;
 use opendal::Operator;
@@ -67,7 +67,7 @@ pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
     // 依次上传所有游戏的存档记录和存档
     for game in config.games {
         let backup_path = format!("./save_data/{}", game.name);
-        let backup_info = game.get_backups_info()?;
+        let backup_info = game.get_backup_list_info()?;
         // 写入存档记录
         op.write(
             &format!("{}/Backups.json", &backup_path),
@@ -93,8 +93,8 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
     for game in config.games {
         let backup_path = format!("./save_data/{}", game.name);
         let backup_info = op.read(&format!("{}/Backups.json", &backup_path)).await?;
-        let backup_info: BackupsInfo = serde_json::from_str(&String::from_utf8(backup_info)?)?;
-        game.set_backups_info(&backup_info)?;
+        let backup_info: BackupListInfo = serde_json::from_str(&String::from_utf8(backup_info)?)?;
+        game.set_backup_list_info(&backup_info)?;
         // 写入存档记录
         fs::write(
             &format!("{}/Backups.json", &backup_path),
@@ -112,7 +112,7 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
 }
 
 /// 上传单个游戏的配置文件
-pub async fn upload_backup_info(op: &Operator, info: BackupsInfo) -> Result<(), BackendError> {
+pub async fn upload_backup_info(op: &Operator, info: BackupListInfo) -> Result<(), BackendError> {
     let backup_path = format!("./save_data/{}", info.name);
     op.write(
         &format!("{}/Backups.json", &backup_path),
