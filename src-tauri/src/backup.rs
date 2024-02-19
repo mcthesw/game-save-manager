@@ -251,3 +251,25 @@ pub async fn create_game_backup(game: Game) -> Result<(), BackupError> {
     set_config(&config).await?;
     Ok(())
 }
+
+pub async fn backup_all() -> Result<(), BackupError> {
+    let config = get_config()?;
+    for game in &config.games {
+        game.backup_save("Backup all").await?;
+    }
+    Ok(())
+}
+pub async fn apply_all() -> Result<(), BackupError> {
+    let config = get_config()?;
+    for game in &config.games {
+        let date = game
+            .get_backup_list_info()?
+            .backups
+            .last()
+            .ok_or(BackupError::NoBackupAvailable)?
+            .date
+            .clone();
+        game.apply_backup(&date)?;
+    }
+    Ok(())
+}

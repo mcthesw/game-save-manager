@@ -157,6 +157,18 @@ pub async fn set_backup_describe(game: Game, date: String, describe: String) -> 
         .map_err(|e| e.to_string())
 }
 
+#[allow(unused)]
+#[tauri::command]
+pub async fn backup_all() -> Result<(), String> {
+    backup::backup_all().await.map_err(|e| e.to_string())
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn apply_all() -> Result<(), String> {
+    backup::apply_all().await.map_err(|e| e.to_string())
+}
+
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
         if let BackupError::BackupFileError(BackupFileError::NotExists(files)) = &e {

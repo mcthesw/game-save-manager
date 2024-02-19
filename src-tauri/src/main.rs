@@ -32,6 +32,8 @@ fn main() {
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
             ipc_handler::set_backup_describe,
+            ipc_handler::backup_all,
+            ipc_handler::apply_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
