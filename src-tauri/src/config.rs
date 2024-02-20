@@ -84,7 +84,7 @@ pub struct Config {
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("1.0.0 alpha"),
+        version: String::from("1.0.0"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {

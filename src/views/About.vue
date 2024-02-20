@@ -18,6 +18,7 @@ const thanks = [
     { name: "Sworld", describe: $t('about.project_initiator') },
     { name: "Itsusinn逸新", describe: $t('about.developer') },
     { name: "AsterNighT", describe: $t('about.developer') },
+    { name: "noneSycamore", describe: $t('about.developer') },
     { name: "勺子", describe: $t('about.ea_tester') },
     { name: "Wali", describe: $t('about.ea_tester') },
     { name: "土拨鼠", describe: $t('about.ea_tester') },

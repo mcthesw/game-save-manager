@@ -38,6 +38,10 @@ function check() {
       show_error($t("sync_settings.test_failed"))
       break
     case "WebDAV":
+      if (webdav_settings.value.endpoint.endsWith("/")) {
+        // 去掉末尾的斜杠，防止出现重复的斜杠
+        webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
+      }
       invoke("check_cloud_backend", { backend: webdav_settings.value }).then((res) => {
         show_success($t("sync_settings.test_success"))
       }).catch((err) => {
@@ -57,6 +61,10 @@ function save() {
       break
     case "WebDAV":
       cloud_settings.value.backend = webdav_settings.value
+      if (cloud_settings.value.backend.endpoint.endsWith("/")) {
+        // 去掉末尾的斜杠，防止出现重复的斜杠
+        cloud_settings.value.backend.endpoint = cloud_settings.value.backend.endpoint.slice(0, -1)
+      }
       break
     default:
       show_error($t("sync_settings.unknown_backend"))
@@ -76,7 +84,7 @@ function load_config() {
  * 提交配置，不应独立调用，需使用save函数调用，否则临时配置不会覆盖到配置中
  */
 function submit_settings() {
-  invoke("set_config", { config: config }).then((x) => {
+  invoke("set_config", { config: config.$state }).then((x) => {
     show_success($t("sync_settings.submit_success"));
     load_config()
   }).catch(
