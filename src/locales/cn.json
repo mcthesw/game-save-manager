@@ -8,6 +8,8 @@
     "confirm_reset": "确认重置?",
     "reset_settings": "恢复默认配置",
     "prompt_when_not_described": "当未描述存档时，弹出提示",
+    "prompt_when_auto_backup": "当自动备份时，弹出提示",
+    "exit_to_tray": "退出到托盘",
     "extra_backup_when_apply": "在应用存档时进行额外备份（在 ./save_data/游戏名/extra_backup 文件夹内）",
     "enable_dark_mode": "启用夜间模式",
     "adjust_game_order": "调整游戏展示顺序（需要保存设置）",
@@ -16,7 +18,17 @@
     "operation": "操作",
     "move_up": "上移",
     "move_down": "下移",
-    "enable_edit_manage": "在存档管理界面显示修改按钮"
+    "enable_edit_manage": "在存档管理界面显示修改按钮",
+    "backup_all": "备份所有存档",
+    "backup_all_hint": "这个操作会备份所有游戏的存档，可能会花费较长时间，确定请输入yes",
+    "apply_all": "应用所有存档",
+    "apply_all_hint": "这是一个高危动作，可能会花费较长时间，你确定要覆盖所有游戏的存档吗？确定请输入yes",
+    "confirm": "确定",
+    "cancel": "取消",
+    "invalid_input_error": "无效的输入",
+    "success": "操作成功",
+    "failed": "操作失败",
+    "operation_canceled": "您取消了这次操作"
   },
   "home": {
     "hello_world": "你好 世界",
@@ -73,7 +85,10 @@
     "change_describe": "修改",
     "change_description": "输入新的描述信息",
     "change_description_success": "修改成功",
-    "change_description_failed": "修改失败"
+    "change_description_failed": "修改失败",
+    "set_quick_backup": "启用快捷备份",
+    "set_quick_backup_success": "设置成功，可以用快捷键或托盘图标快捷操作",
+    "set_quick_backup_failed": "设置失败"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",
