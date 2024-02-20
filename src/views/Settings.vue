@@ -18,7 +18,7 @@ function load_config() {
 }
 function submit_settings() {
     loading.value = true;
-    invoke("set_config", { config: config }).then((x) => {
+    invoke("set_config", { config: config.$state }).then((x) => {
         loading.value = false;
         show_success($t("settings.submit_success"));
         load_config()
