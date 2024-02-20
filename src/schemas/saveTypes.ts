@@ -108,6 +108,7 @@ export let default_config: Config = {
     settings: {
         prompt_when_not_described: false,
         extra_backup_when_apply: true,
+        exit_to_tray: true,
         show_edit_button: false,
         cloud_settings: {
             always_sync: false,
@@ -115,7 +116,8 @@ export let default_config: Config = {
             backend: {
                 type: "Disabled",
             }
-        }
+        },
+        prompt_when_auto_backup: false,
     }
 };
 
