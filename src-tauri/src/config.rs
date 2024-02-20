@@ -7,7 +7,7 @@ use crate::cloud::{Backend, CloudSettings};
 use crate::errors::ConfigError;
 
 /// A save unit should be a file or a folder
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 pub enum SaveUnitType {
     File,
     Folder,
@@ -15,7 +15,7 @@ pub enum SaveUnitType {
 
 /// A save unit declares one of the files/folders
 /// that should be backup for a game
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct SaveUnit {
     pub unit_type: SaveUnitType,
     pub path: String,
@@ -29,6 +29,16 @@ pub struct Game {
     pub game_path: Option<String>,
 }
 
+impl Clone for Game {
+    fn clone(&self) -> Self {
+        Game {
+            name: self.name.clone(),
+            save_paths: self.save_paths.clone(),
+            game_path: self.game_path.clone(),
+        }
+    }
+}
+
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
@@ -38,6 +48,10 @@ pub struct Settings {
     pub extra_backup_when_apply: bool,
     #[serde(default = "default_false")]
     pub show_edit_button: bool,
+    #[serde(default = "default_true")]
+    pub prompt_when_auto_backup:bool,
+    #[serde(default = "default_true")]
+    pub exit_to_tray: bool,
     #[serde(default = "default_cloud_settings")]
     pub cloud_settings: CloudSettings,
 }
@@ -77,7 +91,9 @@ fn default_config() -> Config {
             prompt_when_not_described: false,
             extra_backup_when_apply: true,
             show_edit_button: false,
+            prompt_when_auto_backup: true,
             cloud_settings: default_cloud_settings(),
+            exit_to_tray: true,
         },
     }
 }

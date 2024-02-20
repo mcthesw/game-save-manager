@@ -1,13 +1,13 @@
 use crate::backup::BackupListInfo;
 use crate::cloud::{self, upload_all, Backend};
 use crate::config::{config_check, get_config, Config, Game};
-use crate::errors::*;
 use crate::{backup, config};
+use crate::{errors::*, tray};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::api::dialog;
-use tauri::Window;
+use tauri::{AppHandle, Window};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,7 +23,7 @@ struct IpcNotification {
     msg: String,
 }
 
-// TODO:把错误文本改为有可读性的
+// TODO:把错误文本改为有可读性的，增加日志
 #[allow(unused)]
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), String> {
@@ -115,7 +115,7 @@ pub async fn backup_save(game: Game, describe: String, window: Window) -> Result
 #[allow(unused)]
 #[tauri::command]
 pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
-    let config = get_config().unwrap();
+    let config = get_config().map_err(|e| e.to_string())?;
     let p = PathBuf::from(&config.backup_path).join(game.name);
     Ok(open::that(p).is_ok())
 }
@@ -132,7 +132,7 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
-    let op = backend.get_op().unwrap();
+    let op = backend.get_op().map_err(|e| e.to_string())?;
     match upload_all(&op).await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{:#?}", e)),
@@ -142,7 +142,7 @@ pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
-    let op = backend.get_op().unwrap();
+    let op = backend.get_op().map_err(|e| e.to_string())?;
     match cloud::download_all(&op).await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("{:#?}", e)),
@@ -169,10 +169,17 @@ pub async fn apply_all() -> Result<(), String> {
     backup::apply_all().await.map_err(|e| e.to_string())
 }
 
+#[allow(unused)]
+#[tauri::command]
+pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<(), String> {
+    tray::set_current_game(&app_handle, game);
+    Ok(())
+}
+
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
         if let BackupError::BackupFileError(BackupFileError::NotExists(files)) = &e {
-            files.iter().for_each(|file| {
+            files.iter().try_for_each(|file| {
                 window
                     .emit(
                         "Notification",
@@ -182,8 +189,9 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
                             msg: format!("文件 {:?} 不存在，无法进行备份或恢复", file),
                         },
                     )
-                    .unwrap();
-            });
+                    .map_err(|e| e.to_string())?;
+                Ok::<(), String>(())
+            })?;
         }
         return Err(format!("{}", e));
     }
@@ -201,7 +209,7 @@ mod test {
             title: "title1".to_string(),
             msg: "msg1".to_string(),
         })
-        .unwrap();
+        .unwrap(); // safe:测试代码，不应出现错误，可以直接unwrap
         assert_eq!(
             a,
             "{\"level\":\"error\",\"title\":\"title1\",\"msg\":\"msg1\"}"
