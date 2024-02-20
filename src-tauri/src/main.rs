@@ -3,15 +3,21 @@
     windows_subsystem = "windows"
 )]
 
+use std::sync::{Arc, Mutex};
+
+use config::get_config;
+
 mod archive;
 mod backup;
 mod cloud;
 mod config;
 mod errors;
 mod ipc_handler;
+mod tray;
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
         .invoke_handler(tauri::generate_handler![
             ipc_handler::local_config_check,
             ipc_handler::open_url,
@@ -32,7 +38,28 @@ fn main() {
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
             ipc_handler::set_backup_describe,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+            ipc_handler::backup_all,
+            ipc_handler::apply_all,
+            ipc_handler::set_quick_backup_game,
+        ]);
+
+    // 处理退出到托盘
+    if let Ok(config) = get_config() {
+        if config.settings.exit_to_tray {
+            app.system_tray(tray::get_tray())
+                .on_system_tray_event(tray::tray_event_handler)
+                .setup(tray::setup_timer)
+                .build(tauri::generate_context!())
+                .expect("Cannot build tauri app")
+                .run(|_app_handle, event| {
+                    if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                        api.prevent_exit();
+                    }
+                });
+            return;
+        }
+    }
+    // 不需要退出到托盘
+    app.run(tauri::generate_context!())
+        .expect("error while running tauri application")
 }
