@@ -11,11 +11,18 @@
     "version": "1.0.0"
   },
   "tauri": {
+    "systemTray": {
+      "iconPath": "icons/128x128.png",
+      "iconAsTemplate": true
+    },
     "allowlist": {
       "all": false,
       "shell": {
         "all": false,
         "open": true
+      },
+      "notification": {
+        "all": true
       }
     },
     "bundle": {
@@ -44,12 +51,21 @@
       },
       "resources": [],
       "shortDescription": "",
-      "targets": ["appimage","deb","nsis","dmg"],
+      "targets": [
+        "appimage",
+        "deb",
+        "nsis",
+        "dmg"
+      ],
       "windows": {
         "digestAlgorithm": "sha256",
         "timestampUrl": "",
         "nsis": {
-          "languages": ["English","SimpChinese","TradChinese"],
+          "languages": [
+            "English",
+            "SimpChinese",
+            "TradChinese"
+          ],
           "installMode": "both"
         }
       }

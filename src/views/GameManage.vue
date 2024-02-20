@@ -18,6 +18,7 @@ const top_buttons = [
     { text: $t('manage.launch_game'), method: launch_game },
     { text: $t('manage.open_backup_folder'), method: open_backup_folder },
     { text: $t('manage.show_drawer'), method: () => { drawer.value = !drawer.value; } },
+    { text: $t('manage.set_quick_backup'), method: set_quick_backup }
 ]
 
 const search = ref(""); // 搜索时使用的字符串
@@ -273,6 +274,20 @@ function edit_cur() {
         });
 }
 
+// 设置快速备份，由快捷键和tray触发备份和恢复
+function set_quick_backup() {
+    invoke("set_quick_backup_game", { game: game.value })
+        .then((x) => {
+            console.log(x)
+            show_success($t('manage.set_quick_backup_success'));
+        }).catch(
+            (e) => {
+                console.log(e)
+                show_error($t('manage.set_quick_backup_failed'))
+            }
+        )
+}
+
 const filter_table = computed(
     () => {
         return table_data.value.filter(
@@ -289,19 +304,20 @@ const filter_table = computed(
     <div class="manage-container">
         <!-- 下面是顶栏部分 -->
         <el-card class="manage-top-bar">
-            <template v-for="button in top_buttons" :key="button.text">
-                <el-button type="primary" round @click="button.method">
-                    {{ button.text }}
+            <div class="button-bar">
+                <template v-for="button in top_buttons" :key="button.text">
+                    <el-button type="primary" round @click="button.method">
+                        {{ button.text }}
+                    </el-button>
+                </template>
+
+                <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
+                    {{ $t('manage.change_info') }}
                 </el-button>
-            </template>
-
-            <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
-                {{ $t('manage.change_info') }}
-            </el-button>
-            <el-button type="danger" round @click="del_cur()">
-                {{ $t('manage.delete_save_manage') }}
-            </el-button>
-
+                <el-button type="danger" round @click="del_cur()">
+                    {{ $t('manage.delete_save_manage') }}
+                </el-button>
+            </div>
             <!-- 下面是当前存档描述信息 -->
 
             <el-input v-model="describe" :placeholder="$t('manage.input_description_prompt')">
@@ -348,6 +364,12 @@ const filter_table = computed(
 </template>
 
 <style scoped>
+
+.el-button {
+    margin-left: 10px !important;
+    margin-top: 5px;
+}
+
 .manage-top-bar {
     width: 98%;
     padding-right: 10px;

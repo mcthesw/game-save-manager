@@ -117,24 +117,33 @@ function apply_all() {
     <el-container class="setting" direction="vertical">
         <el-card>
             <h1>{{ $t("settings.customizable_settings") }}</h1>
-            <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
-            <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
-            <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
-                <template #reference>
-                    <el-button type="danger">{{ $t("settings.reset_settings") }}</el-button>
-                </template>
-            </el-popconfirm>
-            <el-button @click="backup_all" type="danger">
-                {{ $t("settings.backup_all") }}
-            </el-button>
-            <el-button @click="apply_all" type="danger">
-                {{ $t("settings.apply_all") }}
-            </el-button>
-            <br />
+            <div class="button-bar">
+                <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
+                <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
+                <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
+                    <template #reference>
+                        <el-button type="danger">{{ $t("settings.reset_settings") }}</el-button>
+                    </template>
+                </el-popconfirm>
+                <el-button @click="backup_all" type="danger">
+                    {{ $t("settings.backup_all") }}
+                </el-button>
+                <el-button @click="apply_all" type="danger">
+                    {{ $t("settings.apply_all") }}
+                </el-button>
+            </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
                 <span>{{ $t("settings.prompt_when_not_described") }}</span>
             </div>
+            <div class="setting-box">
+                <ElSwitch v-model="config.settings.prompt_when_auto_backup" :loading="loading" />
+                <span>{{ $t("settings.prompt_when_auto_backup") }}</span>
+            </div>
+            <div class="setting-box">
+                    <ElSwitch v-model="config.settings.exit_to_tray" :loading="loading" />
+                    <span>{{ $t("settings.exit_to_tray") }}</span>
+                </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.extra_backup_when_apply" :loading="loading" />
                 <span>{{ $t("settings.extra_backup_when_apply") }}</span>
@@ -170,6 +179,12 @@ function apply_all() {
 </template>
 
 <style scoped>
+.el-button {
+    margin-left: 0px !important;
+    margin-right: 10px;
+    margin-top: 5px;
+}
+
 .el-switch {
     margin-right: 20px;
 }

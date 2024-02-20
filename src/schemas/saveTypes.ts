@@ -84,9 +84,17 @@ export interface Settings {
      */
     extra_backup_when_apply: boolean;
     /**
+     * 是否在自动备份时提示
+     */
+    prompt_when_auto_backup: boolean;
+    /**
      * 是否显示"修改存档管理"按钮
      */
     show_edit_button: boolean;
+    /**
+     * 是否在关闭时最小化到托盘
+     */
+    exit_to_tray: boolean;
     /**
      * 云存储设置
      */
