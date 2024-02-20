@@ -38,6 +38,10 @@ function check() {
       show_error($t("sync_settings.test_failed"))
       break
     case "WebDAV":
+      if (webdav_settings.value.endpoint.endsWith("/")) {
+        // 去掉末尾的斜杠，防止出现重复的斜杠
+        webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
+      }
       invoke("check_cloud_backend", { backend: webdav_settings.value }).then((res) => {
         show_success($t("sync_settings.test_success"))
       }).catch((err) => {
