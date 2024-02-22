@@ -111,7 +111,9 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                         let newest_date = game
                             .get_backup_list_info()
                             .expect("Cannot get backup list info")
-                            .backups[0]
+                            .backups
+                            .last()
+                            .expect("No backup available")
                             .date
                             .clone();
                         tauri::async_runtime::block_on(async { game.apply_backup(&newest_date) })
