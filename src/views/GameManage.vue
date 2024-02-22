@@ -205,8 +205,9 @@ function change_describe(date: string) {
 }
 
 function load_latest_save() {
-    if (table_data.value[0].date) {
-        apply_save(table_data.value[0].date);
+    // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
+    if (table_data.value[table_data.value.length-1].date) {
+        apply_save(table_data.value[table_data.value.length - 1].date);
     } else {
         show_error($t('manage.no_backup_error'));
     }
