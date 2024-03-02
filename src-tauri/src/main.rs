@@ -43,6 +43,9 @@ fn main() {
             ipc_handler::set_quick_backup_game,
         ]);
 
+    // 只允许运行一个实例
+    let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+
     // 处理退出到托盘
     if let Ok(config) = get_config() {
         if config.settings.exit_to_tray {

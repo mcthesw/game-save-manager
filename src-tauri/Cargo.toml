@@ -29,6 +29,7 @@ fs_extra = "1.3.0"
 open = "5.0.1"
 thiserror = "1.0.40"
 opendal = "0.45.0"
+tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 
 [features]
 # by default Tauri runs in production mode
