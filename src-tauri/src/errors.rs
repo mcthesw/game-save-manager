@@ -93,4 +93,6 @@ pub enum ConfigError {
     IoError(#[from] io::Error),
     #[error("Backend error: {0:#?}")]
     BackendError(#[from] BackendError),
+    #[error("Tauri error: {0:#?}")]
+    TauriError(#[from] tauri::Error),
 }

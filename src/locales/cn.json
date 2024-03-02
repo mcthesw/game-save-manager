@@ -166,6 +166,8 @@
     "test_button": "测试可用性",
     "auto_sync_interval": "同步间隔",
     "interval_hint": "设置为0则关闭自动同步（暂不可用）",
+    "cloud_root":"云端根目录",
+    "cloud_root_hint":"不要以/结尾，不要留空",
     "backend": "同步后端",
     "backend_hint": "选择云存档的服务后端",
     "sync_success": "同步成功",

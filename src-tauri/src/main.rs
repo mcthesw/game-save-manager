@@ -6,11 +6,13 @@
 use std::sync::{Arc, Mutex};
 
 use config::get_config;
+use tauri::api::notification::Notification;
 
 mod archive;
 mod backup;
 mod cloud;
 mod config;
+mod default_value;
 mod errors;
 mod ipc_handler;
 mod tray;
@@ -43,6 +45,9 @@ fn main() {
             ipc_handler::set_quick_backup_game,
         ]);
 
+    // 只允许运行一个实例
+    let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+
     // 处理退出到托盘
     if let Ok(config) = get_config() {
         if config.settings.exit_to_tray {
@@ -61,5 +66,12 @@ fn main() {
     }
     // 不需要退出到托盘
     app.run(tauri::generate_context!())
-        .expect("error while running tauri application")
+        .expect("error while running tauri application");
+
+    // 需要初始化Notification，否则第一次提示不会显示
+    Notification::new("Init Info")
+        .title("初始化")
+        .body("初始化Notification")
+        .show()
+        .expect("Cannot show notification");
 }
