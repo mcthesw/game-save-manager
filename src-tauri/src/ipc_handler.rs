@@ -11,16 +11,16 @@ use tauri::{AppHandle, Window};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-enum NotificationLevel {
+pub enum NotificationLevel {
     info,
     warning,
     error,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct IpcNotification {
-    level: NotificationLevel,
-    title: String,
-    msg: String,
+pub struct IpcNotification {
+    pub level: NotificationLevel,
+    pub title: String,
+    pub msg: String,
 }
 
 // TODO:把错误文本改为有可读性的，增加日志
@@ -59,7 +59,7 @@ pub async fn get_local_config() -> Result<Config, String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn local_config_check() -> Result<(), String> {
-    config_check().map_err(|e| e.to_string())
+    config_check().await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]

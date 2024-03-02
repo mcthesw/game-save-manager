@@ -3,6 +3,7 @@
 /target/
 
 GameSaveManager.config.json
+*.bak
 /save_data/
 
 /.vscode/
