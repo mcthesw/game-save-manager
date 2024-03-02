@@ -69,6 +69,10 @@ export interface CloudSettings {
      */
     auto_sync_interval: number;
     /**
+     * 云存储根路径
+     */
+    root_path: string;
+    /**
      * 同步的后端设置
      */
     backend: Backend;
@@ -102,7 +106,7 @@ export interface Settings {
 }
 
 export let default_config: Config = {
-    version: "1.0.0 alpha",
+    version: "1.0.1",
     backup_path: "./save_data",
     games: [],
     settings: {
@@ -113,6 +117,7 @@ export let default_config: Config = {
         cloud_settings: {
             always_sync: false,
             auto_sync_interval: 0,
+            root_path: "/game-save-manager",
             backend: {
                 type: "Disabled",
             }

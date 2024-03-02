@@ -1,11 +1,12 @@
 use std::fs;
 
-use crate::backup::BackupListInfo;
-use crate::config::{get_config, set_config, Config};
 use opendal::services;
 use opendal::Operator;
 use serde::{Deserialize, Serialize};
 
+use crate::backup::BackupListInfo;
+use crate::config::{get_config, set_config, Config};
+use crate::default_value;
 use crate::errors::BackendError;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -23,10 +24,16 @@ pub enum Backend {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CloudSettings {
     /// 是否启用跟随云同步（用户添加、删除时自动同步）
+    #[serde(default = "default_value::default_false")]
     pub always_sync: bool,
     /// 同步间隔，单位分钟，为0则不自动同步
+    #[serde(default = "default_value::default_zero")]
     pub auto_sync_interval: u64,
+    /// 云同步根目录
+    #[serde(default = "default_value::default_root_path")]
+    pub root_path: String,
     /// 云同步后端设置
+    #[serde(default = "default_value::default_backend")]
     pub backend: Backend,
 }
 
@@ -49,7 +56,8 @@ impl Backend {
                 builder
             }
         };
-        builder.root("/game-save-manager");
+        let root = get_config()?.settings.cloud_settings.root_path;
+        builder.root(&root);
         Ok(Operator::new(builder)?.finish())
     }
 

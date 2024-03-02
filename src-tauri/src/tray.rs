@@ -171,12 +171,6 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     tauri::async_runtime::spawn(async move {
         let mut counter = 0;
         let mut last = None;
-        // 需要初始化Notification，否则第一次提示不会显示
-        Notification::new("Auto Backup Info")
-            .title("初始化")
-            .body("初始化Notification")
-            .show()
-            .expect("Cannot show notification");
         loop {
             let (duration, game) = {
                 let state_guard = state.lock().expect("Cannot get state lock");
