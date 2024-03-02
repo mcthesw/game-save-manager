@@ -168,9 +168,13 @@ function open_manual() {
           <span class="hint">{{ $t("sync_settings.always_sync_hint") }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.auto_sync_interval')">
-          <ElInputNumber :disabled="true" name="sync_interval" :value-on-clear="0" :step="1" :step-strictly="true"
+          <ElInputNumber :disabled="true" :value-on-clear="0" :step="1" :step-strictly="true"
             :min="0" />
           <span class="hint">{{ $t('sync_settings.interval_hint') }}</span>
+        </ElFormItem>
+        <ElFormItem :label="$t('sync_settings.cloud_root')">
+          <ElInput v-model="cloud_settings.root_path" />
+          <span class="hint">{{ $t('sync_settings.cloud_root_hint') }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.backend')">
           <ElSelect :placeholder="$t('sync_settings.backend')" v-model="cloud_settings.backend.type">
