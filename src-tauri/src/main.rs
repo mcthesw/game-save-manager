@@ -14,6 +14,7 @@ mod config;
 mod errors;
 mod ipc_handler;
 mod tray;
+mod default_value;
 
 fn main() {
     let app = tauri::Builder::default()

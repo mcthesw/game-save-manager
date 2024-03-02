@@ -3,11 +3,12 @@ use std::{fs, path};
 
 use serde::{Deserialize, Serialize};
 
-use crate::cloud::{Backend, CloudSettings};
+use crate::cloud::CloudSettings;
+use crate::default_value;
 use crate::errors::ConfigError;
 
 /// A save unit should be a file or a folder
-#[derive(Debug, Serialize, Deserialize,Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SaveUnitType {
     File,
     Folder,
@@ -15,7 +16,7 @@ pub enum SaveUnitType {
 
 /// A save unit declares one of the files/folders
 /// that should be backup for a game
-#[derive(Debug, Serialize, Deserialize,Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveUnit {
     pub unit_type: SaveUnitType,
     pub path: String,
@@ -42,32 +43,18 @@ impl Clone for Game {
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
-    #[serde(default = "default_true")]
+    #[serde(default = "default_value::default_true")]
     pub prompt_when_not_described: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_value::default_true")]
     pub extra_backup_when_apply: bool,
-    #[serde(default = "default_false")]
+    #[serde(default = "default_value::default_false")]
     pub show_edit_button: bool,
-    #[serde(default = "default_true")]
-    pub prompt_when_auto_backup:bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_value::default_true")]
+    pub prompt_when_auto_backup: bool,
+    #[serde(default = "default_value::default_true")]
     pub exit_to_tray: bool,
-    #[serde(default = "default_cloud_settings")]
+    #[serde(default = "default_value::default_cloud_settings")]
     pub cloud_settings: CloudSettings,
-}
-
-fn default_false() -> bool {
-    false
-}
-fn default_true() -> bool {
-    true
-}
-fn default_cloud_settings() -> CloudSettings {
-    CloudSettings {
-        always_sync: false,
-        auto_sync_interval: 0,
-        backend: Backend::Disabled,
-    }
 }
 
 /// The software's configuration
@@ -92,14 +79,14 @@ fn default_config() -> Config {
             extra_backup_when_apply: true,
             show_edit_button: false,
             prompt_when_auto_backup: true,
-            cloud_settings: default_cloud_settings(),
+            cloud_settings: default_value::default_cloud_settings(),
             exit_to_tray: true,
         },
     }
 }
 
 /// Set settings to original state
-pub async fn reset_settings() -> Result<(),ConfigError> {
+pub async fn reset_settings() -> Result<(), ConfigError> {
     let settings = default_config().settings;
     let mut config = get_config()?;
     config.settings = settings;
@@ -107,7 +94,7 @@ pub async fn reset_settings() -> Result<(),ConfigError> {
 }
 
 /// Create a config file
-fn init_config() -> Result<(),ConfigError> {
+fn init_config() -> Result<(), ConfigError> {
     println!("Init config file.");
     fs::write(
         "./GameSaveManager.config.json",
@@ -117,13 +104,13 @@ fn init_config() -> Result<(),ConfigError> {
 }
 
 /// Get the current config file
-pub fn get_config() -> Result<Config,ConfigError> {
+pub fn get_config() -> Result<Config, ConfigError> {
     let file = File::open("./GameSaveManager.config.json")?;
     Ok(serde_json::from_reader(file)?)
 }
 
 /// Replace the config file with a new config struct
-pub async fn set_config(config: &Config) -> Result<(),ConfigError> {
+pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
     fs::write(
         "./GameSaveManager.config.json",
         serde_json::to_string_pretty(&config)?,
@@ -136,11 +123,10 @@ pub async fn set_config(config: &Config) -> Result<(),ConfigError> {
     Ok(())
 }
 
-
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-pub fn config_check() -> Result<(),ConfigError> {
+pub fn config_check() -> Result<(), ConfigError> {
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
