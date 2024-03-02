@@ -2,6 +2,7 @@ use std::fs::File;
 use std::{fs, path};
 
 use serde::{Deserialize, Serialize};
+use tauri::api::notification::Notification;
 
 use crate::cloud::CloudSettings;
 use crate::default_value;
@@ -71,7 +72,7 @@ pub struct Config {
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("1.0.0"),
+        version: String::from("1.0.1"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {
@@ -126,17 +127,38 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-pub fn config_check() -> Result<(), ConfigError> {
+pub async fn config_check() -> Result<(), ConfigError> {
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
     }
-    let config = get_config()?;
+    let mut config = get_config()?;
     if config.version != default_config().version {
-        //TODO:需要完成旧版本到新版本的迁移
-        todo!();
+        Notification::new("Update Config Info")
+            .title("更新配置文件")
+            .body("配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak")
+            .show()
+            .expect("Cannot show notification");
+        backup_old_config()?;
+        if config.version == "1.0.0 alpha" {
+            // 没有破坏性变化，可以直接采用默认值
+            config.version = "1.0.0".to_owned();
+        }
+        if config.version == "1.0.0" {
+            // 没有破坏性变化，可以直接采用默认值
+            config.version = "1.0.1".to_owned();
+        }
+        set_config(&config).await?;
     }
     Ok(()) // return the config json
+}
+
+fn backup_old_config() -> Result<(), ConfigError> {
+    fs::copy(
+        "./GameSaveManager.config.json",
+        "./GameSaveManager.config.json.bak",
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -6,15 +6,16 @@
 use std::sync::{Arc, Mutex};
 
 use config::get_config;
+use tauri::api::notification::Notification;
 
 mod archive;
 mod backup;
 mod cloud;
 mod config;
+mod default_value;
 mod errors;
 mod ipc_handler;
 mod tray;
-mod default_value;
 
 fn main() {
     let app = tauri::Builder::default()
@@ -65,5 +66,12 @@ fn main() {
     }
     // 不需要退出到托盘
     app.run(tauri::generate_context!())
-        .expect("error while running tauri application")
+        .expect("error while running tauri application");
+
+    // 需要初始化Notification，否则第一次提示不会显示
+    Notification::new("Init Info")
+        .title("初始化")
+        .body("初始化Notification")
+        .show()
+        .expect("Cannot show notification");
 }
