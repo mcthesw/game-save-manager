@@ -65,4 +65,13 @@ function select_handler(key: string, keyPath: string) {
 .main-side-bar {
     height: 100%;
 }
+
+/**
+由于el-menu-item的默认样式会导致文字溢出，所以需要手动设置
+然而即使这样也只支持两行，超过两行的文字会很难看
+*/
+.el-menu-item {
+    white-space: normal !important;
+    line-height: normal !important;
+}
 </style>
