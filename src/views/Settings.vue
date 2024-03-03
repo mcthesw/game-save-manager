@@ -184,7 +184,9 @@ function apply_all() {
     margin-right: 10px;
     margin-top: 5px;
 }
-
+.el-card{
+    overflow-y: scroll;
+}
 .el-switch {
     margin-right: 20px;
 }
