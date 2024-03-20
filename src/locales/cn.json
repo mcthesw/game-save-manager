@@ -149,7 +149,9 @@
   "save_location_drawer": {
     "drawer_title": "以下是受管理文件列表",
     "type": "类别",
-    "prompt": "路径（单击以复制）"
+    "prompt": "路径（单击以复制）",
+    "open_file_header":"打开文件",
+    "open":"打开"
   },
   "sync_settings": {
     "title": "同步设置",
