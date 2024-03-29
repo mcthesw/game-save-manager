@@ -8,6 +8,11 @@ const props = defineProps({
     locations: Array<SaveUnit>,
 })
 
+const emits = defineEmits<{
+    (event: 'switched', index: number): void
+    (event: 'closed'): void
+}>()
+
 function copy(s: string) {
     navigator.clipboard.writeText(s).then(() => {
         show_success($t("misc.success"))
@@ -27,6 +32,14 @@ function open(url: string) {
             }
         )
 }
+
+// 由父组件处理具体任务，此处只传递下标
+function switch_delete_before_apply(unit: SaveUnit) {
+    const index = props.locations?.indexOf(unit)
+    if (index != undefined) {
+        emits("switched",index)
+    }
+}
 </script>
 
 <template>
@@ -38,6 +51,13 @@ function open(url: string) {
                     <ElLink @click="copy(scope.row.path)">
                         {{ scope.row.path }}
                     </ElLink>
+                </template>
+            </el-table-column>
+            <el-table-column prop="delete_before_apply" :label="$t('save_location_drawer.delete_before_apply')"
+                width="100">
+                <template #default="scope">
+                    <el-switch v-model="scope.row.delete_before_apply"
+                        @change="switch_delete_before_apply(scope.row)"></el-switch>
                 </template>
             </el-table-column>
             <el-table-column prop="path" :label="$t('save_location_drawer.open_file_header')" width="100">

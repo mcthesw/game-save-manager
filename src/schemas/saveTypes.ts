@@ -3,6 +3,7 @@ import type { Backend } from "./BackendTypes";
 export interface SaveUnit {
     unit_type: "File" | "Folder";
     path: string;
+    delete_before_apply: boolean;
 }
 export interface Game {
     name: string,
@@ -106,7 +107,7 @@ export interface Settings {
 }
 
 export let default_config: Config = {
-    version: "1.0.1",
+    version: "1.0.2",
     backup_path: "./save_data",
     games: [],
     settings: {

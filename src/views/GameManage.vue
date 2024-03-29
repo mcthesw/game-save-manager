@@ -206,7 +206,7 @@ function change_describe(date: string) {
 
 function load_latest_save() {
     // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
-    if (table_data.value[table_data.value.length-1].date) {
+    if (table_data.value[table_data.value.length - 1].date) {
         apply_save(table_data.value[table_data.value.length - 1].date);
     } else {
         show_error($t('manage.no_backup_error'));
@@ -289,6 +289,20 @@ function set_quick_backup() {
         )
 }
 
+// 调整“应用存档位置，删除原存档”选项，由组件SaveLocationDrawer触发
+function on_save_unit_switch_delete_before_apply(index: number) {
+    (config.games.find((x) => x.name == game.value.name) as Game).save_paths = game.value.save_paths;
+    invoke("set_config", { config: config.$state }).then((x) => {
+        show_success($t("settings.submit_success"));
+        config.refresh()
+    }).catch(
+        (e) => {
+            console.log(e)
+            show_error($t("error.set_config_failed"))
+        }
+    )
+}
+
 const filter_table = computed(
     () => {
         return table_data.value.filter(
@@ -335,12 +349,13 @@ const filter_table = computed(
                 <el-table-column align="right">
                     <template #header>
                         <!-- 搜索 -->
-                        <el-input v-model="search" size="small" :placeholder="$t('manage.input_description_search_prompt')"
-                            clearable />
+                        <el-input v-model="search" size="small"
+                            :placeholder="$t('manage.input_description_search_prompt')" clearable />
                     </template>
                     <template #default="scope">
                         <!-- scope.$index和scope.row可以被使用 -->
-                        <el-popconfirm :title="$t('manage.confirm_overwrite_prompt')" @confirm="apply_save(scope.row.date)">
+                        <el-popconfirm :title="$t('manage.confirm_overwrite_prompt')"
+                            @confirm="apply_save(scope.row.date)">
                             <template #reference>
                                 <el-button size="small"> {{ $t('manage.apply') }} </el-button>
                             </template>
@@ -360,12 +375,11 @@ const filter_table = computed(
         </el-card>
         <!-- 下面是存档所在位置侧栏部分 -->
         <save-location-drawer v-if="game.save_paths" v-model="drawer" :locations="game.save_paths"
-            @closed="drawer = false" />
+            @closed="drawer = false" @switched="on_save_unit_switch_delete_before_apply" />
     </div>
 </template>
 
 <style scoped>
-
 .el-button {
     margin-left: 10px !important;
     margin-top: 5px;

@@ -6,7 +6,7 @@ pub enum BackupFileError {
     #[error("Cannot create file: {0:#?}")]
     CreateFileFailed(#[from] std::io::Error),
     #[error("File to backup not exists: {0:#?}")]
-    NotExists(Vec<PathBuf>),
+    NotExists(PathBuf),
     #[error("Cannot write zip file: {0:#?}")]
     ZipError(#[from] zip::result::ZipError),
     #[error("Fs_extra error: {0:#?}")]
@@ -15,6 +15,15 @@ pub enum BackupFileError {
     NonePathError,
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
+}
+
+/// 压缩或解压缩时发生的错误
+#[derive(Debug,Error)]
+pub enum CompressError {
+    #[error(transparent)]
+    Single(#[from] BackupFileError),
+    #[error("Multiple errors: {0:#?}")]
+    Multiple(Vec<BackupFileError>),
 }
 
 #[derive(Debug, Error)]
@@ -61,6 +70,8 @@ pub enum BackupError {
     BackendError(#[from] BackendError),
     #[error("Backup file error: {0:#?}")]
     BackupFileError(#[from] BackupFileError),
+    #[error("Compress/Decompress error: {0:#?}")]
+    CompressError(#[from] CompressError),
     #[error("Deserialize error: {0:#?}")]
     DeserializeError(#[from] serde_json::Error),
     #[error("Cannot convert path to string")]
