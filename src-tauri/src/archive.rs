@@ -11,7 +11,7 @@ use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
     config::{SaveUnit, SaveUnitType},
-    errors::BackupFileError,
+    errors::{BackupFileError, CompressError},
 };
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
@@ -70,45 +70,48 @@ where
 }
 
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
-pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), BackupFileError> {
-    let mut not_exist_files = Vec::new();
-    let file = File::create(zip_path)?;
+pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), CompressError> {
+    let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
-    save_paths.iter().try_for_each(|x| {
-        let unit_path = PathBuf::from(&x.path);
-        if unit_path.exists() {
-            match x.unit_type {
-                SaveUnitType::File => {
-                    let mut original_file = File::open(&unit_path)?;
-                    let mut buf = vec![];
-                    original_file.read_to_end(&mut buf)?;
-                    zip.start_file(
-                        unit_path
-                            .file_name()
-                            .ok_or(BackupFileError::NonePathError)?
-                            .to_str()
-                            .ok_or(BackupFileError::NonePathError)?,
-                        zip::write::FileOptions::default(),
-                    )?;
-                    zip.write_all(&buf)?;
+    let compress_errors: Vec<_> = save_paths
+        .iter()
+        .map(|x| {
+            let unit_path = PathBuf::from(&x.path);
+            if unit_path.exists() {
+                match x.unit_type {
+                    SaveUnitType::File => {
+                        let mut original_file = File::open(&unit_path)?;
+                        let mut buf = vec![];
+                        original_file.read_to_end(&mut buf)?;
+                        zip.start_file(
+                            unit_path
+                                .file_name()
+                                .ok_or(BackupFileError::NonePathError)?
+                                .to_str()
+                                .ok_or(BackupFileError::NonePathError)?,
+                            zip::write::FileOptions::default(),
+                        )?;
+                        zip.write_all(&buf)?;
+                    }
+                    SaveUnitType::Folder => {
+                        let root = PathBuf::from(
+                            unit_path
+                                .file_name()
+                                .ok_or(BackupFileError::NonePathError)?,
+                        );
+                        add_directory(&mut zip, &unit_path, &root)?;
+                    }
                 }
-                SaveUnitType::Folder => {
-                    let root = PathBuf::from(
-                        unit_path
-                            .file_name()
-                            .ok_or(BackupFileError::NonePathError)?,
-                    );
-                    add_directory(&mut zip, &unit_path, &root)?;
-                }
+            } else {
+                Err(BackupFileError::NotExists(unit_path))?;
             }
-        } else {
-            not_exist_files.push(unit_path);
-        }
-        Result::<(), BackupFileError>::Ok(())
-    })?;
-    zip.finish()?;
-    if !not_exist_files.is_empty() {
-        Err(BackupFileError::NotExists(not_exist_files))
+            Result::<(), BackupFileError>::Ok(())
+        })
+        .filter_map(|x| x.err())
+        .collect();
+    zip.finish().map_err(|e| CompressError::Single(e.into()))?;
+    if !compress_errors.is_empty() {
+        Err(CompressError::Multiple(compress_errors))
     } else {
         Result::Ok(())
     }
@@ -119,48 +122,63 @@ pub fn decompress_from_file(
     save_paths: &[SaveUnit],
     backup_path: &Path,
     date: &str,
-) -> Result<(), BackupFileError> {
-    let mut not_exist_files = Vec::new();
+) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
-    let file = File::open(zip_path)?;
-    let mut zip = zip::ZipArchive::new(file)?;
+    let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
 
     let tmp_folder = PathBuf::from("./tmp"); //TODO: tmp dir
-    fs::create_dir_all(&tmp_folder)?;
-    zip.extract(&tmp_folder)?;
+    fs::create_dir_all(&tmp_folder).map_err(|e| CompressError::Single(e.into()))?;
+    zip.extract(&tmp_folder)
+        .map_err(|e| CompressError::Single(e.into()))?;
 
-    save_paths.iter().try_for_each(|unit| {
-        let unit_path = PathBuf::from(&unit.path); // Target location path
-        let original_path = tmp_folder.join(
-            unit_path
-                .file_name()
-                .ok_or(BackupFileError::NonePathError)?,
-        ); // Temp file location path
-        if original_path.exists() {
-            match unit.unit_type {
-                SaveUnitType::File => {
-                    let option = fs_extra::file::CopyOptions::new().overwrite(true);
-                    let prefix_root = unit_path.parent().ok_or(BackupFileError::NonePathError)?;
-                    if !prefix_root.exists() {
-                        fs::create_dir_all(prefix_root)?;
+    let decompress_errors: Vec<_> = save_paths
+        .iter()
+        .map(|unit| {
+            let unit_path = PathBuf::from(&unit.path); // Target location path
+            let original_path = tmp_folder.join(
+                unit_path
+                    .file_name()
+                    .ok_or(BackupFileError::NonePathError)?,
+            ); // Temp file location path
+            if original_path.exists() {
+                match unit.unit_type {
+                    SaveUnitType::File => {
+                        let option = fs_extra::file::CopyOptions::new().overwrite(true);
+                        let prefix_root =
+                            unit_path.parent().ok_or(BackupFileError::NonePathError)?;
+                        if !prefix_root.exists() {
+                            fs::create_dir_all(prefix_root)?;
+                        }
+                        if unit.delete_before_apply && unit_path.exists() {
+                            fs::remove_file(&unit_path)?;
+                        }
+                        move_file(original_path, &unit_path, &option)?;
                     }
-                    move_file(original_path, &unit_path, &option)?;
-                }
-                SaveUnitType::Folder => {
-                    let option = fs_extra::dir::CopyOptions::new().overwrite(true);
-                    let target_path = unit_path.parent().ok_or(BackupFileError::NonePathError)?;
-                    if !target_path.exists() {
-                        fs::create_dir_all(target_path)?;
+                    SaveUnitType::Folder => {
+                        let option = fs_extra::dir::CopyOptions::new().overwrite(true);
+                        let target_path =
+                            unit_path.parent().ok_or(BackupFileError::NonePathError)?;
+                        if !target_path.exists() {
+                            fs::create_dir_all(target_path)?;
+                        }
+                        if unit.delete_before_apply && unit_path.exists() {
+                            fs::remove_dir_all(&unit_path)?;
+                        }
+                        move_dir(original_path, target_path, &option)?;
                     }
-                    move_dir(original_path, target_path, &option)?;
                 }
+            } else {
+                Err(BackupFileError::NotExists(original_path))?;
             }
-        } else {
-            // TODO:处理不存在的文件，反馈给前端
-            not_exist_files.push(original_path)
-        }
-        Result::<(), BackupFileError>::Ok(())
-    })?;
-    fs::remove_dir_all(tmp_folder)?; //TODO:tmp dir
-    Result::Ok(())
+            Result::<(), BackupFileError>::Ok(())
+        })
+        .filter_map(|x| x.err())
+        .collect();
+    fs::remove_dir_all(tmp_folder).map_err(|e| CompressError::Single(e.into()))?; //TODO:tmp dir
+    if !decompress_errors.is_empty() {
+        Err(CompressError::Multiple(decompress_errors))
+    } else {
+        Result::Ok(())
+    }
 }

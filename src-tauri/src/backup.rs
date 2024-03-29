@@ -57,7 +57,7 @@ impl Game {
         if let Err(e) = compress_to_file(save_paths, &zip_path) {
             // delete the zip if failed to write
             fs::remove_file(&zip_path)?;
-            return Err(BackupError::BackupFileError(e));
+            return Err(BackupError::CompressError(e));
         }
 
         let backup_list_info = Backup {

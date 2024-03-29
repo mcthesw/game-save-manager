@@ -21,6 +21,8 @@ pub enum SaveUnitType {
 pub struct SaveUnit {
     pub unit_type: SaveUnitType,
     pub path: String,
+    #[serde(default = "default_value::default_false")]
+    pub delete_before_apply: bool,
 }
 
 /// A game struct contains the save units and the game's launcher
@@ -72,7 +74,7 @@ pub struct Config {
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("1.0.1"),
+        version: String::from("1.0.2"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {
@@ -148,6 +150,11 @@ pub async fn config_check() -> Result<(), ConfigError> {
             // 没有破坏性变化，可以直接采用默认值
             config.version = "1.0.1".to_owned();
         }
+        if config.version == "1.0.1" {
+            // 没有破坏性变化，可以直接采用默认值
+            // 这次更新了SaveUnit，增加了delete_before_apply字段，不过这个字段默认值是false，所以不会有问题
+            config.version = "1.0.2".to_owned();
+        }
         set_config(&config).await?;
     }
     Ok(()) // return the config json
@@ -179,10 +186,12 @@ mod test {
         units.push(SaveUnit {
             unit_type: SaveUnitType::File,
             path: String::from("C://aaa.txt"),
+            delete_before_apply: false,
         });
         units.push(SaveUnit {
             unit_type: SaveUnitType::Folder,
             path: String::from("C://aaa"),
+            delete_before_apply: false,
         });
         let mut games = Vec::new();
         games.push(Game {

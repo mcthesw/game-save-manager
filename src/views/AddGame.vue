@@ -76,7 +76,8 @@ function add_save_directory() {
         if (!dir || !check_save_unit_unique(dir as string)) { return }
         let unit: SaveUnit = {
             unit_type: "Folder",
-            path: dir as string
+            path: dir as string,
+            delete_before_apply: false
         }
         save_paths.push(unit)
     }).catch(
@@ -91,7 +92,8 @@ function add_save_file() {
         if (!file || !check_save_unit_unique(file as string)) { return }
         let unit: SaveUnit = {
             unit_type: "File",
-            path: file as string
+            path: file as string,
+            delete_before_apply: false
         }
         save_paths.push(unit)
     }).catch(
@@ -175,7 +177,8 @@ function deleteRow(index: number) {
                     <template #prepend>
                         {{ $t('addgame.game_name') }} </template>
                 </el-input>
-                <el-input v-model="game_path" :placeholder="$t('addgame.input_game_launch_path_prompt')" class="game-path">
+                <el-input v-model="game_path" :placeholder="$t('addgame.input_game_launch_path_prompt')"
+                    class="game-path">
                     <template #prepend>
                         {{ $t('addgame.game_launch_path') }} </template>
                     <template #append>
