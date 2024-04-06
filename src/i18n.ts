@@ -1,7 +1,7 @@
 import { createI18n } from "vue-i18n";
 
 // Read locales from locales/*.json
-import * as cn_messages from './locales/cn.json';
+import * as cn_messages from './locales/zh_SIMPLIFIED.json';
 
 export let i18n = createI18n({
     messages: {
