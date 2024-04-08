@@ -108,7 +108,8 @@
     "operations": "控制",
     "remove": "移除",
     "path": "路径",
-    "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作"
+    "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作",
+    "invalid_name_error": "无效的游戏名，请不要包含无法创建文件的特殊字符"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"
@@ -150,9 +151,9 @@
     "drawer_title": "以下是受管理文件列表",
     "type": "类别",
     "prompt": "路径（单击以复制）",
-    "open_file_header":"打开文件",
-    "open":"打开",
-    "delete_before_apply":"应用前删除"
+    "open_file_header": "打开文件",
+    "open": "打开",
+    "delete_before_apply": "应用前删除"
   },
   "sync_settings": {
     "title": "同步设置",
@@ -169,8 +170,8 @@
     "test_button": "测试可用性",
     "auto_sync_interval": "同步间隔",
     "interval_hint": "设置为0则关闭自动同步（暂不可用）",
-    "cloud_root":"云端根目录",
-    "cloud_root_hint":"不要以/结尾，不要留空",
+    "cloud_root": "云端根目录",
+    "cloud_root_hint": "不要以/结尾，不要留空",
     "backend": "同步后端",
     "backend_hint": "选择云存档的服务后端",
     "sync_success": "同步成功",

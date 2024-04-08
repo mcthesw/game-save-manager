@@ -71,6 +71,10 @@ function check_save_unit_unique(p: string) {
     }
     return true;
 }
+function check_name_valid(name: string) {
+    let invalid_reg = RegExp(/[<>:"\/\\|?*]/);
+    return !invalid_reg.test(name);
+}
 function add_save_directory() {
     invoke("choose_save_dir").then((dir) => {
         if (!dir || !check_save_unit_unique(dir as string)) { return }
@@ -128,6 +132,11 @@ function save() {
         show_error($t('addgame.no_name_error'));
         return
     }
+    if (!check_name_valid(game_name.value)) {
+        show_error($t('addgame.invalid_name_error'));
+        return
+    }
+
     let game: Game = {
         name: game_name.value,
         save_paths: save_paths,
