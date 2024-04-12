@@ -58,6 +58,8 @@ pub struct Settings {
     pub exit_to_tray: bool,
     #[serde(default = "default_value::default_cloud_settings")]
     pub cloud_settings: CloudSettings,
+    #[serde(default = "default_value::default_locale")]
+    pub locale: String,
 }
 
 /// The software's configuration
@@ -74,7 +76,7 @@ pub struct Config {
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("1.0.2"),
+        version: String::from("1.1.0"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {
@@ -84,6 +86,7 @@ fn default_config() -> Config {
             prompt_when_auto_backup: true,
             cloud_settings: default_value::default_cloud_settings(),
             exit_to_tray: true,
+            locale:"zh_SIMPLIFIED".to_owned()
         },
     }
 }
@@ -154,6 +157,10 @@ pub async fn config_check() -> Result<(), ConfigError> {
             // 没有破坏性变化，可以直接采用默认值
             // 这次更新了SaveUnit，增加了delete_before_apply字段，不过这个字段默认值是false，所以不会有问题
             config.version = "1.0.2".to_owned();
+        }
+        if config.version == "1.0.2" {
+            // 没有破坏性变化，可以直接采用默认值
+            config.version = "1.1.0".to_owned();
         }
         set_config(&config).await?;
     }
