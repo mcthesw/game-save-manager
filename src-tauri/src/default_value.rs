@@ -23,3 +23,6 @@ pub fn default_cloud_settings() -> CloudSettings {
         backend: Backend::Disabled,
     }
 }
+pub fn default_locale() -> String {
+    "zh_SIMPLIFIED".to_owned()
+}

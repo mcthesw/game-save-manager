@@ -1,13 +1,14 @@
 import { createI18n } from "vue-i18n";
+import { invoke } from '@tauri-apps/api/tauri'
+import { Config } from "./schemas/saveTypes";
 
-// Read locales from locales/*.json
-import * as cn_messages from './locales/zh_SIMPLIFIED.json';
+const messages = await invoke("get_locale_message") as any
+const config:Config = await invoke("get_local_config") 
 
 export let i18n = createI18n({
-    messages: {
-        cn: cn_messages,
-    },
-    locale: 'cn',
+    messages: messages,
+    locale: config.settings.locale,
+    fallbackLocale: 'zh_SIMPLIFIED',
     legacy: false,
 })
 
