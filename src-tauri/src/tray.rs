@@ -1,4 +1,3 @@
-// TODO: Need i18n:https://crates.io/crates/rust-i18n
 // TODO: 需要错误处理和日志，这里的东西大多在其他线程，无法打印到主线程的控制台
 use std::{
     sync::{Arc, Mutex},
@@ -11,6 +10,8 @@ use tauri::{
 };
 
 use crate::config::{get_config, Game};
+
+use rust_i18n::t;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct QuickBackupState {
@@ -30,20 +31,44 @@ impl QuickBackupState {
 pub fn get_tray() -> SystemTray {
     // Menu items begin
     let tray_menu = SystemTrayMenu::new()
-        .add_item(CustomMenuItem::new("game".to_owned(), "未选择游戏"))
-        .add_submenu(SystemTraySubmenu::new(
-            "自动备份间隔",
-            SystemTrayMenu::new()
-                .add_item(CustomMenuItem::new("timer.0".to_owned(), "关闭自动备份"))
-                .add_item(CustomMenuItem::new("timer.5".to_owned(), "5分钟"))
-                .add_item(CustomMenuItem::new("timer.10".to_owned(), "10分钟"))
-                .add_item(CustomMenuItem::new("timer.30".to_owned(), "30分钟"))
-                .add_item(CustomMenuItem::new("timer.60".to_owned(), "60分钟")),
+        .add_item(CustomMenuItem::new(
+            "game".to_owned(),
+            t!("tray.no_game_selected"),
         ))
-        .add_item(CustomMenuItem::new("backup".to_owned(), "快速备份"))
-        .add_item(CustomMenuItem::new("apply".to_owned(), "快速读档"))
+        .add_submenu(SystemTraySubmenu::new(
+            t!("tray.auto_backup_interval"),
+            SystemTrayMenu::new()
+                .add_item(CustomMenuItem::new(
+                    "timer.0".to_owned(),
+                    t!("tray.turn_off_auto_backup"),
+                ))
+                .add_item(CustomMenuItem::new(
+                    "timer.5".to_owned(),
+                    t!("tray.5_minute"),
+                ))
+                .add_item(CustomMenuItem::new(
+                    "timer.10".to_owned(),
+                    t!("tray.10_minute"),
+                ))
+                .add_item(CustomMenuItem::new(
+                    "timer.30".to_owned(),
+                    t!("tray.30_minute"),
+                ))
+                .add_item(CustomMenuItem::new(
+                    "timer.60".to_owned(),
+                    t!("tray.60_minute"),
+                )),
+        ))
+        .add_item(CustomMenuItem::new(
+            "backup".to_owned(),
+            t!("tray.quick_backup"),
+        ))
+        .add_item(CustomMenuItem::new(
+            "apply".to_owned(),
+            t!("tray.quick_apply"),
+        ))
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(CustomMenuItem::new("quit".to_owned(), "退出"));
+        .add_item(CustomMenuItem::new("quit".to_owned(), t!("tray.exit")));
     // Menu items end
 
     SystemTray::new().with_menu(tray_menu)
@@ -89,15 +114,20 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                         })
                         .expect("Tauri async runtime error, cannot block_on");
                         Notification::new(&app.config().tauri.bundle.identifier)
-                            .title("成功")
-                            .body(format!("{:#?}备份成功", game.name))
+                            .title(t!("tray.success"))
+                            .body(format!(
+                                "{:#?} {} {}",
+                                game.name,
+                                t!("tray.quick_backup"),
+                                t!("tray.success")
+                            ))
                             .show()
                             .expect("Cannot show notification");
                     }
                     None => {
                         Notification::new(&app.config().tauri.bundle.identifier)
-                            .title("错误")
-                            .body("未选择游戏")
+                            .title(t!("tray.error"))
+                            .body(t!("tray.no_game_selected"))
                             .show()
                             .expect("Cannot show notification");
                     }
@@ -119,15 +149,20 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                         tauri::async_runtime::block_on(async { game.apply_backup(&newest_date) })
                             .expect("Tauri async runtime error, cannot block_on");
                         Notification::new(&app.config().tauri.bundle.identifier)
-                            .title("成功")
-                            .body(format!("{:#?}应用成功", game.name))
+                            .title(t!("tray.success"))
+                            .body(format!(
+                                "{:#?} {} {}",
+                                game.name,
+                                t!("tray.quick_apply"),
+                                t!("tray.success")
+                            ))
                             .show()
                             .expect("Cannot show notification");
                     }
                     None => {
                         Notification::new(&app.config().tauri.bundle.identifier)
-                            .title("错误")
-                            .body("未选择游戏")
+                            .title(t!("tray.error"))
+                            .body(t!("tray.no_game_selected"))
                             .show()
                             .expect("Cannot show notification");
                     }
@@ -197,7 +232,7 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                 .expect("Cannot backup");
                             if show_info {
                                 Notification::new("QuickBackup")
-                                    .title("成功")
+                                    .title(t!("tray.success"))
                                     .body(format!("{:#?}自动备份成功", game.name))
                                     .show()
                                     .expect("Cannot show notification");
@@ -205,8 +240,8 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                         }
                         None => {
                             Notification::new("Auto Backup Info")
-                                .title("错误")
-                                .body("未选择游戏")
+                                .title(t!("tray.error"))
+                                .body(t!("tray.no_game_selected"))
                                 .show()
                                 .expect("Cannot show notification");
                         }

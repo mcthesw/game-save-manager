@@ -3,9 +3,14 @@
     windows_subsystem = "windows"
 )]
 
-use std::sync::{Arc, Mutex};
+#[macro_use]
+extern crate rust_i18n;
+use rust_i18n::t;
+i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use config::get_config;
+
+use std::sync::{Arc, Mutex};
 use tauri::api::notification::Notification;
 
 mod archive;
@@ -27,7 +32,6 @@ fn main() {
             ipc_handler::choose_save_dir,
             ipc_handler::get_local_config,
             ipc_handler::add_game,
-            ipc_handler::local_config_check,
             ipc_handler::apply_backup,
             ipc_handler::delete_backup,
             ipc_handler::delete_game,
@@ -48,6 +52,8 @@ fn main() {
 
     // 只允许运行一个实例
     let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+    rust_i18n::set_locale("zh_SIMPLIFIED");
+    println!("{}", t!("home.hello_world"));
 
     // 处理退出到托盘
     if let Ok(config) = get_config() {
@@ -71,8 +77,8 @@ fn main() {
 
     // 需要初始化Notification，否则第一次提示不会显示
     Notification::new("Init Info")
-        .title("初始化")
-        .body("初始化Notification")
+        .title("Init")
+        .body("Initiating notification module")
         .show()
         .expect("Cannot show notification");
 }
