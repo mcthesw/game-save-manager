@@ -188,7 +188,7 @@ pub async fn get_locale_message(
     locales.iter().try_for_each(|i| {
         let resource_path = handle
             .path_resolver()
-            .resolve_resource(format!("locales/{}.json", i))
+            .resolve_resource(format!("../locales/{}.json", i))
             .ok_or("Cannot read locale file".to_owned())?;
         let mut locale = String::new();
         let file = std::fs::File::open(&resource_path)

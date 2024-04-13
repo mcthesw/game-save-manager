@@ -55,7 +55,7 @@
         "signingIdentity": null
       },
       "resources": [
-        "locales/*.json"
+        "../locales/*.json"
       ],
       "shortDescription": "",
       "targets": [

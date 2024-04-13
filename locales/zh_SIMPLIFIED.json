@@ -1,5 +1,7 @@
 {
   "settings": {
+    "locale_name": "简体中文",
+    "locale_changed":"您更换了语言，当前是预览模式，保存后才能永久生效",
     "reset_success": "重置成功",
     "customizable_settings": "个性化设置",
     "submit_settings": "保存修改",
@@ -39,10 +41,10 @@
     "free": "自由",
     "free_explained": "这个软件属于开源世界，你可以轻易访问到它的源代码，有能者可以为它贡献代码",
     "import_game": "导入游戏",
-    "go_add_game": "跳转",
+    "jump_to_page": "跳转",
     "hint": "提示",
-    "start_backup": "开始备份！",
-    "go_save_manage": "进入存档管理",
+    "start_backup": "开始备份",
+    "change_locale": "更换语言",
     "go_game_manage_hint": "请单击左侧\"存档管理\"",
     "go_backup_hint": "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
   },
