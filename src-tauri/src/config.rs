@@ -87,7 +87,7 @@ fn default_config() -> Config {
             prompt_when_auto_backup: true,
             cloud_settings: default_value::default_cloud_settings(),
             exit_to_tray: true,
-            locale:"zh_SIMPLIFIED".to_owned()
+            locale: "zh_SIMPLIFIED".to_owned(),
         },
     }
 }
@@ -133,7 +133,7 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-pub async fn config_check() -> Result<(), ConfigError> {
+pub fn config_check() -> Result<(), ConfigError> {
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
@@ -163,8 +163,9 @@ pub async fn config_check() -> Result<(), ConfigError> {
             // 没有破坏性变化，可以直接采用默认值
             config.version = "1.1.0".to_owned();
         }
-        set_config(&config).await?;
+        tauri::async_runtime::block_on(async { set_config(&config).await })?;
     }
+    rust_i18n::set_locale(&config.settings.locale);
     Ok(()) // return the config json
 }
 
