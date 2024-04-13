@@ -74,6 +74,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "async-broadcast"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1437,6 +1443,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "globwalk"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93e3af942408868f6934a7b85134a3230832b9977cf66125df2f9edcfce4ddcc"
+dependencies = [
+ "bitflags",
+ "ignore",
+ "walkdir",
+]
+
+[[package]]
 name = "gobject-sys"
 version = "0.15.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1658,7 +1675,7 @@ dependencies = [
  "httpdate",
  "itoa 1.0.5",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.5",
  "tokio",
  "tower-service",
  "tracing",
@@ -2021,6 +2038,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "linked-hash-map"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2253,6 +2276,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae01545c9c7fc4486ab7debaf2aad7003ac19431791868fb2e8066df97fad2f8"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "normpath"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5831952a9476f2fed74b77d74182fa5ddc4d21c72ec45a333b250e3ed0272804"
+dependencies = [
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3209,6 +3241,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust-i18n"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dcd94370631e5658a0a23635f7f47e43d06a00ad948e0bb5de79b00d85b880c"
+dependencies = [
+ "globwalk",
+ "once_cell",
+ "regex",
+ "rust-i18n-macro",
+ "rust-i18n-support",
+ "smallvec",
+]
+
+[[package]]
+name = "rust-i18n-macro"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "355763801dcf287e777e42def7c578410783477b804b1107852119e0b2518396"
+dependencies = [
+ "glob",
+ "once_cell",
+ "proc-macro2",
+ "quote",
+ "rust-i18n-support",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "rust-i18n-support"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "399801f4d955abf1c3ce3ce2215dc76bd40beb4ae39e3a84936b21a79ce2caa5"
+dependencies = [
+ "arc-swap",
+ "globwalk",
+ "lazy_static",
+ "normpath",
+ "once_cell",
+ "proc-macro2",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "toml 0.7.4",
+ "triomphe",
+]
+
+[[package]]
 name = "rust-ini"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3314,6 +3397,7 @@ dependencies = [
  "fs_extra",
  "open 5.0.1",
  "opendal",
+ "rust-i18n",
  "serde",
  "serde_json",
  "tauri",
@@ -3543,6 +3627,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml"
+version = "0.8.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "578a7433b776b56a35785ed5ce9a7e777ac0598aac5a6dd1b4b18a307c7fc71b"
+dependencies = [
+ "indexmap 1.9.2",
+ "ryu",
+ "serde",
+ "yaml-rust",
+]
+
+[[package]]
 name = "serialize-to-javascript"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3663,9 +3759,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.10.0"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
+checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "socket2"
@@ -4442,6 +4538,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52984d277bdf2a751072b5df30ec0377febdb02f7696d64c2d7d54630bac4303"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "triomphe"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "859eb650cfee7434994602c3a68b25d77ad9e68c8a6cd491616ef86661382eb3"
+dependencies = [
+ "arc-swap",
+ "serde",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -5283,6 +5390,15 @@ checksum = "21e5a325c3cb8398ad6cf859c1135b25dd29e186679cf2da7581d9679f63b38e"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "yaml-rust"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
+dependencies = [
+ "linked-hash-map",
 ]
 
 [[package]]

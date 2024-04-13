@@ -1,5 +1,7 @@
 {
   "settings": {
+    "locale_name": "简体中文",
+    "locale_changed":"您更换了语言，当前是预览模式，保存后才能永久生效",
     "reset_success": "重置成功",
     "customizable_settings": "个性化设置",
     "submit_settings": "保存修改",
@@ -39,10 +41,10 @@
     "free": "自由",
     "free_explained": "这个软件属于开源世界，你可以轻易访问到它的源代码，有能者可以为它贡献代码",
     "import_game": "导入游戏",
-    "go_add_game": "跳转",
+    "jump_to_page": "跳转",
     "hint": "提示",
-    "start_backup": "开始备份！",
-    "go_save_manage": "进入存档管理",
+    "start_backup": "开始备份",
+    "change_locale": "更换语言",
     "go_game_manage_hint": "请单击左侧\"存档管理\"",
     "go_backup_hint": "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
   },
@@ -213,5 +215,23 @@
     "open_backup_folder_failed": "打开备份文件夹失败",
     "set_config_failed": "设置配置失败",
     "reset_settings_failed": "重置设置失败"
+  },
+  "tray":{
+    "no_game_selected":"未选择游戏",
+    "auto_backup_interval":"自动备份间隔",
+    "turn_off_auto_backup":"关闭自动备份",
+    "5_minute":"5分钟",
+    "10_minute":"10分钟",
+    "30_minute":"30分钟",
+    "60_minute": "60分钟",
+    "quick_backup":"快速备份",
+    "quick_apply":"快速读档",
+    "exit":"退出",
+    "success":"成功",
+    "error":"错误"
+  },
+  "backend_config":{
+    "updating_config_title":"更新配置文件",
+    "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
   }
 }

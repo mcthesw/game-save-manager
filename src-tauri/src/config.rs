@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::{fs, path};
 
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use tauri::api::notification::Notification;
 
@@ -140,8 +141,8 @@ pub async fn config_check() -> Result<(), ConfigError> {
     let mut config = get_config()?;
     if config.version != default_config().version {
         Notification::new("Update Config Info")
-            .title("更新配置文件")
-            .body("配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak")
+            .title(t!("backend_config.updating_config_title"))
+            .body(t!("backend_config.updating_config_body"))
             .show()
             .expect("Cannot show notification");
         backup_old_config()?;
