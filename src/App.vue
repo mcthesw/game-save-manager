@@ -13,12 +13,7 @@ useDark()
 
 // load config
 let config = useConfig();
-invoke("local_config_check").then((x) => {
-	config.refresh(); // TODO:Handle old version config
-}).catch((e) => {
-	console.log(e)
-	show_error($t('error.config_load_failed'))
-});
+config.refresh(); 
 
 show_warning($t('app.early_access_warning'));
 

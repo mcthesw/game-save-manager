@@ -13,6 +13,8 @@ use config::get_config;
 use std::sync::{Arc, Mutex};
 use tauri::api::notification::Notification;
 
+use crate::config::config_check;
+
 mod archive;
 mod backup;
 mod cloud;
@@ -23,10 +25,10 @@ mod ipc_handler;
 mod tray;
 
 fn main() {
+    
     let app = tauri::Builder::default()
         .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
         .invoke_handler(tauri::generate_handler![
-            ipc_handler::local_config_check,
             ipc_handler::open_url,
             ipc_handler::choose_save_file,
             ipc_handler::choose_save_dir,
@@ -52,7 +54,7 @@ fn main() {
 
     // 只允许运行一个实例
     let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
-    rust_i18n::set_locale("zh_SIMPLIFIED");
+    config_check().expect("Cannot check config file");
     println!("{}", t!("home.hello_world"));
 
     // 处理退出到托盘
