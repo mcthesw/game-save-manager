@@ -168,8 +168,7 @@ function open_manual() {
           <span class="hint">{{ $t("sync_settings.always_sync_hint") }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.auto_sync_interval')">
-          <ElInputNumber :disabled="true" :value-on-clear="0" :step="1" :step-strictly="true"
-            :min="0" />
+          <ElInputNumber :disabled="true" :value-on-clear="0" :step="1" :step-strictly="true" :min="0" />
           <span class="hint">{{ $t('sync_settings.interval_hint') }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.cloud_root')">
@@ -201,8 +200,8 @@ function open_manual() {
           <ElButton @click="check">{{ $t("sync_settings.test_button") }}</ElButton>
         </ElFormItem>
         <ElFormItem>
-          <ElButton type="danger" @click="upload_all">覆盖性上传</ElButton>
-          <ElButton type="danger" @click="download_all">覆盖性下载</ElButton>
+          <ElButton type="danger" @click="upload_all">{{ $t("sync_settings.overwrite_upload") }}</ElButton>
+          <ElButton type="danger" @click="download_all">{{ $t("sync_settings.overwrite_download") }}</ElButton>
         </ElFormItem>
       </ElForm>
     </ElCard>

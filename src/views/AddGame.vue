@@ -44,7 +44,7 @@ const buttons = [
 const game_name = ref("") // 写入游戏名
 let save_paths: Array<SaveUnit> = reactive(new Array<SaveUnit>()) // 选择游戏存档目录
 const game_path = ref("") // 选择游戏启动程序
-const game_icon_src = ref("https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png")
+const game_icon_src = ref("orange.png")
 const is_editing = ref(false) // 是否正在编辑已有的游戏
 
 // init info when navigate from GameManage.vue
@@ -163,8 +163,6 @@ function reset(show_notification: boolean = true) {
     game_name.value = "";
     save_paths = reactive([]);
     game_path.value = "";
-    game_icon_src.value =
-        "https://shadow.elemecdn.com/app/element/hamburger.9cf7b091-55e9-11e9-a976-7f4d0b07eef6.png";
     // This is a first occurrence of a i18n text duplication. How to handle this?
     if (show_notification) { show_success($t('settings.reset_success')); }
 }
@@ -258,6 +256,7 @@ function deleteRow(index: number) {
 .top-part>img {
     grid-column: 1/2;
     grid-row: 1/7;
+    margin: auto;
 }
 
 .game-name {

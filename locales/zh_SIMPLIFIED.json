@@ -198,7 +198,9 @@
       "endpoint": "WebDAV地址",
       "username": "用户名",
       "password": "密码"
-    }
+    },
+    "overwrite_upload":"覆盖性上传",
+    "overwrite_download":"覆盖性下载"
   },
   "error": {
     "open_url_failed": "无法打开链接",

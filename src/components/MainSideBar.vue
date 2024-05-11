@@ -14,13 +14,13 @@ import { $t } from "../i18n";
 
 let config = useConfig();
 
-const links = [
+const links = computed(() => [
     { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
     { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },
     { text: $t("sidebar.sync_settings"), link: "/sync-settings", icon: MostlyCloudy },
     { text: $t("sidebar.settings"), link: "/settings", icon: Setting },
     { text: $t("sidebar.about"), link: "/about", icon: InfoFilled },
-];
+]);
 
 const games = computed(() => {
     return config.games;

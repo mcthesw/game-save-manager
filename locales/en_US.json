@@ -198,7 +198,9 @@
             "endpoint": "WebDAV endpoint",
             "username": "Username",
             "password": "Password"
-        }
+        },
+        "overwrite_upload": "Overwrite Upload",
+        "overwrite_download": "Overwrite Download"
     },
     "error": {
         "open_url_failed": "Unable to open url",
