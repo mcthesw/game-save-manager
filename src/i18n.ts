@@ -16,5 +16,7 @@ export let i18n = createI18n({
 })
 
 export function $t(key: string) {
+    // 提示类型实例化过深，但是类型我们是已知的，所以可以忽略
+    // @ts-ignore
     return i18n.global.t(key)
 }
