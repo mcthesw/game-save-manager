@@ -51,6 +51,9 @@ The technologies used in this project:
 - Element Plus
 - Tauri
 
+## Donate
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M2XD2WO)
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mcthesw/game-save-manager&type=Date)](https://star-history.com/#mcthesw/game-save-manager&Date)

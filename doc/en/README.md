@@ -20,6 +20,7 @@ You will need the following environment installed beforehand:
     - Tauri
     - Vue - Official
     - Element Plus Snippets
+    - i18n Allay
 - WebStorm
 - RustRover
 

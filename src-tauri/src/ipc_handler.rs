@@ -1,10 +1,11 @@
 use crate::backup::BackupListInfo;
 use crate::cloud::{self, upload_all, Backend};
-use crate::config::{config_check, get_config, Config, Game};
+use crate::config::{get_config, Config, Game};
 use crate::{backup, config};
 use crate::{errors::*, tray};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::api::dialog;
 use tauri::{AppHandle, Window};
@@ -54,12 +55,6 @@ pub async fn choose_save_dir() -> Result<String, String> {
 #[tauri::command]
 pub async fn get_local_config() -> Result<Config, String> {
     get_config().map_err(|e| e.to_string())
-}
-
-#[allow(unused)]
-#[tauri::command]
-pub async fn local_config_check() -> Result<(), String> {
-    config_check().await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -174,6 +169,29 @@ pub async fn apply_all() -> Result<(), String> {
 pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<(), String> {
     tray::set_current_game(&app_handle, game);
     Ok(())
+}
+
+#[allow(unused)]
+#[tauri::command]
+pub async fn get_locale_message(
+    handle: tauri::AppHandle,
+) -> Result<HashMap<String, serde_json::Value>, String> {
+    let mut map = HashMap::new();
+    // 需要在此处加入所有可以本地化的文件
+    let locales = ["zh_SIMPLIFIED".to_owned(), "en_US".to_owned()];
+    locales.iter().try_for_each(|i| {
+        let resource_path = handle
+            .path_resolver()
+            .resolve_resource(format!("../locales/{}.json", i))
+            .ok_or("Cannot read locale file".to_owned())?;
+        let mut locale = String::new();
+        let file = std::fs::File::open(resource_path).map_err(|e| e.to_string())?;
+        let locale: serde_json::Value = serde_json::from_reader(file).map_err(|e| e.to_string())?;
+        map.insert(i.to_owned(), locale);
+        Ok::<(), String>(())
+    })?;
+
+    Ok(map)
 }
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {

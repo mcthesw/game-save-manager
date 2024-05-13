@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::{fs, path};
 
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use tauri::api::notification::Notification;
 
@@ -58,6 +59,8 @@ pub struct Settings {
     pub exit_to_tray: bool,
     #[serde(default = "default_value::default_cloud_settings")]
     pub cloud_settings: CloudSettings,
+    #[serde(default = "default_value::default_locale")]
+    pub locale: String,
 }
 
 /// The software's configuration
@@ -74,7 +77,7 @@ pub struct Config {
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("1.0.2"),
+        version: String::from("1.1.0"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {
@@ -84,6 +87,7 @@ fn default_config() -> Config {
             prompt_when_auto_backup: true,
             cloud_settings: default_value::default_cloud_settings(),
             exit_to_tray: true,
+            locale: "zh_SIMPLIFIED".to_owned(),
         },
     }
 }
@@ -129,7 +133,7 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-pub async fn config_check() -> Result<(), ConfigError> {
+pub fn config_check() -> Result<(), ConfigError> {
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
@@ -137,8 +141,8 @@ pub async fn config_check() -> Result<(), ConfigError> {
     let mut config = get_config()?;
     if config.version != default_config().version {
         Notification::new("Update Config Info")
-            .title("更新配置文件")
-            .body("配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak")
+            .title(t!("backend_config.updating_config_title"))
+            .body(t!("backend_config.updating_config_body"))
             .show()
             .expect("Cannot show notification");
         backup_old_config()?;
@@ -155,8 +159,13 @@ pub async fn config_check() -> Result<(), ConfigError> {
             // 这次更新了SaveUnit，增加了delete_before_apply字段，不过这个字段默认值是false，所以不会有问题
             config.version = "1.0.2".to_owned();
         }
-        set_config(&config).await?;
+        if config.version == "1.0.2" {
+            // 没有破坏性变化，可以直接采用默认值
+            config.version = "1.1.0".to_owned();
+        }
+        tauri::async_runtime::block_on(async { set_config(&config).await })?;
     }
+    rust_i18n::set_locale(&config.settings.locale);
     Ok(()) // return the config json
 }
 

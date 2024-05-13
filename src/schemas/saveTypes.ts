@@ -104,10 +104,14 @@ export interface Settings {
      * 云存储设置
      */
     cloud_settings: CloudSettings;
+    /**
+     * 语言配置
+     */
+    locale: string
 }
 
 export let default_config: Config = {
-    version: "1.0.2",
+    version: "1.1.0",
     backup_path: "./save_data",
     games: [],
     settings: {
@@ -124,6 +128,7 @@ export let default_config: Config = {
             }
         },
         prompt_when_auto_backup: false,
+        locale:"zh_SIMPLIFIED"
     }
 };
 

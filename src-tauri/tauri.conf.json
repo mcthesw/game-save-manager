@@ -23,6 +23,11 @@
       },
       "notification": {
         "all": true
+      },
+      "fs": {
+        "scope": [
+          "$RESOURCE/*"
+        ]
       }
     },
     "bundle": {
@@ -49,7 +54,9 @@
         "providerShortName": null,
         "signingIdentity": null
       },
-      "resources": [],
+      "resources": [
+        "../locales/*.json"
+      ],
       "shortDescription": "",
       "targets": [
         "appimage",

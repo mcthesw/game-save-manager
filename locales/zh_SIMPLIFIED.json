@@ -1,5 +1,7 @@
 {
   "settings": {
+    "locale_name": "简体中文",
+    "locale_changed":"您更换了语言，当前是预览模式，保存后才能永久生效",
     "reset_success": "重置成功",
     "customizable_settings": "个性化设置",
     "submit_settings": "保存修改",
@@ -39,10 +41,10 @@
     "free": "自由",
     "free_explained": "这个软件属于开源世界，你可以轻易访问到它的源代码，有能者可以为它贡献代码",
     "import_game": "导入游戏",
-    "go_add_game": "跳转",
+    "jump_to_page": "跳转",
     "hint": "提示",
-    "start_backup": "开始备份！",
-    "go_save_manage": "进入存档管理",
+    "start_backup": "开始备份",
+    "change_locale": "更换语言",
     "go_game_manage_hint": "请单击左侧\"存档管理\"",
     "go_backup_hint": "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
   },
@@ -108,7 +110,8 @@
     "operations": "控制",
     "remove": "移除",
     "path": "路径",
-    "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作"
+    "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作",
+    "invalid_name_error": "无效的游戏名，请不要包含无法创建文件的特殊字符"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"
@@ -150,9 +153,9 @@
     "drawer_title": "以下是受管理文件列表",
     "type": "类别",
     "prompt": "路径（单击以复制）",
-    "open_file_header":"打开文件",
-    "open":"打开",
-    "delete_before_apply":"应用前删除"
+    "open_file_header": "打开文件",
+    "open": "打开",
+    "delete_before_apply": "应用前删除"
   },
   "sync_settings": {
     "title": "同步设置",
@@ -169,8 +172,8 @@
     "test_button": "测试可用性",
     "auto_sync_interval": "同步间隔",
     "interval_hint": "设置为0则关闭自动同步（暂不可用）",
-    "cloud_root":"云端根目录",
-    "cloud_root_hint":"不要以/结尾，不要留空",
+    "cloud_root": "云端根目录",
+    "cloud_root_hint": "不要以/结尾，不要留空",
     "backend": "同步后端",
     "backend_hint": "选择云存档的服务后端",
     "sync_success": "同步成功",
@@ -195,7 +198,9 @@
       "endpoint": "WebDAV地址",
       "username": "用户名",
       "password": "密码"
-    }
+    },
+    "overwrite_upload":"覆盖性上传",
+    "overwrite_download":"覆盖性下载"
   },
   "error": {
     "open_url_failed": "无法打开链接",
@@ -212,5 +217,23 @@
     "open_backup_folder_failed": "打开备份文件夹失败",
     "set_config_failed": "设置配置失败",
     "reset_settings_failed": "重置设置失败"
+  },
+  "tray":{
+    "no_game_selected":"未选择游戏",
+    "auto_backup_interval":"自动备份间隔",
+    "turn_off_auto_backup":"关闭自动备份",
+    "5_minute":"5分钟",
+    "10_minute":"10分钟",
+    "30_minute":"30分钟",
+    "60_minute": "60分钟",
+    "quick_backup":"快速备份",
+    "quick_apply":"快速读档",
+    "exit":"退出",
+    "success":"成功",
+    "error":"错误"
+  },
+  "backend_config":{
+    "updating_config_title":"更新配置文件",
+    "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
   }
 }

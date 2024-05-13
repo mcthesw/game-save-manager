@@ -1,17 +1,21 @@
 <script lang="ts" setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
 import { show_error, show_info, show_success } from "../utils/notifications";
 import { Game } from "../schemas/saveTypes";
 import { useDark, useToggle } from '@vueuse/core'
 import { $t } from "../i18n";
-import { ElMessageBox } from "element-plus";
+import { ElMessageBox, ElOption } from "element-plus";
+import { useI18n } from "vue-i18n";
 
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
 const config = useConfig()
 const loading = ref(false)
+const i18n = useI18n()
+const locale_message = i18n.messages
+const locale_names = i18n.availableLocales
 
 function load_config() {
     config.refresh()
@@ -111,6 +115,15 @@ function apply_all() {
         });
 }
 
+watch(
+    () => config.settings.locale,
+    (new_locale,_old_locale)=>{
+        console.log(new_locale)
+        i18n.locale.value = new_locale
+        show_info($t("settings.locale_changed"));
+    }
+)
+
 </script>
 
 <template>
@@ -133,6 +146,14 @@ function apply_all() {
                 </el-button>
             </div>
             <div class="setting-box">
+                <ElSelect :loading="loading" v-model="config.settings.locale">
+                    <ElOption v-for="locale in locale_names" :key="locale"
+                        :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
+                        :value="locale" />
+                </ElSelect>
+                🌍 Languages
+            </div>
+            <div class="setting-box">
                 <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
                 <span>{{ $t("settings.prompt_when_not_described") }}</span>
             </div>
@@ -141,9 +162,9 @@ function apply_all() {
                 <span>{{ $t("settings.prompt_when_auto_backup") }}</span>
             </div>
             <div class="setting-box">
-                    <ElSwitch v-model="config.settings.exit_to_tray" :loading="loading" />
-                    <span>{{ $t("settings.exit_to_tray") }}</span>
-                </div>
+                <ElSwitch v-model="config.settings.exit_to_tray" :loading="loading" />
+                <span>{{ $t("settings.exit_to_tray") }}</span>
+            </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.extra_backup_when_apply" :loading="loading" />
                 <span>{{ $t("settings.extra_backup_when_apply") }}</span>
@@ -184,9 +205,11 @@ function apply_all() {
     margin-right: 10px;
     margin-top: 5px;
 }
-.el-card{
+
+.el-card {
     overflow-y: scroll;
 }
+
 .el-switch {
     margin-right: 20px;
 }
