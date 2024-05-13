@@ -35,6 +35,11 @@ export default defineConfig({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
+  esbuild: {
+    supported: {
+      'top-level-await': true //browsers can handle top-level-await features
+    },
+  },
   define: {
     OS_PLATFORM: `"${process.platform}"`,
     WIN_PORTABLE: !!process.env.VITE_WIN_PORTABLE
