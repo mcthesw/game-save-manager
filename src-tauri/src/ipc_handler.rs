@@ -4,6 +4,7 @@ use crate::config::{get_config, Config, Game};
 use crate::{backup, config};
 use crate::{errors::*, tray};
 use anyhow::Result;
+use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,6 +24,12 @@ pub struct IpcNotification {
     pub title: String,
     pub msg: String,
 }
+
+// 用于读取locale文件
+#[derive(Embed)]
+#[folder = "../locales/"]
+#[prefix = "locales/"]
+struct Asset;
 
 // TODO:把错误文本改为有可读性的，增加日志
 #[allow(unused)]
@@ -176,17 +183,16 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
 pub async fn get_locale_message(
     handle: tauri::AppHandle,
 ) -> Result<HashMap<String, serde_json::Value>, String> {
+    // TODO:增加日志记录，此函数关系到软件是否正常启动，因此前端无法获取到错误信息
     let mut map = HashMap::new();
     // 需要在此处加入所有可以本地化的文件
     let locales = ["zh_SIMPLIFIED".to_owned(), "en_US".to_owned()];
     locales.iter().try_for_each(|i| {
-        let resource_path = handle
-            .path_resolver()
-            .resolve_resource(format!("../locales/{}.json", i))
+        let embed_file = Asset::get(&format!("locales/{}.json", i))
             .ok_or("Cannot read locale file".to_owned())?;
-        let mut locale = String::new();
-        let file = std::fs::File::open(resource_path).map_err(|e| e.to_string())?;
-        let locale: serde_json::Value = serde_json::from_reader(file).map_err(|e| e.to_string())?;
+        let file_str = std::str::from_utf8(embed_file.data.as_ref()).map_err(|e| e.to_string())?;
+        let locale: serde_json::Value =
+            serde_json::from_str(file_str).map_err(|e| e.to_string())?;
         map.insert(i.to_owned(), locale);
         Ok::<(), String>(())
     })?;
