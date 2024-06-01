@@ -81,7 +81,8 @@
         "height": 720,
         "resizable": true,
         "title": "RustyManager",
-        "width": 1280
+        "width": 1280,
+        "fileDropEnabled": false
       }
     ]
   }

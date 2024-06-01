@@ -26,3 +26,6 @@ pub fn default_cloud_settings() -> CloudSettings {
 pub fn default_locale() -> String {
     "zh_SIMPLIFIED".to_owned()
 }
+pub fn empty_vec<T>() -> Vec<T>{
+    Vec::new()
+}

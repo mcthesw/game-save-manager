@@ -1,7 +1,7 @@
 {
   "settings": {
     "locale_name": "简体中文",
-    "locale_changed":"您更换了语言，当前是预览模式，保存后才能永久生效",
+    "locale_changed": "您更换了语言，当前是预览模式，保存后才能永久生效",
     "reset_success": "重置成功",
     "customizable_settings": "个性化设置",
     "submit_settings": "保存修改",
@@ -145,6 +145,7 @@
   "sidebar": {
     "homepage": "欢迎界面",
     "add_game": "添加游戏",
+    "favorite_manage":"收藏管理",
     "sync_settings": "同步",
     "settings": "设置",
     "about": "关于"
@@ -199,8 +200,8 @@
       "username": "用户名",
       "password": "密码"
     },
-    "overwrite_upload":"覆盖性上传",
-    "overwrite_download":"覆盖性下载"
+    "overwrite_upload": "覆盖性上传",
+    "overwrite_download": "覆盖性下载"
   },
   "error": {
     "open_url_failed": "无法打开链接",
@@ -218,22 +219,38 @@
     "set_config_failed": "设置配置失败",
     "reset_settings_failed": "重置设置失败"
   },
-  "tray":{
-    "no_game_selected":"未选择游戏",
-    "auto_backup_interval":"自动备份间隔",
-    "turn_off_auto_backup":"关闭自动备份",
-    "5_minute":"5分钟",
-    "10_minute":"10分钟",
-    "30_minute":"30分钟",
+  "tray": {
+    "no_game_selected": "未选择游戏",
+    "auto_backup_interval": "自动备份间隔",
+    "turn_off_auto_backup": "关闭自动备份",
+    "5_minute": "5分钟",
+    "10_minute": "10分钟",
+    "30_minute": "30分钟",
     "60_minute": "60分钟",
-    "quick_backup":"快速备份",
-    "quick_apply":"快速读档",
-    "exit":"退出",
-    "success":"成功",
-    "error":"错误"
+    "quick_backup": "快速备份",
+    "quick_apply": "快速读档",
+    "exit": "退出",
+    "success": "成功",
+    "error": "错误"
   },
-  "backend_config":{
-    "updating_config_title":"更新配置文件",
+  "backend_config": {
+    "updating_config_title": "更新配置文件",
     "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
+  },
+  "favorite": {
+    "favorite_manage": "收藏管理",
+    "add_favorite_folder": "添加文件夹",
+    "new_folder_name": "请输入新文件夹名",
+    "duplicated_empty_error": "重复的文件夹名或空名称",
+    "add_game": "添加游戏",
+    "save_favorite": "保存配置",
+    "abort_change": "取消修改",
+    "enable_drag": "启用拖拽排序",
+    "jump_to_game": "进入",
+    "remove": "移除",
+    "choose_game_add": "选择加入收藏的游戏（可以重复）",
+    "add_to_favorite": "添加到收藏",
+    "remove_success": "成功删除节点",
+    "add_success": "成功添加节点"
   }
 }

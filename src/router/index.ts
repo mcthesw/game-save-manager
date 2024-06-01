@@ -5,6 +5,7 @@ import About from "../views/About.vue";
 import GameManage from "../views/GameManage.vue";
 import Settings from "../views/Settings.vue";
 import SyncSettings from "../views/SyncSettings.vue";
+import GameList from "../views/GameList.vue";
 import { useConfig } from "../stores/ConfigFile";
 
 const routes: Array<RouteRecordRaw> = [
@@ -50,6 +51,10 @@ const routes: Array<RouteRecordRaw> = [
         path: "/settings",
         component: Settings,
     },
+    {
+        path: "/favorite",
+        component: GameList,
+    }
 ];
 
 const router = createRouter({

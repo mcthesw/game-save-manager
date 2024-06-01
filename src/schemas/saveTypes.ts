@@ -16,24 +16,6 @@ export interface Game {
      */
     game_path?: string;
 }
-export interface Config {
-    /**
-     * 本软件版本
-     */
-    version: string;
-    /**
-     * 本软件管理的存档存放路径
-     */
-    backup_path: string;
-    /**
-     * 各个游戏信息
-     */
-    games: Array<Game>;
-    /**
-     * 存档管理器的配置信息
-     */
-    settings: Settings;
-}
 
 export interface Backup {
     /**
@@ -110,8 +92,51 @@ export interface Settings {
     locale: string
 }
 
+export interface FavoriteTreeNode {
+    /**
+     * 唯一标识符，使用GUID生成
+     */
+    node_id: string;
+    /**
+     * 树节点名称，如果是叶子节点，需要与`Game`对应
+     */
+    label: string;
+    /**
+     * 是否为叶子节点，如果是游戏需要为true，是文件夹则为false
+     */
+    is_leaf: boolean;
+    /**
+     * 如果是文件夹，则包含子节点，否则为null
+     */
+    children?: FavoriteTreeNode[];
+}
+
+
+export interface Config {
+    /**
+     * 本软件版本
+     */
+    version: string;
+    /**
+     * 本软件管理的存档存放路径
+     */
+    backup_path: string;
+    /**
+     * 各个游戏信息
+     */
+    games: Array<Game>;
+    /**
+     * 存档管理器的配置信息
+     */
+    settings: Settings;
+    /**
+     * 收藏夹
+     */
+    favorites: Array<FavoriteTreeNode>;
+}
+
 export let default_config: Config = {
-    version: "1.1.0",
+    version: "1.2.0",
     backup_path: "./save_data",
     games: [],
     settings: {
@@ -128,8 +153,9 @@ export let default_config: Config = {
             }
         },
         prompt_when_auto_backup: false,
-        locale:"zh_SIMPLIFIED"
-    }
+        locale: "zh_SIMPLIFIED"
+    },
+    favorites: [],
 };
 
 export { Backend };

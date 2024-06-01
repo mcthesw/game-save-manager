@@ -145,6 +145,7 @@
     "sidebar": {
         "homepage": "Home",
         "add_game": "Add game",
+        "favorite_manage":"Favorite",
         "sync_settings": "Cloud sync",
         "settings": "Settings",
         "about": "About"
@@ -235,5 +236,21 @@
     "backend_config": {
         "updating_config_title": "Updating config file",
         "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManagerConfig.json.bak"
+    },
+    "favorite": {
+        "favorite_manage": "Favorite Management",
+        "add_favorite_folder": "Add Folder",
+        "new_folder_name": "Please enter a new folder name",
+        "duplicated_empty_error": "Duplicate or empty folder name",
+        "add_game": "Add Game",
+        "save_favorite": "Save Configuration",
+        "abort_change": "Cancel Changes",
+        "enable_drag": "Enable Drag Sorting",
+        "jump_to_game": "Enter",
+        "remove": "Remove",
+        "choose_game_add": "Select games to add to favorites (can be repeated)",
+        "add_to_favorite": "Add to Favorites",
+        "remove_success": "Node removed successfully",
+        "add_success": "Node added successfully"
     }
 }

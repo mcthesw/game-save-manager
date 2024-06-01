@@ -63,6 +63,14 @@ pub struct Settings {
     pub locale: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FavoriteTreeNode {
+    node_id: String,
+    label: String,
+    is_leaf: bool,
+    children: Option<Vec<Self>>,
+}
+
 /// The software's configuration
 /// include the version, backup's location path, games'info,
 /// and the settings
@@ -72,12 +80,14 @@ pub struct Config {
     pub backup_path: String,
     pub games: Vec<Game>,
     pub settings: Settings,
+    #[serde(default = "default_value::empty_vec")]
+    pub favorites: Vec<FavoriteTreeNode>,
 }
 
 /// Get the default config struct
 fn default_config() -> Config {
     Config {
-        version: String::from("1.1.0"),
+        version: String::from("1.2.0"),
         backup_path: String::from("./save_data"),
         games: Vec::new(),
         settings: Settings {
@@ -89,6 +99,7 @@ fn default_config() -> Config {
             exit_to_tray: true,
             locale: "zh_SIMPLIFIED".to_owned(),
         },
+        favorites: vec![],
     }
 }
 
