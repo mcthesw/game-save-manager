@@ -94,7 +94,7 @@ function remove_node(node: Node, data: FavoriteTreeNode) {
 
 function add_game_to_favorite(game: Game) {
     add_node(game.name, true)
-    show_success($t('favorite.add_success')+ ": " + game.name)
+    show_success($t('favorite.add_success') + ": " + game.name)
 }
 
 function manage_game(tree_node: FavoriteTreeNode) {
@@ -103,11 +103,12 @@ function manage_game(tree_node: FavoriteTreeNode) {
 </script>
 
 <template>
-    <ElContainer direction="vertical">
+    <div>
         <ElCard>
             <div class="card-title">{{ $t("favorite.favorite_manage") }}</div>
             <div class="button-bar">
-                <ElButton type="primary" @click="add_folder" round>{{ $t("favorite.add_favorite_folder") }}</ElButton>
+                <ElButton type="primary" @click="add_folder" round>{{ $t("favorite.add_favorite_folder") }}
+                </ElButton>
                 <ElButton type="primary" @click="() => dialog_visible = true" round>{{ $t("favorite.add_game") }}
                 </ElButton>
                 <ElButton type="primary" @click="save_favorite" round>{{ $t("favorite.save_favorite") }}</ElButton>
@@ -117,7 +118,7 @@ function manage_game(tree_node: FavoriteTreeNode) {
                 <ElSwitch type="primary" v-model="enable_drag" :active-text="$t('favorite.enable_drag')" round />
             </div>
             <ElTree :data="config.favorites" :draggable="enable_drag" node-key="node_id" :allow-drag="allow_drag"
-                :allow-drop="allow_drop">
+                :allow-drop="allow_drop" class="favorite-tree">
                 <template #default="{ node, data }">
                     <span class="custom-tree-node">
                         <div class="left-label">{{ data.label }}</div>
@@ -148,7 +149,7 @@ function manage_game(tree_node: FavoriteTreeNode) {
             </ElTable>
         </ElDialog>
         <!-- 上方是用于选择新增游戏的Dialog -->
-    </ElContainer>
+    </div>
 </template>
 
 <style scoped>
@@ -194,6 +195,5 @@ function manage_game(tree_node: FavoriteTreeNode) {
     float: right;
     width: 140px;
 }
-
 /* 以上部分用于支持双行树组件 */
 </style>
