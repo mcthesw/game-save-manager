@@ -21,6 +21,7 @@
         "move_up": "Move up",
         "move_down": "Move down",
         "enable_edit_manage": "Display the modify button in the management page",
+        "default_delete_before_apply": "Default to delete before restoring backup (applies to new games)",
         "backup_all": "Backup all saves",
         "backup_all_hint": "This operation will back up all game saves, which may take a long time. Please enter yes to confirm",
         "apply_all": "Apply all backups",

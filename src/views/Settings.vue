@@ -108,12 +108,12 @@ function apply_all() {
             }).catch(
                 (e) => {
                     console.log(e)
-                    show_error($t("error.failed"))
+                    show_error($t("settings.failed"))
                 }
             )
         })
         .catch(() => {
-            show_info($t('setting.operation_canceled'));
+            show_info($t('settings.operation_canceled'));
         });
 }
 
@@ -180,9 +180,13 @@ watch(
                 <span>{{ $t("settings.enable_edit_manage") }}</span>
             </div>
             <div class="setting-box">
+                <ElSwitch v-model="config.settings.default_delete_before_apply" :loading="loading" />
+                <span>{{ $t("settings.default_delete_before_apply") }}</span>
+            </div>
+            <div class="setting-box">
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.adjust_game_order')">
-                        <draggable v-model="config.games">
+                        <draggable v-model="config.games" item-key="name">
                             <template #item="{ element }">
                                 <div class="game-order-box"> 游戏名：{{ element.name }} </div>
                             </template>

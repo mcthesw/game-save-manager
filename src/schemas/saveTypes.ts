@@ -89,7 +89,11 @@ export interface Settings {
     /**
      * 语言配置
      */
-    locale: string
+    locale: string,
+    /**
+     * 是否默认先删除存档再备份
+     */
+    default_delete_before_apply:boolean
 }
 
 export interface FavoriteTreeNode {
@@ -153,7 +157,8 @@ export let default_config: Config = {
             }
         },
         prompt_when_auto_backup: false,
-        locale: "zh_SIMPLIFIED"
+        locale: "zh_SIMPLIFIED",
+        default_delete_before_apply: false
     },
     favorites: [],
 };

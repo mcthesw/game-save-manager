@@ -61,6 +61,8 @@ pub struct Settings {
     pub cloud_settings: CloudSettings,
     #[serde(default = "default_value::default_locale")]
     pub locale: String,
+    #[serde(default = "default_value::default_false")]
+    pub default_delete_before_apply:bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -98,6 +100,7 @@ fn default_config() -> Config {
             cloud_settings: default_value::default_cloud_settings(),
             exit_to_tray: true,
             locale: "zh_SIMPLIFIED".to_owned(),
+            default_delete_before_apply: false,
         },
         favorites: vec![],
     }

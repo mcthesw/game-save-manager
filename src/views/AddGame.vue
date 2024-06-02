@@ -75,15 +75,17 @@ function check_name_valid(name: string) {
     let invalid_reg = RegExp(/[<>:"\/\\|?*]/);
     return !invalid_reg.test(name);
 }
+function generate_save_unit(unit_type: "Folder" | "File", path: string): SaveUnit {
+    let delete_before_apply = config.settings.default_delete_before_apply;
+    return { unit_type, path, delete_before_apply }
+}
+
 function add_save_directory() {
     invoke("choose_save_dir").then((dir) => {
         if (!dir || !check_save_unit_unique(dir as string)) { return }
-        let unit: SaveUnit = {
-            unit_type: "Folder",
-            path: dir as string,
-            delete_before_apply: false
-        }
-        save_paths.push(unit)
+        save_paths.push(
+            generate_save_unit("Folder", dir as string)
+        )
     }).catch(
         (e) => {
             console.log(e)
@@ -94,12 +96,9 @@ function add_save_directory() {
 function add_save_file() {
     invoke("choose_save_file").then((file) => {
         if (!file || !check_save_unit_unique(file as string)) { return }
-        let unit: SaveUnit = {
-            unit_type: "File",
-            path: file as string,
-            delete_before_apply: false
-        }
-        save_paths.push(unit)
+        save_paths.push(
+            generate_save_unit("File", file as string)
+        )
     }).catch(
         (e) => {
             console.log(e)
