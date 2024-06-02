@@ -21,7 +21,7 @@
     "move_up": "上移",
     "move_down": "下移",
     "enable_edit_manage": "在存档管理界面显示修改按钮",
-    "default_delete_before_apply":"默认先删除再恢复备份（对新游戏生效）",
+    "default_delete_before_apply": "默认先删除再恢复备份（对新游戏生效）",
     "backup_all": "备份所有存档",
     "backup_all_hint": "这个操作会备份所有游戏的存档，可能会花费较长时间，确定请输入yes",
     "apply_all": "应用所有存档",
@@ -141,12 +141,14 @@
     "success": "成功",
     "info": "信息提示",
     "navigate_to": "导航至",
-    "save_manage": "存档管理"
+    "save_manage": "存档管理",
+    "favorites": "收藏夹",
+    "menu": "菜单栏"
   },
   "sidebar": {
     "homepage": "欢迎界面",
     "add_game": "添加游戏",
-    "favorite_manage":"收藏管理",
+    "favorite_manage": "收藏管理",
     "sync_settings": "同步",
     "settings": "设置",
     "about": "关于"

@@ -141,7 +141,9 @@
         "success": "Success",
         "info": "Information",
         "navigate_to": "Navigate to",
-        "save_manage": "Save Management"
+        "save_manage": "Save Management",
+        "favorites": "Favorites",
+        "menu": "Menu"
     },
     "sidebar": {
         "homepage": "Home",
