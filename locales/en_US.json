@@ -112,7 +112,8 @@
         "remove": "Remove",
         "path": "Path",
         "warning_for_save_file": "Adding files or folders with the same name is currently not supported. Please refrain from doing so. If needed, please provide feedback, and I will consider implementing it",
-        "invalid_name_error": "Invalid game name. Please avoid including special characters that cannot be used to create files"
+        "invalid_name_error": "Invalid game name. Please avoid including special characters that cannot be used to create files",
+        "duplicated_name_error": "Game name duplicated"
     },
     "app": {
         "early_access_warning": "This is an early test version. Stability cannot be guaranteed. Please use with caution"

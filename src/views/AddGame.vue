@@ -135,6 +135,10 @@ function save() {
         show_error($t('addgame.invalid_name_error'));
         return
     }
+    if(config.games.find((x) => x.name == game_name.value)) {
+        show_error($t('addgame.duplicated_name_error'));
+        return
+    }
 
     let game: Game = {
         name: game_name.value,
@@ -145,7 +149,7 @@ function save() {
         console.log(x);
         if (is_editing.value) {
             is_editing.value = false;
-            show_success($t('addgame.change_game_success'));
+            show_success($t('addgame.add_game_success'));
             router.back();
         } else {
             show_success($t('addgame.add_game_success'));

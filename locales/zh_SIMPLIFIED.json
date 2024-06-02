@@ -112,7 +112,8 @@
     "remove": "移除",
     "path": "路径",
     "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作",
-    "invalid_name_error": "无效的游戏名，请不要包含无法创建文件的特殊字符"
+    "invalid_name_error": "无效的游戏名，请不要包含无法创建文件的特殊字符",
+    "duplicated_name_error": "重复的游戏名"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"
