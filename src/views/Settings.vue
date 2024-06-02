@@ -8,6 +8,8 @@ import { useDark, useToggle } from '@vueuse/core'
 import { $t } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
+import draggable from 'vuedraggable'
+
 
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
@@ -117,7 +119,7 @@ function apply_all() {
 
 watch(
     () => config.settings.locale,
-    (new_locale,_old_locale)=>{
+    (new_locale, _old_locale) => {
         console.log(new_locale)
         i18n.locale.value = new_locale
         show_info($t("settings.locale_changed"));
@@ -180,18 +182,11 @@ watch(
             <div class="setting-box">
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.adjust_game_order')">
-                        <ElTable :data="config.games" :border="true">
-                            <ElTableColumn prop="name" :label="$t('settings.name')" width="180" />
-                            <ElTableColumn prop="game_path" :label="$t('settings.game_path')" />
-                            <ElTableColumn fixed="right" :label="$t('settings.operation')" width="120">
-                                <template #default="scope">
-                                    <el-button link type="primary" size="small" @click="move_up(scope.row)">{{
-                                        $t("settings.move_up") }}</el-button>
-                                    <el-button link type="primary" size="small" @click="move_down(scope.row)">{{
-                                        $t("settings.move_down") }}</el-button>
-                                </template>
-                            </ElTableColumn>
-                        </ElTable>
+                        <draggable v-model="config.games">
+                            <template #item="{ element }">
+                                <div class="game-order-box"> 游戏名：{{ element.name }} </div>
+                            </template>
+                        </draggable>
                     </ElCollapseItem>
                 </ElCollapse>
             </div>
@@ -217,4 +212,23 @@ watch(
 .setting-box {
     margin-top: 10px;
 }
+
+/** 以下是排序盒子样式 */
+.game-order-box:hover {
+    transition: box-shadow 0.3s ease;
+    box-shadow: var(--el-box-shadow-light);
+}
+
+.game-order-box {
+    font-size: medium;
+    margin-top: 10px;
+    padding: 5px;
+    padding-left: 10px;
+    cursor: pointer;
+    transition: box-shadow 0.3s ease;
+    border: 1px solid var(--el-border-color);
+    border-radius: 4px;
+}
+
+/** 以上是排序盒子样式   */
 </style>
