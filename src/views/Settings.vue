@@ -82,12 +82,12 @@ function backup_all() {
             }).catch(
                 (e) => {
                     console.log(e)
-                    show_error($t("error.failed"))
+                    show_error($t("settings.failed"))
                 }
             )
         })
         .catch(() => {
-            show_info($t('setting.operation_canceled'));
+            show_info($t('settings.operation_canceled'));
         });
 }
 
