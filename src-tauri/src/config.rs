@@ -62,7 +62,9 @@ pub struct Settings {
     #[serde(default = "default_value::default_locale")]
     pub locale: String,
     #[serde(default = "default_value::default_false")]
-    pub default_delete_before_apply:bool,
+    pub default_delete_before_apply: bool,
+    #[serde(default = "default_value::default_false")]
+    pub default_expend_favorites_tree: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,6 +103,7 @@ fn default_config() -> Config {
             exit_to_tray: true,
             locale: "zh_SIMPLIFIED".to_owned(),
             default_delete_before_apply: false,
+            default_expend_favorites_tree: false,
         },
         favorites: vec![],
     }

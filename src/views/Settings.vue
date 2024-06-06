@@ -184,6 +184,10 @@ watch(
                 <span>{{ $t("settings.default_delete_before_apply") }}</span>
             </div>
             <div class="setting-box">
+                <ElSwitch v-model="config.settings.default_expend_favorites_tree" :loading="loading" />
+                <span>{{ $t("settings.default_expend_favorites_tree") }}</span>
+            </div>
+            <div class="setting-box">
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.adjust_game_order')">
                         <draggable v-model="config.games" item-key="name">

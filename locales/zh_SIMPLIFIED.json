@@ -31,7 +31,8 @@
     "invalid_input_error": "无效的输入",
     "success": "操作成功",
     "failed": "操作失败",
-    "operation_canceled": "您取消了这次操作"
+    "operation_canceled": "您取消了这次操作",
+    "default_expend_favorites_tree": "是否默认展开收藏夹"
   },
   "home": {
     "hello_world": "你好 世界",

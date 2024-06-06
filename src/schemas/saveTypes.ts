@@ -93,7 +93,11 @@ export interface Settings {
     /**
      * 是否默认先删除存档再备份
      */
-    default_delete_before_apply:boolean
+    default_delete_before_apply:boolean,
+    /**
+     * 是否默认展开收藏夹树
+     */
+    default_expend_favorites_tree:boolean
 }
 
 export interface FavoriteTreeNode {
@@ -158,7 +162,8 @@ export let default_config: Config = {
         },
         prompt_when_auto_backup: false,
         locale: "zh_SIMPLIFIED",
-        default_delete_before_apply: false
+        default_delete_before_apply: false,
+        default_expend_favorites_tree: false
     },
     favorites: [],
 };

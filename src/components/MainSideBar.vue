@@ -74,7 +74,8 @@ function favorite_click_handler(node: FavoriteTreeNode) {
                         <span>{{ link.text }}</span>
                     </el-menu-item>
                 </el-menu>
-                <ElTree class="menu-item" :data="config.favorites" node-key="node_id" default-expand-all
+                <ElTree class="menu-item" :data="config.favorites" node-key="node_id"
+                    :default-expand-all="config.settings.default_expend_favorites_tree"
                     @node-click="favorite_click_handler" v-else>
                     <template #default="{ node, data }">
                         <span v-if="data.is_leaf" class="custom-tree-node">
@@ -135,5 +136,6 @@ function favorite_click_handler(node: FavoriteTreeNode) {
     margin: 4px;
     height: 100%;
 }
+
 /* 以上部分用于支持双行树组件 */
 </style>

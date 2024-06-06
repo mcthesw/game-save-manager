@@ -121,7 +121,10 @@ function manage_game(tree_node: FavoriteTreeNode) {
                 :allow-drop="allow_drop" class="favorite-tree">
                 <template #default="{ node, data }">
                     <span class="custom-tree-node">
-                        <div class="left-label">{{ data.label }}</div>
+                        <div class="left-label" v-if="data.is_leaf">{{ data.label }}</div>
+                        <strong v-else class="custom-tree-node">
+                            {{ data.label }}
+                        </strong>
                         <div class="right-btn">
                             <ElLink type="primary" :disabled="!data.is_leaf" v-show="data.is_leaf"
                                 @click="manage_game(data)">{{ $t("favorite.jump_to_game") }}
@@ -195,5 +198,6 @@ function manage_game(tree_node: FavoriteTreeNode) {
     float: right;
     width: 140px;
 }
+
 /* 以上部分用于支持双行树组件 */
 </style>
