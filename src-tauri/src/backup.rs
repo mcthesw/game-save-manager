@@ -2,9 +2,11 @@ use crate::archive::{compress_to_file, decompress_from_file};
 use crate::cloud::{upload_backup_info, upload_config};
 use crate::config::{get_config, set_config, Game};
 use crate::errors::BackupError;
+use crate::ipc_handler::{IpcNotification, NotificationLevel};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{fs, path};
+use tauri::{AppHandle, Manager};
 
 /// A backup is a zip file that contains
 /// all the file that the save unit has declared.
@@ -88,13 +90,25 @@ impl Game {
         }
         Result::Ok(())
     }
-    pub fn apply_backup(&self, date: &str) -> Result<(), BackupError> {
+    pub fn apply_backup(&self, date: &str, app_handle: &AppHandle) -> Result<(), BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name);
         if config.settings.extra_backup_when_apply {
-            self.create_extra_backup()?;
+            if let Err(e) = self.create_extra_backup() {
+                app_handle // TODO:i18n
+                    .emit_all(
+                        "Notification",
+                        IpcNotification {
+                            level: NotificationLevel::error,
+                            title: "错误".to_string(),
+                            msg: "文件不存在，无法完成额外备份，恢复中止".to_string(),
+                        },
+                    )
+                    .map_err(anyhow::Error::from)?;
+                return Err(e);
+            }
         }
-        decompress_from_file(&self.save_paths, &backup_path, date)?;
+        decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;
         Result::Ok(())
     }
     pub fn create_extra_backup(&self) -> Result<(), BackupError> {
@@ -259,7 +273,7 @@ pub async fn backup_all() -> Result<(), BackupError> {
     }
     Ok(())
 }
-pub async fn apply_all() -> Result<(), BackupError> {
+pub async fn apply_all(app_handle: &AppHandle) -> Result<(), BackupError> {
     let config = get_config()?;
     for game in &config.games {
         let date = game
@@ -269,7 +283,7 @@ pub async fn apply_all() -> Result<(), BackupError> {
             .ok_or(BackupError::NoBackupAvailable)?
             .date
             .clone();
-        game.apply_backup(&date)?;
+        game.apply_backup(&date, app_handle)?;
     }
     Ok(())
 }

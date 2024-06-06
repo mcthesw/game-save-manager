@@ -24,6 +24,8 @@ pub enum CompressError {
     Single(#[from] BackupFileError),
     #[error("Multiple errors: {0:#?}")]
     Multiple(Vec<BackupFileError>),
+    #[error(transparent)]
+    Unexpected(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Error)]

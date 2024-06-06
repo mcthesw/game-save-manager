@@ -146,8 +146,10 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                             .expect("No backup available")
                             .date
                             .clone();
-                        tauri::async_runtime::block_on(async { game.apply_backup(&newest_date) })
-                            .expect("Tauri async runtime error, cannot block_on");
+                        tauri::async_runtime::block_on(async {
+                            game.apply_backup(&newest_date, app)
+                        })
+                        .expect("Tauri async runtime error, cannot block_on");
                         Notification::new(&app.config().tauri.bundle.identifier)
                             .title(t!("tray.success"))
                             .body(format!(

@@ -74,8 +74,10 @@ pub async fn add_game(game: Game) -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn apply_backup(game: Game, date: String, window: Window) -> Result<(), String> {
-    handle_backup_err(game.apply_backup(&date), window)
+pub async fn apply_backup(game: Game, date: String, app_handle: AppHandle) -> Result<(), String> {
+    //handle_backup_err(game.apply_backup(&date,window), )
+    game.apply_backup(&date, &app_handle)
+        .map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -167,8 +169,10 @@ pub async fn backup_all() -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn apply_all() -> Result<(), String> {
-    backup::apply_all().await.map_err(|e| e.to_string())
+pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
+    backup::apply_all(&app_handle)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -204,7 +208,7 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
     if let Err(e) = res {
         if let BackupError::BackupFileError(BackupFileError::NotExists(files)) = &e {
             files.iter().try_for_each(|file| {
-                window
+                window// TODO:i18n
                     .emit(
                         "Notification",
                         IpcNotification {

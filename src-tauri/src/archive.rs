@@ -7,11 +7,12 @@ use std::{
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 
+use tauri::{AppHandle, Manager};
 use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
     config::{SaveUnit, SaveUnitType},
-    errors::{BackupFileError, CompressError},
+    errors::{BackupFileError, CompressError}, ipc_handler::{IpcNotification, NotificationLevel},
 };
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
@@ -122,6 +123,7 @@ pub fn decompress_from_file(
     save_paths: &[SaveUnit],
     backup_path: &Path,
     date: &str,
+    app_handle: &AppHandle,
 ) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
@@ -148,6 +150,17 @@ pub fn decompress_from_file(
                         let prefix_root =
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !prefix_root.exists() {
+                            // 若文件夹不存在，需要发出警告
+                            app_handle // TODO:i18n
+                                .emit_all(
+                                    "Notification",
+                                    IpcNotification {
+                                        level: NotificationLevel::warning,
+                                        title: "警告".to_string(),
+                                        msg: format!("路径 {:?} 不存在，已经自动创建", prefix_root),
+                                    },
+                                )
+                                .map_err(|x| anyhow::Error::from(x))?;
                             fs::create_dir_all(prefix_root)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {
@@ -160,6 +173,17 @@ pub fn decompress_from_file(
                         let target_path =
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !target_path.exists() {
+                            // 若文件夹不存在，需要发出警告
+                            app_handle// TODO:i18n
+                                .emit_all(
+                                    "Notification",
+                                    IpcNotification {
+                                        level: NotificationLevel::warning,
+                                        title: "警告".to_string(),
+                                        msg: format!("路径 {:?} 不存在，已经自动创建", target_path),
+                                    },
+                                )
+                                .map_err(|x| anyhow::Error::from(x))?;
                             fs::create_dir_all(target_path)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {
