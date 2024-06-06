@@ -78,6 +78,7 @@ Other developers do not need to change the version number, just add your updates
 - Update the version number in `package.json`
 - Update the version number in `src/schemas/saveTypes.ts`
 - Update the version number in `src-tauri/src/config.rs:default_config`
+- Update the version number in `src-tauri/tauri.conf.json`
 
 ## Folder Structure
 

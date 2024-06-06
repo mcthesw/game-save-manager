@@ -183,6 +183,10 @@ pub fn config_check() -> Result<(), ConfigError> {
             // 没有破坏性变化，可以直接采用默认值
             "1.1.0".clone_into(&mut config.version);
         }
+        if config.version == "1.1.0" {
+            // 没有破坏性，可以直接采用默认值
+            "1.2.0".clone_into(&mut config.version);
+        }
         tauri::async_runtime::block_on(async { set_config(&config).await })?;
     }
     rust_i18n::set_locale(&config.settings.locale);
