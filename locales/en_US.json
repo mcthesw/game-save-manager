@@ -32,7 +32,8 @@
     "success": "Success",
     "failed": "Operation failed",
     "operation_canceled": "You have cancelled this operation",
-    "default_expend_favorites_tree": "Whether to expand favorites by default"
+    "default_expend_favorites_tree": "Whether to expand favorites by default",
+    "homepage": "Homepage"
   },
   "home": {
     "hello_world": "Hello world",
@@ -48,7 +49,8 @@
     "start_backup": "Start backup",
     "change_locale": "Change language",
     "go_game_manage_hint": "Please click on Save Management on the left",
-    "go_backup_hint": "Please click on the game name under the Save Management section, and manage your saves in the new page"
+    "go_backup_hint": "Please click on the game name under the Save Management section, and manage your saves in the new page",
+    "wrong_homepage": "The page does not exist, please reset the homepage"
   },
   "manage": {
     "create_new_save": "Create new backup",

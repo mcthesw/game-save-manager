@@ -2,18 +2,28 @@
 import MainSideBar from "./components/MainSideBar.vue";
 import { show_error, show_info, show_warning } from "./utils/notifications"
 import { useConfig } from "./stores/ConfigFile";
-import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event"
 import { IpcNotification, EventWrapper } from "./schemas/events";
 import { useDark } from '@vueuse/core'
 import { $t } from "./i18n";
+import { useRouter } from "vue-router";
 
 // load dark mode status
 useDark()
-
 // load config
-let config = useConfig();
-config.refresh(); 
+const config = useConfig();
+config.refresh();
+
+const router = useRouter();
+setTimeout(() => {
+	// load home page
+	router.push(config.settings.home_page).catch(() => {
+		show_error($t("home.wrong_homepage"))
+		router.push("/home")
+	})
+	// 需要等待config读取完成，由于config.refresh()不是异步的，所以等待100毫秒结果
+	// TODO: 优化config读取完成逻辑
+},100)
 
 show_warning($t('app.early_access_warning'));
 
@@ -25,7 +35,6 @@ listen('Notification', (event: unknown) => {
 		case "error": show_error(ev.msg, ev.title); break;
 	}
 });
-
 </script>
 
 <template>

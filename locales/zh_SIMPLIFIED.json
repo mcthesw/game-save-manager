@@ -32,7 +32,8 @@
     "success": "操作成功",
     "failed": "操作失败",
     "operation_canceled": "您取消了这次操作",
-    "default_expend_favorites_tree": "是否默认展开收藏夹"
+    "default_expend_favorites_tree": "是否默认展开收藏夹",
+    "homepage": "启动页面"
   },
   "home": {
     "hello_world": "你好 世界",
@@ -48,7 +49,8 @@
     "start_backup": "开始备份",
     "change_locale": "更换语言",
     "go_game_manage_hint": "请单击左侧\"存档管理\"",
-    "go_backup_hint": "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理"
+    "go_backup_hint": "请在\"存档管理\"栏目下单击游戏名，在新界面中进行存档管理",
+    "wrong_homepage": "页面不存在，请重设主页"
   },
   "manage": {
     "create_new_save": "创建新存档",

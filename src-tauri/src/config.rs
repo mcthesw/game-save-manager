@@ -65,6 +65,8 @@ pub struct Settings {
     pub default_delete_before_apply: bool,
     #[serde(default = "default_value::default_false")]
     pub default_expend_favorites_tree: bool,
+    #[serde(default = "default_value::default_home_page")]
+    pub home_page:String
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,9 +103,10 @@ fn default_config() -> Config {
             prompt_when_auto_backup: true,
             cloud_settings: default_value::default_cloud_settings(),
             exit_to_tray: true,
-            locale: "zh_SIMPLIFIED".to_owned(),
+            locale: default_value::default_locale(),
             default_delete_before_apply: false,
             default_expend_favorites_tree: false,
+            home_page: default_value::default_home_page(),
         },
         favorites: vec![],
     }

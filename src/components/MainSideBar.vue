@@ -16,6 +16,7 @@ import { FavoriteTreeNode } from "../schemas/saveTypes";
 
 let config = useConfig();
 
+// TODO:抽离到新文件中，同时`Settings.vue`也要抽离
 const links = computed(() => [
     { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
     { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },

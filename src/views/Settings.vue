@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
 import { show_error, show_info, show_success } from "../utils/notifications";
@@ -9,6 +9,7 @@ import { $t } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
+import { DocumentAdd, Grid, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled } from "@element-plus/icons-vue";
 
 
 const isDark = useDark()
@@ -126,6 +127,21 @@ watch(
     }
 )
 
+const router_list = computed(() => {
+    // TODO:抽离到新文件中，同时`MainSideBar.vue`也要抽离
+    var link_list = [
+        { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
+        { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },
+        { text: $t('sidebar.favorite_manage'), link: "/favorite", icon: Grid },
+        { text: $t("sidebar.sync_settings"), link: "/sync-settings", icon: MostlyCloudy },
+        { text: $t("sidebar.settings"), link: "/settings", icon: Setting },
+        { text: $t("sidebar.about"), link: "/about", icon: InfoFilled },
+    ]
+    config.games.forEach((game) => {
+        link_list.push({ text: game.name, link: `/management/${game.name}`, icon: SwitchFilled })
+    })
+    return link_list
+})
 </script>
 
 <template>
@@ -154,6 +170,18 @@ watch(
                         :value="locale" />
                 </ElSelect>
                 🌍 Languages
+            </div>
+            <div class="setting-box">
+                <ElSelect :loading="loading" v-model="config.settings.home_page">
+                    <ElOption v-for="route_info in router_list" :key="route_info.text" :label="route_info.text"
+                        :value="route_info.link">
+                        <div class="home-option-box">
+                            <component :is="route_info.icon" class="home-box-icon"></component>
+                            {{ route_info.text }}
+                        </div>
+                    </ElOption>
+                </ElSelect>
+                🏠 {{ $t("settings.homepage") }}
             </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
@@ -239,4 +267,18 @@ watch(
 }
 
 /** 以上是排序盒子样式   */
+
+/** 以下是首页选择样式 */
+.home-option-box {
+    display: flex;
+    align-items: center;
+}
+
+.home-box-icon {
+    height: 1em;
+    width: 1em;
+    margin-right: 10px;
+}
+
+/** 以上是首页选择样式 */
 </style>
