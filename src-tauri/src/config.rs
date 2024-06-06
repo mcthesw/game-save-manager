@@ -165,20 +165,20 @@ pub fn config_check() -> Result<(), ConfigError> {
         backup_old_config()?;
         if config.version == "1.0.0 alpha" {
             // 没有破坏性变化，可以直接采用默认值
-            config.version = "1.0.0".to_owned();
+            "1.0.0".clone_into(&mut config.version);
         }
         if config.version == "1.0.0" {
             // 没有破坏性变化，可以直接采用默认值
-            config.version = "1.0.1".to_owned();
+            "1.0.1".clone_into(&mut config.version);
         }
         if config.version == "1.0.1" {
             // 没有破坏性变化，可以直接采用默认值
             // 这次更新了SaveUnit，增加了delete_before_apply字段，不过这个字段默认值是false，所以不会有问题
-            config.version = "1.0.2".to_owned();
+            "1.0.2".clone_into(&mut config.version);
         }
         if config.version == "1.0.2" {
             // 没有破坏性变化，可以直接采用默认值
-            config.version = "1.1.0".to_owned();
+            "1.1.0".clone_into(&mut config.version);
         }
         tauri::async_runtime::block_on(async { set_config(&config).await })?;
     }

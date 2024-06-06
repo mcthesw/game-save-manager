@@ -160,7 +160,7 @@ pub fn decompress_from_file(
                                         msg: format!("路径 {:?} 不存在，已经自动创建", prefix_root),
                                     },
                                 )
-                                .map_err(|x| anyhow::Error::from(x))?;
+                                .map_err(anyhow::Error::from)?;
                             fs::create_dir_all(prefix_root)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {
@@ -183,7 +183,7 @@ pub fn decompress_from_file(
                                         msg: format!("路径 {:?} 不存在，已经自动创建", target_path),
                                     },
                                 )
-                                .map_err(|x| anyhow::Error::from(x))?;
+                                .map_err(anyhow::Error::from)?;
                             fs::create_dir_all(target_path)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {
