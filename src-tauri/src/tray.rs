@@ -5,8 +5,9 @@ use std::{
 };
 
 use tauri::{
-    api::notification::Notification, App, AppHandle, CustomMenuItem, LogicalSize, Manager, State,
-    SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, SystemTraySubmenu,
+    api::notification::Notification, utils::config::WindowConfig, App, AppHandle, CustomMenuItem,
+    LogicalSize, Manager, State, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
+    SystemTraySubmenu,
 };
 
 use crate::config::{get_config, Game};
@@ -80,13 +81,18 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
             if let Some(window) = app.get_window("main") {
                 window.close().expect("Cannot close window");
             } else {
-                let window = tauri::WindowBuilder::new(
+                let window = tauri::WindowBuilder::from_config(
                     app,
-                    "main",
-                    tauri::WindowUrl::App("index.html".into()),
+                    WindowConfig {
+                        label: "main".to_string(),
+                        url: tauri::WindowUrl::App("index.html".into()),
+                        file_drop_enabled: false, // 必须这样设置，否则窗体内js接收不到drag & drop事件
+                        ..Default::default()
+                    },
                 )
                 .build()
                 .unwrap();
+
                 window
                     .set_size(LogicalSize {
                         width: 1280.0,
