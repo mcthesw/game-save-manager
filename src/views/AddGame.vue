@@ -135,7 +135,7 @@ function save() {
         show_error($t('addgame.invalid_name_error'));
         return
     }
-    if(config.games.find((x) => x.name == game_name.value)) {
+    if(config.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
         show_error($t('addgame.duplicated_name_error'));
         return
     }
