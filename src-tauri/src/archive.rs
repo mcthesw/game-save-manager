@@ -8,11 +8,15 @@ use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 
 use tauri::{AppHandle, Manager};
-use zip::{write::FileOptions, ZipWriter};
+use zip::{
+    write::SimpleFileOptions,
+    ZipWriter,
+};
 
 use crate::{
     config::{SaveUnit, SaveUnitType},
-    errors::{BackupFileError, CompressError}, ipc_handler::{IpcNotification, NotificationLevel},
+    errors::{BackupFileError, CompressError},
+    ipc_handler::{IpcNotification, NotificationLevel},
 };
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
@@ -36,7 +40,7 @@ where
             .to_str()
             .ok_or(BackupFileError::NonePathError)?
             .to_string(),
-        FileOptions::default(),
+        SimpleFileOptions::default().compression_method(zip::CompressionMethod::Bzip2),
     )?;
     let mut paths = Vec::new();
     paths.push(origin);
@@ -57,7 +61,7 @@ where
                 f.read_to_end(&mut buffer)?;
                 writer.start_file(
                     cur_path.to_str().ok_or(BackupFileError::NonePathError)?,
-                    zip::write::FileOptions::default(),
+                    SimpleFileOptions::default().compression_method(zip::CompressionMethod::Bzip2),
                 )?;
                 writer.write_all(&buffer)?;
                 buffer.clear();
@@ -90,7 +94,8 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), 
                                 .ok_or(BackupFileError::NonePathError)?
                                 .to_str()
                                 .ok_or(BackupFileError::NonePathError)?,
-                            zip::write::FileOptions::default(),
+                            SimpleFileOptions::default()
+                                .compression_method(zip::CompressionMethod::Bzip2),
                         )?;
                         zip.write_all(&buf)?;
                     }
@@ -174,7 +179,7 @@ pub fn decompress_from_file(
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !target_path.exists() {
                             // 若文件夹不存在，需要发出警告
-                            app_handle// TODO:i18n
+                            app_handle // TODO:i18n
                                 .emit_all(
                                     "Notification",
                                     IpcNotification {
