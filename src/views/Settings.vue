@@ -215,10 +215,10 @@ const router_list = computed(() => {
                 <ElSwitch v-model="config.settings.default_expend_favorites_tree" :loading="loading" />
                 <span>{{ $t("settings.default_expend_favorites_tree") }}</span>
             </div>
-            <div class="setting-box">
+            <div class="setting-box drag-game-box">
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.adjust_game_order')">
-                        <draggable v-model="config.games" item-key="name">
+                        <draggable v-model="config.games" item-key="name" :force-fallback="true">
                             <template #item="{ element }">
                                 <div class="game-order-box"> 游戏名：{{ element.name }} </div>
                             </template>
@@ -281,4 +281,8 @@ const router_list = computed(() => {
 }
 
 /** 以上是首页选择样式 */
+
+.drag-game-box {
+    user-select: none;
+}
 </style>
