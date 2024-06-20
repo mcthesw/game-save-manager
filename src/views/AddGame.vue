@@ -127,6 +127,8 @@ function search_local() {
     show_warning($t('addgame.wip_warning'));
 }
 function save() {
+    // 去除头尾空字符，防止触发Windows文件命名规则问题
+    game_name.value = game_name.value.trim();
     if (game_name.value == "" || save_paths.length == 0) {
         show_error($t('addgame.no_name_error'));
         return
@@ -135,7 +137,7 @@ function save() {
         show_error($t('addgame.invalid_name_error'));
         return
     }
-    if(config.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
+    if (config.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
         show_error($t('addgame.duplicated_name_error'));
         return
     }
@@ -166,7 +168,7 @@ function reset(show_notification: boolean = true) {
     game_name.value = "";
     save_paths = reactive([]);
     game_path.value = "";
-    // This is a first occurrence of a i18n text duplication. How to handle this?
+    // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
     if (show_notification) { show_success($t('settings.reset_success')); }
 }
 

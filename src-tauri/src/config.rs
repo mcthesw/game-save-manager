@@ -154,6 +154,7 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// if not, then create one
 /// then send the config to the front end
 pub fn config_check() -> Result<(), ConfigError> {
+    // TODO:需要更好的版本升级方法，例如判断 A.B.C 中，只有A或者B发生变化才更新配置
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
