@@ -1,39 +1,39 @@
 import { ElNotification } from "element-plus";
 import { $t } from "../i18n";
 
-function show_error(message: string,title=$t('misc.error')) {
+function show_error(message: string, title = $t('misc.error'), duration = 3000) {
     return ElNotification({
         title,
         message,
         type: "error",
-        duration: 3000,
+        duration: duration,
     });
 }
 
-function show_warning(message: string,title=$t('misc.warning')) {
+function show_warning(message: string, title = $t('misc.warning'), duration = 3000) {
     return ElNotification({
         title,
         message,
         type: "warning",
-        duration: 3000,
+        duration: duration,
     });
 }
 
-function show_success(message: string,title=$t('misc.success')) {
+function show_success(message: string,title=$t('misc.success'),duration=1000) {
     return ElNotification({
         title,
         message,
         type: "success",
-        duration: 1000,
+        duration: duration,
     });
 }
 
-function show_info(message: string,title=$t('misc.info')) {
+function show_info(message: string,title=$t('misc.info'),duration=3000) {
     return ElNotification({
         title,
         message,
         type: "info",
-        duration: 3000,
+        duration: duration,
     });
 }
 

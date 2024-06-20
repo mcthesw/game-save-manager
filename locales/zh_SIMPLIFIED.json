@@ -224,7 +224,8 @@
     "delete_game_failed": "删除游戏失败",
     "open_backup_folder_failed": "打开备份文件夹失败",
     "set_config_failed": "设置配置失败",
-    "reset_settings_failed": "重置设置失败"
+    "reset_settings_failed": "重置设置失败",
+    "change_description_failed": "编辑描述失败"
   },
   "tray": {
     "no_game_selected": "未选择游戏",

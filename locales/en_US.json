@@ -224,7 +224,8 @@
     "delete_game_failed": "Failed to delete game",
     "open_backup_folder_failed": "Failed to open backup folder",
     "set_config_failed": "Failed to set config",
-    "reset_settings_failed": "Failed to reset settings"
+    "reset_settings_failed": "Failed to reset settings",
+    "change_description_failed": "Failed to edit description"
   },
   "tray": {
     "no_game_selected": "No game selected",

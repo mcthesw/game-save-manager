@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { useConfig } from "../stores/ConfigFile";
 import { BackupsInfo, Game } from "../schemas/saveTypes";
 import { useRoute, useRouter } from "vue-router";
-import { show_error, show_info, show_success, show_warning } from "../utils/notifications";
+import { show_error, show_info, show_success } from "../utils/notifications";
 import SaveLocationDrawer from "../components/SaveLocationDrawer.vue";
 import { $t } from "../i18n";
 
@@ -72,7 +72,7 @@ function refresh_backups_info() {
 }
 
 function send_save_to_background() {
-    show_info($t('manage.wait_for_prompt_hint'));
+    let info = show_info($t('manage.wait_for_prompt_hint'), undefined, 0);
     if (!backup_button_time_limit) {
         show_error($t('manage.save_too_fast_error'));
         return;
@@ -96,6 +96,7 @@ function send_save_to_background() {
                 show_error($t('error.backup_failed'))
             }
         ).finally(() => {
+            info.close()
             backup_button_backup_limit = true
             refresh_backups_info();
         })
@@ -156,7 +157,7 @@ function del_save(date: string) {
 }
 
 function apply_save(date: string) {
-    show_warning($t('manage.wait_for_prompt_hint'));
+    let info = show_info($t('manage.wait_for_prompt_hint'),undefined,0);
 
     if (!apply_button_apply_limit) {
         show_error($t('manage.last_overwrite_unfinished_error'));
@@ -175,6 +176,7 @@ function apply_save(date: string) {
             console.log(e)
             show_error($t('error.apply_backup_failed'))
         }).finally(() => {
+            info.close()
             apply_button_apply_limit = true;
             refresh_backups_info();
         })
