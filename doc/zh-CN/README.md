@@ -16,11 +16,11 @@
 ### 编辑器和插件
 
 - Visual Studio Code（推荐）
-    - Rust-analyzer
-    - Tauri
-    - Vue - Official
-    - Element Plus Snippets
-    - i18n Allay
+  - Rust-analyzer
+  - Tauri
+  - Vue - Official
+  - Element Plus Snippets
+  - i18n Allay
 - WebStorm
 - RustRover
 
@@ -31,6 +31,7 @@
 ### 编译与开发
 
 请参考`package.json`来了解指令
+
 - `pnpm tauri:dev` 开发模式，一边预览一边开发
 - `pnpm tauri:build` 编译打包，输出会存放在`src-tauri/target`
 
@@ -39,14 +40,14 @@
 该软件分为两个主要部分：
 
 - 前端负责用户界面和交互。它使用 TypeScript 和 Vue3 编写
-    - 使用 Element Plus 组件库
-    - 使用 pinia 进行状态管理
-    - 使用 vue-router 作为前端路由
-    - 使用 vue-i18n 进行国际化
+  - 使用 Element Plus 组件库
+  - 使用 pinia 进行状态管理
+  - 使用 vue-router 作为前端路由
+  - 使用 vue-i18n 进行国际化
 - 后端负责管理游戏存档文件。它使用 Rust 编写
-    - 使用 opendal 来访问云存储
-    - 使用 serde 来序列化和反序列化数据
-    - 使用 thiserror 和 anyhow 进行错误处理
+  - 使用 opendal 来访问云存储
+  - 使用 serde 来序列化和反序列化数据
+  - 使用 thiserror 和 anyhow 进行错误处理
 
 ## 开发流程
 
@@ -58,6 +59,21 @@
 4. 对代码进行更改，将你的更改提交到你的本地分支
 5. 将你的更改推送到你在 GitHub 上 Fork 的存储库
 6. 创建一个 pull request，将你的更改合并到主存储库的 `dev` 分支中
+
+## 使用`vue-devtools`
+
+首先需要安装 devtools，并且正确启动
+
+```bash
+pnpm add -g @vue/devtools@next
+vue-devtools
+```
+
+接下来请在项目根目录下找到`index.html`，并且在`<head>`标签中添加以下内容
+
+```html
+<script src="http://localhost:8098"></script>
+```
 
 ## 编码风格
 
@@ -86,9 +102,9 @@
 - public: 静态文件
 - scripts: 用于 Github Action 的脚本
 - src: 前端项目的源代码
-    - assets: 静态资源
-    - locales: 国际化资源
-    - schemas: 保存数据的格式
-    - 其他请参考文件夹名
+  - assets: 静态资源
+  - locales: 国际化资源
+  - schemas: 保存数据的格式
+  - 其他请参考文件夹名
 - src-tauri: 后端项目的根目录
-    - src: 后端项目的源代码
+  - src: 后端项目的源代码

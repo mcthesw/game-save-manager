@@ -16,11 +16,11 @@ You will need the following environment installed beforehand:
 ### Editors and Plugins
 
 - Visual Studio Code (recommended)
-    - Rust-analyzer
-    - Tauri
-    - Vue - Official
-    - Element Plus Snippets
-    - i18n Allay
+  - Rust-analyzer
+  - Tauri
+  - Vue - Official
+  - Element Plus Snippets
+  - i18n Allay
 - WebStorm
 - RustRover
 
@@ -31,6 +31,7 @@ You will need the following environment installed beforehand:
 ### Build and Development
 
 Refer to `package.json` for commands
+
 - `pnpm tauri:dev` Development mode, preview while developing
 - `pnpm tauri:build` Build and package, output will be stored in `src-tauri/target`
 
@@ -39,14 +40,14 @@ Refer to `package.json` for commands
 The software is divided into two main parts:
 
 - Frontend is responsible for the user interface and interaction. It is written in TypeScript and Vue3
-    - Uses Element Plus component library
-    - Uses pinia for state management
-    - Uses vue-router for frontend routing
-    - Uses vue-i18n for internationalization
+  - Uses Element Plus component library
+  - Uses pinia for state management
+  - Uses vue-router for frontend routing
+  - Uses vue-i18n for internationalization
 - Backend is responsible for managing the game save files. It is written in Rust
-    - Uses opendal for cloud storage access
-    - Uses serde for data serialization and deserialization
-    - Uses thiserror and anyhow for error handling
+  - Uses opendal for cloud storage access
+  - Uses serde for data serialization and deserialization
+  - Uses thiserror and anyhow for error handling
 
 ## Development Process
 
@@ -58,6 +59,21 @@ To contribute to the Game-save-manager project, you will need to:
 4. Make your changes to the code and commit your changes to your local branch
 5. Push your changes to your forked repository on GitHub
 6. Create a pull request to merge your changes into the `dev` branch of the main repository
+
+## Using `vue-devtools`
+
+First, you need to install the devtools and start them correctly.
+
+```bash
+pnpm add -g @vue/devtools@next
+vue-devtools
+```
+
+Next, please find the `index.html` in the project root directory and add the following content inside the `<head>` tag.
+
+```html
+<script src="http://localhost:8098"></script>
+```
 
 ## Coding Style
 
@@ -86,9 +102,9 @@ Other developers do not need to change the version number, just add your updates
 - public: Static files
 - scripts: Scripts used for Github Actions
 - src: Source code for the frontend project
-    - assets: Static assets
-    - locales: Internationalization resources
-    - schemas: Schemas for saving data
-    - Refer to folder names for others
+  - assets: Static assets
+  - locales: Internationalization resources
+  - schemas: Schemas for saving data
+  - Refer to folder names for others
 - src-tauri: Root directory for the backend project
-    - src: Source code for the backend project
+  - src: Source code for the backend project
