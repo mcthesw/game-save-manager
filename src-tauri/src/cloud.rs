@@ -3,6 +3,7 @@ use std::fs;
 use opendal::services;
 use opendal::Operator;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::backup::BackupListInfo;
 use crate::config::{get_config, set_config, Config};
@@ -87,7 +88,7 @@ pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
         for backup in backup_info.backups {
             // TODO: 此处的cloud_backup_path应当改为本地的路径
             let save_path = format!("{}/{}.zip", &cloud_backup_path, backup.date);
-            println!("uploading {}", save_path);
+            info!(target:"rgsm::cloud","Uploading {}", save_path);
             op.write(&save_path, fs::read(&save_path)?).await?;
         }
     }
@@ -118,7 +119,7 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
         // 写入存档zip文件（不包括额外备份）
         for backup in backup_info.backups {
             let save_path = format!("{}/{}.zip", &backup_path, backup.date);
-            println!("downloading {}", save_path);
+            info!(target:"rgsm::cloud","Downloading {}", save_path);
             let data = op.read(&save_path).await?.to_vec();
             fs::write(&save_path, &data)?;
         }

@@ -4,6 +4,7 @@ use std::{fs, path};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use tauri::api::notification::Notification;
+use tracing::info;
 
 use crate::cloud::CloudSettings;
 use crate::default_value;
@@ -66,7 +67,7 @@ pub struct Settings {
     #[serde(default = "default_value::default_false")]
     pub default_expend_favorites_tree: bool,
     #[serde(default = "default_value::default_home_page")]
-    pub home_page:String
+    pub home_page: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -122,7 +123,7 @@ pub async fn reset_settings() -> Result<(), ConfigError> {
 
 /// Create a config file
 fn init_config() -> Result<(), ConfigError> {
-    println!("Init config file.");
+    info!("Init config file.");
     fs::write(
         "./GameSaveManager.config.json",
         serde_json::to_string_pretty(&default_config())?,

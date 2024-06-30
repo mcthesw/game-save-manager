@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{fs, path};
 use tauri::{AppHandle, Manager};
+use tracing::info;
 
 /// A backup is a zip file that contains
 /// all the file that the save unit has declared.
@@ -142,7 +143,7 @@ impl Game {
             })?;
             extra_backups.sort();
             let oldest = extra_backups.first().ok_or(BackupError::NonePathError)?; // 一定要改好这一行
-            println!("oldest{:?}", oldest);
+            info!("Remove oldest: {:?}", oldest);
             fs::remove_file(extra_backup_path.join(oldest))?;
         }
         Result::Ok(())
@@ -174,7 +175,7 @@ impl Game {
         }
         Ok(())
     }
-    pub async fn delete(&self) -> Result<(), BackupError> {
+    pub async fn delete_game(&self) -> Result<(), BackupError> {
         let mut config = get_config()?;
         let backup_path = PathBuf::from(&config.backup_path).join(&self.name);
         fs::remove_dir_all(&backup_path)?;
@@ -185,8 +186,8 @@ impl Game {
         // 随时同步到云端
         if config.settings.cloud_settings.always_sync {
             let op = config.settings.cloud_settings.backend.get_op()?;
-            println!(
-                "{:#?}",
+            info!(target:"rgsm::cloud",
+                "Delete Game: {:#?}",
                 backup_path.to_str().ok_or(BackupError::NonePathError)?
             );
             // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠

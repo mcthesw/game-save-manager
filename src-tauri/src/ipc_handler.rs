@@ -89,7 +89,7 @@ pub async fn delete_backup(game: Game, date: String) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn delete_game(game: Game) -> Result<(), String> {
-    game.delete().await.map_err(|e| e.to_string())
+    game.delete_game().await.map_err(|e| e.to_string())
 }
 
 #[allow(unused)]
@@ -208,7 +208,7 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
     if let Err(e) = res {
         if let BackupError::BackupFileError(BackupFileError::NotExists(files)) = &e {
             files.iter().try_for_each(|file| {
-                window// TODO:i18n
+                window // TODO:i18n
                     .emit(
                         "Notification",
                         IpcNotification {

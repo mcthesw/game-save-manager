@@ -8,10 +8,7 @@ use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 
 use tauri::{AppHandle, Manager};
-use zip::{
-    write::SimpleFileOptions,
-    ZipWriter,
-};
+use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
     config::{SaveUnit, SaveUnitType},

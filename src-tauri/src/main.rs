@@ -9,9 +9,11 @@ use rust_i18n::t;
 i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use config::get_config;
+use tracing::info;
 
 use std::sync::{Arc, Mutex};
 use tauri::api::notification::Notification;
+use tracing_subscriber::{filter::LevelFilter, Layer};
 
 use crate::config::config_check;
 
@@ -25,7 +27,7 @@ mod ipc_handler;
 mod tray;
 
 fn main() {
-    
+    let _log_handle = init_log();
     let app = tauri::Builder::default()
         .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
         .invoke_handler(tauri::generate_handler![
@@ -55,7 +57,7 @@ fn main() {
     // 只允许运行一个实例
     let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
     config_check().expect("Cannot check config file");
-    println!("{}", t!("home.hello_world"));
+    info!("{}", t!("home.hello_world"));
 
     // 处理退出到托盘
     if let Ok(config) = get_config() {
@@ -83,4 +85,20 @@ fn main() {
         .body("Initiating notification module")
         .show()
         .expect("Cannot show notification");
+}
+
+fn init_log() -> () {
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+
+    let file_appender = tracing_appender::rolling::daily("./log", "RGSM");
+
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(
+            fmt::layer()
+                .with_writer(file_appender)
+                .with_ansi(false)
+                .with_filter(LevelFilter::INFO),
+        )
+        .init();
 }
