@@ -28,7 +28,7 @@ mod tray;
 mod traits;
 
 fn main() {
-    let _log_handle = init_log();
+    init_log();
     info!("{}", t!("home.hello_world"));
     let app = tauri::Builder::default()
         .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
@@ -91,7 +91,7 @@ fn main() {
         .expect("Cannot show notification");
 }
 
-fn init_log() -> () {
+fn init_log(){
     use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
     let file_appender = tracing_appender::rolling::daily("./log", "RGSM");
