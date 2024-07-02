@@ -25,6 +25,7 @@ mod default_value;
 mod errors;
 mod ipc_handler;
 mod tray;
+mod traits;
 
 fn main() {
     let _log_handle = init_log();

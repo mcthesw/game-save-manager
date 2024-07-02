@@ -1,6 +1,7 @@
 use crate::backup::BackupListInfo;
 use crate::cloud::{self, upload_all, Backend};
 use crate::config::{get_config, Config, Game};
+use crate::traits::Sanitizable;
 use crate::{backup, config};
 use crate::{errors::*, tray};
 use anyhow::Result;
@@ -128,7 +129,7 @@ pub async fn get_backup_list_info(game: Game) -> Result<BackupListInfo, String> 
 #[allow(unused)]
 #[tauri::command]
 pub async fn set_config(config: Config) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Setting config: {:?}", config);
+    info!(target:"rgsm::ipc", "Setting config: {:?}", config.clone().sanitize());
     config::set_config(&config).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
         e.to_string()
@@ -167,7 +168,7 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", backend);
+    info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", backend.clone().sanitize());
     match backend.check().await {
         Ok(_) => Ok(()),
         Err(e) => {
@@ -180,7 +181,7 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Uploading all backups to cloud backend: {:?}", backend);
+    info!(target:"rgsm::ipc", "Uploading all backups to cloud backend: {:?}", backend.clone().sanitize());
     let op = backend.get_op().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get cloud backend operator: {:?}", e);
         e.to_string()
@@ -197,7 +198,7 @@ pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
 #[allow(unused)]
 #[tauri::command]
 pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Downloading all backups from cloud backend: {:?}", backend);
+    info!(target:"rgsm::ipc", "Downloading all backups from cloud backend: {:?}", backend.clone().sanitize());
     let op = backend.get_op().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get cloud backend operator: {:?}", e);
         e.to_string()
