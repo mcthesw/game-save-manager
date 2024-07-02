@@ -3,6 +3,7 @@
         "appender",
         "chrono",
         "opendal",
+        "rgsm",
         "Webdav"
     ]
 }
