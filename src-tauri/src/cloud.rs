@@ -9,8 +9,9 @@ use crate::backup::BackupListInfo;
 use crate::config::{get_config, set_config, Config};
 use crate::default_value;
 use crate::errors::BackendError;
+use crate::traits::Sanitizable;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum Backend {
     // TODO:增加更多后端支持
@@ -22,7 +23,7 @@ pub enum Backend {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CloudSettings {
     /// 是否启用跟随云同步（用户添加、删除时自动同步）
     #[serde(default = "default_value::default_false")]
@@ -36,6 +37,15 @@ pub struct CloudSettings {
     /// 云同步后端设置
     #[serde(default = "default_value::default_backend")]
     pub backend: Backend,
+}
+
+impl Sanitizable for CloudSettings {
+    fn sanitize(self) -> Self {
+        CloudSettings {
+            backend: self.backend.sanitize(),
+            ..self
+        }
+    }
 }
 
 impl Backend {
@@ -66,6 +76,23 @@ impl Backend {
     pub async fn check(&self) -> Result<(), BackendError> {
         self.get_op()?.check().await?;
         Ok(())
+    }
+}
+
+impl Sanitizable for Backend {
+    fn sanitize(self) -> Self {
+        match self {
+            Backend::Disabled => Backend::Disabled,
+            Backend::WebDAV {
+                endpoint,
+                username: _,
+                password: _,
+            } => Backend::WebDAV {
+                endpoint: endpoint.clone(),
+                username: "*username*".to_string(),
+                password: "*password*".to_string(),
+            },
+        }
     }
 }
 
