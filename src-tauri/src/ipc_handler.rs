@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::api::dialog;
 use tauri::{AppHandle, Window};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -171,7 +171,7 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
     match backend.check().await {
         Ok(_) => Ok(()),
         Err(e) => {
-            error!(target:"rgsm::ipc", "Failed to check clouFd backend: {:?}", e);
+            error!(target:"rgsm::ipc", "Failed to check cloud backend: {:?}", e);
             Err(e.to_string())
         }
     }
@@ -265,7 +265,7 @@ pub async fn get_locale_message(
     for locale in &locales {
         match Asset::get(&format!("locales/{}.json", locale)) {
             Some(embed_file) => {
-                info!(target:"rgsm::ipc","Found locale file for: {}", locale);
+                debug!(target:"rgsm::ipc","Found locale file for: {}", locale);
                 let file_str = match std::str::from_utf8(embed_file.data.as_ref()) {
                     Ok(s) => s,
                     Err(e) => {
@@ -281,7 +281,7 @@ pub async fn get_locale_message(
                     }
                 };
                 map.insert(locale.to_owned(), locale_json);
-                info!(target:"rgsm::ipc","Successfully loaded locale file for: {}", locale);
+                debug!(target:"rgsm::ipc","Successfully loaded locale file for: {}", locale);
             }
             None => {
                 error!(target:"rgsm::ipc","Locale file not found for: {}", locale);

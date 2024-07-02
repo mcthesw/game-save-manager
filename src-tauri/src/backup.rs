@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{fs, path};
 use tauri::{AppHandle, Manager};
-use tracing::info;
+use tracing::{error, info};
 
 /// A backup is a zip file that contains
 /// all the file that the save unit has declared.
@@ -95,7 +95,9 @@ impl Game {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name);
         if config.settings.extra_backup_when_apply {
+            info!(target:"rgsm::backup","Creating extra backup.");
             if let Err(e) = self.create_extra_backup() {
+                error!(target:"rgsm::backup","Failed to create extra backup: {:?}", e);
                 app_handle // TODO:i18n
                     .emit_all(
                         "Notification",

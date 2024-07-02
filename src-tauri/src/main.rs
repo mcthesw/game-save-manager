@@ -9,10 +9,10 @@ use rust_i18n::t;
 i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use config::get_config;
-use tracing::info;
 
 use std::sync::{Arc, Mutex};
 use tauri::api::notification::Notification;
+use tracing::{error, info};
 use tracing_subscriber::{filter::LevelFilter, Layer};
 
 use crate::config::config_check;
@@ -28,6 +28,7 @@ mod tray;
 
 fn main() {
     let _log_handle = init_log();
+    info!("{}", t!("home.hello_world"));
     let app = tauri::Builder::default()
         .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
         .invoke_handler(tauri::generate_handler![
@@ -56,8 +57,10 @@ fn main() {
 
     // 只允许运行一个实例
     let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
-    config_check().expect("Cannot check config file");
-    info!("{}", t!("home.hello_world"));
+    if let Err(e) = config_check() {
+        error!("Check on config file filed: {}", e);
+        panic!("Check on config file filed.");
+    }
 
     // 处理退出到托盘
     if let Ok(config) = get_config() {
