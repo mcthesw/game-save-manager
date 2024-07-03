@@ -4,10 +4,12 @@ use std::{fs, path};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use tauri::api::notification::Notification;
+use tracing::info;
 
 use crate::cloud::CloudSettings;
 use crate::default_value;
 use crate::errors::ConfigError;
+use crate::traits::Sanitizable;
 
 /// A save unit should be a file or a folder
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -27,25 +29,15 @@ pub struct SaveUnit {
 }
 
 /// A game struct contains the save units and the game's launcher
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Game {
     pub name: String,
     pub save_paths: Vec<SaveUnit>,
     pub game_path: Option<String>,
 }
 
-impl Clone for Game {
-    fn clone(&self) -> Self {
-        Game {
-            name: self.name.clone(),
-            save_paths: self.save_paths.clone(),
-            game_path: self.game_path.clone(),
-        }
-    }
-}
-
 /// Settings that can be configured by user
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Settings {
     #[serde(default = "default_value::default_true")]
     pub prompt_when_not_described: bool,
@@ -66,10 +58,19 @@ pub struct Settings {
     #[serde(default = "default_value::default_false")]
     pub default_expend_favorites_tree: bool,
     #[serde(default = "default_value::default_home_page")]
-    pub home_page:String
+    pub home_page: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl Sanitizable for Settings {
+    fn sanitize(self) -> Self {
+        Settings {
+            cloud_settings: self.cloud_settings.sanitize(),
+            ..self
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FavoriteTreeNode {
     node_id: String,
     label: String,
@@ -80,7 +81,7 @@ pub struct FavoriteTreeNode {
 /// The software's configuration
 /// include the version, backup's location path, games'info,
 /// and the settings
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     pub version: String,
     pub backup_path: String,
@@ -90,31 +91,41 @@ pub struct Config {
     pub favorites: Vec<FavoriteTreeNode>,
 }
 
-/// Get the default config struct
-fn default_config() -> Config {
-    Config {
-        version: String::from("1.2.0"),
-        backup_path: String::from("./save_data"),
-        games: Vec::new(),
-        settings: Settings {
-            prompt_when_not_described: false,
-            extra_backup_when_apply: true,
-            show_edit_button: false,
-            prompt_when_auto_backup: true,
-            cloud_settings: default_value::default_cloud_settings(),
-            exit_to_tray: true,
-            locale: default_value::default_locale(),
-            default_delete_before_apply: false,
-            default_expend_favorites_tree: false,
-            home_page: default_value::default_home_page(),
-        },
-        favorites: vec![],
+impl Sanitizable for Config {
+    fn sanitize(self) -> Self {
+        Config {
+            settings: self.settings.sanitize(),
+            ..self
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            version: String::from("1.2.0"),
+            backup_path: String::from("./save_data"),
+            games: Vec::new(),
+            settings: Settings {
+                prompt_when_not_described: false,
+                extra_backup_when_apply: true,
+                show_edit_button: false,
+                prompt_when_auto_backup: true,
+                cloud_settings: default_value::default_cloud_settings(),
+                exit_to_tray: true,
+                locale: default_value::default_locale(),
+                default_delete_before_apply: false,
+                default_expend_favorites_tree: false,
+                home_page: default_value::default_home_page(),
+            },
+            favorites: vec![],
+        }
     }
 }
 
 /// Set settings to original state
 pub async fn reset_settings() -> Result<(), ConfigError> {
-    let settings = default_config().settings;
+    let settings = Config::default().settings;
     let mut config = get_config()?;
     config.settings = settings;
     set_config(&config).await
@@ -122,10 +133,10 @@ pub async fn reset_settings() -> Result<(), ConfigError> {
 
 /// Create a config file
 fn init_config() -> Result<(), ConfigError> {
-    println!("Init config file.");
+    info!("Init config file.");
     fs::write(
         "./GameSaveManager.config.json",
-        serde_json::to_string_pretty(&default_config())?,
+        serde_json::to_string_pretty(&Config::default())?,
     )?;
     Ok(())
 }
@@ -160,7 +171,7 @@ pub fn config_check() -> Result<(), ConfigError> {
         init_config()?;
     }
     let mut config = get_config()?;
-    if config.version != default_config().version {
+    if config.version != Config::default().version {
         Notification::new("Update Config Info")
             .title(t!("backend_config.updating_config_title"))
             .body(t!("backend_config.updating_config_body"))
@@ -204,12 +215,12 @@ fn backup_old_config() -> Result<(), ConfigError> {
 
 #[cfg(test)]
 mod test {
-    use super::{default_config, Game, SaveUnit, SaveUnitType};
+    use super::{Config, Game, SaveUnit, SaveUnitType};
     use anyhow::Result;
 
     #[test]
     fn serialize_default_config() -> Result<()> {
-        let config = default_config();
+        let config = Config::default();
         let json = serde_json::to_string_pretty(&config)?;
         println!("序列化得到:\n{}", json);
         Ok(())

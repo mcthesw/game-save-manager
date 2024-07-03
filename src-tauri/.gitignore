@@ -8,3 +8,5 @@ GameSaveManager.config.json
 
 /.vscode/
 /.idea/
+
+/log/

@@ -1,7 +1,10 @@
 {
     "cSpell.words": [
+        "appender",
         "chrono",
         "opendal",
+        "rgsm",
+        "sanitizable",
         "Webdav"
     ]
 }

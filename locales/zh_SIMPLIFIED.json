@@ -33,7 +33,8 @@
     "failed": "操作失败",
     "operation_canceled": "您取消了这次操作",
     "default_expend_favorites_tree": "是否默认展开收藏夹",
-    "homepage": "启动页面"
+    "homepage": "启动页面",
+    "open_log_folder": "打开日志"
   },
   "home": {
     "hello_world": "你好 世界",
@@ -225,7 +226,8 @@
     "open_backup_folder_failed": "打开备份文件夹失败",
     "set_config_failed": "设置配置失败",
     "reset_settings_failed": "重置设置失败",
-    "change_description_failed": "编辑描述失败"
+    "change_description_failed": "编辑描述失败",
+    "open_log_folder_failed": "无法打开日志文件夹"
   },
   "tray": {
     "no_game_selected": "未选择游戏",

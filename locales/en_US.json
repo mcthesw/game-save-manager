@@ -33,7 +33,8 @@
     "failed": "Operation failed",
     "operation_canceled": "You have cancelled this operation",
     "default_expend_favorites_tree": "Whether to expand favorites by default",
-    "homepage": "Homepage"
+    "homepage": "Homepage",
+    "open_log_folder": "Open log"
   },
   "home": {
     "hello_world": "Hello world",
@@ -225,7 +226,8 @@
     "open_backup_folder_failed": "Failed to open backup folder",
     "set_config_failed": "Failed to set config",
     "reset_settings_failed": "Failed to reset settings",
-    "change_description_failed": "Failed to edit description"
+    "change_description_failed": "Failed to edit description",
+    "open_log_folder_failed": "Cannot open log folder"
   },
   "tray": {
     "no_game_selected": "No game selected",

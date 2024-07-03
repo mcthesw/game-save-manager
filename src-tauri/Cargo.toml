@@ -32,6 +32,9 @@ opendal = { version = "0.47.0", features = ["services-webdav"] }
 tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 rust-i18n = "3.0.1"
 rust-embed = { version = "8.4.0", features = ["debug-embed", "compression"] }
+tracing-subscriber = { version = "0.3.18", features = ["local-time"] }
+tracing-appender = "0.2.3"
+tracing = "0.1.40"
 
 [features]
 # by default Tauri runs in production mode

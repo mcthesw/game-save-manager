@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+// TODO:调整日志设置，比如删除日
 import { computed, ref, watch } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -50,20 +51,6 @@ function reset_settings() {
             show_error($t("error.reset_settings_failed"))
         }
     )
-}
-
-function move_up(game: Game) {
-    console.log(game)
-    let index = config.games.findIndex((x) => x.name == game.name)
-    if (index != 0) {
-        config.games[index] = config.games.splice(index - 1, 1, config.games[index])[0];
-    }
-}
-function move_down(game: Game) {
-    let index = config.games.findIndex((x) => x.name == game.name)
-    if (index != config.games.length - 1) {
-        config.games[index] = config.games.splice(index + 1, 1, config.games[index])[0];
-    }
 }
 
 function backup_all() {
@@ -118,6 +105,16 @@ function apply_all() {
         });
 }
 
+function open_log_folder() {
+    invoke("open_url", { url: "log" })
+        .catch(
+            (e) => {
+                console.log(e)
+                show_error($t('error.open_log_folder_failed'))
+            }
+        )
+}
+
 watch(
     () => config.settings.locale,
     (new_locale, _old_locale) => {
@@ -151,6 +148,7 @@ const router_list = computed(() => {
             <div class="button-bar">
                 <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
                 <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
+                <el-button @click="open_log_folder()">{{ $t("settings.open_log_folder") }}</el-button>
                 <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
                     <template #reference>
                         <el-button type="danger">{{ $t("settings.reset_settings") }}</el-button>
@@ -284,5 +282,9 @@ const router_list = computed(() => {
 
 .drag-game-box {
     user-select: none;
+}
+
+.el-select {
+    max-width: 200px;
 }
 </style>

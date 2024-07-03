@@ -18,7 +18,7 @@ pub enum BackupFileError {
 }
 
 /// 压缩或解压缩时发生的错误
-#[derive(Debug,Error)]
+#[derive(Debug, Error)]
 pub enum CompressError {
     #[error(transparent)]
     Single(#[from] BackupFileError),

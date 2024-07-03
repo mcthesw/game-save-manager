@@ -12,7 +12,7 @@ pub fn default_zero() -> u64 {
 pub fn default_root_path() -> String {
     "/game-save-manager".to_string()
 }
-pub fn default_home_page()  -> String {
+pub fn default_home_page() -> String {
     "/home".to_string()
 }
 pub fn default_backend() -> Backend {
@@ -29,6 +29,6 @@ pub fn default_cloud_settings() -> CloudSettings {
 pub fn default_locale() -> String {
     "zh_SIMPLIFIED".to_owned()
 }
-pub fn empty_vec<T>() -> Vec<T>{
+pub fn empty_vec<T>() -> Vec<T> {
     Vec::new()
 }
