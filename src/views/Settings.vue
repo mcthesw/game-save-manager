@@ -105,6 +105,16 @@ function apply_all() {
         });
 }
 
+function open_log_folder() {
+    invoke("open_url", { url: "log" })
+        .catch(
+            (e) => {
+                console.log(e)
+                show_error($t('error.open_log_folder_failed'))
+            }
+        )
+}
+
 watch(
     () => config.settings.locale,
     (new_locale, _old_locale) => {
@@ -138,6 +148,7 @@ const router_list = computed(() => {
             <div class="button-bar">
                 <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
                 <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
+                <el-button @click="open_log_folder()">{{ $t("settings.open_log_folder") }}</el-button>
                 <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
                     <template #reference>
                         <el-button type="danger">{{ $t("settings.reset_settings") }}</el-button>
