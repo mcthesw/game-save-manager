@@ -24,8 +24,8 @@ mod config;
 mod default_value;
 mod errors;
 mod ipc_handler;
-mod tray;
 mod traits;
+mod tray;
 
 fn main() {
     init_log();
@@ -91,15 +91,22 @@ fn main() {
         .expect("Cannot show notification");
 }
 
-fn init_log(){
-    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-    let file_appender = tracing_appender::rolling::daily("./log", "RGSM");
+fn init_log() {
+    use tracing_appender::rolling::{RollingFileAppender, Rotation};
+    use tracing_subscriber::{fmt, fmt::time, layer::SubscriberExt, util::SubscriberInitExt};
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY) // rotate log files once every hour
+        .filename_prefix("RGSM") // log file names will be prefixed with `myapp.`
+        .filename_suffix("log")
+        .max_log_files(3) // log file names will be suffixed with `.log`
+        .build("./log") // try to build an appender that stores log files in `/var/log`
+        .expect("initializing rolling file appender failed");
 
     tracing_subscriber::registry()
-        .with(fmt::layer())
+        .with(fmt::layer().with_timer(time::LocalTime::rfc_3339()))
         .with(
             fmt::layer()
+                .with_timer(time::LocalTime::rfc_3339())
                 .with_writer(file_appender)
                 .with_ansi(false)
                 .with_filter(LevelFilter::INFO),

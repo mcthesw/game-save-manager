@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+// TODO:调整日志设置，比如删除日
 import { computed, ref, watch } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -50,20 +51,6 @@ function reset_settings() {
             show_error($t("error.reset_settings_failed"))
         }
     )
-}
-
-function move_up(game: Game) {
-    console.log(game)
-    let index = config.games.findIndex((x) => x.name == game.name)
-    if (index != 0) {
-        config.games[index] = config.games.splice(index - 1, 1, config.games[index])[0];
-    }
-}
-function move_down(game: Game) {
-    let index = config.games.findIndex((x) => x.name == game.name)
-    if (index != config.games.length - 1) {
-        config.games[index] = config.games.splice(index + 1, 1, config.games[index])[0];
-    }
 }
 
 function backup_all() {
@@ -284,5 +271,9 @@ const router_list = computed(() => {
 
 .drag-game-box {
     user-select: none;
+}
+
+.el-select {
+    max-width: 200px;
 }
 </style>
