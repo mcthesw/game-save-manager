@@ -3688,6 +3688,7 @@ dependencies = [
  "opendal",
  "rust-embed",
  "rust-i18n",
+ "semver",
  "serde",
  "serde_json",
  "tauri",
