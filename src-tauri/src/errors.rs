@@ -108,4 +108,6 @@ pub enum ConfigError {
     BackendError(#[from] BackendError),
     #[error("Tauri error: {0:#?}")]
     TauriError(#[from] tauri::Error),
+    #[error("Semver error: {0:#?}")]
+    SemverError(#[from] semver::Error),
 }

@@ -35,6 +35,7 @@ rust-embed = { version = "8.4.0", features = ["debug-embed", "compression"] }
 tracing-subscriber = { version = "0.3.18", features = ["local-time"] }
 tracing-appender = "0.2.3"
 tracing = "0.1.40"
+semver = "1.0.23"
 
 [features]
 # by default Tauri runs in production mode

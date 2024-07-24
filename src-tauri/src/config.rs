@@ -2,6 +2,7 @@ use std::fs::File;
 use std::{fs, path};
 
 use rust_i18n::t;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use tauri::api::notification::Notification;
 use tracing::info;
@@ -60,7 +61,7 @@ pub struct Settings {
     #[serde(default = "default_value::default_home_page")]
     pub home_page: String,
     #[serde(default = "default_value::default_true")]
-    pub log_to_file:bool,
+    pub log_to_file: bool,
 }
 
 impl Sanitizable for Settings {
@@ -119,7 +120,7 @@ impl Default for Config {
                 default_delete_before_apply: false,
                 default_expend_favorites_tree: false,
                 home_page: default_value::default_home_page(),
-                log_to_file: true
+                log_to_file: true,
             },
             favorites: vec![],
         }
@@ -168,48 +169,48 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// if not, then create one
 /// then send the config to the front end
 pub fn config_check() -> Result<(), ConfigError> {
-    // TODO:需要更好的版本升级方法，例如判断 A.B.C 中，只有A或者B发生变化才更新配置
     let config_path = path::Path::new("./GameSaveManager.config.json");
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
     }
     let mut config = get_config()?;
-    if config.version != Config::default().version {
+
+    // 处理早期版本兼容性
+    if config.version == "1.0.0 alpha" {
+        "1.0.0-alpha".clone_into(&mut config.version);
+    }
+    let software_version = Version::parse(&Config::default().version)?;
+    let config_version = Version::parse(&config.version)?;
+    if config_version != software_version {
         Notification::new("Update Config Info")
             .title(t!("backend_config.updating_config_title"))
             .body(t!("backend_config.updating_config_body"))
             .show()
             .expect("Cannot show notification");
         backup_old_config()?;
-        if config.version == "1.0.0 alpha" {
-            // 没有破坏性变化，可以直接采用默认值
-            "1.0.0".clone_into(&mut config.version);
-        }
-        if config.version == "1.0.0" {
-            // 没有破坏性变化，可以直接采用默认值
-            "1.0.1".clone_into(&mut config.version);
-        }
-        if config.version == "1.0.1" {
-            // 没有破坏性变化，可以直接采用默认值
-            // 这次更新了SaveUnit，增加了delete_before_apply字段，不过这个字段默认值是false，所以不会有问题
-            "1.0.2".clone_into(&mut config.version);
-        }
-        if config.version == "1.0.2" {
-            // 没有破坏性变化，可以直接采用默认值
-            "1.1.0".clone_into(&mut config.version);
-        }
-        if config.version == "1.1.0" {
-            // 没有破坏性，可以直接采用默认值
-            "1.2.0".clone_into(&mut config.version);
-        }
-        if config.version == "1.2.0" {
-            // 没有破坏性，可以直接采用默认值
-            "1.3.0".clone_into(&mut config.version);
-        }
-        tauri::async_runtime::block_on(async { set_config(&config).await })?;
     }
+    if config_version < Version::parse("1.0.0")? {
+        panic!("The config version is not supported.It's too old.")
+    }
+    if config_version < software_version {
+        upgrade_config_version(&mut config, &software_version)?;
+    }
+    if config_version > software_version {
+        panic!("The config version is higher than the software.")
+    }
+
     rust_i18n::set_locale(&config.settings.locale);
     Ok(()) // return the config json
+}
+
+fn upgrade_config_version(
+    config: &mut Config,
+    software_version: &semver::Version,
+) -> Result<(), ConfigError> {
+    // 由于1.0之后版本保持了兼容性，因此不需要做任何处理，仅更新版本号并保存
+    config.version = software_version.to_string();
+    tauri::async_runtime::block_on(async { set_config(config).await })?;
+    Ok(())
 }
 
 fn backup_old_config() -> Result<(), ConfigError> {
