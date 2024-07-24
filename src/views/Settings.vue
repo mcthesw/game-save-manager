@@ -222,7 +222,7 @@ const router_list = computed(() => {
                     <ElCollapseItem :title="$t('settings.adjust_game_order')">
                         <draggable v-model="config.games" item-key="name" :force-fallback="true">
                             <template #item="{ element }">
-                                <div class="game-order-box"> 游戏名：{{ element.name }} </div>
+                                <div class="game-order-box"> {{ element.name }} </div>
                             </template>
                         </draggable>
                     </ElCollapseItem>
