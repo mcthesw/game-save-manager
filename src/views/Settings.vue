@@ -145,6 +145,7 @@ const router_list = computed(() => {
     <el-container class="setting" direction="vertical">
         <el-card>
             <h1>{{ $t("settings.customizable_settings") }}</h1>
+            <p>{{ $t("settings.setting_tips") }}</p>
             <div class="button-bar">
                 <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
                 <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
@@ -191,7 +192,7 @@ const router_list = computed(() => {
             </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.exit_to_tray" :loading="loading" />
-                <span>{{ $t("settings.exit_to_tray") }}</span>
+                <span>{{ $t("settings.exit_to_tray") }}*</span>
             </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.extra_backup_when_apply" :loading="loading" />
@@ -215,7 +216,7 @@ const router_list = computed(() => {
             </div>
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.log_to_file" :loading="loading" />
-                <span>{{ $t("settings.log_to_file") }}</span>
+                <span>{{ $t("settings.log_to_file") }}*</span>
             </div>
             <div class="setting-box drag-game-box">
                 <ElCollapse>

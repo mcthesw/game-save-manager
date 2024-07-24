@@ -35,7 +35,8 @@
     "default_expend_favorites_tree": "Whether to expand favorites by default",
     "homepage": "Homepage",
     "open_log_folder": "Open log",
-    "log_to_file": "Generate file log"
+    "log_to_file": "Generate file log",
+    "setting_tips": "An asterisk indicates that it will take effect after restarting, and the remaining settings will take effect after saving."
   },
   "home": {
     "hello_world": "Hello world",
