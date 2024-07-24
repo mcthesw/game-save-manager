@@ -105,7 +105,7 @@ impl Sanitizable for Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: String::from("1.2.0"),
+            version: String::from("1.3.0"),
             backup_path: String::from("./save_data"),
             games: Vec::new(),
             settings: Settings {
@@ -201,6 +201,10 @@ pub fn config_check() -> Result<(), ConfigError> {
         if config.version == "1.1.0" {
             // 没有破坏性，可以直接采用默认值
             "1.2.0".clone_into(&mut config.version);
+        }
+        if config.version == "1.2.0" {
+            // 没有破坏性，可以直接采用默认值
+            "1.3.0".clone_into(&mut config.version);
         }
         tauri::async_runtime::block_on(async { set_config(&config).await })?;
     }
