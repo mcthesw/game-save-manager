@@ -8,11 +8,11 @@ extern crate rust_i18n;
 use rust_i18n::t;
 i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
-use config::get_config;
+use config::{get_config, Config};
 
 use std::sync::{Arc, Mutex};
 use tauri::api::notification::Notification;
-use tracing::{error, info};
+use tracing::info;
 use tracing_subscriber::{filter::LevelFilter, Layer};
 
 use crate::config::config_check;
@@ -28,8 +28,17 @@ mod traits;
 mod tray;
 
 fn main() {
-    init_log();
+    // Init config
+    if let Err(e) = config_check() {
+        panic!("Check on config file filed: {:?}", e);
+    }
+    let config = get_config().unwrap_or_else(|e| panic!("Cannot load config file: {:?}", e));
+
+    // Init log
+    init_log(&config);
     info!("{}", t!("home.hello_world"));
+
+    // Init app
     let app = tauri::Builder::default()
         .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
         .invoke_handler(tauri::generate_handler![
@@ -58,27 +67,22 @@ fn main() {
 
     // 只允许运行一个实例
     let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
-    if let Err(e) = config_check() {
-        error!("Check on config file filed: {}", e);
-        panic!("Check on config file filed.");
-    }
 
     // 处理退出到托盘
-    if let Ok(config) = get_config() {
-        if config.settings.exit_to_tray {
-            app.system_tray(tray::get_tray())
-                .on_system_tray_event(tray::tray_event_handler)
-                .setup(tray::setup_timer)
-                .build(tauri::generate_context!())
-                .expect("Cannot build tauri app")
-                .run(|_app_handle, event| {
-                    if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                        api.prevent_exit();
-                    }
-                });
-            return;
-        }
+    if config.settings.exit_to_tray {
+        app.system_tray(tray::get_tray())
+            .on_system_tray_event(tray::tray_event_handler)
+            .setup(tray::setup_timer)
+            .build(tauri::generate_context!())
+            .expect("Cannot build tauri app")
+            .run(|_app_handle, event| {
+                if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                    api.prevent_exit();
+                }
+            });
+        return;
     }
+
     // 不需要退出到托盘
     app.run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -91,25 +95,29 @@ fn main() {
         .expect("Cannot show notification");
 }
 
-fn init_log() {
+fn init_log(config: &Config) {
     use tracing_appender::rolling::{RollingFileAppender, Rotation};
     use tracing_subscriber::{fmt, fmt::time, layer::SubscriberExt, util::SubscriberInitExt};
-    let file_appender = RollingFileAppender::builder()
-        .rotation(Rotation::DAILY) // rotate log files once every hour
-        .filename_prefix("RGSM") // log file names will be prefixed with `myapp.`
-        .filename_suffix("log")
-        .max_log_files(3) // log file names will be suffixed with `.log`
-        .build("./log") // try to build an appender that stores log files in `/var/log`
-        .expect("initializing rolling file appender failed");
 
-    tracing_subscriber::registry()
-        .with(fmt::layer().with_timer(time::LocalTime::rfc_3339()))
-        .with(
-            fmt::layer()
-                .with_timer(time::LocalTime::rfc_3339())
-                .with_writer(file_appender)
-                .with_ansi(false)
-                .with_filter(LevelFilter::INFO),
-        )
-        .init();
+    let console_layer = fmt::layer().with_timer(time::LocalTime::rfc_3339());
+
+    if config.settings.log_to_file {
+        let file_appender = RollingFileAppender::builder()
+            .rotation(Rotation::DAILY)
+            .filename_prefix("RGSM")
+            .filename_suffix("log")
+            .max_log_files(3)
+            .build("./log")
+            .expect("initializing rolling file appender failed");
+
+        let file_layer = fmt::layer()
+            .with_timer(time::LocalTime::rfc_3339())
+            .with_writer(file_appender)
+            .with_ansi(false)
+            .with_filter(LevelFilter::INFO);
+
+        tracing_subscriber::registry().with(console_layer).with(file_layer).init();
+    } else {
+        tracing_subscriber::registry().with(console_layer).init();
+    };
 }

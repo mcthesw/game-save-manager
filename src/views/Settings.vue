@@ -213,6 +213,10 @@ const router_list = computed(() => {
                 <ElSwitch v-model="config.settings.default_expend_favorites_tree" :loading="loading" />
                 <span>{{ $t("settings.default_expend_favorites_tree") }}</span>
             </div>
+            <div class="setting-box">
+                <ElSwitch v-model="config.settings.log_to_file" :loading="loading" />
+                <span>{{ $t("settings.log_to_file") }}</span>
+            </div>
             <div class="setting-box drag-game-box">
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.adjust_game_order')">

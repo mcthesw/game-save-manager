@@ -34,7 +34,8 @@
     "operation_canceled": "您取消了这次操作",
     "default_expend_favorites_tree": "是否默认展开收藏夹",
     "homepage": "启动页面",
-    "open_log_folder": "打开日志"
+    "open_log_folder": "打开日志",
+    "log_to_file": "生成文件日志"
   },
   "home": {
     "hello_world": "你好 世界",

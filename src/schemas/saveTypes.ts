@@ -102,6 +102,10 @@ export interface Settings {
      * 进入时的默认页面
      */
     home_page: string,
+    /**
+     * 是否写入日志文件
+     */
+    log_to_file: boolean,
 }
 
 export interface FavoriteTreeNode {
@@ -168,7 +172,8 @@ export let default_config: Config = {
         locale: "zh_SIMPLIFIED",
         default_delete_before_apply: false,
         default_expend_favorites_tree: false,
-        home_page: "/home"
+        home_page: "/home",
+        log_to_file: true
     },
     favorites: [],
 };

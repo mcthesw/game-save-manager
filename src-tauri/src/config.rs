@@ -59,6 +59,8 @@ pub struct Settings {
     pub default_expend_favorites_tree: bool,
     #[serde(default = "default_value::default_home_page")]
     pub home_page: String,
+    #[serde(default = "default_value::default_true")]
+    pub log_to_file:bool,
 }
 
 impl Sanitizable for Settings {
@@ -117,6 +119,7 @@ impl Default for Config {
                 default_delete_before_apply: false,
                 default_expend_favorites_tree: false,
                 home_page: default_value::default_home_page(),
+                log_to_file: true
             },
             favorites: vec![],
         }

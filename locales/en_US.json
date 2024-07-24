@@ -34,7 +34,8 @@
     "operation_canceled": "You have cancelled this operation",
     "default_expend_favorites_tree": "Whether to expand favorites by default",
     "homepage": "Homepage",
-    "open_log_folder": "Open log"
+    "open_log_folder": "Open log",
+    "log_to_file": "Generate file log"
   },
   "home": {
     "hello_world": "Hello world",
