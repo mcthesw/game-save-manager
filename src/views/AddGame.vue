@@ -233,7 +233,7 @@ function deleteRow(index: number) {
 .bold {
     margin-left: 10px;
     font-weight: bold;
-    color: #000000;
+    color: var(--el-text-color-primary);
 }
 
 .save-table {

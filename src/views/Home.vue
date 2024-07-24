@@ -93,4 +93,8 @@ function go_backup() {
     margin-top: 100px;
     justify-content: space-around;
 }
+
+svg {
+    fill: var(--el-text-color-primary);
+}
 </style>
