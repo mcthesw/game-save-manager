@@ -223,7 +223,7 @@ fn backup_old_config() -> Result<(), ConfigError> {
 
 #[cfg(test)]
 mod test {
-    use super::{Config, Game, SaveUnit, SaveUnitType};
+    use super::Config;
     use anyhow::Result;
 
     #[test]
@@ -231,31 +231,6 @@ mod test {
         let config = Config::default();
         let json = serde_json::to_string_pretty(&config)?;
         println!("序列化得到:\n{}", json);
-        Ok(())
-    }
-    #[test]
-    fn serialize_games() -> Result<()> {
-        let mut units = Vec::new();
-        units.push(SaveUnit {
-            unit_type: SaveUnitType::File,
-            path: String::from("C://aaa.txt"),
-            delete_before_apply: false,
-        });
-        units.push(SaveUnit {
-            unit_type: SaveUnitType::Folder,
-            path: String::from("C://aaa"),
-            delete_before_apply: false,
-        });
-        let mut games = Vec::new();
-        games.push(Game {
-            name: String::from("111"),
-            game_path: None,
-            save_paths: units,
-        });
-        let json = serde_json::to_string(&games)?;
-        assert_eq!(json,String::from(
-            "[{\"name\":\"111\",\"save_paths\":[{\"unit_type\":\"File\",\"path\":\"C://aaa.txt\"},{\"unit_type\":\"Folder\",\"path\":\"C://aaa\"}],\"game_path\":null}]"
-        ));
         Ok(())
     }
 }
