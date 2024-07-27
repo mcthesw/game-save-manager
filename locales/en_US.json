@@ -97,7 +97,9 @@
     "change_description_failed": "Modification failed",
     "set_quick_backup": "Enable quick backup",
     "set_quick_backup_success": "Settings saved. You can now use keyboard shortcuts or the tray icon for quick operations",
-    "set_quick_backup_failed": "Setting failed"
+    "set_quick_backup_failed": "Setting failed",
+    "batch_delete": "Batch delete",
+    "batch_delete_prompt": "Note that this operation will delete all selected saves, please enter yes to confirm"
   },
   "addgame": {
     "search_local": "Detect local games",

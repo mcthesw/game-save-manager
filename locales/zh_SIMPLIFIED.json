@@ -97,7 +97,9 @@
     "change_description_failed": "修改失败",
     "set_quick_backup": "启用快捷备份",
     "set_quick_backup_success": "设置成功，可以用快捷键或托盘图标快捷操作",
-    "set_quick_backup_failed": "设置失败"
+    "set_quick_backup_failed": "设置失败",
+    "batch_delete": "批量删除",
+    "batch_delete_prompt": "注意，该操作会删除所有选中的存档，确定请输入yes"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",

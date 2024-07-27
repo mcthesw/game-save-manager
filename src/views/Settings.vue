@@ -168,7 +168,7 @@ const router_list = computed(() => {
                         :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
                         :value="locale" />
                 </ElSelect>
-                🌍 Languages
+                🌍 Languages*
             </div>
             <div class="setting-box">
                 <ElSelect :loading="loading" v-model="config.settings.home_page">
