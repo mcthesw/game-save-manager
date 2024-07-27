@@ -246,9 +246,9 @@ function deleteRow(index: number) {
     width: 100%;
 }
 
-.game-info {
-    height: 99%;
-    margin-bottom: 20px;
+.el-card {
+    margin-bottom: 15px;
+    padding-bottom: 20px;
 }
 
 .top-part {
