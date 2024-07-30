@@ -304,8 +304,12 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
                         "Notification",
                         IpcNotification {
                             level: NotificationLevel::error,
-                            title: "文件不存在".to_string(),
-                            msg: format!("文件 {:?} 不存在，无法进行备份或恢复", file),
+                            title: "ERROR".to_string(),
+                            msg: t!(
+                                "backend.backup.backup_file_not_exist",
+                                name = file.to_str().unwrap_or("ERROR")
+                            )
+                            .to_string(), // TODO:优化错误处理
                         },
                     )
                     .map_err(|e| e.to_string())?;

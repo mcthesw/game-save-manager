@@ -158,8 +158,12 @@ pub fn decompress_from_file(
                                     "Notification",
                                     IpcNotification {
                                         level: NotificationLevel::warning,
-                                        title: "警告".to_string(),
-                                        msg: format!("路径 {:?} 不存在，已经自动创建", prefix_root),
+                                        title: "WARNING".to_string(),
+                                        msg: t!(
+                                            "backend.archive.file_not_exist",
+                                            path = prefix_root.to_str().unwrap_or("ERROR") // TODO:优化错误处理
+                                        )
+                                        .to_string(),
                                     },
                                 )
                                 .map_err(anyhow::Error::from)?;
@@ -181,8 +185,12 @@ pub fn decompress_from_file(
                                     "Notification",
                                     IpcNotification {
                                         level: NotificationLevel::warning,
-                                        title: "警告".to_string(),
-                                        msg: format!("路径 {:?} 不存在，已经自动创建", target_path),
+                                        title: "WARNING".to_string(),
+                                        msg: t!(
+                                            "backend.archive.file_not_exist",
+                                            path = target_path.to_str().unwrap_or("ERROR") // TODO:优化错误处理
+                                        )
+                                        .to_string(),
                                     },
                                 )
                                 .map_err(anyhow::Error::from)?;

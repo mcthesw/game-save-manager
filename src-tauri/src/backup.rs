@@ -103,8 +103,8 @@ impl Game {
                         "Notification",
                         IpcNotification {
                             level: NotificationLevel::error,
-                            title: "错误".to_string(),
-                            msg: "文件不存在，无法完成额外备份，恢复中止".to_string(),
+                            title: "ERROR".to_string(),
+                            msg: t!("backend.backup.extra_backup_file_not_exist").to_string(),
                         },
                     )
                     .map_err(anyhow::Error::from)?;

@@ -251,6 +251,13 @@
       "exit": "Exit",
       "success": "Success",
       "error": "Error"
+    },
+    "backup": {
+      "extra_backup_file_not_exist": "Since the file does not exist, the extra backup (pre-overwrite backup) cannot be completed and the recovery is aborted. If you don't need this feature, turn it off in settings.",
+      "backup_file_not_exist": "File {name} does not exist, cannot be backed up or restored"
+    },
+    "archive": {
+      "file_not_exist": "The path {path} does not exist and has been automatically created."
     }
   },
   "favorite": {

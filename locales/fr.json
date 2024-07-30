@@ -227,23 +227,25 @@
         "reset_settings_failed": "Reprise des défaillances",
         "change_description_failed": "Absence de description éditoriale"
     },
-    "tray": {
-        "auto_backup_interval": "Intervalles de sauvegarde automatiques",
-        "turn_off_auto_backup": "Fermeture de la sauvegarde automatique",
-        "5_minute": "5 minutes",
-        "10_minute": "10 minutes",
-        "30_minute": "30 minutes",
-        "60_minute": "60 minutes",
-        "quick_backup": "Sauvegarde rapide",
-        "quick_apply": "Lecture rapide",
-        "exit": "Absence de sauvegarde, registres d'inspection pour obtenir plus d'informations",
-        "success": "Succès",
-        "error": "Misuse",
-        "no_game_selected": "Pas de choix de jeu"
-    },
-    "backend_config": {
-        "updating_config_title": "Document d ' effectifs actualisé",
-        "updating_config_body": "Le document configuré a été mis à jour et l'ancien sera disponible en Game, Save Manager.config.json.bak"
+    "backend": {
+        "config": {
+            "updating_config_title": "Document d ' effectifs actualisé",
+            "updating_config_body": "Le document configuré a été mis à jour et l'ancien sera disponible en Game, Save Manager.config.json.bak"
+        },
+        "tray": {
+            "auto_backup_interval": "Intervalles de sauvegarde automatiques",
+            "turn_off_auto_backup": "Fermeture de la sauvegarde automatique",
+            "5_minute": "5 minutes",
+            "10_minute": "10 minutes",
+            "30_minute": "30 minutes",
+            "60_minute": "60 minutes",
+            "quick_backup": "Sauvegarde rapide",
+            "quick_apply": "Lecture rapide",
+            "exit": "Absence de sauvegarde, registres d'inspection pour obtenir plus d'informations",
+            "success": "Succès",
+            "error": "Misuse",
+            "no_game_selected": "Pas de choix de jeu"
+        }
     },
     "favorite": {
         "favorite_manage": "Gestion des collections",
