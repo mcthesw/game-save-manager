@@ -233,23 +233,25 @@
     "change_description_failed": "编辑描述失败",
     "open_log_folder_failed": "无法打开日志文件夹"
   },
-  "tray": {
-    "no_game_selected": "未选择游戏",
-    "auto_backup_interval": "自动备份间隔",
-    "turn_off_auto_backup": "关闭自动备份",
-    "5_minute": "5分钟",
-    "10_minute": "10分钟",
-    "30_minute": "30分钟",
-    "60_minute": "60分钟",
-    "quick_backup": "快速备份",
-    "quick_apply": "快速读档",
-    "exit": "退出",
-    "success": "成功",
-    "error": "错误"
-  },
-  "backend_config": {
-    "updating_config_title": "更新配置文件",
-    "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
+  "backend": {
+    "config": {
+      "updating_config_title": "更新配置文件",
+      "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
+    },
+    "tray": {
+      "no_game_selected": "未选择游戏",
+      "auto_backup_interval": "自动备份间隔",
+      "turn_off_auto_backup": "关闭自动备份",
+      "5_minute": "5分钟",
+      "10_minute": "10分钟",
+      "30_minute": "30分钟",
+      "60_minute": "60分钟",
+      "quick_backup": "快速备份",
+      "quick_apply": "快速读档",
+      "exit": "退出",
+      "success": "成功",
+      "error": "错误"
+    }
   },
   "favorite": {
     "favorite_manage": "收藏管理",

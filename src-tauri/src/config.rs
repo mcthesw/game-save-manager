@@ -183,8 +183,8 @@ pub fn config_check() -> Result<(), ConfigError> {
     let config_version = Version::parse(&config.version)?;
     if config_version != software_version {
         Notification::new("Update Config Info")
-            .title(t!("backend_config.updating_config_title"))
-            .body(t!("backend_config.updating_config_body"))
+            .title(t!("backend.config.updating_config_title"))
+            .body(t!("backend.config.updating_config_body"))
             .show()
             .expect("Cannot show notification");
         backup_old_config()?;

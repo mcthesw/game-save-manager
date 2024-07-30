@@ -233,23 +233,25 @@
     "change_description_failed": "Failed to edit description",
     "open_log_folder_failed": "Cannot open log folder"
   },
-  "tray": {
-    "no_game_selected": "No game selected",
-    "auto_backup_interval": "Auto backup interval",
-    "turn_off_auto_backup": "Disable auto backup",
-    "5_minute": "5 minutes",
-    "10_minute": "10 minutes",
-    "30_minute": "30 minutes",
-    "60_minute": "60 minutes",
-    "quick_backup": "Quick backup",
-    "quick_apply": "Quick apply",
-    "exit": "Exit",
-    "success": "Success",
-    "error": "Error"
-  },
-  "backend_config": {
-    "updating_config_title": "Updating config file",
-    "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManagerConfig.json.bak"
+  "backend": {
+    "config": {
+      "updating_config_title": "Updating config file",
+      "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManagerConfig.json.bak"
+    },
+    "tray": {
+      "no_game_selected": "No game selected",
+      "auto_backup_interval": "Auto backup interval",
+      "turn_off_auto_backup": "Disable auto backup",
+      "5_minute": "5 minutes",
+      "10_minute": "10 minutes",
+      "30_minute": "30 minutes",
+      "60_minute": "60 minutes",
+      "quick_backup": "Quick backup",
+      "quick_apply": "Quick apply",
+      "exit": "Exit",
+      "success": "Success",
+      "error": "Error"
+    }
   },
   "favorite": {
     "favorite_manage": "Favorite Management",

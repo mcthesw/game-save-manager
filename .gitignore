@@ -15,6 +15,7 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/i18n-ally-custom-framework.yml
 .idea
 .DS_Store
 *.suo
