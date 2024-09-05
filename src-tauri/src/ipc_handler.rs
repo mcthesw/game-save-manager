@@ -33,7 +33,6 @@ pub struct IpcNotification {
 #[prefix = "locales/"]
 struct Asset;
 
-// TODO:把错误文本改为有可读性的，增加日志
 #[allow(unused)]
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), String> {

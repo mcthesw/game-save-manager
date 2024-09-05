@@ -257,7 +257,7 @@
       "backup_file_not_exist": "文件 %{name} 不存在，无法进行备份或恢复"
     },
     "archive": {
-      "file_not_exist": "路径 {path} 不存在，已经自动创建"
+      "file_not_exist": "路径 %{path} 不存在，已经自动创建"
     }
   },
   "favorite": {

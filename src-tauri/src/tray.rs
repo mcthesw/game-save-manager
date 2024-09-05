@@ -29,6 +29,7 @@ impl QuickBackupState {
     }
 }
 
+// TODO:处理错误
 pub fn get_tray() -> SystemTray {
     // Menu items begin
     let tray_menu = SystemTrayMenu::new()

@@ -98,7 +98,7 @@ impl Game {
             info!(target:"rgsm::backup","Creating extra backup.");
             if let Err(e) = self.create_extra_backup() {
                 error!(target:"rgsm::backup","Failed to create extra backup: {:?}", e);
-                app_handle // TODO:i18n
+                app_handle
                     .emit_all(
                         "Notification",
                         IpcNotification {

@@ -153,7 +153,7 @@ pub fn decompress_from_file(
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !prefix_root.exists() {
                             // 若文件夹不存在，需要发出警告
-                            app_handle // TODO:i18n
+                            app_handle
                                 .emit_all(
                                     "Notification",
                                     IpcNotification {
@@ -161,7 +161,7 @@ pub fn decompress_from_file(
                                         title: "WARNING".to_string(),
                                         msg: t!(
                                             "backend.archive.file_not_exist",
-                                            path = prefix_root.to_str().unwrap_or("ERROR") // TODO:优化错误处理
+                                            path = prefix_root.to_str().unwrap_or("prefix_root.to_str error")
                                         )
                                         .to_string(),
                                     },
@@ -180,7 +180,7 @@ pub fn decompress_from_file(
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !target_path.exists() {
                             // 若文件夹不存在，需要发出警告
-                            app_handle // TODO:i18n
+                            app_handle
                                 .emit_all(
                                     "Notification",
                                     IpcNotification {
@@ -188,7 +188,7 @@ pub fn decompress_from_file(
                                         title: "WARNING".to_string(),
                                         msg: t!(
                                             "backend.archive.file_not_exist",
-                                            path = target_path.to_str().unwrap_or("ERROR") // TODO:优化错误处理
+                                            path = target_path.to_str().unwrap_or("target_path.to_str() error")
                                         )
                                         .to_string(),
                                     },

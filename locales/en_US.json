@@ -257,7 +257,7 @@
       "backup_file_not_exist": "File %{name} does not exist, cannot be backed up or restored"
     },
     "archive": {
-      "file_not_exist": "The path {path} does not exist and has been automatically created."
+      "file_not_exist": "The path %{path} does not exist and has been automatically created."
     }
   },
   "favorite": {
