@@ -70,8 +70,6 @@ pub enum BackupError {
     NoBackupAvailable,
     #[error("Backend error: {0:#?}")]
     BackendError(#[from] BackendError),
-    #[error("Backup file error: {0:#?}")]
-    BackupFileError(#[from] BackupFileError),
     #[error("Compress/Decompress error: {0:#?}")]
     CompressError(#[from] CompressError),
     #[error("Deserialize error: {0:#?}")]

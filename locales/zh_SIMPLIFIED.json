@@ -254,7 +254,7 @@
     },
     "backup": {
       "extra_backup_file_not_exist": "由于文件不存在，无法完成额外备份(覆盖前备份)，恢复中止。如果不需要该功能，请在设置中关闭。",
-      "backup_file_not_exist": "文件 {name} 不存在，无法进行备份或恢复"
+      "backup_file_not_exist": "文件 %{name} 不存在，无法进行备份或恢复"
     },
     "archive": {
       "file_not_exist": "路径 {path} 不存在，已经自动创建"

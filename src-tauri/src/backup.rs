@@ -249,7 +249,7 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     Ok(())
 }
 
-pub async fn create_game_backup(game: Game) -> Result<(), BackupError> {
+pub async fn create_game_backup(game: &Game) -> Result<(), BackupError> {
     let mut config = get_config()?;
     create_backup_folder(&game.name).await?;
 
@@ -258,11 +258,11 @@ pub async fn create_game_backup(game: Game) -> Result<(), BackupError> {
     match pos {
         Some(index) => {
             // 如果找到了，就用新的游戏覆盖它
-            config.games[index] = game;
+            config.games[index] = game.clone();
         }
         None => {
             // 如果没有找到，就将新的游戏添加到 `games` 数组中
-            config.games.push(game);
+            config.games.push(game.clone());
         }
     }
     set_config(&config).await?;

@@ -49,6 +49,7 @@ pub async fn open_url(url: String) -> Result<(), String> {
 pub async fn choose_save_file() -> Result<String, String> {
     info!(target:"rgsm::ipc", "Opening file dialog.");
     if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_file() {
+        info!(target:"rgsm::ipc","Successfully picked file: {:#?}",path);
         Ok(path.to_string_lossy().into_owned())
     } else {
         warn!(target:"rgsm::ipc", "Failed to open dialog or user close the dialog.");
@@ -61,6 +62,7 @@ pub async fn choose_save_file() -> Result<String, String> {
 pub async fn choose_save_dir() -> Result<String, String> {
     info!(target:"rgsm::ipc","Opening folder dialog.");
     if let Some(path) = dialog::blocking::FileDialogBuilder::new().pick_folder() {
+        info!(target:"rgsm::ipc","Successfully picked folder: {:#?}",path);
         Ok(path.to_string_lossy().into_owned())
     } else {
         warn!(target:"rgsm::ipc", "Failed to open dialog or user close the dialog.");
@@ -79,10 +81,12 @@ pub async fn get_local_config() -> Result<Config, String> {
 #[tauri::command]
 pub async fn add_game(game: Game) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Adding game: {:?}", game);
-    backup::create_game_backup(game).await.map_err(|e| {
+    backup::create_game_backup(&game).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to add game: {:?}", e);
         e.to_string()
-    })
+    })?;
+    info!(target:"rgsm::ipc", "Successfully added game: {:?}", game);
+    Ok(())
 }
 
 #[allow(unused)]
@@ -93,7 +97,9 @@ pub async fn apply_backup(game: Game, date: String, app_handle: AppHandle) -> Re
     game.apply_backup(&date, &app_handle).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
         e.to_string()
-    })
+    })?;
+    info!(target:"rgsm::ipc", "Successfully applied backup: {:?} for game: {:?}", date, game);
+    Ok(())
 }
 
 #[allow(unused)]
@@ -103,7 +109,9 @@ pub async fn delete_backup(game: Game, date: String) -> Result<(), String> {
     game.delete_backup(&date).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to delete backup: {:?}", e);
         e.to_string()
-    })
+    })?;
+    info!(target:"rgsm::ipc", "Successfully deleted backup: {:?} for game: {:?}", date, game);
+    Ok(())
 }
 
 #[allow(unused)]
@@ -113,7 +121,9 @@ pub async fn delete_game(game: Game) -> Result<(), String> {
     game.delete_game().await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to delete game: {:?}", e);
         e.to_string()
-    })
+    })?;
+    info!(target:"rgsm::ipc", "Successfully deleted game: {:?}", game);
+    Ok(())
 }
 
 #[allow(unused)]
@@ -150,7 +160,9 @@ pub async fn reset_settings() -> Result<(), String> {
 #[tauri::command]
 pub async fn backup_save(game: Game, describe: String, window: Window) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Backing up save for game: {:?}", game);
-    handle_backup_err(game.backup_save(&describe).await, window)
+    handle_backup_err(game.backup_save(&describe).await, window)?;
+    info!(target:"rgsm::ipc", "Successfully backed up save for game: {:?}", game);
+    Ok(())
 }
 
 #[allow(unused)]
@@ -170,7 +182,10 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
 pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", backend.clone().sanitize());
     match backend.check().await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            info!(target:"rgsm::ipc", "Successfully checked cloud backend: {:?}", backend.sanitize());
+            Ok(())
+        }
         Err(e) => {
             error!(target:"rgsm::ipc", "Failed to check cloud backend: {:?}", e);
             Err(e.to_string())
@@ -187,7 +202,10 @@ pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
         e.to_string()
     })?;
     match upload_all(&op).await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            info!(target:"rgsm::ipc", "Successfully uploaded all backups to cloud backend: {:?}", backend.sanitize());
+            Ok(())
+        }
         Err(e) => {
             error!(target:"rgsm::ipc", "Failed to upload all backups to cloud backend: {:?}", e);
             Err(e.to_string())
@@ -204,7 +222,10 @@ pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
         e.to_string()
     })?;
     match cloud::download_all(&op).await {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            info!(target:"rgsm::ipc", "Successfully downloaded all backups from cloud backend: {:?}", backend.sanitize());
+            Ok(())
+        }
         Err(e) => {
             error!(target:"rgsm::ipc", "Failed to download all backups from cloud backend: {:?}", e);
             Err(e.to_string())
@@ -221,7 +242,9 @@ pub async fn set_backup_describe(game: Game, date: String, describe: String) -> 
         .map_err(|e| {
             error!(target:"rgsm::ipc", "Failed to set backup describe: {:?}", e);
             e.to_string()
-        })
+        })?;
+    info!(target:"rgsm::ipc", "Successfully set backup {} describe for game: {:?}", date,game);
+    Ok(())
 }
 
 #[allow(unused)]
@@ -231,7 +254,9 @@ pub async fn backup_all() -> Result<(), String> {
     backup::backup_all().await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to backup all games: {:?}", e);
         e.to_string()
-    })
+    })?;
+    info!(target:"rgsm::ipc","Successfully backed up all games.");
+    Ok(())
 }
 
 #[allow(unused)]
@@ -241,7 +266,9 @@ pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
     backup::apply_all(&app_handle).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to apply all backups: {:?}", e);
         e.to_string()
-    })
+    })?;
+    info!(target:"rgsm::ipc","Successfully applied all backups.");
+    Ok(())
 }
 
 #[allow(unused)]
@@ -296,25 +323,31 @@ pub async fn get_locale_message(
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
-        if let BackupError::BackupFileError(BackupFileError::NotExists(files)) = &e {
-            files.iter().try_for_each(|file| {
-                warn!(target:"rgsm::ipc","File {:?} not exists.",file);
-                window // TODO:i18n
-                    .emit(
-                        "Notification",
-                        IpcNotification {
-                            level: NotificationLevel::error,
-                            title: "ERROR".to_string(),
-                            msg: t!(
-                                "backend.backup.backup_file_not_exist",
-                                name = file.to_str().unwrap_or("ERROR")
+        match &e {
+            BackupError::CompressError(CompressError::Multiple(files)) => {
+                files.iter().for_each(|file| {
+                    error!(target:"rgsm::ipc","{}",file);
+                    if let BackupFileError::NotExists(path) = file {
+                        window
+                            .emit(
+                                "Notification",
+                                IpcNotification {
+                                    level: NotificationLevel::error,
+                                    title: "ERROR".to_string(),
+                                    msg: t!(
+                                        "backend.backup.backup_file_not_exist",
+                                        name = path.to_str().unwrap_or("Cannot get path")
+                                    )
+                                    .to_string(),
+                                },
                             )
-                            .to_string(), // TODO:优化错误处理
-                        },
-                    )
-                    .map_err(|e| e.to_string())?;
-                Ok::<(), String>(())
-            })?;
+                            .unwrap(); // safe: ipc方法通过前端调用，此时window必然存在
+                    }
+                });
+            }
+            other => {
+                error!(target:"rgsm::ipc","{}",other);
+            }
         }
         return Err(format!("{}", e));
     }
