@@ -213,7 +213,15 @@
       "password": "密码"
     },
     "overwrite_upload": "覆盖性上传",
-    "overwrite_download": "覆盖性下载"
+    "overwrite_download": "覆盖性下载",
+    "s3": {
+      "endpoint": "S3端点",
+      "bucket": "存储桶",
+      "region": "区域",
+      "access_key_id": "访问密钥 ID",
+      "secret_access_key": "秘密访问密钥",
+      "region_hint": "如果不需要请输入test，不要留空"
+    }
   },
   "error": {
     "open_url_failed": "无法打开链接",

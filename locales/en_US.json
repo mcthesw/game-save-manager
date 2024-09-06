@@ -213,7 +213,15 @@
       "password": "Password"
     },
     "overwrite_upload": "Overwrite Upload",
-    "overwrite_download": "Overwrite Download"
+    "overwrite_download": "Overwrite Download",
+    "s3": {
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "Region",
+      "region_hint": "Please enter test if not required, do not leave it blank",
+      "access_key_id": "Access key ID",
+      "secret_access_key": "Secret access key"
+    }
   },
   "error": {
     "open_url_failed": "Unable to open url",

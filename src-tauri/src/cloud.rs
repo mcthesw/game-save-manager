@@ -16,10 +16,23 @@ use crate::traits::Sanitizable;
 pub enum Backend {
     // TODO:增加更多后端支持
     Disabled,
+    /// WebDAV 后端
+    /// 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
+    /// 不支持 blocking
     WebDAV {
         endpoint: String,
         username: String,
         password: String,
+    },
+    /// Amazon S3 后端
+    /// 参考：https://docs.rs/opendal/latest/opendal/services/struct.S3.html
+    /// 不支持 rename 和 blocking
+    S3 {
+        endpoint: String,
+        bucket: String,
+        region: String,
+        access_key_id: String,
+        secret_access_key: String,
     },
 }
 
@@ -51,10 +64,9 @@ impl Sanitizable for CloudSettings {
 impl Backend {
     /// 获取 Operator 实例
     pub fn get_op(&self) -> Result<Operator, BackendError> {
-        let mut builder = match self {
-            Backend::Disabled => {
-                return Err(BackendError::Disabled);
-            }
+        let root = get_config()?.settings.cloud_settings.root_path;
+        match self {
+            Backend::Disabled => Err(BackendError::Disabled),
             Backend::WebDAV {
                 endpoint,
                 username,
@@ -64,12 +76,26 @@ impl Backend {
                 builder.endpoint(endpoint);
                 builder.username(username);
                 builder.password(password);
-                builder
+                builder.root(&root);
+                Ok(Operator::new(builder)?.finish())
             }
-        };
-        let root = get_config()?.settings.cloud_settings.root_path;
-        builder.root(&root);
-        Ok(Operator::new(builder)?.finish())
+            Backend::S3 {
+                endpoint,
+                bucket,
+                region,
+                access_key_id,
+                secret_access_key,
+            } => {
+                let mut builder = services::S3::default();
+                builder.endpoint(endpoint);
+                builder.bucket(bucket);
+                builder.region(region);
+                builder.access_key_id(access_key_id);
+                builder.secret_access_key(secret_access_key);
+                builder.root(&root);
+                Ok(Operator::new(builder)?.finish())
+            }
+        }
     }
 
     /// 检查后端是否可用
@@ -92,6 +118,19 @@ impl Sanitizable for Backend {
                 username: "*username*".to_string(),
                 password: "*password*".to_string(),
             },
+            Backend::S3 {
+                endpoint: _,
+                bucket: _,
+                region: _,
+                access_key_id: _,
+                secret_access_key: _,
+            } => Backend::S3 {
+                endpoint: "*endpoint*".to_string(),
+                bucket: "*bucket*".to_string(),
+                region: "*region*".to_string(),
+                access_key_id: "*access_key_id*".to_string(),
+                secret_access_key: "*secret_access_key*".to_string(),
+            },
         }
     }
 }
@@ -103,7 +142,7 @@ pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
     // 依次上传所有游戏的存档记录和存档
     for game in config.games {
         // !NOTICE: 这个地方必须硬编码，因为云端目录必须固定
-        let cloud_backup_path = format!("./save_data/{}", game.name);
+        let cloud_backup_path = format!("save_data/{}", game.name);
         let backup_info = game.get_backup_list_info()?;
         // 写入存档记录
         op.write(
@@ -130,7 +169,7 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
     // 依次下载所有游戏的存档记录和存档
     for game in config.games {
         // !NOTICE: 这个地方必须硬编码，因为云端目录必须固定
-        let backup_path = format!("./save_data/{}", game.name);
+        let backup_path = format!("save_data/{}", game.name);
         let backup_info = op
             .read(&format!("{}/Backups.json", &backup_path))
             .await?
@@ -157,7 +196,7 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
 /// 上传单个游戏的配置文件
 pub async fn upload_backup_info(op: &Operator, info: BackupListInfo) -> Result<(), BackendError> {
     // !NOTICE: 这个地方必须硬编码，因为云端目录必须固定
-    let backup_path = format!("./save_data/{}", info.name);
+    let backup_path = format!("save_data/{}", info.name);
     op.write(
         &format!("{}/Backups.json", &backup_path),
         serde_json::to_string_pretty(&info)?,

@@ -11,10 +11,10 @@ import { CloudSettings } from "../schemas/saveTypes";
 import { $t } from "../i18n";
 import { ElButton, ElCard, ElContainer, ElForm, ElFormItem, ElInput, ElInputNumber, ElLink, ElMessageBox, ElOption, ElSelect, ElSwitch } from "element-plus";
 import { Ref } from "vue";
-import type { Backend, WebDAV } from "../schemas/BackendTypes";
+import type { Backend, S3, WebDAV } from "../schemas/BackendTypes";
+import { backends } from "../schemas/BackendTypes";
 
 const config = useConfig() // 配置文件
-const backends = ["Disabled", "WebDAV",] // 可用的后端类型
 const cloud_settings: Ref<CloudSettings> = ref(config.settings.cloud_settings) // 云同步配置
 
 const webdav_settings: Ref<WebDAV> = ref({
@@ -23,9 +23,25 @@ const webdav_settings: Ref<WebDAV> = ref({
   username: "",
   password: ""
 } as WebDAV)
+const s3_settings: Ref<S3> = ref({
+  type: "S3",
+  endpoint: "",
+  bucket: "",
+  region: "",
+  access_key_id: "",
+  secret_access_key: "",
+} as S3)
 // 从配置中加载云同步配置，这个重复步骤是必要的，因为我们无法确定用户的当前配置
-if (cloud_settings.value.backend.type === "WebDAV") {
-  webdav_settings.value = cloud_settings.value.backend as WebDAV
+switch (cloud_settings.value.backend.type) {
+  case "WebDAV":
+    webdav_settings.value = cloud_settings.value.backend as WebDAV;
+    break;
+  case "S3":
+    s3_settings.value = cloud_settings.value.backend as S3;
+    break;
+  default:
+    show_error($t("sync_settings.unknown_backend")) // TODO:更换成更合适的提醒
+    break;
 }
 
 /**
@@ -49,6 +65,18 @@ function check() {
         console.error("WebDAV test error:", err)
       })
       break
+    case "S3":
+      if (s3_settings.value.endpoint.endsWith("/")) {
+        // 去掉末尾的斜杠，防止出现重复的斜杠
+        s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
+      }
+      invoke("check_cloud_backend", { backend: s3_settings.value }).then((res) => {
+        show_success($t("sync_settings.test_success"))
+      }).catch((err) => {
+        show_error($t("sync_settings.test_failed"))
+        console.error("S3 test error:", err)
+      })
+      break;
     default:
       show_error($t("sync_settings.unknown_backend"))
   }
@@ -63,6 +91,12 @@ function save() {
       cloud_settings.value.backend = webdav_settings.value
       if (cloud_settings.value.backend.endpoint.endsWith("/")) {
         // 去掉末尾的斜杠，防止出现重复的斜杠
+        cloud_settings.value.backend.endpoint = cloud_settings.value.backend.endpoint.slice(0, -1)
+      }
+      break
+    case "S3":
+      cloud_settings.value.backend = s3_settings.value
+      if (cloud_settings.value.backend.endpoint.endsWith("/")) {
         cloud_settings.value.backend.endpoint = cloud_settings.value.backend.endpoint.slice(0, -1)
       }
       break
@@ -110,7 +144,7 @@ function upload_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_upload_all", { backend: webdav_settings.value }).then((res) => {
+    invoke("cloud_upload_all", { backend: config.settings.cloud_settings.backend }).then((res) => {
       show_success($t("sync_settings.upload_success"))
     }).catch((err) => {
       show_error($t("sync_settings.upload_failed"))
@@ -132,7 +166,7 @@ function download_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_download_all", { backend: webdav_settings.value }).then((res) => {
+    invoke("cloud_download_all", { backend: config.settings.cloud_settings.backend }).then((res) => {
       show_success($t("sync_settings.download_success"))
     }).catch((err) => {
       show_error($t("sync_settings.download_failed"))
@@ -154,7 +188,7 @@ function open_manual() {
 </script>
 
 <template>
-  <ElContainer direction="vertical">
+  <div>
     <ElCard>
       <h1>{{ $t("sync_settings.title") }}</h1>
       <p class="bold">
@@ -194,6 +228,27 @@ function open_manual() {
           </ElFormItem>
         </template>
         <!-- WebDAV end -->
+        <!-- S3 start -->
+        <template v-if="cloud_settings.backend.type === 'S3'">
+          <ElFormItem :label="$t('sync_settings.s3.endpoint')">
+            <ElInput v-model="s3_settings.endpoint" />
+          </ElFormItem>
+          <ElFormItem :label="$t('sync_settings.s3.bucket')">
+            <ElInput v-model="s3_settings.bucket" />
+          </ElFormItem>
+          <ElFormItem :label="$t('sync_settings.s3.region')">
+            <ElInput v-model="s3_settings.region" />
+            <span class="hint">{{ $t('sync_settings.s3.region_hint') }}</span>
+          </ElFormItem>
+          <ElFormItem :label="$t('sync_settings.s3.access_key_id')">
+            <ElInput v-model="s3_settings.access_key_id" />
+          </ElFormItem>
+          <ElFormItem :label="$t('sync_settings.s3.secret_access_key')">
+            <ElInput type="password" v-model="s3_settings.secret_access_key" />
+          </ElFormItem>
+        </template>
+        <!-- S3 end -->
+
         <ElFormItem>
           <ElButton @click="save">{{ $t("sync_settings.save_button") }}</ElButton>
           <ElButton @click="abort_change">{{ $t("sync_settings.abort_button") }}</ElButton>
@@ -205,7 +260,7 @@ function open_manual() {
         </ElFormItem>
       </ElForm>
     </ElCard>
-  </ElContainer>
+  </div>
 </template>
 
 <style scoped>
@@ -234,5 +289,9 @@ label {
 
 .el-row {
   margin-top: 20px;
+}
+
+.el-select {
+  width: 300px;
 }
 </style>

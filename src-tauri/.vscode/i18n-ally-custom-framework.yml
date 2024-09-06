@@ -1,7 +1,14 @@
 languageIds:
   - rust
+  - javascript
+  - typescript
+  - javascriptreact
+  - typescriptreact
+  - vue
+  - vue-html
 
 usageMatchRegex:
   - "[^\\w\\d]t!\\([\\s\\n\\r]*['\"]({key})['\"]"
+  - "[^\\w\\d]\\$t\\([\\s\\n\\r]*['\"]({key})['\"]"
 
 monopoly: true
