@@ -91,7 +91,7 @@ vue-devtools
 
 其余开发者没有必要改动版本号，只需要在更新日志中添加自己的更新内容即可。版本号会在合并进主分支时由 Maintainer 进行修改。
 
-- 在`package.json`中更新版本号
+- 在`package.json`中更新版本号(`pnpm version <patch|minor|major>`)
 - 在`src/schemas/saveTypes.ts`中更新版本号
 - 在`src-tauri/src/config.rs:default_config`中更新版本号
 - 在`src-tauri/tauri.conf.json`中更新版本号
