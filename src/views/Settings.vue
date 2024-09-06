@@ -14,7 +14,6 @@ import { DocumentAdd, Grid, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchF
 
 
 const isDark = useDark()
-const toggleDark = useToggle(isDark)
 const config = useConfig()
 const loading = ref(false)
 const i18n = useI18n()
@@ -199,7 +198,7 @@ const router_list = computed(() => {
                 <span>{{ $t("settings.extra_backup_when_apply") }}</span>
             </div>
             <div class="setting-box">
-                <ElSwitch :value="isDark" :loading="loading" @change="toggleDark()" />
+                <ElSwitch v-model="isDark" :loading="loading" />
                 <span>{{ $t("settings.enable_dark_mode") }}</span>
             </div>
             <div class="setting-box">
