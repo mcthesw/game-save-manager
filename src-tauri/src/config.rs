@@ -106,7 +106,7 @@ impl Sanitizable for Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: String::from("1.3.0"),
+            version: String::from("1.3.1"),
             backup_path: String::from("./save_data"),
             games: Vec::new(),
             settings: Settings {
