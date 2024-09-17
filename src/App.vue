@@ -23,9 +23,9 @@ setTimeout(() => {
 	})
 	// 需要等待config读取完成，由于config.refresh()不是异步的，所以等待100毫秒结果
 	// TODO: 优化config读取完成逻辑
-},100)
+}, 100)
 
-show_warning($t('app.early_access_warning'));
+// show_warning($t('app.early_access_warning'));
 
 listen('Notification', (event: unknown) => {
 	let ev = (event as EventWrapper<IpcNotification>).payload

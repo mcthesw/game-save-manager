@@ -16,6 +16,8 @@ import { show_success } from "../utils/notifications";
 import { watchEffect, watch } from "vue";
 import { useRoute } from "vue-router";
 import { $t } from "../i18n";
+import { v4 as uuidv4 } from 'uuid';
+
 const route = useRoute();
 const router = useRouter();
 let config = useConfig();
@@ -36,7 +38,7 @@ const buttons = [
         text: $t('addgame.reset_current_profile'),
         type: "danger",
         icon: RefreshRight,
-        method: reset,
+        method: reset_info,
     },
 ] as const;
 
@@ -126,44 +128,57 @@ function search_local() {
     // TODO:导入已有配置
     show_warning($t('addgame.wip_warning'));
 }
-function save() {
+async function save() {
     // 去除头尾空字符，防止触发Windows文件命名规则问题
     game_name.value = game_name.value.trim();
     if (game_name.value == "" || save_paths.length == 0) {
         show_error($t('addgame.no_name_error'));
-        return
+        return;
     }
     if (!check_name_valid(game_name.value)) {
         show_error($t('addgame.invalid_name_error'));
-        return
+        return;
     }
     if (config.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
         show_error($t('addgame.duplicated_name_error'));
-        return
+        return;
     }
 
     let game: Game = {
         name: game_name.value,
         save_paths: save_paths,
         game_path: game_path.value
-    }
-    invoke("add_game", { game: game }).then((x) => {
-        console.log(x);
+    };
+    try {
+        const result = await invoke("add_game", { game: game });
+        console.log(result);
+
         if (is_editing.value) {
             is_editing.value = false;
             show_success($t('addgame.add_game_success'));
             router.back();
         } else {
+            if (config.settings.add_new_to_favorites) {
+                // TODO:以下内容是否需要抽离成单独的工具库？还是说应该后端处理？
+                await config.refresh();
+                config.favorites?.push({
+                    label: game.name,
+                    is_leaf: true,
+                    children: [],
+                    node_id: uuidv4().toString()
+                });
+                await config.save();
+            }
             show_success($t('addgame.add_game_success'));
         }
-        reset(false);
-        config.refresh();
-    }).catch((e) => {
+        reset_info(false);
+        await config.refresh();
+    } catch (e) {
         console.log(e);
         show_error($t('error.add_game_failed'));
-    });
+    }
 }
-function reset(show_notification: boolean = true) {
+function reset_info(show_notification: boolean = true) {
     // 重置当前配置
     game_name.value = "";
     save_paths = reactive([]);

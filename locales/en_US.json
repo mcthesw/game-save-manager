@@ -36,7 +36,8 @@
     "homepage": "Homepage",
     "open_log_folder": "Open log",
     "log_to_file": "Generate file log",
-    "setting_tips": "An asterisk indicates that it will take effect after restarting, and the remaining settings will take effect after saving."
+    "setting_tips": "An asterisk indicates that it will take effect after restarting, and the remaining settings will take effect after saving.",
+    "add_new_to_favorites": "New games are automatically added to favorites"
   },
   "home": {
     "hello_world": "Hello world",

@@ -22,18 +22,11 @@ const locale_names = i18n.availableLocales
 function load_config() {
     config.refresh()
 }
-function submit_settings() {
+async function submit_settings() {
     loading.value = true;
-    invoke("set_config", { config: config.$state }).then((x) => {
-        loading.value = false;
-        show_success($t("settings.submit_success"));
-        load_config()
-    }).catch(
-        (e) => {
-            console.log(e)
-            show_error($t("error.set_config_failed"))
-        }
-    )
+    await config.save()
+    loading.value = false;
+    load_config()
 }
 function abort_change() {
     show_success($t("settings.reset_success"));
@@ -214,6 +207,10 @@ const router_list = computed(() => {
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.log_to_file" :loading="loading" />
                 <span>{{ $t("settings.log_to_file") }}*</span>
+            </div>
+            <div class="setting-box">
+                <ElSwitch v-model="config.settings.add_new_to_favorites" :loading="loading" />
+                <span>{{ $t("settings.add_new_to_favorites") }}</span>
             </div>
             <div class="setting-box drag-game-box">
                 <ElCollapse>

@@ -106,6 +106,10 @@ export interface Settings {
      * 是否写入日志文件
      */
     log_to_file: boolean,
+    /**
+     * 是否将新游戏默认加入收藏夹
+     */
+    add_new_to_favorites: boolean,
 }
 
 export interface FavoriteTreeNode {
@@ -173,7 +177,8 @@ export let default_config: Config = {
         default_delete_before_apply: false,
         default_expend_favorites_tree: false,
         home_page: "/home",
-        log_to_file: true
+        log_to_file: true,
+        add_new_to_favorites: false
     },
     favorites: [],
 };
