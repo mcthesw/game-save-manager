@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
+import FavoriteSideBar from "./FavoriteSideBar.vue";
 import {
     DocumentAdd,
     Files,
@@ -20,7 +21,6 @@ let config = useConfig();
 const links = computed(() => [
     { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
     { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },
-    { text: $t('sidebar.favorite_manage'), link: "/favorite", icon: Grid },
     { text: $t("sidebar.sync_settings"), link: "/sync-settings", icon: MostlyCloudy },
     { text: $t("sidebar.settings"), link: "/settings", icon: Setting },
     { text: $t("sidebar.about"), link: "/about", icon: InfoFilled },
@@ -36,12 +36,6 @@ const show_favorite = ref(false)
 function select_handler(key: string, keyPath: string) {
     console.log($t('misc.navigate_to'), keyPath[keyPath.length - 1]);
     router.push(keyPath[keyPath.length - 1]);
-}
-function favorite_click_handler(node: FavoriteTreeNode) {
-    // 四个参数，分别对应于节点点击的节点对象，TreeNode 的 node 属性, TreeNode和事件对象
-    if (node.is_leaf) {
-        router.push("/management/" + node.label)
-    }
 }
 </script>
 
@@ -75,18 +69,7 @@ function favorite_click_handler(node: FavoriteTreeNode) {
                         <span>{{ link.text }}</span>
                     </el-menu-item>
                 </el-menu>
-                <ElTree class="menu-item" :data="config.favorites" node-key="node_id"
-                    :default-expand-all="config.settings.default_expend_favorites_tree"
-                    @node-click="favorite_click_handler" v-else>
-                    <template #default="{ node, data }">
-                        <span v-if="data.is_leaf" class="custom-tree-node">
-                            {{ data.label }}
-                        </span>
-                        <strong v-else class="custom-tree-node">
-                            {{ data.label }}
-                        </strong>
-                    </template>
-                </ElTree>
+                <FavoriteSideBar v-else />
             </ElRow>
         </ElScrollbar>
     </ElContainer>
@@ -124,19 +107,4 @@ function favorite_click_handler(node: FavoriteTreeNode) {
 .main-menu-container {
     flex-grow: 1;
 }
-
-/* 以下部分用于支持双行树组件 */
-.custom-tree-node {
-    flex: 1;
-    white-space: normal;
-}
-
-:deep(.el-tree-node__content) {
-    text-align: left;
-    align-items: start;
-    margin: 4px;
-    height: 100%;
-}
-
-/* 以上部分用于支持双行树组件 */
 </style>

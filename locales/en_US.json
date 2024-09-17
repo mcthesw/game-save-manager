@@ -157,7 +157,6 @@
   "sidebar": {
     "homepage": "Home",
     "add_game": "Add game",
-    "favorite_manage": "Favorite",
     "sync_settings": "Cloud sync",
     "settings": "Settings",
     "about": "About"
@@ -282,6 +281,8 @@
     "choose_game_add": "Select games to add to favorites (can be repeated)",
     "add_to_favorite": "Add to Favorites",
     "remove_success": "Node removed successfully",
-    "add_success": "Node added successfully"
+    "add_success": "Node added successfully",
+    "enable_edit": "Enable editing: You can drag and drop items directly to sort them",
+    "game_not_found": "It is recommended to delete this collection as the game does not exist:"
   }
 }

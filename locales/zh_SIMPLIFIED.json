@@ -157,7 +157,6 @@
   "sidebar": {
     "homepage": "欢迎界面",
     "add_game": "添加游戏",
-    "favorite_manage": "收藏管理",
     "sync_settings": "同步",
     "settings": "设置",
     "about": "关于"
@@ -282,6 +281,8 @@
     "choose_game_add": "选择加入收藏的游戏（可以重复）",
     "add_to_favorite": "添加到收藏",
     "remove_success": "成功删除节点",
-    "add_success": "成功添加节点"
+    "add_success": "成功添加节点",
+    "game_not_found": "建议删除该收藏，因为游戏不存在：",
+    "enable_edit": "启用编辑：可以直接拖拽项目进行排序"
   }
 }
