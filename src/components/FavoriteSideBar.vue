@@ -47,17 +47,15 @@ function add_game_to_favorite(game: Game) {
     show_success($t('favorite.add_success') + ": " + game.name)
 }
 
-function save_and_refresh() {
-    invoke("set_config", { config: config.$state }).catch(
-        (e) => {
-            console.log(e)
-            show_error($t("error.set_config_failed"))
-        }
-    ).finally(
-        () => {
-            config.refresh()
-        }
-    )
+async function save_and_refresh() {
+    try {
+        await config.save();
+    } catch (e) {
+        console.log(e);
+        show_error($t("error.set_config_failed"));
+    } finally {
+        await config.refresh();
+    }
 }
 
 function add_node(label: string, is_leaf: boolean, children?: Array<FavoriteTreeNode>) {
@@ -106,6 +104,13 @@ async function add_folder() {
 
     add_node(name.value, false, [])
 }
+
+function node_drag_end_handler(start: Node, end: Node, end_type: string, event: DragEvent) {
+    if (end_type == 'after') {
+        // 如果成功，那么需要保存
+        save_and_refresh()
+    }
+}
 </script>
 
 <template>
@@ -124,7 +129,8 @@ async function add_folder() {
         </div>
         <ElTree class="menu-item" :data="config.favorites" node-key="node_id" :draggable="enable_edit"
             :allow-drag="allow_drag" :allow-drop="allow_drop"
-            :default-expand-all="config.settings.default_expend_favorites_tree" @node-click="favorite_click_handler">
+            :default-expand-all="config.settings.default_expend_favorites_tree" @node-click="favorite_click_handler"
+            @node-drag-end="node_drag_end_handler">
             <template #default="{ node, data }">
                 <span v-if="data.is_leaf" class="custom-tree-node">
                     <ElLink v-if="enable_edit" type="danger" :icon="Close" circle

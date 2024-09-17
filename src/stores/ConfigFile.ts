@@ -20,7 +20,6 @@ export const useConfig = defineStore('config', {
         async save() {
             try {
                 await invoke("set_config", { config: this.$state });
-                show_success($t("settings.submit_success"));
             } catch (e) {
                 console.log(e);
                 show_error($t("error.set_config_failed"));

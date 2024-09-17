@@ -19,12 +19,13 @@ const i18n = useI18n()
 const locale_message = i18n.messages
 const locale_names = i18n.availableLocales
 
-function load_config() {
-    config.refresh()
+async function load_config() {
+    await config.refresh()
 }
 async function submit_settings() {
     loading.value = true;
     await config.save()
+    show_success($t("settings.submit_success"));
     loading.value = false;
     load_config()
 }

@@ -12,18 +12,16 @@ import { useRouter } from "vue-router";
 useDark()
 // load config
 const config = useConfig();
-config.refresh();
-
 const router = useRouter();
-setTimeout(() => {
+config.refresh().then(() => {
 	// load home page
 	router.push(config.settings.home_page).catch(() => {
 		show_error($t("home.wrong_homepage"))
 		router.push("/home")
 	})
-	// 需要等待config读取完成，由于config.refresh()不是异步的，所以等待100毫秒结果
-	// TODO: 优化config读取完成逻辑
-}, 100)
+})
+
+
 
 // show_warning($t('app.early_access_warning'));
 

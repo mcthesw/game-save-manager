@@ -109,8 +109,8 @@ function save() {
   submit_settings()
 }
 
-function load_config() {
-  config.refresh()
+async function load_config() {
+  await config.refresh()
   // 重新加载临时配置
   cloud_settings.value = config.settings.cloud_settings
 }
@@ -118,7 +118,7 @@ function load_config() {
  * 提交配置，不应独立调用，需使用save函数调用，否则临时配置不会覆盖到配置中
  */
 function submit_settings() {
-  invoke("set_config", { config: config.$state }).then((x) => {
+  config.save().then((x) => {
     show_success($t("sync_settings.submit_success"));
     load_config()
   }).catch(

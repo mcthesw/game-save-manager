@@ -260,8 +260,8 @@ function del_cur() {
                 console.log(e)
                 show_error($t('error.delete_game_failed'))
             });
-            setTimeout(() => {
-                config.refresh()
+            setTimeout(async () => {
+                await config.refresh()
                 router.back()
             }, 100)
         })
@@ -292,8 +292,8 @@ function edit_cur() {
             inputErrorMessage: $t('manage.invalid_input_error'),
         }
     )
-        .then(() => {
-            config.refresh()
+        .then(async () => {
+            await config.refresh()
             router.push({
                 name: "edit-game",
                 params: {
@@ -321,18 +321,18 @@ function set_quick_backup() {
 }
 
 // 调整“应用存档位置，删除原存档”选项，由组件SaveLocationDrawer触发
-function on_save_unit_switch_delete_before_apply(index: number) {
-    (config.games.find((x) => x.name == game.value.name) as Game).save_paths = game.value.save_paths;
-    invoke("set_config", { config: config.$state }).then((x) => {
+async function on_save_unit_switch_delete_before_apply(index: number) {
+    try {
+        (config.games.find((x) => x.name == game.value.name) as Game).save_paths = game.value.save_paths;
+        await config.save();
         show_success($t("settings.submit_success"));
-        config.refresh()
-    }).catch(
-        (e) => {
-            console.log(e)
-            show_error($t("error.set_config_failed"))
-        }
-    )
+        await config.refresh();
+    } catch (e) {
+        console.log(e);
+        show_error($t("error.set_config_failed"));
+    }
 }
+
 
 const filter_table = computed(
     () => {
@@ -363,7 +363,7 @@ const filter_table = computed(
                 <el-button type="danger" round @click="del_cur()">
                     {{ $t('manage.delete_save_manage') }}
                 </el-button>
-                <el-button type="danger" round v-if="selected_backup_list.length>0" @click="batch_delete()">
+                <el-button type="danger" round v-if="selected_backup_list.length > 0" @click="batch_delete()">
                     {{ $t("manage.batch_delete") }}
                 </el-button>
             </div>
