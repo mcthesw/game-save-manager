@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::backup::Game;
+use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::traits::Sanitizable;
 
-use super::Settings;
+use super::{QuickActionsSettings, Settings};
 
 /// The software's configuration
 /// include the version, backup's location path, games'info,
@@ -17,6 +18,7 @@ pub struct Config {
     pub settings: Settings,
     #[serde(default = "default_value::empty_vec")]
     pub favorites: Vec<FavoriteTreeNode>,
+    pub quick_action: QuickActionsSettings,
 }
 
 impl Sanitizable for Config {
@@ -39,7 +41,7 @@ impl Default for Config {
                 extra_backup_when_apply: true,
                 show_edit_button: false,
                 prompt_when_auto_backup: true,
-                cloud_settings: default_value::default_cloud_settings(),
+                cloud_settings: CloudSettings::default(),
                 exit_to_tray: true,
                 locale: default_value::default_locale(),
                 default_delete_before_apply: false,
@@ -49,6 +51,7 @@ impl Default for Config {
                 add_new_to_favorites: false,
             },
             favorites: vec![],
+            quick_action: QuickActionsSettings::default(),
         }
     }
 }

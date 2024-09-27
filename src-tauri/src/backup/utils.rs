@@ -64,7 +64,7 @@ pub async fn backup_all() -> Result<(), BackupError> {
     }
     Ok(())
 }
-pub async fn apply_all(app_handle: &AppHandle) -> Result<(), BackupError> {
+pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<(), BackupError> {
     let config = get_config()?;
     for game in &config.games {
         let date = game

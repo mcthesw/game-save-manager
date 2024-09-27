@@ -8,9 +8,9 @@ pub enum BackupFileError {
     #[error("File to backup not exists: {0:#?}")]
     NotExists(PathBuf),
     #[error("Cannot write zip file: {0:#?}")]
-    ZipError(#[from] zip::result::ZipError),
+    Zip(#[from] zip::result::ZipError),
     #[error("Fs_extra error: {0:#?}")]
-    FsError(#[from] fs_extra::error::Error),
+    Fs(#[from] fs_extra::error::Error),
     #[error("Cannot convert path to string")]
     NonePathError,
     #[error(transparent)]
@@ -33,21 +33,21 @@ pub enum BackendError {
     #[error("Backend is disabled")]
     Disabled,
     #[error("IO error: {0:#?}")]
-    IoError(#[from] io::Error),
+    Io(#[from] io::Error),
     #[error("Opendal error: {0:#?}")]
-    CloudError(#[from] opendal::Error),
+    Cloud(#[from] opendal::Error),
     #[error("Cannot read cloud file: {0:#?}")]
-    ReadCloudInfoError(#[from] FromUtf8Error),
+    ReadCloudInfo(#[from] FromUtf8Error),
     #[error("Deserialize error: {0:#?}")]
-    DeserializeError(#[from] serde_json::Error),
+    Deserialize(#[from] serde_json::Error),
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
 impl From<ConfigError> for BackendError {
     fn from(e: ConfigError) -> Self {
         match e {
-            ConfigError::IoError(e) => Self::IoError(e),
-            ConfigError::DeserializeError(e) => Self::DeserializeError(e),
+            ConfigError::Io(e) => Self::Io(e),
+            ConfigError::Deserialize(e) => Self::Deserialize(e),
             other => Self::Unexpected(other.into()),
         }
     }
@@ -55,8 +55,8 @@ impl From<ConfigError> for BackendError {
 impl From<BackupError> for BackendError {
     fn from(e: BackupError) -> Self {
         match e {
-            BackupError::IoError(e) => Self::IoError(e),
-            BackupError::DeserializeError(e) => Self::DeserializeError(e),
+            BackupError::Io(e) => Self::Io(e),
+            BackupError::Deserialize(e) => Self::Deserialize(e),
             other => Self::Unexpected(other.into()),
         }
     }
@@ -69,28 +69,30 @@ pub enum BackupError {
     #[error("No backups available")]
     NoBackupAvailable,
     #[error("Backend error: {0:#?}")]
-    BackendError(#[from] BackendError),
+    Backend(#[from] BackendError),
     #[error("Compress/Decompress error: {0:#?}")]
-    CompressError(#[from] CompressError),
+    Compress(#[from] CompressError),
     #[error("Deserialize error: {0:#?}")]
-    DeserializeError(#[from] serde_json::Error),
+    Deserialize(#[from] serde_json::Error),
     #[error("Cannot convert path to string")]
     NonePathError,
     #[error("IO error: {0:#?}")]
-    IoError(#[from] io::Error),
+    Io(#[from] io::Error),
+    #[error("Cannot create extra backup")]
+    ExtraBackupFailed,
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
 impl From<opendal::Error> for BackupError {
     fn from(e: opendal::Error) -> Self {
-        Self::BackendError(BackendError::CloudError(e))
+        Self::Backend(BackendError::Cloud(e))
     }
 }
 impl From<ConfigError> for BackupError {
     fn from(e: ConfigError) -> Self {
         match e {
-            ConfigError::IoError(e) => Self::IoError(e),
-            ConfigError::DeserializeError(e) => Self::DeserializeError(e),
+            ConfigError::Io(e) => Self::Io(e),
+            ConfigError::Deserialize(e) => Self::Deserialize(e),
             other => Self::Unexpected(other.into()),
         }
     }
@@ -99,13 +101,13 @@ impl From<ConfigError> for BackupError {
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("Deserialize error: {0:#?}")]
-    DeserializeError(#[from] serde_json::Error),
+    Deserialize(#[from] serde_json::Error),
     #[error("IO error: {0:#?}")]
-    IoError(#[from] io::Error),
+    Io(#[from] io::Error),
     #[error("Backend error: {0:#?}")]
-    BackendError(#[from] BackendError),
+    Backend(#[from] BackendError),
     #[error("Tauri error: {0:#?}")]
-    TauriError(#[from] tauri::Error),
+    Tauri(#[from] tauri::Error),
     #[error("Semver error: {0:#?}")]
-    SemverError(#[from] semver::Error),
+    Semver(#[from] semver::Error),
 }

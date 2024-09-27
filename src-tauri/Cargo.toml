@@ -21,6 +21,7 @@ tauri = { version = "1.6.8", features = [
     "dialog",
     "system-tray",
     "notification",
+    "global-shortcut",
 ] }
 anyhow = "1.0.69"
 chrono = "0.4.23"

@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
 
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_config, set_config};
 use crate::errors::BackupError;
-use crate::ipc_handler::{IpcNotification, NotificationLevel};
 use std::path::PathBuf;
 use std::{fs, path};
-use tauri::{AppHandle, Manager};
 use tracing::{error, info};
 
 use super::GameSnapshots;
@@ -54,7 +53,7 @@ impl Game {
         if let Err(e) = compress_to_file(save_paths, &zip_path) {
             // delete the zip if failed to write
             fs::remove_file(&zip_path)?;
-            return Err(BackupError::CompressError(e));
+            return Err(BackupError::Compress(e));
         }
 
         let game_snapshots_info = Snapshot {
@@ -85,24 +84,18 @@ impl Game {
         }
         Result::Ok(())
     }
-    pub fn restore_snapshot(&self, date: &str, app_handle: &AppHandle) -> Result<(), BackupError> {
+    pub fn restore_snapshot(
+        &self,
+        date: &str,
+        app_handle: Option<&AppHandle>,
+    ) -> Result<(), BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path).join(&self.name);
         if config.settings.extra_backup_when_apply {
             info!(target:"rgsm::backup::game","Creating extra backup.");
             if let Err(e) = self.create_overwrite_snapshot() {
                 error!(target:"rgsm::backup::game","Failed to create extra backup: {:?}", e);
-                app_handle
-                    .emit_all(
-                        "Notification",
-                        IpcNotification {
-                            level: NotificationLevel::error,
-                            title: "ERROR".to_string(),
-                            msg: t!("backend.backup.extra_backup_file_not_exist").to_string(),
-                        },
-                    )
-                    .map_err(anyhow::Error::from)?;
-                return Err(e);
+                return Err(BackupError::ExtraBackupFailed);
             }
         }
         decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;

@@ -6,8 +6,8 @@ use std::{
 
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
-
 use tauri::{AppHandle, Manager};
+use tracing::warn;
 use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
@@ -52,7 +52,7 @@ where
             let entry_path = entry.path();
             let entry_metadata = fs::metadata(&entry_path)?;
             let mut cur_path = prefix_path.to_path_buf();
-            cur_path = cur_path.join(&entry.file_name());
+            cur_path = cur_path.join(entry.file_name());
             if entry_metadata.is_file() {
                 let mut f = File::open(&entry_path)?;
                 f.read_to_end(&mut buffer)?;
@@ -125,7 +125,7 @@ pub fn decompress_from_file(
     save_paths: &[SaveUnit],
     backup_path: &Path,
     date: &str,
-    app_handle: &AppHandle,
+    app_handle: Option<&AppHandle>,
 ) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
@@ -153,7 +153,11 @@ pub fn decompress_from_file(
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !prefix_root.exists() {
                             // 若文件夹不存在，需要发出警告
-                            app_handle
+                            warn!(target:"rgsm::backup::archive","Path {:#?} not exists, auto created",prefix_root
+                                                .to_str()
+                                                .unwrap_or("prefix_root.to_str error"));
+                            if let Some(app_handle) = app_handle {
+                                 app_handle
                                 .emit_all(
                                     "Notification",
                                     IpcNotification {
@@ -169,6 +173,10 @@ pub fn decompress_from_file(
                                     },
                                 )
                                 .map_err(anyhow::Error::from)?;
+                            }else {
+                                // TODO:发出警告?
+                            }
+                           
                             fs::create_dir_all(prefix_root)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {
@@ -182,6 +190,10 @@ pub fn decompress_from_file(
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
                         if !target_path.exists() {
                             // 若文件夹不存在，需要发出警告
+                            warn!(target:"rgsm::backup::archive","Path {:#?} not exists, auto created",target_path
+                                                .to_str()
+                                                .unwrap_or("prefix_root.to_str error"));
+                            if let Some(app_handle) = app_handle {
                             app_handle
                                 .emit_all(
                                     "Notification",
@@ -198,6 +210,9 @@ pub fn decompress_from_file(
                                     },
                                 )
                                 .map_err(anyhow::Error::from)?;
+                            }else{
+                                // TODO:发出警告?
+                            }
                             fs::create_dir_all(target_path)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {

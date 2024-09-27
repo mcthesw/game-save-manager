@@ -21,6 +21,17 @@ pub struct CloudSettings {
     pub backend: Backend,
 }
 
+impl Default for CloudSettings {
+    fn default() -> Self {
+        CloudSettings {
+            always_sync: false,
+            auto_sync_interval: 0,
+            root_path: "/game-save-manager".to_string(),
+            backend: Backend::Disabled,
+        }
+    }
+}
+
 impl Sanitizable for CloudSettings {
     fn sanitize(self) -> Self {
         CloudSettings {

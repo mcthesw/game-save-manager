@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::cloud_sync::CloudSettings;
-use crate::traits::Sanitizable;
 use crate::default_value;
+use crate::traits::Sanitizable;
 
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,4 +41,3 @@ impl Sanitizable for Settings {
         }
     }
 }
-

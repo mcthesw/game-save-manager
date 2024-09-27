@@ -23,8 +23,8 @@ mod config;
 mod default_value;
 mod errors;
 mod ipc_handler;
+mod quick_actions;
 mod traits;
-mod tray;
 
 fn main() {
     // Init config
@@ -39,7 +39,10 @@ fn main() {
 
     // Init app
     let app = tauri::Builder::default()
-        .manage(Arc::new(Mutex::new(tray::QuickBackupState::default())))
+        .manage(Arc::new(Mutex::new(
+            // 自动备份间隔，启动时默认为无（不自动备份）
+            quick_actions::AutoBackupDuration::new(0),
+        )))
         .invoke_handler(tauri::generate_handler![
             ipc_handler::open_url,
             ipc_handler::choose_save_file,
@@ -69,9 +72,9 @@ fn main() {
 
     // 处理退出到托盘
     if config.settings.exit_to_tray {
-        app.system_tray(tray::get_tray())
-            .on_system_tray_event(tray::tray_event_handler)
-            .setup(tray::setup_timer)
+        app.system_tray(quick_actions::get_tray())
+            .on_system_tray_event(quick_actions::tray_event_handler)
+            .setup(quick_actions::setup_timer)
             .build(tauri::generate_context!())
             .expect("Cannot build tauri app")
             .run(|_app_handle, event| {
