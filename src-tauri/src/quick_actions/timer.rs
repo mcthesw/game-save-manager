@@ -25,7 +25,8 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                 counter = 1;
             }
 
-            if counter >= duration {
+            // 时间间隔必须大于0，因为0表示禁用
+            if duration > 0 && (counter >= duration) {
                 quick_backup(game, QuickActionType::Timer).await;
                 counter = 0;
             }

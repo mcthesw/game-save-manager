@@ -1,4 +1,7 @@
-use crate::cloud_sync::{Backend, CloudSettings};
+use crate::{
+    cloud_sync::{Backend, CloudSettings},
+    config::QuickActionsSettings,
+};
 
 pub fn default_false() -> bool {
     false
@@ -29,4 +32,7 @@ pub fn empty_vec<T>() -> Vec<T> {
 }
 pub fn default_none<T>() -> Option<T> {
     None
+}
+pub fn default_quick_action_settings() -> QuickActionsSettings {
+    QuickActionsSettings::default()
 }

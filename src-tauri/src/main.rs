@@ -39,10 +39,10 @@ fn main() {
 
     // Init app
     let app = tauri::Builder::default()
-        .manage(Arc::new(Mutex::new(
+        .manage(Arc::new(
             // 自动备份间隔，启动时默认为无（不自动备份）
             quick_actions::AutoBackupDuration::new(0),
-        )))
+        ))
         .invoke_handler(tauri::generate_handler![
             ipc_handler::open_url,
             ipc_handler::choose_save_file,
