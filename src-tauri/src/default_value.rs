@@ -1,4 +1,4 @@
-use crate::cloud::{Backend, CloudSettings};
+use crate::cloud_sync::{Backend, CloudSettings};
 
 pub fn default_false() -> bool {
     false

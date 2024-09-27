@@ -10,7 +10,7 @@ use tauri::{
 };
 use tracing::{info, warn};
 
-use crate::config::{get_config, Game};
+use crate::{backup::Game, config::get_config};
 
 use rust_i18n::t;
 
@@ -70,7 +70,10 @@ pub fn get_tray() -> SystemTray {
             t!("backend.tray.quick_apply"),
         ))
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(CustomMenuItem::new("quit".to_owned(), t!("backend.tray.exit")));
+        .add_item(CustomMenuItem::new(
+            "quit".to_owned(),
+            t!("backend.tray.exit"),
+        ));
     // Menu items end
 
     SystemTray::new().with_menu(tray_menu)
@@ -114,7 +117,7 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                     Some(game) => {
                         info!(target:"rgsm::tray", "Quick backup game: {:#?}", game);
                         tauri::async_runtime::block_on(async {
-                            game.backup_save("Quick Backup").await
+                            game.create_snapshot("Quick Backup").await
                         })
                         .expect("Tauri async runtime error, cannot block_on");
                         Notification::new(&app.config().tauri.bundle.identifier)
@@ -146,7 +149,7 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                     Some(game) => {
                         info!(target:"rgsm::tray", "Quick apply game: {:#?}", game);
                         let newest_date = game
-                            .get_backup_list_info()
+                            .get_game_snapshots_info()
                             .expect("Cannot get backup list info")
                             .backups
                             .last()
@@ -154,7 +157,7 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                             .date
                             .clone();
                         tauri::async_runtime::block_on(async {
-                            game.apply_backup(&newest_date, app)
+                            game.restore_snapshot(&newest_date, app)
                         })
                         .expect("Tauri async runtime error, cannot block_on");
                         Notification::new(&app.config().tauri.bundle.identifier)
@@ -243,7 +246,7 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                 .expect("Cannot get config")
                                 .settings
                                 .prompt_when_auto_backup;
-                            game.backup_save("Auto Backup Info")
+                            game.create_snapshot("Auto Backup Info")
                                 .await
                                 .expect("Cannot backup");
                             if show_info {

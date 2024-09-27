@@ -1,6 +1,6 @@
-use crate::backup::BackupListInfo;
-use crate::cloud::{self, upload_all, Backend};
-use crate::config::{get_config, Config, Game};
+use crate::backup::{Game, GameSnapshots};
+use crate::cloud_sync::{self, upload_all, Backend};
+use crate::config::{get_config, Config};
 use crate::traits::Sanitizable;
 use crate::{backup, config};
 use crate::{errors::*, tray};
@@ -90,10 +90,14 @@ pub async fn add_game(game: Game) -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn apply_backup(game: Game, date: String, app_handle: AppHandle) -> Result<(), String> {
-    //handle_backup_err(game.apply_backup(&date,window), )
+pub async fn restore_snapshot(
+    game: Game,
+    date: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    //handle_backup_err(game.restore_snapshot(&date,window), )
     info!(target:"rgsm::ipc", "Applying backup: {:?} for game: {:?}", date, game);
-    game.apply_backup(&date, &app_handle).map_err(|e| {
+    game.restore_snapshot(&date, &app_handle).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
         e.to_string()
     })?;
@@ -103,9 +107,9 @@ pub async fn apply_backup(game: Game, date: String, app_handle: AppHandle) -> Re
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn delete_backup(game: Game, date: String) -> Result<(), String> {
+pub async fn delete_snapshot(game: Game, date: String) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Deleting backup: {:?} for game: {:?}", date, game);
-    game.delete_backup(&date).await.map_err(|e| {
+    game.delete_snapshot(&date).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to delete backup: {:?}", e);
         e.to_string()
     })?;
@@ -127,9 +131,9 @@ pub async fn delete_game(game: Game) -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn get_backup_list_info(game: Game) -> Result<BackupListInfo, String> {
+pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String> {
     info!(target:"rgsm::ipc", "Getting backup list info for game: {:?}", game);
-    game.get_backup_list_info().map_err(|e| {
+    game.get_game_snapshots_info().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get backup list info: {:?}", e);
         e.to_string()
     })
@@ -157,9 +161,9 @@ pub async fn reset_settings() -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn backup_save(game: Game, describe: String, window: Window) -> Result<(), String> {
+pub async fn create_snapshot(game: Game, describe: String, window: Window) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Backing up save for game: {:?}", game);
-    handle_backup_err(game.backup_save(&describe).await, window)?;
+    handle_backup_err(game.create_snapshot(&describe).await, window)?;
     info!(target:"rgsm::ipc", "Successfully backed up save for game: {:?}", game);
     Ok(())
 }
@@ -220,7 +224,7 @@ pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
         error!(target:"rgsm::ipc", "Failed to get cloud backend operator: {:?}", e);
         e.to_string()
     })?;
-    match cloud::download_all(&op).await {
+    match cloud_sync::download_all(&op).await {
         Ok(_) => {
             info!(target:"rgsm::ipc", "Successfully downloaded all backups from cloud backend: {:?}", backend.sanitize());
             Ok(())
@@ -234,9 +238,13 @@ pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
 
 #[allow(unused)]
 #[tauri::command]
-pub async fn set_backup_describe(game: Game, date: String, describe: String) -> Result<(), String> {
+pub async fn set_snapshot_description(
+    game: Game,
+    date: String,
+    describe: String,
+) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting backup describe for game: {:?}", game);
-    game.set_backup_describe(&date, &describe)
+    game.set_snapshot_description(&date, &describe)
         .await
         .map_err(|e| {
             error!(target:"rgsm::ipc", "Failed to set backup describe: {:?}", e);

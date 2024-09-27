@@ -17,9 +17,8 @@ use tracing_subscriber::{filter::LevelFilter, Layer};
 
 use crate::config::config_check;
 
-mod archive;
 mod backup;
-mod cloud;
+mod cloud_sync;
 mod config;
 mod default_value;
 mod errors;
@@ -47,18 +46,18 @@ fn main() {
             ipc_handler::choose_save_dir,
             ipc_handler::get_local_config,
             ipc_handler::add_game,
-            ipc_handler::apply_backup,
-            ipc_handler::delete_backup,
+            ipc_handler::restore_snapshot,
+            ipc_handler::delete_snapshot,
             ipc_handler::delete_game,
-            ipc_handler::get_backup_list_info,
+            ipc_handler::get_game_snapshots_info,
             ipc_handler::set_config,
             ipc_handler::reset_settings,
-            ipc_handler::backup_save,
+            ipc_handler::create_snapshot,
             ipc_handler::open_backup_folder,
             ipc_handler::check_cloud_backend,
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
-            ipc_handler::set_backup_describe,
+            ipc_handler::set_snapshot_description,
             ipc_handler::backup_all,
             ipc_handler::apply_all,
             ipc_handler::set_quick_backup_game,
@@ -116,7 +115,10 @@ fn init_log(config: &Config) {
             .with_ansi(false)
             .with_filter(LevelFilter::INFO);
 
-        tracing_subscriber::registry().with(console_layer).with(file_layer).init();
+        tracing_subscriber::registry()
+            .with(console_layer)
+            .with(file_layer)
+            .init();
     } else {
         tracing_subscriber::registry().with(console_layer).init();
     };

@@ -185,15 +185,15 @@
         "overwrite_download": "Coverage 다운로드"
     },
     "error": {
-        "delete_backup_failed": "성공적인 추가 포인트",
-        "apply_backup_failed": "신청 실패, 검사 로그는 더 많은 정보를 얻기 위하여",
+        "delete_snapshot_failed": "성공적인 추가 포인트",
+        "restore_snapshot_failed": "신청 실패, 검사 로그는 더 많은 정보를 얻기 위하여",
         "open_url_failed": "링크 열기 실패",
         "config_load_failed": "문서의 실패는 문서가 유효하지 않았거나 사용할 수없는 사실로 인해 될 수 있습니다",
         "choose_save_dir_error": "아카이브 문서의 선택에 실수",
         "choose_save_file_error": "아카이브 문서의 선택에 실수",
         "choose_executable_file_error": "시행 문서의 선택에 실수",
         "add_game_failed": "게임 실패 추가",
-        "get_backup_list_failed": "백업 정보를 얻기 위해 실패",
+        "get_game_snapshots_failed": "백업 정보를 얻기 위해 실패",
         "backup_failed": "자동 백업 간격",
         "delete_game_failed": "게임 실패 삭제",
         "open_backup_folder_failed": "다시 문서를 열 실패",

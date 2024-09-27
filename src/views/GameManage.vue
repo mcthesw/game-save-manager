@@ -45,9 +45,9 @@ let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
 let showEditButton = config.settings.show_edit_button;
 
 // 批量操作记录列表
-const selected_backup_list: Ref<Backup[]> = ref([]);
+const selected_game_snapshots: Ref<Backup[]> = ref([]);
 function on_selection_change(val: Backup[]) {
-    selected_backup_list.value = val;
+    selected_game_snapshots.value = val;
 }
 async function batch_delete() {
     try {
@@ -63,7 +63,7 @@ async function batch_delete() {
         );
 
         if (result.value === 'yes') {
-            for (const item of selected_backup_list.value) {
+            for (const item of selected_game_snapshots.value) {
                 await del_save(item.date);
             }
         } else {
@@ -88,7 +88,7 @@ watch(
 )
 
 function refresh_backups_info() {
-    invoke("get_backup_list_info", { game: game.value })
+    invoke("get_game_snapshots_info", { game: game.value })
         .then((v) => {
             let infos = v as BackupsInfo;
             table_data.value = infos.backups;
@@ -96,7 +96,7 @@ function refresh_backups_info() {
         }).catch(
             (e) => {
                 console.log(e)
-                show_error($t('error.get_backup_list_failed'));
+                show_error($t('error.get_game_snapshots_failed'));
             }
         )
 }
@@ -117,7 +117,7 @@ function send_save_to_background() {
     }
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
-    invoke("backup_save", { game: game.value, describe: describe.value })
+    invoke("create_snapshot", { game: game.value, describe: describe.value })
         .then((_) => {
             show_success($t('manage.backup_success'));
         }).catch(
@@ -175,13 +175,13 @@ function launch_game() {
 async function del_save(date: string) {
     try {
         console.log(date);
-        const result = await invoke("delete_backup", { game: game.value, date: date });
+        const result = await invoke("delete_snapshot", { game: game.value, date: date });
         console.log(result);
         refresh_backups_info();
         show_success($t('manage.delete_success'));
     } catch (e) {
         console.log(e);
-        show_error($t('error.delete_backup_failed'));
+        show_error($t('error.delete_snapshot_failed'));
     }
 }
 
@@ -197,13 +197,13 @@ function apply_save(date: string) {
         return;
     }
     apply_button_apply_limit = false;
-    invoke("apply_backup", { game: game.value, date: date })
+    invoke("restore_snapshot", { game: game.value, date: date })
         .then((x) => {
             show_success($t('manage.recover_success'));
             console.log(x)
         }).catch((e) => {
             console.log(e)
-            show_error($t('error.apply_backup_failed'))
+            show_error($t('error.restore_snapshot_failed'))
         }).finally(() => {
             info.close()
             apply_button_apply_limit = true;
@@ -218,7 +218,7 @@ function change_describe(date: string) {
         inputValue: table_data.value.find((x) => x.date == date)?.describe,
     })
         .then(({ value }) => {
-            invoke("set_backup_describe", { game: game.value, date: date, describe: value })
+            invoke("set_snapshot_description", { game: game.value, date: date, describe: value })
                 .then((x) => {
                     console.log(x)
                     refresh_backups_info();
@@ -363,7 +363,7 @@ const filter_table = computed(
                 <el-button type="danger" round @click="del_cur()">
                     {{ $t('manage.delete_save_manage') }}
                 </el-button>
-                <el-button type="danger" round v-if="selected_backup_list.length > 0" @click="batch_delete()">
+                <el-button type="danger" round v-if="selected_game_snapshots.length > 0" @click="batch_delete()">
                     {{ $t("manage.batch_delete") }}
                 </el-button>
             </div>

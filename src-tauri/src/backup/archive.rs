@@ -11,7 +11,7 @@ use tauri::{AppHandle, Manager};
 use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
-    config::{SaveUnit, SaveUnitType},
+    backup::{SaveUnit, SaveUnitType},
     errors::{BackupFileError, CompressError},
     ipc_handler::{IpcNotification, NotificationLevel},
 };
@@ -161,7 +161,9 @@ pub fn decompress_from_file(
                                         title: "WARNING".to_string(),
                                         msg: t!(
                                             "backend.archive.file_not_exist",
-                                            path = prefix_root.to_str().unwrap_or("prefix_root.to_str error")
+                                            path = prefix_root
+                                                .to_str()
+                                                .unwrap_or("prefix_root.to_str error")
                                         )
                                         .to_string(),
                                     },
@@ -188,7 +190,9 @@ pub fn decompress_from_file(
                                         title: "WARNING".to_string(),
                                         msg: t!(
                                             "backend.archive.file_not_exist",
-                                            path = target_path.to_str().unwrap_or("target_path.to_str() error")
+                                            path = target_path
+                                                .to_str()
+                                                .unwrap_or("target_path.to_str() error")
                                         )
                                         .to_string(),
                                     },
