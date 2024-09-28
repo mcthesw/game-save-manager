@@ -258,7 +258,8 @@
       "quick_apply": "快速读档",
       "exit": "退出",
       "success": "成功",
-      "error": "错误"
+      "error": "错误",
+      "find_error_detail": "请在日志文件中查看详情"
     },
     "backup": {
       "extra_backup_file_not_exist": "由于文件不存在，无法完成额外备份(覆盖前备份)，恢复中止。如果不需要该功能，请在设置中关闭。",

@@ -258,7 +258,8 @@
       "quick_apply": "Quick apply",
       "exit": "Exit",
       "success": "Success",
-      "error": "Error"
+      "error": "Error",
+      "find_error_detail": "Please check the log file for details"
     },
     "backup": {
       "extra_backup_file_not_exist": "Since the file does not exist, the extra backup (pre-overwrite backup) cannot be completed and the recovery is aborted. If you don't need this feature, turn it off in settings.",

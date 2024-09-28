@@ -1,9 +1,10 @@
 use tauri::{api::notification::Notification, AppHandle};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     backup::Game,
     config::{get_config, set_config},
+    errors::BackupError,
 };
 
 use super::*;
@@ -39,74 +40,104 @@ impl QuickActionType {
 pub async fn quick_apply(t: QuickActionType) {
     info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}",t.generate_describe());
     let game = get_quick_action_game();
-    match game {
-        Some(game) => {
-            info!(target:"rgsm::quick_action", "Quick apply game: {:#?}", game);
-            let newest_date = game
-                .get_game_snapshots_info()
-                .expect("Cannot get backup list info")
-                .backups
-                .last()
-                .expect("No backup available")
-                .date
-                .clone();
-            game.restore_snapshot(&newest_date, None)
-                .expect("Cannot apply");
-            Notification::new("QuickAction")
-                .title(t!("backend.tray.success"))
-                .body(format!(
+    // 这里使用立即执行的闭包是为了做错误处理
+    let result: Result<(), BackupError> = (|| {
+        match &game {
+            Some(game) => {
+                info!(target:"rgsm::quick_action", "Quick apply game: {:#?}", game);
+                let newest_date = game
+                    .get_game_snapshots_info()?
+                    .backups
+                    .last()
+                    .ok_or(BackupError::NoBackupAvailable)?
+                    .date
+                    .clone();
+                game.restore_snapshot(&newest_date, None)?;
+            }
+            None => show_no_game_selected_error(),
+        };
+        Ok(())
+    })();
+    match result {
+        Err(e) => {
+            error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", &e);
+            show_notification(
+                t!("backend.tray.error"),
+                format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+            );
+        }
+        Ok(_) => {
+            show_notification(
+                t!("backend.tray.success"),
+                format!(
                     "{:#?} {} {}",
-                    game.name,
+                    game.unwrap().name, // safe:因为前面已经判断了game是否为None
                     t!("backend.tray.quick_apply"),
                     t!("backend.tray.success")
-                ))
-                .show()
-                .expect("Cannot show notification");
+                ),
+            );
         }
-        None => show_no_game_selected_error(),
     }
 }
 
 pub async fn quick_backup(t: QuickActionType) {
     info!(target:"rgsm::quick_action", "Auto backup triggered: {:#?}",t.generate_describe());
     let game = get_quick_action_game();
-    // TODO:这里可以让match有返回值来判断是否出错
-    match &game {
-        None => show_no_game_selected_error(),
-        Some(game) => {
-            let show_info = get_config()
-                .expect("Cannot get config")
-                .settings
-                .prompt_when_auto_backup;
-            game.create_snapshot(&t.generate_describe())
-                .await
-                .expect("Cannot backup");
+    let show_info = get_config()
+        .expect("Cannot get config")
+        .settings
+        .prompt_when_auto_backup;
+    let result: Result<(), BackupError> = async {
+        match &game {
+            None => show_no_game_selected_error(),
+            Some(game) => {
+                game.create_snapshot(&t.generate_describe()).await?;
+            }
+        };
+        Ok(())
+    }
+    .await;
+    match result {
+        Err(e) => {
+            error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
+            show_notification(
+                t!("backend.tray.error"),
+                format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+            );
+        }
+        Ok(_) => {
             if !show_info && (t == QuickActionType::Timer) {
                 // 设置中该选项控制是否在按间隔备份时发出通知
                 // 若不启用，则不进行通知，其余情况则产生通知
                 return;
             }
-            Notification::new("QuickAction")
-                .title(t!("backend.tray.success"))
-                .body(format!(
+            show_notification(
+                t!("backend.tray.success"),
+                format!(
                     "{:#?} {} {}",
-                    game.name,
+                    game.unwrap().name, // safe:因为前面已经判断了game是否为None
                     t!("backend.tray.quick_backup"),
                     t!("backend.tray.success")
-                ))
-                .show()
-                .expect("Cannot show notification");
+                ),
+            );
         }
     }
 }
 
-fn show_no_game_selected_error() {
-    warn!(target:"rgsm::quick_action", "No game selected, cannot quick backup/apply");
+fn show_notification<T1: Into<String>, T2: Into<String>>(title: T1, body: T2) {
     Notification::new("QuickAction")
-        .title(t!("backend.tray.error"))
-        .body(t!("backend.tray.no_game_selected"))
+        .title(title)
+        .body(body)
         .show()
         .expect("Cannot show notification");
+}
+
+fn show_no_game_selected_error() {
+    warn!(target:"rgsm::quick_action", "No game selected, cannot quick backup/apply");
+    show_notification(
+        t!("backend.tray.error"),
+        t!("backend.tray.no_game_selected"),
+    );
 }
 
 pub fn get_quick_action_game() -> Option<Game> {

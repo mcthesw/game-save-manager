@@ -62,6 +62,7 @@ impl From<BackupError> for BackendError {
     }
 }
 
+/// 备份或恢复快照时可能产生的错误
 #[derive(Debug, Error)]
 pub enum BackupError {
     #[error("Backup for {name} not exists: {date}")]
