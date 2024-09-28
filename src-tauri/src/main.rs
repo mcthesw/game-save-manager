@@ -10,7 +10,7 @@ i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use config::{get_config, Config};
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::api::notification::Notification;
 use tracing::info;
 use tracing_subscriber::{filter::LevelFilter, Layer};
@@ -70,24 +70,26 @@ fn main() {
     // 只允许运行一个实例
     let app = app.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
 
-    // 处理退出到托盘
+    // 处理快捷备份和托盘的事件
+    let app = app
+        .system_tray(quick_actions::get_tray())
+        .on_system_tray_event(quick_actions::tray_event_handler)
+        .setup(quick_actions::setup);
+
+    // 处理退出到托盘（关闭窗口不退出）
     if config.settings.exit_to_tray {
-        app.system_tray(quick_actions::get_tray())
-            .on_system_tray_event(quick_actions::tray_event_handler)
-            .setup(quick_actions::setup_timer)
-            .build(tauri::generate_context!())
+        app.build(tauri::generate_context!())
             .expect("Cannot build tauri app")
             .run(|_app_handle, event| {
                 if let tauri::RunEvent::ExitRequested { api, .. } = event {
                     api.prevent_exit();
                 }
             });
-        return;
+    } else {
+        // 不需要退出到托盘
+        app.run(tauri::generate_context!())
+            .expect("error while running tauri application");
     }
-
-    // 不需要退出到托盘
-    app.run(tauri::generate_context!())
-        .expect("error while running tauri application");
 
     // 需要初始化Notification，否则第一次提示不会显示
     Notification::new("Init Info")

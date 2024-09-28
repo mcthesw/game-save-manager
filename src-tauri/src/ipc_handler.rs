@@ -297,7 +297,7 @@ pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<(), String> {
     info!(target:"rgsm::ipc","Setting quick backup game to: {:?}", game);
-    quick_actions::set_current_game(&app_handle, game);
+    quick_actions::set_current_game(&app_handle, game).await;
     Ok(())
 }
 

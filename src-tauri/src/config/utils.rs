@@ -91,7 +91,7 @@ fn upgrade_config_version(
 ) -> Result<(), ConfigError> {
     // 由于1.0之后版本保持了兼容性，因此不需要做任何处理，仅更新版本号并保存
     config.version = software_version.to_string();
-    tauri::async_runtime::block_on(async { set_config(config).await })?;
+    tauri::async_runtime::block_on(set_config(config))?;
     Ok(())
 }
 

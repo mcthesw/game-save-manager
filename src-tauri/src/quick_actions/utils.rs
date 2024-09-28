@@ -6,7 +6,9 @@ use crate::{
     config::{get_config, set_config},
 };
 
-pub fn set_current_game(app: &AppHandle, game: Game) {
+use super::*;
+
+pub async fn set_current_game(app: &AppHandle, game: Game) {
     info!(target:"rgsm::tray","Setting current quick backup game:{}",game.name);
     app.tray_handle()
         .get_item("game")
@@ -14,7 +16,7 @@ pub fn set_current_game(app: &AppHandle, game: Game) {
         .expect("Cannot get tray handle");
     let mut config = get_config().expect("Cannot get config");
     config.quick_action.quick_action_game = Some(game);
-    tauri::async_runtime::block_on(async { set_config(&config).await }).expect("Cannot set config");
+    set_config(&config).await.expect("Cannot set config");
 }
 
 #[derive(Debug, PartialEq)]
@@ -34,8 +36,9 @@ impl QuickActionType {
     }
 }
 
-pub async fn quick_apply(game: Option<Game>, t: QuickActionType) {
+pub async fn quick_apply(t: QuickActionType) {
     info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}",t.generate_describe());
+    let game = get_quick_action_game();
     match game {
         Some(game) => {
             info!(target:"rgsm::quick_action", "Quick apply game: {:#?}", game);
@@ -47,8 +50,8 @@ pub async fn quick_apply(game: Option<Game>, t: QuickActionType) {
                 .expect("No backup available")
                 .date
                 .clone();
-            tauri::async_runtime::block_on(async { game.restore_snapshot(&newest_date, None) })
-                .expect("Cannot restore save");
+            game.restore_snapshot(&newest_date, None)
+                .expect("Cannot apply");
             Notification::new("QuickAction")
                 .title(t!("backend.tray.success"))
                 .body(format!(
@@ -64,8 +67,9 @@ pub async fn quick_apply(game: Option<Game>, t: QuickActionType) {
     }
 }
 
-pub async fn quick_backup(game: Option<Game>, t: QuickActionType) {
+pub async fn quick_backup(t: QuickActionType) {
     info!(target:"rgsm::quick_action", "Auto backup triggered: {:#?}",t.generate_describe());
+    let game = get_quick_action_game();
     // TODO:这里可以让match有返回值来判断是否出错
     match &game {
         None => show_no_game_selected_error(),
@@ -111,4 +115,11 @@ pub fn get_quick_action_game() -> Option<Game> {
         .quick_action
         .quick_action_game
         .clone()
+}
+
+pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let config = get_config()?;
+    timer::setup_timer(app)?;
+    hotkeys::setup_hotkeys(&config, app)?;
+    Ok(())
 }

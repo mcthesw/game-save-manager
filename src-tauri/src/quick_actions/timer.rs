@@ -6,7 +6,7 @@ use std::{
 use tauri::{App, Manager, State};
 use tracing::info;
 
-use super::{get_quick_action_game, quick_backup, QuickActionType};
+use super::{quick_backup, QuickActionType};
 
 pub type AutoBackupDuration = AtomicU32;
 
@@ -19,7 +19,6 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         let mut last = 0;
         loop {
             let duration = state.load(std::sync::atomic::Ordering::Relaxed);
-            let game = get_quick_action_game();
             if last != duration {
                 // 如果发生改变，重新计数
                 counter = 1;
@@ -27,7 +26,7 @@ pub fn setup_timer(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
             // 时间间隔必须大于0，因为0表示禁用
             if duration > 0 && (counter >= duration) {
-                quick_backup(game, QuickActionType::Timer).await;
+                quick_backup(QuickActionType::Timer).await;
                 counter = 0;
             }
 

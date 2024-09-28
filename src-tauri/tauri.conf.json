@@ -23,6 +23,9 @@
       },
       "notification": {
         "all": true
+      },
+      "globalShortcut": {
+        "all": true
       }
     },
     "bundle": {
@@ -50,12 +53,21 @@
         "signingIdentity": null
       },
       "shortDescription": "",
-      "targets": ["appimage", "deb", "nsis", "dmg"],
+      "targets": [
+        "appimage",
+        "deb",
+        "nsis",
+        "dmg"
+      ],
       "windows": {
         "digestAlgorithm": "sha256",
         "timestampUrl": "",
         "nsis": {
-          "languages": ["English", "SimpChinese", "TradChinese"],
+          "languages": [
+            "English",
+            "SimpChinese",
+            "TradChinese"
+          ],
           "installMode": "both"
         }
       }

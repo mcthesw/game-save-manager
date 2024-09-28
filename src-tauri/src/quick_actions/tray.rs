@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
 use tauri::{
-    utils::config::WindowConfig, AppHandle, CustomMenuItem,
-    LogicalSize, Manager, State, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
-    SystemTraySubmenu,
+    utils::config::WindowConfig, AppHandle, CustomMenuItem, LogicalSize, Manager, State,
+    SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, SystemTraySubmenu,
 };
 use tracing::info;
-
-use crate::quick_actions::get_quick_action_game;
 
 use super::{quick_apply, quick_backup, AutoBackupDuration, QuickActionType};
 
@@ -76,6 +73,7 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
                         label: "main".to_string(),
                         url: tauri::WindowUrl::App("index.html".into()),
                         file_drop_enabled: false, // 必须这样设置，否则窗体内js接收不到drag & drop事件
+                        title: "RustyManager".to_string(),
                         ..Default::default()
                     },
                 )
@@ -95,16 +93,14 @@ pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
             "backup" => {
                 info!(target:"rgsm::quick_action::tray", "Tray quick backup clicked");
-                let game = get_quick_action_game();
-                tauri::async_runtime::block_on(async {
-                    quick_backup(game, QuickActionType::Tray).await
+                tauri::async_runtime::spawn(async move {
+                    quick_backup(QuickActionType::Tray).await;
                 });
             }
             "apply" => {
                 info!(target:"rgsm::quick_action::tray", "Tray quick apply clicked.");
-                let game = get_quick_action_game();
-                tauri::async_runtime::block_on(async {
-                    quick_apply(game, QuickActionType::Tray).await
+                tauri::async_runtime::spawn(async move {
+                    quick_apply(QuickActionType::Tray).await;
                 });
             }
             "quit" => {

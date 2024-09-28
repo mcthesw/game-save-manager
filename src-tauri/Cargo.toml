@@ -16,12 +16,11 @@ tauri-build = { version = "1.5.2", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.6.8", features = [
-    "notification-all",
     "shell-open",
     "dialog",
     "system-tray",
-    "notification",
-    "global-shortcut",
+    "notification-all",
+    "global-shortcut-all",
 ] }
 anyhow = "1.0.69"
 chrono = "0.4.23"

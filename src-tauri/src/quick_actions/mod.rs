@@ -5,6 +5,6 @@ mod utils;
 
 use utils::*;
 
-pub use timer::{setup_timer, AutoBackupDuration};
+pub use timer::AutoBackupDuration;
 pub use tray::{get_tray, tray_event_handler};
-pub use utils::set_current_game;
+pub use utils::{set_current_game, setup};
