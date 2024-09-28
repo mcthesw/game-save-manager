@@ -4,6 +4,6 @@ mod settings;
 mod utils;
 
 pub use app_config::Config;
-pub use quick_actions_settings::{QuickActions, QuickActionsSettings};
+pub use quick_actions_settings::QuickActionsSettings;
 pub use settings::Settings;
 pub use utils::*;

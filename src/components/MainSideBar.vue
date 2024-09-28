@@ -7,13 +7,12 @@ import {
     InfoFilled,
     HotWater,
     Setting,
-    MostlyCloudy, Grid
+    MostlyCloudy
 } from "@element-plus/icons-vue";
 import { useRoute, useRouter } from "vue-router";
 import { useConfig } from "../stores/ConfigFile";
 import { $t } from "../i18n";
-import { ElContainer, ElIcon, ElRow, ElScrollbar, ElTree } from "element-plus";
-import { FavoriteTreeNode } from "../schemas/saveTypes";
+import { ElContainer, ElIcon, ElRow, ElScrollbar } from "element-plus";
 
 let config = useConfig();
 

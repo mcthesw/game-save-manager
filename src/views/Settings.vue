@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 // TODO:调整日志设置，比如删除日
+// TODO:对设置进行分类
 import { computed, ref, watch } from "vue";
 import { useConfig } from "../stores/ConfigFile";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -10,6 +11,7 @@ import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
 import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled } from "@element-plus/icons-vue";
+import HotkeySelector from "../components/HotkeySelector.vue";
 
 
 const isDark = useDark()
@@ -212,6 +214,17 @@ const router_list = computed(() => {
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.add_new_to_favorites" :loading="loading" />
                 <span>{{ $t("settings.add_new_to_favorites") }}</span>
+            </div>
+            <div class="setting-box drag-game-box">
+                <ElCollapse>
+                    <ElCollapseItem :title="$t('settings.quick_action_hotkeys') + '*'">
+                        <strong v-if="config.quick_action.quick_action_game">
+                            {{ $t("setting.current_quick_action_game") }} :
+                            {{ config.quick_action.quick_action_game?.name }}
+                        </strong>
+                        <HotkeySelector v-model="config.quick_action.hotkeys" />
+                    </ElCollapseItem>
+                </ElCollapse>
             </div>
             <div class="setting-box drag-game-box">
                 <ElCollapse>

@@ -1,7 +1,4 @@
-use crate::{
-    cloud_sync::{Backend, CloudSettings},
-    config::QuickActionsSettings,
-};
+use crate::cloud_sync::Backend;
 
 pub fn default_false() -> bool {
     false
@@ -21,9 +18,6 @@ pub fn default_home_page() -> String {
 pub fn default_backend() -> Backend {
     Backend::Disabled
 }
-pub fn default_cloud_settings() -> CloudSettings {
-    CloudSettings::default()
-}
 pub fn default_locale() -> String {
     "zh_SIMPLIFIED".to_owned()
 }
@@ -33,6 +27,6 @@ pub fn empty_vec<T>() -> Vec<T> {
 pub fn default_none<T>() -> Option<T> {
     None
 }
-pub fn default_quick_action_settings() -> QuickActionsSettings {
-    QuickActionsSettings::default()
+pub fn default<T: Default>() -> T {
+    T::default()
 }

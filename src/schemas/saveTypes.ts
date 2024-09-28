@@ -131,6 +131,19 @@ export interface FavoriteTreeNode {
     children?: FavoriteTreeNode[];
 }
 
+export interface QuickActionsSettings {
+    /**
+     * 当前启用快捷备份的游戏
+     */
+    quick_action_game?: Game;
+    /**
+     * 快捷键与其对应的操作列表
+     */
+    hotkeys: {
+        backup: string[],
+        apply: string[]
+    };
+}
 
 export interface Config {
     /**
@@ -153,6 +166,10 @@ export interface Config {
      * 收藏夹
      */
     favorites: Array<FavoriteTreeNode>;
+    /**
+     * 快捷备份设置，包含当前游戏和快捷键绑定的指令
+     */
+    quick_action: QuickActionsSettings;
 }
 
 export let default_config: Config = {
@@ -181,6 +198,12 @@ export let default_config: Config = {
         add_new_to_favorites: false
     },
     favorites: [],
+    quick_action: {
+        hotkeys: {
+            backup: [],
+            apply: []
+        }
+    }
 };
 
 export { Backend };

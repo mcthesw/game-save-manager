@@ -37,7 +37,13 @@
     "open_log_folder": "打开日志",
     "log_to_file": "生成文件日志",
     "setting_tips": "带有星号表示重启后生效，其余设置保存后生效",
-    "add_new_to_favorites": "新游戏自动加入收藏夹"
+    "add_new_to_favorites": "新游戏自动加入收藏夹",
+    "quick_action_hotkeys": "快捷备份/恢复热键设置（需要保存设置）",
+    "hotkey": {
+      "hint": "注意，此处设置和其他带有星号设置一样，需要保存并且重启生效，设置为全空即禁用该功能",
+      "quick_backup": "快速备份",
+      "quick_apply": "快速读档"
+    }
   },
   "home": {
     "hello_world": "你好 世界",
@@ -286,5 +292,8 @@
     "add_success": "成功添加节点",
     "game_not_found": "建议删除该收藏，因为游戏不存在：",
     "enable_edit": "启用编辑：可以直接拖拽项目进行排序"
+  },
+  "setting": {
+    "current_quick_action_game": "当前快捷备份的游戏"
   }
 }

@@ -18,7 +18,7 @@ pub struct Config {
     pub settings: Settings,
     #[serde(default = "default_value::empty_vec")]
     pub favorites: Vec<FavoriteTreeNode>,
-    #[serde(default = "default_value::default_quick_action_settings")]
+    #[serde(default = "default_value::default")]
     pub quick_action: QuickActionsSettings,
 }
 

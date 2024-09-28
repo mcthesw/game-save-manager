@@ -37,7 +37,13 @@
     "open_log_folder": "Open log",
     "log_to_file": "Generate file log",
     "setting_tips": "An asterisk indicates that it will take effect after restarting, and the remaining settings will take effect after saving.",
-    "add_new_to_favorites": "New games are automatically added to favorites"
+    "add_new_to_favorites": "New games are automatically added to favorites",
+    "quick_action_hotkeys": "Quick backup/restore hotkey settings (settings need to be saved)",
+    "hotkey": {
+      "quick_backup": "Quick backup",
+      "hint": "Note that the settings here are the same as other settings with an asterisk. They need to be saved and restarted to take effect. Setting it to empty will disable this function.",
+      "quick_apply": "Quick file reading"
+    }
   },
   "home": {
     "hello_world": "Hello world",
@@ -286,5 +292,8 @@
     "add_success": "Node added successfully",
     "enable_edit": "Enable editing: You can drag and drop items directly to sort them",
     "game_not_found": "It is recommended to delete this collection as the game does not exist:"
+  },
+  "setting": {
+    "current_quick_action_game": "Current quick backup games"
   }
 }

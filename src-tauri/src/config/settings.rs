@@ -17,7 +17,7 @@ pub struct Settings {
     pub prompt_when_auto_backup: bool,
     #[serde(default = "default_value::default_true")]
     pub exit_to_tray: bool,
-    #[serde(default = "default_value::default_cloud_settings")]
+    #[serde(default = "default_value::default")]
     pub cloud_settings: CloudSettings,
     #[serde(default = "default_value::default_locale")]
     pub locale: String,
