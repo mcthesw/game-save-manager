@@ -2,10 +2,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::{backup::Game, default_value};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QuickActionHotkeys {
     pub apply: Vec<String>,
     pub backup: Vec<String>,
+}
+
+impl Default for QuickActionHotkeys {
+    fn default() -> Self {
+        Self {
+            apply: vec!["".to_string(), "".to_string(), "".to_string()],
+            backup: vec!["".to_string(), "".to_string(), "".to_string()],
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
