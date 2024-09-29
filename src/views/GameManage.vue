@@ -357,9 +357,10 @@ const filter_table = computed(
                     </el-button>
                 </template>
 
-                <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
+                <!-- TODO: 移除该功能 -->
+                <!-- <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
                     {{ $t('manage.change_info') }}
-                </el-button>
+                </el-button> -->
                 <el-button type="danger" round @click="del_cur()">
                     {{ $t('manage.delete_save_manage') }}
                 </el-button>

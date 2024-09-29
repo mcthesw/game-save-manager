@@ -195,10 +195,11 @@ const router_list = computed(() => {
                 <ElSwitch v-model="isDark" :loading="loading" />
                 <span>{{ $t("settings.enable_dark_mode") }}</span>
             </div>
-            <div class="setting-box">
+            <!-- TODO: 移除该功能 -->
+            <!-- <div class="setting-box">
                 <ElSwitch v-model="config.settings.show_edit_button" :loading="loading" />
                 <span>{{ $t("settings.enable_edit_manage") }}</span>
-            </div>
+            </div> -->
             <div class="setting-box">
                 <ElSwitch v-model="config.settings.default_delete_before_apply" :loading="loading" />
                 <span>{{ $t("settings.default_delete_before_apply") }}</span>
