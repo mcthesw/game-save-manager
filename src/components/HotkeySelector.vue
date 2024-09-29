@@ -5,8 +5,8 @@ import { $t } from "../i18n";
 
 // Initialize hotkey_out with default values
 const hotkey_out = defineModel<{
-    backup: string[];
-    apply: string[];
+    backup: [string, string, string];
+    apply: [string, string, string];
 }>({
     default: {
         backup: ['', '', ''],

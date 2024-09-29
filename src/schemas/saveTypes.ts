@@ -140,8 +140,8 @@ export interface QuickActionsSettings {
      * 快捷键与其对应的操作列表
      */
     hotkeys: {
-        backup: string[],
-        apply: string[]
+        backup: [string, string, string],
+        apply: [string, string, string]
     };
 }
 
@@ -200,8 +200,8 @@ export let default_config: Config = {
     favorites: [],
     quick_action: {
         hotkeys: {
-            backup: [],
-            apply: []
+            backup: ["", "", ""],
+            apply: ["", "", ""]
         }
     }
 };
