@@ -6,19 +6,22 @@ use tauri::{
 };
 use tracing::info;
 
+use crate::config::get_config;
+
 use super::{quick_apply, quick_backup, AutoBackupDuration, QuickActionType};
 
 use rust_i18n::t;
 
 // TODO:处理错误
 pub fn get_tray() -> SystemTray {
+    let config = get_config().expect("Cannot get config");
+    let current_quick_action_game = match config.quick_action.quick_action_game {
+        Some(game) => CustomMenuItem::new("game".to_owned(), game.name),
+        None => CustomMenuItem::new("game".to_owned(), t!("backend.tray.no_game_selected")),
+    };
     // Menu items begin
     let tray_menu = SystemTrayMenu::new()
-        // TODO: 想办法让它能自动更新成当前游戏
-        // .add_item(CustomMenuItem::new(
-        //     "game".to_owned(),
-        //     t!("backend.tray.no_game_selected"),
-        // ))
+        .add_item(current_quick_action_game)
         .add_submenu(SystemTraySubmenu::new(
             t!("backend.tray.auto_backup_interval"),
             SystemTrayMenu::new()

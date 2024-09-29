@@ -219,10 +219,12 @@ const router_list = computed(() => {
             <div class="setting-box drag-game-box">
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.quick_action_hotkeys') + '*'">
-                        <strong v-if="config.quick_action.quick_action_game">
-                            {{ $t("setting.current_quick_action_game") }} :
-                            {{ config.quick_action.quick_action_game?.name }}
-                        </strong>
+                        <div>
+                            <strong v-if="config.quick_action.quick_action_game">
+                                {{ $t("setting.current_quick_action_game") }} :
+                                {{ config.quick_action.quick_action_game?.name }}
+                            </strong>
+                        </div>
                         <HotkeySelector v-model="config.quick_action.hotkeys" />
                     </ElCollapseItem>
                 </ElCollapse>
