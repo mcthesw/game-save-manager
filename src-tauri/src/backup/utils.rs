@@ -4,6 +4,7 @@ use crate::errors::BackupError;
 use std::fs;
 use std::path::PathBuf;
 use tauri::AppHandle;
+use tracing::{error, info};
 
 use super::{Game, GameSnapshots};
 
@@ -60,10 +61,16 @@ pub async fn create_game_backup(game: &Game) -> Result<(), BackupError> {
 pub async fn backup_all() -> Result<(), BackupError> {
     let config = get_config()?;
     for game in &config.games {
-        game.create_snapshot("Backup all").await?;
+        if let Err(e) = game.create_snapshot("Backup all").await {
+            error!(target: "rgsm::backup", "Backup all failed for game {:#?}", game);
+            return Err(e);
+        } else {
+            info!(target: "rgsm::backup", "Backup all succeeded for game {:#?}", game.name);
+        }
     }
     Ok(())
 }
+
 pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<(), BackupError> {
     let config = get_config()?;
     for game in &config.games {
@@ -74,7 +81,12 @@ pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<(), BackupError
             .ok_or(BackupError::NoBackupAvailable)?
             .date
             .clone();
-        game.restore_snapshot(&date, app_handle)?;
+        if let Err(e) = game.restore_snapshot(&date, app_handle) {
+            error!(target: "rgsm::backup", "Apply all failed for game {:#?} with date {}", game, date);
+            return Err(e);
+        } else {
+            info!(target: "rgsm::backup", "Apply all succeeded for game {:#?} with date {}", game.name, date);
+        }
     }
     Ok(())
 }
