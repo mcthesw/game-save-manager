@@ -173,7 +173,7 @@ export interface Config {
 }
 
 export let default_config: Config = {
-    version: "1.3.2",
+    version: "1.4.0",
     backup_path: "./save_data",
     games: [],
     settings: {

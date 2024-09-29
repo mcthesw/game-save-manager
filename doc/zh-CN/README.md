@@ -93,7 +93,7 @@ vue-devtools
 
 - 在`package.json`中更新版本号(`pnpm version <patch|minor|major>`)
 - 在`src/schemas/saveTypes.ts`中更新版本号
-- 在`src-tauri/src/config.rs:default_config`中更新版本号
+- 在`src-tauri/src/config/app_config.rs:impl Default for Config`中更新版本号
 - 在`src-tauri/tauri.conf.json`中更新版本号
 
 ## 文件夹说明
