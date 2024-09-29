@@ -14,10 +14,11 @@ use rust_i18n::t;
 pub fn get_tray() -> SystemTray {
     // Menu items begin
     let tray_menu = SystemTrayMenu::new()
-        .add_item(CustomMenuItem::new(
-            "game".to_owned(),
-            t!("backend.tray.no_game_selected"),
-        ))
+        // TODO: 想办法让它能自动更新成当前游戏
+        // .add_item(CustomMenuItem::new(
+        //     "game".to_owned(),
+        //     t!("backend.tray.no_game_selected"),
+        // ))
         .add_submenu(SystemTraySubmenu::new(
             t!("backend.tray.auto_backup_interval"),
             SystemTrayMenu::new()
