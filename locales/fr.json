@@ -21,7 +21,7 @@
         "move_down": "Prochaines étapes",
         "enable_edit_manage": "Changements affichés à l'interface de gestion des archives",
         "backup_all": "Tous les fichiers de sauvegarde",
-        "backup_all_hint": "l'opération serait archivée pour tous les jeux et pourrait prendre un long temps pour déterminer les forets d'entrée",
+        "backup_all_hint": "Attention",
         "apply_all": "Application de tous les fichiers",
         "apply_all_hint": "est-ce un mouvement à haut risque qui peut prendre un long temps, et vous décidez de couvrir tous les jeux? identification des entrées",
         "confirm": "Identification",
@@ -33,13 +33,23 @@
         "reset_success": "Reprise du succès",
         "default_delete_before_apply": "Acquiescence pour supprimer le back-up (efficacité pour les nouveaux jeux)",
         "default_expend_favorites_tree": "Vestes de collection Acquiesced",
-        "homepage": "Page de lancement"
+        "homepage": "Page de lancement",
+        "open_log_folder": "Ouverture du journal",
+        "log_to_file": "Production de registres de documents",
+        "setting_tips": "Entrée en vigueur après la réactivation de l'astérisque et la maintenance restante",
+        "add_new_to_favorites": "Nouveaux jeux rejoignent automatiquement les collections",
+        "quick_action_hotkeys": "Sauvegarde/restauration rapide des clés chaudes (réserves)",
+        "hotkey": {
+            "hint": "Notez qu'il est nécessaire de préserver et de redynamiser l'entrée en vigueur, comme c'est le cas pour l'établissement d'autres constellations, et d'interdire totalement l'utilisation de cette fonction",
+            "quick_backup": "Sauvegarde rapide",
+            "quick_apply": "Succès dans la préservation des changements"
+        }
     },
     "home": {
         "hello_world": "Vos Excellences",
-        "simple": "Simplicité",
+        "simple": "Ajout de succès",
         "simple_explained": "Les fonctions de non-utilisation telles que l'extension, la remise, etc. ne sont pas ajoutées pour assurer, dans la mesure du possible, que les interfaces sont fonctionnelles",
-        "safe": "Sécurité",
+        "safe": "Demande",
         "safe_explained": "Le logiciel n'est pas en ligne, et vous pouvez archiver leurs propres archives à travers un nuage de noix pour effectuer la fonction de “archivage de nuage”",
         "free": "Liberté",
         "free_explained": "Le logiciel est un monde ouvert, et vous pouvez facilement visiter son code source, et ceux qui peuvent y contribuer",
@@ -77,7 +87,7 @@
         "operation_canceled": "Vous avez annulé cette opération",
         "delete_save_manage": "Supprimer la gestion archivistique",
         "input_description_prompt": "Input of new archiving information",
-        "new_save_of": "Nouveau dépôt:",
+        "new_save_of": "cadre d ' application de bureau",
         "save_date": "date de sauvegarde",
         "description": "Fermeture de la sauvegarde automatique",
         "apply": "Demande",
@@ -94,7 +104,9 @@
         "set_quick_backup_failed": "Failure",
         "warning": "Attention",
         "input_description_search_prompt": "Entrée pour la description de recherche",
-        "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?"
+        "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?",
+        "batch_delete": "Suppression de l ' entrée",
+        "batch_delete_prompt": "notez que l'opération supprimera toutes les demandes de dépôt et déterminera les entrées de oui"
     },
     "addgame": {
         "search_local": "Identification automatique des jeux locaux",
@@ -122,17 +134,17 @@
         "early_access_warning": "Il s'agit d'une version d'essai précoce qui ne garantit pas la stabilité et nécessite une utilisation prudente"
     },
     "about": {
-        "project_initiator": "Fondateur du projet",
+        "project_initiator": "Déterminer que la couverture est disponible?",
         "ea_tester": "Succès dans la mise en place de clés ou de dessins rapides",
         "developer": "Project developers",
-        "frontend_framework": "Cadre front-end",
+        "frontend_framework": "Route (réplicatée par des coups simples)",
         "content_2": "Le logiciel a été conçu pour faciliter l'archivage du jeu par les joueurs, mais en raison du nombre de jeux, il était difficile de correspondre, de sorte que le chemin de jeu ne pouvait être guidé à la main, et si vous étiez intéressé, pourrait essayer de participer à l'amélioration du projet。",
         "support_me_content_1": "Vous pouvez cliquer sur l'adresse d'ouverture de la prochaine partie, qui est très encourageant pour moi, ou contribuer des codes et poser des questions pour ce projet à travers une plate-forme ouverte。",
         "support_me_content_2": "Je vous serais très reconnaissant d'être l'utilisateur général et de m'inviter à boire des verres。",
         "thank_you_list": "Liste des remerciements",
         "frameworks": "Utilisation du cadre",
         "official_website": "Sites Web officiels",
-        "version": "Version: [0]",
+        "version": "Sauvegarde initiale",
         "help": "Aide aux fichiers",
         "desktop_framework": "cadre d ' application de bureau",
         "ui_framework": "UI FRAMEWORK",
@@ -157,7 +169,7 @@
         "about": "En ce qui concerne la question du Sahara occidental"
     },
     "save_location_drawer": {
-        "drawer_title": "Liste des documents de gestion",
+        "drawer_title": "Identification automatique des jeux locaux",
         "type": "Catégorie",
         "prompt": "Route (réplicatée par des coups simples)",
         "open_file_header": "Abolition",
@@ -207,7 +219,15 @@
         "overwrite_download": "Téléchargements de couverture",
         "manual_sync": "Migration",
         "save_button": "Entretien",
-        "abort_button": "Rejection"
+        "abort_button": "Rejection",
+        "s3": {
+            "region_hint": "aucun espace aérien ne devrait être nécessaire pour entrer dans l ' essai si cela n ' est pas nécessaire",
+            "endpoint": "S3 ENDPOINT",
+            "bucket": "Stockage du tambour",
+            "region": "Regional",
+            "access_key_id": "VISITE DE L'IDENTITÉ CLÉ",
+            "secret_access_key": "Visites secrètes clé"
+        }
     },
     "error": {
         "open_url_failed": "Failure to open links",
@@ -224,7 +244,8 @@
         "open_backup_folder_failed": "Défaut d ' ouvrir les documents",
         "set_config_failed": "Absence de configuration",
         "reset_settings_failed": "Reprise des défaillances",
-        "change_description_failed": "Absence de description éditoriale"
+        "change_description_failed": "Absence de description éditoriale",
+        "open_log_folder_failed": "Pas d'ouverture du journal"
     },
     "backend": {
         "config": {
@@ -243,11 +264,19 @@
             "exit": "Absence de sauvegarde, registres d'inspection pour obtenir plus d'informations",
             "success": "Succès",
             "error": "Misuse",
-            "no_game_selected": "Pas de choix de jeu"
+            "no_game_selected": "Pas de choix de jeu",
+            "find_error_detail": "Informations complémentaires dans le journal"
+        },
+        "backup": {
+            "extra_backup_file_not_exist": "En raison de la non-disponibilité de la documentation, il n ' a pas été possible d ' achever la sauvegarde supplémentaire (couverture avant service) et de reprendre la suspension. Si cette fonction n'est pas requise, elle devrait être fermée dans l'établissement。",
+            "backup_file_not_exist": "le document 3% {name} n'existe pas et ne peut être soutenu ou restauré"
+        },
+        "archive": {
+            "file_not_exist": "les routes pour cent {path} n'existent pas et sont automatiquement créées"
         }
     },
     "favorite": {
-        "favorite_manage": "Gestion des collections",
+        "favorite_manage": "Reprise du succès",
         "add_favorite_folder": "Ajout de documents",
         "new_folder_name": "Liste des nouveaux documents",
         "duplicated_empty_error": "Liste des documents en double ou des noms vides",
@@ -260,6 +289,11 @@
         "choose_game_add": "Retrait",
         "add_to_favorite": "Ajouté à la collection",
         "remove_success": "Suppression réussie de nœuds",
-        "add_success": "Points d ' addition réussis"
+        "add_success": "Points d ' addition réussis",
+        "game_not_found": "Il est recommandé que la collection soit supprimée parce que le jeu n'existe pas:",
+        "enable_edit": "Lancement de l'éditeur: le classement du projet peut être directement retardé"
+    },
+    "setting": {
+        "current_quick_action_game": "Jeux rapides en cours"
     }
 }
