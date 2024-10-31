@@ -51,7 +51,7 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
         // 写入存档记录
         // TODO: 此处的cloud_backup_path应当改为本地的路径
         fs::write(
-            &format!("{}/Backups.json", &backup_path),
+            format!("{}/Backups.json", &backup_path),
             serde_json::to_string_pretty(&backup_info)?,
         )?;
         // 写入存档zip文件（不包括额外备份）
