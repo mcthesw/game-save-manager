@@ -10,9 +10,10 @@ i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use config::{get_config, Config};
 
+use core::panic;
 use std::sync::Arc;
 use tauri::api::notification::Notification;
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber::{filter::LevelFilter, Layer};
 
 use crate::config::config_check;
@@ -36,6 +37,27 @@ fn main() {
     // Init log
     init_log(&config);
     info!("{}", t!("home.hello_world"));
+
+    // 将 panic 信息记录到日志中
+    std::panic::set_hook(Box::new(|panic_info| {
+        // 获取 panic 的位置信息
+        let location = panic_info.location().unwrap(); // 可以使用 unwrap_or_else() 处理 location 为 None 的情况
+
+        // 获取 panic 的原因
+        let message = panic_info
+            .payload()
+            .downcast_ref::<&str>()
+            .unwrap_or(&"unknown reason"); // 处理 payload 不是 &str 类型的情况
+
+        // 使用 tracing crate 记录错误信息，并包含位置和原因
+        error!(
+            message = "Application panicked.",
+            panic.message = message,
+            panic.file = location.file(),
+            panic.line = location.line(),
+            panic.column = location.column(),
+        );
+    }));
 
     // Init app
     let app = tauri::Builder::default()
