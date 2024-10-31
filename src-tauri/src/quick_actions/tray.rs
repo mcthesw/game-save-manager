@@ -67,10 +67,9 @@ pub fn get_tray() -> SystemTray {
 pub fn tray_event_handler(app: &AppHandle, event: SystemTrayEvent) {
     match event {
         SystemTrayEvent::LeftClick { .. } => {
+            // 单击托盘图标时，显示主窗口（若主窗口不存在）
             info!(target: "rgsm::quick_action::tray", "Tray left click");
-            if let Some(window) = app.get_window("main") {
-                window.close().expect("Cannot close window");
-            } else {
+            if app.get_window("main").is_none() {
                 let window = tauri::WindowBuilder::from_config(
                     app,
                     WindowConfig {
