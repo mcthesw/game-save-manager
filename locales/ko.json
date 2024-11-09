@@ -27,7 +27,7 @@
         "adjust_game_order": "놀이 쇼케이스의 우선 순위 (necessary maintenance)",
         "name": "무효",
         "game_path": "도로 시작",
-        "backup_all_hint": "제품정보",
+        "backup_all_hint": "작업은 모든 게임을 위해 아카이브 될 것이며 입력 foryes를 결정하는 장시간 걸릴 수 있습니다",
         "apply_all": "모든 파일의 신청",
         "apply_all_hint": "시간이 걸릴 수 있고, 모든 게임을 커버하기로 결정할 수 있는 높은-리스크 이동입니까? inputyes의 id",
         "success": "작업 성공",
@@ -40,16 +40,16 @@
         "quick_action_hotkeys": "핫 키의 신속한 백업 / 복원 (예약)",
         "hotkey": {
             "hint": "다른 별자리의 설립을 가진 경우와 같은 힘으로 입장을 보존하고 재 에너지화하는 것이 필요하며, 이 함수의 사용을 금지합니다",
-            "quick_apply": "자주 묻는 질문",
+            "quick_apply": "빠른 독서",
             "quick_backup": "빠른 백업"
         },
         "open_log_folder": "로그 열기"
     },
     "home": {
         "hello_world": "당신의 Excellencies",
-        "simple": "성공 추가",
+        "simple": "단순성",
         "simple_explained": "연장, 할인, 등과 같은 비 타화 기능은 할 수 있는 범위에, 그 공용영역은 기능적 추가하지 않습니다",
-        "safe": "제품 설명",
+        "safe": "보안",
         "safe_explained": "소프트웨어는 온라인이 아니며, 당신은 \"클라우드 아카이브\"의 기능을 달성하기 위해 너트 클라우드에 의해 자신의 레코드를 아카이브 할 수 있습니다",
         "free": "지원하다",
         "free_explained": "이 소프트웨어는 오픈 세계이며, 소스 코드를 쉽게 방문 할 수 있으며, 기여 할 수있는 사람들",
@@ -84,7 +84,7 @@
         "operation_canceled": "이 작업을 취소",
         "delete_save_manage": "아카이브 관리",
         "input_description_prompt": "새로운 아카이브의 입력",
-        "new_save_of": "데스크톱 애플리케이션 프레임",
+        "new_save_of": "새로운 서류:",
         "save_date": "백업 날짜",
         "description": "자동 백업의 마감",
         "show_drawer": "관리 문서에 접근",
@@ -134,11 +134,11 @@
         "early_access_warning": "이것은 안정성을 보장하지 않는 이른 시험 버전이고 주의깊게 사용 요구합니다"
     },
     "about": {
-        "frontend_framework": "노선 (단 하나 타격에 의해 복제)",
+        "frontend_framework": "프론트 엔드 프레임",
         "desktop_framework": "데스크톱 애플리케이션 프레임",
         "ui_framework": "UI 프레임",
         "support_me": "지원 나",
-        "project_initiator": "적용이 가능합니까?",
+        "project_initiator": "프로젝트의 설립자",
         "ea_tester": "빠른 키 또는 그림 설정에 성공",
         "developer": "프로젝트 개발자",
         "content_1": "이 소프트웨어는 오픈 소스, Sworld-led 놀이 아카이브 관리 소프트웨어",
@@ -148,7 +148,7 @@
         "thank_you_list": "감사합니다",
         "frameworks": "프레임의 사용",
         "official_website": "공식 웹사이트",
-        "version": "초기 백업",
+        "version": "버전: [0] ·",
         "help": "도움말 파일"
     },
     "sync_settings": {
@@ -240,7 +240,7 @@
         "about": "서양 사하라의 질문에 관해서"
     },
     "save_location_drawer": {
-        "drawer_title": "현지 게임의 자동 식별",
+        "drawer_title": "관리 문서 목록",
         "type": "(주)",
         "prompt": "노선 (단 하나 타격에 의해 복제)",
         "open_file_header": "제품정보",
@@ -276,7 +276,7 @@
         }
     },
     "favorite": {
-        "favorite_manage": "성공의 이유",
+        "favorite_manage": "회사소개",
         "add_favorite_folder": "문서의 추가",
         "new_folder_name": "새 문서 목록",
         "duplicated_empty_error": "중복 문서 또는 빈 이름 목록",
