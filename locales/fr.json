@@ -21,7 +21,7 @@
         "move_down": "Prochaines étapes",
         "enable_edit_manage": "Changements affichés à l'interface de gestion des archives",
         "backup_all": "Tous les fichiers de sauvegarde",
-        "backup_all_hint": "Attention",
+        "backup_all_hint": "l'opération serait archivée pour tous les jeux et pourrait prendre un long temps pour déterminer les forets d'entrée",
         "apply_all": "Application de tous les fichiers",
         "apply_all_hint": "est-ce un mouvement à haut risque qui peut prendre un long temps, et vous décidez de couvrir tous les jeux? identification des entrées",
         "confirm": "Identification",
@@ -42,14 +42,14 @@
         "hotkey": {
             "hint": "Notez qu'il est nécessaire de préserver et de redynamiser l'entrée en vigueur, comme c'est le cas pour l'établissement d'autres constellations, et d'interdire totalement l'utilisation de cette fonction",
             "quick_backup": "Sauvegarde rapide",
-            "quick_apply": "Succès dans la préservation des changements"
+            "quick_apply": "Lecture rapide"
         }
     },
     "home": {
         "hello_world": "Vos Excellences",
-        "simple": "Ajout de succès",
+        "simple": "Simplicité",
         "simple_explained": "Les fonctions de non-utilisation telles que l'extension, la remise, etc. ne sont pas ajoutées pour assurer, dans la mesure du possible, que les interfaces sont fonctionnelles",
-        "safe": "Demande",
+        "safe": "Sécurité",
         "safe_explained": "Le logiciel n'est pas en ligne, et vous pouvez archiver leurs propres archives à travers un nuage de noix pour effectuer la fonction de “archivage de nuage”",
         "free": "Liberté",
         "free_explained": "Le logiciel est un monde ouvert, et vous pouvez facilement visiter son code source, et ceux qui peuvent y contribuer",
@@ -87,7 +87,7 @@
         "operation_canceled": "Vous avez annulé cette opération",
         "delete_save_manage": "Supprimer la gestion archivistique",
         "input_description_prompt": "Input of new archiving information",
-        "new_save_of": "cadre d ' application de bureau",
+        "new_save_of": "Nouveau dépôt:",
         "save_date": "date de sauvegarde",
         "description": "Fermeture de la sauvegarde automatique",
         "apply": "Demande",
@@ -134,17 +134,17 @@
         "early_access_warning": "Il s'agit d'une version d'essai précoce qui ne garantit pas la stabilité et nécessite une utilisation prudente"
     },
     "about": {
-        "project_initiator": "Déterminer que la couverture est disponible?",
+        "project_initiator": "Fondateur du projet",
         "ea_tester": "Succès dans la mise en place de clés ou de dessins rapides",
         "developer": "Project developers",
-        "frontend_framework": "Route (réplicatée par des coups simples)",
+        "frontend_framework": "Cadre front-end",
         "content_2": "Le logiciel a été conçu pour faciliter l'archivage du jeu par les joueurs, mais en raison du nombre de jeux, il était difficile de correspondre, de sorte que le chemin de jeu ne pouvait être guidé à la main, et si vous étiez intéressé, pourrait essayer de participer à l'amélioration du projet。",
         "support_me_content_1": "Vous pouvez cliquer sur l'adresse d'ouverture de la prochaine partie, qui est très encourageant pour moi, ou contribuer des codes et poser des questions pour ce projet à travers une plate-forme ouverte。",
         "support_me_content_2": "Je vous serais très reconnaissant d'être l'utilisateur général et de m'inviter à boire des verres。",
         "thank_you_list": "Liste des remerciements",
         "frameworks": "Utilisation du cadre",
         "official_website": "Sites Web officiels",
-        "version": "Sauvegarde initiale",
+        "version": "Version: [0]",
         "help": "Aide aux fichiers",
         "desktop_framework": "cadre d ' application de bureau",
         "ui_framework": "UI FRAMEWORK",
@@ -276,7 +276,7 @@
         }
     },
     "favorite": {
-        "favorite_manage": "Reprise du succès",
+        "favorite_manage": "Gestion des collections",
         "add_favorite_folder": "Ajout de documents",
         "new_folder_name": "Liste des nouveaux documents",
         "duplicated_empty_error": "Liste des documents en double ou des noms vides",
