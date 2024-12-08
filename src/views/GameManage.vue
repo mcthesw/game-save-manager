@@ -137,19 +137,20 @@ function send_save_to_background() {
     }, 1000);
 }
 
-function create_new_save() {
+async function create_new_save() {
     if (
         config.settings.prompt_when_not_described && !describe.value
     ) {
-        ElMessageBox.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
-            confirmButtonText: $t('manage.confirm_save'),
-            cancelButtonText: $t('manage.cancel'),
-            type: "warning",
-        })
-            .then(() => {
-                send_save_to_background();
-            })
-            .catch(() => { });
+        try {
+            await ElMessageBox.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
+                confirmButtonText: $t('manage.confirm_save'),
+                cancelButtonText: $t('manage.cancel'),
+                type: "warning",
+            });
+            send_save_to_background();
+        } catch (error) {
+            console.log(error);
+        }
     } else {
         send_save_to_background();
     }
@@ -211,28 +212,19 @@ function apply_save(date: string) {
         })
 }
 
-function change_describe(date: string) {
-    ElMessageBox.prompt($t('manage.input_description_prompt'), $t('manage.change_description'), {
-        confirmButtonText: $t('manage.confirm'),
-        cancelButtonText: $t('manage.cancel'),
-        inputValue: table_data.value.find((x) => x.date == date)?.describe,
-    })
-        .then(({ value }) => {
-            invoke("set_snapshot_description", { game: game.value, date: date, describe: value })
-                .then((x) => {
-                    console.log(x)
-                    refresh_backups_info();
-                    show_success($t('manage.change_description_success'));
-                }).catch(
-                    (e) => {
-                        console.log(e)
-                        show_error($t('error.change_description_failed'))
-                    }
-                )
-        })
-        .catch(() => {
-            show_info($t('manage.operation_canceled'));
+async function change_describe(date: string) {
+    try {
+        const { value } = await ElMessageBox.prompt($t('manage.input_description_prompt'), $t('manage.change_description'), {
+            confirmButtonText: $t('manage.confirm'),
+            cancelButtonText: $t('manage.cancel'),
+            inputValue: table_data.value.find((x) => x.date == date)?.describe,
         });
+        await invoke("set_snapshot_description", { game: game.value, date: date, describe: value });
+        refresh_backups_info();
+        show_success($t('manage.change_description_success'));
+    } catch {
+        show_info($t('manage.operation_canceled'));
+    }
 }
 
 function load_latest_save() {
@@ -244,30 +236,32 @@ function load_latest_save() {
     }
 }
 
-function del_cur() {
-    ElMessageBox.prompt(
-        $t('manage.delete_prompt'),
-        $t('home.hint'),
-        {
-            confirmButtonText: $t('manage.confirm'),
-            cancelButtonText: $t('manage.cancel'),
-            inputPattern: /yes/,
-            inputErrorMessage: $t('manage.invalid_input_error'),
-        }
-    )
-        .then(() => {
-            invoke("delete_game", { game: game.value }).catch((e) => {
-                console.log(e)
-                show_error($t('error.delete_game_failed'))
+async function del_cur() {
+    try {
+        const { value } = await ElMessageBox.prompt(
+            $t('manage.delete_prompt'),
+            $t('home.hint'),
+            {
+                confirmButtonText: $t('manage.confirm'),
+                cancelButtonText: $t('manage.cancel'),
+                inputPattern: /yes/,
+                inputErrorMessage: $t('manage.invalid_input_error'),
+            }
+        );
+
+        if (value === 'yes') {
+            await invoke("delete_game", { game: game.value }).catch((e) => {
+                console.log(e);
+                show_error($t('error.delete_game_failed'));
             });
-            setTimeout(async () => {
-                await config.refresh()
-                router.back()
-            }, 100)
-        })
-        .catch(() => {
-            show_info($t('manage.operation_canceled'));
-        });
+            await config.refresh();
+            router.back();
+        } else {
+            show_info($t('manage.invalid_input_error'));
+        }
+    } catch {
+        show_info($t('manage.operation_canceled'));
+    }
 }
 
 function open_backup_folder() {
@@ -281,29 +275,33 @@ function open_backup_folder() {
 }
 
 // 点击按钮后，跳转到添加游戏页面
-function edit_cur() {
-    ElMessageBox.prompt(
-        $t('manage.change_prompt'),
-        $t('misc.info'),
-        {
-            confirmButtonText: $t('manage.confirm'),
-            cancelButtonText: $t('manage.cancel'),
-            inputPattern: /yes/,
-            inputErrorMessage: $t('manage.invalid_input_error'),
-        }
-    )
-        .then(async () => {
-            await config.refresh()
+async function edit_cur() {
+    try {
+        const { value } = await ElMessageBox.prompt(
+            $t('manage.change_prompt'),
+            $t('misc.info'),
+            {
+                confirmButtonText: $t('manage.confirm'),
+                cancelButtonText: $t('manage.cancel'),
+                inputPattern: /yes/,
+                inputErrorMessage: $t('manage.invalid_input_error'),
+            }
+        );
+
+        if (value === 'yes') {
+            await config.refresh();
             router.push({
                 name: "edit-game",
                 params: {
                     name: game.value.name,
                 },
             });
-        })
-        .catch(() => {
-            show_info($t('manage.operation_canceled'));
-        });
+        } else {
+            show_info($t('manage.invalid_input_error'));
+        }
+    } catch {
+        show_info($t('manage.operation_canceled'));
+    }
 }
 
 // 设置快速备份，由快捷键和tray触发备份和恢复
@@ -369,10 +367,11 @@ const filter_table = computed(
                 </el-button>
             </div>
             <!-- 下面是当前存档描述信息 -->
-
-            <el-input v-model="describe" :placeholder="$t('manage.input_description_prompt')">
-                <template #prepend>{{ game.name + $t('manage.new_save_of') }} </template>
-            </el-input>
+            <el-form @submit.prevent="create_new_save">
+                <el-input v-model="describe" :placeholder="$t('manage.input_description_prompt')">
+                    <template #prepend>{{ game.name + $t('manage.new_save_of') }} </template>
+                </el-input>
+            </el-form>
         </el-card>
         <!-- 下面是主体部分 -->
         <el-card class="saves-container">
