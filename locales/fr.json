@@ -178,7 +178,7 @@
     "sync_settings": {
         "title": "Simultaneization",
         "reset_success": "Reprise du succès",
-        "submit_success": "Succès dans la préservation des changements",
+        "submit_success": "Droit de choisir un document de début de jeu (non nécessaire)",
         "last_sync": "Dernière synchronisation:",
         "always_sync": "Garder le rythme",
         "warning": "Avertissement : il est essentiel de lire le cours avant l'utilisation de cette fonction, sinon il peut conduire à la perte de données",
