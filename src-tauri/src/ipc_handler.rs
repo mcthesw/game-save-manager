@@ -157,7 +157,7 @@ pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String
 #[allow(unused)]
 #[tauri::command]
 pub async fn set_config(config: Config) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Setting config: {:?}", config.clone().sanitize());
+    debug!(target:"rgsm::ipc", "Setting config: {:?}", config.clone().sanitize());
     config::set_config(&config).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
         e.to_string()

@@ -16,7 +16,6 @@ import HotkeySelector from "../components/HotkeySelector.vue";
 
 const isDark = useDark()
 const config = useConfig()
-const loading = ref(false)
 const i18n = useI18n()
 const locale_message = i18n.messages
 const locale_names = i18n.availableLocales
@@ -24,17 +23,7 @@ const locale_names = i18n.availableLocales
 async function load_config() {
     await config.refresh()
 }
-async function submit_settings() {
-    loading.value = true;
-    await config.save()
-    show_success($t("settings.submit_success"));
-    loading.value = false;
-    load_config()
-}
-function abort_change() {
-    show_success($t("settings.reset_success"));
-    load_config();
-}
+
 function reset_settings() {
     invoke("reset_settings").then((x) => {
         show_success($t("settings.reset_success"));
@@ -118,6 +107,19 @@ watch(
     }
 )
 
+watch(
+    () => config.settings,
+    async () => {
+        try {
+            await config.save()
+        } catch (e) {
+            console.log(e)
+            show_error($t("error.set_config_failed"))
+        }
+    },
+    { deep: true } // 深度监听对象变化
+)
+
 const router_list = computed(() => {
     // TODO:抽离到新文件中，同时`MainSideBar.vue`也要抽离
     var link_list = [
@@ -138,10 +140,7 @@ const router_list = computed(() => {
     <el-container class="setting" direction="vertical">
         <el-card>
             <h1>{{ $t("settings.customizable_settings") }}</h1>
-            <p>{{ $t("settings.setting_tips") }}</p>
             <div class="button-bar">
-                <el-button @click="submit_settings()">{{ $t("settings.submit_settings") }}</el-button>
-                <el-button @click="abort_change()">{{ $t("settings.abort_change") }}</el-button>
                 <el-button @click="open_log_folder()">{{ $t("settings.open_log_folder") }}</el-button>
                 <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
                     <template #reference>
@@ -156,7 +155,7 @@ const router_list = computed(() => {
                 </el-button>
             </div>
             <div class="setting-box">
-                <ElSelect :loading="loading" v-model="config.settings.locale">
+                <ElSelect v-model="config.settings.locale">
                     <ElOption v-for="locale in locale_names" :key="locale"
                         :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
                         :value="locale" />
@@ -164,7 +163,7 @@ const router_list = computed(() => {
                 🌍 Languages*
             </div>
             <div class="setting-box">
-                <ElSelect :loading="loading" v-model="config.settings.home_page">
+                <ElSelect v-model="config.settings.home_page">
                     <ElOption v-for="route_info in router_list" :key="route_info.text" :label="route_info.text"
                         :value="route_info.link">
                         <div class="home-option-box">
@@ -176,23 +175,23 @@ const router_list = computed(() => {
                 🏠 {{ $t("settings.homepage") }}
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.prompt_when_not_described" :loading="loading" />
+                <ElSwitch v-model="config.settings.prompt_when_not_described" />
                 <span>{{ $t("settings.prompt_when_not_described") }}</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.prompt_when_auto_backup" :loading="loading" />
+                <ElSwitch v-model="config.settings.prompt_when_auto_backup" />
                 <span>{{ $t("settings.prompt_when_auto_backup") }}</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.exit_to_tray" :loading="loading" />
+                <ElSwitch v-model="config.settings.exit_to_tray" />
                 <span>{{ $t("settings.exit_to_tray") }}*</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.extra_backup_when_apply" :loading="loading" />
+                <ElSwitch v-model="config.settings.extra_backup_when_apply" />
                 <span>{{ $t("settings.extra_backup_when_apply") }}</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="isDark" :loading="loading" />
+                <ElSwitch v-model="isDark" />
                 <span>{{ $t("settings.enable_dark_mode") }}</span>
             </div>
             <!-- TODO: 移除该功能 -->
@@ -201,19 +200,19 @@ const router_list = computed(() => {
                 <span>{{ $t("settings.enable_edit_manage") }}</span>
             </div> -->
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.default_delete_before_apply" :loading="loading" />
+                <ElSwitch v-model="config.settings.default_delete_before_apply" />
                 <span>{{ $t("settings.default_delete_before_apply") }}</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.default_expend_favorites_tree" :loading="loading" />
+                <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
                 <span>{{ $t("settings.default_expend_favorites_tree") }}</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.log_to_file" :loading="loading" />
+                <ElSwitch v-model="config.settings.log_to_file" />
                 <span>{{ $t("settings.log_to_file") }}*</span>
             </div>
             <div class="setting-box">
-                <ElSwitch v-model="config.settings.add_new_to_favorites" :loading="loading" />
+                <ElSwitch v-model="config.settings.add_new_to_favorites" />
                 <span>{{ $t("settings.add_new_to_favorites") }}</span>
             </div>
             <div class="setting-box drag-game-box">

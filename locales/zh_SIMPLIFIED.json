@@ -36,7 +36,6 @@
     "homepage": "启动页面",
     "open_log_folder": "打开日志",
     "log_to_file": "生成文件日志",
-    "setting_tips": "带有星号表示重启后生效，其余设置保存后生效",
     "add_new_to_favorites": "新游戏自动加入收藏夹",
     "quick_action_hotkeys": "快捷备份/恢复热键设置（需要保存设置）",
     "hotkey": {
