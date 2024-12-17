@@ -168,7 +168,7 @@
         "about": "En ce qui concerne la question du Sahara occidental"
     },
     "save_location_drawer": {
-        "drawer_title": "Identification automatique des jeux locaux",
+        "drawer_title": "Liste des documents de gestion",
         "type": "Catégorie",
         "prompt": "Route (réplicatée par des coups simples)",
         "open_file_header": "Abolition",
