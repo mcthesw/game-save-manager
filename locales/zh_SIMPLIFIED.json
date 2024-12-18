@@ -290,7 +290,11 @@
     "remove_success": "成功删除节点",
     "add_success": "成功添加节点",
     "game_not_found": "建议删除该收藏，因为游戏不存在：",
-    "enable_edit": "启用编辑：可以直接拖拽项目进行排序"
+    "enable_edit": "启用编辑：可以直接拖拽项目进行排序",
+    "confirm_add_all_games": "是否确认添加所有未收藏游戏到收藏夹",
+    "add_all_success": "添加成功",
+    "no_new_games": "没有未收藏的游戏",
+    "add_all_games": "添加未收藏游戏"
   },
   "setting": {
     "current_quick_action_game": "当前快捷备份的游戏"

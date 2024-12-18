@@ -111,6 +111,35 @@ function node_drag_end_handler(start: Node, end: Node, end_type: string, event: 
         save_and_refresh()
     }
 }
+
+async function add_all_games() {
+    try {
+        await ElMessageBox.confirm(
+            $t('favorite.confirm_add_all_games'),
+            $t('home.hint'),
+            {
+                confirmButtonText: $t('settings.confirm'),
+                cancelButtonText: $t('settings.cancel'),
+                type: 'warning',
+            }
+        )
+        let addedCount = 0;
+        for (const game of config.games) {
+            if (!config.favorites?.some(x => x.is_leaf && x.label === game.name)) {
+                add_game_to_favorite(game);
+                addedCount++;
+            }
+        }
+        if (addedCount > 0) {
+            show_success($t('favorite.add_all_success').replace('{count}', addedCount.toString()));
+        } else {
+            show_warning($t('favorite.no_new_games'));
+        }
+    } catch {
+        // User cancelled
+        return;
+    }
+}
 </script>
 
 <template>
@@ -157,6 +186,11 @@ function node_drag_end_handler(start: Node, end: Node, end_type: string, event: 
                     </template>
                 </ElTableColumn>
             </ElTable>
+            <template #footer>
+                <div style="text-align: right">
+                    <ElButton type="primary" @click="add_all_games">{{ $t('favorite.add_all_games') }}</ElButton>
+                </div>
+            </template>
         </ElDialog>
         <!-- 上方是用于选择新增游戏的Dialog -->
     </div>
