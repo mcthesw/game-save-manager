@@ -11,7 +11,7 @@
         "reset_settings": "학력 회복",
         "prompt_when_not_described": "아카이브되지 않을 때, 총알은 나타냅니다",
         "operation": "영업 시간",
-        "move_up": "기타",
+        "move_up": "키 ID에 방문",
         "move_down": "다음 단계",
         "enable_edit_manage": "아카이브 관리 인터페이스에 표시된 변화",
         "default_delete_before_apply": "back-up을 삭제하는 Acquiescence (새로운 게임에 효과적인)",
@@ -105,7 +105,7 @@
         "set_quick_backup_success": "빠른 키 또는 그림 설정에 성공",
         "set_quick_backup_failed": "실패",
         "batch_delete": "입력 deletion",
-        "batch_delete_prompt": "작업이 모든 응용 프로그램을 제거하고 입력 ofyes에 대한 결정"
+        "batch_delete_prompt": "문서 로그의 생산"
     },
     "addgame": {
         "duplicated_filename_error": "이 소프트웨어는 동일한 문서 / 문서 폴더의 advent를 지원하지 않습니다",
@@ -118,15 +118,15 @@
         "game_launch_path": "시작 문서",
         "add_save_directory": "아카이브 문서",
         "add_save_file": "관련 파일",
-        "type": "제품정보",
-        "operations": "제품정보",
+        "type": "놀이가 아카이브 될 때, 그것은 오랫동안 작동하며, 성공 후 다른 작업을 호출하십시오",
+        "operations": "컬렉션에 참여하기 위해 게임 선택 (replicable)",
         "remove": "제품 정보",
         "path": "로드 중 ..",
         "warning_for_save_file": "나는 같은 문서, 폴더의 추가를 지원하지 않습니다, 시간에 대한,하지만 그것을 사용하지 않을 것입니다, 그리고, 필요한 경우, 저에게 피드백을 제공, 나는 그것을 생산 고려할 것입니다",
         "invalid_name_error": "잘못된 재생 이름, 문서를 만들지 않는 특별한 단어를 포함하지 마십시오",
         "duplicated_name_error": "반복적인 놀이 이름 (크기와 크기 사이 구별 없음)",
         "search_local": "현지 게임의 자동 식별",
-        "save_current_profile": "현재 편집 구성 유지",
+        "save_current_profile": "자주 묻는 질문",
         "reset_current_profile": "현재 구성의 재구성"
     },
     "app": {
@@ -144,7 +144,7 @@
         "content_2": "이 소프트웨어는 플레이어에 의해 게임의 아카이브를 촉진하기 위해 설계되었지만, 게임의 수 때문에, 그것은 일치하기 어렵다, 그래서 재생 경로는 손에 의해 가이드 될 수있다, 그리고 관심이 있다면, 프로젝트의 개선에 참여하려고 할 수。",
         "support_me_content_1": "다음 파티의 \"오픈 주소\"를 클릭 할 수 있습니다. 즉, 코드에 기여하고 열린 플랫폼을 통해이 프로젝트에 질문을합니다。",
         "support_me_content_2": "나는 당신이 일반 사용자 인 경우 매우 감사하고 유리 음료를 마시기 위해 나를 초대 할 수있다。",
-        "thank_you_list": "감사합니다",
+        "thank_you_list": "동기화하기",
         "frameworks": "프레임의 사용",
         "official_website": "공식 웹사이트",
         "version": "버전: [0] ·",
@@ -176,7 +176,7 @@
         "start_test": "응답 검사 및 네트워킹의 긴 기간 동안 테스트 시작",
         "test_success": "테스트가 채택되었고 클라우드의 포스트 아카이브 끝은 사용할 수 있습니다",
         "test_failed": "시험 실패, 검사 및 네트워킹",
-        "unknown_backend": "검사를 위한 archival 목적을 위한 알 수없는 구름의 사용",
+        "unknown_backend": "성공적인 추가 포인트",
         "upload_success": "Success는 클라우드 엔드 문서와 함께 달성되었습니다",
         "upload_failed": "검사 및 네트워킹을 수행 할 실패",
         "download_success": "다운로드가 성공하고 현지 문서가 업데이트되었습니다",
@@ -207,7 +207,7 @@
         "delete_snapshot_failed": "성공적인 추가 포인트",
         "restore_snapshot_failed": "신청 실패, 검사 로그는 더 많은 정보를 얻기 위하여",
         "open_url_failed": "링크 열기 실패",
-        "config_load_failed": "문서의 실패는 문서가 유효하지 않았거나 사용할 수없는 사실로 인해 될 수 있습니다",
+        "config_load_failed": "소프트웨어는 온라인이 아니며, 당신은 \"클라우드 아카이브\"의 기능을 달성하기 위해 너트 클라우드에 의해 자신의 레코드를 아카이브 할 수 있습니다",
         "choose_save_dir_error": "아카이브 문서의 선택에 실수",
         "choose_save_file_error": "아카이브 문서의 선택에 실수",
         "choose_executable_file_error": "시행 문서의 선택에 실수",
@@ -236,7 +236,7 @@
         "add_game": "게임 추가",
         "sync_settings": "동기화",
         "settings": "회사연혁",
-        "about": "서양 사하라의 질문에 관해서"
+        "about": "링크 열기 실패"
     },
     "save_location_drawer": {
         "drawer_title": "관리 문서 목록",
@@ -264,11 +264,11 @@
             "exit": "출금",
             "success": "지원하다",
             "error": "사이트맵",
-            "find_error_detail": "로그북에 더 많은 정보"
+            "find_error_detail": "반복적인 놀이 이름 (크기와 크기 사이 구별 없음)"
         },
         "backup": {
             "extra_backup_file_not_exist": "문서의 비 가용성에 Owing, 그것은 추가 백업 (사전 서비스 적용)을 완료하고 서스펜션을 재개 할 수 없습니다. 이 함수가 필요하지 않은 경우, 그것은 설립에 닫아야한다。",
-            "backup_file_not_exist": "document 3% {name}는 존재하지 않으며 백업되거나 복원되지 않습니다"
+            "backup_file_not_exist": "지원하다"
         },
         "archive": {
             "file_not_exist": "% {path} 당 도로가 존재하지 않으며 자동으로 생성됩니다"
@@ -290,9 +290,13 @@
         "remove_success": "노드의 성공적인 삭제",
         "add_success": "성공적인 추가 포인트",
         "game_not_found": "게임이 존재하지 않기 때문에 컬렉션이 삭제 된 것이 좋습니다",
-        "enable_edit": "편집자의 시작: 프로젝트의 순위는 직접 지연될 수 있습니다"
+        "enable_edit": "편집자의 시작: 프로젝트의 순위는 직접 지연될 수 있습니다",
+        "confirm_add_all_games": "수집자에게 모든 uncollected 게임의 추가 확인",
+        "add_all_success": "성공 추가",
+        "no_new_games": "분류되지 않음",
+        "add_all_games": "uncollected 게임 추가"
     },
     "setting": {
-        "current_quick_action_game": "현재 빠른 트랙 게임"
+        "current_quick_action_game": "무효"
     }
 }
