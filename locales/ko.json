@@ -33,7 +33,16 @@
         "success": "작업 성공",
         "failed": "가동 실패",
         "operation_canceled": "이 작업을 취소",
-        "default_expend_favorites_tree": "Acquiesced 수집 재킷"
+        "default_expend_favorites_tree": "Acquiesced 수집 재킷",
+        "log_to_file": "문서 로그의 생산",
+        "add_new_to_favorites": "새로운 게임을 자동으로 수집",
+        "quick_action_hotkeys": "핫 키의 신속한 백업 / 복원 (예약)",
+        "hotkey": {
+            "hint": "다른 별자리의 설립을 가진 경우와 같은 힘으로 입장을 보존하고 재 에너지화하는 것이 필요하며, 이 함수의 사용을 금지합니다",
+            "quick_apply": "빠른 독서",
+            "quick_backup": "빠른 백업"
+        },
+        "open_log_folder": "로그 열기"
     },
     "home": {
         "hello_world": "당신의 Excellencies",
@@ -94,7 +103,9 @@
         "change_description_failed": "실패의 수정",
         "set_quick_backup": "빠른 백업",
         "set_quick_backup_success": "빠른 키 또는 그림 설정에 성공",
-        "set_quick_backup_failed": "실패"
+        "set_quick_backup_failed": "실패",
+        "batch_delete": "입력 deletion",
+        "batch_delete_prompt": "작업이 모든 응용 프로그램을 제거하고 입력 ofyes에 대한 결정"
     },
     "addgame": {
         "duplicated_filename_error": "이 소프트웨어는 동일한 문서 / 문서 폴더의 advent를 지원하지 않습니다",
@@ -182,7 +193,15 @@
             "password": "비밀번호"
         },
         "overwrite_upload": "회사 소개",
-        "overwrite_download": "Coverage 다운로드"
+        "overwrite_download": "Coverage 다운로드",
+        "s3": {
+            "endpoint": "S3 엔드포인트",
+            "bucket": "드럼 저장",
+            "region": "주요사업",
+            "access_key_id": "키 ID에 방문",
+            "secret_access_key": "비밀 방문 키",
+            "region_hint": "공기 공간은 필요한 경우 시험을 입력해야합니다"
+        }
     },
     "error": {
         "delete_snapshot_failed": "성공적인 추가 포인트",
@@ -199,7 +218,8 @@
         "open_backup_folder_failed": "다시 문서를 열 실패",
         "set_config_failed": "구성 실패",
         "reset_settings_failed": "실패의 재개",
-        "change_description_failed": "편집 설명의 실패"
+        "change_description_failed": "편집 설명의 실패",
+        "open_log_folder_failed": "로그북의 열기"
     },
     "misc": {
         "error": "사이트맵",
@@ -214,7 +234,6 @@
     "sidebar": {
         "homepage": "인터페이스",
         "add_game": "게임 추가",
-        "favorite_manage": "회사소개",
         "sync_settings": "동기화",
         "settings": "회사연혁",
         "about": "서양 사하라의 질문에 관해서"
@@ -244,7 +263,15 @@
             "quick_apply": "빠른 독서",
             "exit": "출금",
             "success": "지원하다",
-            "error": "사이트맵"
+            "error": "사이트맵",
+            "find_error_detail": "로그북에 더 많은 정보"
+        },
+        "backup": {
+            "extra_backup_file_not_exist": "문서의 비 가용성에 Owing, 그것은 추가 백업 (사전 서비스 적용)을 완료하고 서스펜션을 재개 할 수 없습니다. 이 함수가 필요하지 않은 경우, 그것은 설립에 닫아야한다。",
+            "backup_file_not_exist": "document 3% {name}는 존재하지 않으며 백업되거나 복원되지 않습니다"
+        },
+        "archive": {
+            "file_not_exist": "% {path} 당 도로가 존재하지 않으며 자동으로 생성됩니다"
         }
     },
     "favorite": {
@@ -261,6 +288,11 @@
         "choose_game_add": "컬렉션에 참여하기 위해 게임 선택 (replicable)",
         "add_to_favorite": "자주 묻는 질문",
         "remove_success": "노드의 성공적인 삭제",
-        "add_success": "성공적인 추가 포인트"
+        "add_success": "성공적인 추가 포인트",
+        "game_not_found": "게임이 존재하지 않기 때문에 컬렉션이 삭제 된 것이 좋습니다",
+        "enable_edit": "편집자의 시작: 프로젝트의 순위는 직접 지연될 수 있습니다"
+    },
+    "setting": {
+        "current_quick_action_game": "현재 빠른 트랙 게임"
     }
 }
