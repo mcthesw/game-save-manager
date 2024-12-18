@@ -33,7 +33,16 @@
         "reset_success": "Reprise du succès",
         "default_delete_before_apply": "Acquiescence pour supprimer le back-up (efficacité pour les nouveaux jeux)",
         "default_expend_favorites_tree": "Vestes de collection Acquiesced",
-        "homepage": "Page de lancement"
+        "homepage": "Page de lancement",
+        "open_log_folder": "Ouverture du journal",
+        "log_to_file": "Production de registres de documents",
+        "add_new_to_favorites": "Nouveaux jeux rejoignent automatiquement les collections",
+        "quick_action_hotkeys": "Sauvegarde/restauration rapide des clés chaudes (réserves)",
+        "hotkey": {
+            "hint": "Notez qu'il est nécessaire de préserver et de redynamiser l'entrée en vigueur, comme c'est le cas pour l'établissement d'autres constellations, et d'interdire totalement l'utilisation de cette fonction",
+            "quick_backup": "Sauvegarde rapide",
+            "quick_apply": "Lecture rapide"
+        }
     },
     "home": {
         "hello_world": "Vos Excellences",
@@ -94,7 +103,9 @@
         "set_quick_backup_failed": "Failure",
         "warning": "Attention",
         "input_description_search_prompt": "Entrée pour la description de recherche",
-        "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?"
+        "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?",
+        "batch_delete": "Suppression de l ' entrée",
+        "batch_delete_prompt": "notez que l'opération supprimera toutes les demandes de dépôt et déterminera les entrées de oui"
     },
     "addgame": {
         "search_local": "Identification automatique des jeux locaux",
@@ -154,8 +165,7 @@
         "add_game": "Ajout de jeux",
         "sync_settings": "Synchronisation",
         "settings": "Création",
-        "about": "En ce qui concerne la question du Sahara occidental",
-        "favorite_manage": "Gestion des collections"
+        "about": "En ce qui concerne la question du Sahara occidental"
     },
     "save_location_drawer": {
         "drawer_title": "Liste des documents de gestion",
@@ -168,7 +178,7 @@
     "sync_settings": {
         "title": "Simultaneization",
         "reset_success": "Reprise du succès",
-        "submit_success": "Succès dans la préservation des changements",
+        "submit_success": "Droit de choisir un document de début de jeu (non nécessaire)",
         "last_sync": "Dernière synchronisation:",
         "always_sync": "Garder le rythme",
         "warning": "Avertissement : il est essentiel de lire le cours avant l'utilisation de cette fonction, sinon il peut conduire à la perte de données",
@@ -208,7 +218,15 @@
         "overwrite_download": "Téléchargements de couverture",
         "manual_sync": "Migration",
         "save_button": "Entretien",
-        "abort_button": "Rejection"
+        "abort_button": "Rejection",
+        "s3": {
+            "region_hint": "aucun espace aérien ne devrait être nécessaire pour entrer dans l ' essai si cela n ' est pas nécessaire",
+            "endpoint": "S3 ENDPOINT",
+            "bucket": "Stockage du tambour",
+            "region": "Regional",
+            "access_key_id": "VISITE DE L'IDENTITÉ CLÉ",
+            "secret_access_key": "Visites secrètes clé"
+        }
     },
     "error": {
         "open_url_failed": "Failure to open links",
@@ -225,7 +243,8 @@
         "open_backup_folder_failed": "Défaut d ' ouvrir les documents",
         "set_config_failed": "Absence de configuration",
         "reset_settings_failed": "Reprise des défaillances",
-        "change_description_failed": "Absence de description éditoriale"
+        "change_description_failed": "Absence de description éditoriale",
+        "open_log_folder_failed": "Pas d'ouverture du journal"
     },
     "backend": {
         "config": {
@@ -244,7 +263,15 @@
             "exit": "Absence de sauvegarde, registres d'inspection pour obtenir plus d'informations",
             "success": "Succès",
             "error": "Misuse",
-            "no_game_selected": "Pas de choix de jeu"
+            "no_game_selected": "Pas de choix de jeu",
+            "find_error_detail": "Informations complémentaires dans le journal"
+        },
+        "backup": {
+            "extra_backup_file_not_exist": "En raison de la non-disponibilité de la documentation, il n ' a pas été possible d ' achever la sauvegarde supplémentaire (couverture avant service) et de reprendre la suspension. Si cette fonction n'est pas requise, elle devrait être fermée dans l'établissement。",
+            "backup_file_not_exist": "le document 3% {name} n'existe pas et ne peut être soutenu ou restauré"
+        },
+        "archive": {
+            "file_not_exist": "les routes pour cent {path} n'existent pas et sont automatiquement créées"
         }
     },
     "favorite": {
@@ -261,6 +288,11 @@
         "choose_game_add": "Retrait",
         "add_to_favorite": "Ajouté à la collection",
         "remove_success": "Suppression réussie de nœuds",
-        "add_success": "Points d ' addition réussis"
+        "add_success": "Points d ' addition réussis",
+        "game_not_found": "Il est recommandé que la collection soit supprimée parce que le jeu n'existe pas:",
+        "enable_edit": "Lancement de l'éditeur: le classement du projet peut être directement retardé"
+    },
+    "setting": {
+        "current_quick_action_game": "Jeux rapides en cours"
     }
 }
