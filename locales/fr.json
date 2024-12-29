@@ -1,10 +1,10 @@
 {
     "settings": {
-        "locale_name": "Anglais",
+        "locale_name": "S3 ENDPOINT",
         "locale_changed": "Vous avez changé votre langue, qui est actuellement un modèle de pré-visualisation, avant d'entrer en vigueur de façon permanente",
         "customizable_settings": "Personnalisation",
         "submit_settings": "Réserves",
-        "submit_success": "Succès dans la préservation des changements",
+        "submit_success": "Droit de choisir un document de début de jeu (non nécessaire)",
         "abort_change": "Renonciation aux modifications",
         "confirm_reset": "La reconnaissance ?",
         "reset_settings": "Restauration de l ' acquiescement",
@@ -12,7 +12,7 @@
         "prompt_when_auto_backup": "Lorsque la sauvegarde automatique est disponible, les balles indiquent",
         "exit_to_tray": "Départ d ' une voiture",
         "extra_backup_when_apply": "sauvegarde supplémentaire pour l'application (dans /save_data/ games/extra_backup files)",
-        "enable_dark_mode": "Lancement de modèles de nuit",
+        "enable_dark_mode": "mots de passe",
         "adjust_game_order": "Priorité de l'affichage du jeu (entretien nécessaire)",
         "name": "Invalidité",
         "game_path": "Lancement de la route",
@@ -33,10 +33,19 @@
         "reset_success": "Reprise du succès",
         "default_delete_before_apply": "Acquiescence pour supprimer le back-up (efficacité pour les nouveaux jeux)",
         "default_expend_favorites_tree": "Vestes de collection Acquiesced",
-        "homepage": "Page de lancement"
+        "homepage": "Page de lancement",
+        "open_log_folder": "Ouverture du journal",
+        "log_to_file": "Production de registres de documents",
+        "add_new_to_favorites": "Nouveaux jeux rejoignent automatiquement les collections",
+        "quick_action_hotkeys": "Sauvegarde/restauration rapide des clés chaudes (réserves)",
+        "hotkey": {
+            "hint": "Notez qu'il est nécessaire de préserver et de redynamiser l'entrée en vigueur, comme c'est le cas pour l'établissement d'autres constellations, et d'interdire totalement l'utilisation de cette fonction",
+            "quick_backup": "Sauvegarde rapide",
+            "quick_apply": "Lecture rapide"
+        }
     },
     "home": {
-        "hello_world": "Vos Excellences",
+        "hello_world": "notez que l'opération supprimera toutes les demandes de dépôt et déterminera les entrées de oui",
         "simple": "Simplicité",
         "simple_explained": "Les fonctions de non-utilisation telles que l'extension, la remise, etc. ne sont pas ajoutées pour assurer, dans la mesure du possible, que les interfaces sont fonctionnelles",
         "safe": "Sécurité",
@@ -84,7 +93,7 @@
         "confirm_delete_prompt": "Déterminer cette suppression ?",
         "delete": "Supprimer",
         "change_info": "Révision de sauvegarde",
-        "change_prompt": "il est noté qu ' il s ' agit d ' une fonction dangereuse qui n ' est pas recommandée. si les changements sont déterminés, veuillez saisir, sinon cliquez sur. l'ancien archivage sera conservé, mais l'utilisation d'anciennes archives ne restaurera que la partie du document de gestion actuel; si le nom de la pièce doit être changé, une nouvelle archive sera ajoutée, et l'administration d'archives la conservera",
+        "change_prompt": "Type",
         "change_describe": "Amendements",
         "change_description": "Input of new narrative information",
         "change_description_success": "Modification du succès",
@@ -94,7 +103,9 @@
         "set_quick_backup_failed": "Failure",
         "warning": "Attention",
         "input_description_search_prompt": "Entrée pour la description de recherche",
-        "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?"
+        "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?",
+        "batch_delete": "Suppression de l ' entrée",
+        "batch_delete_prompt": "notez que l'opération supprimera toutes les demandes de dépôt et déterminera les entrées de oui"
     },
     "addgame": {
         "search_local": "Identification automatique des jeux locaux",
@@ -122,7 +133,7 @@
         "early_access_warning": "Il s'agit d'une version d'essai précoce qui ne garantit pas la stabilité et nécessite une utilisation prudente"
     },
     "about": {
-        "project_initiator": "Fondateur du projet",
+        "project_initiator": "Déterminer que la couverture est disponible?",
         "ea_tester": "Succès dans la mise en place de clés ou de dessins rapides",
         "developer": "Project developers",
         "frontend_framework": "Cadre front-end",
@@ -153,9 +164,8 @@
         "homepage": "Se félicitant de l ' interface",
         "add_game": "Ajout de jeux",
         "sync_settings": "Synchronisation",
-        "settings": "Création",
-        "about": "En ce qui concerne la question du Sahara occidental",
-        "favorite_manage": "Gestion des collections"
+        "settings": "Garder le rythme",
+        "about": "En ce qui concerne la question du Sahara occidental"
     },
     "save_location_drawer": {
         "drawer_title": "Liste des documents de gestion",
@@ -168,7 +178,7 @@
     "sync_settings": {
         "title": "Simultaneization",
         "reset_success": "Reprise du succès",
-        "submit_success": "Succès dans la préservation des changements",
+        "submit_success": "Droit de choisir un document de début de jeu (non nécessaire)",
         "last_sync": "Dernière synchronisation:",
         "always_sync": "Garder le rythme",
         "warning": "Avertissement : il est essentiel de lire le cours avant l'utilisation de cette fonction, sinon il peut conduire à la perte de données",
@@ -193,7 +203,7 @@
         "upload_failed": "Absence d ' inspection et de mise en réseau",
         "download_success": "Le téléchargement a été réussi et les documents locaux ont été mis à jour",
         "download_failed": "Failure of downloads, inspections and networking",
-        "confirm_upload_all": "détermination de tous les téléchargements? cela couvrirait la configuration du nuage et les entrées qu'ils doivent continuer",
+        "confirm_upload_all": "Liste des documents de gestion",
         "confirm_download_all": "déterminer tous les téléchargements? cela couvrirait les configurations locales et les entrées pour continuer",
         "confirm": "Identification",
         "cancel": "Abolition",
@@ -208,7 +218,15 @@
         "overwrite_download": "Téléchargements de couverture",
         "manual_sync": "Migration",
         "save_button": "Entretien",
-        "abort_button": "Rejection"
+        "abort_button": "Rejection",
+        "s3": {
+            "region_hint": "aucun espace aérien ne devrait être nécessaire pour entrer dans l ' essai si cela n ' est pas nécessaire",
+            "endpoint": "S3 ENDPOINT",
+            "bucket": "Stockage du tambour",
+            "region": "Regional",
+            "access_key_id": "VISITE DE L'IDENTITÉ CLÉ",
+            "secret_access_key": "Visites secrètes clé"
+        }
     },
     "error": {
         "open_url_failed": "Failure to open links",
@@ -222,10 +240,11 @@
         "delete_snapshot_failed": "Points d ' addition réussis",
         "restore_snapshot_failed": "Défauts d'application, registres d'inspection pour obtenir plus d'information",
         "delete_game_failed": "Supprimer l'échec du jeu",
-        "open_backup_folder_failed": "Défaut d ' ouvrir les documents",
+        "open_backup_folder_failed": "Lancement de tests pour de longues périodes d'inspection et de réseautage non responsables",
         "set_config_failed": "Absence de configuration",
         "reset_settings_failed": "Reprise des défaillances",
-        "change_description_failed": "Absence de description éditoriale"
+        "change_description_failed": "Absence de description éditoriale",
+        "open_log_folder_failed": "Pas d'ouverture du journal"
     },
     "backend": {
         "config": {
@@ -244,7 +263,15 @@
             "exit": "Absence de sauvegarde, registres d'inspection pour obtenir plus d'informations",
             "success": "Succès",
             "error": "Misuse",
-            "no_game_selected": "Pas de choix de jeu"
+            "no_game_selected": "Pas de choix de jeu",
+            "find_error_detail": "Informations complémentaires dans le journal"
+        },
+        "backup": {
+            "extra_backup_file_not_exist": "En raison de la non-disponibilité de la documentation, il n ' a pas été possible d ' achever la sauvegarde supplémentaire (couverture avant service) et de reprendre la suspension. Si cette fonction n'est pas requise, elle devrait être fermée dans l'établissement。",
+            "backup_file_not_exist": "Succès"
+        },
+        "archive": {
+            "file_not_exist": "les routes pour cent {path} n'existent pas et sont automatiquement créées"
         }
     },
     "favorite": {
@@ -261,6 +288,15 @@
         "choose_game_add": "Retrait",
         "add_to_favorite": "Ajouté à la collection",
         "remove_success": "Suppression réussie de nœuds",
-        "add_success": "Points d ' addition réussis"
+        "add_success": "Points d ' addition réussis",
+        "game_not_found": "Il est recommandé que la collection soit supprimée parce que le jeu n'existe pas:",
+        "enable_edit": "Lancement de l'éditeur: le classement du projet peut être directement retardé",
+        "confirm_add_all_games": "Confirmation de l'ajout de tous les jeux non recueillis aux collectionneurs",
+        "add_all_success": "Ajout de succès",
+        "no_new_games": "Pas de jeu non recueilli",
+        "add_all_games": "Ajout de jeux non recueillis"
+    },
+    "setting": {
+        "current_quick_action_game": "Invalidité"
     }
 }
