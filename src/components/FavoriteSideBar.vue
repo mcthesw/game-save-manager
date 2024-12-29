@@ -1,19 +1,14 @@
 <script lang="ts" setup>
-import { useConfig } from '../stores/ConfigFile';
 import type Node from 'element-plus/es/components/tree/src/model/node'
-import { FavoriteTreeNode, Game } from '../schemas/saveTypes';
-import { useRouter } from 'vue-router';
-import { ElButton, ElLink, ElMessageBox, ElTooltip } from 'element-plus';
 import { ref } from 'vue';
 import { $t } from '../i18n';
-import { show_error, show_success, show_warning } from '../utils/notifications';
 import { v4 as uuidv4 } from 'uuid';
-import { invoke } from '@tauri-apps/api';
-import { AllowDropType } from 'element-plus/es/components/tree/src/tree.type';
+import type { AllowDropType } from 'element-plus/es/components/tree/src/tree.type';
+import type { FavoriteTreeNode, Game } from '~/bindings';
 import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 
-const config = useConfig();
-const router = useRouter();
+const { config, saveConfig, refreshConfig } = useConfig();
+const { showWarning, showSuccess, showError } = useNotification();
 const enable_edit = ref(false);
 const add_game_dialog_visible = ref(false);
 
@@ -23,11 +18,11 @@ function favorite_click_handler(node: FavoriteTreeNode) {
     if (!node.is_leaf) {
         return;
     }
-    if (!config.games.find(x => x.name == node.label)) {
-        show_warning($t('favorite.game_not_found') + ": " + node.label);
+    if (!config.value?.games.find(x => x.name == node.label)) {
+        showWarning({ message: $t('favorite.game_not_found') + ": " + node.label });
         return;
     }
-    router.push("/management/" + node.label)
+    navigateTo("/management/" + node.label)
 }
 
 function remove_node(node: Node, data: FavoriteTreeNode) {
@@ -37,29 +32,29 @@ function remove_node(node: Node, data: FavoriteTreeNode) {
     const children: FavoriteTreeNode[] = parent.data.children || parent.data
     const index = children.findIndex((d) => d.node_id === data.node_id)
     children.splice(index, 1)
-    config.favorites = [...config.favorites]
+    config.value!.favorites = [...config.value!.favorites!]
     save_and_refresh()
-    show_success($t('favorite.remove_success'));
+    showSuccess({ message: $t('favorite.remove_success') });
 }
 
 function add_game_to_favorite(game: Game) {
     add_node(game.name, true)
-    show_success($t('favorite.add_success') + ": " + game.name)
+    showSuccess({ message: $t('favorite.add_success') + ": " + game.name })
 }
 
 async function save_and_refresh() {
     try {
-        await config.save();
+        await saveConfig();
     } catch (e) {
         console.log(e);
-        show_error($t("error.set_config_failed"));
+        showError({ message: $t("error.set_config_failed") });
     } finally {
-        await config.refresh();
+        await refreshConfig();
     }
 }
 
-function add_node(label: string, is_leaf: boolean, children?: Array<FavoriteTreeNode>) {
-    config.favorites?.push({
+function add_node(label: string, is_leaf: boolean, children: Array<FavoriteTreeNode> | null = null) {
+    config.value?.favorites?.push({
         label: label,
         is_leaf: is_leaf,
         children: children,
@@ -97,8 +92,8 @@ async function add_folder() {
     }
     name.value = name.value.trim()
     // 检查是否已经存在
-    if (!name.value || name.value.length < 1 || config.favorites?.find(x => x.label == name.value)) {
-        show_error($t('favorite.duplicated_empty_error'));
+    if (!name.value || name.value.length < 1 || config.value?.favorites?.find(x => x.label == name.value)) {
+        showError({ message: $t('favorite.duplicated_empty_error') });
         return;
     }
 
@@ -124,16 +119,16 @@ async function add_all_games() {
             }
         )
         let addedCount = 0;
-        for (const game of config.games) {
-            if (!config.favorites?.some(x => x.is_leaf && x.label === game.name)) {
+        for (const game of config.value!.games!) {
+            if (!config.value?.favorites?.some(x => x.is_leaf && x.label === game.name)) {
                 add_game_to_favorite(game);
                 addedCount++;
             }
         }
         if (addedCount > 0) {
-            show_success($t('favorite.add_all_success').replace('{count}', addedCount.toString()));
+            showSuccess({ message: $t('favorite.add_all_success').replace('{count}', addedCount.toString()) });
         } else {
-            show_warning($t('favorite.no_new_games'));
+            showWarning({ message: $t('favorite.no_new_games') });
         }
     } catch {
         // User cancelled
@@ -156,9 +151,9 @@ async function add_all_games() {
                     @click="() => { enable_edit = !enable_edit }" />
             </ElTooltip>
         </div>
-        <ElTree class="menu-item" :data="config.favorites" node-key="node_id" :draggable="enable_edit"
+        <ElTree class="menu-item" :data="config?.favorites" node-key="node_id" :draggable="enable_edit"
             :allow-drag="allow_drag" :allow-drop="allow_drop"
-            :default-expand-all="config.settings.default_expend_favorites_tree" @node-click="favorite_click_handler"
+            :default-expand-all="config?.settings.default_expend_favorites_tree" @node-click="favorite_click_handler"
             @node-drag-end="node_drag_end_handler">
             <template #default="{ node, data }">
                 <span v-if="data.is_leaf" class="custom-tree-node">
@@ -175,7 +170,7 @@ async function add_all_games() {
         </ElTree>
         <!-- 下方是用于选择新增游戏的Dialog -->
         <ElDialog v-model="add_game_dialog_visible" :title="$t('favorite.choose_game_add')">
-            <ElTable :data="config.games" :border="true" :height="500">
+            <ElTable :data="config?.games" :border="true" :height="500">
                 <ElTableColumn prop="name" :label="$t('settings.name')" width="180" />
                 <ElTableColumn prop="game_path" :label="$t('settings.game_path')" />
                 <ElTableColumn fixed="right" :label="$t('settings.operation')" width="120">

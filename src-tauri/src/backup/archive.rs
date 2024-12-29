@@ -6,8 +6,8 @@ use std::{
 
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
-use tauri::{AppHandle, Manager};
-use tracing::warn;
+use log::warn;
+use tauri::{AppHandle, Emitter};
 use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
@@ -158,7 +158,7 @@ pub fn decompress_from_file(
                                                 .unwrap_or("prefix_root.to_str error"));
                             if let Some(app_handle) = app_handle {
                                  app_handle
-                                .emit_all(
+                                .emit(
                                     "Notification",
                                     IpcNotification {
                                         level: NotificationLevel::warning,
@@ -176,7 +176,6 @@ pub fn decompress_from_file(
                             }else {
                                 // TODO:发出警告?
                             }
-                           
                             fs::create_dir_all(prefix_root)?;
                         }
                         if unit.delete_before_apply && unit_path.exists() {
@@ -195,7 +194,7 @@ pub fn decompress_from_file(
                                                 .unwrap_or("prefix_root.to_str error"));
                             if let Some(app_handle) = app_handle {
                             app_handle
-                                .emit_all(
+                                .emit(
                                     "Notification",
                                     IpcNotification {
                                         level: NotificationLevel::warning,

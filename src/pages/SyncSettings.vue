@@ -4,18 +4,29 @@
 // 如果没有，则不需要任何操作，之后更新了自动同步功能就可以启动时自动下载，避免手动操作
 
 import { ref } from "vue";
-import { useConfig } from "../stores/ConfigFile";
-import { invoke } from "@tauri-apps/api/tauri";
-import { show_error, show_info, show_success } from "../utils/notifications";
-import { CloudSettings } from "../schemas/saveTypes";
+import { invoke } from "@tauri-apps/api/core";
 import { $t } from "../i18n";
-import { ElButton, ElCard, ElContainer, ElForm, ElFormItem, ElInput, ElInputNumber, ElLink, ElMessageBox, ElOption, ElSelect, ElSwitch } from "element-plus";
-import { Ref } from "vue";
-import type { Backend, S3, WebDAV } from "../schemas/BackendTypes";
-import { backends } from "../schemas/BackendTypes";
+import type { Backend } from "../bindings";
 
-const config = useConfig() // 配置文件
-const cloud_settings: Ref<CloudSettings> = ref(config.settings.cloud_settings) // 云同步配置
+interface WebDAV {
+  type: "WebDAV";
+  endpoint: string;
+  username: string;
+  password: string;
+}
+interface S3 {
+  type: "S3";
+  endpoint: string;
+  bucket: string;
+  region: string;
+  access_key_id: string;
+  secret_access_key: string;
+}
+const backends = ["WebDAV", "S3", "Disabled"]
+
+const { config, refreshConfig, saveConfig } = useConfig() // 配置文件
+const cloud_settings = ref(config.value!.settings.cloud_settings) // 云同步配置
+const { showInfo, showError, showSuccess } = useNotification()
 
 const webdav_settings: Ref<WebDAV> = ref({
   type: "WebDAV",
@@ -32,15 +43,15 @@ const s3_settings: Ref<S3> = ref({
   secret_access_key: "",
 } as S3)
 // 从配置中加载云同步配置，这个重复步骤是必要的，因为我们无法确定用户的当前配置
-switch (cloud_settings.value.backend.type) {
+switch (cloud_settings.value!.backend!.type) {
   case "WebDAV":
-    webdav_settings.value = cloud_settings.value.backend as WebDAV;
+    webdav_settings.value = cloud_settings.value!.backend as WebDAV;
     break;
   case "S3":
-    s3_settings.value = cloud_settings.value.backend as S3;
+    s3_settings.value = cloud_settings.value!.backend as S3;
     break;
   default:
-    show_error($t("sync_settings.unknown_backend")) // TODO:更换成更合适的提醒
+    showError({ message: $t("sync_settings.unknown_backend") }) // TODO:更换成更合适的提醒
     break;
 }
 
@@ -48,10 +59,10 @@ switch (cloud_settings.value.backend.type) {
  * 测试同步后端是否可用
  */
 function check() {
-  show_info($t("sync_settings.start_test"))
-  switch (cloud_settings.value.backend.type) {
+  showInfo({ message: $t("sync_settings.start_test") })
+  switch (cloud_settings.value?.backend!.type) {
     case "Disabled":
-      show_error($t("sync_settings.test_failed"))
+      showError({ message: $t("sync_settings.test_failed") })
       break
     case "WebDAV":
       if (webdav_settings.value.endpoint.endsWith("/")) {
@@ -59,9 +70,9 @@ function check() {
         webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
       }
       invoke("check_cloud_backend", { backend: webdav_settings.value }).then((res) => {
-        show_success($t("sync_settings.test_success"))
+        showSuccess({ message: $t("sync_settings.test_success") })
       }).catch((err) => {
-        show_error($t("sync_settings.test_failed"))
+        showError({ message: $t("sync_settings.test_failed") })
         console.error("WebDAV test error:", err)
       })
       break
@@ -71,19 +82,19 @@ function check() {
         s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
       }
       invoke("check_cloud_backend", { backend: s3_settings.value }).then((res) => {
-        show_success($t("sync_settings.test_success"))
+        showSuccess({ message: $t("sync_settings.test_success") })
       }).catch((err) => {
-        show_error($t("sync_settings.test_failed"))
+        showError({ message: $t("sync_settings.test_failed") })
         console.error("S3 test error:", err)
       })
       break;
     default:
-      show_error($t("sync_settings.unknown_backend"))
+      showError({ message: $t("sync_settings.unknown_backend") })
   }
 }
 
 function save() {
-  switch (cloud_settings.value.backend.type) {
+  switch (cloud_settings.value?.backend!.type) {
     case "Disabled":
       cloud_settings.value.backend = { type: "Disabled" } as Backend
       break
@@ -101,35 +112,35 @@ function save() {
       }
       break
     default:
-      show_error($t("sync_settings.unknown_backend"))
+      showError({ message: $t("sync_settings.unknown_backend") })
       return
   }
   // 应用暂存的云同步配置
-  config.settings.cloud_settings = cloud_settings.value
+  config.value!.settings.cloud_settings = cloud_settings.value
   submit_settings()
 }
 
 async function load_config() {
-  await config.refresh()
+  await refreshConfig()
   // 重新加载临时配置
-  cloud_settings.value = config.settings.cloud_settings
+  cloud_settings.value = config.value!.settings.cloud_settings
 }
 /**
  * 提交配置，不应独立调用，需使用save函数调用，否则临时配置不会覆盖到配置中
  */
 function submit_settings() {
-  config.save().then((x) => {
-    show_success($t("sync_settings.submit_success"));
+  saveConfig().then((x) => {
+    showSuccess({ message: $t("sync_settings.submit_success") });
     load_config()
   }).catch(
     (e) => {
       console.log(e)
-      show_error($t("error.set_config_failed"))
+      showError({ message: $t("error.set_config_failed") })
     }
   )
 }
 function abort_change() {
-  show_success($t("sync_settings.reset_success"));
+  showSuccess({ message: $t("sync_settings.reset_success") });
   load_config();
 }
 
@@ -144,14 +155,14 @@ function upload_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_upload_all", { backend: config.settings.cloud_settings.backend }).then((res) => {
-      show_success($t("sync_settings.upload_success"))
+    invoke("cloud_upload_all", { backend: config.value!.settings.cloud_settings!.backend }).then((res) => {
+      showSuccess({ message: $t("sync_settings.upload_success") })
     }).catch((err) => {
-      show_error($t("sync_settings.upload_failed"))
+      showError({ message: $t("sync_settings.upload_failed") })
       console.error("Upload error:", err)
     })
   }).catch((e) => {
-    show_info($t("sync_settings.canceled"))
+    showInfo({ message: $t("sync_settings.canceled") })
   })
 }
 
@@ -166,14 +177,14 @@ function download_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_download_all", { backend: config.settings.cloud_settings.backend }).then((res) => {
-      show_success($t("sync_settings.download_success"))
+    invoke("cloud_download_all", { backend: config.value!.settings.cloud_settings!.backend }).then((res) => {
+      showSuccess({ message: $t("sync_settings.download_success") })
     }).catch((err) => {
-      show_error($t("sync_settings.download_failed"))
+      showError({ message: $t("sync_settings.download_failed") })
       console.error("Download error:", err)
     })
   }).catch((e) => {
-    show_info($t("sync_settings.canceled"))
+    showInfo({ message: $t("sync_settings.canceled") })
   })
 }
 
@@ -181,7 +192,7 @@ function open_manual() {
   invoke("open_url", { url: "https://help.sworld.club/docs/extras/cloud" }).catch(
     (e) => {
       console.log(e)
-      show_error($t("error.open_url_failed"))
+      showError({ message: $t("error.open_url_failed") })
     }
   )
 }
@@ -198,7 +209,7 @@ function open_manual() {
       <p class="hint">{{ $t("sync_settings.notification") }}</p>
       <ElForm label-position="left" :label-width="120">
         <ElFormItem :label="$t('sync_settings.always_sync')">
-          <ElSwitch v-model="cloud_settings.always_sync" />
+          <ElSwitch v-model="cloud_settings!.always_sync" />
           <span class="hint">{{ $t("sync_settings.always_sync_hint") }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.auto_sync_interval')">
@@ -206,17 +217,17 @@ function open_manual() {
           <span class="hint">{{ $t('sync_settings.interval_hint') }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.cloud_root')">
-          <ElInput v-model="cloud_settings.root_path" />
+          <ElInput v-model="cloud_settings!.root_path" />
           <span class="hint">{{ $t('sync_settings.cloud_root_hint') }}</span>
         </ElFormItem>
         <ElFormItem :label="$t('sync_settings.backend')">
-          <ElSelect :placeholder="$t('sync_settings.backend')" v-model="cloud_settings.backend.type">
+          <ElSelect :placeholder="$t('sync_settings.backend')" v-model="cloud_settings!.backend!.type">
             <ElOption v-for="backend in backends" :key="backend" :label="backend" :value="backend" />
           </ElSelect>
           <span class="hint">{{ $t('sync_settings.backend_hint') }}</span>
         </ElFormItem>
         <!-- WebDAV start -->
-        <template v-if="cloud_settings.backend.type === 'WebDAV'">
+        <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
           <ElFormItem :label="$t('sync_settings.webdav.endpoint')">
             <ElInput v-model="webdav_settings.endpoint" />
           </ElFormItem>
@@ -229,7 +240,7 @@ function open_manual() {
         </template>
         <!-- WebDAV end -->
         <!-- S3 start -->
-        <template v-if="cloud_settings.backend.type === 'S3'">
+        <template v-if="cloud_settings!.backend!.type === 'S3'">
           <ElFormItem :label="$t('sync_settings.s3.endpoint')">
             <ElInput v-model="s3_settings.endpoint" />
           </ElFormItem>

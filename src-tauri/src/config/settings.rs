@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::traits::Sanitizable;
 
 /// Settings that can be configured by user
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Settings {
     #[serde(default = "default_value::default_true")]
     pub prompt_when_not_described: bool,

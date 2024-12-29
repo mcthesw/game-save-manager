@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::{backup::Game, default_value};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct QuickActionHotkeys {
     pub apply: Vec<String>,
     pub backup: Vec<String>,
@@ -17,7 +18,7 @@ impl Default for QuickActionHotkeys {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Type)]
 pub struct QuickActionsSettings {
     #[serde(default = "default_value::default_none")]
     pub quick_action_game: Option<Game>,

@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::{fs, path};
 
-use rust_i18n::t;
+use log::info;
 use semver::Version;
-use tauri::api::notification::Notification;
-use tracing::info;
 
 use super::Config;
 use crate::errors::ConfigError;
@@ -64,11 +62,13 @@ pub fn config_check() -> Result<(), ConfigError> {
     let software_version = Version::parse(&Config::default().version)?;
     let config_version = Version::parse(&config.version)?;
     if config_version != software_version {
-        Notification::new("Update Config Info")
-            .title(t!("backend.config.updating_config_title"))
-            .body(t!("backend.config.updating_config_body"))
-            .show()
-            .expect("Cannot show notification");
+        // TODO
+        // app.notification()
+        //     .builder()
+        //     .title(t!("backend.config.updating_config_title"))
+        //     .body(t!("backend.config.updating_config_body"))
+        //     .show()
+        //     .expect("Cannot show notification");
         backup_old_config()?;
     }
     if config_version < Version::parse("1.0.0")? {

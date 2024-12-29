@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use tauri::AppHandle;
 
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_config, set_config};
 use crate::errors::BackupError;
+use log::{error, info};
 use std::path::PathBuf;
 use std::{fs, path};
-use tracing::{error, info};
 
 use super::GameSnapshots;
 use super::SaveUnit;
@@ -14,7 +15,7 @@ use super::Snapshot;
 use super::{compress_to_file, decompress_from_file};
 
 /// A game struct contains the save units and the game's launcher
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Game {
     pub name: String,
     pub save_paths: Vec<SaveUnit>,

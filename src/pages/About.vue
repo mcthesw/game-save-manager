@@ -1,16 +1,15 @@
 <script lang="ts" setup>
 import { $t } from "../i18n";
-import { Game } from "../schemas/saveTypes";
-import { useConfig } from "../stores/ConfigFile";
-import { invoke } from '@tauri-apps/api/tauri'
-import { show_error } from "../utils/notifications";
+import { invoke } from '@tauri-apps/api/core'
+import { app } from "@tauri-apps/api";
 
-const config = useConfig();
+const { showError } = useNotification();
+const { config } = useConfig();
 function source_click(url: string) {
     console.log(url);
     invoke("open_url", { url: url }).then((v: any) => { console.log(v) }).catch((x: any) => {
         console.log(x)
-        show_error($t("error.open_url_failed"))
+        showError({ message: $t('error.open_url_failed') });
     })
 };
 
@@ -76,7 +75,7 @@ const frames = [
             </el-link>
             |
             <el-link @click="source_click('https://help.sworld.club/')">{{ $t('about.help') }}</el-link>
-            <span class="version">{{ $t('about.version') + config.version }}</span>
+            <span class="version">{{ $t('about.version') + config?.version }}</span>
         </el-footer>
     </el-container>
 </template>

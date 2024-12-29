@@ -1,5 +1,5 @@
 <template>
-    <el-container class="home-container" direction="vertical">
+    <ElContainer class="home-container" direction="vertical">
         <h2>{{ $t('home.hello_world') }}</h2>
         <div class="describe-container">
             <div class="describe">
@@ -17,7 +17,7 @@
                     {{ $t('home.free_explained') }} </p>
             </div>
         </div>
-        <el-container class="new" direction="horizontal">
+        <ElContainer class="new" direction="horizontal">
             <el-result :title="$t('home.import_game')">
                 <template #icon>
                     <Edit />
@@ -45,25 +45,25 @@
                     <el-button type="primary" @click="go_backup()">{{ $t('home.hint') }}</el-button>
                 </template>
             </el-result>
-        </el-container>
-    </el-container>
+        </ElContainer>
+    </ElContainer>
 </template>
 
 <script lang="ts" setup>
-import { Edit, UploadFilled, Files } from "@element-plus/icons-vue";
-import { useRouter } from "vue-router";
-import { show_info } from "../utils/notifications";
+import { Edit, UploadFilled } from "@element-plus/icons-vue";
 import { $t } from "../i18n";
-const router = useRouter();
+const { showInfo } = useNotification();
 
 function go_add_game() {
-    router.push("/add-game");
+    navigateTo("/add-game");
 }
 function go_settings() {
-    router.push("/settings")
+    navigateTo("/settings")
 }
 function go_backup() {
-    show_info($t('home.go_backup_hint'));
+    showInfo({
+        message: $t('home.go_backup_hint')
+    });
 }
 </script>
 

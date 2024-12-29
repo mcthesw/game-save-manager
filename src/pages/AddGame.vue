@@ -1,26 +1,20 @@
 <script lang="ts" setup>
-// !为了不让 submit_handler 报错，这里不使用 lang="ts"
-import { DocumentAdd } from "@element-plus/icons-vue";
 import {
+    DocumentAdd,
     Check,
     RefreshRight,
     Download,
 } from "@element-plus/icons-vue";
 import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
-import { useConfig } from "../stores/ConfigFile";
-import { invoke } from '@tauri-apps/api/tauri'
-import { Game, SaveUnit } from "../schemas/saveTypes";
-import { show_error, show_warning } from "../utils/notifications";
-import { show_success } from "../utils/notifications";
-import { watchEffect, watch } from "vue";
-import { useRoute } from "vue-router";
+import { commands, type Game, type SaveUnit } from "../bindings";
+import { watchEffect } from "vue";
 import { $t } from "../i18n";
 import { v4 as uuidv4 } from 'uuid';
 
 const route = useRoute();
 const router = useRouter();
-let config = useConfig();
+const { showError, showWarning, showSuccess } = useNotification();
+const { config, refreshConfig, saveConfig } = useConfig();
 const buttons = [
     {
         text: $t('addgame.search_local'),
@@ -46,21 +40,21 @@ const buttons = [
 const game_name = ref("") // 写入游戏名
 let save_paths: Array<SaveUnit> = reactive(new Array<SaveUnit>()) // 选择游戏存档目录
 const game_path = ref("") // 选择游戏启动程序
-const game_icon_src = ref("orange.png")
+const game_icon_src = ref("/orange.png")
 const is_editing = ref(false) // 是否正在编辑已有的游戏
 
 // init info when navigate from GameManage.vue
 watchEffect(() => {
     const gameName = route.params.name;
     if (gameName) {
-        const gameConfig = config.games.find(game => game.name === gameName);
+        const gameConfig = config.value?.games.find(game => game.name === gameName);
         if (gameConfig) {
             is_editing.value = true;
             game_name.value = gameConfig.name;
             save_paths = gameConfig.save_paths;
             game_path.value = gameConfig.game_path || '';
         } else {
-            show_error($t('addgame.change_target_not_exists_error') + gameName);
+            showError({ message: $t('addgame.change_target_not_exists_error') + gameName });
             router.back();
         }
     }
@@ -68,7 +62,7 @@ watchEffect(() => {
 
 function check_save_unit_unique(p: string) {
     if (save_paths.find((x) => x.path == p)) {
-        show_error($t('addgame.duplicated_filename_error'));
+        showWarning({ message: $t('addgame.duplicated_filename_error') });
         return false;
     }
     return true;
@@ -78,44 +72,44 @@ function check_name_valid(name: string) {
     return !invalid_reg.test(name);
 }
 function generate_save_unit(unit_type: "Folder" | "File", path: string): SaveUnit {
-    let delete_before_apply = config.settings.default_delete_before_apply;
+    let delete_before_apply = config.value?.settings.default_delete_before_apply;
     return { unit_type, path, delete_before_apply }
 }
 
 function add_save_directory() {
-    invoke("choose_save_dir").then((dir) => {
-        if (!dir || !check_save_unit_unique(dir as string)) { return }
+    commands.chooseSaveDir().then((dir) => {
+        if (dir.status == "error" || !check_save_unit_unique(dir.data)) { return }
         save_paths.push(
-            generate_save_unit("Folder", dir as string)
+            generate_save_unit("Folder", dir.data)
         )
     }).catch(
         (e) => {
             console.log(e)
-            show_error($t('error.choose_save_dir_error'));
+            showError({ message: $t('error.choose_save_dir_error') });
         }
     )
 }
 function add_save_file() {
-    invoke("choose_save_file").then((file) => {
-        if (!file || !check_save_unit_unique(file as string)) { return }
+    commands.chooseSaveFile().then((file) => {
+        if (file.status == "error" || !check_save_unit_unique(file.data)) { return }
         save_paths.push(
-            generate_save_unit("File", file as string)
+            generate_save_unit("File", file.data)
         )
     }).catch(
         (e) => {
             console.log(e)
-            show_error($t('error.choose_save_file_error'));
+            showError({ message: $t('error.choose_save_file_error') });
         }
     )
 }
 function choose_executable_file() {
-    invoke("choose_save_file").then((file) => {
-        console.log(file);
-        game_path.value = file as string;
+    commands.chooseSaveFile().then((file) => {
+        if (file.status == "error") { return }
+        game_path.value = file.data;
     }).catch(
         (e) => {
             console.log(e)
-            show_error($t('error.choose_executable_file_error'));
+            showError({ message: $t('error.choose_executable_file_error') });
         }
     )
 }
@@ -126,21 +120,21 @@ function submit_handler(button_method: Function) {
 }
 function search_local() {
     // TODO:导入已有配置
-    show_warning($t('addgame.wip_warning'));
+    showWarning({ message: $t('addgame.wip_warning') });
 }
 async function save() {
     // 去除头尾空字符，防止触发Windows文件命名规则问题
     game_name.value = game_name.value.trim();
     if (game_name.value == "" || save_paths.length == 0) {
-        show_error($t('addgame.no_name_error'));
+        showError({ message: $t('addgame.no_name_error') });
         return;
     }
     if (!check_name_valid(game_name.value)) {
-        show_error($t('addgame.invalid_name_error'));
+        showError({ message: $t('addgame.invalid_name_error') });
         return;
     }
-    if (config.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
-        show_error($t('addgame.duplicated_name_error'));
+    if (config.value?.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
+        showError({ message: $t('addgame.duplicated_name_error') });
         return;
     }
 
@@ -150,32 +144,32 @@ async function save() {
         game_path: game_path.value
     };
     try {
-        const result = await invoke("add_game", { game: game });
+        const result = await commands.addGame(game);
         console.log(result);
 
         if (is_editing.value) {
             is_editing.value = false;
-            show_success($t('addgame.add_game_success'));
+            showSuccess({ message: $t('addgame.add_game_success') });
             router.back();
         } else {
-            if (config.settings.add_new_to_favorites) {
+            if (config.value?.settings.add_new_to_favorites) {
                 // TODO:以下内容是否需要抽离成单独的工具库？还是说应该后端处理？
-                await config.refresh();
-                config.favorites?.push({
+                await refreshConfig();
+                config.value?.favorites?.push({
                     label: game.name,
                     is_leaf: true,
                     children: [],
                     node_id: uuidv4().toString()
                 });
-                await config.save();
+                await saveConfig();
             }
-            show_success($t('addgame.add_game_success'));
+            showSuccess({ message: $t('addgame.add_game_success') });
         }
         reset_info(false);
-        await config.refresh();
+        await refreshConfig();
     } catch (e) {
         console.log(e);
-        show_error($t('error.add_game_failed'));
+        showError({ message: $t('error.add_game_failed') });
     }
 }
 function reset_info(show_notification: boolean = true) {
@@ -184,7 +178,7 @@ function reset_info(show_notification: boolean = true) {
     save_paths = reactive([]);
     game_path.value = "";
     // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
-    if (show_notification) { show_success($t('settings.reset_success')); }
+    if (show_notification) { showSuccess({ message: $t('settings.reset_success') }); }
 }
 
 function deleteRow(index: number) {
