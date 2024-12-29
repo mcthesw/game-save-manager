@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { SaveUnit } from '../schemas/saveTypes';
-import { show_error, show_success } from '../utils/notifications';
 import { $t } from "../i18n";
-import { invoke } from '@tauri-apps/api';
+import type { SaveUnit } from "../bindings";
+import {commands} from "../bindings";
+import { useNotification } from "../composables/useNotification";
+
+const { showSuccess, showError } = useNotification();
 
 const props = defineProps({
     locations: Array<SaveUnit>,
@@ -15,22 +17,17 @@ const emits = defineEmits<{
 
 function copy(s: string) {
     navigator.clipboard.writeText(s).then(() => {
-        show_success($t("misc.success"))
+        showSuccess({ message: $t("misc.success") })
     }).catch(() => {
-        show_error($t("misc.error"));
+        showError({ message: $t("misc.error") });
     })
 }
 
-function open(url: string) {
-    invoke("open_url", { url: url })
-        .then((x) => {
-            console.log(x)
-        }).catch(
-            (e) => {
-                console.log(e)
-                show_error($t("error.open_url_failed"))
-            }
-        )
+async function open(url: string) {
+    let result = await commands.openUrl(url);
+    if (result.status === "error") {
+        showError({ message: $t("error.open_url_failed") });
+    }
 }
 
 // 由父组件处理具体任务，此处只传递下标

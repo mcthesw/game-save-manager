@@ -1,5 +1,5 @@
-use tauri::{api::notification::Notification, AppHandle};
-use tracing::{error, info, warn};
+use log::{error, info, warn};
+use tauri::AppHandle;
 
 use crate::{
     backup::Game,
@@ -7,17 +7,15 @@ use crate::{
     errors::BackupError,
 };
 
-use super::*;
-
-pub async fn set_current_game(app: &AppHandle, game: Game) {
+pub async fn set_current_game(app: &AppHandle, game: Game) -> anyhow::Result<()> {
     info!(target:"rgsm::tray","Setting current quick backup game:{}",game.name);
-    app.tray_handle()
-        .get_item("game")
-        .set_title(&game.name)
-        .expect("Cannot get tray handle");
+    app.tray_by_id("game")
+        .ok_or(anyhow::anyhow!("Cannot get tray"))?
+        .set_title(Some(&game.name))?;
     let mut config = get_config().expect("Cannot get config");
     config.quick_action.quick_action_game = Some(game);
     set_config(&config).await.expect("Cannot set config");
+    Ok(())
 }
 
 #[derive(Debug, PartialEq)]
@@ -54,7 +52,7 @@ pub async fn quick_apply(t: QuickActionType) {
                     .clone();
                 game.restore_snapshot(&newest_date, None)?;
             }
-            None => show_no_game_selected_error(),
+            None => show_no_game_selected_error(),// TODO: 做错误处理，让流程结束
         };
         Ok(())
     })();
@@ -89,7 +87,7 @@ pub async fn quick_backup(t: QuickActionType) {
         .prompt_when_auto_backup;
     let result: Result<(), BackupError> = async {
         match &game {
-            None => show_no_game_selected_error(),
+            None => show_no_game_selected_error(), // TODO: 做错误处理，让流程结束
             Some(game) => {
                 game.create_snapshot(&t.generate_describe()).await?;
             }
@@ -125,11 +123,12 @@ pub async fn quick_backup(t: QuickActionType) {
 }
 
 fn show_notification<T1: Into<String>, T2: Into<String>>(title: T1, body: T2) {
-    Notification::new("QuickAction")
-        .title(title)
-        .body(body)
-        .show()
-        .expect("Cannot show notification");
+    // TODO
+    // Notification::new("QuickAction")
+    //     .title(title)
+    //     .body(body)
+    //     .show()
+    //     .expect("Cannot show notification");
 }
 
 fn show_no_game_selected_error() {
@@ -146,11 +145,4 @@ pub fn get_quick_action_game() -> Option<Game> {
         .quick_action
         .quick_action_game
         .clone()
-}
-
-pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let config = get_config()?;
-    timer::setup_timer(app)?;
-    hotkeys::setup_hotkeys(&config, app)?;
-    Ok(())
 }

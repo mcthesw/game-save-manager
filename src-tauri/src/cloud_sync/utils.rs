@@ -1,7 +1,7 @@
 use std::fs;
 
+use log::info;
 use opendal::Operator;
-use tracing::info;
 
 use crate::backup::GameSnapshots;
 use crate::config::{get_config, set_config, Config};

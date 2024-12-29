@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::backup::Game;
 use crate::cloud_sync::CloudSettings;
@@ -10,7 +11,7 @@ use super::{QuickActionsSettings, Settings};
 /// The software's configuration
 /// include the version, backup's location path, games'info,
 /// and the settings
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Config {
     pub version: String,
     pub backup_path: String,
@@ -34,7 +35,7 @@ impl Sanitizable for Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: String::from("1.4.0"),
+            version: String::from(std::env!("CARGO_PKG_VERSION")),
             backup_path: String::from("./save_data"),
             games: Vec::new(),
             settings: Settings {
@@ -57,7 +58,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct FavoriteTreeNode {
     node_id: String,
     label: String,

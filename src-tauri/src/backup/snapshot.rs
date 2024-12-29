@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// A backup is a zip file that contains
 /// all the file that the save unit has declared.
 /// The date is the unique indicator for a backup
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct Snapshot {
     pub date: String,
     pub describe: String,

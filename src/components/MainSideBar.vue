@@ -9,24 +9,21 @@ import {
     Setting,
     MostlyCloudy
 } from "@element-plus/icons-vue";
-import { useRoute, useRouter } from "vue-router";
-import { useConfig } from "../stores/ConfigFile";
 import { $t } from "../i18n";
-import { ElContainer, ElIcon, ElRow, ElScrollbar } from "element-plus";
 
-let config = useConfig();
+let { config } = useConfig();
 
 // TODO:抽离到新文件中，同时`Settings.vue`也要抽离
 const links = computed(() => [
-    { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
-    { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },
-    { text: $t("sidebar.sync_settings"), link: "/sync-settings", icon: MostlyCloudy },
-    { text: $t("sidebar.settings"), link: "/settings", icon: Setting },
-    { text: $t("sidebar.about"), link: "/about", icon: InfoFilled },
+    { text: $t("sidebar.homepage"), link: "/", icon: HotWater },
+    { text: $t("sidebar.add_game"), link: "/AddGame", icon: DocumentAdd },
+    { text: $t("sidebar.sync_settings"), link: "/SyncSettings", icon: MostlyCloudy },
+    { text: $t("sidebar.settings"), link: "/Settings", icon: Setting },
+    { text: $t("sidebar.about"), link: "/About", icon: InfoFilled },
 ]);
 
 const games = computed(() => {
-    return config.games;
+    return config.value.games;
 });
 
 const router = useRouter()
@@ -56,7 +53,7 @@ function select_handler(key: string, keyPath: string) {
                             </el-icon>
                             <span>{{ $t('misc.save_manage') }}</span>
                         </template>
-                        <el-menu-item v-for="game in games" :key="game.name" :index="'/management/' + game.name">
+                        <el-menu-item v-for="game in games" :key="game.name" :index="'/Management/' + game.name">
                             {{ game.name }}
                         </el-menu-item>
                     </el-sub-menu>

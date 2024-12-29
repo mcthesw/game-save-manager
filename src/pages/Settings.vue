@@ -2,36 +2,34 @@
 // TODO:调整日志设置，比如删除日
 // TODO:对设置进行分类
 import { computed, ref, watch } from "vue";
-import { useConfig } from "../stores/ConfigFile";
-import { invoke } from "@tauri-apps/api/tauri";
-import { show_error, show_info, show_success } from "../utils/notifications";
-import { useDark } from '@vueuse/core'
+import { invoke } from "@tauri-apps/api/core";
 import { $t } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
 import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled } from "@element-plus/icons-vue";
 import HotkeySelector from "../components/HotkeySelector.vue";
-
+import { useDark } from '@vueuse/core'
 
 const isDark = useDark()
-const config = useConfig()
+const { config, refreshConfig, saveConfig } = useConfig()
+const { showSuccess, showError, showInfo } = useNotification()
 const i18n = useI18n()
 const locale_message = i18n.messages
 const locale_names = i18n.availableLocales
 
 async function load_config() {
-    await config.refresh()
+    await refreshConfig()
 }
 
 function reset_settings() {
     invoke("reset_settings").then((x) => {
-        show_success($t("settings.reset_success"));
+        showSuccess({ message: $t("settings.reset_success") });
         load_config();
     }).catch(
         (e) => {
             console.log(e)
-            show_error($t("error.reset_settings_failed"))
+            showError({ message: $t("error.reset_settings_failed") })
         }
     )
 }
@@ -49,16 +47,16 @@ function backup_all() {
     )
         .then(() => {
             invoke("backup_all").then((x) => {
-                show_success($t("settings.success"));
+                showSuccess({ message: $t("settings.success") });
             }).catch(
                 (e) => {
                     console.log(e)
-                    show_error($t("settings.failed"))
+                    showError({ message: $t("settings.failed") })
                 }
             )
         })
         .catch(() => {
-            show_info($t('settings.operation_canceled'));
+            showInfo({ message: $t('settings.operation_canceled') });
         });
 }
 
@@ -75,16 +73,16 @@ function apply_all() {
     )
         .then(() => {
             invoke("apply_all").then((x) => {
-                show_success($t("settings.success"));
+                showSuccess({ message: $t("settings.success") });
             }).catch(
                 (e) => {
                     console.log(e)
-                    show_error($t("settings.failed"))
+                    showError({ message: $t("settings.failed") })
                 }
             )
         })
         .catch(() => {
-            show_info($t('settings.operation_canceled'));
+            showInfo({ message: $t('settings.operation_canceled') });
         });
 }
 
@@ -93,28 +91,29 @@ function open_log_folder() {
         .catch(
             (e) => {
                 console.log(e)
-                show_error($t('error.open_log_folder_failed'))
+                showError({ message: $t('error.open_log_folder_failed') })
             }
         )
 }
 
 watch(
-    () => config.settings.locale,
+    () => config.value.settings.locale,
     (new_locale, _old_locale) => {
         console.log(new_locale)
-        i18n.locale.value = new_locale
-        show_info($t("settings.locale_changed"));
+        if (new_locale)
+            i18n.locale.value = new_locale
+        showInfo({ message: $t("settings.locale_changed") });
     }
 )
 
 watch(
-    () => config.settings,
+    () => config.value?.settings,
     async () => {
         try {
-            await config.save()
+            await saveConfig();
         } catch (e) {
             console.log(e)
-            show_error($t("error.set_config_failed"))
+            showError({ message: $t("error.set_config_failed") })
         }
     },
     { deep: true } // 深度监听对象变化
@@ -123,13 +122,13 @@ watch(
 const router_list = computed(() => {
     // TODO:抽离到新文件中，同时`MainSideBar.vue`也要抽离
     var link_list = [
-        { text: $t("sidebar.homepage"), link: "/home", icon: HotWater },
-        { text: $t("sidebar.add_game"), link: "/add-game", icon: DocumentAdd },
-        { text: $t("sidebar.sync_settings"), link: "/sync-settings", icon: MostlyCloudy },
-        { text: $t("sidebar.settings"), link: "/settings", icon: Setting },
-        { text: $t("sidebar.about"), link: "/about", icon: InfoFilled },
+        { text: $t("sidebar.homepage"), link: "/", icon: HotWater },
+        { text: $t("sidebar.add_game"), link: "/AddGame", icon: DocumentAdd },
+        { text: $t("sidebar.sync_settings"), link: "/SyncSettings", icon: MostlyCloudy },
+        { text: $t("sidebar.settings"), link: "/Settings", icon: Setting },
+        { text: $t("sidebar.about"), link: "/About", icon: InfoFilled },
     ]
-    config.games.forEach((game) => {
+    config.value?.games.forEach((game) => {
         link_list.push({ text: game.name, link: `/management/${game.name}`, icon: SwitchFilled })
     })
     return link_list
@@ -194,9 +193,9 @@ const router_list = computed(() => {
                 <ElSwitch v-model="isDark" />
                 <span>{{ $t("settings.enable_dark_mode") }}</span>
             </div>
-            <!-- TODO: 移除该功能 -->
-            <!-- <div class="setting-box">
-                <ElSwitch v-model="config.settings.show_edit_button" :loading="loading" />
+            <-- TODO: 移除该功能 -->
+            <-- <div class="setting-box">
+                <ElSwitch v-model="config.settings.show_edit_button"  />
                 <span>{{ $t("settings.enable_edit_manage") }}</span>
             </div> -->
             <div class="setting-box">
@@ -219,12 +218,12 @@ const router_list = computed(() => {
                 <ElCollapse>
                     <ElCollapseItem :title="$t('settings.quick_action_hotkeys') + '*'">
                         <div>
-                            <strong v-if="config.quick_action.quick_action_game">
+                            <strong v-if="config.quick_action!.quick_action_game">
                                 {{ $t("setting.current_quick_action_game") }} :
-                                {{ config.quick_action.quick_action_game?.name }}
+                                {{ config.quick_action!.quick_action_game?.name }}
                             </strong>
                         </div>
-                        <HotkeySelector v-model="config.quick_action.hotkeys" />
+                        <HotkeySelector v-model="config.quick_action!.hotkeys" />
                     </ElCollapseItem>
                 </ElCollapse>
             </div>
@@ -245,7 +244,7 @@ const router_list = computed(() => {
 
 <style scoped>
 .el-button {
-    margin-left: 0px !important;
+    margin-left: 0px important;
     margin-right: 10px;
     margin-top: 5px;
 }

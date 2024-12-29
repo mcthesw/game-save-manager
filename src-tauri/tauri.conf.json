@@ -1,92 +1,37 @@
 {
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "game-save-manager",
+  "identifier": "com.game-save-manager",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "pnpm web:dev",
+    "beforeBuildCommand": "pnpm web:generate"
   },
-  "package": {
-    "productName": "RGSM",
-    "version": "1.4.0"
-  },
-  "tauri": {
-    "systemTray": {
-      "iconPath": "icons/128x128.png",
-      "iconAsTemplate": true
-    },
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "open": true
-      },
-      "notification": {
-        "all": true
-      },
-      "globalShortcut": {
-        "all": true
-      }
-    },
-    "bundle": {
-      "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
-      "deb": {
-        "depends": []
-      },
-      "externalBin": [],
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "identifier": "com.sworld.gsm",
-      "longDescription": "",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null
-      },
-      "shortDescription": "",
-      "targets": [
-        "appimage",
-        "deb",
-        "nsis",
-        "dmg"
-      ],
-      "windows": {
-        "digestAlgorithm": "sha256",
-        "timestampUrl": "",
-        "nsis": {
-          "languages": [
-            "English",
-            "SimpChinese",
-            "TradChinese"
-          ],
-          "installMode": "both"
-        }
-      }
-    },
-    "security": {
-      "csp": null
-    },
-    "updater": {
-      "active": false
-    },
+  "app": {
     "windows": [
       {
-        "fullscreen": false,
+        "title": "Game Save Manager",
+        "width": 1280,
         "height": 720,
         "resizable": true,
-        "title": "RustyManager",
-        "width": 1280,
-        "fileDropEnabled": false
+        "fullscreen": false,
+        "dragDropEnabled": false
       }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
     ]
   }
 }

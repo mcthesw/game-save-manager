@@ -1,15 +1,14 @@
 <script lang="ts" setup>
-import { Ref, computed, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { ElInput, ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/tauri";
-import { useConfig } from "../stores/ConfigFile";
-import { Backup, BackupsInfo, Game } from "../schemas/saveTypes";
 import { useRoute, useRouter } from "vue-router";
-import { show_error, show_info, show_success } from "../utils/notifications";
-import SaveLocationDrawer from "../components/SaveLocationDrawer.vue";
-import { $t } from "../i18n";
+import {commands} from "../../bindings";
+import SaveLocationDrawer from "../../components/SaveLocationDrawer.vue";
+import type { Game, GameSnapshots, Snapshot } from "../../bindings";
+import { $t } from "../../i18n";
 
-let config = useConfig();
+let { showInfo, showError, showSuccess, closeNotification } = useNotification();
+let { config,refreshConfig, saveConfig } = useConfig();
 let router = useRouter();
 let route = useRoute();
 const top_buttons = [
@@ -42,11 +41,10 @@ let describe = ref("");
 let backup_button_time_limit = true; // 两次备份时间间隔1秒
 let backup_button_backup_limit = true; // 上次没备份好禁止再备份或读取
 let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
-let showEditButton = config.settings.show_edit_button;
 
 // 批量操作记录列表
-const selected_game_snapshots: Ref<Backup[]> = ref([]);
-function on_selection_change(val: Backup[]) {
+const selected_game_snapshots: Ref<Snapshot[]> = ref([]);
+function on_selection_change(val: Snapshot[]) {
     selected_game_snapshots.value = val;
 }
 async function batch_delete() {
@@ -67,69 +65,63 @@ async function batch_delete() {
                 await del_save(item.date);
             }
         } else {
-            show_info($t('manage.invalid_input_error'));
+            showInfo({ message: $t('manage.invalid_input_error') });
         }
     } catch (error) {
-        show_info($t('manage.operation_canceled'));
+        showError({ message: $t('manage.operation_canceled') });
     }
 }
 
 // Init game info
 watch(
-    () => route.params,
+    () => route.params.name,
     (newValue) => {
-        if (!newValue.name) { return; }
-        let name = newValue.name;
+        if (!newValue) { return; }
+        console.log("Current game:", newValue)
+        console.log("Current games:", config.value.games)
+        let name = newValue;
         console.log("Current game:", name)
-        game.value = config.games.find((x) => x.name == name) as Game;
+        game.value = config.value.games.find((x) => x.name == name) as Game;
         refresh_backups_info()
     },
     { immediate: true }
 )
 
-function refresh_backups_info() {
-    invoke("get_game_snapshots_info", { game: game.value })
-        .then((v) => {
-            let infos = v as BackupsInfo;
-            table_data.value = infos.backups;
-            console.log("Backup infos:", v)
-        }).catch(
-            (e) => {
-                console.log(e)
-                show_error($t('error.get_game_snapshots_failed'));
-            }
-        )
+async function refresh_backups_info() {
+    let result = await commands.getGameSnapshotsInfo(game.value);
+    if (result.status === "error") {
+        showError({ message: result.error });
+    } else {
+        table_data.value = result.data.backups;
+    }
 }
 
-function send_save_to_background() {
-    let info = show_info($t('manage.wait_for_prompt_hint'), undefined, 0);
+async function send_save_to_background() {
+    let notify_id = showInfo({ message: $t('manage.wait_for_prompt_hint') });
     if (!backup_button_time_limit) {
-        show_error($t('manage.save_too_fast_error'));
+        showError({ message: $t('manage.save_too_fast_error') });
         return;
     }
     if (!backup_button_backup_limit) {
-        show_error($t('manage.last_backup_unfinished_error'));
+        showError({ message: $t('manage.last_backup_unfinished_error') });
         return;
     }
     if (!apply_button_apply_limit) {
-        show_error($t('manage.last_overwrite_unfinished_error'));
+        showError({ message: $t('manage.last_overwrite_unfinished_error') });
         return;
     }
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
-    invoke("create_snapshot", { game: game.value, describe: describe.value })
-        .then((_) => {
-            show_success($t('manage.backup_success'));
-        }).catch(
-            (e) => {
-                console.log(e)
-                show_error($t('error.backup_failed'))
-            }
-        ).finally(() => {
-            info.close()
-            backup_button_backup_limit = true
-            refresh_backups_info();
-        })
+
+    let ressult = await commands.createSnapshot(game.value, describe.value);
+    if (ressult.status === "error") {
+        showError({ message: ressult.error });
+    } else {
+        showSuccess({ message: $t('manage.backup_success') });
+    }
+    closeNotification(notify_id);
+    backup_button_backup_limit = true;
+    refresh_backups_info();
 
     describe.value = "";
     setTimeout(() => {
@@ -139,7 +131,7 @@ function send_save_to_background() {
 
 async function create_new_save() {
     if (
-        config.settings.prompt_when_not_described && !describe.value
+        config.value.settings.prompt_when_not_described && !describe.value
     ) {
         try {
             await ElMessageBox.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
@@ -156,60 +148,53 @@ async function create_new_save() {
     }
 }
 
-function launch_game() {
+async function launch_game() {
     if (game.value.game_path == undefined || game.value.game_path.length < 1) {
-        show_error($t('manage.no_launch_path_error'));
+        showError({ message: $t('manage.no_launch_path_error') });
         return;
     } else {
-        invoke("open_url", { url: game.value.game_path })
-            .then((x) => {
-                console.log(x)
-            }).catch(
-                (e) => {
-                    console.log(e)
-                    show_error($t("error.open_url_failed"))
-                }
-            )
+        let result = await commands.openUrl(game.value.game_path);
+        if (result.status === "error") {
+            showError({ message: result.error });
+        }
     }
 }
 
 async function del_save(date: string) {
     try {
         console.log(date);
-        const result = await invoke("delete_snapshot", { game: game.value, date: date });
+        const result = await commands.deleteSnapshot(game.value, date);
         console.log(result);
         refresh_backups_info();
-        show_success($t('manage.delete_success'));
+        showSuccess({ message: $t('manage.delete_success') });
     } catch (e) {
         console.log(e);
-        show_error($t('error.delete_snapshot_failed'));
+        showError({ message: $t('error.delete_snapshot_failed') });
     }
 }
 
-function apply_save(date: string) {
-    let info = show_info($t('manage.wait_for_prompt_hint'), undefined, 0);
+async function apply_save(date: string) {
+    let notify_id = showInfo({ message: $t('manage.wait_for_prompt_hint') });
 
     if (!apply_button_apply_limit) {
-        show_error($t('manage.last_overwrite_unfinished_error'));
+        showError({ message: $t('manage.last_overwrite_unfinished_error') });
         return;
     }
     if (!backup_button_backup_limit) {
-        show_error($t('manage.last_backup_unfinished_error'))
+        showError({ message: $t('manage.last_backup_unfinished_error') });
         return;
     }
     apply_button_apply_limit = false;
-    invoke("restore_snapshot", { game: game.value, date: date })
-        .then((x) => {
-            show_success($t('manage.recover_success'));
-            console.log(x)
-        }).catch((e) => {
-            console.log(e)
-            show_error($t('error.restore_snapshot_failed'))
-        }).finally(() => {
-            info.close()
-            apply_button_apply_limit = true;
-            refresh_backups_info();
-        })
+    let result = await commands.restoreSnapshot(game.value, date);
+    if (result.status === "error") {
+        // TODO: 增加恢复失败
+        showError({ message: $t('manage.recover_failed') });
+    } else {
+        showSuccess({ message: $t('manage.recover_success') });
+    }
+    closeNotification(notify_id);
+    apply_button_apply_limit = true;
+    refresh_backups_info();
 }
 
 async function change_describe(date: string) {
@@ -219,11 +204,15 @@ async function change_describe(date: string) {
             cancelButtonText: $t('manage.cancel'),
             inputValue: table_data.value.find((x) => x.date == date)?.describe,
         });
-        await invoke("set_snapshot_description", { game: game.value, date: date, describe: value });
+        let result = await commands.setSnapshotDescription(game.value, date, value);
+        if (result.status === "error") {
+            // TODO: 增加文本
+            showError({ message: $t('manage.change_description_failed') });
+        }
         refresh_backups_info();
-        show_success($t('manage.change_description_success'));
+        showSuccess({ message: $t('manage.change_description_success') });
     } catch {
-        show_info($t('manage.operation_canceled'));
+        showInfo({ message: $t('manage.operation_canceled') });
     }
 }
 
@@ -232,7 +221,7 @@ function load_latest_save() {
     if (table_data.value[table_data.value.length - 1].date) {
         apply_save(table_data.value[table_data.value.length - 1].date);
     } else {
-        show_error($t('manage.no_backup_error'));
+        showError({ message: $t('manage.no_backup_error') });
     }
 }
 
@@ -250,28 +239,26 @@ async function del_cur() {
         );
 
         if (value === 'yes') {
-            await invoke("delete_game", { game: game.value }).catch((e) => {
-                console.log(e);
-                show_error($t('error.delete_game_failed'));
-            });
-            await config.refresh();
+            let result = await commands.deleteGame(game.value);
+            if (result.status === "error") {
+                showError({ message: $t('error.delete_game_failed') });
+            }
+            await refreshConfig();
             router.back();
         } else {
-            show_info($t('manage.invalid_input_error'));
+            showInfo({ message: $t('manage.invalid_input_error') });
         }
     } catch {
-        show_info($t('manage.operation_canceled'));
+        showInfo({ message: $t('manage.operation_canceled') });
     }
 }
 
-function open_backup_folder() {
-    invoke("open_backup_folder", { game: game.value })
-        .catch(
-            (e) => {
-                console.log(e)
-                show_error($t('error.open_backup_folder_failed'))
-            }
-        )
+async function open_backup_folder() {
+
+    let result = await commands.openBackupFolder(game.value);
+    if (result.status === "error") {
+        showError({ message: $t('error.open_backup_folder_failed') });
+    }
 }
 
 // 点击按钮后，跳转到添加游戏页面
@@ -289,7 +276,7 @@ async function edit_cur() {
         );
 
         if (value === 'yes') {
-            await config.refresh();
+            await refreshConfig();
             router.push({
                 name: "edit-game",
                 params: {
@@ -297,37 +284,32 @@ async function edit_cur() {
                 },
             });
         } else {
-            show_info($t('manage.invalid_input_error'));
+            showInfo({ message: $t('manage.invalid_input_error') });
         }
     } catch {
-        show_info($t('manage.operation_canceled'));
+        showInfo({ message: $t('manage.operation_canceled') });
     }
 }
 
 // 设置快速备份，由快捷键和tray触发备份和恢复
-function set_quick_backup() {
-    invoke("set_quick_backup_game", { game: game.value })
-        .then((x) => {
-            console.log(x)
-            show_success($t('manage.set_quick_backup_success'));
-        }).catch(
-            (e) => {
-                console.log(e)
-                show_error($t('manage.set_quick_backup_failed'))
-            }
-        )
+async function set_quick_backup() {
+    let result = await commands.setQuickBackupGame(game.value);
+    if (result.status === "error") {
+        showError({ message: $t('manage.set_quick_backup_failed') });
+    }
+    showSuccess({ message: $t('manage.set_quick_backup_success') });
 }
 
 // 调整“应用存档位置，删除原存档”选项，由组件SaveLocationDrawer触发
 async function on_save_unit_switch_delete_before_apply(index: number) {
     try {
-        (config.games.find((x) => x.name == game.value.name) as Game).save_paths = game.value.save_paths;
-        await config.save();
-        show_success($t("settings.submit_success"));
-        await config.refresh();
+        (config.value.games.find((x) => x.name == game.value.name) as Game).save_paths = game.value.save_paths;
+        await saveConfig();
+        showSuccess({ message: $t("settings.submit_success") });
+        await refreshConfig();
     } catch (e) {
         console.log(e);
-        show_error($t("error.set_config_failed"));
+        showError({ message: $t("error.set_config_failed") });
     }
 }
 

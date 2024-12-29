@@ -1,12 +1,13 @@
 use opendal::services;
 use opendal::Operator;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::config::get_config;
 use crate::errors::BackendError;
 use crate::traits::Sanitizable;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 #[serde(tag = "type")]
 pub enum Backend {
     // TODO:增加更多后端支持
@@ -42,11 +43,11 @@ impl Backend {
                 username,
                 password,
             } => {
-                let mut builder = services::Webdav::default();
-                builder.endpoint(endpoint);
-                builder.username(username);
-                builder.password(password);
-                builder.root(&root);
+                let builder = services::Webdav::default()
+                    .endpoint(endpoint)
+                    .username(username)
+                    .password(password)
+                    .root(&root);
                 Ok(Operator::new(builder)?.finish())
             }
             Backend::S3 {
@@ -56,19 +57,20 @@ impl Backend {
                 access_key_id,
                 secret_access_key,
             } => {
-                let mut builder = services::S3::default();
-                builder.endpoint(endpoint);
-                builder.bucket(bucket);
-                builder.region(region);
-                builder.access_key_id(access_key_id);
-                builder.secret_access_key(secret_access_key);
-                builder.root(&root);
+                let builder = services::S3::default()
+                    .endpoint(endpoint)
+                    .bucket(bucket)
+                    .region(region)
+                    .access_key_id(access_key_id)
+                    .secret_access_key(secret_access_key)
+                    .root(&root);
                 Ok(Operator::new(builder)?.finish())
             }
         }
     }
 
     /// 检查后端是否可用
+    /// TODO: 严格化检查
     pub async fn check(&self) -> Result<(), BackendError> {
         self.get_op()?.check().await?;
         Ok(())

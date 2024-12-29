@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::default_value;
 use crate::traits::Sanitizable;
 
 use super::Backend;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct CloudSettings {
     /// 是否启用跟随云同步（用户添加、删除时自动同步）
     #[serde(default = "default_value::default_false")]

@@ -1,10 +1,10 @@
 use crate::cloud_sync::upload_game_snapshots;
 use crate::config::{get_config, set_config};
 use crate::errors::BackupError;
+use log::{error, info};
 use std::fs;
 use std::path::PathBuf;
 use tauri::AppHandle;
-use tracing::{error, info};
 
 use super::{Game, GameSnapshots};
 
