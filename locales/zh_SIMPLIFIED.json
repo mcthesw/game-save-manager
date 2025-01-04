@@ -45,6 +45,7 @@
     }
   },
   "home": {
+    "name": "游戏存档管理器",
     "hello_world": "你好 世界",
     "simple": "简洁",
     "simple_explained": "不添加推广、贴片广告等无用功能，尽量保证界面为功能服务",

@@ -1,56 +1,65 @@
 <template>
     <ElContainer class="home-container" direction="vertical">
-        <h2>{{ $t('home.hello_world') }}</h2>
-        <div class="describe-container">
-            <div class="describe">
-                <h3>{{ $t('home.simple') }}</h3>
-                <p>{{ $t('home.simple_explained') }}</p>
-            </div>
-            <div class="describe">
-                <h3>{{ $t('home.safe') }}</h3>
-                <p>
-                    {{ $t('home.safe_explained') }} </p>
-            </div>
-            <div class="describe">
-                <h3>{{ $t('home.free') }}</h3>
-                <p>
-                    {{ $t('home.free_explained') }} </p>
+        <div class="hero-section">
+            <h2 class="welcome-title">{{ $t('home.hello_world') }}</h2>
+            <div class="intro-box">
+                <div class="intro-content">
+                    <h3 class="intro-title">{{ $t("home.name") }}</h3>
+                    <p class="intro-text">{{ $t('home.simple_explained') }}</p>
+                    <div class="feature-pills">
+                        <div class="feature-pill">
+                            <el-icon>
+                                <Check />
+                            </el-icon>
+                            <span>{{ $t('home.simple') }}</span>
+                        </div>
+                        <div class="feature-pill">
+                            <el-icon>
+                                <Lock />
+                            </el-icon>
+                            <span>{{ $t('home.safe') }}</span>
+                        </div>
+                        <div class="feature-pill">
+                            <el-icon>
+                                <Star />
+                            </el-icon>
+                            <span>{{ $t('home.free') }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <ElContainer class="new" direction="horizontal">
-            <el-result :title="$t('home.import_game')">
-                <template #icon>
+
+        <div class="features-grid">
+            <div class="feature-card" @click="go_add_game()">
+                <el-icon class="feature-icon">
                     <Edit />
-                </template>
-                <template #extra>
-                    <el-button type="primary" @click="go_add_game()">{{ $t('home.jump_to_page') }}</el-button>
-                </template>
-            </el-result>
-            <el-result :title="$t('home.change_locale')">
-                <template #icon>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512">
-                        <path
-                            d="M152.1 236.2c-3.5-12.1-7.8-33.2-7.8-33.2h-.5s-4.3 21.1-7.8 33.2l-11.1 37.5H163zM616 96H336v320h280c13.3 0 24-10.7 24-24V120c0-13.3-10.7-24-24-24zm-24 120c0 6.6-5.4 12-12 12h-11.4c-6.9 23.6-21.7 47.4-42.7 69.9 8.4 6.4 17.1 12.5 26.1 18 5.5 3.4 7.3 10.5 4.1 16.2l-7.9 13.9c-3.4 5.9-10.9 7.8-16.7 4.3-12.6-7.8-24.5-16.1-35.4-24.9-10.9 8.7-22.7 17.1-35.4 24.9-5.8 3.5-13.3 1.6-16.7-4.3l-7.9-13.9c-3.2-5.6-1.4-12.8 4.2-16.2 9.3-5.7 18-11.7 26.1-18-7.9-8.4-14.9-17-21-25.7-4-5.7-2.2-13.6 3.7-17.1l6.5-3.9 7.3-4.3c5.4-3.2 12.4-1.7 16 3.4 5 7 10.8 14 17.4 20.9 13.5-14.2 23.8-28.9 30-43.2H412c-6.6 0-12-5.4-12-12v-16c0-6.6 5.4-12 12-12h64v-16c0-6.6 5.4-12 12-12h16c6.6 0 12 5.4 12 12v16h64c6.6 0 12 5.4 12 12zM0 120v272c0 13.3 10.7 24 24 24h280V96H24c-13.3 0-24 10.7-24 24zm58.9 216.1L116.4 167c1.7-4.9 6.2-8.1 11.4-8.1h32.5c5.1 0 9.7 3.3 11.4 8.1l57.5 169.1c2.6 7.8-3.1 15.9-11.4 15.9h-22.9a12 12 0 0 1 -11.5-8.6l-9.4-31.9h-60.2l-9.1 31.8c-1.5 5.1-6.2 8.7-11.5 8.7H70.3c-8.2 0-14-8.1-11.4-15.9z" />
-                    </svg>
-                </template>
-                <template #extra>
-                    <el-button type="primary" @click="go_settings()">{{ $t('home.jump_to_page') }}</el-button>
-                </template>
-            </el-result>
-            <el-result :title="$t('home.start_backup')">
-                <template #icon>
-                    <UploadFilled />
-                </template>
-                <template #extra>
-                    <el-button type="primary" @click="go_backup()">{{ $t('home.hint') }}</el-button>
-                </template>
-            </el-result>
-        </ElContainer>
+                </el-icon>
+                <h3>{{ $t('home.import_game') }}</h3>
+                <el-button type="primary" text>{{ $t('home.jump_to_page') }}</el-button>
+            </div>
+
+            <div class="feature-card" @click="go_settings()">
+                <el-icon class="feature-icon">
+                    <Setting />
+                </el-icon>
+                <h3>{{ $t('home.change_locale') }}</h3>
+                <el-button type="primary" text>{{ $t('home.jump_to_page') }}</el-button>
+            </div>
+
+            <div class="feature-card" @click="go_backup()">
+                <el-icon class="feature-icon">
+                    <Upload />
+                </el-icon>
+                <h3>{{ $t('home.start_backup') }}</h3>
+                <el-button type="primary" text>{{ $t('home.hint') }}</el-button>
+            </div>
+        </div>
     </ElContainer>
 </template>
 
 <script lang="ts" setup>
-import { Edit, UploadFilled } from "@element-plus/icons-vue";
+import { Edit, Setting, Upload, VideoPlay, Check, Lock, Star } from "@element-plus/icons-vue";
 import { $t } from "../i18n";
 const { showInfo } = useNotification();
 
@@ -67,34 +76,148 @@ function go_backup() {
 }
 </script>
 
-<style>
-.home-container {
-    height: 95%;
+<style scoped>
+.hero-section {
+    padding: 2rem 0;
+    text-align: center;
+    background: linear-gradient(135deg, var(--el-bg-color), var(--el-bg-color-overlay));
+    border-radius: 20px;
+    margin: 0 2rem;
 }
 
-.home-container>h2 {
-    margin-right: auto;
-    margin-left: auto;
-    margin-bottom: 2em;
-    display: block;
-    font-size: 2em;
+.welcome-title {
+    font-size: 2.8em;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(45deg, var(--el-color-primary), var(--el-color-success));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-.describe-container {
+.intro-box {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.logo-container {
+    margin-bottom: 1.5rem;
+}
+
+.intro-icon {
+    font-size: 3rem;
+    color: var(--el-color-primary);
+    padding: 1rem;
+    border-radius: 50%;
+    background: var(--el-bg-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.intro-title {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    color: var(--el-text-color-primary);
+}
+
+.intro-text {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: var(--el-text-color-regular);
+    margin-bottom: 2rem;
+}
+
+.feature-pills {
     display: flex;
-    justify-content: space-around;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
-.describe {
-    width: 25%;
+.feature-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--el-bg-color);
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    color: var(--el-text-color-primary);
 }
 
-.new {
-    margin-top: 100px;
-    justify-content: space-around;
+.feature-pill .el-icon {
+    color: var(--el-color-primary);
 }
 
-svg {
-    fill: var(--el-text-color-primary);
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    padding: 3rem 2rem;
+}
+
+.feature-card {
+    background: var(--el-bg-color);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-success));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.feature-card:hover::before {
+    opacity: 1;
+}
+
+.feature-icon {
+    font-size: 2.5rem;
+    color: var(--el-color-primary);
+    margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+    font-size: 1.4rem;
+    margin-bottom: 0.8rem;
+    color: var(--el-text-color-primary);
+}
+
+.feature-card p {
+    color: var(--el-text-color-secondary);
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .hero-section {
+        margin: 0 1rem;
+        padding: 1.5rem 0;
+    }
+
+    .welcome-title {
+        font-size: 2.2em;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+        padding: 2rem 1rem;
+    }
 }
 </style>
