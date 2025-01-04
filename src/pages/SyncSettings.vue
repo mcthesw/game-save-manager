@@ -58,7 +58,7 @@ switch (cloud_settings.value!.backend!.type) {
 /**
  * 测试同步后端是否可用
  */
-function check() {
+async function check() {
   showInfo({ message: $t("sync_settings.start_test") })
   switch (cloud_settings.value?.backend!.type) {
     case "Disabled":
@@ -69,24 +69,26 @@ function check() {
         // 去掉末尾的斜杠，防止出现重复的斜杠
         webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
       }
-      commands.checkCloudBackend(webdav_settings.value).then((res) => {
+      try {
+        await commands.checkCloudBackend(webdav_settings.value)
         showSuccess({ message: $t("sync_settings.test_success") })
-      }).catch((err) => {
+      } catch (err) {
         showError({ message: $t("sync_settings.test_failed") })
         error(`WebDAV test error: ${err}`)
-      })
+      }
       break
     case "S3":
       if (s3_settings.value.endpoint.endsWith("/")) {
         // 去掉末尾的斜杠，防止出现重复的斜杠
         s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
       }
-      commands.checkCloudBackend(s3_settings.value).then((res) => {
+      try {
+        await commands.checkCloudBackend(s3_settings.value)
         showSuccess({ message: $t("sync_settings.test_success") })
-      }).catch((err) => {
+      } catch (err) {
         showError({ message: $t("sync_settings.test_failed") })
         error(`S3 test error: ${err}`)
-      })
+      }
       break;
     default:
       showError({ message: $t("sync_settings.unknown_backend") })
@@ -128,71 +130,70 @@ async function load_config() {
 /**
  * 提交配置，不应独立调用，需使用save函数调用，否则临时配置不会覆盖到配置中
  */
-function submit_settings() {
-  saveConfig().then((x) => {
+async function submit_settings() {
+  try {
+    await saveConfig();
     showSuccess({ message: $t("sync_settings.submit_success") });
-    load_config()
-  }).catch(
-    (e) => {
-      console.log(e)
-      showError({ message: $t("error.set_config_failed") })
-    }
-  )
+    await load_config();
+  } catch (e) {
+    console.log(e);
+    showError({ message: $t("error.set_config_failed") });
+  }
 }
 function abort_change() {
   showSuccess({ message: $t("sync_settings.reset_success") });
   load_config();
 }
 
-function upload_all() {
-  ElMessageBox.prompt(
-    $t("sync_settings.confirm_upload_all"),
-    $t('home.hint'),
-    {
-      confirmButtonText: $t('sync_settings.confirm'),
-      cancelButtonText: $t('sync_settings.cancel'),
-      inputPattern: /yes/,
-      inputErrorMessage: $t('sync_settings.invalid_input_error'),
+async function upload_all() {
+  try {
+    await ElMessageBox.prompt(
+      $t("sync_settings.confirm_upload_all"),
+      $t('home.hint'),
+      {
+        confirmButtonText: $t('sync_settings.confirm'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        inputPattern: /yes/,
+        inputErrorMessage: $t('sync_settings.invalid_input_error'),
+      }
+    );
+
+    // TODO: 错误处理
+    await commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!);
+    showSuccess({ message: $t("sync_settings.upload_success") });
+  } catch (err) {
+    if (err instanceof Error) {
+      showError({ message: $t("sync_settings.upload_failed") });
+      console.error("Upload error:", err);
+    } else {
+      showInfo({ message: $t("sync_settings.canceled") });
     }
-  ).then(() => {
-    try {
-      // TODO: 错误处理
-      commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!).then((res) => {
-        showSuccess({ message: $t("sync_settings.upload_success") })
-      }).catch((err) => {
-        showError({ message: $t("sync_settings.upload_failed") })
-        console.error("Upload error:", err)
-      })
-    } catch (e) {
-      showError({ message: $t("sync_settings.upload_failed") })
-      error(`Upload error: ${e}`)
-    }
-  }).catch((e) => {
-    showInfo({ message: $t("sync_settings.canceled") })
-  })
+  }
 }
 
-function download_all() {
-  ElMessageBox.prompt(
-    $t("sync_settings.confirm_download_all"),
-    $t('home.hint'),
-    {
-      confirmButtonText: $t('sync_settings.confirm'),
-      cancelButtonText: $t('sync_settings.cancel'),
-      inputPattern: /yes/,
-      inputErrorMessage: $t('sync_settings.invalid_input_error'),
+async function download_all() {
+  try {
+    await ElMessageBox.prompt(
+      $t("sync_settings.confirm_download_all"),
+      $t('home.hint'),
+      {
+        confirmButtonText: $t('sync_settings.confirm'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        inputPattern: /yes/,
+        inputErrorMessage: $t('sync_settings.invalid_input_error'),
+      }
+    );
+    
+    await commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!);
+    showSuccess({ message: $t("sync_settings.download_success") });
+  } catch (e) {
+    if (e instanceof Error) {
+      showError({ message: $t("sync_settings.download_failed") });
+      error(`Download error: ${e}`);
+    } else {
+      showInfo({ message: $t("sync_settings.canceled") });
     }
-  ).then(() => {
-    try {
-      commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!)
-      showSuccess({ message: $t("sync_settings.download_success") })
-    } catch (e) {
-      showError({ message: $t("sync_settings.download_failed") })
-      error(`Download error: ${e}`)
-    }
-  }).catch((e) => {
-    showInfo({ message: $t("sync_settings.canceled") })
-  })
+  }
 }
 
 function open_manual() {

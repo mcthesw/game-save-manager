@@ -76,42 +76,41 @@ function generate_save_unit(unit_type: "Folder" | "File", path: string): SaveUni
     return { unit_type, path, delete_before_apply }
 }
 
-function add_save_directory() {
-    commands.chooseSaveDir().then((dir) => {
-        if (dir.status == "error" || !check_save_unit_unique(dir.data)) { return }
+async function add_save_directory() {
+    try {
+        const dir = await commands.chooseSaveDir();
+        if (dir.status == "error" || !check_save_unit_unique(dir.data)) { return; }
         save_paths.push(
             generate_save_unit("Folder", dir.data)
-        )
-    }).catch(
-        (e) => {
-            console.log(e)
-            showError({ message: $t('error.choose_save_dir_error') });
-        }
-    )
+        );
+    } catch (e) {
+        console.log(e);
+        showError({ message: $t('error.choose_save_dir_error') });
+    }
 }
-function add_save_file() {
-    commands.chooseSaveFile().then((file) => {
-        if (file.status == "error" || !check_save_unit_unique(file.data)) { return }
+
+async function add_save_file() {
+    try {
+        const file = await commands.chooseSaveFile();
+        if (file.status == "error" || !check_save_unit_unique(file.data)) { return; }
         save_paths.push(
             generate_save_unit("File", file.data)
-        )
-    }).catch(
-        (e) => {
-            console.log(e)
-            showError({ message: $t('error.choose_save_file_error') });
-        }
-    )
+        );
+    } catch (e) {
+        console.log(e);
+        showError({ message: $t('error.choose_save_file_error') });
+    }
 }
-function choose_executable_file() {
-    commands.chooseSaveFile().then((file) => {
-        if (file.status == "error") { return }
+
+async function choose_executable_file() {
+    try {
+        const file = await commands.chooseSaveFile();
+        if (file.status == "error") { return; }
         game_path.value = file.data;
-    }).catch(
-        (e) => {
-            console.log(e)
-            showError({ message: $t('error.choose_executable_file_error') });
-        }
-    )
+    } catch (e) {
+        console.log(e);
+        showError({ message: $t('error.choose_executable_file_error') });
+    }
 }
 
 function submit_handler(button_method: Function) {
