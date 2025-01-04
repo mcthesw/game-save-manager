@@ -15,12 +15,13 @@ const emits = defineEmits<{
     (event: 'closed'): void
 }>()
 
-function copy(s: string) {
-    navigator.clipboard.writeText(s).then(() => {
-        showSuccess({ message: $t("misc.success") })
-    }).catch(() => {
+async function copy(s: string) {
+    try {
+        await navigator.clipboard.writeText(s);
+        showSuccess({ message: $t("misc.success") });
+    } catch {
         showError({ message: $t("misc.error") });
-    })
+    }
 }
 
 async function open(url: string) {
