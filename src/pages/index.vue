@@ -59,15 +59,15 @@
 </template>
 
 <script lang="ts" setup>
-import { Edit, Setting, Upload, VideoPlay, Check, Lock, Star } from "@element-plus/icons-vue";
+import { Edit, Setting, Upload, Check, Lock, Star } from "@element-plus/icons-vue";
 import { $t } from "../i18n";
 const { showInfo } = useNotification();
 
 function go_add_game() {
-    navigateTo("/add-game");
+    navigateTo("/AddGame");
 }
 function go_settings() {
-    navigateTo("/settings")
+    navigateTo("/Settings")
 }
 function go_backup() {
     showInfo({
