@@ -74,7 +74,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::get_locale_message
         ])
-        .events(tauri_specta::collect_events![])
+        .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());
 
     command_builder.export(

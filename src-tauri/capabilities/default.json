@@ -6,6 +6,7 @@
     "main"
   ],
   "permissions": [
+    "log:default",
     "core:default"
   ]
 }

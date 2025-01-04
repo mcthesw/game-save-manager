@@ -13,7 +13,7 @@ pub fn default_root_path() -> String {
     "/game-save-manager".to_string()
 }
 pub fn default_home_page() -> String {
-    "/home".to_string()
+    "/".to_string()
 }
 pub fn default_backend() -> Backend {
     Backend::Disabled
