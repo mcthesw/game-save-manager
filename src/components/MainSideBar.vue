@@ -10,6 +10,7 @@ import {
     MostlyCloudy
 } from "@element-plus/icons-vue";
 import { $t } from "../i18n";
+import { debug } from "@tauri-apps/plugin-log";
 
 let { config } = useConfig();
 
@@ -30,7 +31,7 @@ const router = useRouter()
 const route = useRoute()
 const show_favorite = ref(false)
 function select_handler(key: string, keyPath: string) {
-    console.log($t('misc.navigate_to'), keyPath[keyPath.length - 1]);
+    debug(`${$t('misc.navigate_to')} ${keyPath[keyPath.length - 1]}`);
     router.push(keyPath[keyPath.length - 1]);
 }
 </script>
