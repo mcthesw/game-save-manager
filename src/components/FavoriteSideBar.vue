@@ -43,14 +43,7 @@ function add_game_to_favorite(game: Game) {
 }
 
 async function save_and_refresh() {
-    try {
-        await saveConfig();
-    } catch (e) {
-        console.log(e);
-        showError({ message: $t("error.set_config_failed") });
-    } finally {
-        await refreshConfig();
-    }
+    await saveConfig();
 }
 
 function add_node(label: string, is_leaf: boolean, children: Array<FavoriteTreeNode> | null = null) {

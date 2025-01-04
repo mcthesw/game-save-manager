@@ -4,9 +4,9 @@
 // 如果没有，则不需要任何操作，之后更新了自动同步功能就可以启动时自动下载，避免手动操作
 
 import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import { $t } from "../i18n";
-import type { Backend } from "../bindings";
+import { commands, type Backend } from "../bindings";
+import { error } from "@tauri-apps/plugin-log";
 
 interface WebDAV {
   type: "WebDAV";
@@ -69,11 +69,11 @@ function check() {
         // 去掉末尾的斜杠，防止出现重复的斜杠
         webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
       }
-      invoke("check_cloud_backend", { backend: webdav_settings.value }).then((res) => {
+      commands.checkCloudBackend(webdav_settings.value).then((res) => {
         showSuccess({ message: $t("sync_settings.test_success") })
       }).catch((err) => {
         showError({ message: $t("sync_settings.test_failed") })
-        console.error("WebDAV test error:", err)
+        error(`WebDAV test error: ${err}`)
       })
       break
     case "S3":
@@ -81,11 +81,11 @@ function check() {
         // 去掉末尾的斜杠，防止出现重复的斜杠
         s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
       }
-      invoke("check_cloud_backend", { backend: s3_settings.value }).then((res) => {
+      commands.checkCloudBackend(s3_settings.value).then((res) => {
         showSuccess({ message: $t("sync_settings.test_success") })
       }).catch((err) => {
         showError({ message: $t("sync_settings.test_failed") })
-        console.error("S3 test error:", err)
+        error(`S3 test error: ${err}`)
       })
       break;
     default:
@@ -155,12 +155,18 @@ function upload_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_upload_all", { backend: config.value!.settings.cloud_settings!.backend }).then((res) => {
-      showSuccess({ message: $t("sync_settings.upload_success") })
-    }).catch((err) => {
+    try {
+      // TODO: 错误处理
+      commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!).then((res) => {
+        showSuccess({ message: $t("sync_settings.upload_success") })
+      }).catch((err) => {
+        showError({ message: $t("sync_settings.upload_failed") })
+        console.error("Upload error:", err)
+      })
+    } catch (e) {
       showError({ message: $t("sync_settings.upload_failed") })
-      console.error("Upload error:", err)
-    })
+      error(`Upload error: ${e}`)
+    }
   }).catch((e) => {
     showInfo({ message: $t("sync_settings.canceled") })
   })
@@ -177,24 +183,24 @@ function download_all() {
       inputErrorMessage: $t('sync_settings.invalid_input_error'),
     }
   ).then(() => {
-    invoke("cloud_download_all", { backend: config.value!.settings.cloud_settings!.backend }).then((res) => {
+    try {
+      commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!)
       showSuccess({ message: $t("sync_settings.download_success") })
-    }).catch((err) => {
+    } catch (e) {
       showError({ message: $t("sync_settings.download_failed") })
-      console.error("Download error:", err)
-    })
+      error(`Download error: ${e}`)
+    }
   }).catch((e) => {
     showInfo({ message: $t("sync_settings.canceled") })
   })
 }
 
 function open_manual() {
-  invoke("open_url", { url: "https://help.sworld.club/docs/extras/cloud" }).catch(
-    (e) => {
-      console.log(e)
-      showError({ message: $t("error.open_url_failed") })
-    }
-  )
+  try { commands.openUrl("https://help.sworld.club/docs/extras/cloud") }
+  catch (e) {
+    error(`open manual error: ${e}`)
+    showError({ message: $t("error.open_url_failed") })
+  }
 }
 </script>
 

@@ -1,3 +1,4 @@
+import { error } from '@tauri-apps/plugin-log';
 import { commands, DEFAULT_CONFIG, type Config } from '../bindings'
 import { $t } from '../i18n'
 
@@ -16,7 +17,7 @@ async function refreshConfig() {
         }
         config.value = result.data
     } catch (e) {
-        console.error('配置加载失败:', e)
+        error(`Failed to load config: ${e}`)
         showError({
             message: $t('error.config_load_failed')
         })
@@ -34,7 +35,7 @@ async function saveConfig() {
             throw new Error(result.error)
         }
     } catch (e) {
-        console.error('配置保存失败:', e)
+        error(`Failed to set config: ${e}`)
         showError({
             message: $t('error.set_config_failed')
         })

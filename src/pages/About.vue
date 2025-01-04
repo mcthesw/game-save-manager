@@ -1,16 +1,14 @@
 <script lang="ts" setup>
+import { commands } from "~/bindings";
 import { $t } from "../i18n";
-import { invoke } from '@tauri-apps/api/core'
 import { app } from "@tauri-apps/api";
+import { debug } from "@tauri-apps/plugin-log";
 
 const { showError } = useNotification();
 const { config } = useConfig();
-function source_click(url: string) {
-    console.log(url);
-    invoke("open_url", { url: url }).then((v: any) => { console.log(v) }).catch((x: any) => {
-        console.log(x)
-        showError({ message: $t('error.open_url_failed') });
-    })
+async function source_click(url: string) {
+    debug(`open url ${url}`)
+    try { await commands.openUrl(url) } catch (e) { showError({ message: $t('error.open_url_failed') }) }
 };
 
 const thanks = [
