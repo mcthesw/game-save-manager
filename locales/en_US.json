@@ -59,7 +59,8 @@
     "change_locale": "Change language",
     "go_game_manage_hint": "Please click on Save Management on the left",
     "go_backup_hint": "Please click on the game name under the Save Management section, and manage your saves in the new page",
-    "wrong_homepage": "The page does not exist, please reset the homepage"
+    "wrong_homepage": "The page does not exist, please reset the homepage",
+    "name": "Game save manager"
   },
   "manage": {
     "create_new_save": "Create new backup",
