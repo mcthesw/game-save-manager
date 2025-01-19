@@ -20,10 +20,9 @@ mod backup;
 mod cloud_sync;
 mod config;
 mod default_value;
-mod errors;
 mod ipc_handler;
 mod quick_actions;
-mod traits;
+mod preclude;
 
 pub fn run() -> anyhow::Result<()> {
     info!("{}", t!("home.hello_world"));
@@ -106,7 +105,6 @@ pub fn run() -> anyhow::Result<()> {
                 .set_focus()
                 .expect("failed to set focus");
         }))
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Arc::new(
             // 自动备份间隔，启动时默认为无（不自动备份）
@@ -138,33 +136,3 @@ pub fn run() -> anyhow::Result<()> {
     }
     Ok(())
 }
-
-// fn init_log(config: &Config) {
-//   use tracing_appender::rolling::{RollingFileAppender, Rotation};
-//   use tracing_subscriber::{fmt, fmt::time, layer::SubscriberExt, util::SubscriberInitExt};
-
-//   let console_layer = fmt::layer().with_timer(time::LocalTime::rfc_3339());
-
-//   if config.settings.log_to_file {
-//       let file_appender = RollingFileAppender::builder()
-//           .rotation(Rotation::DAILY)
-//           .filename_prefix("RGSM")
-//           .filename_suffix("log")
-//           .max_log_files(3)
-//           .build("./log")
-//           .expect("initializing rolling file appender failed");
-
-//       let file_layer = fmt::layer()
-//           .with_timer(time::LocalTime::rfc_3339())
-//           .with_writer(file_appender)
-//           .with_ansi(false)
-//           .with_filter(LevelFilter::INFO);
-
-//       tracing_subscriber::registry()
-//           .with(console_layer)
-//           .with(file_layer)
-//           .init();
-//   } else {
-//       tracing_subscriber::registry().with(console_layer).init();
-//   };
-// }

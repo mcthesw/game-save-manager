@@ -4,9 +4,8 @@ use specta::Type;
 use crate::backup::Game;
 use crate::cloud_sync::CloudSettings;
 use crate::default_value;
-use crate::traits::Sanitizable;
-
-use super::{QuickActionsSettings, Settings};
+use crate::preclude::*;
+use crate::config::{QuickActionsSettings, Settings};
 
 /// The software's configuration
 /// include the version, backup's location path, games'info,

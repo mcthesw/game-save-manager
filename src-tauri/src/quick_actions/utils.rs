@@ -1,11 +1,10 @@
 use log::{error, info, warn};
-use notify_rust::Notification;
 use tauri::AppHandle;
 
 use crate::{
     backup::Game,
     config::{get_config, set_config},
-    errors::BackupError,
+    preclude::*,
 };
 
 pub async fn set_current_game(app: &AppHandle, game: Game) -> anyhow::Result<()> {
@@ -120,17 +119,6 @@ pub async fn quick_backup(t: QuickActionType) {
                 ),
             );
         }
-    }
-}
-
-fn show_notification<T1: AsRef<str>, T2: AsRef<str>>(title: T1, body: T2) {
-    if let Err(e) = Notification::new()
-        .summary(title.as_ref())
-        .body(body.as_ref())
-        .timeout(6000) // milliseconds
-        .show()
-    {
-        error!(target:"rgsm::quick_action", "Failed to show notification: {}", e);
     }
 }
 

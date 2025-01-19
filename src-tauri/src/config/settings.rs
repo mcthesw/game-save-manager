@@ -3,7 +3,7 @@ use specta::Type;
 
 use crate::cloud_sync::CloudSettings;
 use crate::default_value;
-use crate::traits::Sanitizable;
+use crate::preclude::*;
 
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]

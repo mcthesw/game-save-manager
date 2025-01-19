@@ -1,18 +1,14 @@
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::AppHandle;
-
-use crate::cloud_sync::{upload_config, upload_game_snapshots};
-use crate::config::{get_config, set_config};
-use crate::errors::BackupError;
-use log::{error, info};
 use std::path::PathBuf;
 use std::{fs, path};
+use tauri::AppHandle;
 
-use super::GameSnapshots;
-use super::SaveUnit;
-use super::Snapshot;
-use super::{compress_to_file, decompress_from_file};
+use crate::backup::{compress_to_file, decompress_from_file, GameSnapshots, SaveUnit, Snapshot};
+use crate::cloud_sync::{upload_config, upload_game_snapshots};
+use crate::config::{get_config, set_config};
+use crate::preclude::*;
 
 /// A game struct contains the save units and the game's launcher
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
