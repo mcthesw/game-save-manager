@@ -1,4 +1,5 @@
 use log::{error, info, warn};
+use notify_rust::Notification;
 use tauri::AppHandle;
 
 use crate::{
@@ -52,7 +53,7 @@ pub async fn quick_apply(t: QuickActionType) {
                     .clone();
                 game.restore_snapshot(&newest_date, None)?;
             }
-            None => show_no_game_selected_error(),// TODO: 做错误处理，让流程结束
+            None => show_no_game_selected_error(), // TODO: 做错误处理，让流程结束
         };
         Ok(())
     })();
@@ -122,13 +123,15 @@ pub async fn quick_backup(t: QuickActionType) {
     }
 }
 
-fn show_notification<T1: Into<String>, T2: Into<String>>(title: T1, body: T2) {
-    // TODO
-    // Notification::new("QuickAction")
-    //     .title(title)
-    //     .body(body)
-    //     .show()
-    //     .expect("Cannot show notification");
+fn show_notification<T1: AsRef<str>, T2: AsRef<str>>(title: T1, body: T2) {
+    if let Err(e) = Notification::new()
+        .summary(title.as_ref())
+        .body(body.as_ref())
+        .timeout(6000) // milliseconds
+        .show()
+    {
+        error!(target:"rgsm::quick_action", "Failed to show notification: {}", e);
+    }
 }
 
 fn show_no_game_selected_error() {
