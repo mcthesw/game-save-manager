@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::default_value;
-use crate::traits::Sanitizable;
+use crate::preclude::*;
 
 use super::Backend;
 

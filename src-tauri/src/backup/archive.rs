@@ -12,8 +12,8 @@ use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
     backup::{SaveUnit, SaveUnitType},
-    errors::{BackupFileError, CompressError},
     ipc_handler::{IpcNotification, NotificationLevel},
+    preclude::*,
 };
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()

@@ -4,8 +4,8 @@ use std::{fs, path};
 use log::info;
 use semver::Version;
 
-use super::Config;
-use crate::errors::ConfigError;
+use crate::config::Config;
+use crate::preclude::*;
 
 /// Set settings to original state
 pub async fn reset_settings() -> Result<(), ConfigError> {
@@ -62,13 +62,10 @@ pub fn config_check() -> Result<(), ConfigError> {
     let software_version = Version::parse(&Config::default().version)?;
     let config_version = Version::parse(&config.version)?;
     if config_version != software_version {
-        // TODO
-        // app.notification()
-        //     .builder()
-        //     .title(t!("backend.config.updating_config_title"))
-        //     .body(t!("backend.config.updating_config_body"))
-        //     .show()
-        //     .expect("Cannot show notification");
+        show_notification(
+            t!("backend.config.updating_config_title"),
+            t!("backend.config.updating_config_body"),
+        );
         backup_old_config()?;
     }
     if config_version < Version::parse("1.0.0")? {
