@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import 'element-plus/theme-chalk/dark/css-vars.css' // 引入暗黑主题样式
+const { config, refreshConfig } = useConfig();
+useDark();
+
 import { events } from "./bindings";
 import { useNotification } from "./composables/useNotification";
 import { useConfig } from "./composables/useConfig";
 import { $t } from "./i18n";
 
 const { showInfo, showWarning, showError } = useNotification();
-const { config, refreshConfig } = useConfig();
-useDark();
 
 try {
   await refreshConfig()
