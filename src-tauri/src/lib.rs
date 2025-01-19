@@ -35,10 +35,13 @@ pub fn run() -> anyhow::Result<()> {
         let location = panic_info.location().unwrap(); // 可以使用 unwrap_or_else() 处理 location 为 None 的情况
 
         // 获取 panic 的原因
-        let message = panic_info
-            .payload()
-            .downcast_ref::<&str>()
-            .unwrap_or(&"unknown reason"); // 处理 payload 不是 &str 类型的情况
+        let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown reason".to_string()
+        };
 
         // 使用 log crate 记录错误信息，并包含位置和原因
         error!(
