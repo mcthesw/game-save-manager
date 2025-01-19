@@ -21,8 +21,8 @@ mod cloud_sync;
 mod config;
 mod default_value;
 mod ipc_handler;
-mod quick_actions;
 mod preclude;
+mod quick_actions;
 
 pub fn run() -> anyhow::Result<()> {
     info!("{}", t!("home.hello_world"));
@@ -96,6 +96,7 @@ pub fn run() -> anyhow::Result<()> {
                     },
                 ))
                 .max_file_size(50_000 /* bytes */)
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
