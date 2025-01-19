@@ -63,8 +63,8 @@
     "wrong_homepage": "页面不存在，请重设主页"
   },
   "manage": {
-    "create_new_save": "创建新存档",
-    "load_latest_save": "用最新存档覆盖",
+    "create_new_save": "创建新快照",
+    "load_latest_save": "恢复最新快照",
     "launch_game": "启动游戏",
     "open_backup_folder": "打开备份文件夹",
     "show_drawer": "查看受管理文件",
@@ -74,7 +74,7 @@
     "last_backup_unfinished_error": "上次备份还未完成，请等待",
     "last_overwrite_unfinished_error": "上次覆盖还未完成，请等待",
     "backup_success": "备份成功",
-    "no_description_warning": "你没有给这个存档提供描述，继续吗？",
+    "no_description_warning": "你没有给这个快照提供描述，继续吗？",
     "warning": "警告",
     "confirm_save": "坚持保存",
     "cancel": "取消",
@@ -106,7 +106,8 @@
     "set_quick_backup_success": "设置成功，可以用快捷键或托盘图标快捷操作",
     "set_quick_backup_failed": "设置失败",
     "batch_delete": "批量删除",
-    "batch_delete_prompt": "注意，该操作会删除所有选中的存档，确定请输入yes"
+    "batch_delete_prompt": "注意，该操作会删除所有选中的快照，确定请输入yes",
+    "recover_failed": "恢复失败"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",
@@ -238,7 +239,7 @@
     "add_game_failed": "添加游戏失败",
     "get_game_snapshots_failed": "获取备份信息失败",
     "backup_failed": "备份失败，检查日志以获取更多信息",
-    "delete_snapshot_failed": "删除备份失败，检查日志以获取更多信息",
+    "delete_snapshot_failed": "删除快照失败，检查日志以获取更多信息",
     "restore_snapshot_failed": "应用备份失败，检查日志以获取更多信息",
     "delete_game_failed": "删除游戏失败",
     "open_backup_folder_failed": "打开备份文件夹失败",
