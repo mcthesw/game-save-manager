@@ -111,9 +111,9 @@ async function send_save_to_background() {
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
 
-    let ressult = await commands.createSnapshot(game.value, describe.value);
-    if (ressult.status === "error") {
-        showError({ message: ressult.error });
+    let result = await commands.createSnapshot(game.value, describe.value);
+    if (result.status === "error") {
+        showError({ message: result.error });
     } else {
         showSuccess({ message: $t('manage.backup_success') });
     }
