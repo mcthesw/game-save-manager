@@ -102,6 +102,7 @@ function select_handler(key: string, keyPath: string) {
 }
 
 .main-menu-container {
+    flex-direction: column;
     flex-grow: 1;
 }
 </style>
