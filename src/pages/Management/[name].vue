@@ -4,8 +4,9 @@ import { ElInput, ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import {commands} from "../../bindings";
 import SaveLocationDrawer from "../../components/SaveLocationDrawer.vue";
-import type { Game, GameSnapshots, Snapshot } from "../../bindings";
+import type { Game, Snapshot } from "../../bindings";
 import { $t } from "../../i18n";
+import { error, info } from "@tauri-apps/plugin-log";
 
 let { showInfo, showError, showSuccess, closeNotification } = useNotification();
 let { config,refreshConfig, saveConfig } = useConfig();
@@ -77,10 +78,7 @@ watch(
     () => route.params.name,
     (newValue) => {
         if (!newValue) { return; }
-        console.log("Current game:", newValue)
-        console.log("Current games:", config.value.games)
         let name = newValue;
-        console.log("Current game:", name)
         game.value = config.value.games.find((x) => x.name == name) as Game;
         refresh_backups_info()
     },
@@ -140,8 +138,8 @@ async function create_new_save() {
                 type: "warning",
             });
             send_save_to_background();
-        } catch (error) {
-            console.log(error);
+        } catch (e) {
+            info(`User cancelled the save operation.`);
         }
     } else {
         send_save_to_background();
@@ -162,13 +160,11 @@ async function launch_game() {
 
 async function del_save(date: string) {
     try {
-        console.log(date);
         const result = await commands.deleteSnapshot(game.value, date);
-        console.log(result);
         refresh_backups_info();
         showSuccess({ message: $t('manage.delete_success') });
     } catch (e) {
-        console.log(e);
+        error(`Failed to delete snapshot: ${e}`);
         showError({ message: $t('error.delete_snapshot_failed') });
     }
 }
@@ -308,7 +304,7 @@ async function on_save_unit_switch_delete_before_apply(index: number) {
         showSuccess({ message: $t("settings.submit_success") });
         await refreshConfig();
     } catch (e) {
-        console.log(e);
+        error(`Failed to save config: ${e}`);
         showError({ message: $t("error.set_config_failed") });
     }
 }
