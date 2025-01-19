@@ -106,7 +106,7 @@
         "input_description_search_prompt": "Entrée pour la description de recherche",
         "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?",
         "batch_delete": "Suppression de l ' entrée",
-        "batch_delete_prompt": "notez que l'opération supprimera toutes les demandes de dépôt et déterminera les entrées de oui"
+        "batch_delete_prompt": "notez que l'opération supprimerait la voie rapide de toutes les sélections et identifierait pour les entrées d'entrée"
     },
     "addgame": {
         "search_local": "Identification automatique des jeux locaux",
@@ -238,7 +238,7 @@
         "add_game_failed": "Synchronisation cellulaire",
         "get_game_snapshots_failed": "Failure to obtain back-up information",
         "backup_failed": "Intervalles de sauvegarde automatiques",
-        "delete_snapshot_failed": "Points d ' addition réussis",
+        "delete_snapshot_failed": "Supprimer l'échec de la voie rapide, vérifier les journaux pour obtenir plus d'informations",
         "restore_snapshot_failed": "Défauts d'application, registres d'inspection pour obtenir plus d'information",
         "delete_game_failed": "Supprimer l'échec du jeu",
         "open_backup_folder_failed": "Lancement de tests pour de longues périodes d'inspection et de réseautage non responsables",
