@@ -136,7 +136,7 @@ async function submit_settings() {
     showSuccess({ message: $t("sync_settings.submit_success") });
     await load_config();
   } catch (e) {
-    console.log(e);
+    error(`Failed to set config: ${e}`);
     showError({ message: $t("error.set_config_failed") });
   }
 }

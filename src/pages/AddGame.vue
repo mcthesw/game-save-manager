@@ -10,6 +10,7 @@ import { commands, type Game, type SaveUnit } from "../bindings";
 import { watchEffect } from "vue";
 import { $t } from "../i18n";
 import { v4 as uuidv4 } from 'uuid';
+import { error } from "@tauri-apps/plugin-log";
 
 const route = useRoute();
 const router = useRouter();
@@ -84,7 +85,7 @@ async function add_save_directory() {
             generate_save_unit("Folder", dir.data)
         );
     } catch (e) {
-        console.log(e);
+        error(`Error choosing save directory: ${e}`)
         showError({ message: $t('error.choose_save_dir_error') });
     }
 }
@@ -97,7 +98,7 @@ async function add_save_file() {
             generate_save_unit("File", file.data)
         );
     } catch (e) {
-        console.log(e);
+        error(`Error choosing save file: ${e}`)
         showError({ message: $t('error.choose_save_file_error') });
     }
 }
@@ -108,7 +109,7 @@ async function choose_executable_file() {
         if (file.status == "error") { return; }
         game_path.value = file.data;
     } catch (e) {
-        console.log(e);
+        error(`Error choosing executable file: ${e}`)
         showError({ message: $t('error.choose_executable_file_error') });
     }
 }
@@ -144,7 +145,6 @@ async function save() {
     };
     try {
         const result = await commands.addGame(game);
-        console.log(result);
 
         if (is_editing.value) {
             is_editing.value = false;
@@ -167,7 +167,7 @@ async function save() {
         reset_info(false);
         await refreshConfig();
     } catch (e) {
-        console.log(e);
+        error(`Error adding game: ${e}`);
         showError({ message: $t('error.add_game_failed') });
     }
 }

@@ -10,7 +10,7 @@ import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled 
 import HotkeySelector from "../components/HotkeySelector.vue";
 import { useDark } from '@vueuse/core'
 import { commands } from "~/bindings";
-import { error } from "@tauri-apps/plugin-log";
+import { error, info } from "@tauri-apps/plugin-log";
 
 const isDark = useDark()
 const { config, refreshConfig, saveConfig } = useConfig()
@@ -94,7 +94,7 @@ function open_log_folder() {
 watch(
     () => config.value.settings.locale,
     (new_locale, _old_locale) => {
-        console.log(new_locale)
+        info(`locale changed to ${new_locale}`)
         if (new_locale)
             i18n.locale.value = new_locale
         showInfo({ message: $t("settings.locale_changed") });
@@ -107,7 +107,7 @@ watch(
         try {
             await saveConfig();
         } catch (e) {
-            console.log(e)
+            error(`save config error: ${e}`)
             showError({ message: $t("error.set_config_failed") })
         }
     },
