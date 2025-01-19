@@ -131,7 +131,8 @@ pub fn decompress_from_file(
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
 
-    let tmp_folder = PathBuf::from("./tmp"); //TODO: tmp dir
+    let tmp_folder = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?; // Temporary directory for extraction
+    let tmp_folder = tmp_folder.path().to_path_buf(); // Convert to PathBuf for easier manipulation
     fs::create_dir_all(&tmp_folder).map_err(|e| CompressError::Single(e.into()))?;
     zip.extract(&tmp_folder)
         .map_err(|e| CompressError::Single(e.into()))?;
