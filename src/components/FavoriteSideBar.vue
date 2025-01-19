@@ -22,7 +22,7 @@ function favorite_click_handler(node: FavoriteTreeNode) {
         showWarning({ message: $t('favorite.game_not_found') + ": " + node.label });
         return;
     }
-    navigateTo("/management/" + node.label)
+    navigateTo("/Management/" + node.label)
 }
 
 function remove_node(node: Node, data: FavoriteTreeNode) {

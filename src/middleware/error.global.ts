@@ -8,7 +8,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
         warn(`Game ${to.params.name} not found`)
         return navigateTo(to)
     }
-    if (pages.find((x) => x == to.fullPath) === undefined) {
+    if (!to.fullPath.startsWith("/Management") && pages.find((x) => x == to.fullPath) === undefined) {
         warn(`Page ${to.fullPath} not found`)
         return navigateTo("/")
     }
