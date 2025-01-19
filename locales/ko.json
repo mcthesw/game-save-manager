@@ -47,7 +47,7 @@
     "home": {
         "hello_world": "당신의 Excellencies",
         "simple": "단순성",
-        "simple_explained": "연장, 할인, 등과 같은 비 타화 기능은 할 수 있는 범위에, 그 공용영역은 기능적 추가하지 않습니다",
+        "simple_explained": "다운로드, 검사 및 네트워킹 실패",
         "safe": "보안",
         "safe_explained": "소프트웨어는 온라인이 아니며, 당신은 \"클라우드 아카이브\"의 기능을 달성하기 위해 너트 클라우드에 의해 자신의 레코드를 아카이브 할 수 있습니다",
         "free": "지원하다",
@@ -59,7 +59,8 @@
         "change_locale": "언어 교체",
         "go_game_manage_hint": "왼쪽 \"archive management\"를 골라주세요",
         "go_backup_hint": "“archive management” 란의 밑에, 놀이 이름은 새로운 공용영역에 있는 archive 관리를 위해 단식되어야 합니다",
-        "wrong_homepage": "페이지를 사용할 수 없으며 홈 페이지가 다시 열어야합니다"
+        "wrong_homepage": "페이지를 사용할 수 없으며 홈 페이지가 다시 열어야합니다",
+        "name": "Play 관리 서비스"
     },
     "manage": {
         "create_new_save": "동기화",
@@ -101,7 +102,7 @@
         "change_description": "새로운 narrative 정보 입력",
         "change_description_success": "성공의 수정",
         "change_description_failed": "실패의 수정",
-        "set_quick_backup": "빠른 백업",
+        "set_quick_backup": "계정 만들기",
         "set_quick_backup_success": "빠른 키 또는 그림 설정에 성공",
         "set_quick_backup_failed": "실패",
         "batch_delete": "입력 deletion",
@@ -163,7 +164,7 @@
         "always_sync_hint": "추가, 삭제 및 아카이브 자동 동기화 첫 번째 사용, 이는 동시 시작에 의해 미리해야합니다",
         "manual_sync": "기타",
         "save_button": "- 연혁",
-        "auto_sync_interval": "동기화",
+        "auto_sync_interval": "백업 날짜",
         "interval_hint": "이름 *",
         "cloud_root": "숙박 플랜",
         "cloud_root_hint": "프론트 엔드 프레임",
@@ -198,7 +199,7 @@
             "endpoint": "S3 엔드포인트",
             "bucket": "드럼 저장",
             "region": "주요사업",
-            "access_key_id": "키 ID에 방문",
+            "access_key_id": "제품정보",
             "secret_access_key": "비밀 방문 키",
             "region_hint": "공기 공간은 필요한 경우 시험을 입력해야합니다"
         }
@@ -217,7 +218,7 @@
         "delete_game_failed": "게임 실패 삭제",
         "open_backup_folder_failed": "다시 문서를 열 실패",
         "set_config_failed": "구성 실패",
-        "reset_settings_failed": "실패의 재개",
+        "reset_settings_failed": "성공 추가",
         "change_description_failed": "편집 설명의 실패",
         "open_log_folder_failed": "로그북의 열기"
     },
@@ -285,7 +286,7 @@
         "enable_drag": "제품정보",
         "jump_to_game": "오시는 길",
         "remove": "제품 정보",
-        "choose_game_add": "컬렉션에 참여하기 위해 게임 선택 (replicable)",
+        "choose_game_add": "현재 미리 보기 모델인 언어가 변경되어 영구적으로 힘을 입력할 수 있습니다",
         "add_to_favorite": "자주 묻는 질문",
         "remove_success": "노드의 성공적인 삭제",
         "add_success": "성공적인 추가 포인트",
