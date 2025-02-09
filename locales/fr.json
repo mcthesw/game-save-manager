@@ -1,10 +1,10 @@
 {
     "settings": {
-        "locale_name": "S3 ENDPOINT",
+        "locale_name": "Anglais",
         "locale_changed": "Vous avez changé votre langue, qui est actuellement un modèle de pré-visualisation, avant d'entrer en vigueur de façon permanente",
         "customizable_settings": "Personnalisation",
         "submit_settings": "Réserves",
-        "submit_success": "Droit de choisir un document de début de jeu (non nécessaire)",
+        "submit_success": "Succès dans la préservation des changements",
         "abort_change": "Renonciation aux modifications",
         "confirm_reset": "La reconnaissance ?",
         "reset_settings": "Restauration de l ' acquiescement",
@@ -12,7 +12,7 @@
         "prompt_when_auto_backup": "Lorsque la sauvegarde automatique est disponible, les balles indiquent",
         "exit_to_tray": "Départ d ' une voiture",
         "extra_backup_when_apply": "sauvegarde supplémentaire pour l'application (dans /save_data/ games/extra_backup files)",
-        "enable_dark_mode": "mots de passe",
+        "enable_dark_mode": "Lancement de modèles de nuit",
         "adjust_game_order": "Priorité de l'affichage du jeu (entretien nécessaire)",
         "name": "Invalidité",
         "game_path": "Lancement de la route",
@@ -45,7 +45,7 @@
         }
     },
     "home": {
-        "hello_world": "notez que l'opération supprimera toutes les demandes de dépôt et déterminera les entrées de oui",
+        "hello_world": "Vos Excellences",
         "simple": "Simplicité",
         "simple_explained": "Les fonctions de non-utilisation telles que l'extension, la remise, etc. ne sont pas ajoutées pour assurer, dans la mesure du possible, que les interfaces sont fonctionnelles",
         "safe": "Sécurité",
@@ -63,8 +63,8 @@
         "name": "Service de gestion du jeu"
     },
     "manage": {
-        "create_new_save": "Synchronisation",
-        "load_latest_save": "Couverture archivée actualisée",
+        "create_new_save": "Création d'une nouvelle voie rapide",
+        "load_latest_save": "Restauration de la dernière situation",
         "launch_game": "Lancement du jeu",
         "open_backup_folder": "Failure",
         "show_drawer": "Accès aux documents de gestion",
@@ -74,7 +74,7 @@
         "last_backup_unfinished_error": "The last provision has not been completed, pending",
         "last_overwrite_unfinished_error": "La dernière couverture n ' a pas été achevée, en attendant",
         "backup_success": "Succès en sauvegarde",
-        "no_description_warning": "Ne décrivez-vous pas cette archive et continuez-vous",
+        "no_description_warning": "Ne décrivez-vous pas cette voie rapide, et continuez",
         "confirm_save": "Adhérence à la préservation",
         "cancel": "Abolition",
         "no_launch_path_error": "Vous n'avez pas stocké la façon dont la pièce a été lancée",
@@ -94,10 +94,10 @@
         "confirm_delete_prompt": "Déterminer cette suppression ?",
         "delete": "Supprimer",
         "change_info": "Révision de sauvegarde",
-        "change_prompt": "Type",
+        "change_prompt": "il est noté qu ' il s ' agit d ' une fonction dangereuse qui n ' est pas recommandée. si les changements sont déterminés, veuillez saisir, sinon cliquez sur. l'ancien archivage sera conservé, mais l'utilisation d'anciennes archives ne restaurera que la partie du document de gestion actuel; si le nom de la pièce doit être changé, une nouvelle archive sera ajoutée, et l'administration d'archives la conservera",
         "change_describe": "Amendements",
         "change_description": "Input of new narrative information",
-        "change_description_success": "Navigation",
+        "change_description_success": "Modification du succès",
         "change_description_failed": "Modification de l ' échec",
         "set_quick_backup": "Sauvegarde rapide",
         "set_quick_backup_success": "Succès dans la mise en place de clés ou de dessins rapides",
@@ -106,7 +106,8 @@
         "input_description_search_prompt": "Entrée pour la description de recherche",
         "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?",
         "batch_delete": "Suppression de l ' entrée",
-        "batch_delete_prompt": "notez que l'opération supprimerait la voie rapide de toutes les sélections et identifierait pour les entrées d'entrée"
+        "batch_delete_prompt": "notez que l'opération supprimerait la voie rapide de toutes les sélections et identifierait pour les entrées d'entrée",
+        "recover_failed": "Défauts de récupération"
     },
     "addgame": {
         "search_local": "Identification automatique des jeux locaux",
@@ -118,7 +119,7 @@
         "add_game_success": "Ajout de succès",
         "input_game_name_prompt": "Entrée aux joueurs (must)",
         "game_name": "Nom du jeu",
-        "input_game_launch_path_prompt": "Récupération du succès",
+        "input_game_launch_path_prompt": "Droit de choisir un document de début de jeu (non nécessaire)",
         "game_launch_path": "Document de lancement",
         "add_save_directory": "Ajouter des documents archivés",
         "add_save_file": "Fichiers ajoutés",
@@ -134,7 +135,7 @@
         "early_access_warning": "Il s'agit d'une version d'essai précoce qui ne garantit pas la stabilité et nécessite une utilisation prudente"
     },
     "about": {
-        "project_initiator": "Déterminer que la couverture est disponible?",
+        "project_initiator": "Fondateur du projet",
         "ea_tester": "Succès dans la mise en place de clés ou de dessins rapides",
         "developer": "Project developers",
         "frontend_framework": "Cadre front-end",
@@ -165,7 +166,7 @@
         "homepage": "Se félicitant de l ' interface",
         "add_game": "Ajout de jeux",
         "sync_settings": "Synchronisation",
-        "settings": "Garder le rythme",
+        "settings": "Création",
         "about": "En ce qui concerne la question du Sahara occidental"
     },
     "save_location_drawer": {
@@ -179,7 +180,7 @@
     "sync_settings": {
         "title": "Simultaneization",
         "reset_success": "Reprise du succès",
-        "submit_success": "Droit de choisir un document de début de jeu (non nécessaire)",
+        "submit_success": "Succès dans la préservation des changements",
         "last_sync": "Dernière synchronisation:",
         "always_sync": "Garder le rythme",
         "warning": "Avertissement : il est essentiel de lire le cours avant l'utilisation de cette fonction, sinon il peut conduire à la perte de données",
@@ -204,7 +205,7 @@
         "upload_failed": "Absence d ' inspection et de mise en réseau",
         "download_success": "Le téléchargement a été réussi et les documents locaux ont été mis à jour",
         "download_failed": "Failure of downloads, inspections and networking",
-        "confirm_upload_all": "Liste des documents de gestion",
+        "confirm_upload_all": "détermination de tous les téléchargements? cela couvrirait la configuration du nuage et les entrées qu'ils doivent continuer",
         "confirm_download_all": "déterminer tous les téléchargements? cela couvrirait les configurations locales et les entrées pour continuer",
         "confirm": "Identification",
         "cancel": "Abolition",
@@ -213,10 +214,10 @@
         "webdav": {
             "endpoint": "Adresses WebDAV",
             "username": "Nom d ' utilisateur",
-            "password": "Manquement dans la sélection des documents archivés"
+            "password": "mots de passe"
         },
         "overwrite_upload": "Couverture",
-        "overwrite_download": "Lecture rapide",
+        "overwrite_download": "Téléchargements de couverture",
         "manual_sync": "Migration",
         "save_button": "Entretien",
         "abort_button": "Rejection",
@@ -241,7 +242,7 @@
         "delete_snapshot_failed": "Supprimer l'échec de la voie rapide, vérifier les journaux pour obtenir plus d'informations",
         "restore_snapshot_failed": "Défauts d'application, registres d'inspection pour obtenir plus d'information",
         "delete_game_failed": "Supprimer l'échec du jeu",
-        "open_backup_folder_failed": "Lancement de tests pour de longues périodes d'inspection et de réseautage non responsables",
+        "open_backup_folder_failed": "Défaut d ' ouvrir les documents",
         "set_config_failed": "Absence de configuration",
         "reset_settings_failed": "Reprise des défaillances",
         "change_description_failed": "Absence de description éditoriale",
@@ -269,14 +270,14 @@
         },
         "backup": {
             "extra_backup_file_not_exist": "En raison de la non-disponibilité de la documentation, il n ' a pas été possible d ' achever la sauvegarde supplémentaire (couverture avant service) et de reprendre la suspension. Si cette fonction n'est pas requise, elle devrait être fermée dans l'établissement。",
-            "backup_file_not_exist": "Succès"
+            "backup_file_not_exist": "le document 3% {name} n'existe pas et ne peut être soutenu ou restauré"
         },
         "archive": {
             "file_not_exist": "les routes pour cent {path} n'existent pas et sont automatiquement créées"
         }
     },
     "favorite": {
-        "favorite_manage": "Reprise du succès",
+        "favorite_manage": "Gestion des collections",
         "add_favorite_folder": "Ajout de documents",
         "new_folder_name": "Liste des nouveaux documents",
         "duplicated_empty_error": "Liste des documents en double ou des noms vides",
@@ -298,6 +299,6 @@
         "add_all_games": "Ajout de jeux non recueillis"
     },
     "setting": {
-        "current_quick_action_game": "Invalidité"
+        "current_quick_action_game": "Jeux rapides en cours"
     }
 }
