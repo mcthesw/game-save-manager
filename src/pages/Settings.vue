@@ -1,12 +1,11 @@
 <script lang="ts" setup>
 // TODO:调整日志设置，比如删除日
-// TODO:对设置进行分类
 import { computed, ref, watch } from "vue";
 import { $t } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
-import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled } from "@element-plus/icons-vue";
+import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled, Document, Unlock, Moon, Tools } from "@element-plus/icons-vue";
 import HotkeySelector from "../components/HotkeySelector.vue";
 import { useDark } from '@vueuse/core'
 import { commands } from "~/bindings";
@@ -18,6 +17,20 @@ const { showSuccess, showError, showInfo } = useNotification()
 const i18n = useI18n()
 const locale_message = i18n.messages
 const locale_names = i18n.availableLocales
+const activeTab = ref('general')
+const hotkeysChanged = ref(false)
+const gameOrderChanged = ref(false)
+
+// 使用debounce来合并多次保存操作
+const debouncedSaveConfig = useDebounceFn(async () => {
+    try {
+        await saveConfig();
+        // 移除保存成功的通知
+    } catch (e) {
+        error(`save config error: ${e}`)
+        showError({ message: $t("error.set_config_failed") })
+    }
+}, 500)
 
 async function load_config() {
     await refreshConfig()
@@ -91,6 +104,50 @@ function open_log_folder() {
     }
 }
 
+// 保存快捷键设置
+async function saveHotkeys() {
+    try {
+        await saveConfig();
+        hotkeysChanged.value = false;
+        // 只显示功能完成的消息，而不是保存成功
+        showSuccess({ message: $t("settings.hotkeys_saved") });
+    } catch (e) {
+        error(`save hotkeys error: ${e}`)
+        showError({ message: $t("error.set_config_failed") })
+    }
+}
+
+// 保存游戏顺序设置
+async function saveGameOrder() {
+    try {
+        await saveConfig();
+        gameOrderChanged.value = false;
+        // 只显示功能完成的消息，而不是保存成功
+        showSuccess({ message: $t("settings.game_order_saved") });
+    } catch (e) {
+        error(`save game order error: ${e}`)
+        showError({ message: $t("error.set_config_failed") })
+    }
+}
+
+// 监听快捷键变更
+watch(
+    () => config.value.quick_action?.hotkeys,
+    () => {
+        hotkeysChanged.value = true;
+    },
+    { deep: true }
+)
+
+// 监听游戏顺序变更
+watch(
+    () => config.value.games,
+    () => {
+        gameOrderChanged.value = true;
+    },
+    { deep: true }
+)
+
 watch(
     () => config.value.settings.locale,
     (new_locale, _old_locale) => {
@@ -104,12 +161,7 @@ watch(
 watch(
     () => config.value?.settings,
     async () => {
-        try {
-            await saveConfig();
-        } catch (e) {
-            error(`save config error: ${e}`)
-            showError({ message: $t("error.set_config_failed") })
-        }
+        debouncedSaveConfig();
     },
     { deep: true } // 深度监听对象变化
 )
@@ -148,152 +200,238 @@ const router_list = computed(() => {
                     {{ $t("settings.apply_all") }}
                 </el-button>
             </div>
-            <div class="setting-box">
-                <ElSelect v-model="config.settings.locale">
-                    <ElOption v-for="locale in locale_names" :key="locale"
-                        :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
-                        :value="locale" />
-                </ElSelect>
-                🌍 Languages*
-            </div>
-            <div class="setting-box">
-                <ElSelect v-model="config.settings.home_page">
-                    <ElOption v-for="route_info in router_list" :key="route_info.text" :label="route_info.text"
-                        :value="route_info.link">
-                        <div class="home-option-box">
-                            <component :is="route_info.icon" class="home-box-icon"></component>
-                            {{ route_info.text }}
+
+            <el-tabs v-model="activeTab" type="border-card" class="settings-tabs">
+                <!-- 通用设置 -->
+                <el-tab-pane :label="$t('settings.general')" name="general">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Setting />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.general') }}</span>
+                    </el-divider>
+
+                    <div class="setting-box">
+                        <ElSelect v-model="config.settings.locale">
+                            <ElOption v-for="locale in locale_names" :key="locale"
+                                :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
+                                :value="locale" />
+                        </ElSelect>
+                        <span class="setting-label">🌍 Languages*</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSelect v-model="config.settings.home_page">
+                            <ElOption v-for="route_info in router_list" :key="route_info.text" :label="route_info.text"
+                                :value="route_info.link">
+                                <div class="home-option-box">
+                                    <component :is="route_info.icon" class="home-box-icon"></component>
+                                    {{ route_info.text }}
+                                </div>
+                            </ElOption>
+                        </ElSelect>
+                        <span class="setting-label">🏠 {{ $t("settings.homepage") }}</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.exit_to_tray" />
+                        <span class="setting-label">{{ $t("settings.exit_to_tray") }}*</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.log_to_file" />
+                        <span class="setting-label">{{ $t("settings.log_to_file") }}*</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="isDark" />
+                        <span class="setting-label">{{ $t("settings.enable_dark_mode") }}</span>
+                    </div>
+                </el-tab-pane>
+
+                <!-- 备份设置 -->
+                <el-tab-pane :label="$t('settings.backup_settings')" name="backup">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Document />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.backup_settings') }}</span>
+                    </el-divider>
+
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.prompt_when_not_described" />
+                        <span class="setting-label">{{ $t("settings.prompt_when_not_described") }}</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.prompt_when_auto_backup" />
+                        <span class="setting-label">{{ $t("settings.prompt_when_auto_backup") }}</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.extra_backup_when_apply" />
+                        <span class="setting-label">{{ $t("settings.extra_backup_when_apply") }}</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.default_delete_before_apply" />
+                        <span class="setting-label">{{ $t("settings.default_delete_before_apply") }}</span>
+                    </div>
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.add_new_to_favorites" />
+                        <span class="setting-label">{{ $t("settings.add_new_to_favorites") }}</span>
+                    </div>
+                </el-tab-pane>
+
+                <!-- 界面设置 -->
+                <el-tab-pane :label="$t('settings.ui_settings')" name="ui">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Moon />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.ui_settings') }}</span>
+                    </el-divider>
+
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
+                        <span class="setting-label">{{ $t("settings.default_expend_favorites_tree") }}</span>
+                    </div>
+                </el-tab-pane>
+
+                <!-- 快捷键设置 -->
+                <el-tab-pane :label="$t('settings.hotkey_settings')" name="hotkeys">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Unlock />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.hotkey_settings') }}</span>
+                    </el-divider>
+
+                    <div class="setting-box">
+                        <div>
+                            <strong v-if="config.quick_action!.quick_action_game">
+                                {{ $t("setting.current_quick_action_game") }} :
+                                {{ config.quick_action!.quick_action_game?.name }}
+                            </strong>
                         </div>
-                    </ElOption>
-                </ElSelect>
-                🏠 {{ $t("settings.homepage") }}
-            </div>
-            <div class="setting-box">
-                <ElSwitch v-model="config.settings.prompt_when_not_described" />
-                <span>{{ $t("settings.prompt_when_not_described") }}</span>
-            </div>
-            <div class="setting-box">
-                <ElSwitch v-model="config.settings.prompt_when_auto_backup" />
-                <span>{{ $t("settings.prompt_when_auto_backup") }}</span>
-            </div>
-            <div class="setting-box">
-                <ElSwitch v-model="config.settings.exit_to_tray" />
-                <span>{{ $t("settings.exit_to_tray") }}*</span>
-            </div>
-            <div class="setting-box">
-                <ElSwitch v-model="config.settings.extra_backup_when_apply" />
-                <span>{{ $t("settings.extra_backup_when_apply") }}</span>
-            </div>
-            <div class="setting-box">
-                <ElSwitch v-model="isDark" />
-                <span>{{ $t("settings.enable_dark_mode") }}</span>
-            </div>
-            <-- TODO: 移除该功能 -->
-                <!-- <div class="setting-box">
-                    <ElSwitch v-model="config.settings.show_edit_button" />
-                    <span>{{ $t("settings.enable_edit_manage") }}</span>
-                </div> -->
-                <div class="setting-box">
-                    <ElSwitch v-model="config.settings.default_delete_before_apply" />
-                    <span>{{ $t("settings.default_delete_before_apply") }}</span>
-                </div>
-                <div class="setting-box">
-                    <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
-                    <span>{{ $t("settings.default_expend_favorites_tree") }}</span>
-                </div>
-                <div class="setting-box">
-                    <ElSwitch v-model="config.settings.log_to_file" />
-                    <span>{{ $t("settings.log_to_file") }}*</span>
-                </div>
-                <div class="setting-box">
-                    <ElSwitch v-model="config.settings.add_new_to_favorites" />
-                    <span>{{ $t("settings.add_new_to_favorites") }}</span>
-                </div>
-                <div class="setting-box drag-game-box">
-                    <ElCollapse>
-                        <ElCollapseItem :title="$t('settings.quick_action_hotkeys') + '*'">
-                            <div>
-                                <strong v-if="config.quick_action!.quick_action_game">
-                                    {{ $t("setting.current_quick_action_game") }} :
-                                    {{ config.quick_action!.quick_action_game?.name }}
-                                </strong>
-                            </div>
-                            <HotkeySelector v-model="config.quick_action!.hotkeys" />
-                        </ElCollapseItem>
-                    </ElCollapse>
-                </div>
-                <div class="setting-box drag-game-box">
-                    <ElCollapse>
-                        <ElCollapseItem :title="$t('settings.adjust_game_order')">
-                            <draggable v-model="config.games" item-key="name" :force-fallback="true">
-                                <template #item="{ element }">
-                                    <div class="game-order-box"> {{ element.name }} </div>
-                                </template>
-                            </draggable>
-                        </ElCollapseItem>
-                    </ElCollapse>
-                </div>
+                        <HotkeySelector v-model="config.quick_action!.hotkeys" />
+                        <div class="setting-action">
+                            <el-button type="primary" @click="saveHotkeys" :disabled="!hotkeysChanged">
+                                {{ $t("settings.save_hotkeys") }}
+                            </el-button>
+                            <el-tag v-if="hotkeysChanged" type="warning">{{ $t("settings.unsaved_changes") }}</el-tag>
+                        </div>
+                    </div>
+                </el-tab-pane>
+
+                <!-- 游戏排序 -->
+                <el-tab-pane :label="$t('settings.game_order')" name="gameOrder">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Tools />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.game_order') }}</span>
+                    </el-divider>
+
+                    <div class="setting-box drag-game-box">
+                        <!-- 移除handle属性，恢复原有的拖拽功能 -->
+                        <draggable v-model="config.games" item-key="name" :force-fallback="true">
+                            <template #item="{ element }">
+                                <div class="game-order-box">
+                                    {{ element.name }}
+                                </div>
+                            </template>
+                        </draggable>
+                        <div class="setting-action">
+                            <el-button type="primary" @click="saveGameOrder" :disabled="!gameOrderChanged">
+                                {{ $t("settings.save_game_order") }}
+                            </el-button>
+                            <el-tag v-if="gameOrderChanged" type="warning">{{ $t("settings.unsaved_changes") }}</el-tag>
+                        </div>
+                    </div>
+                </el-tab-pane>
+            </el-tabs>
         </el-card>
     </el-container>
 </template>
 
-    <style scoped>
-    .el-button {
-        margin-left: 0px important;
-        margin-right: 10px;
-        margin-top: 5px;
-    }
+<style scoped>
+.el-button {
+    margin-left: 0px important;
+    margin-right: 10px;
+    margin-top: 5px;
+}
 
-    .el-card {
-        overflow-y: scroll;
-    }
+.el-card {
+    overflow-y: auto;
+    height: 100%;
+}
 
-    .el-switch {
-        margin-right: 20px;
-    }
+.el-switch {
+    margin-right: 20px;
+}
 
-    .setting-box {
-        margin-top: 10px;
-    }
+.setting-box {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
 
-    /** 以下是排序盒子样式 */
-    .game-order-box:hover {
-        transition: box-shadow 0.3s ease;
-        box-shadow: var(--el-box-shadow-light);
-    }
+.setting-box:hover {
+    background-color: var(--el-fill-color-light);
+}
 
-    .game-order-box {
-        font-size: medium;
-        margin-top: 10px;
-        padding: 5px;
-        padding-left: 10px;
-        cursor: pointer;
-        transition: box-shadow 0.3s ease;
-        border: 1px solid var(--el-border-color);
-        border-radius: 4px;
-    }
+.setting-label {
+    margin-left: 10px;
+    vertical-align: middle;
+}
 
-    /** 以上是排序盒子样式   */
+.setting-action {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 
-    /** 以下是首页选择样式 */
-    .home-option-box {
-        display: flex;
-        align-items: center;
-    }
+.tab-title {
+    margin-left: 8px;
+    font-weight: 600;
+}
 
-    .home-box-icon {
-        height: 1em;
-        width: 1em;
-        margin-right: 10px;
-    }
+/** 以下是排序盒子样式 */
+.game-order-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: medium;
+    margin-top: 10px;
+    padding: 10px;
+    cursor: move; /* 更改游戏排序盒子的光标为move，提示可拖动 */
+    transition: all 0.3s ease;
+    border: 1px solid var(--el-border-color);
+    border-radius: 4px;
+}
 
-    /** 以上是首页选择样式 */
+.game-order-box:hover {
+    box-shadow: var(--el-box-shadow-light);
+    transform: translateY(-2px);
+}
 
-    .drag-game-box {
-        user-select: none;
-    }
+/** 以下是首页选择样式 */
+.home-option-box {
+    display: flex;
+    align-items: center;
+}
 
-    .el-select {
-        max-width: 200px;
-    }
+.home-box-icon {
+    height: 1em;
+    width: 1em;
+    margin-right: 10px;
+}
+
+.drag-game-box {
+    user-select: none;
+}
+
+.el-select {
+    max-width: 200px;
+}
+
+.settings-tabs {
+    margin-top: 20px;
+}
 </style>
