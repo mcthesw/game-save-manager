@@ -42,7 +42,17 @@
       "hint": "注意，此处设置和其他带有星号设置一样，需要保存并且重启生效，设置为全空即禁用该功能",
       "quick_backup": "快速备份",
       "quick_apply": "快速读档"
-    }
+    },
+    "general": "通用设置",
+    "backup_settings": "备份设置",
+    "ui_settings": "界面设置",
+    "hotkey_settings": "快捷键设置",
+    "game_order": "游戏排序",
+    "save_hotkeys": "保存热键设置",
+    "save_game_order": "保存游戏顺序",
+    "unsaved_changes": "未保存的更改",
+    "hotkeys_saved": "热键设置已更新",
+    "game_order_saved": "游戏顺序已更新"
   },
   "home": {
     "name": "游戏存档管理器",

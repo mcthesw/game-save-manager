@@ -42,7 +42,17 @@
       "quick_backup": "Quick backup",
       "hint": "Note that the settings here are the same as other settings with an asterisk. They need to be saved and restarted to take effect. Setting it to empty will disable this function.",
       "quick_apply": "Quick file reading"
-    }
+    },
+    "general": "General",
+    "backup_settings": "Backup settings",
+    "ui_settings": "UI settings",
+    "hotkey_settings": "Hotkey settings",
+    "game_order": "Game order",
+    "save_hotkeys": "Save hotkeys",
+    "save_game_order": "Save order",
+    "unsaved_changes": "Unsaved changes",
+    "hotkeys_saved": "Hotkeys saved",
+    "game_order_saved": "Order saved"
   },
   "home": {
     "hello_world": "Hello world",
