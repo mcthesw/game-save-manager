@@ -122,6 +122,8 @@ pub fn run() -> anyhow::Result<()> {
 
     // 处理退出到托盘（关闭窗口不退出）
     let config = get_config()?;
+    info!(target: "rgsm::main", "App has started.");
+
     if config.settings.exit_to_tray {
         app.build(tauri::generate_context!())
             .expect("Cannot build tauri app")
