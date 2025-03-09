@@ -9,7 +9,7 @@ use crate::{
 
 pub async fn set_current_game(app: &AppHandle, game: Game) -> anyhow::Result<()> {
     info!(target:"rgsm::tray","Setting current quick backup game:{}",game.name);
-    app.tray_by_id("game")
+    app.tray_by_id("tray_icon")
         .ok_or(anyhow::anyhow!("Cannot get tray"))?
         .set_title(Some(&game.name))?;
     let mut config = get_config().expect("Cannot get config");

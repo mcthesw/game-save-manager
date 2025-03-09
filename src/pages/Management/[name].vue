@@ -292,6 +292,7 @@ async function set_quick_backup() {
     let result = await commands.setQuickBackupGame(game.value);
     if (result.status === "error") {
         showError({ message: $t('manage.set_quick_backup_failed') });
+        return;
     }
     showSuccess({ message: $t('manage.set_quick_backup_success') });
 }

@@ -64,7 +64,7 @@ pub fn setup_tray(app: &mut tauri::App) -> anyhow::Result<()> {
         ])
         .build()?;
 
-    TrayIconBuilder::new()
+    TrayIconBuilder::with_id("tray_icon")
         .menu_on_left_click(false)
         .menu(&tray_menu)
         .on_tray_icon_event(tray_event_handler)
