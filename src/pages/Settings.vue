@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 // TODO:调整日志设置，比如删除日
 import { computed, ref, watch } from "vue";
-import { $t } from "../i18n";
+import { $t, i18n } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
@@ -14,9 +14,8 @@ import { error, info } from "@tauri-apps/plugin-log";
 const isDark = useDark()
 const { config, refreshConfig, saveConfig } = useConfig()
 const { showSuccess, showError, showInfo } = useNotification()
-const i18n = useI18n()
-const locale_message = i18n.messages
-const locale_names = i18n.availableLocales
+const locale_message = i18n.global.messages
+const locale_names = i18n.global.availableLocales
 const activeTab = ref('general')
 const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
@@ -25,7 +24,6 @@ const gameOrderChanged = ref(false)
 const debouncedSaveConfig = useDebounceFn(async () => {
     try {
         await saveConfig();
-        // 移除保存成功的通知
     } catch (e) {
         error(`save config error: ${e}`)
         showError({ message: $t("error.set_config_failed") })
@@ -153,7 +151,7 @@ watch(
     (new_locale, _old_locale) => {
         info(`locale changed to ${new_locale}`)
         if (new_locale)
-            i18n.locale.value = new_locale
+            i18n.global.locale.value = new_locale
         showInfo({ message: $t("settings.locale_changed") });
     }
 )
