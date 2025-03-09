@@ -3,6 +3,7 @@ import { commands } from './bindings'
 
 // 创建 i18n 实例
 const initI18n = async () => {
+    console.info('Initializing i18n...')
     try {
         const messagesResult = await commands.getLocaleMessage()
         const configResult = await commands.getLocalConfig()
@@ -20,6 +21,8 @@ const initI18n = async () => {
             parsedMessages[key] = JSON.parse(value)
         }
 
+        console.info('i18n messages:', parsedMessages)
+        console.info('i18n initialized successfully')
         return createI18n({
             messages: parsedMessages,
             locale: config.settings.locale,
