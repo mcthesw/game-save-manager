@@ -16,6 +16,7 @@ use rust_i18n::t;
 
 // TODO:处理错误
 pub fn setup_tray(app: &mut tauri::App) -> anyhow::Result<()> {
+    info!(target: "rgsm::quick_action::tray", "Setting up tray icon");
     let config = get_config()?;
 
     // Menu items begin
@@ -71,6 +72,7 @@ pub fn setup_tray(app: &mut tauri::App) -> anyhow::Result<()> {
         .on_menu_event(menu_event_handler)
         .build(app)?;
 
+    info!(target: "rgsm::quick_action::tray", "Tray icon created");
     Ok(())
 }
 
