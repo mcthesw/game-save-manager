@@ -42,7 +42,17 @@
             "hint": "Notez qu'il est nécessaire de préserver et de redynamiser l'entrée en vigueur, comme c'est le cas pour l'établissement d'autres constellations, et d'interdire totalement l'utilisation de cette fonction",
             "quick_backup": "Sauvegarde rapide",
             "quick_apply": "Lecture rapide"
-        }
+        },
+        "general": "Généralités",
+        "backup_settings": "sauvegarde",
+        "ui_settings": "Réglage d ' interface",
+        "hotkey_settings": "Keying rapide",
+        "game_order": "Catégorisation",
+        "save_hotkeys": "Préservation des clés chaudes",
+        "save_game_order": "Préservation de l'ordre du jeu",
+        "unsaved_changes": "Changements non protégés",
+        "hotkeys_saved": "La clé thermique a été mise à jour",
+        "game_order_saved": "L'ordre du jeu a été mis à jour"
     },
     "home": {
         "hello_world": "Vos Excellences",
