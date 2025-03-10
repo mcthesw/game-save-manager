@@ -42,7 +42,17 @@
             "quick_apply": "빠른 독서",
             "quick_backup": "빠른 백업"
         },
-        "open_log_folder": "로그 열기"
+        "open_log_folder": "로그 열기",
+        "ui_settings": "인터페이스 설정",
+        "general": "주요사업",
+        "backup_settings": "지원하다",
+        "hotkey_settings": "급속한 열쇠",
+        "game_order": "관련 제품",
+        "save_hotkeys": "핫 키의 보존",
+        "save_game_order": "게임의 순서의 예약",
+        "unsaved_changes": "위험 경고",
+        "hotkeys_saved": "열 keying는 개정되었습니다",
+        "game_order_saved": "게임의 순서가 업데이트되었습니다"
     },
     "home": {
         "hello_world": "당신의 Excellencies",
