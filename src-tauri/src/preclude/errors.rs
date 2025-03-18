@@ -40,6 +40,8 @@ pub enum BackendError {
     ReadCloudInfo(#[from] FromUtf8Error),
     #[error("Deserialize error: {0:#?}")]
     Deserialize(#[from] serde_json::Error),
+    #[error("Cloud operator error: {0:#?}")]
+    OperatorCheck(String),
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
