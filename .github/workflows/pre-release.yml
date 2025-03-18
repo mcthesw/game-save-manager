@@ -1,8 +1,8 @@
 name: pre-release
 on:
-  push:
-    branches:
-      - v1-tauri
+  schedule:
+    - cron: '0 2 * * 1'  # 每周一凌晨2点执行
+  workflow_dispatch: 
 jobs:
   create-release:
     permissions:
