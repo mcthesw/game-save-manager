@@ -128,6 +128,15 @@ async function saveGameOrder() {
     }
 }
 
+// 翻译网站
+async function translate_website() {
+    try {
+        await commands.openUrl("https://hosted.weblate.org/projects/game-save-manager")
+    } catch (e) {
+        error(`open translate website error: ${e}`)
+    }
+}
+
 // 监听快捷键变更
 watch(
     () => config.value.quick_action?.hotkeys,
@@ -215,7 +224,8 @@ const router_list = computed(() => {
                                 :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
                                 :value="locale" />
                         </ElSelect>
-                        <span class="setting-label">🌍 Languages*</span>
+                        <span class="setting-label translate-website" @click="translate_website">🌍
+                            Languages - Click me to translate!</span>
                     </div>
                     <div class="setting-box">
                         <ElSelect v-model="config.settings.home_page">
@@ -398,7 +408,8 @@ const router_list = computed(() => {
     font-size: medium;
     margin-top: 10px;
     padding: 10px;
-    cursor: move; /* 更改游戏排序盒子的光标为move，提示可拖动 */
+    cursor: move;
+    /* 更改游戏排序盒子的光标为move，提示可拖动 */
     transition: all 0.3s ease;
     border: 1px solid var(--el-border-color);
     border-radius: 4px;
@@ -431,5 +442,11 @@ const router_list = computed(() => {
 
 .settings-tabs {
     margin-top: 20px;
+}
+
+.translate-website {
+    cursor: pointer;
+    color: var(--el-color-primary);
+    text-decoration: none;
 }
 </style>
