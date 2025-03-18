@@ -32,8 +32,8 @@
 
 请参考`package.json`来了解指令
 
-- `pnpm tauri:dev` 开发模式，一边预览一边开发
-- `pnpm tauri:build` 编译打包，输出会存放在`src-tauri/target`
+- `pnpm dev` 开发模式，一边预览一边开发
+- `pnpm build` 编译打包，输出会存放在`src-tauri/target`
 
 ## 架构
 
@@ -58,7 +58,20 @@
 3. 为你的更改创建一个新的分支，如 `feat/webdav-essentials`
 4. 对代码进行更改，将你的更改提交到你的本地分支
 5. 将你的更改推送到你在 GitHub 上 Fork 的存储库
-6. 创建一个 pull request，将你的更改合并到主存储库的 `dev` 分支中
+6. 创建一个 pull request，将你的更改合并到主存储库的 `dev` 分支中，注意，你总是需要以 rebase 的方式来合并代码
+
+### 合并上游更新
+
+在你开发一段时间之后，你可能会发现上游的代码已经更新了。为了保持你的分支与上游的代码同步，你可以使用以下命令：
+
+```bash
+git switch dev
+git pull
+git switch <your-branch>
+git rebase dev
+```
+
+这样我们可以保持提交历史的整洁，并且避免不必要的冲突，但是如果已经有冲突了，你需要手动解决冲突，此时我们推荐使用 squash merge 的方式来合并代码。
 
 ## 使用`vue-devtools`
 
