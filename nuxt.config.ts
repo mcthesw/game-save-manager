@@ -25,6 +25,9 @@ export default defineNuxtConfig({
       // Tauri requires a consistent port
       strictPort: true,
     },
+    build:{
+      target: ['ES2022']
+    }
   },
   app: {
     pageTransition: { name: 'page', mode: 'out-in' }
