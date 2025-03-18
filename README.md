@@ -12,6 +12,7 @@
 - [QQ交流群](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=2zkfioUwcqA-Y2ZZqfnhjhQcOUEfcYFD&authKey=7eFKqarle0w7QUsFXZbp%2BLkIvEI0ORoggsnNATOSU6maYiu9mSWSTRxcSorp9eex&noverify=0&group_code=837390423)：837390423
 
 特性列表：
+
 - 可以在恢复前删除
 - 可以云备份，并指定云路径
 - 可以快速打开存挡位置
@@ -22,23 +23,34 @@
 该软件使用[Weblate](https://weblate.org/)进行翻译，你可以通过上方图标参与贡献
 
 ## 用户使用指南 👻
+>
 >建议阅读[官方网站](https://help.sworld.club)的指南，此处为简略版
+>
 ### 下载软件 😎
-在[官网的下载界面](https://help.sworld.club/docs/intro)可以下载到本软件，而在[ Release 页面](https://github.com/mcthesw/game-save-manager/releases)可以下载到前沿测试版。Win10 或以上版本的用户推荐使用便携版(portable)，值得注意的是，本软件依赖于 WebView2 ，如果你不在 Win 上使用，请手动安装，如果你使用的是 Win7，或者你的系统没有附带 WebView2，请注意阅读下方文本。
+
+在[官网的下载界面](https://help.sworld.club/docs/intro)可以下载到本软件，而在[Release 页面](https://github.com/mcthesw/game-save-manager/releases)可以下载到前沿测试版。Win10 或以上版本的用户推荐使用便携版(portable)，值得注意的是，本软件依赖于 WebView2 ，如果你不在 Win 上使用，请手动安装，如果你使用的是 Win7，或者你的系统没有附带 WebView2，请注意阅读下方文本。
+
 #### Win7用户请注意 ⚠️
+
 本软件依赖 WebView2 运行，而 Win7 和一些特殊版本的 Windows 并没有自带此环境，因此提供两个办法安装环境
+
 - 使用 msi 格式的安装包，在有网络的情况下它会要求安装运行环境
 - 从[官方网站](https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/)下载安装运行环境
+
 #### 安装包用户请注意 ⚠️
+
 本软件会将全部内容安装到安装程序指定的位置，不会额外创建文件夹，且在卸载时勾选“删除应用程序数据”会清空该文件夹，如果你安装到了错误的位置，可以参考[这篇教程](https://help.sworld.club/docs/help/install_to_wrong_location)解决
 
 ### 问题提交 | 功能建议 😕
+
 你可以从以下平台提出建议或反馈问题，我会看到会尽快回复的，不过最好还是在 Github 提出 Issue，以便我们尽快解决，当然，也可以在QQ群参与讨论
+
 - 📝[Github Issue](https://github.com/mcthesw/game-save-manager/issues/new/choose)
 - 🤝[Github Discussion](https://github.com/mcthesw/game-save-manager/discussions)
 - ⚡[哔哩哔哩](https://space.bilibili.com/4087637)
 
 ## 开发者指南 🐱
+>
 >如果你在寻找旧版基于Electron框架的开发者指南，请看[旧版分支](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
 
 如果你能亲自参与这个项目，那真的太好了，不论是解决问题，还是说添加新功能，我们都是非常欢迎的，开发者使用的文档将会放置于本仓库的 `doc/<language>` 文件夹下，请点[此链接](doc/zh-CN/README.md)查看
@@ -52,6 +64,7 @@
 - Tauri
 
 ## 捐赠
+
 你可以通过[爱发电](https://afdian.net/a/Sworld)和微信支持这个项目，可以参考[这个网页](https://help.sworld.club/docs/about)
 
 ## Star History
