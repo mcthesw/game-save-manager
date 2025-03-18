@@ -69,9 +69,45 @@ impl Backend {
     }
 
     /// 检查后端是否可用
-    /// TODO: 严格化检查
     pub async fn check(&self) -> Result<(), BackendError> {
-        self.get_op()?.check().await?;
+        const TEST_FILENAME: &str = "test.txt";
+        const TEST_CONTENT: &str = "Hello from game save manager";
+        const TEST_DIR: &str = "test_dir";
+
+        let op = self.get_op()?;
+        // Step1: 检查是否可以列出文件
+        op.list(".")
+            .await
+            .map_err(|_| BackendError::OperatorCheck("Failed to list files.".into()))?;
+        // Step2: 检查是否可以创建文件
+        op.write(TEST_FILENAME, TEST_CONTENT)
+            .await
+            .map_err(|_| BackendError::OperatorCheck("Failed to create test file.".into()))?;
+        // Step3: 检查是否可以读取文件
+        let text = op
+            .read(TEST_FILENAME)
+            .await
+            .map_err(|_| BackendError::OperatorCheck("Failed to read test file.".into()))?;
+        let text = String::from_utf8(text.to_vec()).map_err(|_| {
+            BackendError::OperatorCheck("Failed to convert test file to string.".into())
+        })?;
+        if text != TEST_CONTENT {
+            return Err(BackendError::OperatorCheck(
+                "Test file content does not match.".into(),
+            ));
+        }
+        // Step4: 检查是否可以删除文件
+        op.delete(TEST_FILENAME)
+            .await
+            .map_err(|_| BackendError::OperatorCheck("Failed to delete test file.".into()))?;
+        // Step5: 检查是否可以创建目录
+        op.create_dir(TEST_DIR)
+            .await
+            .map_err(|_| BackendError::OperatorCheck("Failed to create test directory.".into()))?;
+        // Step6: 检查是否可以删除目录
+        op.delete(TEST_DIR)
+            .await
+            .map_err(|_| BackendError::OperatorCheck("Failed to delete test directory.".into()))?;
         Ok(())
     }
 }

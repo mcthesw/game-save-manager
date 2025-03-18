@@ -1,8 +1,8 @@
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, upload_all, Backend};
 use crate::config::{get_config, Config};
-use crate::{backup, config, quick_actions};
 use crate::preclude::*;
+use crate::{backup, config, quick_actions};
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -351,9 +351,9 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
     Ok(())
 }
 
+#[cfg(test)]
 mod test {
-
-    use super::*;
+    use super::{IpcNotification, NotificationLevel};
 
     #[test]
     fn test1() {
