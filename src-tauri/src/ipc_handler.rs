@@ -297,23 +297,28 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
     Ok(())
 }
 
+/// 由于多语言文件较多，使用宏来包含，传入与语言名相同的字符串即可
+macro_rules! include_locales {
+    ($($locale:expr),*) => {{
+        let mut map = HashMap::new();
+        $(
+            let content = include_str!(concat!("../../locales/", $locale, ".json"));
+            map.insert($locale.to_string(), content.to_owned());
+        )*
+        map
+    }};
+}
+
 /// 由于多语言文件
 #[tauri::command]
 #[specta::specta]
 pub async fn get_locale_message() -> Result<HashMap<String, String>, String> {
-    info!(target:"rgsm::ipc","Loading locale files");
-    let mut map = HashMap::new();
+    info!(target:"rgsm::ipc", "Loading locale files");
 
-    // 直接插入已知的本地化文件
-    map.insert(
-        "zh_SIMPLIFIED".to_owned(),
-        include_str!("../../locales/zh_SIMPLIFIED.json").to_owned(),
-    );
-    map.insert(
-        "en_US".to_owned(),
-        include_str!("../../locales/en_US.json").to_owned(),
-    );
-    info!(target:"rgsm::ipc","Loaded {} locales", map.len());
+    // Use the macro with all available locales
+    let map = include_locales!("en_US", "fr", "ko", "ta", "uk", "zh_SIMPLIFIED");
+
+    info!(target:"rgsm::ipc", "Loaded {} locales", map.len());
 
     Ok(map)
 }
