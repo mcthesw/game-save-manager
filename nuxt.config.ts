@@ -7,7 +7,6 @@ export default defineNuxtConfig({
   devServer: { host: process.env.TAURI_DEV_HOST || 'localhost' },
   modules: [
     'nuxt-lodash',
-    '@nuxtjs/i18n',
     '@vueuse/nuxt',
     '@element-plus/nuxt',
   ],
@@ -24,9 +23,6 @@ export default defineNuxtConfig({
     server: {
       // Tauri requires a consistent port
       strictPort: true,
-    },
-    build:{
-      target: ['ES2022']
     }
   },
   app: {

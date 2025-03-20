@@ -108,36 +108,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
-name = "app"
-version = "1.5.0"
-dependencies = [
- "anyhow",
- "chrono",
- "fs_extra",
- "log",
- "notify-rust",
- "open",
- "opendal",
- "rust-i18n",
- "semver",
- "serde",
- "serde_json",
- "specta",
- "specta-typescript",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-log",
- "tauri-plugin-single-instance",
- "tauri-specta",
- "temp-dir",
- "thiserror 2.0.9",
- "tokio",
- "zip",
-]
-
-[[package]]
 name = "arbitrary"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3931,6 +3901,36 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "rgsm"
+version = "1.5.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "fs_extra",
+ "log",
+ "notify-rust",
+ "open",
+ "opendal",
+ "rust-i18n",
+ "semver",
+ "serde",
+ "serde_json",
+ "specta",
+ "specta-typescript",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-log",
+ "tauri-plugin-single-instance",
+ "tauri-specta",
+ "temp-dir",
+ "thiserror 2.0.9",
+ "tokio",
+ "zip",
 ]
 
 [[package]]
