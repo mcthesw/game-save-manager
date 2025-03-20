@@ -1,48 +1,28 @@
 import { createI18n } from 'vue-i18n'
-import { commands } from './bindings'
 
-// 创建 i18n 实例
-const initI18n = async () => {
-    console.info('Initializing i18n...')
-    try {
-        const messagesResult = await commands.getLocaleMessage()
-        const configResult = await commands.getLocalConfig()
-
-        if (messagesResult.status !== 'ok' || configResult.status !== 'ok') {
-            throw new Error('Failed to load i18n resources')
-        }
-
-        const messages = messagesResult.data
-        const config = configResult.data
-
-        // 解析消息
-        const parsedMessages: Record<string, any> = {}
-        for (const [key, value] of Object.entries(messages)) {
-            parsedMessages[key] = JSON.parse(value)
-        }
-
-        console.info('i18n messages:', parsedMessages)
-        console.info('i18n initialized successfully')
-        return createI18n({
-            messages: parsedMessages,
-            locale: config.settings.locale,
-            fallbackLocale: 'zh_SIMPLIFIED',
-            legacy: false,
-        })
-    } catch (error) {
-        console.error('Failed to initialize i18n:', error)
-        // 返回一个基础的 i18n 实例作为后备
-        return createI18n({
-            messages: {},
-            locale: 'zh_SIMPLIFIED',
-            fallbackLocale: 'zh_SIMPLIFIED',
-            legacy: false,
-        })
-    }
-}
+import en_US from '../locales/en_US.json'
+import fr from '../locales/fr.json'
+import ko from '../locales/ko.json'
+import nb_NO from '../locales/nb_NO.json'
+import ta from '../locales/ta.json'
+import uk from '../locales/uk.json'
+import zh_SIMPLIFIED from '../locales/zh_SIMPLIFIED.json'
 
 // 导出 i18n 实例
-export const i18n = await initI18n()
+export const i18n = createI18n({
+    messages: {
+        'en_US': en_US,
+        'fr': fr,
+        'ko': ko,
+        // 'nb_NO': nb_NO,
+        'ta': ta,
+        'uk': uk,
+        'zh_SIMPLIFIED': zh_SIMPLIFIED,
+    },
+    locale: 'zh_SIMPLIFIED', // 默认语言
+    fallbackLocale: 'en_US', // 备用语言改为英语
+    legacy: false,
+})
 
 // 导出简单的翻译函数
 export function $t(key: string) {

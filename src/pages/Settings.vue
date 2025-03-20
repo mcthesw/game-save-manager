@@ -160,7 +160,7 @@ watch(
     (new_locale, _old_locale) => {
         info(`locale changed to ${new_locale}`)
         if (new_locale)
-            i18n.global.locale.value = new_locale
+            i18n.global.locale.value = new_locale as any;
         showInfo({ message: $t("settings.locale_changed") });
     }
 )
@@ -221,7 +221,7 @@ const router_list = computed(() => {
                     <div class="setting-box">
                         <ElSelect v-model="config.settings.locale">
                             <ElOption v-for="locale in locale_names" :key="locale"
-                                :label="(locale_message[locale] as any)['settings']['locale_name'] + ' - ' + locale"
+                                :label="(locale_message[locale])['settings']['locale_name'] + ' - ' + locale"
                                 :value="locale" />
                         </ElSelect>
                         <span class="setting-label translate-website" @click="translate_website">🌍

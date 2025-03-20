@@ -17,7 +17,7 @@ async function resolvePortable() {
 
   const zip = new AdmZip();
 
-  zip.addLocalFile(path.join(releaseDir, "app.exe"));
+  zip.addLocalFile(path.join(releaseDir, "rgsm.exe"));
   // zip.addLocalFolder(path.join(releaseDir, "resources"), "resources");
 
   const require = createRequire(import.meta.url);

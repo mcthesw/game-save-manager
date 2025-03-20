@@ -8,7 +8,6 @@ use anyhow::Result;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Window};
 use tauri_plugin_dialog::DialogExt;
@@ -295,32 +294,6 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
         })?;
     info!(target:"rgsm::ipc","Successfully set quick backup game to: {:?}", game);
     Ok(())
-}
-
-/// 由于多语言文件较多，使用宏来包含，传入与语言名相同的字符串即可
-macro_rules! include_locales {
-    ($($locale:expr),*) => {{
-        let mut map = HashMap::new();
-        $(
-            let content = include_str!(concat!("../../locales/", $locale, ".json"));
-            map.insert($locale.to_string(), content.to_owned());
-        )*
-        map
-    }};
-}
-
-/// 由于多语言文件
-#[tauri::command]
-#[specta::specta]
-pub async fn get_locale_message() -> Result<HashMap<String, String>, String> {
-    info!(target:"rgsm::ipc", "Loading locale files");
-
-    // Use the macro with all available locales
-    let map = include_locales!("en_US", "fr", "ko", "ta", "uk", "zh_SIMPLIFIED");
-
-    info!(target:"rgsm::ipc", "Loaded {} locales", map.len());
-
-    Ok(map)
 }
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
