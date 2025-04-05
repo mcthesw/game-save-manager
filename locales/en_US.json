@@ -172,7 +172,9 @@
     "navigate_to": "Navigate to",
     "save_manage": "Save Management",
     "favorites": "Favorites",
-    "menu": "Menu"
+    "menu": "Menu",
+    "search": "search",
+    "no_search_results": "No search results"
   },
   "sidebar": {
     "homepage": "Home",
@@ -308,7 +310,8 @@
     "add_all_games": "Add uncollected games",
     "no_new_games": "There are no uncollected games",
     "add_all_success": "Added successfully",
-    "confirm_add_all_games": "Are you sure to add all uncollected games to your favorites?"
+    "confirm_add_all_games": "Are you sure to add all uncollected games to your favorites?",
+    "no_favorites": "No collection"
   },
   "setting": {
     "current_quick_action_game": "Current quick backup games"

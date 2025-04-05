@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch, inject, onMounted } from "vue";
 import FavoriteSideBar from "./FavoriteSideBar.vue";
 import {
     DocumentAdd,
@@ -7,12 +7,18 @@ import {
     InfoFilled,
     HotWater,
     Setting,
-    MostlyCloudy
+    MostlyCloudy,
+    Search,
+    Star,
+    Menu
 } from "@element-plus/icons-vue";
 import { $t } from "../i18n";
 import { debug } from "@tauri-apps/plugin-log";
 
 let { config } = useConfig();
+
+const min_width = ref(200);
+const max_width = ref(400);
 
 // TODO:抽离到新文件中，同时`Settings.vue`也要抽离
 const links = computed(() => [
@@ -30,71 +36,164 @@ const games = computed(() => {
 const router = useRouter()
 const route = useRoute()
 const show_favorite = ref(false)
+const searchQuery = ref('')
+
+// 从父组件注入侧边栏宽度
+const sidebarWidth = inject('sidebarWidth', ref(240))
+const isResizing = ref(false)
+const startX = ref(0)
+const startWidth = ref(0)
+
+// 过滤菜单项
+const filteredGames = computed(() => {
+    if (!searchQuery.value) return games.value;
+    const query = searchQuery.value.toLowerCase();
+    return games.value.filter(game => game.name.toLowerCase().includes(query));
+});
+
+// 过滤常规菜单
+const filteredLinks = computed(() => {
+    if (!searchQuery.value) return links.value;
+    const query = searchQuery.value.toLowerCase();
+    return links.value.filter(link => link.text.toLowerCase().includes(query));
+});
 function select_handler(key: string, keyPath: string) {
     debug(`${$t('misc.navigate_to')} ${keyPath[keyPath.length - 1]}`);
     router.push(keyPath[keyPath.length - 1]);
 }
+
+// 侧边栏大小调整处理函数
+function startResize(event: MouseEvent) {
+    event.preventDefault();
+    isResizing.value = true;
+    startX.value = event.clientX;
+    startWidth.value = sidebarWidth.value;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', stopResize);
+}
+
+function handleMouseMove(event: MouseEvent) {
+    if (!isResizing.value) return;
+    const delta = event.clientX - startX.value;
+    // 设置最小和最大宽度限制
+    const newWidth = Math.max(min_width.value, Math.min(max_width.value, startWidth.value + delta));
+    sidebarWidth.value = newWidth;
+}
+
+function stopResize() {
+    isResizing.value = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', stopResize);
+}
+
+// 清除搜索
+function clearSearch() {
+    searchQuery.value = '';
+}
 </script>
 
 <template>
-    <ElContainer class="main-side-bar">
-        <ElRow>
-            <el-switch class="favorite-switch" v-model="show_favorite" inline-prompt :active-text="$t('misc.favorites')"
-                :inactive-text="$t('misc.menu')" />
-        </ElRow>
-        <ElScrollbar>
-            <ElRow class="main-menu-container">
-                <el-menu class="menu-item" :default-active="route.path" :select="select_handler" :router="true"
-                    v-if="!show_favorite">
-                    <!-- 下方是存档栏 -->
-                    <el-sub-menu index="1">
-                        <template #title>
+    <div class="sidebar-wrapper">
+        <ElContainer class="main-side-bar">
+            <!-- 顶部搜索和切换区域 -->
+            <div class="sidebar-header">
+                <div class="view-toggle">
+                    <el-tooltip :content="show_favorite ? $t('misc.menu') : $t('misc.favorites')" placement="top">
+                        <el-button circle size="small" @click="show_favorite = !show_favorite"
+                            :type="show_favorite ? 'primary' : 'default'">
                             <el-icon>
-                                <Files></Files>
+                                <component :is="show_favorite ? Star : Menu"></component>
                             </el-icon>
-                            <span>{{ $t('misc.save_manage') }}</span>
+                        </el-button>
+                    </el-tooltip>
+                </div>
+                <div class="search-container">
+                    <el-input v-model="searchQuery" :placeholder="$t('misc.search')" clearable @clear="clearSearch"
+                        size="small">
+                        <template #prefix>
+                            <el-icon>
+                                <Search />
+                            </el-icon>
                         </template>
-                        <el-menu-item v-for="game in games" :key="game.name" :index="'/Management/' + game.name">
-                            {{ game.name }}
+                    </el-input>
+                </div>
+
+            </div>
+
+            <!-- 内容区域 -->
+            <ElScrollbar always>
+                <ElRow class="main-menu-container">
+                    <el-menu class="menu-item" :default-active="route.path" :select="select_handler" :router="true"
+                        v-if="!show_favorite" :collapse-transition="false">
+                        <!-- 存档栏 -->
+                        <el-sub-menu index="1" v-if="filteredGames.length > 0 || !searchQuery">
+                            <template #title>
+                                <el-icon>
+                                    <Files></Files>
+                                </el-icon>
+                                <span>{{ $t('misc.save_manage') }}</span>
+                            </template>
+                            <el-menu-item v-for="game in filteredGames" :key="game.name"
+                                :index="'/Management/' + game.name">
+                                {{ game.name }}
+                            </el-menu-item>
+                        </el-sub-menu>
+                        <!-- 常规按钮 -->
+                        <el-menu-item v-for="link in filteredLinks" :index="link.link" :key="link.link">
+                            <el-icon>
+                                <component :is="link.icon"></component>
+                            </el-icon>
+                            <span>{{ link.text }}</span>
                         </el-menu-item>
-                    </el-sub-menu>
-                    <!-- 下方是常规按钮 -->
-                    <el-menu-item v-for="link in links" :index="link.link" :key="link.link">
-                        <el-icon>
-                            <component :is="link.icon"></component>
-                        </el-icon>
-                        <span>{{ link.text }}</span>
-                    </el-menu-item>
-                </el-menu>
-                <FavoriteSideBar v-else />
-            </ElRow>
-        </ElScrollbar>
-    </ElContainer>
+                    </el-menu>
+                    <FavoriteSideBar v-else :searchQuery="searchQuery" />
+                </ElRow>
+            </ElScrollbar>
+
+        </ElContainer>
+        <!-- 拖动调整大小的区域 -->
+        <div class="resize-handle" @mousedown="startResize" :class="{ 'active': isResizing }"></div>
+    </div>
 </template>
 
 <style scoped>
+.sidebar-wrapper {
+    position: relative;
+    height: 100%;
+    display: flex;
+}
+
 .main-side-bar {
     height: 100%;
     flex-direction: column;
     border-right: 1px solid var(--el-border-color);
     overflow: hidden;
+    transition: width 0.2s ease;
+    background-color: var(--el-bg-color);
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    /* 禁止横向滚动 */
+    overflow-x: hidden;
 }
 
 /**
 由于el-menu-item的默认样式会导致文字溢出，所以需要手动设置
-然而即使这样也只支持两行，超过两行的文字会很难看
 */
 .el-menu-item {
     white-space: normal !important;
     line-height: normal !important;
+    padding: 12px 20px !important;
+    height: auto !important;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    /* 确保文本换行且不会导致横向滚动 */
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
 }
 
 .el-menu {
     border: none;
-}
-
-.favorite-switch {
-    margin: auto;
 }
 
 .menu-item {
@@ -104,5 +203,94 @@ function select_handler(key: string, keyPath: string) {
 .main-menu-container {
     flex-direction: column;
     flex-grow: 1;
+    padding: 0 8px;
+}
+
+/* 顶部搜索和切换区域样式 */
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    gap: 10px;
+    background-color: var(--el-bg-color-overlay);
+}
+
+.search-container {
+    flex-grow: 1;
+}
+
+.view-toggle {
+    display: flex;
+    align-items: center;
+}
+
+/* 拖动调整大小的区域样式 */
+.resize-handle {
+    position: absolute;
+    top: 0;
+    right: -5px;
+    width: 10px;
+    height: 100%;
+    cursor: col-resize;
+    background-color: transparent;
+    transition: background-color 0.2s;
+    z-index: 100;
+}
+
+.resize-handle:hover,
+.resize-handle.active {
+    background-color: var(--el-color-primary);
+}
+
+/* 优化子菜单样式 */
+:deep(.el-sub-menu__title) {
+    height: auto !important;
+    min-height: 50px;
+    line-height: normal !important;
+    padding: 12px 20px !important;
+    /* 确保文本换行且不会导致横向滚动 */
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    /* 增加主菜单的视觉区分度 */
+    font-weight: 600;
+    background-color: var(--el-bg-color-overlay);
+    border-radius: 6px;
+}
+
+/* 优化菜单项图标与文字间距 */
+:deep(.el-menu-item .el-icon),
+:deep(.el-sub-menu__title .el-icon) {
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+/* 增加子菜单项的视觉区分度 */
+:deep(.el-menu-item) {
+    margin: 4px 0;
+    border-radius: 6px;
+}
+
+:deep(.el-menu-item:hover) {
+    background-color: var(--el-fill-color-light);
+}
+
+:deep(.el-menu-item.is-active) {
+    background-color: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+    border-left: 3px solid var(--el-color-primary);
+}
+
+/* 优化菜单项文字溢出处理 - 允许完整显示长文本 */
+:deep(.el-menu-item span),
+:deep(.el-sub-menu__title span) {
+    overflow: visible;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+    /* 确保文本不会导致横向滚动 */
+    max-width: 100%;
+    display: inline-block;
 }
 </style>
