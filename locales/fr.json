@@ -117,7 +117,9 @@
         "confirm_overwrite_prompt": "Déterminer que la couverture est disponible?",
         "batch_delete": "Suppression de l ' entrée",
         "batch_delete_prompt": "notez que l'opération supprimerait la voie rapide de toutes les sélections et identifierait pour les entrées d'entrée",
-        "recover_failed": "Défauts de récupération"
+        "recover_failed": "Défauts de récupération",
+        "size": "Volume de la documentation",
+        "size_not_available": "Non enregistré"
     },
     "addgame": {
         "search_local": "Identification automatique des jeux locaux",
