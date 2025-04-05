@@ -172,7 +172,9 @@
         "navigate_to": "Navigation",
         "save_manage": "En ce qui concerne la question du Sahara occidental",
         "favorites": "Collections",
-        "menu": "menu"
+        "menu": "menu",
+        "search": "Recherche",
+        "no_search_results": "Aucun résultat de recherche"
     },
     "sidebar": {
         "homepage": "Se félicitant de l ' interface",
@@ -308,7 +310,8 @@
         "confirm_add_all_games": "Confirmation de l'ajout de tous les jeux non recueillis aux collectionneurs",
         "add_all_success": "Ajout de succès",
         "no_new_games": "Pas de jeu non recueilli",
-        "add_all_games": "Ajout de jeux non recueillis"
+        "add_all_games": "Ajout de jeux non recueillis",
+        "no_favorites": "Pas de collection"
     },
     "setting": {
         "current_quick_action_game": "Jeux rapides en cours"
