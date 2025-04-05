@@ -47,11 +47,15 @@ impl Game {
         let save_paths = &self.save_paths; // everything you should copy
 
         let zip_path = backup_path.join([&date, ".zip"].concat());
-        if let Err(e) = compress_to_file(save_paths, &zip_path) {
-            // delete the zip if failed to write
-            fs::remove_file(&zip_path)?;
-            return Err(BackupError::Compress(e));
-        }
+        // 获取压缩后的文件大小
+        let file_size = match compress_to_file(save_paths, &zip_path) {
+            Ok(size) => size,
+            Err(e) => {
+                // delete the zip if failed to write
+                fs::remove_file(&zip_path)?;
+                return Err(BackupError::Compress(e));
+            }
+        };
 
         let game_snapshots_info = Snapshot {
             date,
@@ -60,6 +64,7 @@ impl Game {
                 .to_str()
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
+            size: file_size,
         };
         let mut infos = self.get_game_snapshots_info()?;
         infos.backups.push(game_snapshots_info);
