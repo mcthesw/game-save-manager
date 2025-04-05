@@ -117,7 +117,9 @@
     "set_quick_backup_failed": "Setting failed",
     "batch_delete": "Batch delete",
     "batch_delete_prompt": "Note that this operation will delete all selected snapshots, please enter yes to confirm",
-    "recover_failed": "Recovery failed"
+    "recover_failed": "Recovery failed",
+    "size": "File size",
+    "size_not_available": "Unrecorded"
   },
   "addgame": {
     "search_local": "Detect local games",

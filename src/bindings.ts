@@ -164,17 +164,6 @@ async setQuickBackupGame(game: Game) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
-},
-/**
- * 由于多语言文件
- */
-async getLocaleMessage() : Promise<Result<{ [key in string]: string }, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_locale_message") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
 }
 }
 
@@ -262,7 +251,7 @@ export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_
  * all the file that the save unit has declared.
  * The date is the unique indicator for a backup
  */
-export type Snapshot = { date: string; describe: string; path: string }
+export type Snapshot = { date: string; describe: string; path: string; size?: number }
 
 /** tauri-specta globals **/
 

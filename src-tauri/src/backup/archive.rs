@@ -72,7 +72,8 @@ where
 }
 
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
-pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), CompressError> {
+/// Returns the size of the compressed file in bytes if successful
+pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64, CompressError> {
     let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
     let compress_errors: Vec<_> = save_paths
@@ -116,7 +117,11 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<(), 
     if !compress_errors.is_empty() {
         Err(CompressError::Multiple(compress_errors))
     } else {
-        Result::Ok(())
+        // Get the file size after compression
+        let file_size = fs::metadata(zip_path)
+            .map_err(|e| CompressError::Single(e.into()))?
+            .len();
+        Result::Ok(file_size)
     }
 }
 

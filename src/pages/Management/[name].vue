@@ -45,6 +45,15 @@ let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
 
 // 批量操作记录列表
 const selected_game_snapshots: Ref<Snapshot[]> = ref([]);
+
+// 格式化文件大小显示
+function formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
 function on_selection_change(val: Snapshot[]) {
     selected_game_snapshots.value = val;
 }
@@ -360,6 +369,16 @@ const filter_table = computed(
                 <el-table-column type="selection" width="55" />
                 <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
                 <el-table-column :label="$t('manage.description')" prop="describe" />
+                <el-table-column :label="$t('manage.size')" width="120px">
+                    <template #default="scope">
+                        <span v-if="scope.row.size && scope.row.size > 0">
+                            {{ formatFileSize(scope.row.size) }}
+                        </span>
+                        <span v-else class="text-muted">
+                            {{ $t('manage.size_not_available') }}
+                        </span>
+                    </template>
+                </el-table-column>
                 <el-table-column align="right">
                     <template #header>
                         <!-- 搜索 -->
