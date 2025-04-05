@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type Node from 'element-plus/es/components/tree/src/model/node'
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import type { AllowDropType } from 'element-plus/es/components/tree/src/tree.type';
@@ -11,6 +11,47 @@ const { config, saveConfig, refreshConfig } = useConfig();
 const { showWarning, showSuccess, showError } = useNotification();
 const enable_edit = ref(false);
 const add_game_dialog_visible = ref(false);
+
+// 接收从MainSideBar传递的搜索查询
+const props = defineProps({
+    searchQuery: {
+        type: String,
+        default: ''
+    }
+});
+
+// 过滤收藏夹树
+const filteredFavorites = computed(() => {
+    if (!props.searchQuery || !config.value?.favorites) return config.value?.favorites;
+
+    const query = props.searchQuery.toLowerCase();
+
+    // 递归过滤函数
+    const filterNodes = (nodes: FavoriteTreeNode[]): FavoriteTreeNode[] => {
+        if (!nodes) return [];
+
+        return nodes.filter((node: FavoriteTreeNode) => {
+            // 检查当前节点是否匹配
+            const nodeMatches = node.label.toLowerCase().includes(query);
+
+            // 如果有子节点，递归过滤
+            if (node.children && node.children.length > 0) {
+                const filteredChildren: FavoriteTreeNode[] = filterNodes(node.children);
+                node.children = filteredChildren;
+
+                // 如果子节点有匹配或当前节点匹配，则保留
+                return filteredChildren.length > 0 || nodeMatches;
+            }
+
+            // 叶子节点直接根据是否匹配决定
+            return nodeMatches;
+        });
+    };
+
+    // 创建一个深拷贝以避免修改原始数据
+    const clonedFavorites = JSON.parse(JSON.stringify(config.value.favorites));
+    return filterNodes(clonedFavorites);
+});
 
 
 function favorite_click_handler(node: FavoriteTreeNode) {
@@ -42,9 +83,9 @@ function add_game_to_favorite(game: Game) {
     showSuccess({ message: $t('favorite.add_success') + ": " + game.name })
 }
 
-async function save_and_refresh() {
+const save_and_refresh = useDebounceFn(async () => {
     await saveConfig();
-}
+}, 500);
 
 function add_node(label: string, is_leaf: boolean, children: Array<FavoriteTreeNode> | null = null) {
     config.value?.favorites?.push({
@@ -94,7 +135,8 @@ async function add_folder() {
 }
 
 function node_drag_end_handler(start: Node, end: Node, end_type: string, event: DragEvent) {
-    if (end_type == 'after') {
+    console.log(start, end, end_type, event)
+    if (end_type !== 'none') {
         // 如果成功，那么需要保存
         save_and_refresh()
     }
@@ -111,13 +153,37 @@ async function add_all_games() {
                 type: 'warning',
             }
         )
+        
+        // 首先创建一个集合来存储收藏夹中所有游戏的名称
+        const existingGameNames = new Set<string>();
+        
+        // 递归遍历收藏夹树，查找所有叶子节点（游戏）
+        function findExistingGames(nodes: FavoriteTreeNode[] | null) {
+            if (!nodes) return;
+            
+            for (const node of nodes) {
+                if (node.is_leaf) {
+                    // 如果是叶子节点（游戏），添加到集合中
+                    existingGameNames.add(node.label);
+                } else if (node.children) {
+                    // 如果是文件夹节点，递归查找其子节点
+                    findExistingGames(node.children);
+                }
+            }
+        }
+        
+        // 开始遍历收藏夹树
+        findExistingGames(config.value?.favorites || []);
+        
+        // 遍历游戏列表，添加不在收藏夹中的游戏
         let addedCount = 0;
         for (const game of config.value!.games!) {
-            if (!config.value?.favorites?.some(x => x.is_leaf && x.label === game.name)) {
+            if (!existingGameNames.has(game.name)) {
                 add_game_to_favorite(game);
                 addedCount++;
             }
         }
+        
         if (addedCount > 0) {
             showSuccess({ message: $t('favorite.add_all_success').replace('{count}', addedCount.toString()) });
         } else {
@@ -133,32 +199,36 @@ async function add_all_games() {
 <template>
     <div class="favorite-container">
         <div class="action-bar">
-            <ElTooltip :content="$t('favorite.add_favorite_folder')">
-                <ElButton :icon="FolderAdd" size="small" circle @click="add_folder" />
-            </ElTooltip>
-            <ElTooltip :content="$t('favorite.add_game')">
-                <ElButton :icon="Plus" size="small" circle @click="() => add_game_dialog_visible = true" />
-            </ElTooltip>
-            <ElTooltip :content="$t('favorite.enable_edit')">
-                <ElButton :icon="EditPen" :type="enable_edit ? 'primary' : ''" size="small" circle
-                    @click="() => { enable_edit = !enable_edit }" />
-            </ElTooltip>
+            <div class="action-buttons">
+                <ElTooltip :content="$t('favorite.add_favorite_folder')" placement="bottom">
+                    <ElButton :icon="FolderAdd" size="small" circle @click="add_folder" class="action-button" />
+                </ElTooltip>
+                <ElTooltip :content="$t('favorite.add_game')" placement="bottom">
+                    <ElButton :icon="Plus" size="small" circle @click="() => add_game_dialog_visible = true"
+                        class="action-button" />
+                </ElTooltip>
+                <ElTooltip :content="$t('favorite.enable_edit')" placement="bottom">
+                    <ElButton :icon="EditPen" :type="enable_edit ? 'primary' : ''" size="small" circle
+                        @click="() => { enable_edit = !enable_edit }" class="action-button" />
+                </ElTooltip>
+            </div>
         </div>
-        <ElTree class="menu-item" :data="config?.favorites" node-key="node_id" :draggable="enable_edit"
+        <ElTree class="menu-item" :data="filteredFavorites" node-key="node_id" :draggable="enable_edit"
             :allow-drag="allow_drag" :allow-drop="allow_drop"
             :default-expand-all="config?.settings.default_expend_favorites_tree" @node-click="favorite_click_handler"
-            @node-drag-end="node_drag_end_handler">
+            @node-drag-end="node_drag_end_handler"
+            :empty-text="props.searchQuery ? $t('misc.no_search_results') : $t('favorite.no_favorites')">
             <template #default="{ node, data }">
-                <span v-if="data.is_leaf" class="custom-tree-node">
-                    <ElLink v-if="enable_edit" type="danger" :icon="Close" circle
+                <div v-if="data.is_leaf" class="custom-tree-node leaf-node">
+                    <ElLink v-if="enable_edit" type="danger" :icon="Close" circle class="remove-btn"
                         @click.stop="remove_node(node, data)" />
-                    {{ data.label }}
-                </span>
-                <strong v-else class="custom-tree-node">
-                    <ElLink v-if="enable_edit" type="danger" :icon="Close" circle
+                    <span class="node-label">{{ data.label }}</span>
+                </div>
+                <div v-else class="custom-tree-node folder-node">
+                    <ElLink v-if="enable_edit" type="danger" :icon="Close" circle class="remove-btn"
                         @click.stop="remove_node(node, data)" />
-                    {{ data.label }}
-                </strong>
+                    <span class="folder-label">{{ data.label }}</span>
+                </div>
             </template>
         </ElTree>
         <!-- 下方是用于选择新增游戏的Dialog -->
@@ -185,23 +255,119 @@ async function add_all_games() {
 </template>
 
 <style scoped>
-.action-bar {
+.favorite-container {
+    height: 100%;
     display: flex;
-    justify-content: space-evenly;
-    margin-bottom: 10px;
+    flex-direction: column;
 }
 
-/* 以下部分用于支持双行树组件 */
+.action-bar {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background-color: var(--el-bg-color-overlay);
+    border-radius: 8px;
+    margin: 0 8px 8px 8px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.action-button {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.action-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 以下部分用于支持多行树组件 - 允许完整显示长文本 */
 .custom-tree-node {
     flex: 1;
     white-space: normal;
+    overflow: visible;
+    word-break: break-word;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.leaf-node {
+    padding: 2px 0;
+}
+
+.folder-node {
+    padding: 2px 0;
+}
+
+.node-label {
+    font-size: 0.95rem;
+    color: var(--el-text-color-primary);
+}
+
+.folder-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--el-text-color-primary);
+}
+
+.remove-btn {
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.remove-btn:hover {
+    opacity: 1;
 }
 
 :deep(.el-tree-node__content) {
     text-align: left;
-    align-items: start;
-    margin: 4px;
-    height: 100%;
+    align-items: center;
+    margin: 2px;
+    height: auto;
+    padding: 4px 0;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+:deep(.el-tree) {
+    padding: 0 8px;
+    background-color: transparent;
+}
+
+:deep(.el-tree-node__content:hover) {
+    background-color: var(--el-fill-color-light);
+}
+
+:deep(.el-tree-node.is-current > .el-tree-node__content) {
+    background-color: var(--el-color-primary-light-9) !important;
+    color: var(--el-color-primary);
+}
+
+/* 文件夹节点样式 */
+:deep(.el-tree-node:not(.is-leaf) > .el-tree-node__content) {
+    background-color: var(--el-bg-color-overlay);
+    margin-bottom: 4px;
+    border-radius: 6px;
+}
+
+:deep(.el-tree-node__label) {
+    width: 100%;
+}
+
+/* 优化空状态显示 */
+:deep(.el-tree__empty-block) {
+    min-height: 60px;
+}
+
+:deep(.el-tree__empty-text) {
+    color: var(--el-text-color-secondary);
 }
 
 /* 以上部分用于支持双行树组件 */

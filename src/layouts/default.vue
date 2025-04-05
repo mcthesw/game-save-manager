@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import { ref, provide } from 'vue';
+
+// 创建一个响应式的侧边栏宽度变量
+const sidebarWidth = ref(240);
+
+// 提供给子组件使用
+provide('sidebarWidth', sidebarWidth);
 </script>
 
 <template>
     <ElContainer>
-        <ElAside width="200px">
+        <ElAside :width="sidebarWidth + 'px'">
             <MainSideBar />
         </ElAside>
         <ElScrollbar>

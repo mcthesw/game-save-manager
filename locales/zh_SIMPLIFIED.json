@@ -172,7 +172,9 @@
     "navigate_to": "导航至",
     "save_manage": "存档管理",
     "favorites": "收藏夹",
-    "menu": "菜单栏"
+    "menu": "菜单栏",
+    "search": "搜索",
+    "no_search_results": "无搜索结果"
   },
   "sidebar": {
     "homepage": "欢迎界面",
@@ -308,7 +310,8 @@
     "confirm_add_all_games": "是否确认添加所有未收藏游戏到收藏夹",
     "add_all_success": "添加成功",
     "no_new_games": "没有未收藏的游戏",
-    "add_all_games": "添加未收藏游戏"
+    "add_all_games": "添加未收藏游戏",
+    "no_favorites": "无收藏"
   },
   "setting": {
     "current_quick_action_game": "当前快捷备份的游戏"
