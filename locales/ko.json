@@ -243,7 +243,9 @@
         "navigate_to": "- 연혁",
         "save_manage": "서양 사하라의 질문에 관해서",
         "favorites": "회사 소개",
-        "menu": "메뉴보기"
+        "menu": "메뉴보기",
+        "search": "제품정보",
+        "no_search_results": "검색 결과"
     },
     "sidebar": {
         "homepage": "인터페이스",
@@ -308,7 +310,8 @@
         "confirm_add_all_games": "수집자에게 모든 uncollected 게임의 추가 확인",
         "add_all_success": "성공 추가",
         "no_new_games": "분류되지 않음",
-        "add_all_games": "uncollected 게임 추가"
+        "add_all_games": "uncollected 게임 추가",
+        "no_favorites": "관련 상품"
     },
     "setting": {
         "current_quick_action_game": "현재 빠른 트랙 게임"
