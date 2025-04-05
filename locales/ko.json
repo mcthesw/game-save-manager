@@ -117,7 +117,9 @@
         "set_quick_backup_failed": "실패",
         "batch_delete": "입력 deletion",
         "batch_delete_prompt": "작업이 모든 선택에서 빠르 트랙을 삭제하고 입력 intoyes에 대한 식별",
-        "recover_failed": "복구 실패"
+        "recover_failed": "복구 실패",
+        "size": "문서의 볼륨",
+        "size_not_available": "기록 없음"
     },
     "addgame": {
         "duplicated_filename_error": "이 소프트웨어는 동일한 문서 / 문서 폴더의 advent를 지원하지 않습니다",
