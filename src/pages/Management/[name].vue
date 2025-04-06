@@ -2,14 +2,14 @@
 import { computed, ref, watch } from "vue";
 import { ElInput, ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
-import {commands} from "../../bindings";
+import { commands } from "../../bindings";
 import SaveLocationDrawer from "../../components/SaveLocationDrawer.vue";
-import type { Game, Snapshot } from "../../bindings";
+import type { Game, Snapshot, Device, SaveUnit } from "../../bindings";
 import { $t } from "../../i18n";
 import { error, info } from "@tauri-apps/plugin-log";
 
 let { showInfo, showError, showSuccess, closeNotification } = useNotification();
-let { config,refreshConfig, saveConfig } = useConfig();
+let { config, refreshConfig, saveConfig } = useConfig();
 let router = useRouter();
 let route = useRoute();
 const top_buttons = [
@@ -35,8 +35,30 @@ let table_data = ref([
 let game: Ref<Game> = ref({
     name: "",
     save_paths: [],
-    game_path: "",
+    game_paths: {},
 });
+
+// 当前设备信息
+const currentDevice = ref<Device | null>(null);
+
+// 获取当前设备信息
+async function fetchCurrentDevice() {
+    try {
+        const result = await commands.getCurrentDeviceInfo();
+        if (result.status === "ok") {
+            currentDevice.value = result.data;
+            console.log("Current device:", currentDevice.value);
+        } else {
+            showError({ message: result.error });
+        }
+    } catch (e) {
+        error(`Error getting current device info: ${e}`);
+        showError({ message: $t('error.get_device_info_failed') });
+    }
+}
+
+// 在组件挂载时获取当前设备信息
+fetchCurrentDevice();
 
 let describe = ref("");
 let backup_button_time_limit = true; // 两次备份时间间隔1秒
@@ -156,11 +178,17 @@ async function create_new_save() {
 }
 
 async function launch_game() {
-    if (game.value.game_path == undefined || game.value.game_path.length < 1) {
+    // 获取当前设备的游戏路径
+    let gamePath = "";
+    if (currentDevice.value && game.value.game_paths) {
+        gamePath = game.value.game_paths[currentDevice.value.id] || "";
+    }
+
+    if (!gamePath) {
         showError({ message: $t('manage.no_launch_path_error') });
         return;
     } else {
-        let result = await commands.openUrl(game.value.game_path);
+        let result = await commands.openUrl(gamePath);
         if (result.status === "error") {
             showError({ message: result.error });
         }
@@ -306,19 +334,27 @@ async function set_quick_backup() {
     showSuccess({ message: $t('manage.set_quick_backup_success') });
 }
 
-// 调整“应用存档位置，删除原存档”选项，由组件SaveLocationDrawer触发
-async function on_save_unit_switch_delete_before_apply(index: number) {
+async function on_drawer_save_changes(save_units: SaveUnit[]) {
     try {
-        (config.value.games.find((x) => x.name == game.value.name) as Game).save_paths = game.value.save_paths;
-        await saveConfig();
-        showSuccess({ message: $t("settings.submit_success") });
-        await refreshConfig();
+        // 更新当前游戏的 save_paths
+        game.value.save_paths = save_units;
+
+        // 更新全局配置中的游戏信息
+        const gameIndex = config.value.games.findIndex(g => g.name === game.value.name);
+        if (gameIndex !== -1) {
+            config.value.games[gameIndex].save_paths = save_units;
+
+            // 保存配置到文件
+            await saveConfig();
+            showSuccess({ message: $t('common.save_success') });
+        } else {
+            showError({ message: $t('common.save_failed') });
+        }
     } catch (e) {
-        error(`Failed to save config: ${e}`);
-        showError({ message: $t("error.set_config_failed") });
+        error(`Error saving game paths: ${e}`);
+        showError({ message: $t('common.save_failed') });
     }
 }
-
 
 const filter_table = computed(
     () => {
@@ -408,7 +444,7 @@ const filter_table = computed(
         </el-card>
         <!-- 下面是存档所在位置侧栏部分 -->
         <save-location-drawer v-if="game.save_paths" v-model="drawer" :locations="game.save_paths"
-            @closed="drawer = false" @switched="on_save_unit_switch_delete_before_apply" />
+            @closed="drawer = false" @save-changes="on_drawer_save_changes" />
     </div>
 </template>
 

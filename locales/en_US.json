@@ -315,5 +315,10 @@
   },
   "setting": {
     "current_quick_action_game": "Current quick backup games"
+  },
+  "common": {
+    "save_success": "save success",
+    "save": "save",
+    "cancel": "cancel"
   }
 }
