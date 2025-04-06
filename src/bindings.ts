@@ -164,6 +164,32 @@ async setQuickBackupGame(game: Game) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Resolves a path string containing variables to an actual filesystem path
+ * 
+ * This command allows the frontend to resolve paths with variables like <home>, <winAppData>, etc.
+ */
+async resolvePath(path: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resolve_path", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Returns the current device's ID and name
+ * 
+ * This command allows the frontend to get information about the current device
+ */
+async getCurrentDeviceInfo() : Promise<Result<Device, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_current_device_info") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -218,11 +244,12 @@ backend?: Backend }
  * and the settings
  */
 export type Config = { version: string; backup_path: string; games: Game[]; settings: Settings; favorites?: FavoriteTreeNode[]; quick_action?: QuickActionsSettings }
+export type Device = { id: string; name: string }
 export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolean; children: FavoriteTreeNode[] | null }
 /**
  * A game struct contains the save units and the game's launcher
  */
-export type Game = { name: string; save_paths: SaveUnit[]; game_path: string | null }
+export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }> }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -237,7 +264,7 @@ export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: 
  * A save unit declares one of the files/folders
  * that should be backup for a game
  */
-export type SaveUnit = { unit_type: SaveUnitType; path: string; delete_before_apply?: boolean }
+export type SaveUnit = { unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean }
 /**
  * A save unit should be a file or a folder
  */

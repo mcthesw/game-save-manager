@@ -141,7 +141,9 @@
     "path": "路径",
     "warning_for_save_file": "暂时不支持添加同名文件、文件夹，请勿这样使用，如果有需要，请反馈给我，我将考虑制作",
     "invalid_name_error": "无效的游戏名，请不要包含无法创建文件的特殊字符",
-    "duplicated_name_error": "重复的游戏名（游戏名不区分大小写）"
+    "duplicated_name_error": "重复的游戏名（游戏名不区分大小写）",
+    "path_variable_hint": "您可以使用路径变量（如 <home>）来创建跨设备兼容的路径",
+    "device_info": "设备信息"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"
@@ -186,10 +188,13 @@
   "save_location_drawer": {
     "drawer_title": "以下是受管理文件列表",
     "type": "类别",
-    "prompt": "路径（单击以复制）",
+    "prompt": "路径",
     "open_file_header": "打开文件",
     "open": "打开",
-    "delete_before_apply": "应用前删除"
+    "delete_before_apply": "应用前删除",
+    "select_device": "选择设备",
+    "current_device": "当前设备",
+    "copy": "复制"
   },
   "sync_settings": {
     "title": "同步设置",
@@ -256,6 +261,8 @@
     "delete_snapshot_failed": "删除快照失败，检查日志以获取更多信息",
     "restore_snapshot_failed": "应用备份失败，检查日志以获取更多信息",
     "delete_game_failed": "删除游戏失败",
+    "get_device_info_failed": "获取设备信息失败",
+    "resolve_path_failed": "解析路径失败",
     "open_backup_folder_failed": "打开备份文件夹失败",
     "set_config_failed": "设置配置失败",
     "reset_settings_failed": "重置设置失败",
@@ -315,5 +322,34 @@
   },
   "setting": {
     "current_quick_action_game": "当前快捷备份的游戏"
+  },
+  "path_variable": {
+    "insert_variable": "插入路径变量",
+    "tooltip": "路径变量可以帮助您创建跨设备兼容的路径",
+    "common": "通用变量",
+    "windows": "Windows 变量",
+    "linux": "Linux 变量",
+    "home": "用户主目录",
+    "os_user_name": "操作系统用户名",
+    "win_app_data": "AppData 目录",
+    "win_local_app_data": "本地 AppData 目录",
+    "win_local_app_data_low": "本地 AppData Low 目录",
+    "win_documents": "文档目录",
+    "win_public": "公共目录",
+    "win_program_data": "程序数据目录",
+    "win_dir": "Windows 目录",
+    "xdg_data": "XDG 数据目录",
+    "xdg_config": "XDG 配置目录",
+    "test_resolution": "测试路径解析",
+    "test_path_placeholder": "输入包含变量的路径",
+    "resolve": "解析",
+    "test": "测试",
+    "resolved_to": "解析结果: {path}"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消修改",
+    "save_success": "保存成功",
+    "save_failed": "保存失败"
   }
 }
