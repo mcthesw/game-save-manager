@@ -47,3 +47,5 @@ lerna-debug.log*
 components.d.ts
 auto-imports.d.ts
 .aider*
+.cursor*
+.windsurf*
