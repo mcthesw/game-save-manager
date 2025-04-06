@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap; // 引入 HashMap
 
 use crate::default_value;
+use crate::device::{DeviceId, get_current_device}; // 引入 DeviceId 和 get_current_device
 
 /// A save unit should be a file or a folder
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -15,7 +17,21 @@ pub enum SaveUnitType {
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct SaveUnit {
     pub unit_type: SaveUnitType,
-    pub path: String,
+    #[serde(default)] // 如果反序列化时字段不存在，则使用默认值 (空 HashMap)
+    paths: HashMap<DeviceId, String>, // 存储不同设备的路径
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
+}
+
+impl SaveUnit {
+    /// 获取当前设备的路径
+    pub fn get_path_for_current_device(&self) -> Option<&String> {
+        let current_device_id = &get_current_device().id;
+        self.paths.get(current_device_id)
+    }
+
+    /// 获取指定设备的路径
+    pub fn get_path_for_device(&self, device_id: &DeviceId) -> Option<&String> {
+        self.paths.get(device_id)
+    }
 }
