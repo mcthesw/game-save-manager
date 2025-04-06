@@ -39,6 +39,10 @@ specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 temp-dir = "0.1.14"
 notify-rust = "4.11.5"
+hostname = "0.4.0"
+dirs = "6.0.0"
+whoami = "1.6.0"
+machine-uid = "0.5.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.2.0"

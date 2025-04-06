@@ -1,6 +1,8 @@
 use std::{io, path::PathBuf, string::FromUtf8Error};
 use thiserror::Error;
 
+use crate::path_resolver::ResolveError;
+
 #[derive(Debug, Error)]
 pub enum BackupFileError {
     #[error("Cannot create file: {0:#?}")]
@@ -13,6 +15,8 @@ pub enum BackupFileError {
     Fs(#[from] fs_extra::error::Error),
     #[error("Cannot convert path to string")]
     NonePathError,
+    #[error("Path resolution error: {0:#?}")]
+    PathResolution(#[from] ResolveError),
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }

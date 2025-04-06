@@ -34,6 +34,25 @@ pub struct Settings {
     pub add_new_to_favorites: bool,
 }
 
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            prompt_when_not_described: default_value::default_true(),
+            extra_backup_when_apply: default_value::default_true(),
+            show_edit_button: default_value::default_false(),
+            prompt_when_auto_backup: default_value::default_true(),
+            exit_to_tray: default_value::default_true(),
+            cloud_settings: CloudSettings::default(),
+            locale: default_value::default_locale(),
+            default_delete_before_apply: default_value::default_false(),
+            default_expend_favorites_tree: default_value::default_false(),
+            home_page: default_value::default_home_page(),
+            log_to_file: default_value::default_true(),
+            add_new_to_favorites: default_value::default_false(),
+        }
+    }
+}
+
 impl Sanitizable for Settings {
     fn sanitize(self) -> Self {
         Settings {

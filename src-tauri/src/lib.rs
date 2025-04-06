@@ -19,6 +19,8 @@ use crate::config::config_check;
 mod backup;
 mod cloud_sync;
 mod config;
+mod device;
+mod path_resolver;
 mod default_value;
 mod ipc_handler;
 mod preclude;
@@ -74,6 +76,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::backup_all,
             ipc_handler::apply_all,
             ipc_handler::set_quick_backup_game,
+            ipc_handler::resolve_path,
+            ipc_handler::get_current_device_info,
         ])
         .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());

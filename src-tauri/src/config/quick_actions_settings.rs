@@ -26,21 +26,3 @@ pub struct QuickActionsSettings {
     pub hotkeys: QuickActionHotkeys,
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn quick_actions_settings_serialize() {
-        let settings = QuickActionsSettings {
-            quick_action_game: Some(Game {
-                name: "test1".to_string(),
-                save_paths: vec![],
-                game_path: None,
-            }),
-            hotkeys: QuickActionHotkeys::default(),
-        };
-        let serialized = serde_json::to_string_pretty(&settings).unwrap();
-        println!("{}", serialized);
-    }
-}
