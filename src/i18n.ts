@@ -28,3 +28,16 @@ export const i18n = createI18n({
 export function $t(key: string) {
     return i18n.global.t(key)
 }
+
+// 导出所有支持的语言及其本地化名称
+export function getSupportedLanguages() {
+    const messages = i18n.global.messages.value as Record<string, any>;
+    const locales = Object.keys(messages);
+    
+    return locales.map(locale => {
+        return {
+            code: locale,
+            name: messages[locale]?.settings?.locale_name || locale
+        };
+    });
+}

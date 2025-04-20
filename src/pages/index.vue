@@ -40,10 +40,18 @@
             </div>
 
             <div class="feature-card" @click="go_settings()">
-                <el-icon class="feature-icon">
-                    <Setting />
-                </el-icon>
-                <h3>{{ $t('home.change_locale') }}</h3>
+                <div class="feature-icon language-icon">
+                    <span class="language-icon-text">A</span>
+                    <span class="language-icon-arrow">/</span>
+                    <span class="language-icon-text">文</span>
+                </div>
+                <div class="language-carousel-container">
+                    <transition name="fade" mode="out-in">
+                        <div :key="currentLanguageIndex" class="language-name">
+                            {{ displayedLanguageName }}
+                        </div>
+                    </transition>
+                </div>
                 <el-button type="primary" text>{{ $t('home.jump_to_page') }}</el-button>
             </div>
 
@@ -60,8 +68,52 @@
 
 <script lang="ts" setup>
 import { Edit, Setting, Upload, Check, Lock, Star } from "@element-plus/icons-vue";
-import { $t } from "../i18n";
+import { $t, getSupportedLanguages } from "../i18n";
+import { i18n } from "../i18n";
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 const { showInfo } = useNotification();
+
+// 语言轮播相关代码
+const languages = getSupportedLanguages();
+
+const currentLanguageIndex = ref(0);
+const intervalId = ref<number | null>(null);
+
+const displayedLanguageName = computed(() => {
+    return languages[currentLanguageIndex.value].name;
+});
+
+// 启动轮播
+const startCarousel = () => {
+    intervalId.value = window.setInterval(() => {
+        currentLanguageIndex.value = (currentLanguageIndex.value + 1) % languages.length;
+    }, 2000); // 每2秒切换一次
+};
+
+// 停止轮播
+const stopCarousel = () => {
+    if (intervalId.value !== null) {
+        clearInterval(intervalId.value);
+        intervalId.value = null;
+    }
+};
+
+// 组件挂载时启动轮播
+onMounted(() => {
+    // 找到当前语言的索引作为起始点
+    const currentLocale = i18n.global.locale.value;
+    const index = languages.findIndex(lang => lang.code === currentLocale);
+    if (index !== -1) {
+        currentLanguageIndex.value = index;
+    }
+
+    startCarousel();
+});
+
+// 组件卸载前停止轮播
+onBeforeUnmount(() => {
+    stopCarousel();
+});
 
 function go_add_game() {
     navigateTo("/AddGame");
@@ -83,7 +135,10 @@ function go_backup() {
     background: linear-gradient(135deg, var(--el-bg-color), var(--el-bg-color-overlay));
     border-radius: 20px;
     margin: 0 2rem;
+    position: relative;
 }
+
+
 
 .welcome-title {
     font-size: 2.8em;
@@ -194,10 +249,52 @@ function go_backup() {
     margin-bottom: 1rem;
 }
 
+.language-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+}
+
+.language-icon-text {
+    font-size: 1.8rem;
+    font-weight: bold;
+    margin-top: 3px;
+    margin-bottom: 17px;
+}
+
+.language-icon-arrow {
+    color: var(--el-color-primary);
+    font-size: 1.5rem;
+}
+
 .feature-card h3 {
     font-size: 1.4rem;
     margin-bottom: 0.8rem;
     color: var(--el-text-color-primary);
+}
+
+.language-carousel-container {
+    margin: 1rem 0;
+}
+
+.language-name {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    min-height: 1.8rem;
+}
+
+/* 过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+    transform: translateY(10px);
 }
 
 .feature-card p {
