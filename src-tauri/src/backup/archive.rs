@@ -15,7 +15,6 @@ use crate::{
     ipc_handler::{IpcNotification, NotificationLevel},
     preclude::*,
     device::get_current_device,
-    path_resolver,
 };
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()

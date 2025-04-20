@@ -1,11 +1,10 @@
 use std::fs::File;
 use std::{fs, path};
 
-use log::info;
-use semver::Version;
-
 use crate::config::Config;
 use crate::preclude::*;
+use crate::updater::update_config;
+use log::info;
 
 /// Set settings to original state
 pub async fn reset_settings() -> Result<(), ConfigError> {
@@ -53,49 +52,11 @@ pub fn config_check() -> Result<(), ConfigError> {
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
     }
-    let mut config = get_config()?;
-
-    // 处理早期版本兼容性
-    if config.version == "1.0.0 alpha" {
-        "1.0.0-alpha".clone_into(&mut config.version);
-    }
-    let software_version = Version::parse(&Config::default().version)?;
-    let config_version = Version::parse(&config.version)?;
-    if config_version != software_version {
-        show_notification(
-            t!("backend.config.updating_config_title"),
-            t!("backend.config.updating_config_body"),
-        );
-        backup_old_config()?;
-    }
-    if config_version < Version::parse("1.0.0")? {
-        panic!("The config version is not supported.It's too old.")
-    }
-    if config_version < software_version {
-        upgrade_config_version(&mut config, &software_version)?;
-    }
-    if config_version > software_version {
-        panic!("The config version is higher than the software.")
-    }
-
+    // 执行配置迁移与升级
+    update_config(config_path)?;
+    // 重新加载配置
+    let config = get_config()?;
+    // 应用本地化语言
     rust_i18n::set_locale(&config.settings.locale);
-    Ok(()) // return the config json
-}
-
-fn upgrade_config_version(
-    config: &mut Config,
-    software_version: &semver::Version,
-) -> Result<(), ConfigError> {
-    // 由于1.0之后版本保持了兼容性，因此不需要做任何处理，仅更新版本号并保存
-    config.version = software_version.to_string();
-    tauri::async_runtime::block_on(set_config(config))?;
-    Ok(())
-}
-
-fn backup_old_config() -> Result<(), ConfigError> {
-    fs::copy(
-        "./GameSaveManager.config.json",
-        "./GameSaveManager.config.json.bak",
-    )?;
     Ok(())
 }

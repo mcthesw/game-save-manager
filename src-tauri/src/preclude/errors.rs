@@ -115,6 +115,24 @@ pub enum ConfigError {
     Backend(#[from] BackendError),
     #[error("Tauri error: {0:#?}")]
     Tauri(#[from] tauri::Error),
+    #[error(transparent)]
+    Updater(#[from] UpdaterError),
+}
+
+#[derive(Debug, Error)]
+pub enum UpdaterError {
+    #[error("Deserialize error: {0:#?}")]
+    Deserialize(#[from] serde_json::Error),
+    #[error("IO error: {0:#?}")]
+    Io(#[from] io::Error),
     #[error("Semver error: {0:#?}")]
     Semver(#[from] semver::Error),
+    #[error("Missing version field")]
+    MissingVersion,
+    #[error("Config version too old")]
+    ConfigVersionTooOld,
+    #[error("Config version higher than software")]
+    ConfigVersionTooNew,
+    #[error(transparent)]
+    Unexpected(#[from] anyhow::Error),
 }
