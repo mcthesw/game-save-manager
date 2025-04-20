@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { $t } from "../i18n";
 import { commands } from "../bindings";
+import { QuestionFilled } from '@element-plus/icons-vue';
 
 const props = defineProps({
   // 当前路径值，用于在插入变量时保持其他部分不变
@@ -89,7 +90,9 @@ async function resolvePath() {
     <el-popover placement="bottom" :width="400" trigger="click">
       <template #reference>
         <el-button type="primary" size="small">
-          {{ $t('path_variable.insert_variable') }}
+          <el-tooltip :content="$t('path_variable.tooltip')" placement="top">
+            {{ $t('path_variable.insert_variable') }}
+          </el-tooltip>
         </el-button>
       </template>
 
@@ -119,11 +122,6 @@ async function resolvePath() {
       </div>
     </el-popover>
 
-    <el-tooltip :content="$t('path_variable.tooltip')" placement="top">
-      <el-button type="info" size="small" circle>
-        <el-icon><question-filled /></el-icon>
-      </el-button>
-    </el-tooltip>
   </div>
 </template>
 
