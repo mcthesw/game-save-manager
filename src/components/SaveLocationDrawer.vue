@@ -180,7 +180,7 @@ function insertGamePathVariable(variable: string, deviceId: string) {
 }
 
 async function open(url: string) {
-    let result = await commands.openUrl(url);
+    let result = await commands.openFileOrFolder(url);
     if (result.status === "error") {
         showError({ message: $t("error.open_url_failed") });
     }

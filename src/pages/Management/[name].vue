@@ -188,7 +188,7 @@ async function launch_game() {
         showError({ message: $t('manage.no_launch_path_error') });
         return;
     } else {
-        let result = await commands.openUrl(gamePath);
+        let result = await commands.openFileOrFolder(gamePath);
         if (result.status === "error") {
             showError({ message: result.error });
         }

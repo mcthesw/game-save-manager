@@ -94,8 +94,7 @@ async function apply_all() {
 
 function open_log_folder() {
     try {
-        // TODO: 后面搞个专门的接口
-        commands.openUrl("log")
+        commands.openFileOrFolder("log")
     } catch (e) {
         error(`open log folder error: ${e}`)
         showError({ message: $t('error.open_log_folder_failed') })
