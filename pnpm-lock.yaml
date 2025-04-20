@@ -26,6 +26,9 @@ importers:
       '@tauri-apps/plugin-log':
         specifier: 2.3.1
         version: 2.3.1
+      '@tauri-apps/plugin-window-state':
+        specifier: ~2
+        version: 2.2.2
       '@vueuse/core':
         specifier: 13.0.0
         version: 13.0.0(vue@3.5.13(typescript@5.7.2))
@@ -1108,6 +1111,9 @@ packages:
 
   '@tauri-apps/plugin-log@2.3.1':
     resolution: {integrity: sha512-nnKGHENWt7teqvUlIKxd6bp2wCUrrLvCvajN6CWbyrHBNKPi/pyKELzD511siEMDEdndbiZ/GEhiK0xBtZopRg==}
+
+  '@tauri-apps/plugin-window-state@2.2.2':
+    resolution: {integrity: sha512-7pFwmMtGhhhE/WgmM7PUrj0BSSWVAQMfDdYbRalphIqqF1tWBvxtlxclx8bTutpXHLJTQoCpIeWtBEIXsoAlGw==}
 
   '@trysound/sax@0.2.0':
     resolution: {integrity: sha512-L7z9BgrNEcYyUYtF+HaEfiS5ebkh9jXqbszz7pC0hRBPaatV0XjSD3+eHrpqFemQfgwiFF0QPIarnIihIDn7OA==}
@@ -4868,6 +4874,10 @@ snapshots:
       '@tauri-apps/api': 2.3.0
 
   '@tauri-apps/plugin-log@2.3.1':
+    dependencies:
+      '@tauri-apps/api': 2.3.0
+
+  '@tauri-apps/plugin-window-state@2.2.2':
     dependencies:
       '@tauri-apps/api': 2.3.0
 

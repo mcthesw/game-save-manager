@@ -11,6 +11,7 @@ use tauri::Manager;
 
 use log::{error, info};
 use std::sync::Arc;
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 use crate::config::config_check;
 
@@ -91,6 +92,7 @@ pub fn run() -> anyhow::Result<()> {
 
     // Init app
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .target(tauri_plugin_log::Target::new(
@@ -127,18 +129,17 @@ pub fn run() -> anyhow::Result<()> {
     let config = get_config()?;
     info!(target: "rgsm::main", "App has started.");
 
-    if config.settings.exit_to_tray {
-        app.build(tauri::generate_context!())
-            .expect("Cannot build tauri app")
-            .run(|_app_handle, event| {
-                if let tauri::RunEvent::ExitRequested { api, .. } = event {
+    app.build(tauri::generate_context!())
+        .expect("Cannot build tauri app")
+        .run(move |handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                handle
+                    .save_window_state(StateFlags::all())
+                    .expect("Cannot save window state");
+                if config.settings.exit_to_tray {
                     api.prevent_exit();
                 }
-            });
-    } else {
-        // 不需要退出到托盘
-        app.run(tauri::generate_context!())
-            .expect("error while running tauri application");
-    }
+            }
+        });
     Ok(())
 }

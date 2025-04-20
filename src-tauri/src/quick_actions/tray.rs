@@ -7,6 +7,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     utils::config::WindowConfig,
 };
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 use crate::config::get_config;
 
@@ -103,11 +104,8 @@ pub fn tray_event_handler(tray: &TrayIcon, event: TrayIconEvent) {
             .unwrap();
 
             window
-                .set_size(LogicalSize {
-                    width: 1280.0,
-                    height: 720.0,
-                })
-                .expect("Cannot set size");
+                .restore_state(StateFlags::all())
+                .expect("Cannot restore window state");
             window.show().expect("Cannot show window");
             window.set_focus().expect("Cannot set focus");
         }
