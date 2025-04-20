@@ -334,26 +334,27 @@ async function set_quick_backup() {
     showSuccess({ message: $t('manage.set_quick_backup_success') });
 }
 
-async function on_drawer_save_changes(save_units: SaveUnit[]) {
-    try {
-        // 更新当前游戏的 save_paths
-        game.value.save_paths = save_units;
+// 处理抽屉组件保存游戏路径的事件
+async function on_drawer_save_changes(updatedGame: Game) {
+    // 更新游戏信息（包括存档路径和启动路径）
+    game.value = updatedGame;
 
-        // 更新全局配置中的游戏信息
-        const gameIndex = config.value.games.findIndex(g => g.name === game.value.name);
-        if (gameIndex !== -1) {
-            config.value.games[gameIndex].save_paths = save_units;
-
-            // 保存配置到文件
-            await saveConfig();
-            showSuccess({ message: $t('common.save_success') });
-        } else {
-            showError({ message: $t('common.save_failed') });
-        }
-    } catch (e) {
-        error(`Error saving game paths: ${e}`);
-        showError({ message: $t('common.save_failed') });
+    // 保存到配置
+    const index = config.value.games.findIndex(g => g.name === game.value.name);
+    if (index !== -1) {
+        config.value.games[index] = game.value;
+        saveConfig().then(() => {
+            showSuccess({ message: $t('manage.save_paths_updated') });
+        }).catch((e) => {
+            error(`Error saving config: ${e}`);
+            showError({ message: $t('error.save_config_failed') });
+        });
+    } else {
+        showError({ message: $t('error.game_not_found') });
     }
+
+    // 关闭侧栏
+    drawer.value = false;
 }
 
 const filter_table = computed(
@@ -443,8 +444,8 @@ const filter_table = computed(
             </el-table>
         </el-card>
         <!-- 下面是存档所在位置侧栏部分 -->
-        <save-location-drawer v-if="game.save_paths" v-model="drawer" :locations="game.save_paths"
-            @closed="drawer = false" @save-changes="on_drawer_save_changes" />
+        <save-location-drawer v-if="game" v-model="drawer" :game="game" @closed="drawer = false"
+            @save-changes="on_drawer_save_changes" />
     </div>
 </template>
 

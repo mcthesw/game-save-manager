@@ -119,7 +119,8 @@
     "batch_delete_prompt": "Note that this operation will delete all selected snapshots, please enter yes to confirm",
     "recover_failed": "Recovery failed",
     "size": "File size",
-    "size_not_available": "Unrecorded"
+    "size_not_available": "Unrecorded",
+    "save_paths_updated": "Game settings are updated successfully"
   },
   "addgame": {
     "search_local": "Detect local games",
@@ -184,12 +185,14 @@
     "about": "About"
   },
   "save_location_drawer": {
-    "drawer_title": "Below is the list of managed files",
+    "drawer_title": "Modify configuration",
     "type": "Type",
     "prompt": "Path (click to copy)",
     "open_file_header": "Open file",
     "open": "Open",
-    "delete_before_apply": "Delete before overwrite"
+    "delete_before_apply": "Delete before overwrite",
+    "launch_path": "Game launch path",
+    "save_locations": "Save file locations"
   },
   "sync_settings": {
     "title": "Sync settings",
@@ -260,7 +263,9 @@
     "set_config_failed": "Failed to set config",
     "reset_settings_failed": "Failed to reset settings",
     "change_description_failed": "Failed to edit description",
-    "open_log_folder_failed": "Cannot open log folder"
+    "open_log_folder_failed": "Cannot open log folder",
+    "game_not_found": "The corresponding game cannot be found",
+    "save_config_failed": "Game settings failed to update"
   },
   "backend": {
     "config": {
