@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "game-save-manager",
+  "productName": "RGSM",
   "identifier": "com.game-save-manager",
   "build": {
     "frontendDist": "../dist",
@@ -13,7 +13,7 @@
       {
         "title": "Game Save Manager",
         "width": 1280,
-        "height": 720,
+        "height": 850,
         "resizable": true,
         "fullscreen": false,
         "dragDropEnabled": false

@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use log::info;
 use tauri::{
-    AppHandle, LogicalSize, Manager, State,
+    AppHandle, Manager, State,
     menu::{MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     utils::config::WindowConfig,
