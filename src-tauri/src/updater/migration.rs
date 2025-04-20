@@ -1,3 +1,4 @@
+use rust_i18n::t;
 use std::fs;
 use std::path::{Path, PathBuf};
 

@@ -8,6 +8,7 @@ use crate::{backup, config, quick_actions};
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;

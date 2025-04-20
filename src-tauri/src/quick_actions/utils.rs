@@ -1,4 +1,5 @@
 use log::{error, info, warn};
+use rust_i18n::t;
 use tauri::AppHandle;
 
 use crate::{
