@@ -19,12 +19,13 @@ use crate::config::config_check;
 mod backup;
 mod cloud_sync;
 mod config;
-mod device;
-mod path_resolver;
 mod default_value;
+mod device;
 mod ipc_handler;
+mod path_resolver;
 mod preclude;
 mod quick_actions;
+mod updater;
 
 pub fn run() -> anyhow::Result<()> {
     info!("{}", t!("home.hello_world"));

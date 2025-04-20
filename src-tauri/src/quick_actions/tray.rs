@@ -136,7 +136,7 @@ pub fn menu_event_handler(app: &AppHandle, event: MenuEvent) {
             info!(target:"rgsm::quick_action::tray","Tray menu item clicked: {other}.");
             if other.starts_with("timer.") {
                 // safe:所有输入来自程序字面量，保证了不会出现非数字的情况
-                let duration = other.split('.').last().unwrap().parse::<u32>().unwrap();
+                let duration = other.split('.').next_back().unwrap().parse::<u32>().unwrap();
                 let state: State<Arc<AutoBackupDuration>> = app.state();
                 state.store(duration, std::sync::atomic::Ordering::Relaxed);
             }

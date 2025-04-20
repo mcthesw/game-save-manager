@@ -18,7 +18,7 @@ pub enum SaveUnitType {
 pub struct SaveUnit {
     pub unit_type: SaveUnitType,
     #[serde(default)] // 如果反序列化时字段不存在，则使用默认值 (空 HashMap)
-    paths: HashMap<DeviceId, String>, // 存储不同设备的路径
+    pub paths: HashMap<DeviceId, String>, // 存储不同设备的路径
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
 }

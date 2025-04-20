@@ -1,7 +1,7 @@
-use crate::backup::{Game, GameSnapshots, SaveUnit};
-use crate::cloud_sync::{self, upload_all, Backend};
-use crate::config::{get_config, Config};
-use crate::device::{Device, DeviceId, get_current_device};
+use crate::backup::{Game, GameSnapshots};
+use crate::cloud_sync::{self, Backend, upload_all};
+use crate::config::{Config, get_config};
+use crate::device::{Device, get_current_device};
 use crate::path_resolver;
 use crate::preclude::*;
 use crate::{backup, config, quick_actions};
@@ -305,23 +305,23 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
 #[specta::specta]
 pub async fn resolve_path(path: String) -> Result<String, String> {
     info!(target:"rgsm::ipc", "Resolving path: {}", path);
-    
+
     let config = get_config().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
         e.to_string()
     })?;
-    
+
     let resolved_path = path_resolver::resolve_path(&path, None, &config).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to resolve path: {:?}", e);
         e.to_string()
     })?;
-    
+
     let path_str = resolved_path.to_str().ok_or_else(|| {
         let err = "Failed to convert resolved path to string";
         error!(target:"rgsm::ipc", "{}", err);
         err.to_string()
     })?;
-    
+
     info!(target:"rgsm::ipc", "Successfully resolved path: {} -> {}", path, path_str);
     Ok(path_str.to_string())
 }
@@ -333,10 +333,10 @@ pub async fn resolve_path(path: String) -> Result<String, String> {
 #[specta::specta]
 pub async fn get_current_device_info() -> Result<Device, String> {
     info!(target:"rgsm::ipc", "Getting current device info");
-    
+
     // get_current_device() 返回的是 &'static Device，需要克隆一份返回
     let device = get_current_device().clone();
-    
+
     info!(target:"rgsm::ipc", "Current device: id={}, name={}", device.id, device.name);
     Ok(device)
 }
