@@ -120,7 +120,17 @@
     "recover_failed": "恢复失败",
     "size": "文件大小",
     "size_not_available": "未记录",
-    "save_paths_updated": "游戏设置更新成功"
+    "save_paths_updated": "游戏设置更新成功",
+    "empty_paths_title": "检测到空存档路径",
+    "empty_paths_prompt": "当前设备的存档路径为空，但在其他设备上有存档路径配置。您想要复制其他设备的存档路径吗？",
+    "copy_from_device": "复制存档路径",
+    "keep_empty": "保持为空",
+    "select_device_title": "选择设备",
+    "select_device_prompt": "请选择要从哪个设备复制存档路径",
+    "available_devices": "可用设备",
+    "enter_device_id": "请输入设备ID",
+    "select_device_placeholder": "选择设备",
+    "paths_copied_success": "存档路径复制成功"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",

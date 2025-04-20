@@ -47,7 +47,6 @@ async function fetchCurrentDevice() {
         const result = await commands.getCurrentDeviceInfo();
         if (result.status === "ok") {
             currentDevice.value = result.data;
-            console.log("Current device:", currentDevice.value);
         } else {
             showError({ message: result.error });
         }
@@ -111,7 +110,9 @@ watch(
         if (!newValue) { return; }
         let name = newValue;
         game.value = config.value.games.find((x) => x.name == name) as Game;
-        refresh_backups_info()
+        refresh_backups_info();
+        // 检查当前设备的存档路径是否为空
+        checkCurrentDeviceSavePaths();
     },
     { immediate: true }
 )
@@ -367,6 +368,139 @@ const filter_table = computed(
         ).reverse();
     }
 )
+
+// 检查当前设备的存档路径是否为空
+async function checkCurrentDeviceSavePaths() {
+    await fetchCurrentDevice();
+    if (!currentDevice.value || !game.value || !game.value.save_paths) return;
+
+    // 检查当前设备的存档路径是否全部为空
+    const deviceId = currentDevice.value.id;
+    const allPathsEmpty = game.value.save_paths.every(unit =>
+        !unit.paths || !unit.paths[deviceId] || unit.paths[deviceId].trim() === ''
+    );
+
+    if (!allPathsEmpty) return; // 如果有路径不为空，直接返回
+
+    // 收集所有有效的设备ID（有存档路径的设备）
+    const devicesWithPaths = new Set<string>();
+    game.value.save_paths.forEach(unit => {
+        if (unit.paths) {
+            Object.entries(unit.paths).forEach(([id, path]) => {
+                if (id !== deviceId && path && path.trim() !== '') {
+                    devicesWithPaths.add(id);
+                }
+            });
+        }
+    });
+
+    if (devicesWithPaths.size === 0) return; // 如果没有其他设备有路径，直接返回
+
+    try {
+        // 询问用户是否要复制其他设备的存档路径
+        const confirmResult = await ElMessageBox.confirm(
+            $t('manage.empty_paths_prompt'),
+            $t('manage.empty_paths_title'),
+            {
+                confirmButtonText: $t('manage.copy_from_device'),
+                cancelButtonText: $t('manage.keep_empty'),
+                type: 'info',
+                closeOnClickModal: false,
+                closeOnPressEscape: false,
+            }
+        );
+
+        if (confirmResult !== 'confirm') return;
+
+        // 准备设备选择列表
+        const deviceOptions = Array.from(devicesWithPaths).map(id => ({
+            value: id,
+            label: id.substring(0, 8) + '...'
+        }));
+
+        // 如果只有一个设备，直接使用它
+        if (deviceOptions.length === 1) {
+            await copyPathsFromDevice(deviceOptions[0].value);
+            return;
+        }
+
+        // 让用户从多个设备中选择
+        try {
+            // 显示设备列表供用户选择
+            const items = deviceOptions.map((d, index) =>
+                `${index + 1}. ${d.label} (${d.value})`
+            ).join('\n');
+
+            const { value } = await ElMessageBox.prompt(
+                `${$t('manage.select_device_prompt')}\n\n${items}\n\n${$t('manage.enter_device_id')}:`,
+                $t('manage.select_device_title'),
+                {
+                    confirmButtonText: $t('manage.confirm'),
+                    cancelButtonText: $t('manage.cancel'),
+                }
+            );
+
+            // 查找匹配的设备ID
+            const selectedDevice = deviceOptions.find(d =>
+                d.value === value || d.value.startsWith(value) || d.label.includes(value)
+            );
+
+            if (selectedDevice) {
+                await copyPathsFromDevice(selectedDevice.value);
+            }
+        } catch (e) {
+            // 用户取消选择，不执行任何操作
+        }
+    } catch (e) {
+        // 用户取消初始确认，不执行任何操作
+    }
+}
+
+// 从指定设备复制存档路径到当前设备
+async function copyPathsFromDevice(sourceDeviceId: string) {
+    if (!currentDevice.value || !game.value) return;
+
+    const targetDeviceId = currentDevice.value.id;
+    let updated = false;
+
+    // 复制存档路径
+    if (game.value.save_paths) {
+        game.value.save_paths.forEach(unit => {
+            if (unit.paths?.[sourceDeviceId]?.trim()) {
+                if (!unit.paths[targetDeviceId] || !unit.paths[targetDeviceId].trim()) {
+                    if (!unit.paths) unit.paths = {};
+                    unit.paths[targetDeviceId] = unit.paths[sourceDeviceId];
+                    updated = true;
+                }
+            }
+        });
+    }
+
+    // 复制游戏启动路径
+    if (game.value.game_paths?.[sourceDeviceId]?.trim() &&
+        (!game.value.game_paths[targetDeviceId] || !game.value.game_paths[targetDeviceId].trim())) {
+        if (!game.value.game_paths) game.value.game_paths = {};
+        game.value.game_paths[targetDeviceId] = game.value.game_paths[sourceDeviceId];
+        updated = true;
+    }
+
+    // 如果有更新，保存配置
+    if (updated) {
+        const index = config.value.games.findIndex(g => g.name === game.value.name);
+        if (index !== -1) {
+            config.value.games[index] = game.value;
+            try {
+                await saveConfig();
+                showSuccess({ message: $t('manage.paths_copied_success') });
+                // 打开侧栏让用户查看和编辑复制的路径
+                drawer.value = true;
+            } catch (e) {
+                error(`Error saving config: ${e}`);
+                showError({ message: $t('error.save_config_failed') });
+            }
+        }
+    }
+}
 </script>
 
 <template>
