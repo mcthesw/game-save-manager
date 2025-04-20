@@ -120,7 +120,17 @@
     "recover_failed": "Recovery failed",
     "size": "File size",
     "size_not_available": "Unrecorded",
-    "save_paths_updated": "Game settings are updated successfully"
+    "save_paths_updated": "Game settings are updated successfully",
+    "empty_paths_title": "Empty Save Paths Detected",
+    "empty_paths_prompt": "The save paths for the current device are empty, but there are save path configurations on other devices. Would you like to copy save paths from another device?",
+    "copy_from_device": "Copy Paths",
+    "keep_empty": "Keep Empty",
+    "select_device_title": "Select Device",
+    "select_device_prompt": "Please select which device to copy save paths from",
+    "available_devices": "Available devices",
+    "enter_device_id": "Enter device ID",
+    "select_device_placeholder": "Select device",
+    "paths_copied_success": "Save paths copied successfully"
   },
   "addgame": {
     "search_local": "Detect local games",

@@ -67,7 +67,7 @@ function extractDeviceIdsFromSaveUnits() {
             }
         });
     }
-    
+
     // 从game_paths中提取设备ID
     if (props.game.game_paths) {
         Object.keys(props.game.game_paths).forEach(deviceId => {
