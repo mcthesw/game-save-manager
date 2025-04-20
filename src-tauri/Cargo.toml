@@ -47,3 +47,4 @@ machine-uid = "0.5.3"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.2.0"
 tauri-plugin-single-instance = "2.2.2"
+tauri-plugin-window-state = "2"
