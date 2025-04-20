@@ -4,7 +4,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::{
     config::Config,
-    quick_actions::utils::{quick_apply, quick_backup, QuickActionType},
+    quick_actions::utils::{QuickActionType, quick_apply, quick_backup},
 };
 
 pub fn setup_hotkeys(config: &Config, app: &mut App) -> anyhow::Result<()> {

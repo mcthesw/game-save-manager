@@ -21,7 +21,7 @@ use crate::preclude::UpdaterError;
 pub fn probe_config_version<P: AsRef<Path>>(path: P) -> Result<Version, UpdaterError> {
     let content = fs::read_to_string(path.as_ref())?;
     let v: Value = serde_json::from_str(&content)?;
-    
+
     if let Some(s) = v.get("version").and_then(Value::as_str) {
         Ok(Version::parse(s)?)
     } else {

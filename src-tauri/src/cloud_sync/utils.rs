@@ -4,7 +4,7 @@ use log::info;
 use opendal::Operator;
 
 use crate::backup::GameSnapshots;
-use crate::config::{get_config, set_config, Config};
+use crate::config::{Config, get_config, set_config};
 use crate::preclude::*;
 
 pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
