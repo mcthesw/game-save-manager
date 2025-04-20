@@ -3,9 +3,7 @@
     windows_subsystem = "windows"
 )]
 
-#[macro_use]
-extern crate rust_i18n;
-use rust_i18n::t;
+use rust_i18n::{i18n, t};
 i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use config::get_config;

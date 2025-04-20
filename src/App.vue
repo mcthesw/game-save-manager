@@ -6,16 +6,17 @@ useDark();
 import { events } from "./bindings";
 import { useNotification } from "./composables/useNotification";
 import { useConfig } from "./composables/useConfig";
-import { $t } from "./i18n";
+import { $t, i18n } from "./i18n";
 
 const { showInfo, showWarning, showError } = useNotification();
 
 try {
-  await refreshConfig()
+  await refreshConfig();
+  i18n.global.locale.value = config.value.settings.locale! as any;
   await navigateTo(config.value!.settings.home_page)
 } catch (e) {
-  showError({ message: $t("home.wrong_homepage") })
-  navigateTo("/")
+  showError({ message: $t("home.wrong_homepage") });
+  navigateTo("/");
 }
 
 events.ipcNotification.listen((event) => {

@@ -1,12 +1,12 @@
+use fs_extra::dir::move_dir;
+use fs_extra::file::move_file;
+use log::warn;
+use rust_i18n::t;
 use std::{
     fs::{self, File},
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
 };
-
-use fs_extra::dir::move_dir;
-use fs_extra::file::move_file;
-use log::warn;
 use tauri::{AppHandle, Emitter};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
