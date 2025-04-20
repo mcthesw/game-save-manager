@@ -2,38 +2,27 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;
-use std::{fs, path, collections::HashMap}; // 引入 HashMap
+use std::{collections::HashMap, fs, path};
 use tauri::AppHandle;
 
 use crate::backup::{GameSnapshots, SaveUnit, Snapshot, compress_to_file, decompress_from_file};
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_config, set_config};
+use crate::device::DeviceId;
 use crate::preclude::*;
-use crate::device::{DeviceId, get_current_device}; // 引入 DeviceId 和 get_current_device
 
 /// A game struct contains the save units and the game's launcher
-#[derive(Debug, Serialize, Deserialize, Clone, Type)] // 直接派生 Serialize 和 Deserialize
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Game {
     pub name: String,
-    pub save_paths: Vec<SaveUnit>, // 稍后会修改 SaveUnit
+    pub save_paths: Vec<SaveUnit>,
     // 使用 HashMap 存储不同设备的启动路径
     // Key: DeviceId (String), Value: Path (String)
-    #[serde(default)] // 如果反序列化时字段不存在，则使用默认值 (空 HashMap)
-    pub game_paths: HashMap<DeviceId, String>, // 修改字段类型
+    #[serde(default)]
+    pub game_paths: HashMap<DeviceId, String>,
 }
 
 impl Game {
-    /// 获取当前设备的启动路径
-    pub fn get_path_for_current_device(&self) -> Option<&String> {
-        let current_device_id = &get_current_device().id;
-        self.game_paths.get(current_device_id)
-    }
-
-    /// 获取指定设备的启动路径
-    pub fn get_path_for_device(&self, device_id: &DeviceId) -> Option<&String> {
-        self.game_paths.get(device_id)
-    }
-
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
         let config = get_config()?;
         let backup_path = path::Path::new(&config.backup_path)

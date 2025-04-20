@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::HashMap; // 引入 HashMap
+use std::collections::HashMap;
 
 use crate::default_value;
-use crate::device::{DeviceId, get_current_device}; // 引入 DeviceId 和 get_current_device
+use crate::device::DeviceId;
 
 /// A save unit should be a file or a folder
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -24,12 +24,6 @@ pub struct SaveUnit {
 }
 
 impl SaveUnit {
-    /// 获取当前设备的路径
-    pub fn get_path_for_current_device(&self) -> Option<&String> {
-        let current_device_id = &get_current_device().id;
-        self.paths.get(current_device_id)
-    }
-
     /// 获取指定设备的路径
     pub fn get_path_for_device(&self, device_id: &DeviceId) -> Option<&String> {
         self.paths.get(device_id)

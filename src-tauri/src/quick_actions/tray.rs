@@ -2,15 +2,15 @@ use std::{path::PathBuf, sync::Arc};
 
 use log::info;
 use tauri::{
+    AppHandle, LogicalSize, Manager, State,
     menu::{MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     utils::config::WindowConfig,
-    AppHandle, LogicalSize, Manager, State,
 };
 
 use crate::config::get_config;
 
-use super::{quick_apply, quick_backup, AutoBackupDuration, QuickActionType};
+use super::{AutoBackupDuration, QuickActionType, quick_apply, quick_backup};
 
 use rust_i18n::t;
 
@@ -136,7 +136,12 @@ pub fn menu_event_handler(app: &AppHandle, event: MenuEvent) {
             info!(target:"rgsm::quick_action::tray","Tray menu item clicked: {other}.");
             if other.starts_with("timer.") {
                 // safe:所有输入来自程序字面量，保证了不会出现非数字的情况
-                let duration = other.split('.').next_back().unwrap().parse::<u32>().unwrap();
+                let duration = other
+                    .split('.')
+                    .next_back()
+                    .unwrap()
+                    .parse::<u32>()
+                    .unwrap();
                 let state: State<Arc<AutoBackupDuration>> = app.state();
                 state.store(duration, std::sync::atomic::Ordering::Relaxed);
             }

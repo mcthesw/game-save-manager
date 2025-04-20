@@ -25,4 +25,3 @@ pub struct QuickActionsSettings {
     #[serde(default = "default_value::default")]
     pub hotkeys: QuickActionHotkeys,
 }
-

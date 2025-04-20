@@ -1,12 +1,12 @@
 use std::{
-    sync::{atomic::AtomicU32, Arc},
+    sync::{Arc, atomic::AtomicU32},
     time::Duration,
 };
 
 use log::info;
 use tauri::{App, Manager, State};
 
-use super::{quick_backup, QuickActionType};
+use super::{QuickActionType, quick_backup};
 
 pub type AutoBackupDuration = AtomicU32;
 

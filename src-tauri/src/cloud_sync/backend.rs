@@ -1,5 +1,5 @@
-use opendal::services;
 use opendal::Operator;
+use opendal::services;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 

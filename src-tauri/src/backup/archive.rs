@@ -8,13 +8,13 @@ use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 use log::warn;
 use tauri::{AppHandle, Emitter};
-use zip::{write::SimpleFileOptions, ZipWriter};
+use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
     backup::{SaveUnit, SaveUnitType},
+    device::get_current_device,
     ipc_handler::{IpcNotification, NotificationLevel},
     preclude::*,
-    device::get_current_device,
 };
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
@@ -83,11 +83,13 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64,
             // 获取当前设备 ID，并将 ConfigError 转换为 BackupFileError
             let current_device_id = &get_current_device().id;
             // 获取当前设备的路径，如果不存在则返回 NonePathError
-            let unit_path_str = x.get_path_for_device(current_device_id)
+            let unit_path_str = x
+                .get_path_for_device(current_device_id)
                 .ok_or(BackupFileError::NonePathError)?;
-            
+
             // 使用 path_resolver 解析路径变量
-            let config = crate::config::get_config().map_err(|e| BackupFileError::Unexpected(e.into()))?;
+            let config =
+                crate::config::get_config().map_err(|e| BackupFileError::Unexpected(e.into()))?;
             let unit_path = crate::path_resolver::resolve_path(unit_path_str, None, &config)?;
             if unit_path.exists() {
                 match x.unit_type {
@@ -159,10 +161,10 @@ pub fn decompress_from_file(
             // 获取当前设备的路径，如果不存在则返回 NonePathError
             let unit_path_str = unit.get_path_for_device(current_device_id)
                 .ok_or(BackupFileError::NonePathError)?;
-            
+
             // 使用 path_resolver 解析路径变量
             let config = crate::config::get_config().map_err(|e| BackupFileError::Unexpected(e.into()))?;
-            let unit_path = crate::path_resolver::resolve_path(unit_path_str, None, &config)?; 
+            let unit_path = crate::path_resolver::resolve_path(unit_path_str, None, &config)?;
             let original_path = tmp_folder.join(
                 unit_path
                     .file_name()
