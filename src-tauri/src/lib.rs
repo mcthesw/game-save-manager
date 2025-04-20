@@ -132,11 +132,12 @@ pub fn run() -> anyhow::Result<()> {
     app.build(tauri::generate_context!())
         .expect("Cannot build tauri app")
         .run(move |handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
                 handle
                     .save_window_state(StateFlags::all())
                     .expect("Cannot save window state");
-                if config.settings.exit_to_tray {
+                // Only prevent exit when exit to tray is enabled and exit code is not provided(User requested exit)
+                if config.settings.exit_to_tray && code.is_none() {
                     api.prevent_exit();
                 }
             }
