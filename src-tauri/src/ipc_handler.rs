@@ -41,6 +41,24 @@ pub async fn open_url(url: String) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn open_file_or_folder(path: String) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Opening file or folder: {}", path);
+
+    let config = get_config().map_err(|e| e.to_string())?;
+    let path = path_resolver::resolve_path(&path, None, &config).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to resolve url: {:?}", e);
+        e.to_string()
+    })?;
+
+    debug!(target:"rgsm::ipc", "Resolved url: {}", path.display());
+    open::that(path).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to open file or folder: {:?}", e);
+        e.to_string()
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn choose_save_file(app: AppHandle) -> Result<String, String> {
     info!(target:"rgsm::ipc", "Opening file dialog.");
     if let Some(path) = app.dialog().file().blocking_pick_file() {

@@ -13,6 +13,14 @@ async openUrl(url: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async openFileOrFolder(path: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_file_or_folder", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async chooseSaveFile() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("choose_save_file") };
