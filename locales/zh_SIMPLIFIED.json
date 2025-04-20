@@ -119,7 +119,8 @@
     "batch_delete_prompt": "注意，该操作会删除所有选中的快照，确定请输入yes",
     "recover_failed": "恢复失败",
     "size": "文件大小",
-    "size_not_available": "未记录"
+    "size_not_available": "未记录",
+    "save_paths_updated": "游戏设置更新成功"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",
@@ -186,7 +187,7 @@
     "about": "关于"
   },
   "save_location_drawer": {
-    "drawer_title": "以下是受管理文件列表",
+    "drawer_title": "修改配置",
     "type": "类别",
     "prompt": "路径",
     "open_file_header": "打开文件",
@@ -194,7 +195,9 @@
     "delete_before_apply": "应用前删除",
     "select_device": "选择设备",
     "current_device": "当前设备",
-    "copy": "复制"
+    "copy": "复制",
+    "launch_path": "启动路径",
+    "save_locations": "存档路径"
   },
   "sync_settings": {
     "title": "同步设置",
@@ -267,7 +270,9 @@
     "set_config_failed": "设置配置失败",
     "reset_settings_failed": "重置设置失败",
     "change_description_failed": "编辑描述失败",
-    "open_log_folder_failed": "无法打开日志文件夹"
+    "open_log_folder_failed": "无法打开日志文件夹",
+    "game_not_found": "找不到对应的游戏",
+    "save_config_failed": "游戏设置更新失败"
   },
   "backend": {
     "config": {

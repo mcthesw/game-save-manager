@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { $t } from "../i18n";
-import type { SaveUnit, Device } from "../bindings";
+import type { SaveUnit, Device, Game } from "../bindings";
 import { commands } from "../bindings";
 import { useNotification } from "../composables/useNotification";
 import { ref, watch } from "vue";
@@ -9,12 +9,12 @@ import PathVariableSelector from "./PathVariableSelector.vue";
 const { showSuccess, showError } = useNotification();
 
 const props = defineProps({
-    locations: Array<SaveUnit>,
+    game: Object as () => Game,
 })
 
 const emits = defineEmits<{
     (event: 'closed'): void
-    (event: 'saveChanges', tempLocations: SaveUnit[]): void
+    (event: 'saveChanges', game: Game): void
 }>()
 
 // 当前设备信息
@@ -24,7 +24,7 @@ const availableDevices = ref<Device[]>([]);
 // 当前选中的设备ID
 const selectedDeviceId = ref<string>('');
 // 临时存储修改的数据
-const tempLocations = ref<SaveUnit[]>([]);
+const tempGame = ref<Game>({ name: "", save_paths: [], game_paths: {} });
 // 是否有未保存的修改
 const hasUnsavedChanges = ref(false);
 
@@ -45,9 +45,9 @@ async function fetchCurrentDevice() {
     }
 }
 
-// 从SaveUnit中提取所有设备ID
+// 从Game中提取所有设备ID
 function extractDeviceIdsFromSaveUnits() {
-    if (!props.locations) return;
+    if (!props.game) return;
 
     // 收集所有设备ID
     const deviceIds = new Set<string>();
@@ -58,13 +58,22 @@ function extractDeviceIdsFromSaveUnits() {
     }
 
     // 从所有SaveUnit的paths中提取设备ID
-    props.locations.forEach(unit => {
-        if (unit.paths) {
-            Object.keys(unit.paths).forEach(deviceId => {
-                deviceIds.add(deviceId);
-            });
-        }
-    });
+    if (props.game.save_paths) {
+        props.game.save_paths.forEach(unit => {
+            if (unit.paths) {
+                Object.keys(unit.paths).forEach(deviceId => {
+                    deviceIds.add(deviceId);
+                });
+            }
+        });
+    }
+    
+    // 从game_paths中提取设备ID
+    if (props.game.game_paths) {
+        Object.keys(props.game.game_paths).forEach(deviceId => {
+            deviceIds.add(deviceId);
+        });
+    }
 
     // 转换为设备对象数组
     availableDevices.value = Array.from(deviceIds).map(id => {
@@ -86,23 +95,23 @@ function extractDeviceIdsFromSaveUnits() {
     }
 }
 
-// 监听locations变化，重新提取设备ID并初始化临时数据
-watch(() => props.locations, () => {
+// 监听game变化，重新提取设备ID并初始化临时数据
+watch(() => props.game, () => {
     extractDeviceIdsFromSaveUnits();
-    initTempLocations();
+    initTempGame();
 }, { deep: true });
 
 // 初始化设备信息
 fetchCurrentDevice().then(() => {
     extractDeviceIdsFromSaveUnits();
-    initTempLocations();
+    initTempGame();
 });
 
-// 初始化临时locations数据
-function initTempLocations() {
-    if (!props.locations) return;
-    // 深拷贝locations数据
-    tempLocations.value = JSON.parse(JSON.stringify(props.locations));
+// 初始化临时game数据
+function initTempGame() {
+    if (!props.game) return;
+    // 深拷贝game数据
+    tempGame.value = JSON.parse(JSON.stringify(props.game));
     hasUnsavedChanges.value = false;
 }
 
@@ -112,11 +121,17 @@ function getDevicePath(unit: SaveUnit, deviceId: string): string {
     return unit.paths[deviceId] || '';
 }
 
+// 获取当前设备的游戏启动路径
+function getGameLaunchPath(deviceId: string): string {
+    if (!tempGame.value.game_paths) return '';
+    return tempGame.value.game_paths[deviceId] || '';
+}
+
 // 更新临时设备路径
 function updateDevicePath(index: number, deviceId: string, path: string) {
-    if (!tempLocations.value) return;
+    if (!tempGame.value || !tempGame.value.save_paths) return;
 
-    const unit = tempLocations.value[index];
+    const unit = tempGame.value.save_paths[index];
     if (!unit.paths) {
         unit.paths = {};
     }
@@ -125,17 +140,42 @@ function updateDevicePath(index: number, deviceId: string, path: string) {
     hasUnsavedChanges.value = true;
 }
 
+// 更新临时游戏启动路径
+function updateGameLaunchPath(deviceId: string, path: string) {
+    if (!tempGame.value) return;
+
+    if (!tempGame.value.game_paths) {
+        tempGame.value.game_paths = {};
+    }
+
+    tempGame.value.game_paths[deviceId] = path;
+    hasUnsavedChanges.value = true;
+}
+
 // 在路径输入框中插入变量
 function insertPathVariable(variable: string, index: number, deviceId: string) {
-    if (!tempLocations.value) return;
+    if (!tempGame.value || !tempGame.value.save_paths) return;
 
-    const unit = tempLocations.value[index];
+    const unit = tempGame.value.save_paths[index];
     if (!unit.paths) {
         unit.paths = {};
     }
 
     const currentPath = unit.paths[deviceId] || '';
     unit.paths[deviceId] = currentPath + variable;
+    hasUnsavedChanges.value = true;
+}
+
+// 在游戏启动路径输入框中插入变量
+function insertGamePathVariable(variable: string, deviceId: string) {
+    if (!tempGame.value) return;
+
+    if (!tempGame.value.game_paths) {
+        tempGame.value.game_paths = {};
+    }
+
+    const currentPath = tempGame.value.game_paths[deviceId] || '';
+    tempGame.value.game_paths[deviceId] = currentPath + variable;
     hasUnsavedChanges.value = true;
 }
 
@@ -148,26 +188,24 @@ async function open(url: string) {
 
 // 由父组件处理具体任务，此处只传递下标
 function switch_delete_before_apply(unit: SaveUnit) {
-    const index = tempLocations.value?.indexOf(unit)
-    if (index != undefined) {
-        // 只在临时数据中切换状态，不触发父组件事件
-        hasUnsavedChanges.value = true;
-    }
+    // 这里不需要特殊处理，直接修改tempGame中的值即可
+    // 因为是引用类型，所以直接修改unit的属性会反映到tempGame中
+    hasUnsavedChanges.value = true;
 }
 
 // 保存修改
 function saveChanges() {
-    if (!tempLocations.value) return;
+    if (!tempGame.value) return;
 
     // 将所有修改发送给父组件
-    emits('saveChanges', tempLocations.value);
+    emits('saveChanges', tempGame.value);
 
     hasUnsavedChanges.value = false;
 }
 
 // 取消修改
 function cancelChanges() {
-    initTempLocations();
+    initTempGame();
 }
 </script>
 
@@ -198,8 +236,25 @@ function cancelChanges() {
             </el-tag>
         </div>
 
-        <!-- 路径表格 -->
-        <el-table :data="tempLocations" style="width: 100%" :border="true">
+        <!-- 游戏启动路径 -->
+        <div class="launch-path-section">
+            <h3>{{ $t('save_location_drawer.launch_path') }}</h3>
+            <div class="path-input-container">
+                <el-input :model-value="getGameLaunchPath(selectedDeviceId)" size="small"
+                    @update:model-value="(value) => updateGameLaunchPath(selectedDeviceId, value)">
+                    <template #append>
+                        <div class="path-actions">
+                            <path-variable-selector :current-path="getGameLaunchPath(selectedDeviceId)"
+                                @insert="(variable) => insertGamePathVariable(variable, selectedDeviceId)" />
+                        </div>
+                    </template>
+                </el-input>
+            </div>
+        </div>
+
+        <!-- 存档路径表格 -->
+        <h3>{{ $t('save_location_drawer.save_locations') }}</h3>
+        <el-table :data="tempGame.save_paths" style="width: 100%" :border="true">
             <el-table-column prop="unit_type" :label="$t('save_location_drawer.type')" width="70" />
             <el-table-column :label="$t('save_location_drawer.prompt')" min-width="300">
                 <template #default="scope">
