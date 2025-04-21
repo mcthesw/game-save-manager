@@ -1,7 +1,7 @@
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all};
 use crate::config::{Config, get_config};
-use crate::device::{Device, get_current_device};
+use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
 use crate::{backup, config, quick_actions};
@@ -345,19 +345,19 @@ pub async fn resolve_path(path: String) -> Result<String, String> {
     Ok(path_str.to_string())
 }
 
-/// Returns the current device's ID and name
-///
-/// This command allows the frontend to get information about the current device
+/// Returns the current device, if not found, returns a default device
 #[tauri::command]
 #[specta::specta]
 pub async fn get_current_device_info() -> Result<Device, String> {
     info!(target:"rgsm::ipc", "Getting current device info");
 
-    // get_current_device() 返回的是 &'static Device，需要克隆一份返回
-    let device = get_current_device().clone();
+    let device_id = get_current_device_id();
+    let config = get_config().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        e.to_string()
+    })?;
 
-    info!(target:"rgsm::ipc", "Current device: id={}, name={}", device.id, device.name);
-    Ok(device)
+    Ok(config.devices.get(device_id).cloned().unwrap_or_default())
 }
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {

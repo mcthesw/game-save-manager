@@ -211,6 +211,7 @@ mod tests {
             settings: crate::config::Settings::default(),
             favorites: Vec::new(),
             quick_action: crate::config::QuickActionsSettings::default(),
+            devices: std::collections::HashMap::new(),
         }
     }
 

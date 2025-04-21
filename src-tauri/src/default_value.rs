@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::cloud_sync::Backend;
 
 pub fn default_false() -> bool {
@@ -29,4 +31,7 @@ pub fn default_none<T>() -> Option<T> {
 }
 pub fn default<T: Default>() -> T {
     T::default()
+}
+pub fn empty_map<K, V>() -> HashMap<K, V> {
+    HashMap::new()
 }

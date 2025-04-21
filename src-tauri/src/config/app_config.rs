@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -5,6 +7,7 @@ use crate::backup::Game;
 use crate::cloud_sync::CloudSettings;
 use crate::config::{QuickActionsSettings, Settings};
 use crate::default_value;
+use crate::device::{Device, DeviceId};
 use crate::preclude::*;
 
 /// The software's configuration
@@ -20,6 +23,9 @@ pub struct Config {
     pub favorites: Vec<FavoriteTreeNode>,
     #[serde(default = "default_value::default")]
     pub quick_action: QuickActionsSettings,
+    /// 设备ID到设备名称的映射
+    #[serde(default = "default_value::empty_map")]
+    pub devices: HashMap<DeviceId, Device>,
 }
 
 impl Sanitizable for Config {
@@ -53,6 +59,7 @@ impl Default for Config {
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),
+            devices: HashMap::new(),
         }
     }
 }
