@@ -15,21 +15,27 @@ pub struct Device {
 // 存储当前设备的静态变量，使用 OnceLock 确保只初始化一次
 static CURRENT_DEVICE_ID: OnceLock<DeviceId> = OnceLock::new();
 
-/// 获取当前设备的信息。
-/// 首次调用时会生成 UUID 作为设备 ID，并获取系统主机名作为设备名。
-/// 后续调用将返回缓存的设备信息。
+/// 获取当前设备的ID。
+/// 首次调用时会生成 UUID 作为设备 ID。
+/// 后续调用将返回缓存的设备ID。
 pub fn get_current_device_id() -> &'static DeviceId {
     CURRENT_DEVICE_ID.get_or_init(|| machine_uid::get().expect("Failed to get machine ID"))
+}
+
+/// 获取当前系统的主机名
+/// 如果无法获取，则返回"Unknown Device"作为默认值
+pub fn get_system_hostname() -> String {
+    hostname::get()
+        .ok()
+        .and_then(|name| name.into_string().ok())
+        .unwrap_or_else(|| "Unknown Device".to_string())
 }
 
 impl Default for Device {
     fn default() -> Self {
         Self {
             id: machine_uid::get().expect("Failed to get machine ID"),
-            name: hostname::get()
-                .ok()
-                .and_then(|name| name.into_string().ok())
-                .unwrap_or_else(|| "Unknown Device".to_string()),
+            name: get_system_hostname(),
         }
     }
 }

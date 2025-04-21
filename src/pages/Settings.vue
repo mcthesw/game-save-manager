@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 // TODO:调整日志设置，比如删除日
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
 import { $t, i18n } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
@@ -10,6 +10,7 @@ import HotkeySelector from "../components/HotkeySelector.vue";
 import { useDark } from '@vueuse/core'
 import { commands } from "~/bindings";
 import { error, info } from "@tauri-apps/plugin-log";
+import type { Device } from "../bindings";
 
 const isDark = useDark()
 const { config, refreshConfig, saveConfig } = useConfig()
@@ -19,6 +20,11 @@ const locale_names = i18n.global.availableLocales
 const activeTab = ref('general')
 const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
+
+// 设备管理相关
+const currentDevice = ref<Device>({ id: "", name: "" })
+const otherDevices = ref<Device[]>([])
+const deviceNameChanged = ref(false)
 
 // 使用debounce来合并多次保存操作
 const debouncedSaveConfig = useDebounceFn(async () => {
@@ -32,6 +38,7 @@ const debouncedSaveConfig = useDebounceFn(async () => {
 
 async function load_config() {
     await refreshConfig()
+    await fetchDeviceInfo()
 }
 
 async function reset_settings() {
@@ -130,9 +137,111 @@ async function saveGameOrder() {
 // 翻译网站
 async function translate_website() {
     try {
-        await commands.openUrl("https://hosted.weblate.org/projects/game-save-manager")
+        await commands.openUrl("https://github.com/mcthesw/game-save-manager/blob/main/CONTRIBUTING.md")
     } catch (e) {
         error(`open translate website error: ${e}`)
+        showError({ message: $t('error.open_url_failed') })
+    }
+}
+
+// 获取设备信息
+async function fetchDeviceInfo() {
+    try {
+        // 获取当前设备信息
+        const result = await commands.getCurrentDeviceInfo();
+        if (result.status === "ok") {
+            currentDevice.value = result.data;
+            
+            // 从配置中获取所有设备
+            if (config.value && config.value.devices) {
+                // 过滤掉当前设备，只显示其他设备
+                otherDevices.value = Object.values(config.value.devices)
+                    .filter(device => device && device.id !== currentDevice.value.id)
+                    // 确保过滤后的数组不包含undefined
+                    .filter((device): device is Device => device !== undefined);
+            }
+        } else {
+            showError({ message: result.error });
+        }
+    } catch (e) {
+        error(`Error getting device info: ${e}`);
+        showError({ message: $t('error.get_device_info_failed') });
+    }
+}
+
+// 更新设备信息
+async function updateDeviceInfo() {
+    try {
+        if (!config.value || !currentDevice.value) return;
+        
+        // 在配置中更新设备信息
+        if (!config.value.devices) {
+            config.value.devices = {};
+        }
+        
+        config.value.devices[currentDevice.value.id] = { ...currentDevice.value };
+        
+        // 保存配置
+        await saveConfig();
+        showSuccess({ message: $t('settings.device_updated') });
+        await fetchDeviceInfo(); // 刷新设备列表
+    } catch (e) {
+        error(`Error updating device info: ${e}`);
+        showError({ message: $t('error.update_device_failed') });
+    }
+}
+
+// 从其他设备导入路径
+async function importFromDevice(deviceId: string) {
+    try {
+        await ElMessageBox.confirm(
+            $t('settings.import_paths_confirm'),
+            $t('settings.import_paths_title'),
+            {
+                confirmButtonText: $t('settings.confirm'),
+                cancelButtonText: $t('settings.cancel'),
+                type: 'warning',
+            }
+        );
+        
+        // 获取当前设备ID
+        const currentDeviceId = currentDevice.value?.id;
+        if (!currentDeviceId || !config.value || !config.value.games) {
+            throw new Error("Current device or config not available");
+        }
+        
+        if (currentDeviceId === deviceId) {
+            throw new Error("Cannot import from the same device");
+        }
+        
+        // 遍历所有游戏，复制源设备的路径到当前设备
+        for (const game of config.value.games) {
+            // 复制存档路径
+            for (const savePath of game.save_paths || []) {
+                if (savePath.paths) {
+                    if (savePath.paths[deviceId]) {
+                        savePath.paths[currentDeviceId] = savePath.paths[deviceId];
+                    }
+                }
+            }
+            
+            // 复制游戏启动路径
+            if (game.game_paths && game.game_paths[deviceId]) {
+                game.game_paths[currentDeviceId] = game.game_paths[deviceId];
+            }
+        }
+        
+        // 保存配置
+        await saveConfig();
+        showSuccess({ message: $t('settings.import_paths_success') });
+    } catch (e) {
+        if (e instanceof Error) {
+            error(`Error importing paths: ${e}`);
+            showError({ message: $t('error.import_paths_failed') });
+        } else {
+            // 用户取消操作
+            showInfo({ message: $t('settings.operation_canceled') });
+        }
     }
 }
 
@@ -153,6 +262,11 @@ watch(
     },
     { deep: true }
 )
+
+// 页面加载时获取设备信息
+onMounted(async () => {
+    await fetchDeviceInfo();
+})
 
 watch(
     () => config.value.settings.locale,
@@ -295,6 +409,47 @@ const router_list = computed(() => {
                     <div class="setting-box">
                         <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
                         <span class="setting-label">{{ $t("settings.default_expend_favorites_tree") }}</span>
+                    </div>
+                </el-tab-pane>
+                
+                <!-- 设备管理 -->
+                <el-tab-pane :label="$t('settings.device_settings')" name="device">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Tools />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.device_settings') }}</span>
+                    </el-divider>
+                    
+                    <!-- 当前设备信息 -->
+                    <div class="setting-box">
+                        <h3>{{ $t('settings.current_device') }}</h3>
+                        <div class="device-info">
+                            <el-form :model="currentDevice" label-position="top">
+                                <el-form-item :label="$t('settings.device_name')">
+                                    <el-input v-model="currentDevice.name" @change="updateDeviceInfo" />
+                                </el-form-item>
+                                <el-form-item :label="$t('settings.device_id')">
+                                    <el-input v-model="currentDevice.id" disabled />
+                                </el-form-item>
+                            </el-form>
+                        </div>
+                    </div>
+                    
+                    <!-- 其他设备列表 -->
+                    <div class="setting-box">
+                        <h3>{{ $t('settings.other_devices') }}</h3>
+                        <el-table :data="otherDevices" style="width: 100%">
+                            <el-table-column prop="name" :label="$t('settings.device_name')" />
+                            <el-table-column prop="id" :label="$t('settings.device_id')" width="220" />
+                            <el-table-column :label="$t('settings.actions')" width="220">
+                                <template #default="scope">
+                                    <el-button @click="importFromDevice(scope.row.id)" type="primary" size="small">
+                                        {{ $t('settings.import_paths') }}
+                                    </el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
                     </div>
                 </el-tab-pane>
 
