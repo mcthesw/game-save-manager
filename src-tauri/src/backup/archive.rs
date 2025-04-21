@@ -12,7 +12,7 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
     backup::{SaveUnit, SaveUnitType},
-    device::get_current_device,
+    device::get_current_device_id,
     ipc_handler::{IpcNotification, NotificationLevel},
     preclude::*,
 };
@@ -81,7 +81,7 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64,
         .iter()
         .map(|x| {
             // 获取当前设备 ID，并将 ConfigError 转换为 BackupFileError
-            let current_device_id = &get_current_device().id;
+            let current_device_id = &get_current_device_id();
             // 获取当前设备的路径，如果不存在则返回 NonePathError
             let unit_path_str = x
                 .get_path_for_device(current_device_id)
@@ -157,7 +157,7 @@ pub fn decompress_from_file(
         .iter()
         .map(|unit| {
             // 获取当前设备 ID，并将 ConfigError 转换为 BackupFileError
-            let current_device_id = &get_current_device().id;
+            let current_device_id = &get_current_device_id();
             // 获取当前设备的路径，如果不存在则返回 NonePathError
             let unit_path_str = unit.get_path_for_device(current_device_id)
                 .ok_or(BackupFileError::NonePathError)?;

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::{
     backup::{Game as CurrentGame, SaveUnit, SaveUnitType},
     config::{Config as CurrentConfig, FavoriteTreeNode, QuickActionsSettings, Settings},
-    device::{DeviceId, get_current_device},
+    device::Device,
 };
 
 /// Version constant for 1.4.0
@@ -43,7 +43,9 @@ pub struct SaveUnit1_4_0 {
 
 impl From<Config> for CurrentConfig {
     fn from(old: Config) -> Self {
-        let current_device_id: DeviceId = get_current_device().id.clone();
+        let current_device = Device::default();
+        let current_device_id = current_device.id.clone();
+
         let games = old
             .games
             .into_iter()
@@ -73,6 +75,9 @@ impl From<Config> for CurrentConfig {
             })
             .collect();
 
+        let mut devices = HashMap::new();
+        devices.insert(current_device_id, current_device);
+
         CurrentConfig {
             version: env!("CARGO_PKG_VERSION").to_string(),
             backup_path: old.backup_path,
@@ -80,6 +85,7 @@ impl From<Config> for CurrentConfig {
             settings: old.settings,
             favorites: old.favorites,
             quick_action: old.quick_action,
+            devices,
         }
     }
 }

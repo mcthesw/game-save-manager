@@ -187,9 +187,7 @@ async resolvePath(path: string) : Promise<Result<string, string>> {
 }
 },
 /**
- * Returns the current device's ID and name
- * 
- * This command allows the frontend to get information about the current device
+ * Returns the current device, if not found, returns a default device
  */
 async getCurrentDeviceInfo() : Promise<Result<Device, string>> {
     try {
@@ -212,7 +210,7 @@ ipcNotification: "ipc-notification"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"./save_data","favorites":[],"games":[],"quick_action":{"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"show_edit_button":false},"version":"1.5.0"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"./save_data","devices":{},"favorites":[],"games":[],"quick_action":{"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"show_edit_button":false},"version":"1.5.0"} as const;
 
 /** user-defined types **/
 
@@ -251,7 +249,11 @@ backend?: Backend }
  * include the version, backup's location path, games'info,
  * and the settings
  */
-export type Config = { version: string; backup_path: string; games: Game[]; settings: Settings; favorites?: FavoriteTreeNode[]; quick_action?: QuickActionsSettings }
+export type Config = { version: string; backup_path: string; games: Game[]; settings: Settings; favorites?: FavoriteTreeNode[]; quick_action?: QuickActionsSettings; 
+/**
+ * 设备ID到设备名称的映射
+ */
+devices?: Partial<{ [key in string]: Device }> }
 export type Device = { id: string; name: string }
 export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolean; children: FavoriteTreeNode[] | null }
 /**
