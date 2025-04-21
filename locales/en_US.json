@@ -52,7 +52,18 @@
     "save_game_order": "Save order",
     "unsaved_changes": "Unsaved changes",
     "hotkeys_saved": "Hotkeys saved",
-    "game_order_saved": "Order saved"
+    "game_order_saved": "Order saved",
+    "device_settings": "Device Management",
+    "current_device": "Current Device",
+    "other_devices": "Other Devices",
+    "device_name": "Device Name",
+    "device_id": "Device ID",
+    "actions": "Actions",
+    "import_paths": "Import Paths",
+    "import_paths_title": "Import Paths Confirmation",
+    "import_paths_confirm": "Are you sure you want to import all game paths from this device? This will overwrite the corresponding path settings on the current device.",
+    "import_paths_success": "Paths imported successfully",
+    "device_updated": "Device information updated"
   },
   "home": {
     "hello_world": "Hello world",
@@ -259,6 +270,9 @@
   },
   "error": {
     "open_url_failed": "Unable to open url",
+    "update_device_failed": "Failed to update device information",
+    "get_devices_failed": "Failed to get device list",
+    "import_paths_failed": "Failed to import paths",
     "config_load_failed": "Configuration file loading failed, possibly due to corrupt or non-existent configuration file",
     "choose_save_dir_error": "An error occurred while selecting the save folder",
     "choose_save_file_error": "An error occurred while selecting the save file",
@@ -334,6 +348,16 @@
   "common": {
     "save_success": "save success",
     "save": "save",
-    "cancel": "cancel"
+    "cancel": "cancel",
+    "save_failed": "save failed",
+    "confirm": "confirm"
+  },
+  "device_setup": {
+    "title": "Device Setup",
+    "device_name": "Device Name",
+    "device_name_placeholder": "Please enter device name",
+    "import_from": "Import paths from other devices",
+    "select_device": "Select Device",
+    "import_success": "Paths imported successfully"
   }
 }

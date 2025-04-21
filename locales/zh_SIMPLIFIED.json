@@ -8,7 +8,6 @@
     "submit_success": "保存修改成功",
     "abort_change": "放弃修改",
     "confirm_reset": "确认重置?",
-    "reset_settings": "恢复默认配置",
     "prompt_when_not_described": "当未描述存档时，弹出提示",
     "prompt_when_auto_backup": "当自动备份时，弹出提示",
     "exit_to_tray": "退出到托盘",
@@ -52,7 +51,18 @@
     "save_game_order": "保存游戏顺序",
     "unsaved_changes": "未保存的更改",
     "hotkeys_saved": "热键设置已更新",
-    "game_order_saved": "游戏顺序已更新"
+    "game_order_saved": "游戏顺序已更新",
+    "device_settings": "设备管理",
+    "current_device": "当前设备",
+    "other_devices": "其他设备",
+    "device_name": "设备名称",
+    "device_id": "设备ID",
+    "actions": "操作",
+    "import_paths": "导入路径",
+    "import_paths_title": "导入路径确认",
+    "import_paths_confirm": "确定要从此设备导入所有游戏路径吗？这将覆盖当前设备上的相应路径设置。",
+    "import_paths_success": "路径导入成功",
+    "device_updated": "设备信息已更新"
   },
   "home": {
     "name": "游戏存档管理器",
@@ -282,7 +292,10 @@
     "change_description_failed": "编辑描述失败",
     "open_log_folder_failed": "无法打开日志文件夹",
     "game_not_found": "找不到对应的游戏",
-    "save_config_failed": "游戏设置更新失败"
+    "save_config_failed": "游戏设置更新失败",
+    "update_device_failed": "更新设备信息失败",
+    "get_devices_failed": "获取设备列表失败",
+    "import_paths_failed": "导入路径失败"
   },
   "backend": {
     "config": {
@@ -365,6 +378,15 @@
     "save": "保存",
     "cancel": "取消修改",
     "save_success": "保存成功",
-    "save_failed": "保存失败"
+    "save_failed": "保存失败",
+    "confirm": "确认"
+  },
+  "device_setup": {
+    "title": "设备设置",
+    "device_name": "设备名称",
+    "device_name_placeholder": "请输入设备名称",
+    "import_from": "从其他设备导入路径",
+    "select_device": "选择设备",
+    "import_success": "路径导入成功"
   }
 }

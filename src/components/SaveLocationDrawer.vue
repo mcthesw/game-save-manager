@@ -3,6 +3,7 @@ import { $t } from "../i18n";
 import type { SaveUnit, Device, Game } from "../bindings";
 import { commands } from "../bindings";
 import { useNotification } from "../composables/useNotification";
+import { useConfig } from "../composables/useConfig";
 import { ref, watch } from "vue";
 import PathVariableSelector from "./PathVariableSelector.vue";
 
@@ -45,6 +46,24 @@ async function fetchCurrentDevice() {
     }
 }
 
+// 从配置中获取所有设备信息
+function getDevicesFromConfig() {
+    // 从全局配置中获取设备信息
+    const { config } = useConfig();
+    
+    // 将设备映射转换为Map以便快速查找
+    const deviceMap = new Map<string, Device>();
+    if (config.value && config.value.devices) {
+        Object.entries(config.value.devices).forEach(([id, device]) => {
+            if (device) { // 确保device不为undefined
+                deviceMap.set(id, device);
+            }
+        });
+    }
+    
+    return deviceMap;
+}
+
 // 从Game中提取所有设备ID
 function extractDeviceIdsFromSaveUnits() {
     if (!props.game) return;
@@ -75,11 +94,21 @@ function extractDeviceIdsFromSaveUnits() {
         });
     }
 
+    // 获取所有已知设备信息
+    const deviceMap = getDevicesFromConfig();
+
     // 转换为设备对象数组
     availableDevices.value = Array.from(deviceIds).map(id => {
+        // 如果是当前设备，使用当前设备信息
         if (currentDevice.value && id === currentDevice.value.id) {
             return currentDevice.value;
-        } else {
+        } 
+        // 如果在设备映射中找到，使用映射中的设备信息
+        else if (deviceMap.has(id)) {
+            return deviceMap.get(id)!;
+        } 
+        // 否则创建一个简单的设备对象
+        else {
             return {
                 id,
                 name: id.substring(0, 8) + '...' // 截取ID的前8位作为名称
