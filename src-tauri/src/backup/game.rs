@@ -1,14 +1,16 @@
-use log::{error, info};
+use log::{info, warn};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;
 use std::{collections::HashMap, fs, path};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use crate::backup::{GameSnapshots, SaveUnit, Snapshot, compress_to_file, decompress_from_file};
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_config, set_config};
 use crate::device::DeviceId;
+use crate::ipc_handler::{IpcNotification, NotificationLevel};
 use crate::preclude::*;
 
 /// A game struct contains the save units and the game's launcher
@@ -100,8 +102,19 @@ impl Game {
         if config.settings.extra_backup_when_apply {
             info!(target:"rgsm::backup::game","Creating extra backup.");
             if let Err(e) = self.create_overwrite_snapshot() {
-                error!(target:"rgsm::backup::game","Failed to create extra backup: {:?}", e);
-                return Err(BackupError::ExtraBackupFailed);
+                if let Some(app_handle) = app_handle {
+                    app_handle
+                        .emit(
+                            "Notification",
+                            IpcNotification {
+                                level: NotificationLevel::warning,
+                                title: "WARNING".to_string(),
+                                msg: t!("backend.backup.extra_backup_file_not_exist").to_string(),
+                            },
+                        )
+                        .map_err(anyhow::Error::from)?;
+                }
+                warn!(target:"rgsm::backup::game","Failed to create extra backup: {:?}", e);
             }
         }
         decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;

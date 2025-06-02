@@ -85,8 +85,6 @@ pub enum BackupError {
     NonePathError,
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
-    #[error("Cannot create extra backup")]
-    ExtraBackupFailed,
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }

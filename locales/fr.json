@@ -283,7 +283,7 @@
             "find_error_detail": "Informations complémentaires dans le journal"
         },
         "backup": {
-            "extra_backup_file_not_exist": "En raison de la non-disponibilité de la documentation, il n ' a pas été possible d ' achever la sauvegarde supplémentaire (couverture avant service) et de reprendre la suspension. Si cette fonction n'est pas requise, elle devrait être fermée dans l'établissement。",
+            "extra_backup_file_not_exist": "En raison de la non-disponibilité du fichier, la sauvegarde supplémentaire (sauvegarde avant écrasement) n'a pas pu être complétée. Si vous n'avez pas besoin de cette fonctionnalité, désactivez-la dans les paramètres.",
             "backup_file_not_exist": "le document 3% {name} n'existe pas et ne peut être soutenu ou restauré"
         },
         "archive": {

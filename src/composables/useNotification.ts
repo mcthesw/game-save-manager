@@ -79,7 +79,7 @@ let isProcessing = false
  * 不同通知类型的默认显示时长
  */
 const defaultDurations = {
-    success: 1000,
+    success: 3000,
     warning: 3000,
     error: 3000,
     info: 3000,
