@@ -109,21 +109,7 @@ pub async fn restore_snapshot(game: Game, date: String, app: AppHandle) -> Resul
     //handle_backup_err(game.restore_snapshot(&date,window), )
     info!(target:"rgsm::ipc", "Applying backup: {:?} for game: {:?}", date, game);
     game.restore_snapshot(&date, Some(&app)).map_err(|e| {
-        match &e {
-            BackupError::ExtraBackupFailed => app
-                .emit(
-                    "Notification",
-                    IpcNotification {
-                        level: NotificationLevel::error,
-                        title: "ERROR".to_string(),
-                        msg: t!("backend.backup.extra_backup_file_not_exist").to_string(),
-                    },
-                )
-                .unwrap(),
-            other => {
-                error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", other);
-            }
-        }
+        error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
         e.to_string()
     })?;
     info!(target:"rgsm::ipc", "Successfully applied backup: {:?} for game: {:?}", date, game);

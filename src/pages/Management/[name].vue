@@ -127,7 +127,7 @@ async function refresh_backups_info() {
 }
 
 async function send_save_to_background() {
-    let notify_id = showInfo({ message: $t('manage.wait_for_prompt_hint') });
+    showInfo({ message: $t('manage.wait_for_prompt_hint') });
     if (!backup_button_time_limit) {
         showError({ message: $t('manage.save_too_fast_error') });
         return;
@@ -149,7 +149,6 @@ async function send_save_to_background() {
     } else {
         showSuccess({ message: $t('manage.backup_success') });
     }
-    closeNotification(notify_id);
     backup_button_backup_limit = true;
     refresh_backups_info();
 
@@ -208,7 +207,7 @@ async function del_save(date: string) {
 }
 
 async function apply_save(date: string) {
-    let notify_id = showInfo({ message: $t('manage.wait_for_prompt_hint') });
+    showInfo({ message: $t('manage.wait_for_prompt_hint') });
 
     if (!apply_button_apply_limit) {
         showError({ message: $t('manage.last_overwrite_unfinished_error') });
@@ -226,7 +225,6 @@ async function apply_save(date: string) {
     } else {
         showSuccess({ message: $t('manage.recover_success') });
     }
-    closeNotification(notify_id);
     apply_button_apply_limit = true;
     refresh_backups_info();
 }
