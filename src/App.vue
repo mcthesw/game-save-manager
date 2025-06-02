@@ -109,9 +109,11 @@ try {
   navigateTo("/");
 }
 
-events.ipcNotification.listen((event) => {
-  let ev = event.payload;
-  switch (ev.level) {
+
+import { listen } from '@tauri-apps/api/event';
+listen('Notification', (event) => {
+  let ev = event.payload as any;
+  switch (ev.level.toLowerCase()) {
     case "info":
       showInfo({ message: ev.msg, title: ev.title });
       break;
@@ -122,7 +124,24 @@ events.ipcNotification.listen((event) => {
       showError({ message: ev.msg, title: ev.title });
       break;
   }
-});
+})
+
+// 下方代码由于 tauri-specta 的bug导致无法正常运行，因此使用上方方式替代
+// events.ipcNotification.listen((event) => {
+//   let ev = event.payload;
+//   switch (ev.level) {
+//     case "info":
+//       showInfo({ message: ev.msg, title: ev.title });
+//       break;
+//     case "warning":
+//       showWarning({ message: ev.msg, title: ev.title });
+//       break;
+//     case "error":
+//       showError({ message: ev.msg, title: ev.title });
+//       break;
+//   }
+// });
+
 </script>
 
 <template>

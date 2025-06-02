@@ -283,7 +283,7 @@
             "find_error_detail": "로그북에 더 많은 정보"
         },
         "backup": {
-            "extra_backup_file_not_exist": "문서의 비 가용성에 Owing, 그것은 추가 백업 (사전 서비스 적용)을 완료하고 서스펜션을 재개 할 수 없습니다. 이 함수가 필요하지 않은 경우, 그것은 설립에 닫아야한다。",
+            "extra_backup_file_not_exist": "파일이 존재하지 않기 때문에 추가 백업(덮어쓰기 전 백업)을 완료할 수 없습니다. 이 기능이 필요하지 않은 경우 설정에서 끄십시오.",
             "backup_file_not_exist": "document 3% {name}는 존재하지 않으며 백업되거나 복원되지 않습니다"
         },
         "archive": {

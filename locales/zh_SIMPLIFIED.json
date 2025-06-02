@@ -7,6 +7,7 @@
     "submit_settings": "保存修改",
     "submit_success": "保存修改成功",
     "abort_change": "放弃修改",
+    "reset_settings": "重置设置",
     "confirm_reset": "确认重置?",
     "prompt_when_not_described": "当未描述存档时，弹出提示",
     "prompt_when_auto_backup": "当自动备份时，弹出提示",
@@ -318,7 +319,7 @@
       "find_error_detail": "请在日志文件中查看详情"
     },
     "backup": {
-      "extra_backup_file_not_exist": "由于文件不存在，无法完成额外备份(覆盖前备份)，恢复中止。如果不需要该功能，请在设置中关闭。",
+      "extra_backup_file_not_exist": "由于文件不存在，没有完成额外备份(覆盖前备份)。如果不需要该功能，请在设置中关闭。",
       "backup_file_not_exist": "文件 %{name} 不存在，无法进行备份或恢复"
     },
     "archive": {
