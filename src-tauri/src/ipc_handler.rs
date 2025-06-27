@@ -4,6 +4,7 @@ use crate::config::{Config, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
+use crate::sound_notification::{play_notification_sound, NotificationResult, SoundType};
 use crate::{backup, config, quick_actions};
 
 use anyhow::Result;
@@ -344,6 +345,34 @@ pub async fn get_current_device_info() -> Result<Device, String> {
     })?;
 
     Ok(config.devices.get(device_id).cloned().unwrap_or_default())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn test_sound_notification(success: bool) -> Result<(), String> {
+    if success {
+        play_notification_sound(NotificationResult::Success);
+    } else {
+        play_notification_sound(NotificationResult::Error);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn test_custom_sound(path: String) -> Result<(), String> {
+    let sound_type = SoundType::Custom(path);
+    match sound_type {
+        SoundType::Custom(path) => {
+            let mut config = get_config().map_err(|e| e.to_string())?;
+            config.settings.sound_settings.success_sound = SoundType::Custom(path);
+            config.settings.sound_settings.enable_sound = true;
+            config::set_config(&config).await.map_err(|e| e.to_string())?;
+            play_notification_sound(NotificationResult::Success);
+        }
+        _ => unreachable!(),
+    }
+    Ok(())
 }
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {

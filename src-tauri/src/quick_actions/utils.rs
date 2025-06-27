@@ -6,6 +6,7 @@ use crate::{
     backup::Game,
     config::{get_config, set_config},
     preclude::*,
+    sound_notification::{play_notification_sound, NotificationResult},
 };
 
 pub async fn set_current_game(app: &AppHandle, game: Game) -> anyhow::Result<()> {
@@ -72,6 +73,7 @@ pub async fn quick_apply(t: QuickActionType) {
                 t!("backend.tray.error"),
                 format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
             );
+            play_notification_sound(NotificationResult::Error);
         }
         Ok(_) => {
             show_notification(
@@ -83,6 +85,7 @@ pub async fn quick_apply(t: QuickActionType) {
                     t!("backend.tray.success")
                 ),
             );
+            play_notification_sound(NotificationResult::Success);
         }
     }
 }
@@ -114,6 +117,7 @@ pub async fn quick_backup(t: QuickActionType) {
                 t!("backend.tray.error"),
                 format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
             );
+            play_notification_sound(NotificationResult::Error);
         }
         Ok(_) => {
             // 根据设置决定是否显示通知
@@ -131,6 +135,7 @@ pub async fn quick_backup(t: QuickActionType) {
                     t!("backend.tray.success")
                 ),
             );
+            play_notification_sound(NotificationResult::Success);
         }
     }
 }
@@ -141,6 +146,7 @@ fn show_no_game_selected_error() {
         t!("backend.tray.error"),
         t!("backend.tray.no_game_selected"),
     );
+    play_notification_sound(NotificationResult::Error);
 }
 
 pub fn get_quick_action_game() -> Option<Game> {

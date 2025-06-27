@@ -4,6 +4,7 @@ use specta::Type;
 use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::preclude::*;
+use crate::sound_notification::SoundSettings;
 
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -32,6 +33,8 @@ pub struct Settings {
     pub log_to_file: bool,
     #[serde(default = "default_value::default_false")]
     pub add_new_to_favorites: bool,
+    #[serde(default = "default_value::default")]
+    pub sound_settings: SoundSettings,
 }
 
 impl Default for Settings {
@@ -49,6 +52,7 @@ impl Default for Settings {
             home_page: default_value::default_home_page(),
             log_to_file: default_value::default_true(),
             add_new_to_favorites: default_value::default_false(),
+            sound_settings: SoundSettings::default(),
         }
     }
 }

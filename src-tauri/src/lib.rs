@@ -24,6 +24,7 @@ mod ipc_handler;
 mod path_resolver;
 mod preclude;
 mod quick_actions;
+mod sound_notification;
 mod updater;
 
 pub fn run() -> anyhow::Result<()> {
@@ -79,6 +80,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
+            ipc_handler::test_sound_notification,
+            ipc_handler::test_custom_sound,
         ])
         .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());
