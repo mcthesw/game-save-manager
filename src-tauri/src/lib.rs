@@ -20,6 +20,7 @@ mod cloud_sync;
 mod config;
 mod default_value;
 mod device;
+mod http_server;
 mod ipc_handler;
 mod path_resolver;
 mod preclude;
@@ -79,6 +80,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
+            ipc_handler::get_http_server_settings,
+            ipc_handler::set_http_server_settings,
         ])
         .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());
@@ -122,6 +125,15 @@ pub fn run() -> anyhow::Result<()> {
             quick_actions::setup(app).expect("Cannot setup quick actions");
             // 注册命令
             command_builder.mount_events(app);
+            
+            // Start HTTP server if enabled
+            let app_handle = app.handle().clone();
+            tokio::spawn(async move {
+                if let Err(e) = http_server::start_server(app_handle).await {
+                    error!(target: "rgsm::main", "Failed to start HTTP server: {}", e);
+                }
+            });
+            
             Ok(())
         });
 

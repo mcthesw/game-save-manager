@@ -23,6 +23,21 @@ pub fn default_backend() -> Backend {
 pub fn default_locale() -> String {
     "zh_SIMPLIFIED".to_owned()
 }
+pub fn default_http_host() -> String {
+    "127.0.0.1".to_string()
+}
+pub fn default_http_port() -> u16 {
+    8080
+}
+pub fn default_http_api_key() -> String {
+    // Generate a random API key
+    use rand::{distributions::Alphanumeric, Rng};
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect()
+}
 pub fn empty_vec<T>() -> Vec<T> {
     Vec::new()
 }

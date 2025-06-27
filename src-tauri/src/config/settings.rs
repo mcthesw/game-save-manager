@@ -5,6 +5,30 @@ use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::preclude::*;
 
+/// HTTP server settings
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct HttpServerSettings {
+    #[serde(default = "default_value::default_false")]
+    pub enabled: bool,
+    #[serde(default = "default_value::default_http_host")]
+    pub host: String,
+    #[serde(default = "default_value::default_http_port")]
+    pub port: u16,
+    #[serde(default = "default_value::default_http_api_key")]
+    pub api_key: String,
+}
+
+impl Default for HttpServerSettings {
+    fn default() -> Self {
+        Self {
+            enabled: default_value::default_false(),
+            host: default_value::default_http_host(),
+            port: default_value::default_http_port(),
+            api_key: default_value::default_http_api_key(),
+        }
+    }
+}
+
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Settings {
@@ -32,6 +56,8 @@ pub struct Settings {
     pub log_to_file: bool,
     #[serde(default = "default_value::default_false")]
     pub add_new_to_favorites: bool,
+    #[serde(default = "default_value::default")]
+    pub http_server: HttpServerSettings,
 }
 
 impl Default for Settings {
@@ -49,6 +75,7 @@ impl Default for Settings {
             home_page: default_value::default_home_page(),
             log_to_file: default_value::default_true(),
             add_new_to_favorites: default_value::default_false(),
+            http_server: HttpServerSettings::default(),
         }
     }
 }
@@ -59,5 +86,11 @@ impl Sanitizable for Settings {
             cloud_settings: self.cloud_settings.sanitize(),
             ..self
         }
+    }
+}
+
+impl Sanitizable for HttpServerSettings {
+    fn sanitize(self) -> Self {
+        self
     }
 }
