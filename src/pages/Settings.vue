@@ -5,7 +5,7 @@ import { $t, i18n } from "../i18n";
 import { ElMessageBox, ElOption } from "element-plus";
 import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
-import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled, Document, Unlock, Moon, Tools } from "@element-plus/icons-vue";
+import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled, Document, Unlock, Moon, Tools, Connection } from "@element-plus/icons-vue";
 import HotkeySelector from "../components/HotkeySelector.vue";
 import { useDark } from '@vueuse/core'
 import { commands } from "~/bindings";
@@ -505,10 +505,57 @@ const router_list = computed(() => {
                         </div>
                     </div>
                 </el-tab-pane>
+                
+                <!-- HTTP API 设置 -->
+                <el-tab-pane :label="$t('settings.http_api')" name="httpApi">
+                    <el-divider content-position="left">
+                        <el-icon>
+                            <Connection />
+                        </el-icon>
+                        <span class="tab-title">{{ $t('settings.http_api') }}</span>
+                    </el-divider>
+
+                    <div class="setting-box">
+                        <ElSwitch v-model="config.settings.http_server.enabled" />
+                        <span class="setting-label">{{ $t("settings.enable_http_server") }}*</span>
+                    </div>
+                    
+                    <div class="setting-box">
+                        <el-input v-model="config.settings.http_server.host" :placeholder="$t('settings.http_host_placeholder')" />
+                        <span class="setting-label">{{ $t("settings.http_host") }}</span>
+                    </div>
+                    
+                    <div class="setting-box">
+                        <el-input-number v-model="config.settings.http_server.port" :min="1" :max="65535" />
+                        <span class="setting-label">{{ $t("settings.http_port") }}</span>
+                    </div>
+                    
+                    <div class="setting-box">
+                        <el-input v-model="config.settings.http_server.api_key" :placeholder="$t('settings.http_api_key_placeholder')" show-password />
+                        <span class="setting-label">{{ $t("settings.http_api_key") }}</span>
+                    </div>
+                    
+                    <div class="setting-note">
+                        <el-alert
+                            :title="$t('settings.http_api_note')"
+                            type="info"
+                            :description="$t('settings.http_api_description')"
+                            show-icon
+                            :closable="false"
+                        />
+                    </div>
+                </el-tab-pane>
             </el-tabs>
         </el-card>
     </el-container>
 </template>
+
+<style scoped>
+.setting-note {
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+</style>
 
 <style scoped>
 .el-button {
