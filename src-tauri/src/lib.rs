@@ -80,8 +80,6 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
-            ipc_handler::get_http_server_settings,
-            ipc_handler::set_http_server_settings,
         ])
         .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());

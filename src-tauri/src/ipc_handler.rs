@@ -5,7 +5,6 @@ use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
 use crate::{backup, config, quick_actions};
-use crate::config::settings::HttpServerSettings;
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -347,38 +346,7 @@ pub async fn get_current_device_info() -> Result<Device, String> {
     Ok(config.devices.get(device_id).cloned().unwrap_or_default())
 }
 
-/// Get HTTP server settings
-#[tauri::command]
-#[specta::specta]
-pub async fn get_http_server_settings() -> Result<HttpServerSettings, String> {
-    info!(target:"rgsm::ipc", "Getting HTTP server settings");
-    
-    let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
-        e.to_string()
-    })?;
-    
-    Ok(config.settings.http_server)
-}
 
-/// Update HTTP server settings
-#[tauri::command]
-#[specta::specta]
-pub async fn set_http_server_settings(settings: HttpServerSettings) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Setting HTTP server settings: {:?}", settings);
-    
-    let mut config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
-        e.to_string()
-    })?;
-    
-    config.settings.http_server = settings;
-    
-    config::set_config(&config).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
-        e.to_string()
-    })
-}
 
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
