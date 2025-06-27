@@ -126,11 +126,18 @@ pub fn run() -> anyhow::Result<()> {
             
             // Start HTTP server if enabled
             let app_handle = app.handle().clone();
-            tokio::spawn(async move {
-                if let Err(e) = http_server::start_server(app_handle).await {
-                    error!(target: "rgsm::main", "Failed to start HTTP server: {}", e);
-                }
-            });
+            let config = get_config().unwrap_or_default();
+            
+            if config.settings.http_server.enabled {
+                info!(target: "rgsm::main", "Starting HTTP server...");
+                tokio::spawn(async move {
+                    if let Err(e) = http_server::start_server(app_handle).await {
+                        error!(target: "rgsm::main", "Failed to start HTTP server: {}", e);
+                    }
+                });
+            } else {
+                info!(target: "rgsm::main", "HTTP server is disabled");
+            }
             
             Ok(())
         });
