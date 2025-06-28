@@ -73,7 +73,7 @@ async function check() {
         await commands.checkCloudBackend(webdav_settings.value)
         showSuccess({ message: $t("sync_settings.test_success") })
       } catch (err) {
-        showError({ message: $t("sync_settings.test_failed") })
+        showError({ message: `${$t("sync_settings.test_failed")}: ${err}` })
         error(`WebDAV test error: ${err}`)
       }
       break
@@ -86,7 +86,7 @@ async function check() {
         await commands.checkCloudBackend(s3_settings.value)
         showSuccess({ message: $t("sync_settings.test_success") })
       } catch (err) {
-        showError({ message: $t("sync_settings.test_failed") })
+        showError({ message: `${$t("sync_settings.test_failed")}: ${err}` })
         error(`S3 test error: ${err}`)
       }
       break;
@@ -137,7 +137,7 @@ async function submit_settings() {
     await load_config();
   } catch (e) {
     error(`Failed to set config: ${e}`);
-    showError({ message: $t("error.set_config_failed") });
+    showError({ message: `${$t("error.set_config_failed")}: ${e}` });
   }
 }
 function abort_change() {
@@ -163,7 +163,7 @@ async function upload_all() {
     showSuccess({ message: $t("sync_settings.upload_success") });
   } catch (err) {
     if (err instanceof Error) {
-      showError({ message: $t("sync_settings.upload_failed") });
+      showError({ message: `${$t("sync_settings.upload_failed")}: ${err.message}` });
       console.error("Upload error:", err);
     } else {
       showInfo({ message: $t("sync_settings.canceled") });
@@ -188,7 +188,7 @@ async function download_all() {
     showSuccess({ message: $t("sync_settings.download_success") });
   } catch (e) {
     if (e instanceof Error) {
-      showError({ message: $t("sync_settings.download_failed") });
+      showError({ message: `${$t("sync_settings.download_failed")}: ${e.message}` });
       error(`Download error: ${e}`);
     } else {
       showInfo({ message: $t("sync_settings.canceled") });
@@ -200,7 +200,7 @@ function open_manual() {
   try { commands.openUrl("https://help.sworld.club/docs/extras/cloud") }
   catch (e) {
     error(`open manual error: ${e}`)
-    showError({ message: $t("error.open_url_failed") })
+    showError({ message: `${$t("error.open_url_failed")}: ${e}` })
   }
 }
 </script>
