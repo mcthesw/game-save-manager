@@ -69,12 +69,12 @@ async function check() {
         // 去掉末尾的斜杠，防止出现重复的斜杠
         webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
       }
-      try {
-        await commands.checkCloudBackend(webdav_settings.value)
-        showSuccess({ message: $t("sync_settings.test_success") })
-      } catch (err) {
+      const webdavResult = await commands.checkCloudBackend(webdav_settings.value)
+      if (webdavResult.status === "error") {
         showError({ message: $t("sync_settings.test_failed") })
-        error(`WebDAV test error: ${err}`)
+        error(`WebDAV test error: ${webdavResult.error}`)
+      } else {
+        showSuccess({ message: $t("sync_settings.test_success") })
       }
       break
     case "S3":
@@ -82,12 +82,12 @@ async function check() {
         // 去掉末尾的斜杠，防止出现重复的斜杠
         s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
       }
-      try {
-        await commands.checkCloudBackend(s3_settings.value)
-        showSuccess({ message: $t("sync_settings.test_success") })
-      } catch (err) {
+      const s3Result = await commands.checkCloudBackend(s3_settings.value)
+      if (s3Result.status === "error") {
         showError({ message: $t("sync_settings.test_failed") })
-        error(`S3 test error: ${err}`)
+        error(`S3 test error: ${s3Result.error}`)
+      } else {
+        showSuccess({ message: $t("sync_settings.test_success") })
       }
       break;
     default:
@@ -158,16 +158,16 @@ async function upload_all() {
       }
     );
 
-    // TODO: 错误处理
-    await commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!);
-    showSuccess({ message: $t("sync_settings.upload_success") });
-  } catch (err) {
-    if (err instanceof Error) {
+    const result = await commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!);
+    if (result.status === "error") {
       showError({ message: $t("sync_settings.upload_failed") });
-      console.error("Upload error:", err);
+      error(`Upload error: ${result.error}`);
     } else {
-      showInfo({ message: $t("sync_settings.canceled") });
+      showSuccess({ message: $t("sync_settings.upload_success") });
     }
+  } catch (err) {
+    // 这里处理的是 ElMessageBox.prompt 的取消操作
+    showInfo({ message: $t("sync_settings.canceled") });
   }
 }
 
@@ -183,23 +183,24 @@ async function download_all() {
         inputErrorMessage: $t('sync_settings.invalid_input_error'),
       }
     );
-    
-    await commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!);
-    showSuccess({ message: $t("sync_settings.download_success") });
-  } catch (e) {
-    if (e instanceof Error) {
+
+    const result = await commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!);
+    if (result.status === "error") {
       showError({ message: $t("sync_settings.download_failed") });
-      error(`Download error: ${e}`);
+      error(`Download error: ${result.error}`);
     } else {
-      showInfo({ message: $t("sync_settings.canceled") });
+      showSuccess({ message: $t("sync_settings.download_success") });
     }
+  } catch (e) {
+    // 这里处理的是 ElMessageBox.prompt 的取消操作
+    showInfo({ message: $t("sync_settings.canceled") });
   }
 }
 
-function open_manual() {
-  try { commands.openUrl("https://help.sworld.club/docs/extras/cloud") }
-  catch (e) {
-    error(`open manual error: ${e}`)
+async function open_manual() {
+  const result = await commands.openUrl("https://help.sworld.club/docs/extras/cloud")
+  if (result.status === "error") {
+    error(`open manual error: ${result.error}`)
     showError({ message: $t("error.open_url_failed") })
   }
 }

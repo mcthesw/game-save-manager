@@ -69,7 +69,9 @@ fn migrate_config(content: &str, version: &Version) -> Result<Config, UpdaterErr
         Ok(Config::from(old_cfg))
     } else {
         // Try direct deserialization for compatible versions
-        Ok(serde_json::from_str(content)?)
+        let mut new_cfg: Config = serde_json::from_str(content)?;
+        new_cfg.version = CURRENT_VERSION.to_string();
+        Ok(new_cfg)
     }
 }
 
