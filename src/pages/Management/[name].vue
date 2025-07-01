@@ -251,8 +251,11 @@ async function change_describe(date: string) {
 async function load_latest_save() {
     // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
     if (table_data.value[table_data.value.length - 1].date) {
-        // 如果设置了需要确认，则显示确认对话框
-        if (config.value.settings.prompt_when_quick_restore) {
+        // 检查localStorage中是否设置了不再提示
+        const skipConfirm = localStorage.getItem('gsm_skip_quick_restore_confirm') === 'true';
+        
+        // 如果没有设置不再提示，则显示确认对话框
+        if (!skipConfirm) {
             try {
                 const { action, checked } = await ElMessageBox.confirm(
                     $t('manage.quick_restore_confirm_message'),
@@ -268,10 +271,9 @@ async function load_latest_save() {
                     }
                 );
                 
-                // 如果用户勾选了"不再提示"，则更新设置
+                // 如果用户勾选了"不再提示"，则保存到localStorage
                 if (checked) {
-                    config.value.settings.prompt_when_quick_restore = false;
-                    await saveConfig();
+                    localStorage.setItem('gsm_skip_quick_restore_confirm', 'true');
                 }
                 
                 // 用户确认后执行恢复操作
@@ -283,7 +285,7 @@ async function load_latest_save() {
                 info(`User cancelled the quick restore operation.`);
             }
         } else {
-            // 如果不需要确认，直接恢复
+            // 如果设置了不再提示，直接恢复
             apply_save(table_data.value[table_data.value.length - 1].date);
         }
     } else {
