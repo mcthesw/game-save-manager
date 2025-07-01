@@ -141,7 +141,12 @@
     "available_devices": "可用设备",
     "enter_device_id": "请输入设备ID",
     "select_device_placeholder": "选择设备",
-    "paths_copied_success": "存档路径复制成功"
+    "paths_copied_success": "存档路径复制成功",
+    "load_latest_save_warning_title": "确认恢复最新快照",
+    "load_latest_save_warning_message": "此操作将会覆盖当前存档。如果您开启了额外备份功能，当前存档会在对应位置产生备份。",
+    "dont_show_again": "不再提示",
+    "confirm_restore": "确认恢复",
+    "keep_showing": "继续提示"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",

@@ -141,7 +141,12 @@
     "available_devices": "Available devices",
     "enter_device_id": "Enter device ID",
     "select_device_placeholder": "Select device",
-    "paths_copied_success": "Save paths copied successfully"
+    "paths_copied_success": "Save paths copied successfully",
+    "load_latest_save_warning_title": "Confirm Restore Latest Snapshot",
+    "load_latest_save_warning_message": "This operation will overwrite the current save. If you have enabled extra backup, the current save will be backed up at the corresponding location.",
+    "dont_show_again": "Don't show again",
+    "confirm_restore": "Confirm Restore",
+    "keep_showing": "Keep showing"
   },
   "addgame": {
     "search_local": "Detect local games",

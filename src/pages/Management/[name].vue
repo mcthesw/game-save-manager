@@ -12,6 +12,9 @@ let { showInfo, showError, showSuccess, closeNotification } = useNotification();
 let { config, refreshConfig, saveConfig } = useConfig();
 let router = useRouter();
 let route = useRoute();
+
+// localStorage key for storing user preference about load latest save warning
+const LOAD_LATEST_SAVE_WARNING_KEY = 'gsm_load_latest_save_warning_disabled';
 const top_buttons = [
     { text: $t('manage.create_new_save'), method: create_new_save },
     { text: $t('manage.load_latest_save'), method: load_latest_save },
@@ -248,13 +251,58 @@ async function change_describe(date: string) {
     }
 }
 
-function load_latest_save() {
+async function load_latest_save() {
     // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
-    if (table_data.value[table_data.value.length - 1].date) {
-        apply_save(table_data.value[table_data.value.length - 1].date);
-    } else {
+    if (!table_data.value[table_data.value.length - 1].date) {
         showError({ message: $t('manage.no_backup_error') });
+        return;
     }
+
+    // 检查用户是否已经选择不再显示警告
+    const warningDisabled = localStorage.getItem(LOAD_LATEST_SAVE_WARNING_KEY) === 'true';
+    
+    if (!warningDisabled) {
+        try {
+            // 显示确认对话框
+            await ElMessageBox.confirm(
+                $t('manage.load_latest_save_warning_message'),
+                $t('manage.load_latest_save_warning_title'),
+                {
+                    confirmButtonText: $t('manage.confirm_restore'),
+                    cancelButtonText: $t('manage.cancel'),
+                    type: 'warning',
+                    showCancelButton: true,
+                    closeOnClickModal: false,
+                    closeOnPressEscape: false
+                }
+            );
+            
+            // 如果用户确认，询问是否不再提示
+            try {
+                await ElMessageBox.confirm(
+                    $t('manage.dont_show_again') + '?',
+                    $t('manage.load_latest_save_warning_title'),
+                    {
+                        confirmButtonText: $t('manage.dont_show_again'),
+                        cancelButtonText: $t('manage.keep_showing'),
+                        type: 'info',
+                        showCancelButton: true
+                    }
+                );
+                // 用户选择不再提示
+                localStorage.setItem(LOAD_LATEST_SAVE_WARNING_KEY, 'true');
+            } catch (e) {
+                // 用户选择继续显示提示，不做任何操作
+            }
+        } catch (e) {
+            // 用户取消了操作
+            info('User cancelled the load latest save operation.');
+            return;
+        }
+    }
+    
+    // 执行恢复操作
+    apply_save(table_data.value[table_data.value.length - 1].date);
 }
 
 async function del_cur() {
