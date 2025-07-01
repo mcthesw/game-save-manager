@@ -388,6 +388,10 @@ const router_list = computed(() => {
                         <span class="setting-label">{{ $t("settings.extra_backup_when_apply") }}</span>
                     </div>
                     <div class="setting-box">
+                        <ElSwitch v-model="config.settings.prompt_when_quick_restore" />
+                        <span class="setting-label">{{ $t("settings.prompt_when_quick_restore") }}</span>
+                    </div>
+                    <div class="setting-box">
                         <ElSwitch v-model="config.settings.default_delete_before_apply" />
                         <span class="setting-label">{{ $t("settings.default_delete_before_apply") }}</span>
                     </div>

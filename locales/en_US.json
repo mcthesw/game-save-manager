@@ -11,6 +11,7 @@
     "reset_settings": "Restore default",
     "prompt_when_not_described": "When there is no describe for a save, a prompt pops up",
     "prompt_when_auto_backup": "When automatic backup occurs, a prompt pops up",
+    "prompt_when_quick_restore": "Show confirmation prompt when quick restoring a save",
     "exit_to_tray": "Minimize to tray",
     "extra_backup_when_apply": "Perform extra backups before apply (in the./save_data/game name/extra_backup folder)",
     "enable_dark_mode": "Dark mode",
@@ -86,6 +87,9 @@
   "manage": {
     "create_new_save": "Create new snapshot",
     "load_latest_save": "Overwrite with the latest snapshot",
+    "quick_restore_confirm_title": "Confirm Restore",
+    "quick_restore_confirm_message": "This action will overwrite your current save. If extra backup is enabled, a backup will be created in the corresponding location.",
+    "quick_restore_confirm_checkbox": "Don't show again",
     "launch_game": "Start game",
     "open_backup_folder": "Open backup folder",
     "show_drawer": "View managed files",

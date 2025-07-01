@@ -248,10 +248,44 @@ async function change_describe(date: string) {
     }
 }
 
-function load_latest_save() {
+async function load_latest_save() {
     // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
     if (table_data.value[table_data.value.length - 1].date) {
-        apply_save(table_data.value[table_data.value.length - 1].date);
+        // 如果设置了需要确认，则显示确认对话框
+        if (config.value.settings.prompt_when_quick_restore) {
+            try {
+                const { action, checked } = await ElMessageBox.confirm(
+                    $t('manage.quick_restore_confirm_message'),
+                    $t('manage.quick_restore_confirm_title'),
+                    {
+                        confirmButtonText: $t('manage.confirm'),
+                        cancelButtonText: $t('manage.cancel'),
+                        type: 'warning',
+                        showClose: false,
+                        distinguishCancelAndClose: true,
+                        showCancelButton: true,
+                        checkboxLabel: $t('manage.quick_restore_confirm_checkbox')
+                    }
+                );
+                
+                // 如果用户勾选了"不再提示"，则更新设置
+                if (checked) {
+                    config.value.settings.prompt_when_quick_restore = false;
+                    await saveConfig();
+                }
+                
+                // 用户确认后执行恢复操作
+                if (action === 'confirm') {
+                    apply_save(table_data.value[table_data.value.length - 1].date);
+                }
+            } catch (e) {
+                // 用户取消操作，不执行任何动作
+                info(`User cancelled the quick restore operation.`);
+            }
+        } else {
+            // 如果不需要确认，直接恢复
+            apply_save(table_data.value[table_data.value.length - 1].date);
+        }
     } else {
         showError({ message: $t('manage.no_backup_error') });
     }
