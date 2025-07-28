@@ -1,6 +1,6 @@
 [package]
 name = "rgsm"
-version = "1.5.2"
+version = "1.5.3"
 description = "A user friendly game save manager"
 authors = ["Sworld"]
 license = ""
