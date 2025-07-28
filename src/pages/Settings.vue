@@ -296,7 +296,7 @@ const router_list = computed(() => {
         { text: $t("sidebar.about"), link: "/About", icon: InfoFilled },
     ]
     config.value?.games.forEach((game) => {
-        link_list.push({ text: game.name, link: `/management/${game.name}`, icon: SwitchFilled })
+        link_list.push({ text: game.name, link: `/Management/${game.name}`, icon: SwitchFilled })
     })
     return link_list
 })
