@@ -199,7 +199,7 @@ pub fn menu_event_handler(app: &AppHandle, event: MenuEvent) {
 
                 if let Some(duration) = parsed_duration {
                     let state: State<Arc<AutoBackupDuration>> = app.state();
-                    state.store(duration, Ordering::Relaxed);
+                    state.store(duration, Ordering::Release);
 
                     if let Some(menu_state) = app.try_state::<Arc<AutoBackupMenuState>>() {
                         menu_state.mark_selected(duration);
