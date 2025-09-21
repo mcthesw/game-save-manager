@@ -46,6 +46,9 @@ lerna-debug.log*
 # auto-generated files
 components.d.ts
 auto-imports.d.ts
+
+# agent
+.claude
 .aider*
 .cursor*
 .windsurf*
