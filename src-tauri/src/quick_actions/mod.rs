@@ -8,6 +8,7 @@ use utils::*;
 use hotkeys::setup_hotkeys;
 pub use timer::AutoBackupDuration;
 use timer::setup_timer;
+pub use tray::AutoBackupMenuState;
 use tray::setup_tray;
 pub use utils::set_current_game;
 
