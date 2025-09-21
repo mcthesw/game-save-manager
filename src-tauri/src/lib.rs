@@ -116,6 +116,7 @@ pub fn run() -> anyhow::Result<()> {
             // 自动备份间隔，启动时默认为无（不自动备份）
             quick_actions::AutoBackupDuration::new(0),
         ))
+        .manage(Arc::new(quick_actions::AutoBackupMenuState::default()))
         .invoke_handler(command_builder.invoke_handler())
         .setup(move |app| {
             // 处理快捷备份，包括托盘、定时、快捷键
