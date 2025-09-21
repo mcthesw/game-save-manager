@@ -39,7 +39,7 @@ pub enum BackendError {
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
     #[error("Opendal error: {0:#?}")]
-    Cloud(#[from] opendal::Error),
+    Cloud(Box<opendal::Error>),
     #[error("Cannot read cloud file: {0:#?}")]
     ReadCloudInfo(#[from] FromUtf8Error),
     #[error("Deserialize error: {0:#?}")]
@@ -49,11 +49,18 @@ pub enum BackendError {
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
+impl From<opendal::Error> for BackendError {
+    fn from(value: opendal::Error) -> Self {
+        Self::Cloud(Box::new(value))
+    }
+}
+
 impl From<ConfigError> for BackendError {
     fn from(e: ConfigError) -> Self {
         match e {
             ConfigError::Io(e) => Self::Io(e),
             ConfigError::Deserialize(e) => Self::Deserialize(e),
+            ConfigError::Backend(inner) => *inner,
             other => Self::Unexpected(other.into()),
         }
     }
@@ -63,6 +70,7 @@ impl From<BackupError> for BackendError {
         match e {
             BackupError::Io(e) => Self::Io(e),
             BackupError::Deserialize(e) => Self::Deserialize(e),
+            BackupError::Backend(inner) => *inner,
             other => Self::Unexpected(other.into()),
         }
     }
@@ -76,7 +84,7 @@ pub enum BackupError {
     #[error("No backups available")]
     NoBackupAvailable,
     #[error("Backend error: {0:#?}")]
-    Backend(#[from] BackendError),
+    Backend(Box<BackendError>),
     #[error("Compress/Decompress error: {0:#?}")]
     Compress(#[from] CompressError),
     #[error("Deserialize error: {0:#?}")]
@@ -90,9 +98,15 @@ pub enum BackupError {
 }
 impl From<opendal::Error> for BackupError {
     fn from(e: opendal::Error) -> Self {
-        Self::Backend(BackendError::Cloud(e))
+        Self::Backend(Box::new(BackendError::from(e)))
     }
 }
+impl From<BackendError> for BackupError {
+    fn from(value: BackendError) -> Self {
+        Self::Backend(Box::new(value))
+    }
+}
+
 impl From<ConfigError> for BackupError {
     fn from(e: ConfigError) -> Self {
         match e {
@@ -103,6 +117,12 @@ impl From<ConfigError> for BackupError {
     }
 }
 
+impl From<BackendError> for ConfigError {
+    fn from(value: BackendError) -> Self {
+        Self::Backend(Box::new(value))
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ConfigError {
     #[error("Deserialize error: {0:#?}")]
@@ -110,7 +130,7 @@ pub enum ConfigError {
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
     #[error("Backend error: {0:#?}")]
-    Backend(#[from] BackendError),
+    Backend(Box<BackendError>),
     #[error("Tauri error: {0:#?}")]
     Tauri(#[from] tauri::Error),
     #[error(transparent)]
