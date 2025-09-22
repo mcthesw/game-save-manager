@@ -245,6 +245,68 @@ async function importFromDevice(deviceId: string) {
     }
 }
 
+// 删除设备
+async function deleteDevice(deviceId: string) {
+    if (!config.value || !config.value.devices) {
+        showError({ message: $t('settings.delete_device_failed') });
+        return;
+    }
+
+    if (currentDevice.value?.id === deviceId) {
+        showError({ message: $t('settings.delete_device_failed') });
+        return;
+    }
+
+    const targetDevice = config.value.devices[deviceId];
+    if (!targetDevice) {
+        showError({ message: $t('settings.delete_device_failed') });
+        return;
+    }
+
+    try {
+        await ElMessageBox.confirm(
+            `${$t('settings.delete_device_confirm_message')}
+
+${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
+            $t('settings.delete_device_confirm_title'),
+            {
+                confirmButtonText: $t('settings.confirm'),
+                cancelButtonText: $t('settings.cancel'),
+                type: 'warning',
+            }
+        );
+    } catch {
+        showInfo({ message: $t('settings.operation_canceled') });
+        return;
+    }
+
+    try {
+        delete config.value.devices[deviceId];
+
+        if (Array.isArray(config.value.games)) {
+            for (const game of config.value.games) {
+                if (game.game_paths && deviceId in game.game_paths) {
+                    delete game.game_paths[deviceId];
+                }
+
+                for (const saveUnit of game.save_paths || []) {
+                    if (saveUnit.paths && deviceId in saveUnit.paths) {
+                        delete saveUnit.paths[deviceId];
+                    }
+                }
+            }
+        }
+
+        await saveConfig();
+        showSuccess({ message: $t('settings.delete_device_success') });
+        await fetchDeviceInfo();
+    } catch (e) {
+        error(`Error deleting device ${deviceId}: ${e}`);
+        await refreshConfig();
+        showError({ message: $t('settings.delete_device_failed') });
+    }
+}
+
 // 监听快捷键变更
 watch(
     () => config.value.quick_action?.hotkeys,
@@ -446,6 +508,9 @@ const router_list = computed(() => {
                                 <template #default="scope">
                                     <el-button @click="importFromDevice(scope.row.id)" type="primary" size="small">
                                         {{ $t('settings.import_paths') }}
+                                    </el-button>
+                                    <el-button @click="deleteDevice(scope.row.id)" type="danger" size="small" plain>
+                                        {{ $t('settings.delete_device') }}
                                     </el-button>
                                 </template>
                             </el-table-column>

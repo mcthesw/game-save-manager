@@ -63,7 +63,12 @@
     "import_paths_title": "导入路径确认",
     "import_paths_confirm": "确定要从此设备导入所有游戏路径吗？这将覆盖当前设备上的相应路径设置。",
     "import_paths_success": "路径导入成功",
-    "device_updated": "设备信息已更新"
+    "device_updated": "设备信息已更新",
+    "delete_device": "删除设备",
+    "delete_device_confirm_title": "删除设备确认",
+    "delete_device_confirm_message": "删除该设备将移除所有与其关联的存档路径和游戏设置，此操作不可撤销，确认继续？",
+    "delete_device_success": "设备已删除",
+    "delete_device_failed": "删除设备失败"
   },
   "home": {
     "name": "游戏存档管理器",
