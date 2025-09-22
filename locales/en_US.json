@@ -63,7 +63,12 @@
     "import_paths_title": "Import Paths Confirmation",
     "import_paths_confirm": "Are you sure you want to import all game paths from this device? This will overwrite the corresponding path settings on the current device.",
     "import_paths_success": "Paths imported successfully",
-    "device_updated": "Device information updated"
+    "device_updated": "Device information updated",
+    "delete_device": "Delete Device",
+    "delete_device_confirm_title": "Delete Device Confirmation",
+    "delete_device_confirm_message": "Deleting this device will remove all save path mappings and game-specific overrides associated with it. This action cannot be undone. Continue?",
+    "delete_device_success": "Device removed successfully",
+    "delete_device_failed": "Failed to remove device"
   },
   "home": {
     "hello_world": "Hello world",
