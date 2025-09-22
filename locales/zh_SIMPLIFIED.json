@@ -33,7 +33,7 @@
     "failed": "操作失败",
     "operation_canceled": "您取消了这次操作",
     "default_expend_favorites_tree": "是否默认展开收藏夹",
-    "save_list_expand_behavior": "存档列表展开方式",
+    "save_list_expand_behavior": "游戏列表展开方式",
     "save_list_expand_behavior_default_open": "默认展开",
     "save_list_expand_behavior_default_closed": "默认折叠",
     "save_list_expand_behavior_remember_last": "记住上次状态",
