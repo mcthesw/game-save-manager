@@ -1,23 +1,6 @@
+use crate::{backup::Game, config::get_config, preclude::*};
 use log::{error, info, warn};
 use rust_i18n::t;
-use tauri::AppHandle;
-
-use crate::{
-    backup::Game,
-    config::{get_config, set_config},
-    preclude::*,
-};
-
-pub async fn set_current_game(app: &AppHandle, game: Game) -> anyhow::Result<()> {
-    info!(target:"rgsm::tray","Setting current quick backup game:{}",game.name);
-    app.tray_by_id("tray_icon")
-        .ok_or(anyhow::anyhow!("Cannot get tray"))?
-        .set_title(Some(&game.name))?;
-    let mut config = get_config().expect("Cannot get config");
-    config.quick_action.quick_action_game = Some(game);
-    set_config(&config).await.expect("Cannot set config");
-    Ok(())
-}
 
 #[derive(Debug, PartialEq)]
 pub enum QuickActionType {

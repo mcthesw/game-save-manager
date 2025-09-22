@@ -32,7 +32,7 @@ zip = "2.4.2"
 open = "5.3.2"
 chrono = "0.4.40"
 thiserror = "2.0.12"
-tokio = "1.44.2"
+tokio = { version = "1.44.2", features = ["full"] }
 tauri-plugin-dialog = "2.2.0"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
@@ -48,3 +48,4 @@ machine-uid = "0.5.3"
 tauri-plugin-global-shortcut = "2.2.0"
 tauri-plugin-single-instance = "2.2.2"
 tauri-plugin-window-state = "2"
+
