@@ -10,7 +10,6 @@ use config::get_config;
 use tauri::Manager;
 
 use log::{error, info};
-use std::sync::Arc;
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 use crate::config::config_check;
@@ -112,11 +111,6 @@ pub fn run() -> anyhow::Result<()> {
                 .expect("failed to set focus");
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .manage(Arc::new(
-            // 自动备份间隔，启动时默认为无（不自动备份）
-            quick_actions::AutoBackupDuration::new(0),
-        ))
-        .manage(Arc::new(quick_actions::AutoBackupMenuState::default()))
         .invoke_handler(command_builder.invoke_handler())
         .setup(move |app| {
             // 处理快捷备份，包括托盘、定时、快捷键

@@ -1,80 +1,35 @@
-use std::sync::atomic::Ordering;
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use log::{info, warn};
+use log::info;
 use tauri::{
     AppHandle, Manager, State, Wry,
-    menu::{
-        CheckMenuItem, CheckMenuItemBuilder, MenuBuilder, MenuEvent, MenuItemBuilder,
-        SubmenuBuilder,
-    },
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     utils::config::WindowConfig,
 };
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
-use crate::config::get_config;
-
-use super::{AutoBackupDuration, QuickActionType, quick_apply, quick_backup};
+use super::{QuickActionManager, QuickActionType};
 
 use rust_i18n::t;
 
-#[derive(Default)]
-pub struct AutoBackupMenuState {
-    items: Mutex<HashMap<u32, CheckMenuItem<Wry>>>,
-}
-
-impl AutoBackupMenuState {
-    pub fn replace_items(&self, items: HashMap<u32, CheckMenuItem<Wry>>) {
-        match self.items.lock() {
-            Ok(mut guard) => *guard = items,
-            Err(err) => warn!(
-                target: "rgsm::quick_action::tray",
-                "Failed to update auto backup menu items: {err}"
-            ),
-        }
-    }
-
-    pub fn mark_selected(&self, selected: u32) {
-        match self.items.lock() {
-            Ok(guard) => {
-                for (duration, item) in guard.iter() {
-                    if let Err(err) = item.set_checked(*duration == selected) {
-                        warn!(
-                            target: "rgsm::quick_action::tray",
-                            "Failed to set check state for timer.{duration}: {err:?}"
-                        );
-                    }
-                }
-            }
-            Err(err) => warn!(
-                target: "rgsm::quick_action::tray",
-                "Failed to access auto backup menu items: {err}"
-            ),
-        }
-    }
-}
-
-// TODO:处理错误
 pub fn setup_tray(app: &mut tauri::App) -> anyhow::Result<()> {
     info!(target: "rgsm::quick_action::tray", "Setting up tray icon");
-    let config = get_config()?;
-    let duration_state: State<Arc<AutoBackupDuration>> = app.state();
-    let selected_duration = duration_state.load(Ordering::Acquire);
 
-    // Menu items begin
-    let current_quick_action_game =
-        MenuItemBuilder::new(config.quick_action.quick_action_game.map_or_else(
-            || t!("backend.tray.no_game_selected"),
-            |game| game.name.into(),
-        ))
+    let manager_state: State<Arc<QuickActionManager>> = app.state();
+    let manager = Arc::clone(manager_state.inner());
+
+    let selected_duration = manager.current_interval();
+    let current_game_label = manager
+        .current_game()
+        .map(|game| game.name)
+        .unwrap_or_else(|| t!("backend.tray.no_game_selected").into());
+
+    let current_quick_action_game = MenuItemBuilder::new(current_game_label)
         .id("game")
         .enabled(true)
         .build(app)?;
+
     let timer_options = [
         (0_u32, t!("backend.tray.turn_off_auto_backup")),
         (5_u32, t!("backend.tray.5_minute")),
@@ -103,11 +58,6 @@ pub fn setup_tray(app: &mut tauri::App) -> anyhow::Result<()> {
         .items(timer_item_refs.as_slice())
         .build()?;
 
-    let menu_state: State<Arc<AutoBackupMenuState>> = app.state();
-    menu_state.replace_items(timer_item_map);
-    menu_state.mark_selected(selected_duration);
-    // Menu items end
-
     let tray_menu = MenuBuilder::new(app)
         .items(&[
             &current_quick_action_game,
@@ -123,6 +73,8 @@ pub fn setup_tray(app: &mut tauri::App) -> anyhow::Result<()> {
                 .build(app)?,
         ])
         .build()?;
+
+    manager.register_tray_items(current_quick_action_game.clone(), timer_item_map);
 
     TrayIconBuilder::with_id("tray_icon")
         .icon(app.default_window_icon().unwrap().clone())
@@ -143,7 +95,6 @@ pub fn tray_event_handler(tray: &TrayIcon, event: TrayIconEvent) {
         ..
     } = event
     {
-        // 单击托盘图标时，显示主窗口（若主窗口不存在）
         info!(target: "rgsm::quick_action::tray", "Tray left click");
         let app = tray.app_handle();
         if app.get_webview_window("main").is_none() {
@@ -152,7 +103,7 @@ pub fn tray_event_handler(tray: &TrayIcon, event: TrayIconEvent) {
                 &WindowConfig {
                     label: "main".to_string(),
                     url: tauri::WebviewUrl::App(PathBuf::from("index.html")),
-                    drag_drop_enabled: false, // 必须这样设置，否则窗体内js接收不到drag & drop事件
+                    drag_drop_enabled: false,
                     title: "RustyManager".to_string(),
                     ..Default::default()
                 },
@@ -171,44 +122,31 @@ pub fn tray_event_handler(tray: &TrayIcon, event: TrayIconEvent) {
 }
 
 pub fn menu_event_handler(app: &AppHandle, event: MenuEvent) {
+    let manager_state: State<Arc<QuickActionManager>> = app.state();
+    let manager = Arc::clone(manager_state.inner());
+
     match event.id.as_ref() {
         "backup" => {
-            info!(target:"rgsm::quick_action::tray", "Tray quick backup clicked");
-            tauri::async_runtime::spawn(async move {
-                quick_backup(QuickActionType::Tray).await;
-            });
+            manager.trigger_backup(QuickActionType::Tray);
         }
         "apply" => {
-            info!(target:"rgsm::quick_action::tray", "Tray quick apply clicked.");
-            tauri::async_runtime::spawn(async move {
-                quick_apply(QuickActionType::Tray).await;
-            });
+            manager.trigger_apply(QuickActionType::Tray);
         }
         "quit" => {
-            info!(target:"rgsm::quick_action::tray","Tray quit clicked.");
             app.exit(0);
         }
         other => {
-            // other情况一定是选择定时备份的时间
-            info!(target:"rgsm::quick_action::tray","Tray menu item clicked: {other}.");
+            info!(
+                target: "rgsm::quick_action::tray",
+                "Tray menu item clicked: {other}."
+            );
             if other.starts_with("timer.") {
-                let parsed_duration = other
+                if let Some(duration) = other
                     .split('.')
                     .next_back()
-                    .and_then(|value| value.parse::<u32>().ok());
-
-                if let Some(duration) = parsed_duration {
-                    let state: State<Arc<AutoBackupDuration>> = app.state();
-                    state.store(duration, Ordering::Release);
-
-                    if let Some(menu_state) = app.try_state::<Arc<AutoBackupMenuState>>() {
-                        menu_state.mark_selected(duration);
-                    }
-                } else {
-                    warn!(
-                        target:"rgsm::quick_action::tray",
-                        "Failed to parse timer duration from menu id: {other}"
-                    );
+                    .and_then(|value| value.parse::<u32>().ok())
+                {
+                    manager.update_interval(duration);
                 }
             }
         }
