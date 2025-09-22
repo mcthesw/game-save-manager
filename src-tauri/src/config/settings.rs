@@ -7,6 +7,20 @@ use crate::preclude::*;
 
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum SaveListExpandBehavior {
+    AlwaysOpen,
+    AlwaysClosed,
+    RememberLast,
+}
+
+impl Default for SaveListExpandBehavior {
+    fn default() -> Self {
+        SaveListExpandBehavior::AlwaysClosed
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Settings {
     #[serde(default = "default_value::default_true")]
     pub prompt_when_not_described: bool,
@@ -32,6 +46,10 @@ pub struct Settings {
     pub log_to_file: bool,
     #[serde(default = "default_value::default_false")]
     pub add_new_to_favorites: bool,
+    #[serde(default)]
+    pub save_list_expand_behavior: SaveListExpandBehavior,
+    #[serde(default = "default_value::default_false")]
+    pub save_list_last_expanded: bool,
 }
 
 impl Default for Settings {
@@ -49,6 +67,8 @@ impl Default for Settings {
             home_page: default_value::default_home_page(),
             log_to_file: default_value::default_true(),
             add_new_to_favorites: default_value::default_false(),
+            save_list_expand_behavior: SaveListExpandBehavior::default(),
+            save_list_last_expanded: default_value::default_false(),
         }
     }
 }
