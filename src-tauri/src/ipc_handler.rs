@@ -12,7 +12,8 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Window};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager, Window};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
@@ -293,7 +294,10 @@ pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
 #[specta::specta]
 pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<(), String> {
     info!(target:"rgsm::ipc","Setting quick backup game to: {:?}", game);
-    quick_actions::set_current_game(&app_handle, game.clone())
+    let manager_state: tauri::State<Arc<quick_actions::QuickActionManager>> = app_handle.state();
+    let manager = Arc::clone(manager_state.inner());
+    manager
+        .set_quick_backup_game(game.clone())
         .await
         .map_err(|e| {
             error!(target:"rgsm::ipc", "Failed to set quick backup game: {:?}", e);

@@ -1,23 +1,23 @@
 mod hotkeys;
-mod timer;
+mod manager;
 mod tray;
 mod utils;
 
-use utils::*;
+pub use manager::QuickActionManager;
+pub use utils::{QuickActionType, quick_apply, quick_backup};
 
 use hotkeys::setup_hotkeys;
-pub use timer::AutoBackupDuration;
-use timer::setup_timer;
-pub use tray::AutoBackupMenuState;
+use tauri::Manager;
 use tray::setup_tray;
-pub use utils::set_current_game;
 
 use crate::config::get_config;
 
 pub fn setup(app: &mut tauri::App) -> anyhow::Result<()> {
+    let manager = QuickActionManager::new(app.handle());
+    app.manage(manager);
+
     let config = get_config()?;
     setup_tray(app)?;
-    setup_timer(app)?;
     setup_hotkeys(&config, app)?;
     Ok(())
 }
