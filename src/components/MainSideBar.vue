@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch, inject, onMounted } from "vue";
+import { computed, ref, watch, inject, onMounted, nextTick } from "vue";
 import FavoriteSideBar from "./FavoriteSideBar.vue";
 import {
     DocumentAdd,
@@ -14,8 +14,9 @@ import {
 } from "@element-plus/icons-vue";
 import { $t } from "../i18n";
 import { debug } from "@tauri-apps/plugin-log";
+import type { MenuInstance } from "element-plus";
 
-let { config } = useConfig();
+let { config, saveConfig } = useConfig();
 
 const min_width = ref(200);
 const max_width = ref(400);
@@ -37,6 +38,30 @@ const router = useRouter()
 const route = useRoute()
 const show_favorite = ref(false)
 const searchQuery = ref('')
+
+const menuRef = ref<MenuInstance>()
+const saveListMenuIndex = 'save-list'
+
+function getSaveListBehavior() {
+    return config.value.settings?.save_list_expand_behavior ?? 'always_closed'
+}
+
+function getSavedExpandState() {
+    return config.value.settings?.save_list_last_expanded ?? false
+}
+
+function shouldExpandSaveList() {
+    const behavior = getSaveListBehavior()
+    if (behavior === 'always_open') {
+        return true
+    }
+    if (behavior === 'remember_last') {
+        return getSavedExpandState()
+    }
+    return false
+}
+
+const saveListDefaultOpeneds = computed(() => shouldExpandSaveList() ? [saveListMenuIndex] : [])
 
 // 从父组件注入侧边栏宽度
 const sidebarWidth = inject('sidebarWidth', ref(240))
@@ -90,6 +115,88 @@ function stopResize() {
 function clearSearch() {
     searchQuery.value = '';
 }
+
+async function applySaveListExpandState() {
+    await nextTick();
+    const menu = menuRef.value;
+    if (!menu) {
+        return;
+    }
+    if (shouldExpandSaveList()) {
+        menu.open(saveListMenuIndex);
+    } else {
+        menu.close(saveListMenuIndex);
+    }
+}
+
+async function persistSaveListState(expanded: boolean) {
+    if (getSavedExpandState() === expanded) {
+        return;
+    }
+    if (!config.value.settings) {
+        return;
+    }
+    config.value.settings.save_list_last_expanded = expanded;
+    await saveConfig();
+}
+
+async function handleMenuOpen(index: string) {
+    if (index !== saveListMenuIndex) {
+        return;
+    }
+    if (getSaveListBehavior() === 'remember_last') {
+        await persistSaveListState(true);
+    }
+}
+
+async function handleMenuClose(index: string) {
+    if (index !== saveListMenuIndex) {
+        return;
+    }
+    if (getSaveListBehavior() === 'remember_last') {
+        await persistSaveListState(false);
+    }
+}
+
+watch(
+    () => config.value.settings?.save_list_expand_behavior,
+    async (behavior) => {
+        await applySaveListExpandState();
+        if (behavior === 'always_open') {
+            await persistSaveListState(true);
+        } else if (behavior === 'always_closed') {
+            await persistSaveListState(false);
+        }
+    },
+    { immediate: true }
+);
+
+watch(
+    () => config.value.settings?.save_list_last_expanded,
+    async () => {
+        if (getSaveListBehavior() === 'remember_last') {
+            await applySaveListExpandState();
+        }
+    }
+);
+
+watch(
+    filteredGames,
+    () => {
+        void applySaveListExpandState();
+    },
+    { deep: true }
+);
+
+watch(show_favorite, (value) => {
+    if (!value) {
+        void applySaveListExpandState();
+    }
+});
+
+onMounted(() => {
+    void applySaveListExpandState();
+});
 </script>
 
 <template>
@@ -123,10 +230,11 @@ function clearSearch() {
             <!-- 内容区域 -->
             <ElScrollbar always>
                 <ElRow class="main-menu-container">
-                    <el-menu class="menu-item" :default-active="route.path" :select="select_handler" :router="true"
-                        v-if="!show_favorite" :collapse-transition="false">
+                    <el-menu ref="menuRef" class="menu-item" :default-active="route.path" :select="select_handler"
+                        :router="true" v-if="!show_favorite" :collapse-transition="false"
+                        :default-openeds="saveListDefaultOpeneds" @open="handleMenuOpen" @close="handleMenuClose">
                         <!-- 存档栏 -->
-                        <el-sub-menu index="1" v-if="filteredGames.length > 0 || !searchQuery">
+                        <el-sub-menu :index="saveListMenuIndex" v-if="filteredGames.length > 0 || !searchQuery">
                             <template #title>
                                 <el-icon>
                                     <Files></Files>

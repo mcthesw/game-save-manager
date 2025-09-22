@@ -5,7 +5,7 @@ use specta::Type;
 
 use crate::backup::Game;
 use crate::cloud_sync::CloudSettings;
-use crate::config::{QuickActionsSettings, Settings};
+use crate::config::{QuickActionsSettings, SaveListExpandBehavior, Settings};
 use crate::default_value;
 use crate::device::{Device, DeviceId};
 use crate::preclude::*;
@@ -56,6 +56,8 @@ impl Default for Config {
                 home_page: default_value::default_home_page(),
                 log_to_file: true,
                 add_new_to_favorites: false,
+                save_list_expand_behavior: SaveListExpandBehavior::default(),
+                save_list_last_expanded: false,
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),

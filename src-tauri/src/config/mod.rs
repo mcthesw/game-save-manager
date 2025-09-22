@@ -5,5 +5,5 @@ mod utils;
 
 pub use app_config::{Config, FavoriteTreeNode};
 pub use quick_actions_settings::QuickActionsSettings;
-pub use settings::Settings;
+pub use settings::{SaveListExpandBehavior, Settings};
 pub use utils::*;
