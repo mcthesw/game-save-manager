@@ -210,7 +210,7 @@ ipcNotification: "ipc-notification"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"./save_data","devices":{},"favorites":[],"games":[],"quick_action":{"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"show_edit_button":false},"version":"1.5.3"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"./save_data","devices":{},"favorites":[],"games":[],"quick_action":{"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.3"} as const;
 
 /** user-defined types **/
 
@@ -271,6 +271,10 @@ export type NotificationLevel = "info" | "warning" | "error"
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys }
 /**
+ * Settings that can be configured by user
+ */
+export type SaveListExpandBehavior = "always_open" | "always_closed" | "remember_last"
+/**
  * A save unit declares one of the files/folders
  * that should be backup for a game
  */
@@ -279,10 +283,7 @@ export type SaveUnit = { unit_type: SaveUnitType; paths?: Partial<{ [key in stri
  * A save unit should be a file or a folder
  */
 export type SaveUnitType = "File" | "Folder"
-/**
- * Settings that can be configured by user
- */
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean }
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean }
 /**
  * A backup is a zip file that contains
  * all the file that the save unit has declared.

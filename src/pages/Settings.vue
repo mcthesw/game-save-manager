@@ -469,6 +469,14 @@ const router_list = computed(() => {
                     </el-divider>
 
                     <div class="setting-box">
+                        <ElSelect v-model="config.settings.save_list_expand_behavior">
+                            <ElOption :label="$t('settings.save_list_expand_behavior_default_open')" value="always_open" />
+                            <ElOption :label="$t('settings.save_list_expand_behavior_default_closed')" value="always_closed" />
+                            <ElOption :label="$t('settings.save_list_expand_behavior_remember_last')" value="remember_last" />
+                        </ElSelect>
+                        <span class="setting-label">{{ $t("settings.save_list_expand_behavior") }}</span>
+                    </div>
+                    <div class="setting-box">
                         <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
                         <span class="setting-label">{{ $t("settings.default_expend_favorites_tree") }}</span>
                     </div>
