@@ -6,12 +6,15 @@ useDark();
 import { events, commands } from "./bindings";
 import { useNotification } from "./composables/useNotification";
 import { useConfig } from "./composables/useConfig";
+import { useGlobalLoading } from "./composables/useGlobalLoading";
 import { $t, i18n } from "./i18n";
 import { ref, onMounted } from 'vue';
+import { Loading } from "@element-plus/icons-vue";
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
 import type { Device } from './bindings';
 
 const { showInfo, showWarning, showError, showSuccess } = useNotification();
+const { isLoading, loadingMessage } = useGlobalLoading();
 
 // 设备设置对话框
 const showDeviceSetupDialog = ref(false);
@@ -149,7 +152,7 @@ listen('Notification', (event) => {
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-    
+
     <!-- 设备设置对话框 -->
     <DeviceSetupDialog
       v-model="showDeviceSetupDialog"
@@ -157,12 +160,77 @@ listen('Notification', (event) => {
       :other-devices="otherDevices"
       @confirm="handleDeviceSetup"
     />
+
+    <Transition name="global-loading-fade">
+      <div v-if="isLoading" class="global-loading-overlay">
+        <div class="global-loading-card">
+          <el-icon class="global-loading-spinner" :size="36">
+            <Loading />
+          </el-icon>
+          <p class="global-loading-text">{{ loadingMessage }}</p>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style>
 body {
   margin: 0px !important;
+}
+
+.global-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+.global-loading-card {
+  min-width: 260px;
+  padding: 1.75rem 2.5rem;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  background: var(--el-bg-color-overlay);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  color: var(--el-text-color-primary);
+  text-align: center;
+}
+
+.global-loading-spinner {
+  animation: global-loading-spin 1s linear infinite;
+}
+
+.global-loading-text {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+@keyframes global-loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.global-loading-fade-enter-active,
+.global-loading-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.global-loading-fade-enter-from,
+.global-loading-fade-leave-to {
+  opacity: 0;
 }
 
 .page-enter-active,

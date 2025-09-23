@@ -27,6 +27,7 @@ const backends = ["WebDAV", "S3", "Disabled"]
 const { config, refreshConfig, saveConfig } = useConfig() // 配置文件
 const cloud_settings = ref(config.value!.settings.cloud_settings) // 云同步配置
 const { showInfo, showError, showSuccess } = useNotification()
+const { withLoading } = useGlobalLoading()
 
 const webdav_settings: Ref<WebDAV> = ref({
   type: "WebDAV",
@@ -60,39 +61,41 @@ switch (cloud_settings.value!.backend!.type) {
  */
 async function check() {
   showInfo({ message: $t("sync_settings.start_test") })
-  switch (cloud_settings.value?.backend!.type) {
-    case "Disabled":
-      showError({ message: $t("sync_settings.test_failed") })
-      break
-    case "WebDAV":
-      if (webdav_settings.value.endpoint.endsWith("/")) {
-        // 去掉末尾的斜杠，防止出现重复的斜杠
-        webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
-      }
-      const webdavResult = await commands.checkCloudBackend(webdav_settings.value)
-      if (webdavResult.status === "error") {
+  await withLoading(async () => {
+    switch (cloud_settings.value?.backend!.type) {
+      case "Disabled":
         showError({ message: $t("sync_settings.test_failed") })
-        error(`WebDAV test error: ${webdavResult.error}`)
-      } else {
-        showSuccess({ message: $t("sync_settings.test_success") })
-      }
-      break
-    case "S3":
-      if (s3_settings.value.endpoint.endsWith("/")) {
-        // 去掉末尾的斜杠，防止出现重复的斜杠
-        s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
-      }
-      const s3Result = await commands.checkCloudBackend(s3_settings.value)
-      if (s3Result.status === "error") {
-        showError({ message: $t("sync_settings.test_failed") })
-        error(`S3 test error: ${s3Result.error}`)
-      } else {
-        showSuccess({ message: $t("sync_settings.test_success") })
-      }
-      break;
-    default:
-      showError({ message: $t("sync_settings.unknown_backend") })
-  }
+        break
+      case "WebDAV":
+        if (webdav_settings.value.endpoint.endsWith("/")) {
+          // 去掉末尾的斜杠，防止出现重复的斜杠
+          webdav_settings.value.endpoint = webdav_settings.value.endpoint.slice(0, -1)
+        }
+        const webdavResult = await commands.checkCloudBackend(webdav_settings.value)
+        if (webdavResult.status === "error") {
+          showError({ message: $t("sync_settings.test_failed") })
+          error(`WebDAV test error: ${webdavResult.error}`)
+        } else {
+          showSuccess({ message: $t("sync_settings.test_success") })
+        }
+        break
+      case "S3":
+        if (s3_settings.value.endpoint.endsWith("/")) {
+          // 去掉末尾的斜杠，防止出现重复的斜杠
+          s3_settings.value.endpoint = s3_settings.value.endpoint.slice(0, -1)
+        }
+        const s3Result = await commands.checkCloudBackend(s3_settings.value)
+        if (s3Result.status === "error") {
+          showError({ message: $t("sync_settings.test_failed") })
+          error(`S3 test error: ${s3Result.error}`)
+        } else {
+          showSuccess({ message: $t("sync_settings.test_success") })
+        }
+        break;
+      default:
+        showError({ message: $t("sync_settings.unknown_backend") })
+    }
+  }, $t('sync_settings.checking_backend'))
 }
 
 function save() {
@@ -158,7 +161,9 @@ async function upload_all() {
       }
     );
 
-    const result = await commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!);
+    const result = await withLoading(async () => {
+      return await commands.cloudUploadAll(config.value!.settings.cloud_settings!.backend!);
+    }, $t('sync_settings.uploading_all'));
     if (result.status === "error") {
       showError({ message: $t("sync_settings.upload_failed") });
       error(`Upload error: ${result.error}`);
@@ -184,7 +189,9 @@ async function download_all() {
       }
     );
 
-    const result = await commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!);
+    const result = await withLoading(async () => {
+      return await commands.cloudDownloadAll(config.value!.settings.cloud_settings!.backend!);
+    }, $t('sync_settings.downloading_all'));
     if (result.status === "error") {
       showError({ message: $t("sync_settings.download_failed") });
       error(`Download error: ${result.error}`);

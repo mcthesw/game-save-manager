@@ -20,6 +20,7 @@ const locale_names = i18n.global.availableLocales
 const activeTab = ref('general')
 const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
+const { withLoading } = useGlobalLoading()
 
 // 设备管理相关
 const currentDevice = ref<Device>({ id: "", name: "" })
@@ -66,7 +67,9 @@ async function backup_all() {
         );
 
         try {
-            await commands.backupAll();
+            await withLoading(async () => {
+                await commands.backupAll();
+            }, $t('settings.backup_all_in_progress'));
             showSuccess({ message: $t("settings.success") });
         } catch (e) {
             error(`backup all error: ${e}`)
@@ -89,7 +92,9 @@ async function apply_all() {
                 inputErrorMessage: $t('settings.invalid_input_error'),
             }
         );
-        await commands.applyAll();
+        await withLoading(async () => {
+            await commands.applyAll();
+        }, $t('settings.apply_all_in_progress'));
     } catch (e) {
         if (e instanceof Error) {
             error(`apply all error: ${e}`);
