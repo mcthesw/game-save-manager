@@ -10,6 +10,7 @@ import { error, info } from "@tauri-apps/plugin-log";
 
 let { showInfo, showError, showSuccess, closeNotification } = useNotification();
 let { config, refreshConfig, saveConfig } = useConfig();
+const { withLoading } = useGlobalLoading();
 let router = useRouter();
 let route = useRoute();
 const top_buttons = [
@@ -143,12 +144,14 @@ async function send_save_to_background() {
     backup_button_time_limit = false;
     backup_button_backup_limit = false;
 
-    let result = await commands.createSnapshot(game.value, describe.value);
-    if (result.status === "error") {
-        showError({ message: result.error });
-    } else {
-        showSuccess({ message: $t('manage.backup_success') });
-    }
+    await withLoading(async () => {
+        let result = await commands.createSnapshot(game.value, describe.value);
+        if (result.status === "error") {
+            showError({ message: result.error });
+        } else {
+            showSuccess({ message: $t('manage.backup_success') });
+        }
+    }, $t('manage.creating_backup'));
     backup_button_backup_limit = true;
     refresh_backups_info();
 
@@ -218,13 +221,14 @@ async function apply_save(date: string) {
         return;
     }
     apply_button_apply_limit = false;
-    let result = await commands.restoreSnapshot(game.value, date);
-    if (result.status === "error") {
-        // TODO: 增加恢复失败
-        showError({ message: $t('manage.recover_failed') });
-    } else {
-        showSuccess({ message: $t('manage.recover_success') });
-    }
+    await withLoading(async () => {
+        let result = await commands.restoreSnapshot(game.value, date);
+        if (result.status === "error") {
+            showError({ message: $t('manage.recover_failed') });
+        } else {
+            showSuccess({ message: $t('manage.recover_success') });
+        }
+    }, $t('manage.restoring_backup'));
     apply_button_apply_limit = true;
     refresh_backups_info();
 }
