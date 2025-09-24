@@ -1,5 +1,6 @@
 mod hotkeys;
 mod manager;
+mod sound;
 mod tray;
 mod utils;
 

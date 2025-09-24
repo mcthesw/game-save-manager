@@ -74,6 +74,24 @@ pub async fn choose_save_file(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn choose_audio_file(app: AppHandle) -> Result<String, String> {
+    info!(target:"rgsm::ipc", "Opening audio file dialog.");
+    if let Some(path) = app
+        .dialog()
+        .file()
+        .add_filter("Audio", &["mp3", "wav", "ogg", "flac", "aac", "m4a"])
+        .blocking_pick_file()
+    {
+        info!(target:"rgsm::ipc","Successfully picked audio file: {:#?}",path);
+        Ok(path.to_string())
+    } else {
+        warn!(target:"rgsm::ipc", "Failed to open audio dialog or user closed it.");
+        Err("Failed to open dialog.".to_string())
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn choose_save_dir(app: AppHandle) -> Result<String, String> {
     info!(target:"rgsm::ipc","Opening folder dialog.");
     if let Some(path) = app.dialog().file().blocking_pick_folder() {

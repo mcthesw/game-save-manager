@@ -22,6 +22,79 @@ const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
 const { withLoading } = useGlobalLoading()
 
+const successSoundCache = ref("")
+const failureSoundCache = ref("")
+
+const quickActionSuccessSoundMode = computed<'default' | 'custom'>({
+    get: () => config.value.quick_action?.sound.success.type ?? 'default',
+    set: (mode) => {
+        if (!config.value?.quick_action) { return }
+        const sound = config.value.quick_action.sound
+        if (mode === 'default') {
+            if (sound.success.type === 'custom') {
+                successSoundCache.value = sound.success.path ?? ''
+            }
+            sound.success = { type: 'default' }
+        } else {
+            const cachedPath = sound.success.type === 'custom'
+                ? sound.success.path ?? ''
+                : successSoundCache.value
+            sound.success = { type: 'custom', path: cachedPath }
+        }
+    }
+})
+
+const quickActionSuccessSoundPath = computed({
+    get: () => {
+        const variant = config.value.quick_action?.sound.success
+        if (!variant) { return successSoundCache.value }
+        if (variant.type === 'custom') {
+            return variant.path ?? ''
+        }
+        return successSoundCache.value
+    },
+    set: (value: string) => {
+        if (!config.value?.quick_action) { return }
+        successSoundCache.value = value
+        config.value.quick_action.sound.success = { type: 'custom', path: value }
+    }
+})
+
+const quickActionFailureSoundMode = computed<'default' | 'custom'>({
+    get: () => config.value.quick_action?.sound.failure.type ?? 'default',
+    set: (mode) => {
+        if (!config.value?.quick_action) { return }
+        const sound = config.value.quick_action.sound
+        if (mode === 'default') {
+            if (sound.failure.type === 'custom') {
+                failureSoundCache.value = sound.failure.path ?? ''
+            }
+            sound.failure = { type: 'default' }
+        } else {
+            const cachedPath = sound.failure.type === 'custom'
+                ? sound.failure.path ?? ''
+                : failureSoundCache.value
+            sound.failure = { type: 'custom', path: cachedPath }
+        }
+    }
+})
+
+const quickActionFailureSoundPath = computed({
+    get: () => {
+        const variant = config.value.quick_action?.sound.failure
+        if (!variant) { return failureSoundCache.value }
+        if (variant.type === 'custom') {
+            return variant.path ?? ''
+        }
+        return failureSoundCache.value
+    },
+    set: (value: string) => {
+        if (!config.value?.quick_action) { return }
+        failureSoundCache.value = value
+        config.value.quick_action.sound.failure = { type: 'custom', path: value }
+    }
+})
+
 // 设备管理相关
 const currentDevice = ref<Device>({ id: "", name: "" })
 const otherDevices = ref<Device[]>([])
@@ -110,6 +183,21 @@ function open_log_folder() {
     } catch (e) {
         error(`open log folder error: ${e}`)
         showError({ message: $t('error.open_log_folder_failed') })
+    }
+}
+
+async function chooseQuickActionSound(target: 'success' | 'failure') {
+    try {
+        const result = await commands.chooseAudioFile()
+        if (result.status === 'error') { return }
+        if (target === 'success') {
+            quickActionSuccessSoundPath.value = result.data
+        } else {
+            quickActionFailureSoundPath.value = result.data
+        }
+    } catch (e) {
+        error(`choose audio file error: ${e}`)
+        showError({ message: $t('error.choose_audio_file_error') })
     }
 }
 
@@ -311,6 +399,42 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
         showError({ message: $t('settings.delete_device_failed') });
     }
 }
+
+watch(
+    () => config.value.quick_action?.sound.success,
+    (variant) => {
+        if (variant && variant.type === 'custom') {
+            successSoundCache.value = variant.path ?? ''
+        }
+    },
+    { immediate: true, deep: true }
+)
+
+watch(
+    () => config.value.quick_action?.sound.failure,
+    (variant) => {
+        if (variant && variant.type === 'custom') {
+            failureSoundCache.value = variant.path ?? ''
+        }
+    },
+    { immediate: true, deep: true }
+)
+
+watch(
+    () => config.value.quick_action?.sound,
+    () => {
+        debouncedSaveConfig()
+    },
+    { deep: true }
+)
+
+watch(
+    () => config.value.quick_action?.notifications,
+    () => {
+        debouncedSaveConfig()
+    },
+    { deep: true }
+)
 
 // 监听快捷键变更
 watch(
@@ -548,6 +672,53 @@ const router_list = computed(() => {
                             </strong>
                         </div>
                         <HotkeySelector v-model="config.quick_action!.hotkeys" />
+                        <div class="quick-action-feedback">
+                            <h4 class="sound-section-title">{{ $t('settings.quick_action_feedback_title') }}</h4>
+                            <div class="setting-sub-box">
+                                <ElSwitch v-model="config.quick_action!.notifications.enabled" />
+                                <span class="setting-label">{{ $t('settings.quick_action_notifications_label') }}</span>
+                            </div>
+                            <div class="setting-sub-box">
+                                <ElSwitch v-model="config.quick_action!.sound.enabled" />
+                                <span class="setting-label">{{ $t('settings.quick_action_sound_label') }}</span>
+                            </div>
+                            <div v-if="config.quick_action!.sound.enabled" class="sound-setting-group">
+                                <div class="sound-row">
+                                    <span class="sound-label">{{ $t('settings.quick_action_sound_success') }}</span>
+                                    <ElRadioGroup v-model="quickActionSuccessSoundMode" size="small">
+                                        <ElRadioButton label="default">{{ $t('settings.quick_action_sound_mode_default') }}</ElRadioButton>
+                                        <ElRadioButton label="custom">{{ $t('settings.quick_action_sound_mode_custom') }}</ElRadioButton>
+                                    </ElRadioGroup>
+                                </div>
+                                <div class="sound-path" v-if="quickActionSuccessSoundMode === 'custom'">
+                                    <ElInput
+                                        v-model="quickActionSuccessSoundPath"
+                                        class="sound-input"
+                                        :placeholder="$t('settings.quick_action_sound_placeholder')"
+                                    />
+                                    <ElButton size="small" @click="chooseQuickActionSound('success')">
+                                        {{ $t('settings.quick_action_sound_choose') }}
+                                    </ElButton>
+                                </div>
+                                <div class="sound-row">
+                                    <span class="sound-label">{{ $t('settings.quick_action_sound_failure') }}</span>
+                                    <ElRadioGroup v-model="quickActionFailureSoundMode" size="small">
+                                        <ElRadioButton label="default">{{ $t('settings.quick_action_sound_mode_default') }}</ElRadioButton>
+                                        <ElRadioButton label="custom">{{ $t('settings.quick_action_sound_mode_custom') }}</ElRadioButton>
+                                    </ElRadioGroup>
+                                </div>
+                                <div class="sound-path" v-if="quickActionFailureSoundMode === 'custom'">
+                                    <ElInput
+                                        v-model="quickActionFailureSoundPath"
+                                        class="sound-input"
+                                        :placeholder="$t('settings.quick_action_sound_placeholder')"
+                                    />
+                                    <ElButton size="small" @click="chooseQuickActionSound('failure')">
+                                        {{ $t('settings.quick_action_sound_choose') }}
+                                    </ElButton>
+                                </div>
+                            </div>
+                        </div>
                         <div class="setting-action">
                             <el-button type="primary" @click="saveHotkeys" :disabled="!hotkeysChanged">
                                 {{ $t("settings.save_hotkeys") }}
@@ -625,6 +796,56 @@ const router_list = computed(() => {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.quick-action-feedback {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sound-section-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.setting-sub-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sound-setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-left: 4px;
+}
+
+.sound-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sound-path {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sound-input {
+    flex: 1;
+    min-width: 200px;
+}
+
+.sound-label {
+    font-weight: 500;
+    min-width: 120px;
 }
 
 .tab-title {
