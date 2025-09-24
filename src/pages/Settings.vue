@@ -8,6 +8,7 @@ import draggable from 'vuedraggable'
 import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled, Document, Unlock, Moon, Tools } from "@element-plus/icons-vue";
 import HotkeySelector from "../components/HotkeySelector.vue";
 import { useDark } from '@vueuse/core'
+import { invoke } from "@tauri-apps/api/core";
 import { commands } from "~/bindings";
 import { error, info } from "@tauri-apps/plugin-log";
 import type { Device } from "../bindings";
@@ -198,6 +199,32 @@ async function chooseQuickActionSound(target: 'success' | 'failure') {
     } catch (e) {
         error(`choose audio file error: ${e}`)
         showError({ message: $t('error.choose_audio_file_error') })
+    }
+}
+
+async function previewQuickActionSound(target: 'success' | 'failure') {
+    try {
+        if (typeof debouncedSaveConfig.flush === 'function') {
+            await debouncedSaveConfig.flush()
+        }
+
+        const quickAction = config.value.quick_action
+        if (!quickAction) { return }
+
+        const variant = target === 'success'
+            ? quickAction.sound.success
+            : quickAction.sound.failure
+
+        await invoke('preview_quick_action_sound', {
+            kind: target,
+            variant,
+        })
+    } catch (e) {
+        const fallbackMessage = $t('error.preview_audio_file_error')
+        const detail = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
+        error(`preview quick action sound error: ${detail || String(e)}`)
+        const message = detail ? `${fallbackMessage}\n${detail}` : fallbackMessage
+        showError({ message })
     }
 }
 
@@ -689,6 +716,14 @@ const router_list = computed(() => {
                                         <ElRadioButton label="default">{{ $t('settings.quick_action_sound_mode_default') }}</ElRadioButton>
                                         <ElRadioButton label="custom">{{ $t('settings.quick_action_sound_mode_custom') }}</ElRadioButton>
                                     </ElRadioGroup>
+                                    <ElButton
+                                        size="small"
+                                        type="primary"
+                                        plain
+                                        @click="previewQuickActionSound('success')"
+                                    >
+                                        {{ $t('settings.quick_action_sound_preview') }}
+                                    </ElButton>
                                 </div>
                                 <div class="sound-path" v-if="quickActionSuccessSoundMode === 'custom'">
                                     <ElInput
@@ -706,6 +741,14 @@ const router_list = computed(() => {
                                         <ElRadioButton label="default">{{ $t('settings.quick_action_sound_mode_default') }}</ElRadioButton>
                                         <ElRadioButton label="custom">{{ $t('settings.quick_action_sound_mode_custom') }}</ElRadioButton>
                                     </ElRadioGroup>
+                                    <ElButton
+                                        size="small"
+                                        type="primary"
+                                        plain
+                                        @click="previewQuickActionSound('failure')"
+                                    >
+                                        {{ $t('settings.quick_action_sound_preview') }}
+                                    </ElButton>
                                 </div>
                                 <div class="sound-path" v-if="quickActionFailureSoundMode === 'custom'">
                                     <ElInput

@@ -139,11 +139,3 @@ fn show_no_game_selected_error(notifications_enabled: bool) {
         );
     }
 }
-
-pub fn get_quick_action_game() -> Option<Game> {
-    get_config()
-        .expect("Cannot get config")
-        .quick_action
-        .quick_action_game
-        .clone()
-}

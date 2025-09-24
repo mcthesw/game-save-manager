@@ -5,8 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
-use log::error;
+use anyhow::{Context, Result as AnyResult};
+use log::{error, warn};
 use rodio::{Decoder, OutputStream, Sink, buffer::SamplesBuffer};
 use tauri::async_runtime;
 
@@ -20,6 +20,18 @@ const FADE_DURATION_MS: u32 = 8;
 pub enum QuickActionSoundEvent {
     Success,
     Failure,
+}
+
+#[derive(Debug)]
+enum PlaybackAttempt {
+    Primary,
+    FallbackUsed {
+        primary_error: String,
+    },
+    Failed {
+        primary_error: String,
+        fallback_error: Option<String>,
+    },
 }
 
 pub fn play_sound(event: QuickActionSoundEvent) {
@@ -44,28 +56,115 @@ pub fn play_sound(event: QuickActionSoundEvent) {
         QuickActionSoundEvent::Failure => sound_settings.failure,
     };
 
-    let needs_fallback = !matches!(variant.clone(), QuickActionSoundVariant::Default);
-
-    async_runtime::spawn_blocking(move || {
-        if let Err(err) = play_variant(event, variant) {
-            error!(
-                target: "rgsm::quick_action::sound",
-                "Failed to play quick action sound: {err:?}"
-            );
-
-            if needs_fallback {
-                if let Err(fallback_err) = play_variant(event, QuickActionSoundVariant::Default) {
+    async_runtime::spawn(async move {
+        match async_runtime::spawn_blocking(move || try_play_sound(event, variant)).await {
+            Ok(PlaybackAttempt::Primary) => {}
+            Ok(PlaybackAttempt::FallbackUsed { primary_error }) => {
+                warn!(
+                    target: "rgsm::quick_action::sound",
+                    "Failed to play quick action sound variant, falling back to default: {primary_error}"
+                );
+            }
+            Ok(PlaybackAttempt::Failed {
+                primary_error,
+                fallback_error,
+            }) => {
+                error!(
+                    target: "rgsm::quick_action::sound",
+                    "Failed to play quick action sound: {primary_error}"
+                );
+                if let Some(fallback_error) = fallback_error {
                     error!(
                         target: "rgsm::quick_action::sound",
-                        "Failed to play fallback quick action sound: {fallback_err:?}"
+                        "Failed to play fallback quick action sound: {fallback_error}"
                     );
                 }
+            }
+            Err(join_err) => {
+                error!(
+                    target: "rgsm::quick_action::sound",
+                    "Quick action sound playback task failed: {join_err}"
+                );
             }
         }
     });
 }
 
-fn play_variant(event: QuickActionSoundEvent, variant: QuickActionSoundVariant) -> Result<()> {
+pub async fn preview_sound(
+    event: QuickActionSoundEvent,
+    variant: QuickActionSoundVariant,
+) -> std::result::Result<(), String> {
+    match async_runtime::spawn_blocking(move || try_play_sound(event, variant)).await {
+        Ok(PlaybackAttempt::Primary) => Ok(()),
+        Ok(PlaybackAttempt::FallbackUsed { primary_error }) => {
+            warn!(
+                target: "rgsm::quick_action::sound",
+                "Failed to play selected sound variant, falling back to default: {primary_error}"
+            );
+            Err(format!(
+                "Failed to play the selected sound: {primary_error}"
+            ))
+        }
+        Ok(PlaybackAttempt::Failed {
+            primary_error,
+            fallback_error,
+        }) => {
+            error!(
+                target: "rgsm::quick_action::sound",
+                "Failed to play the selected sound: {primary_error}"
+            );
+            if let Some(ref fallback_error) = fallback_error {
+                error!(
+                    target: "rgsm::quick_action::sound",
+                    "Fallback sound also failed: {fallback_error}"
+                );
+            }
+            let mut message = format!("Failed to play the selected sound: {primary_error}");
+            if let Some(fallback_error) = fallback_error {
+                message.push_str(&format!("\nFallback also failed: {fallback_error}"));
+            }
+            Err(message)
+        }
+        Err(join_err) => {
+            error!(
+                target: "rgsm::quick_action::sound",
+                "Sound preview task failed: {join_err}"
+            );
+            Err(format!("Sound playback task failed: {join_err}"))
+        }
+    }
+}
+
+fn try_play_sound(
+    event: QuickActionSoundEvent,
+    variant: QuickActionSoundVariant,
+) -> PlaybackAttempt {
+    let needs_fallback = !matches!(variant, QuickActionSoundVariant::Default);
+
+    match play_variant(event, variant) {
+        Ok(_) => PlaybackAttempt::Primary,
+        Err(primary_err) => {
+            let primary_error = format!("{primary_err:?}");
+
+            if !needs_fallback {
+                return PlaybackAttempt::Failed {
+                    primary_error,
+                    fallback_error: None,
+                };
+            }
+
+            match play_variant(event, QuickActionSoundVariant::Default) {
+                Ok(_) => PlaybackAttempt::FallbackUsed { primary_error },
+                Err(fallback_err) => PlaybackAttempt::Failed {
+                    primary_error,
+                    fallback_error: Some(format!("{fallback_err:?}")),
+                },
+            }
+        }
+    }
+}
+
+fn play_variant(event: QuickActionSoundEvent, variant: QuickActionSoundVariant) -> AnyResult<()> {
     let (_stream, handle) =
         OutputStream::try_default().context("failed to open default audio output")?;
     let sink = Sink::try_new(&handle).context("failed to create audio sink")?;

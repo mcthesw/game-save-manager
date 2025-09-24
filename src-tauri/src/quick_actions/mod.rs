@@ -5,6 +5,7 @@ mod tray;
 mod utils;
 
 pub use manager::QuickActionManager;
+pub use sound::{QuickActionSoundEvent, preview_sound};
 pub use utils::{QuickActionType, quick_apply, quick_backup};
 
 use hotkeys::setup_hotkeys;

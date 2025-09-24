@@ -1,9 +1,10 @@
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all};
-use crate::config::{Config, get_config};
+use crate::config::{Config, QuickActionSoundVariant, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
+use crate::quick_actions::QuickActionSoundEvent;
 use crate::{backup, config, quick_actions};
 
 use anyhow::Result;
@@ -29,6 +30,13 @@ pub struct IpcNotification {
     pub level: NotificationLevel,
     pub title: String,
     pub msg: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum QuickActionSoundKind {
+    Success,
+    Failure,
 }
 
 #[tauri::command]
@@ -88,6 +96,28 @@ pub async fn choose_audio_file(app: AppHandle) -> Result<String, String> {
         warn!(target:"rgsm::ipc", "Failed to open audio dialog or user closed it.");
         Err("Failed to open dialog.".to_string())
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_quick_action_sound(
+    kind: QuickActionSoundKind,
+    variant: QuickActionSoundVariant,
+) -> Result<(), String> {
+    let event = match kind {
+        QuickActionSoundKind::Success => QuickActionSoundEvent::Success,
+        QuickActionSoundKind::Failure => QuickActionSoundEvent::Failure,
+    };
+
+    quick_actions::preview_sound(event, variant)
+        .await
+        .map_err(|err| {
+            error!(
+                target: "rgsm::ipc",
+                "Failed to preview quick action sound: {err}"
+            );
+            err
+        })
 }
 
 #[tauri::command]

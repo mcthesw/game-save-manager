@@ -58,6 +58,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::open_url,
             ipc_handler::open_file_or_folder,
             ipc_handler::choose_save_file,
+            ipc_handler::choose_audio_file,
             ipc_handler::choose_save_dir,
             ipc_handler::get_local_config,
             ipc_handler::add_game,
@@ -76,6 +77,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::backup_all,
             ipc_handler::apply_all,
             ipc_handler::set_quick_backup_game,
+            ipc_handler::preview_quick_action_sound,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
         ])
