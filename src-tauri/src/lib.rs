@@ -17,7 +17,6 @@ use crate::config::config_check;
 mod backup;
 mod cloud_sync;
 mod config;
-mod default_value;
 mod device;
 mod ipc_handler;
 mod path_resolver;

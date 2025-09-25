@@ -24,6 +24,7 @@ log = "0.4.26"
 tauri = { version = "2.3.1", features = ["tray-icon"] }
 tauri-plugin-log = "2.3.1"
 rust-i18n = "3.1.3"
+smart-default = "0.7.1"
 anyhow = "1.0.97"
 semver = "1.0.26"
 opendal = { version = "0.52.0", features = ["services-webdav", "services-s3"] }
