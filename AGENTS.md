@@ -43,12 +43,14 @@ The application is divided into a frontend and a backend.
   - Components: `PascalCase` (e.g., `GameList.vue`).
   - Composables: `camelCase` with a `use` prefix (e.g., `useConfig.ts`).
   - Use Element Plus for UI consistency.
+  - Never use tauri's `invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T>`, you can use `pnpm dev` to launch app so that `src/bindings.ts` will be updated.
 
 - **Backend (Rust)**:
   - Modules/Files: `snake_case` (e.g., `cloud_sync.rs`).
   - Types/Structs: `PascalCase`.
   - Functions/Variables: `snake_case`.
   - Use `Result` and `thiserror`/`anyhow` for robust error handling. (prefer `thiserror` in internal modules)
+  - Always run `cargo clippy` and clear all warns before commit.
 
 ## Commit & Pull Request Guidelines
 
