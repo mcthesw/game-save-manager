@@ -53,6 +53,7 @@
     "quick_action_sound_mode_custom": "Custom file",
     "quick_action_sound_choose": "Browse",
     "quick_action_sound_preview": "Preview",
+    "quick_action_sound_stop_preview": "Stop preview",
     "quick_action_sound_placeholder": "Enter an audio file path (absolute or relative)",
     "hotkey": {
       "quick_backup": "Quick backup",

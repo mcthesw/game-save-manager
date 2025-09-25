@@ -53,6 +53,7 @@
     "quick_action_sound_mode_custom": "自定义音频",
     "quick_action_sound_choose": "浏览",
     "quick_action_sound_preview": "试听",
+    "quick_action_sound_stop_preview": "停止试听",
     "quick_action_sound_placeholder": "输入音频文件路径（支持相对路径）",
     "hotkey": {
       "hint": "注意，此处设置和其他带有星号设置一样，需要保存并且重启生效，设置为全空即禁用该功能",

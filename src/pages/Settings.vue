@@ -23,8 +23,34 @@ const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
 const { withLoading } = useGlobalLoading()
 
+type PreviewSoundResponse =
+    | { status: "started"; fallback_error?: string | null }
+    | { status: "stopped" }
+
 const successSoundCache = ref("")
 const failureSoundCache = ref("")
+const activePreviewTarget = ref<null | 'success' | 'failure'>(null)
+
+const successPreviewButtonText = computed(() =>
+    activePreviewTarget.value === 'success'
+        ? $t('settings.quick_action_sound_stop_preview')
+        : $t('settings.quick_action_sound_preview')
+)
+
+const failurePreviewButtonText = computed(() =>
+    activePreviewTarget.value === 'failure'
+        ? $t('settings.quick_action_sound_stop_preview')
+        : $t('settings.quick_action_sound_preview')
+)
+
+watch(
+    () => config.value.quick_action?.sound.enabled,
+    (enabled) => {
+        if (enabled === false) {
+            activePreviewTarget.value = null
+        }
+    }
+)
 
 const quickActionSuccessSoundMode = computed<'default' | 'custom'>({
     get: () => config.value.quick_action?.sound.success.type ?? 'default',
@@ -215,11 +241,22 @@ async function previewQuickActionSound(target: 'success' | 'failure') {
             ? quickAction.sound.success
             : quickAction.sound.failure
 
-        await invoke('preview_quick_action_sound', {
+        const response = await invoke<PreviewSoundResponse>('preview_quick_action_sound', {
             kind: target,
             variant,
         })
+        if (response.status === 'started') {
+            activePreviewTarget.value = target
+            if (response.fallback_error) {
+                const fallbackMessage = $t('error.preview_audio_file_error')
+                const message = `${fallbackMessage}\n${response.fallback_error}`
+                showError({ message })
+            }
+        } else {
+            activePreviewTarget.value = null
+        }
     } catch (e) {
+        activePreviewTarget.value = null
         const fallbackMessage = $t('error.preview_audio_file_error')
         const detail = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
         error(`preview quick action sound error: ${detail || String(e)}`)
@@ -722,7 +759,7 @@ const router_list = computed(() => {
                                         plain
                                         @click="previewQuickActionSound('success')"
                                     >
-                                        {{ $t('settings.quick_action_sound_preview') }}
+                                        {{ successPreviewButtonText }}
                                     </ElButton>
                                 </div>
                                 <div class="sound-path" v-if="quickActionSuccessSoundMode === 'custom'">
@@ -747,7 +784,7 @@ const router_list = computed(() => {
                                         plain
                                         @click="previewQuickActionSound('failure')"
                                     >
-                                        {{ $t('settings.quick_action_sound_preview') }}
+                                        {{ failurePreviewButtonText }}
                                     </ElButton>
                                 </div>
                                 <div class="sound-path" v-if="quickActionFailureSoundMode === 'custom'">

@@ -4,7 +4,7 @@ use crate::config::{Config, QuickActionSoundVariant, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
-use crate::quick_actions::QuickActionSoundEvent;
+use crate::quick_actions::{PreviewSoundStatus, QuickActionSoundEvent};
 use crate::{backup, config, quick_actions};
 
 use anyhow::Result;
@@ -37,6 +37,13 @@ pub struct IpcNotification {
 pub enum QuickActionSoundKind {
     Success,
     Failure,
+}
+
+#[derive(Debug, Serialize, Type)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum PreviewSoundResponse {
+    Started { fallback_error: Option<String> },
+    Stopped,
 }
 
 #[tauri::command]
@@ -103,21 +110,33 @@ pub async fn choose_audio_file(app: AppHandle) -> Result<String, String> {
 pub async fn preview_quick_action_sound(
     kind: QuickActionSoundKind,
     variant: QuickActionSoundVariant,
-) -> Result<(), String> {
+) -> Result<PreviewSoundResponse, String> {
     let event = match kind {
         QuickActionSoundKind::Success => QuickActionSoundEvent::Success,
         QuickActionSoundKind::Failure => QuickActionSoundEvent::Failure,
     };
 
-    quick_actions::preview_sound(event, variant)
-        .await
-        .map_err(|err| {
+    match quick_actions::preview_sound(event, variant).await {
+        Ok(PreviewSoundStatus::Started { fallback_warning }) => Ok(PreviewSoundResponse::Started {
+            fallback_error: fallback_warning,
+        }),
+        Ok(PreviewSoundStatus::Stopped) => Ok(PreviewSoundResponse::Stopped),
+        Err(err) => {
             error!(
                 target: "rgsm::ipc",
-                "Failed to preview quick action sound: {err}"
+                "Failed to preview quick action sound: {}",
+                err.primary_error()
             );
-            err
-        })
+            if let Some(fallback_error) = err.fallback_error() {
+                error!(
+                    target: "rgsm::ipc",
+                    "Fallback sound also failed: {fallback_error}"
+                );
+            }
+            err.log_for_preview();
+            Err(err.to_user_message())
+        }
+    }
 }
 
 #[tauri::command]
