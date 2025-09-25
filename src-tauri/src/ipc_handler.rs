@@ -125,15 +125,15 @@ pub async fn preview_quick_action_sound(
             error!(
                 target: "rgsm::ipc",
                 "Failed to preview quick action sound: {}",
-                err.primary_error()
+                err.primary_message()
             );
-            if let Some(fallback_error) = err.fallback_error() {
+            if let Some(fallback_error) = err.fallback_message() {
                 error!(
                     target: "rgsm::ipc",
                     "Fallback sound also failed: {fallback_error}"
                 );
             }
-            err.log_for_preview();
+            err.log_preview_error();
             Err(err.to_user_message())
         }
     }
