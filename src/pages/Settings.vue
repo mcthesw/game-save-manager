@@ -10,7 +10,12 @@ import HotkeySelector from "../components/HotkeySelector.vue";
 import { useDark } from '@vueuse/core'
 import { commands } from "~/bindings";
 import { error, info } from "@tauri-apps/plugin-log";
-import type { Device } from "../bindings";
+import type {
+    Device,
+    QuickActionSoundKind,
+    QuickActionSoundProfile,
+    QuickActionSoundSource,
+} from "../bindings";
 
 const isDark = useDark()
 const { config, refreshConfig, saveConfig } = useConfig()
@@ -21,6 +26,25 @@ const activeTab = ref('general')
 const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
 const { withLoading } = useGlobalLoading()
+
+type SoundSourceType = QuickActionSoundSource["type"]
+const QUICK_ACTION_SUCCESS: QuickActionSoundKind = "success"
+const QUICK_ACTION_ERROR: QuickActionSoundKind = "error"
+
+const successSourceType = computed<SoundSourceType>({
+    get: () =>
+        config.value.quick_action?.sound?.success?.source.type ?? "success_tone",
+    set: (value) => setSoundSource(QUICK_ACTION_SUCCESS, value),
+})
+
+const errorSourceType = computed<SoundSourceType>({
+    get: () =>
+        config.value.quick_action?.sound?.error?.source.type ?? "error_tone",
+    set: (value) => setSoundSource(QUICK_ACTION_ERROR, value),
+})
+
+const successSoundPath = computed(() => getSoundPath(QUICK_ACTION_SUCCESS))
+const errorSoundPath = computed(() => getSoundPath(QUICK_ACTION_ERROR))
 
 // 设备管理相关
 const currentDevice = ref<Device>({ id: "", name: "" })
@@ -146,6 +170,74 @@ async function translate_website() {
     } catch (e) {
         error(`open translate website error: ${e}`)
         showError({ message: $t('error.open_url_failed') })
+    }
+}
+
+function getSoundProfile(kind: QuickActionSoundKind): QuickActionSoundProfile | undefined {
+    const sound = config.value.quick_action?.sound
+    if (!sound) {
+        return undefined
+    }
+    return kind === QUICK_ACTION_SUCCESS ? sound.success : sound.error
+}
+
+function setSoundSource(kind: QuickActionSoundKind, value: SoundSourceType) {
+    const profile = getSoundProfile(kind)
+    if (!profile) {
+        return
+    }
+
+    if (value === "file") {
+        const existing =
+            profile.source.type === "file" ? profile.source.path : ""
+        profile.source = { type: "file", path: existing }
+    } else {
+        profile.source = { type: value } as QuickActionSoundSource
+    }
+}
+
+function getSoundPath(kind: QuickActionSoundKind): string {
+    const profile = getSoundProfile(kind)
+    if (!profile) {
+        return ""
+    }
+
+    return profile.source.type === "file" ? profile.source.path : ""
+}
+
+async function chooseSound(kind: QuickActionSoundKind) {
+    try {
+        const result = await commands.chooseSoundFile()
+        if (result.status === "ok") {
+            const profile = getSoundProfile(kind)
+            if (!profile) {
+                return
+            }
+            profile.source = { type: "file", path: result.data }
+            debouncedSaveConfig()
+        } else {
+            showError({ message: $t("error.choose_sound_failed") })
+        }
+    } catch (e) {
+        error(`choose sound error: ${e}`)
+        showError({ message: $t("error.choose_sound_failed") })
+    }
+}
+
+async function togglePreviewSound(kind: QuickActionSoundKind) {
+    const profile = getSoundProfile(kind)
+    if (!profile) {
+        return
+    }
+
+    try {
+        const result = await commands.toggleQuickActionSoundPreview(kind, profile)
+        if (result.status === "error") {
+            throw new Error(result.error)
+        }
+    } catch (e) {
+        error(`toggle preview sound error: ${e}`)
+        showError({ message: $t("error.preview_sound_failed") })
     }
 }
 
@@ -353,6 +445,14 @@ watch(
     { deep: true } // 深度监听对象变化
 )
 
+watch(
+    () => config.value.quick_action?.sound,
+    () => {
+        debouncedSaveConfig()
+    },
+    { deep: true }
+)
+
 const router_list = computed(() => {
     // TODO:抽离到新文件中，同时`MainSideBar.vue`也要抽离
     var link_list = [
@@ -547,6 +647,73 @@ const router_list = computed(() => {
                                 {{ config.quick_action!.quick_action_game?.name }}
                             </strong>
                         </div>
+                        <div class="sound-settings">
+                            <h4 class="sound-section-title">
+                                {{ $t("settings.quick_action_notification_title") }}
+                            </h4>
+                            <div class="sound-row">
+                                <ElSwitch v-model="config.quick_action!.sound.notifications.on_success" />
+                                <span class="setting-label">{{ $t("settings.quick_action_notify_success") }}</span>
+                            </div>
+                            <div class="sound-row">
+                                <ElSwitch v-model="config.quick_action!.sound.notifications.on_error" />
+                                <span class="setting-label">{{ $t("settings.quick_action_notify_error") }}</span>
+                            </div>
+                        </div>
+                        <div class="sound-settings">
+                            <h4 class="sound-section-title">
+                                {{ $t("settings.quick_action_success_sound_title") }}
+                            </h4>
+                            <div class="sound-row">
+                                <ElSwitch v-model="config.quick_action!.sound.success.enabled" />
+                                <span class="setting-label">{{ $t("settings.quick_action_sound_toggle") }}</span>
+                            </div>
+                            <div class="sound-control-row">
+                                <ElSelect v-model="successSourceType" class="sound-source-select">
+                                    <ElOption :label="$t('settings.quick_action_sound_source_success_tone')" value="success_tone" />
+                                    <ElOption :label="$t('settings.quick_action_sound_source_error_tone')" value="error_tone" />
+                                    <ElOption :label="$t('settings.quick_action_sound_source_file')" value="file" />
+                                </ElSelect>
+                                <el-button size="small" @click="chooseSound(QUICK_ACTION_SUCCESS)" :disabled="successSourceType !== 'file'">
+                                    {{ $t('settings.quick_action_sound_choose') }}
+                                </el-button>
+                            </div>
+                            <div class="sound-path" v-if="successSourceType === 'file'">
+                                {{ successSoundPath || $t('settings.quick_action_sound_no_file') }}
+                            </div>
+                            <div class="sound-actions">
+                                <el-button size="small" type="primary" @click="togglePreviewSound(QUICK_ACTION_SUCCESS)">
+                                    {{ $t('settings.quick_action_sound_preview') }}
+                                </el-button>
+                            </div>
+                        </div>
+                        <div class="sound-settings">
+                            <h4 class="sound-section-title">
+                                {{ $t("settings.quick_action_error_sound_title") }}
+                            </h4>
+                            <div class="sound-row">
+                                <ElSwitch v-model="config.quick_action!.sound.error.enabled" />
+                                <span class="setting-label">{{ $t("settings.quick_action_sound_toggle") }}</span>
+                            </div>
+                            <div class="sound-control-row">
+                                <ElSelect v-model="errorSourceType" class="sound-source-select">
+                                    <ElOption :label="$t('settings.quick_action_sound_source_success_tone')" value="success_tone" />
+                                    <ElOption :label="$t('settings.quick_action_sound_source_error_tone')" value="error_tone" />
+                                    <ElOption :label="$t('settings.quick_action_sound_source_file')" value="file" />
+                                </ElSelect>
+                                <el-button size="small" @click="chooseSound(QUICK_ACTION_ERROR)" :disabled="errorSourceType !== 'file'">
+                                    {{ $t('settings.quick_action_sound_choose') }}
+                                </el-button>
+                            </div>
+                            <div class="sound-path" v-if="errorSourceType === 'file'">
+                                {{ errorSoundPath || $t('settings.quick_action_sound_no_file') }}
+                            </div>
+                            <div class="sound-actions">
+                                <el-button size="small" type="primary" @click="togglePreviewSound(QUICK_ACTION_ERROR)">
+                                    {{ $t('settings.quick_action_sound_preview') }}
+                                </el-button>
+                            </div>
+                        </div>
                         <HotkeySelector v-model="config.quick_action!.hotkeys" />
                         <div class="setting-action">
                             <el-button type="primary" @click="saveHotkeys" :disabled="!hotkeysChanged">
@@ -625,6 +792,46 @@ const router_list = computed(() => {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.sound-settings {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--el-border-color);
+    border-radius: 4px;
+}
+
+.sound-section-title {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.sound-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.sound-control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.sound-source-select {
+    width: 200px;
+}
+
+.sound-path {
+    margin-top: 6px;
+    color: var(--el-text-color-secondary);
+    word-break: break-all;
+}
+
+.sound-actions {
+    margin-top: 10px;
 }
 
 .tab-title {

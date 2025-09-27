@@ -1,4 +1,7 @@
-use crate::{backup::Game, config::get_config, preclude::*};
+use crate::{
+    config::{QuickActionSoundSettings, get_config},
+    preclude::*,
+};
 use log::{error, info, warn};
 use rust_i18n::t;
 
@@ -19,16 +22,46 @@ impl QuickActionType {
     }
 }
 
-pub async fn quick_apply(t: QuickActionType) {
-    info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}", t.generate_describe());
-    let game = get_quick_action_game();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuickActionResult {
+    Success,
+    Failed,
+    Skipped,
+}
 
-    // 检查游戏是否已选择
-    let game = match game {
+#[derive(Debug, Clone)]
+pub struct QuickActionOutcome {
+    pub result: QuickActionResult,
+    pub sound_settings: QuickActionSoundSettings,
+}
+
+pub async fn quick_apply(t: QuickActionType) -> QuickActionOutcome {
+    info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}", t.generate_describe());
+    let config = match get_config() {
+        Ok(config) => config,
+        Err(err) => {
+            error!(target:"rgsm::quick_action", "Failed to load config for quick apply: {err:?}");
+            return QuickActionOutcome {
+                result: QuickActionResult::Failed,
+                sound_settings: QuickActionSoundSettings::default(),
+            };
+        }
+    };
+
+    let sound_settings = config.quick_action.sound.clone();
+    let notify_success = sound_settings.notifications.on_success;
+    let notify_error = sound_settings.notifications.on_error;
+
+    let game = match config.quick_action.quick_action_game.clone() {
         Some(game) => game,
         None => {
-            show_no_game_selected_error();
-            return;
+            if notify_error {
+                show_no_game_selected_error();
+            }
+            return QuickActionOutcome {
+                result: QuickActionResult::Skipped,
+                sound_settings,
+            };
         }
     };
 
@@ -51,38 +84,64 @@ pub async fn quick_apply(t: QuickActionType) {
     match result {
         Err(e) => {
             error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", &e);
-            show_notification(
-                t!("backend.tray.error"),
-                format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
-            );
+            if notify_error {
+                show_notification(
+                    t!("backend.tray.error"),
+                    format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+                );
+            }
+            QuickActionOutcome {
+                result: QuickActionResult::Failed,
+                sound_settings,
+            }
         }
         Ok(_) => {
-            show_notification(
-                t!("backend.tray.success"),
-                format!(
-                    "{:#?} {} {}",
-                    game.name,
-                    t!("backend.tray.quick_apply"),
-                    t!("backend.tray.success")
-                ),
-            );
+            if notify_success {
+                show_notification(
+                    t!("backend.tray.success"),
+                    format!(
+                        "{:#?} {} {}",
+                        game.name,
+                        t!("backend.tray.quick_apply"),
+                        t!("backend.tray.success")
+                    ),
+                );
+            }
+            QuickActionOutcome {
+                result: QuickActionResult::Success,
+                sound_settings,
+            }
         }
     }
 }
 
-pub async fn quick_backup(t: QuickActionType) {
+pub async fn quick_backup(t: QuickActionType) -> QuickActionOutcome {
     info!(target:"rgsm::quick_action", "Auto backup triggered: {:#?}", t.generate_describe());
-    let show_info = get_config()
-        .expect("Cannot get config")
-        .settings
-        .prompt_when_auto_backup;
+    let config = match get_config() {
+        Ok(config) => config,
+        Err(err) => {
+            error!(target:"rgsm::quick_action", "Failed to load config for quick backup: {err:?}");
+            return QuickActionOutcome {
+                result: QuickActionResult::Failed,
+                sound_settings: QuickActionSoundSettings::default(),
+            };
+        }
+    };
 
-    // 检查游戏是否已选择
-    let game = match get_quick_action_game() {
+    let sound_settings = config.quick_action.sound.clone();
+    let notify_success = should_notify_backup_success(&sound_settings, &config, t);
+    let notify_error = sound_settings.notifications.on_error;
+
+    let game = match config.quick_action.quick_action_game.clone() {
         Some(game) => game,
         None => {
-            show_no_game_selected_error();
-            return;
+            if notify_error {
+                show_no_game_selected_error();
+            }
+            return QuickActionOutcome {
+                result: QuickActionResult::Skipped,
+                sound_settings,
+            };
         }
     };
 
@@ -93,28 +152,50 @@ pub async fn quick_backup(t: QuickActionType) {
     match result {
         Err(e) => {
             error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
-            show_notification(
-                t!("backend.tray.error"),
-                format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
-            );
+            if notify_error {
+                show_notification(
+                    t!("backend.tray.error"),
+                    format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+                );
+            }
+            QuickActionOutcome {
+                result: QuickActionResult::Failed,
+                sound_settings,
+            }
         }
         Ok(_) => {
-            // 根据设置决定是否显示通知
-            if !show_info && (t == QuickActionType::Timer) {
-                // 设置中该选项控制是否在按间隔备份时发出通知
-                // 若不启用，则不进行通知，其余情况则产生通知
-                return;
+            if notify_success {
+                show_notification(
+                    t!("backend.tray.success"),
+                    format!(
+                        "{:#?} {} {}",
+                        game.name,
+                        t!("backend.tray.quick_backup"),
+                        t!("backend.tray.success")
+                    ),
+                );
             }
-            show_notification(
-                t!("backend.tray.success"),
-                format!(
-                    "{:#?} {} {}",
-                    game.name,
-                    t!("backend.tray.quick_backup"),
-                    t!("backend.tray.success")
-                ),
-            );
+            QuickActionOutcome {
+                result: QuickActionResult::Success,
+                sound_settings,
+            }
         }
+    }
+}
+
+fn should_notify_backup_success(
+    sound_settings: &QuickActionSoundSettings,
+    config: &crate::config::Config,
+    trigger: QuickActionType,
+) -> bool {
+    if !sound_settings.notifications.on_success {
+        return false;
+    }
+
+    if trigger == QuickActionType::Timer {
+        config.settings.prompt_when_auto_backup
+    } else {
+        true
     }
 }
 
@@ -124,12 +205,4 @@ fn show_no_game_selected_error() {
         t!("backend.tray.error"),
         t!("backend.tray.no_game_selected"),
     );
-}
-
-pub fn get_quick_action_game() -> Option<Game> {
-    get_config()
-        .expect("Cannot get config")
-        .quick_action
-        .quick_action_game
-        .clone()
 }

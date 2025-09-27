@@ -1,6 +1,7 @@
+use crate::audio::AudioManager;
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all};
-use crate::config::{Config, get_config};
+use crate::config::{Config, QuickActionSoundKind, QuickActionSoundProfile, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
@@ -81,6 +82,22 @@ pub async fn choose_save_dir(app: AppHandle) -> Result<String, String> {
         Ok(path.to_string())
     } else {
         warn!(target:"rgsm::ipc", "Failed to open dialog or user close the dialog.");
+        Err("Failed to open dialog.".to_string())
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn choose_sound_file(app: AppHandle) -> Result<String, String> {
+    info!(target:"rgsm::ipc", "Opening sound file dialog.");
+    let mut builder = app.dialog().file();
+    builder = builder.add_filter("Audio", &["wav", "mp3", "ogg", "flac", "aac", "m4a"]);
+
+    if let Some(path) = builder.blocking_pick_file() {
+        info!(target:"rgsm::ipc", "Picked sound file: {path:?}");
+        Ok(path.to_string())
+    } else {
+        warn!(target:"rgsm::ipc", "Sound file dialog cancelled");
         Err("Failed to open dialog.".to_string())
     }
 }
@@ -333,6 +350,21 @@ pub async fn resolve_path(path: String) -> Result<String, String> {
 
     info!(target:"rgsm::ipc", "Successfully resolved path: {} -> {}", path, path_str);
     Ok(path_str.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn toggle_quick_action_sound_preview(
+    app: AppHandle,
+    kind: QuickActionSoundKind,
+    profile: QuickActionSoundProfile,
+) -> Result<(), String> {
+    let audio_state = app
+        .try_state::<AudioManager>()
+        .ok_or_else(|| "Audio manager not initialized".to_string())?;
+
+    audio_state.toggle_preview(kind, profile);
+    Ok(())
 }
 
 /// Returns the current device, if not found, returns a default device

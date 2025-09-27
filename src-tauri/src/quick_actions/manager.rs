@@ -13,11 +13,12 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::{self, Sleep};
 
 use crate::{
+    audio::{AudioManager, resolve_profile},
     backup::Game,
-    config::{get_config, set_config},
+    config::{QuickActionSoundKind, get_config, set_config},
 };
 
-use super::{QuickActionType, quick_apply, quick_backup};
+use super::{QuickActionOutcome, QuickActionResult, QuickActionType, quick_apply, quick_backup};
 
 const COMMAND_BUFFER: usize = 32;
 const TIMER_TICK_SECONDS: u64 = 60;
@@ -211,10 +212,12 @@ impl QuickActionWorker {
                 self.handle_update_interval(minutes).await;
             }
             QuickActionCommand::TriggerBackup(trigger) => {
-                quick_backup(trigger).await;
+                let outcome = quick_backup(trigger).await;
+                self.handle_action_outcome(outcome).await;
             }
             QuickActionCommand::TriggerApply(trigger) => {
-                quick_apply(trigger).await;
+                let outcome = quick_apply(trigger).await;
+                self.handle_action_outcome(outcome).await;
             }
         }
     }
@@ -291,7 +294,8 @@ impl QuickActionWorker {
         };
 
         if should_trigger {
-            quick_backup(QuickActionType::Timer).await;
+            let outcome = quick_backup(QuickActionType::Timer).await;
+            self.handle_action_outcome(outcome).await;
         }
 
         if self.timer_sleep.is_some() {
@@ -337,5 +341,22 @@ impl QuickActionWorker {
                 );
             }
         }
+    }
+}
+
+impl QuickActionWorker {
+    async fn handle_action_outcome(&self, outcome: QuickActionOutcome) {
+        let kind = match outcome.result {
+            QuickActionResult::Success => QuickActionSoundKind::Success,
+            QuickActionResult::Failed => QuickActionSoundKind::Error,
+            QuickActionResult::Skipped => return,
+        };
+
+        let Some(audio_state) = self.manager.app_handle().try_state::<AudioManager>() else {
+            return;
+        };
+
+        let profile = resolve_profile(&outcome.sound_settings, kind).clone();
+        audio_state.play_effect(kind, profile);
     }
 }
