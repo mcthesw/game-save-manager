@@ -166,7 +166,7 @@ async function fetchDeviceInfo() {
         const result = await commands.getCurrentDeviceInfo();
         if (result.status === "ok") {
             currentDevice.value = result.data;
-            
+
             // 从配置中获取所有设备
             if (config.value && config.value.devices) {
                 // 过滤掉当前设备，只显示其他设备
@@ -188,14 +188,14 @@ async function fetchDeviceInfo() {
 async function updateDeviceInfo() {
     try {
         if (!config.value || !currentDevice.value) return;
-        
+
         // 在配置中更新设备信息
         if (!config.value.devices) {
             config.value.devices = {};
         }
-        
+
         config.value.devices[currentDevice.value.id] = { ...currentDevice.value };
-        
+
         // 保存配置
         await saveConfig();
         showSuccess({ message: $t('settings.device_updated') });
@@ -218,17 +218,17 @@ async function importFromDevice(deviceId: string) {
                 type: 'warning',
             }
         );
-        
+
         // 获取当前设备ID
         const currentDeviceId = currentDevice.value?.id;
         if (!currentDeviceId || !config.value || !config.value.games) {
             throw new Error("Current device or config not available");
         }
-        
+
         if (currentDeviceId === deviceId) {
             throw new Error("Cannot import from the same device");
         }
-        
+
         // 遍历所有游戏，复制源设备的路径到当前设备
         for (const game of config.value.games) {
             // 复制存档路径
@@ -239,13 +239,13 @@ async function importFromDevice(deviceId: string) {
                     }
                 }
             }
-            
+
             // 复制游戏启动路径
             if (game.game_paths && game.game_paths[deviceId]) {
                 game.game_paths[currentDeviceId] = game.game_paths[deviceId];
             }
         }
-        
+
         // 保存配置
         await saveConfig();
         showSuccess({ message: $t('settings.import_paths_success') });
@@ -385,10 +385,13 @@ async function chooseSoundFile(target: "success" | "failure") {
         const path = await commands.chooseQuickActionSoundFile()
         const slots = ensureSoundSlots()
         if (!slots) return
-        if (target === "success") {
-            slots.success = { kind: "file", path }
-        } else {
-            slots.failure = { kind: "file", path }
+        if (path.status === "ok") {
+            const file_path = path.data
+            if (target === "success") {
+                slots.success = { kind: "file", path: file_path }
+            } else {
+                slots.failure = { kind: "file", path: file_path }
+            }
         }
     } catch (e) {
         error(`choose sound file error: ${e}`)
@@ -626,9 +629,12 @@ const router_list = computed(() => {
 
                     <div class="setting-box">
                         <ElSelect v-model="config.settings.save_list_expand_behavior">
-                            <ElOption :label="$t('settings.save_list_expand_behavior_default_open')" value="always_open" />
-                            <ElOption :label="$t('settings.save_list_expand_behavior_default_closed')" value="always_closed" />
-                            <ElOption :label="$t('settings.save_list_expand_behavior_remember_last')" value="remember_last" />
+                            <ElOption :label="$t('settings.save_list_expand_behavior_default_open')"
+                                value="always_open" />
+                            <ElOption :label="$t('settings.save_list_expand_behavior_default_closed')"
+                                value="always_closed" />
+                            <ElOption :label="$t('settings.save_list_expand_behavior_remember_last')"
+                                value="remember_last" />
                         </ElSelect>
                         <span class="setting-label">{{ $t("settings.save_list_expand_behavior") }}</span>
                     </div>
@@ -637,7 +643,7 @@ const router_list = computed(() => {
                         <span class="setting-label">{{ $t("settings.default_expend_favorites_tree") }}</span>
                     </div>
                 </el-tab-pane>
-                
+
                 <!-- 设备管理 -->
                 <el-tab-pane :label="$t('settings.device_settings')" name="device">
                     <el-divider content-position="left">
@@ -646,7 +652,7 @@ const router_list = computed(() => {
                         </el-icon>
                         <span class="tab-title">{{ $t('settings.device_settings') }}</span>
                     </el-divider>
-                    
+
                     <!-- 当前设备信息 -->
                     <div class="setting-box">
                         <h3>{{ $t('settings.current_device') }}</h3>
@@ -661,7 +667,7 @@ const router_list = computed(() => {
                             </el-form>
                         </div>
                     </div>
-                    
+
                     <!-- 其他设备列表 -->
                     <div class="setting-box">
                         <h3>{{ $t('settings.other_devices') }}</h3>
@@ -715,11 +721,8 @@ const router_list = computed(() => {
                                     <ElOption :label="$t('settings.quick_action_sound_mode_custom')" value="file" />
                                 </ElSelect>
                                 <template v-if="successSoundMode === 'file'">
-                                    <ElInput
-                                        v-model="successSoundPath"
-                                        class="sound-path-input"
-                                        :placeholder="$t('settings.quick_action_sound_file_placeholder')"
-                                    />
+                                    <ElInput v-model="successSoundPath" class="sound-path-input"
+                                        :placeholder="$t('settings.quick_action_sound_file_placeholder')" />
                                     <ElButton @click="chooseSoundFile('success')">
                                         {{ $t('settings.quick_action_sound_choose') }}
                                     </ElButton>
@@ -735,11 +738,8 @@ const router_list = computed(() => {
                                     <ElOption :label="$t('settings.quick_action_sound_mode_custom')" value="file" />
                                 </ElSelect>
                                 <template v-if="failureSoundMode === 'file'">
-                                    <ElInput
-                                        v-model="failureSoundPath"
-                                        class="sound-path-input"
-                                        :placeholder="$t('settings.quick_action_sound_file_placeholder')"
-                                    />
+                                    <ElInput v-model="failureSoundPath" class="sound-path-input"
+                                        :placeholder="$t('settings.quick_action_sound_file_placeholder')" />
                                     <ElButton @click="chooseSoundFile('failure')">
                                         {{ $t('settings.quick_action_sound_choose') }}
                                     </ElButton>
