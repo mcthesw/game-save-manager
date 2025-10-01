@@ -211,10 +211,12 @@ impl QuickActionWorker {
                 self.handle_update_interval(minutes).await;
             }
             QuickActionCommand::TriggerBackup(trigger) => {
-                quick_backup(trigger).await;
+                let app = self.manager.app_handle();
+                quick_backup(&app, trigger).await;
             }
             QuickActionCommand::TriggerApply(trigger) => {
-                quick_apply(trigger).await;
+                let app = self.manager.app_handle();
+                quick_apply(&app, trigger).await;
             }
         }
     }
@@ -291,7 +293,8 @@ impl QuickActionWorker {
         };
 
         if should_trigger {
-            quick_backup(QuickActionType::Timer).await;
+            let app = self.manager.app_handle();
+            quick_backup(&app, QuickActionType::Timer).await;
         }
 
         if self.timer_sleep.is_some() {

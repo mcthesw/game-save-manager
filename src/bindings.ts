@@ -196,6 +196,30 @@ async getCurrentDeviceInfo() : Promise<Result<Device, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async toggleQuickActionSoundPreview(preferences: QuickActionSoundPreferences, effect: QuickActionSoundEffect) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_quick_action_sound_preview", { preferences, effect }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async stopSoundPlayback() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stop_sound_playback") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async chooseQuickActionSoundFile() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("choose_quick_action_sound_file") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -210,7 +234,7 @@ ipcNotification: "ipc-notification"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"./save_data","devices":{},"favorites":[],"games":[],"quick_action":{"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.3"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"./save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.3"} as const;
 
 /** user-defined types **/
 
@@ -269,7 +293,11 @@ export type GameSnapshots = { name: string; backups: Snapshot[] }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type NotificationLevel = "info" | "warning" | "error"
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
-export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys }
+export type QuickActionSoundEffect = "Success" | "Failure"
+export type QuickActionSoundPreferences = { enable_sound?: boolean; sounds?: QuickActionSoundSlots }
+export type QuickActionSoundSlots = { success?: QuickActionSoundSource; failure?: QuickActionSoundSource }
+export type QuickActionSoundSource = { kind: "default" } | { kind: "file"; path: string }
+export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; sounds?: QuickActionSoundSlots }
 /**
  * Settings that can be configured by user
  */
