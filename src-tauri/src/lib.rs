@@ -23,6 +23,7 @@ mod ipc_handler;
 mod path_resolver;
 mod preclude;
 mod quick_actions;
+mod sound;
 mod updater;
 
 pub fn run() -> anyhow::Result<()> {
@@ -78,6 +79,9 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
+            sound::toggle_quick_action_sound_preview,
+            sound::stop_sound_playback,
+            sound::choose_quick_action_sound_file,
         ])
         .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());
@@ -113,6 +117,7 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(command_builder.invoke_handler())
         .setup(move |app| {
+            sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键
             quick_actions::setup(app).expect("Cannot setup quick actions");
             // 注册命令
