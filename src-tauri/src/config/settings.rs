@@ -6,18 +6,13 @@ use crate::default_value;
 use crate::preclude::*;
 
 /// Settings that can be configured by user
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SaveListExpandBehavior {
     AlwaysOpen,
+    #[default]
     AlwaysClosed,
     RememberLast,
-}
-
-impl Default for SaveListExpandBehavior {
-    fn default() -> Self {
-        SaveListExpandBehavior::AlwaysClosed
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]

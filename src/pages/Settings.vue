@@ -7,8 +7,14 @@ import { useI18n } from "vue-i18n";
 import draggable from 'vuedraggable'
 import { DocumentAdd, HotWater, InfoFilled, MostlyCloudy, Setting, SwitchFilled, Document, Unlock, Moon, Tools } from "@element-plus/icons-vue";
 import HotkeySelector from "../components/HotkeySelector.vue";
-import { useDark } from '@vueuse/core'
+import { useDark, useDebounceFn } from '@vueuse/core'
 import { commands } from "~/bindings";
+import type {
+    QuickActionSoundPreferences,
+    QuickActionSoundSlots,
+    QuickActionSoundSource,
+    QuickActionsSettings,
+} from "~/bindings";
 import { error, info } from "@tauri-apps/plugin-log";
 import type { Device } from "../bindings";
 
@@ -21,6 +27,8 @@ const activeTab = ref('general')
 const hotkeysChanged = ref(false)
 const gameOrderChanged = ref(false)
 const { withLoading } = useGlobalLoading()
+type SoundModeOption = "default" | "file"
+let skipQuickActionChange = true
 
 // 设备管理相关
 const currentDevice = ref<Device>({ id: "", name: "" })
@@ -38,7 +46,9 @@ const debouncedSaveConfig = useDebounceFn(async () => {
 }, 500)
 
 async function load_config() {
+    skipQuickActionChange = true
     await refreshConfig()
+    ensureQuickActionDefaults()
     await fetchDeviceInfo()
 }
 
@@ -250,6 +260,142 @@ async function importFromDevice(deviceId: string) {
     }
 }
 
+function ensureQuickActionDefaults() {
+    if (!config.value?.quick_action) {
+        return
+    }
+    const settings = config.value.quick_action as QuickActionsSettings
+    if (settings.enable_sound === undefined) {
+        settings.enable_sound = true
+    }
+    if (settings.enable_notification === undefined) {
+        settings.enable_notification = true
+    }
+    if (!settings.sounds) {
+        settings.sounds = {
+            success: { kind: "default" },
+            failure: { kind: "default" },
+        }
+    }
+}
+
+function ensureSoundSlots(): QuickActionSoundSlots | undefined {
+    ensureQuickActionDefaults()
+    return config.value?.quick_action?.sounds as QuickActionSoundSlots | undefined
+}
+
+function isFileSource(source: QuickActionSoundSource | undefined): source is QuickActionSoundSource & { kind: "file"; path: string } {
+    return source?.kind === "file"
+}
+
+function cloneSoundSource(source: QuickActionSoundSource | undefined): QuickActionSoundSource {
+    if (isFileSource(source)) {
+        return { kind: "file", path: source.path ?? "" }
+    }
+    return { kind: "default" }
+}
+
+function buildSoundPreferences(): QuickActionSoundPreferences | undefined {
+    if (!config.value?.quick_action) {
+        return undefined
+    }
+    const slots = ensureSoundSlots()
+    if (!slots) {
+        return undefined
+    }
+    return {
+        enable_sound: config.value.quick_action!.enable_sound ?? true,
+        sounds: {
+            success: cloneSoundSource(slots.success),
+            failure: cloneSoundSource(slots.failure),
+        },
+    }
+}
+
+const successSoundMode = computed<SoundModeOption>({
+    get: () => (isFileSource(config.value?.quick_action?.sounds?.success) ? "file" : "default"),
+    set: (mode) => {
+        const slots = ensureSoundSlots()
+        if (!slots) return
+        if (mode === "default") {
+            slots.success = { kind: "default" }
+        } else {
+            const current = slots.success
+            const existingPath = isFileSource(current) ? current.path ?? "" : ""
+            slots.success = { kind: "file", path: existingPath }
+        }
+    },
+})
+
+const failureSoundMode = computed<SoundModeOption>({
+    get: () => (isFileSource(config.value?.quick_action?.sounds?.failure) ? "file" : "default"),
+    set: (mode) => {
+        const slots = ensureSoundSlots()
+        if (!slots) return
+        if (mode === "default") {
+            slots.failure = { kind: "default" }
+        } else {
+            const current = slots.failure
+            const existingPath = isFileSource(current) ? current.path ?? "" : ""
+            slots.failure = { kind: "file", path: existingPath }
+        }
+    },
+})
+
+const successSoundPath = computed<string>({
+    get: () => {
+        const source = config.value?.quick_action?.sounds?.success
+        return isFileSource(source) ? source.path ?? "" : ""
+    },
+    set: (value) => {
+        const slots = ensureSoundSlots()
+        if (!slots) return
+        slots.success = { kind: "file", path: value }
+    },
+})
+
+const failureSoundPath = computed<string>({
+    get: () => {
+        const source = config.value?.quick_action?.sounds?.failure
+        return isFileSource(source) ? source.path ?? "" : ""
+    },
+    set: (value) => {
+        const slots = ensureSoundSlots()
+        if (!slots) return
+        slots.failure = { kind: "file", path: value }
+    },
+})
+
+async function togglePreview(effect: "success" | "failure") {
+    try {
+        const preferences = buildSoundPreferences()
+        if (!preferences) return
+        await commands.toggleQuickActionSoundPreview(
+            preferences,
+            effect === "success" ? "Success" : "Failure",
+        )
+    } catch (e) {
+        error(`toggle preview error: ${e}`)
+        showError({ message: $t("error.preview_sound_failed") })
+    }
+}
+
+async function chooseSoundFile(target: "success" | "failure") {
+    try {
+        const path = await commands.chooseQuickActionSoundFile()
+        const slots = ensureSoundSlots()
+        if (!slots) return
+        if (target === "success") {
+            slots.success = { kind: "file", path }
+        } else {
+            slots.failure = { kind: "file", path }
+        }
+    } catch (e) {
+        error(`choose sound file error: ${e}`)
+        showError({ message: $t("error.choose_sound_file_error") })
+    }
+}
+
 // 删除设备
 async function deleteDevice(deviceId: string) {
     if (!config.value || !config.value.devices) {
@@ -312,11 +458,16 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
     }
 }
 
-// 监听快捷键变更
+// 监听快捷操作相关设置变更
 watch(
-    () => config.value.quick_action?.hotkeys,
+    () => config.value.quick_action,
     () => {
-        hotkeysChanged.value = true;
+        ensureQuickActionDefaults()
+        if (skipQuickActionChange) {
+            skipQuickActionChange = false
+            return
+        }
+        hotkeysChanged.value = true
     },
     { deep: true }
 )
@@ -547,6 +698,57 @@ const router_list = computed(() => {
                                 {{ config.quick_action!.quick_action_game?.name }}
                             </strong>
                         </div>
+                        <div class="quick-action-row">
+                            <ElSwitch v-model="config.quick_action!.enable_sound" />
+                            <span class="setting-label">{{ $t("settings.quick_action_enable_sound") }}</span>
+                        </div>
+                        <div class="quick-action-row">
+                            <ElSwitch v-model="config.quick_action!.enable_notification" />
+                            <span class="setting-label">{{ $t("settings.quick_action_enable_notification") }}</span>
+                        </div>
+                        <div class="sound-setting">
+                            <h3>{{ $t("settings.quick_action_sound_title") }}</h3>
+                            <div class="sound-row">
+                                <span class="sound-label">{{ $t("settings.quick_action_sound_success") }}</span>
+                                <ElSelect v-model="successSoundMode" class="sound-mode-select">
+                                    <ElOption :label="$t('settings.quick_action_sound_mode_default')" value="default" />
+                                    <ElOption :label="$t('settings.quick_action_sound_mode_custom')" value="file" />
+                                </ElSelect>
+                                <template v-if="successSoundMode === 'file'">
+                                    <ElInput
+                                        v-model="successSoundPath"
+                                        class="sound-path-input"
+                                        :placeholder="$t('settings.quick_action_sound_file_placeholder')"
+                                    />
+                                    <ElButton @click="chooseSoundFile('success')">
+                                        {{ $t('settings.quick_action_sound_choose') }}
+                                    </ElButton>
+                                </template>
+                                <ElButton class="sound-preview-button" @click="togglePreview('success')">
+                                    {{ $t('settings.quick_action_sound_preview_button') }}
+                                </ElButton>
+                            </div>
+                            <div class="sound-row">
+                                <span class="sound-label">{{ $t("settings.quick_action_sound_failure") }}</span>
+                                <ElSelect v-model="failureSoundMode" class="sound-mode-select">
+                                    <ElOption :label="$t('settings.quick_action_sound_mode_default')" value="default" />
+                                    <ElOption :label="$t('settings.quick_action_sound_mode_custom')" value="file" />
+                                </ElSelect>
+                                <template v-if="failureSoundMode === 'file'">
+                                    <ElInput
+                                        v-model="failureSoundPath"
+                                        class="sound-path-input"
+                                        :placeholder="$t('settings.quick_action_sound_file_placeholder')"
+                                    />
+                                    <ElButton @click="chooseSoundFile('failure')">
+                                        {{ $t('settings.quick_action_sound_choose') }}
+                                    </ElButton>
+                                </template>
+                                <ElButton class="sound-preview-button" @click="togglePreview('failure')">
+                                    {{ $t('settings.quick_action_sound_preview_button') }}
+                                </ElButton>
+                            </div>
+                        </div>
                         <HotkeySelector v-model="config.quick_action!.hotkeys" />
                         <div class="setting-action">
                             <el-button type="primary" @click="saveHotkeys" :disabled="!hotkeysChanged">
@@ -618,6 +820,50 @@ const router_list = computed(() => {
 .setting-label {
     margin-left: 10px;
     vertical-align: middle;
+}
+
+.quick-action-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.sound-setting {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    background-color: var(--el-fill-color-light);
+}
+
+.sound-setting h3 {
+    margin: 0 0 10px 0;
+}
+
+.sound-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.sound-label {
+    min-width: 120px;
+    font-weight: 500;
+}
+
+.sound-mode-select {
+    width: 160px;
+}
+
+.sound-path-input {
+    flex: 1;
+    min-width: 220px;
+}
+
+.sound-preview-button {
+    white-space: nowrap;
 }
 
 .setting-action {
