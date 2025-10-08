@@ -104,10 +104,7 @@ The version number format is `x.y.z`, where `x` is the major version number, `y`
 
 Other developers do not need to change the version number, just add their update content to the changelog. The version number will be modified by the Maintainer when merging into the main branch.
 
-- Update the version number in `package.json` (`pnpm version <patch|minor|major>`)
-- Update the version number in `src/schemas/saveTypes.ts`
-- Update the version number in `src-tauri/src/config/app_config.rs:impl Default for Config`
-- Update the version number in `src-tauri/tauri.conf.json`
+- Update the version number in `src-tauri\Cargo.toml`
 
 ## Folder Explanation
 
