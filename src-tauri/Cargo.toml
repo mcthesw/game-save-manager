@@ -15,25 +15,25 @@ name = "rgsm_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.0.6", features = [] }
+tauri-build = { version = "2.4.1", features = [] }
 
 [dependencies]
 serde_json = "1.0.140"
 serde = { version = "1.0.219", features = ["derive"] }
-log = "0.4.26"
-tauri = { version = "2.3.1", features = ["tray-icon"] }
-tauri-plugin-log = "2.3.1"
-rust-i18n = "3.1.3"
+log = "0.4.28"
+tauri = { version = "2.8.5", features = ["tray-icon"] }
+tauri-plugin-log = "2.7.0"
+rust-i18n = "3.1.5"
 anyhow = "1.0.97"
 semver = "1.0.26"
-opendal = { version = "0.52.0", features = ["services-webdav", "services-s3"] }
+opendal = { version = "0.54.0", features = ["services-webdav", "services-s3"] }
 fs_extra = "1.3.0"
-zip = "2.4.2"
+zip = "5.1.1"
 open = "5.3.2"
 chrono = "0.4.40"
 thiserror = "2.0.12"
 tokio = { version = "1.44.2", features = ["full"] }
-tauri-plugin-dialog = "2.2.0"
+tauri-plugin-dialog = "2.4.0"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
@@ -46,7 +46,7 @@ machine-uid = "0.5.3"
 rodio = { version = "0.18.1", features = ["flac", "mp3", "vorbis"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-global-shortcut = "2.2.0"
-tauri-plugin-single-instance = "2.2.2"
-tauri-plugin-window-state = "2"
+tauri-plugin-global-shortcut = "2.3.0"
+tauri-plugin-single-instance = "2.3.4"
+tauri-plugin-window-state = "2.4.0"
 
