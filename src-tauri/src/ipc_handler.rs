@@ -1,10 +1,10 @@
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all};
-use crate::config::{Config, get_config};
+use crate::config::{Config, QuickActionSoundPreferences, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
-use crate::{backup, config, quick_actions};
+use crate::{backup, config, quick_actions, sound};
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -305,6 +305,38 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
         })?;
     info!(target:"rgsm::ipc","Successfully set quick backup game to: {:?}", game);
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn toggle_quick_action_sound_preview(
+    app: AppHandle,
+    preferences: QuickActionSoundPreferences,
+    effect: sound::QuickActionSoundEffect,
+) -> Result<(), String> {
+    let manager = app.state::<sound::SoundManager>();
+    manager
+        .toggle_preview(preferences, effect)
+        .map_err(|err| {
+            error!(target: "rgsm::sound", "Failed to preview sound: {err:?}");
+            err.to_string()
+        })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn stop_sound_playback(app: AppHandle) -> Result<(), String> {
+    let manager = app.state::<sound::SoundManager>();
+    manager.stop().map_err(|err| {
+        error!(target: "rgsm::sound", "Failed to stop sound: {err:?}");
+        err.to_string()
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn choose_quick_action_sound_file(app: AppHandle) -> Result<String, String> {
+    sound::choose_quick_action_sound_file(&app)
 }
 
 /// Resolves a path string containing variables to an actual filesystem path

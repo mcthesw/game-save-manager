@@ -79,9 +79,9 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
-            sound::toggle_quick_action_sound_preview,
-            sound::stop_sound_playback,
-            sound::choose_quick_action_sound_file,
+            ipc_handler::toggle_quick_action_sound_preview,
+            ipc_handler::stop_sound_playback,
+            ipc_handler::choose_quick_action_sound_file,
         ])
         .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
         .constant("DEFAULT_CONFIG", config::Config::default());

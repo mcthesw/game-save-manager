@@ -1,12 +1,10 @@
 use std::{
     io::BufReader,
     path::{Path, PathBuf},
-    sync::mpsc,
-    thread,
 };
 
 use anyhow::{Context, Result};
-use log::{error, warn};
+use log::warn;
 use rodio::{
     Decoder, OutputStream, OutputStreamHandle, Sink, buffer::SamplesBuffer, source::Source,
 };
@@ -14,6 +12,10 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    oneshot,
+};
 
 use crate::config::{QuickActionSoundPreferences, QuickActionSoundSlots, QuickActionSoundSource};
 
@@ -95,13 +97,13 @@ impl SoundPlayer {
 }
 
 pub struct SoundManager {
-    command_tx: mpsc::Sender<SoundCommand>,
+    command_tx: UnboundedSender<SoundCommand>,
 }
 
 impl SoundManager {
     pub fn new() -> Self {
-        let (command_tx, command_rx) = mpsc::channel();
-        thread::spawn(move || {
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
+        tauri::async_runtime::spawn_blocking(move || {
             let mut worker = SoundWorker::new(command_rx);
             worker.run();
         });
@@ -121,12 +123,15 @@ impl SoundManager {
             return;
         }
 
-        if let Err(err) = self.command_tx.send(SoundCommand::Play {
-            effect,
-            preferences,
-            mode: SoundMode::QuickAction,
-            respond_to: None,
-        }) {
+        if let Err(err) = self
+            .command_tx
+            .send(SoundCommand::Play {
+                effect,
+                preferences,
+                mode: SoundMode::QuickAction,
+                respond_to: None,
+            })
+        {
             warn!(target: "rgsm::sound", "Failed to send quick action sound command: {err}");
         }
     }
@@ -136,7 +141,7 @@ impl SoundManager {
         preferences: QuickActionSoundPreferences,
         effect: QuickActionSoundEffect,
     ) -> Result<()> {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = oneshot::channel();
         self.command_tx
             .send(SoundCommand::Play {
                 effect,
@@ -144,18 +149,17 @@ impl SoundManager {
                 mode: SoundMode::Preview,
                 respond_to: Some(tx),
             })
-            .context("failed to send preview sound command")?;
-        rx.recv().context("preview response dropped")?
+            .map_err(|_| anyhow::anyhow!("failed to send preview sound command"))?;
+        rx.blocking_recv()
+            .context("preview response dropped")?
     }
 
     pub fn stop(&self) -> Result<()> {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = oneshot::channel();
         self.command_tx
-            .send(SoundCommand::Stop {
-                respond_to: Some(tx),
-            })
-            .context("failed to send stop sound command")?;
-        rx.recv().context("stop response dropped")?;
+            .send(SoundCommand::Stop { respond_to: Some(tx) })
+            .map_err(|_| anyhow::anyhow!("failed to send stop sound command"))?;
+        rx.blocking_recv().context("stop response dropped")?;
         Ok(())
     }
 }
@@ -165,20 +169,20 @@ enum SoundCommand {
         effect: QuickActionSoundEffect,
         preferences: QuickActionSoundPreferences,
         mode: SoundMode,
-        respond_to: Option<mpsc::Sender<Result<()>>>,
+        respond_to: Option<oneshot::Sender<Result<()>>>,
     },
     Stop {
-        respond_to: Option<mpsc::Sender<()>>,
+        respond_to: Option<oneshot::Sender<()>>,
     },
 }
 
 struct SoundWorker {
-    command_rx: mpsc::Receiver<SoundCommand>,
+    command_rx: UnboundedReceiver<SoundCommand>,
     player: SoundPlayer,
 }
 
 impl SoundWorker {
-    fn new(command_rx: mpsc::Receiver<SoundCommand>) -> Self {
+    fn new(command_rx: UnboundedReceiver<SoundCommand>) -> Self {
         Self {
             command_rx,
             player: SoundPlayer::default(),
@@ -186,7 +190,7 @@ impl SoundWorker {
     }
 
     fn run(&mut self) {
-        while let Ok(command) = self.command_rx.recv() {
+        while let Some(command) = self.command_rx.blocking_recv() {
             self.handle_command(command);
         }
     }
@@ -318,33 +322,7 @@ pub fn play_quick_action_sound(
     }
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn toggle_quick_action_sound_preview(
-    app: AppHandle,
-    preferences: QuickActionSoundPreferences,
-    effect: QuickActionSoundEffect,
-) -> Result<(), String> {
-    let manager = app.state::<SoundManager>();
-    manager.toggle_preview(preferences, effect).map_err(|err| {
-        error!(target: "rgsm::sound", "Failed to preview sound: {err:?}");
-        err.to_string()
-    })
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn stop_sound_playback(app: AppHandle) -> Result<(), String> {
-    let manager = app.state::<SoundManager>();
-    manager.stop().map_err(|err| {
-        error!(target: "rgsm::sound", "Failed to stop sound: {err:?}");
-        err.to_string()
-    })
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn choose_quick_action_sound_file(app: AppHandle) -> Result<String, String> {
+pub fn choose_quick_action_sound_file(app: &AppHandle) -> Result<String, String> {
     match app
         .dialog()
         .file()
