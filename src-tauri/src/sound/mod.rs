@@ -41,6 +41,19 @@ struct SoundPlayer {
 }
 
 impl SoundPlayer {
+    fn clear_finished_state(&mut self) {
+        if let Some(sink) = self.sink.as_ref() {
+            if sink.empty() {
+                self.sink = None;
+            }
+        }
+
+        if self.sink.is_none() {
+            self.active_mode = None;
+            self.active_effect = None;
+        }
+    }
+
     fn ensure_stream(&mut self) -> Result<()> {
         if self.stream.is_none() || self.handle.is_none() {
             let (stream, handle) =
@@ -65,6 +78,7 @@ impl SoundPlayer {
         slots: &QuickActionSoundSlots,
         mode: SoundMode,
     ) -> Result<()> {
+        self.clear_finished_state();
         let source = load_source(effect, slots)?;
         self.ensure_stream()?;
         self.stop();
@@ -88,6 +102,7 @@ impl SoundPlayer {
         effect: QuickActionSoundEffect,
         slots: &QuickActionSoundSlots,
     ) -> Result<()> {
+        self.clear_finished_state();
         if self.active_mode == Some(SoundMode::Preview) && self.active_effect == Some(effect) {
             self.stop();
             return Ok(());
