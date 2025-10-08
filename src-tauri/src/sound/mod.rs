@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use log::warn;
 use rodio::{
     Decoder, OutputStream, OutputStreamHandle, Sink, buffer::SamplesBuffer, source::Source,
@@ -151,7 +151,7 @@ impl SoundManager {
         }
     }
 
-    pub fn toggle_preview(
+    pub async fn toggle_preview(
         &self,
         preferences: QuickActionSoundPreferences,
         effect: QuickActionSoundEffect,
@@ -164,17 +164,16 @@ impl SoundManager {
                 mode: SoundMode::Preview,
                 respond_to: Some(tx),
             })
-            .map_err(|_| anyhow::anyhow!("failed to send preview sound command"))?;
-        rx.blocking_recv()
-            .context("preview response dropped")?
+            .map_err(|_| anyhow!("failed to send preview sound command"))?;
+        rx.await.map_err(|_| anyhow!("preview response dropped"))?
     }
 
-    pub fn stop(&self) -> Result<()> {
+    pub async fn stop(&self) -> Result<()> {
         let (tx, rx) = oneshot::channel();
         self.command_tx
             .send(SoundCommand::Stop { respond_to: Some(tx) })
-            .map_err(|_| anyhow::anyhow!("failed to send stop sound command"))?;
-        rx.blocking_recv().context("stop response dropped")?;
+            .map_err(|_| anyhow!("failed to send stop sound command"))?;
+        rx.await.map_err(|_| anyhow!("stop response dropped"))?;
         Ok(())
     }
 }
