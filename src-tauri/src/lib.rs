@@ -129,9 +129,9 @@ pub fn run() -> anyhow::Result<()> {
     let config = get_config()?;
     info!(target: "rgsm::main", "App has started.");
 
-    app.build(tauri::generate_context!())
+    let exit_code = app.build(tauri::generate_context!())
         .expect("Cannot build tauri app")
-        .run(move |handle, event| {
+        .run_return(move |handle, event| {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
                 handle
                     .save_window_state(StateFlags::all())
@@ -142,5 +142,12 @@ pub fn run() -> anyhow::Result<()> {
                 }
             }
         });
-    Ok(())
+
+    if exit_code == 0 {
+        info!(target: "rgsm::main", "App has exited successfully.");
+        Ok(())
+    } else {
+        error!(target: "rgsm::main", "App has exited with error code {}.", exit_code);
+        Err(anyhow::anyhow!("App has exited with error code {}.", exit_code))
+    }
 }

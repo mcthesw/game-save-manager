@@ -6,11 +6,12 @@ use std::{
 };
 
 use anyhow::Context;
-use log::warn;
+use log::{info, warn};
 use rust_i18n::t;
 use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{self, Sleep};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     backup::Game,
@@ -51,10 +52,18 @@ pub struct QuickActionManager {
     app: AppHandle,
     state: Mutex<QuickActionState>,
     command_tx: mpsc::Sender<QuickActionCommand>,
+    cancel_token: CancellationToken,
+}
+
+impl Drop for QuickActionManager {
+    fn drop(&mut self) {
+        self.cancel_token.cancel();
+    }
 }
 
 impl QuickActionManager {
     pub fn new(app: &AppHandle) -> Arc<Self> {
+        let cancel_token = CancellationToken::new();
         let (command_tx, command_rx) = mpsc::channel(COMMAND_BUFFER);
         let current_game = get_config()
             .ok()
@@ -67,9 +76,10 @@ impl QuickActionManager {
                 ..Default::default()
             }),
             command_tx,
+            cancel_token: cancel_token.clone(),
         });
 
-        QuickActionWorker::spawn(Arc::clone(&manager), command_rx);
+        QuickActionWorker::spawn(Arc::clone(&manager), command_rx, cancel_token);
 
         manager
     }
@@ -160,14 +170,20 @@ struct QuickActionWorker {
     manager: Arc<QuickActionManager>,
     command_rx: mpsc::Receiver<QuickActionCommand>,
     timer_sleep: Option<Pin<Box<Sleep>>>,
+    cancel_token: CancellationToken,
 }
 
 impl QuickActionWorker {
-    fn spawn(manager: Arc<QuickActionManager>, command_rx: mpsc::Receiver<QuickActionCommand>) {
+    fn spawn(
+        manager: Arc<QuickActionManager>,
+        command_rx: mpsc::Receiver<QuickActionCommand>,
+        cancel_token: CancellationToken,
+    ) {
         let mut worker = Self {
             manager,
             command_rx,
             timer_sleep: None,
+            cancel_token,
         };
 
         tauri::async_runtime::spawn(async move { worker.run().await });
@@ -177,6 +193,10 @@ impl QuickActionWorker {
         loop {
             if let Some(timer) = self.timer_sleep.as_mut() {
                 tokio::select! {
+                    _ = self.cancel_token.cancelled() => {
+                        info!("QuickActionWorker received cancel signal, shutting down gracefully");
+                        break;
+                    },
                     _ = timer.as_mut() => {
                         self.handle_timer_tick().await;
                     }
@@ -189,9 +209,17 @@ impl QuickActionWorker {
                     }
                 }
             } else {
-                match self.command_rx.recv().await {
-                    Some(cmd) => self.handle_command(cmd).await,
-                    None => break,
+                tokio::select! {
+                    _ = self.cancel_token.cancelled() => {
+                        info!("QuickActionWorker received cancel signal, shutting down gracefully");
+                        break;
+                    },
+                    cmd = self.command_rx.recv() => {
+                        match cmd {
+                            Some(cmd) => self.handle_command(cmd).await,
+                            None => break,
+                        }
+                    }
                 }
             }
         }
