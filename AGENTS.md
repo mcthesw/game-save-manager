@@ -6,6 +6,26 @@ This document provides guidance for an AI agent working on this repository. Your
 
 This is a cross-platform desktop application for managing game saves, built with Tauri (Rust backend) and Nuxt 3 (Vue 3 frontend). It features local backups, cloud synchronization (WebDAV/S3), and quick actions via hotkeys and a system tray menu.
 
+This project depends on the following softwares:
+
+### Tauri deps
+
+The code block below shows how to install tauri's deps in Debian. For more information, see <https://v2.tauri.app/start/prerequisites/>.
+
+```bash
+# For debian
+sudo apt install libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev
+
+```
+
 ## Development Commands
 
 - `pnpm install`: Install all dependencies and run `nuxt prepare`.
@@ -33,6 +53,7 @@ The application is divided into a frontend and a backend.
   - `src/cloud_sync/`: Logic for WebDAV and S3 synchronization.
   - `src/config/`: Manages `GameSaveManager.config.json`.
   - `src/quick_actions/`: Implements hotkeys, tray menu, and timers.
+  - Any IPC commands should be placed in `ipc_handler.rs`.
 
 - **Contracts (`src/bindings.ts`)**: This auto-generated file contains TypeScript definitions for all Rust `#[tauri::command]` functions. It is the primary contract between the frontend and backend. **Never edit it manually.**
 
@@ -77,3 +98,4 @@ The project currently relies on manual testing. Before submitting a pull request
 - Cloud synchronization with a test account.
 - Hotkey and system tray functionality.
 - Settings are saved and loaded correctly after restarting the app.
+- Always run clippy(and other linters) before committing.
