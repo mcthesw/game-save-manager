@@ -33,6 +33,7 @@ open = "5.3.2"
 chrono = "0.4.40"
 thiserror = "2.0.12"
 tokio = { version = "1.44.2", features = ["full"] }
+tokio-util = { version = "0.7.13", features = ["full"] }
 tauri-plugin-dialog = "2.4.0"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
