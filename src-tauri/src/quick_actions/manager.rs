@@ -9,7 +9,10 @@ use anyhow::Context;
 use log::{info, warn};
 use rust_i18n::t;
 use tauri::AppHandle;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    oneshot,
+};
 use tokio::time::{self, Sleep};
 use tokio_util::sync::CancellationToken;
 
@@ -20,7 +23,6 @@ use crate::{
 
 use super::{QuickActionType, quick_apply, quick_backup};
 
-const COMMAND_BUFFER: usize = 32;
 const TIMER_TICK_SECONDS: u64 = 60;
 
 pub enum QuickActionCommand {
@@ -51,7 +53,7 @@ struct QuickActionState {
 pub struct QuickActionManager {
     app: AppHandle,
     state: Mutex<QuickActionState>,
-    command_tx: mpsc::Sender<QuickActionCommand>,
+    command_tx: UnboundedSender<QuickActionCommand>,
     cancel_token: CancellationToken,
 }
 
@@ -64,7 +66,7 @@ impl Drop for QuickActionManager {
 impl QuickActionManager {
     pub fn new(app: &AppHandle) -> Arc<Self> {
         let cancel_token = CancellationToken::new();
-        let (command_tx, command_rx) = mpsc::channel(COMMAND_BUFFER);
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
         let current_game = get_config()
             .ok()
             .and_then(|cfg| cfg.quick_action.quick_action_game.clone());
@@ -91,7 +93,6 @@ impl QuickActionManager {
                 game,
                 respond_to: tx,
             })
-            .await
             .context("failed to send SetCurrentGame command")?;
         rx.await
             .context("manager dropped SetCurrentGame response")??;
@@ -99,33 +100,21 @@ impl QuickActionManager {
     }
 
     pub fn update_interval(&self, minutes: u32) {
-        let tx = self.command_tx.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(err) = tx
-                .send(QuickActionCommand::UpdateInterval { minutes })
-                .await
-            {
-                warn!(target: "rgsm::quick_action::manager", "Failed to send UpdateInterval command: {err}");
-            }
-        });
+        if let Err(err) = self.command_tx.send(QuickActionCommand::UpdateInterval { minutes }) {
+            warn!(target: "rgsm::quick_action::manager", "Failed to send UpdateInterval command: {err}");
+        }
     }
 
     pub fn trigger_backup(&self, trigger: QuickActionType) {
-        let tx = self.command_tx.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(err) = tx.send(QuickActionCommand::TriggerBackup(trigger)).await {
-                warn!(target: "rgsm::quick_action::manager", "Failed to send TriggerBackup command: {err}");
-            }
-        });
+        if let Err(err) = self.command_tx.send(QuickActionCommand::TriggerBackup(trigger)) {
+            warn!(target: "rgsm::quick_action::manager", "Failed to send TriggerBackup command: {err}");
+        }
     }
 
     pub fn trigger_apply(&self, trigger: QuickActionType) {
-        let tx = self.command_tx.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(err) = tx.send(QuickActionCommand::TriggerApply(trigger)).await {
-                warn!(target: "rgsm::quick_action::manager", "Failed to send TriggerApply command: {err}");
-            }
-        });
+        if let Err(err) = self.command_tx.send(QuickActionCommand::TriggerApply(trigger)) {
+            warn!(target: "rgsm::quick_action::manager", "Failed to send TriggerApply command: {err}");
+        }
     }
 
     pub fn register_tray_items(
@@ -133,18 +122,12 @@ impl QuickActionManager {
         game_item: tauri::menu::MenuItem<tauri::Wry>,
         duration_items: HashMap<u32, tauri::menu::CheckMenuItem<tauri::Wry>>,
     ) {
-        let tx = self.command_tx.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(err) = tx
-                .send(QuickActionCommand::RegisterTrayItems {
-                    game_item,
-                    duration_items,
-                })
-                .await
-            {
-                warn!(target: "rgsm::quick_action::manager", "Failed to send RegisterTrayItems command: {err}");
-            }
-        });
+        if let Err(err) = self.command_tx.send(QuickActionCommand::RegisterTrayItems {
+            game_item,
+            duration_items,
+        }) {
+            warn!(target: "rgsm::quick_action::manager", "Failed to send RegisterTrayItems command: {err}");
+        }
     }
 
     pub fn app_handle(&self) -> AppHandle {
@@ -168,7 +151,7 @@ impl QuickActionManager {
 
 struct QuickActionWorker {
     manager: Arc<QuickActionManager>,
-    command_rx: mpsc::Receiver<QuickActionCommand>,
+    command_rx: UnboundedReceiver<QuickActionCommand>,
     timer_sleep: Option<Pin<Box<Sleep>>>,
     cancel_token: CancellationToken,
 }
@@ -176,7 +159,7 @@ struct QuickActionWorker {
 impl QuickActionWorker {
     fn spawn(
         manager: Arc<QuickActionManager>,
-        command_rx: mpsc::Receiver<QuickActionCommand>,
+        command_rx: UnboundedReceiver<QuickActionCommand>,
         cancel_token: CancellationToken,
     ) {
         let mut worker = Self {
@@ -223,6 +206,7 @@ impl QuickActionWorker {
                 }
             }
         }
+        info!("QuickActionWorker received cancel signal or channel closed, shutting down gracefully");
     }
 
     async fn handle_command(&mut self, command: QuickActionCommand) {
