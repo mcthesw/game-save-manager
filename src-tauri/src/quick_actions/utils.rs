@@ -5,9 +5,12 @@ use crate::{
 };
 use log::{error, info, warn};
 use rust_i18n::t;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 use tauri::AppHandle;
+use tauri_specta::Event;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 pub enum QuickActionType {
     Timer,
     Tray,
@@ -15,12 +18,54 @@ pub enum QuickActionType {
 }
 
 impl QuickActionType {
-    fn generate_describe(&self) -> String {
-        match &self {
+    fn generate_describe(self) -> String {
+        match self {
             QuickActionType::Timer => String::from("Auto Backup (Timer)"),
             QuickActionType::Tray => String::from("Quick Backup (Tray)"),
             QuickActionType::Hotkey => String::from("Quick Backup (Hotkey)"),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+pub enum QuickActionOperation {
+    Backup,
+    Apply,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+pub enum QuickActionStatus {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct QuickActionCompleted {
+    pub operation: QuickActionOperation,
+    pub status: QuickActionStatus,
+    pub trigger: QuickActionType,
+    pub game_name: Option<String>,
+}
+
+fn emit_quick_action_event(
+    app: &AppHandle,
+    trigger: QuickActionType,
+    operation: QuickActionOperation,
+    status: QuickActionStatus,
+    game_name: Option<String>,
+) {
+    if let Err(err) = (QuickActionCompleted {
+        operation,
+        status,
+        trigger,
+        game_name,
+    })
+    .emit(app)
+    {
+        warn!(
+            target: "rgsm::quick_action",
+            "Failed to emit quick action event: {err:?}"
+        );
     }
 }
 
@@ -42,6 +87,13 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
     let game = match quick_settings.quick_action_game.clone() {
         Some(game) => game,
         None => {
+            emit_quick_action_event(
+                app,
+                t,
+                QuickActionOperation::Apply,
+                QuickActionStatus::Failure,
+                None,
+            );
             show_no_game_selected_error(app, &quick_settings, &sound_preferences);
             return;
         }
@@ -72,6 +124,13 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
                 format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
+            emit_quick_action_event(
+                app,
+                t,
+                QuickActionOperation::Apply,
+                QuickActionStatus::Failure,
+                Some(game.name.clone()),
+            );
         }
         Ok(_) => {
             maybe_show_success_notification(
@@ -86,6 +145,13 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
                 ),
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Success);
+            emit_quick_action_event(
+                app,
+                t,
+                QuickActionOperation::Apply,
+                QuickActionStatus::Success,
+                Some(game.name.clone()),
+            );
         }
     }
 }
@@ -109,6 +175,13 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     let game = match quick_settings.quick_action_game.clone() {
         Some(game) => game,
         None => {
+            emit_quick_action_event(
+                app,
+                t,
+                QuickActionOperation::Backup,
+                QuickActionStatus::Failure,
+                None,
+            );
             show_no_game_selected_error(app, &quick_settings, &sound_preferences);
             return;
         }
@@ -127,6 +200,13 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
                 format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
+            emit_quick_action_event(
+                app,
+                t,
+                QuickActionOperation::Backup,
+                QuickActionStatus::Failure,
+                Some(game.name.clone()),
+            );
         }
         Ok(_) => {
             maybe_show_success_notification(
@@ -141,6 +221,13 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
                 ),
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Success);
+            emit_quick_action_event(
+                app,
+                t,
+                QuickActionOperation::Backup,
+                QuickActionStatus::Success,
+                Some(game.name.clone()),
+            );
         }
     }
 }

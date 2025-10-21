@@ -315,10 +315,13 @@ pub async fn toggle_quick_action_sound_preview(
     effect: sound::QuickActionSoundEffect,
 ) -> Result<(), String> {
     let manager = app.state::<sound::SoundManager>();
-    manager.toggle_preview(preferences, effect).await.map_err(|err| {
-        error!(target: "rgsm::sound", "Failed to preview sound: {err:?}");
-        err.to_string()
-    })
+    manager
+        .toggle_preview(preferences, effect)
+        .await
+        .map_err(|err| {
+            error!(target: "rgsm::sound", "Failed to preview sound: {err:?}");
+            err.to_string()
+        })
 }
 
 #[tauri::command]

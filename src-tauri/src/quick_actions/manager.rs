@@ -100,19 +100,28 @@ impl QuickActionManager {
     }
 
     pub fn update_interval(&self, minutes: u32) {
-        if let Err(err) = self.command_tx.send(QuickActionCommand::UpdateInterval { minutes }) {
+        if let Err(err) = self
+            .command_tx
+            .send(QuickActionCommand::UpdateInterval { minutes })
+        {
             warn!(target: "rgsm::quick_action::manager", "Failed to send UpdateInterval command: {err}");
         }
     }
 
     pub fn trigger_backup(&self, trigger: QuickActionType) {
-        if let Err(err) = self.command_tx.send(QuickActionCommand::TriggerBackup(trigger)) {
+        if let Err(err) = self
+            .command_tx
+            .send(QuickActionCommand::TriggerBackup(trigger))
+        {
             warn!(target: "rgsm::quick_action::manager", "Failed to send TriggerBackup command: {err}");
         }
     }
 
     pub fn trigger_apply(&self, trigger: QuickActionType) {
-        if let Err(err) = self.command_tx.send(QuickActionCommand::TriggerApply(trigger)) {
+        if let Err(err) = self
+            .command_tx
+            .send(QuickActionCommand::TriggerApply(trigger))
+        {
             warn!(target: "rgsm::quick_action::manager", "Failed to send TriggerApply command: {err}");
         }
     }
@@ -206,7 +215,9 @@ impl QuickActionWorker {
                 }
             }
         }
-        info!("QuickActionWorker received cancel signal or channel closed, shutting down gracefully");
+        info!(
+            "QuickActionWorker received cancel signal or channel closed, shutting down gracefully"
+        );
     }
 
     async fn handle_command(&mut self, command: QuickActionCommand) {

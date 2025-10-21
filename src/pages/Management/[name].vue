@@ -1,8 +1,8 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onBeforeUnmount, onMounted } from "vue";
 import { ElInput, ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
-import { commands } from "../../bindings";
+import { commands, events } from "../../bindings";
 import SaveLocationDrawer from "../../components/SaveLocationDrawer.vue";
 import type { Game, Snapshot, Device, SaveUnit } from "../../bindings";
 import { $t } from "../../i18n";
@@ -67,6 +67,35 @@ let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
 
 // 批量操作记录列表
 const selected_game_snapshots: Ref<Snapshot[]> = ref([]);
+
+let stopQuickActionListener: (() => void) | null = null;
+
+onMounted(async () => {
+    try {
+        stopQuickActionListener = await events.quickActionCompleted.listen(
+            async (event) => {
+                const payload = event.payload;
+                if (
+                    payload.status === 'Success' &&
+                    payload.operation === 'Backup' &&
+                    payload.game_name &&
+                    payload.game_name === game.value.name
+                ) {
+                    await refresh_backups_info();
+                }
+            },
+        );
+    } catch (e) {
+        error(`Failed to listen quick action events: ${e}`);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (stopQuickActionListener) {
+        stopQuickActionListener();
+        stopQuickActionListener = null;
+    }
+});
 
 // 格式化文件大小显示
 function formatFileSize(bytes: number): string {

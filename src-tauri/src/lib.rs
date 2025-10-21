@@ -83,7 +83,10 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::stop_sound_playback,
             ipc_handler::choose_quick_action_sound_file,
         ])
-        .events(tauri_specta::collect_events![ipc_handler::IpcNotification])
+        .events(tauri_specta::collect_events![
+            ipc_handler::IpcNotification,
+            quick_actions::QuickActionCompleted
+        ])
         .constant("DEFAULT_CONFIG", config::Config::default());
 
     command_builder.export(
@@ -129,7 +132,8 @@ pub fn run() -> anyhow::Result<()> {
     let config = get_config()?;
     info!(target: "rgsm::main", "App has started.");
 
-    let exit_code = app.build(tauri::generate_context!())
+    let exit_code = app
+        .build(tauri::generate_context!())
         .expect("Cannot build tauri app")
         .run_return(move |handle, event| {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
@@ -148,6 +152,9 @@ pub fn run() -> anyhow::Result<()> {
         Ok(())
     } else {
         error!(target: "rgsm::main", "App has exited with error code {}.", exit_code);
-        Err(anyhow::anyhow!("App has exited with error code {}.", exit_code))
+        Err(anyhow::anyhow!(
+            "App has exited with error code {}.",
+            exit_code
+        ))
     }
 }
