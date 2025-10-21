@@ -227,9 +227,11 @@ async chooseQuickActionSoundFile() : Promise<Result<string, string>> {
 
 
 export const events = __makeEvents__<{
-ipcNotification: IpcNotification
+ipcNotification: IpcNotification,
+quickActionCompleted: QuickActionCompleted
 }>({
-ipcNotification: "ipc-notification"
+ipcNotification: "ipc-notification",
+quickActionCompleted: "quick-action-completed"
 })
 
 /** user-defined constants **/
@@ -292,11 +294,15 @@ export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<
 export type GameSnapshots = { name: string; backups: Snapshot[] }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type NotificationLevel = "info" | "warning" | "error"
+export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
+export type QuickActionOperation = "Backup" | "Apply"
 export type QuickActionSoundEffect = "Success" | "Failure"
 export type QuickActionSoundPreferences = { enable_sound?: boolean; sounds?: QuickActionSoundSlots }
 export type QuickActionSoundSlots = { success?: QuickActionSoundSource; failure?: QuickActionSoundSource }
 export type QuickActionSoundSource = { kind: "default" } | { kind: "file"; path: string }
+export type QuickActionStatus = "Success" | "Failure"
+export type QuickActionType = "Timer" | "Tray" | "Hotkey"
 export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; sounds?: QuickActionSoundSlots }
 /**
  * Settings that can be configured by user

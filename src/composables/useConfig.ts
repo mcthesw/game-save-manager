@@ -1,5 +1,10 @@
 import { error } from '@tauri-apps/plugin-log';
-import { commands, DEFAULT_CONFIG, type Config } from '../bindings'
+import {
+    commands,
+    DEFAULT_CONFIG,
+    events,
+    type Config,
+} from '../bindings'
 import { $t } from '../i18n'
 
 // 定义默认配置
@@ -40,6 +45,22 @@ async function saveConfig() {
             message: $t('error.set_config_failed')
         })
     }
+}
+
+if (import.meta.client) {
+    events.quickActionCompleted
+        .listen((event) => {
+            const payload = event.payload
+            if (
+                payload.status === 'Success' &&
+                payload.operation === 'Backup'
+            ) {
+                void refreshConfig()
+            }
+        })
+        .catch((err) => {
+            error(`Failed to listen quick action events: ${err}`)
+        })
 }
 // 初始加载
 refreshConfig()
