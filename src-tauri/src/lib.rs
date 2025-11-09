@@ -89,6 +89,7 @@ pub fn run() -> anyhow::Result<()> {
         ])
         .constant("DEFAULT_CONFIG", config::Config::default());
 
+    #[cfg(debug_assertions)]
     command_builder.export(
         specta_typescript::Typescript::default()
             .bigint(specta_typescript::BigIntExportBehavior::Number) // 设置 bigint 为 number
