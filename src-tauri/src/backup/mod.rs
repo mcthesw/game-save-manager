@@ -1,4 +1,6 @@
 mod archive;
+#[cfg(test)]
+mod archive_tests;
 mod game;
 mod game_snapshots;
 mod save_unit;
