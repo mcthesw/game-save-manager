@@ -1,14 +1,16 @@
+use crate::backup::archive::{add_directory, system_time_to_zip_datetime, zip_datetime_to_system_time};
+use filetime::{set_file_mtime, FileTime};
+use std::{
+    fs::{self, File},
+    io::{Read, Write},
+    path::PathBuf,
+    time::SystemTime,
+};
+use zip::{ZipWriter, write::SimpleFileOptions};
+
 #[cfg(test)]
 mod tests {
-    use crate::backup::archive::{add_directory, system_time_to_zip_datetime, zip_datetime_to_system_time};
-    use filetime::{set_file_mtime, FileTime};
-    use std::{
-        fs::{self, File},
-        io::{Read, Write},
-        path::PathBuf,
-        time::SystemTime,
-    };
-    use zip::{ZipWriter, write::SimpleFileOptions};
+    use super::*;
 
     #[test]
     fn test_timestamp_preservation_file() -> Result<(), Box<dyn std::error::Error>> {
@@ -62,6 +64,7 @@ mod tests {
             }
             let mut outfile = File::create(&outpath)?;
             std::io::copy(&mut file, &mut outfile)?;
+            drop(outfile);
             
             if let Some(zip_time) = file.last_modified() {
                 let system_time = zip_datetime_to_system_time(zip_time);
@@ -140,6 +143,7 @@ mod tests {
                 }
                 let mut outfile = File::create(&outpath)?;
                 std::io::copy(&mut file, &mut outfile)?;
+                drop(outfile);
                 
                 if let Some(zip_time) = file.last_modified() {
                     let system_time = zip_datetime_to_system_time(zip_time);
@@ -149,7 +153,11 @@ mod tests {
             }
         }
         
-        dir_timestamps.sort_by(|a, b| b.0.as_os_str().len().cmp(&a.0.as_os_str().len()));
+        dir_timestamps.sort_by(|a, b| {
+            let depth_a = a.0.components().count();
+            let depth_b = b.0.components().count();
+            depth_b.cmp(&depth_a)
+        });
         for (dir_path, file_time) in dir_timestamps {
             let _ = set_file_mtime(&dir_path, file_time);
         }

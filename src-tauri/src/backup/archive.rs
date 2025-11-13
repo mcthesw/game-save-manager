@@ -57,7 +57,11 @@ pub(crate) fn zip_datetime_to_system_time(zip_time: zip::DateTime) -> SystemTime
     );
     
     let timestamp = datetime.and_utc().timestamp();
-    SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(timestamp as u64)
+    if timestamp < 0 {
+        SystemTime::UNIX_EPOCH
+    } else {
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(timestamp as u64)
+    }
 }
 
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
@@ -228,6 +232,7 @@ pub fn decompress_from_file(
             }
             let mut outfile = File::create(&outpath).map_err(|e| CompressError::Single(e.into()))?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| CompressError::Single(e.into()))?;
+            drop(outfile);
             
             if let Some(zip_time) = file.last_modified() {
                 let system_time = zip_datetime_to_system_time(zip_time);
@@ -237,7 +242,11 @@ pub fn decompress_from_file(
         }
     }
     
-    dir_timestamps.sort_by(|a, b| b.0.as_os_str().len().cmp(&a.0.as_os_str().len()));
+    dir_timestamps.sort_by(|a, b| {
+        let depth_a = a.0.components().count();
+        let depth_b = b.0.components().count();
+        depth_b.cmp(&depth_a)
+    });
     for (dir_path, file_time) in dir_timestamps {
         let _ = set_file_mtime(&dir_path, file_time);
     }
