@@ -92,6 +92,73 @@ impl Game {
         }
         Result::Ok(())
     }
+    pub async fn cleanup_old_auto_backups(&self, max_count: u32) -> Result<(), BackupError> {
+        if max_count == 0 {
+            // 0 means unlimited, no cleanup needed
+            return Ok(());
+        }
+
+        let config = get_config()?;
+        let mut infos = self.get_game_snapshots_info()?;
+        
+        // Filter auto backups (Timer backups only)
+        let mut auto_backups: Vec<_> = infos
+            .backups
+            .iter()
+            .enumerate()
+            .filter(|(_, snapshot)| snapshot.describe == "Auto Backup (Timer)")
+            .collect();
+        
+        // If we're within the limit, no cleanup needed
+        if auto_backups.len() <= max_count as usize {
+            return Ok(());
+        }
+        
+        // Sort by date (oldest first)
+        auto_backups.sort_by(|a, b| a.1.date.cmp(&b.1.date));
+        
+        // Calculate how many to delete
+        let to_delete_count = auto_backups.len() - max_count as usize;
+        let backups_to_delete = &auto_backups[..to_delete_count];
+        
+        // Delete the oldest auto backups
+        for (_idx, snapshot) in backups_to_delete {
+            let zip_path = PathBuf::from(&snapshot.path);
+            if zip_path.exists() {
+                fs::remove_file(&zip_path)?;
+                info!(target:"rgsm::backup::game", "Removed old auto backup: {}", snapshot.date);
+            }
+            
+            // If cloud sync is enabled, also delete from cloud
+            if config.settings.cloud_settings.always_sync {
+                let op = config.settings.cloud_settings.backend.get_op()?;
+                let p = zip_path
+                    .iter()
+                    .map(|s| s.to_str().ok_or(BackupError::NonePathError))
+                    .collect::<Result<Vec<&str>, BackupError>>()?
+                    .join("/");
+                op.delete(&p).await?;
+            }
+        }
+        
+        // Remove deleted backups from the info list
+        let dates_to_remove: Vec<String> = backups_to_delete
+            .iter()
+            .map(|(_, snapshot)| snapshot.date.clone())
+            .collect();
+        infos.backups.retain(|snapshot| !dates_to_remove.contains(&snapshot.date));
+        
+        // Save updated info
+        self.set_game_snapshots_info(&infos)?;
+        
+        // Update cloud if needed
+        if config.settings.cloud_settings.always_sync {
+            let op = config.settings.cloud_settings.backend.get_op()?;
+            upload_game_snapshots(&op, infos).await?;
+        }
+        
+        Ok(())
+    }
     pub fn restore_snapshot(
         &self,
         date: &str,

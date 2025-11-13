@@ -21,6 +21,7 @@
         "invalid_input_error": "무효",
         "homepage": "공지사항",
         "prompt_when_auto_backup": "자동 백업을 사용할 때, 총알은 나타냅니다",
+        "max_auto_backup_count": "보관할 최대 자동 백업 수 (0 = 무제한)",
         "exit_to_tray": "to-charter에서 출발",
         "extra_backup_when_apply": "응용 프로그램에 대한 추가 백업 (in /save_data/game/extra_backup 폴더)",
         "enable_dark_mode": "밤 모델 출시",

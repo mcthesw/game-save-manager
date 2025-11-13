@@ -605,6 +605,10 @@ const router_list = computed(() => {
                         <span class="setting-label">{{ $t("settings.prompt_when_auto_backup") }}</span>
                     </div>
                     <div class="setting-box">
+                        <ElInputNumber v-model="config.settings.max_auto_backup_count" :min="0" :max="999" :step="1" />
+                        <span class="setting-label">{{ $t("settings.max_auto_backup_count") }}</span>
+                    </div>
+                    <div class="setting-box">
                         <ElSwitch v-model="config.settings.extra_backup_when_apply" />
                         <span class="setting-label">{{ $t("settings.extra_backup_when_apply") }}</span>
                     </div>

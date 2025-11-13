@@ -209,6 +209,13 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
             );
         }
         Ok(_) => {
+            // Cleanup old auto backups if this is a timer backup and limit is set
+            if t == QuickActionType::Timer && config.settings.max_auto_backup_count > 0 {
+                if let Err(e) = game.cleanup_old_auto_backups(config.settings.max_auto_backup_count).await {
+                    warn!(target:"rgsm::quick_action", "Failed to cleanup old auto backups: {:#?}", e);
+                }
+            }
+            
             maybe_show_success_notification(
                 &quick_settings,
                 prompt_when_auto_backup || t != QuickActionType::Timer,
