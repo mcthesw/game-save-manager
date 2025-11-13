@@ -97,11 +97,16 @@ mod tests {
         file.write_all(b"nested content")?;
         drop(file);
         
-        let past_time = SystemTime::now() - std::time::Duration::from_secs(3600);
-        let file_time = FileTime::from_system_time(past_time);
+        let past_time_file = SystemTime::now() - std::time::Duration::from_secs(3600);
+        let file_time = FileTime::from_system_time(past_time_file);
         set_file_mtime(&test_file, file_time)?;
         
-        let original_mtime = fs::metadata(&test_file)?.modified()?;
+        let past_time_dir = SystemTime::now() - std::time::Duration::from_secs(7200);
+        let dir_time = FileTime::from_system_time(past_time_dir);
+        set_file_mtime(&test_dir, dir_time)?;
+        
+        let original_file_mtime = fs::metadata(&test_file)?.modified()?;
+        let original_dir_mtime = fs::metadata(&test_dir)?.modified()?;
         
         let zip_path = temp_path.join("test_dir.zip");
         let zip_file = File::create(&zip_path)?;
@@ -116,36 +121,59 @@ mod tests {
         let zip_file = File::open(&zip_path)?;
         let mut zip_archive = zip::ZipArchive::new(zip_file)?;
         
+        let mut dir_timestamps: Vec<(PathBuf, FileTime)> = Vec::new();
+        
         for i in 0..zip_archive.len() {
             let mut file = zip_archive.by_index(i)?;
             let outpath = extract_dir.join(file.name());
             
             if file.is_dir() {
                 fs::create_dir_all(&outpath)?;
+                if let Some(zip_time) = file.last_modified() {
+                    let system_time = zip_datetime_to_system_time(zip_time);
+                    let file_time = FileTime::from_system_time(system_time);
+                    dir_timestamps.push((outpath.clone(), file_time));
+                }
             } else {
                 if let Some(parent) = outpath.parent() {
                     fs::create_dir_all(parent)?;
                 }
                 let mut outfile = File::create(&outpath)?;
                 std::io::copy(&mut file, &mut outfile)?;
-            }
-            
-            if let Some(zip_time) = file.last_modified() {
-                let system_time = zip_datetime_to_system_time(zip_time);
-                let file_time = FileTime::from_system_time(system_time);
-                let _ = set_file_mtime(&outpath, file_time);
+                
+                if let Some(zip_time) = file.last_modified() {
+                    let system_time = zip_datetime_to_system_time(zip_time);
+                    let file_time = FileTime::from_system_time(system_time);
+                    let _ = set_file_mtime(&outpath, file_time);
+                }
             }
         }
         
-        let extracted_file = extract_dir.join("test_dir").join("nested_file.txt");
-        let extracted_mtime = fs::metadata(&extracted_file)?.modified()?;
+        dir_timestamps.sort_by(|a, b| b.0.as_os_str().len().cmp(&a.0.as_os_str().len()));
+        for (dir_path, file_time) in dir_timestamps {
+            let _ = set_file_mtime(&dir_path, file_time);
+        }
         
-        let original_secs = original_mtime.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
-        let extracted_secs = extracted_mtime.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+        let extracted_file = extract_dir.join("test_dir").join("nested_file.txt");
+        let extracted_file_mtime = fs::metadata(&extracted_file)?.modified()?;
+        
+        let extracted_dir = extract_dir.join("test_dir");
+        let extracted_dir_mtime = fs::metadata(&extracted_dir)?.modified()?;
+        
+        let original_file_secs = original_file_mtime.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+        let extracted_file_secs = extracted_file_mtime.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+        
+        let original_dir_secs = original_dir_mtime.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+        let extracted_dir_secs = extracted_dir_mtime.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
         
         assert!(
-            (original_secs as i64 - extracted_secs as i64).abs() <= 2,
-            "Timestamp should be preserved for files in directories (within 2 seconds)"
+            (original_file_secs as i64 - extracted_file_secs as i64).abs() <= 2,
+            "File timestamp should be preserved (within 2 seconds)"
+        );
+        
+        assert!(
+            (original_dir_secs as i64 - extracted_dir_secs as i64).abs() <= 2,
+            "Directory timestamp should be preserved (within 2 seconds)"
         );
         
         Ok(())

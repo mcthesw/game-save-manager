@@ -209,25 +209,37 @@ pub fn decompress_from_file(
     let tmp_folder = tmp_folder.path().to_path_buf();
     fs::create_dir_all(&tmp_folder).map_err(|e| CompressError::Single(e.into()))?;
     
+    let mut dir_timestamps: Vec<(PathBuf, FileTime)> = Vec::new();
+    
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(|e| CompressError::Single(e.into()))?;
         let outpath = tmp_folder.join(file.name());
         
         if file.is_dir() {
             fs::create_dir_all(&outpath).map_err(|e| CompressError::Single(e.into()))?;
+            if let Some(zip_time) = file.last_modified() {
+                let system_time = zip_datetime_to_system_time(zip_time);
+                let file_time = FileTime::from_system_time(system_time);
+                dir_timestamps.push((outpath.clone(), file_time));
+            }
         } else {
             if let Some(parent) = outpath.parent() {
                 fs::create_dir_all(parent).map_err(|e| CompressError::Single(e.into()))?;
             }
             let mut outfile = File::create(&outpath).map_err(|e| CompressError::Single(e.into()))?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| CompressError::Single(e.into()))?;
+            
+            if let Some(zip_time) = file.last_modified() {
+                let system_time = zip_datetime_to_system_time(zip_time);
+                let file_time = FileTime::from_system_time(system_time);
+                let _ = set_file_mtime(&outpath, file_time);
+            }
         }
-        
-        if let Some(zip_time) = file.last_modified() {
-            let system_time = zip_datetime_to_system_time(zip_time);
-            let file_time = FileTime::from_system_time(system_time);
-            let _ = set_file_mtime(&outpath, file_time);
-        }
+    }
+    
+    dir_timestamps.sort_by(|a, b| b.0.as_os_str().len().cmp(&a.0.as_os_str().len()));
+    for (dir_path, file_time) in dir_timestamps {
+        let _ = set_file_mtime(&dir_path, file_time);
     }
 
     let decompress_errors: Vec<_> = save_paths
