@@ -11,6 +11,7 @@
     "reset_settings": "Restore default",
     "prompt_when_not_described": "When there is no describe for a save, a prompt pops up",
     "prompt_when_auto_backup": "When automatic backup occurs, a prompt pops up",
+    "max_auto_backup_count": "Maximum number of automatic backups to keep (0 = unlimited)",
     "exit_to_tray": "Minimize to tray",
     "extra_backup_when_apply": "Perform extra backups before apply (in the./save_data/game name/extra_backup folder)",
     "enable_dark_mode": "Dark mode",
