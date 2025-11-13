@@ -1,0 +1,88 @@
+use std::path::PathBuf;
+use std::sync::OnceLock;
+use log::info;
+
+/// Stores the application's data directory path
+static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Get the directory where application data should be stored
+///
+/// This function implements the following logic:
+/// 1. If a config file exists in the executable's directory (portable mode), use that directory
+/// 2. Otherwise, use the current working directory for backwards compatibility
+///
+/// The result is cached after the first call.
+pub fn get_app_data_dir() -> &'static PathBuf {
+    APP_DATA_DIR.get_or_init(|| {
+        // Try to get the executable's directory
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let config_path = exe_dir.join("GameSaveManager.config.json");
+                
+                // Check if config exists next to executable (portable mode)
+                if config_path.exists() {
+                    info!("Using portable mode: config found at {}", config_path.display());
+                    return exe_dir.to_path_buf();
+                }
+                
+                // For new installations, check if we're in a typical installation directory
+                // If the executable is in a typical installation location, we should NOT use portable mode
+                // This prevents issues when the app is installed in Program Files but run from a different directory
+                let exe_dir_str = exe_dir.to_string_lossy().to_lowercase();
+                let is_likely_installed = exe_dir_str.contains("program files") 
+                    || exe_dir_str.contains("applications")
+                    || exe_dir_str.contains("/usr/")
+                    || exe_dir_str.contains("/opt/");
+                
+                if !is_likely_installed {
+                    // For portable installations (not in system directories), use exe directory
+                    info!("Using portable mode: executable is in non-system directory {}", exe_dir.display());
+                    return exe_dir.to_path_buf();
+                }
+            }
+        }
+        
+        // Fall back to current working directory for backwards compatibility
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        info!("Using current working directory: {}", cwd.display());
+        cwd
+    })
+}
+
+/// Resolve a path relative to the app data directory
+///
+/// If the path is already absolute, return it as-is.
+/// Otherwise, resolve it relative to the app data directory.
+pub fn resolve_app_path(path: &str) -> PathBuf {
+    let candidate = PathBuf::from(path);
+    if candidate.is_absolute() {
+        return candidate;
+    }
+    
+    get_app_data_dir().join(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_absolute_path() {
+        #[cfg(target_os = "windows")]
+        let absolute_path = "C:\\test\\path";
+        #[cfg(not(target_os = "windows"))]
+        let absolute_path = "/test/path";
+
+        let result = resolve_app_path(absolute_path);
+        assert_eq!(result, PathBuf::from(absolute_path));
+    }
+
+    #[test]
+    fn test_resolve_relative_path() {
+        let relative_path = "config.json";
+        let result = resolve_app_path(relative_path);
+        
+        // The result should be relative to app data dir
+        assert!(result.ends_with(relative_path));
+    }
+}

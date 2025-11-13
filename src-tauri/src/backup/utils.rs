@@ -1,10 +1,9 @@
 use crate::cloud_sync::upload_game_snapshots;
-use crate::config::{get_config, set_config};
+use crate::config::{get_backup_path, get_config, set_config};
 use crate::preclude::*;
 
 use log::{error, info};
 use std::fs;
-use std::path::PathBuf;
 use tauri::AppHandle;
 
 use super::{Game, GameSnapshots};
@@ -12,7 +11,7 @@ use super::{Game, GameSnapshots};
 async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     let config = get_config()?;
 
-    let backup_path = PathBuf::from(&config.backup_path).join(name);
+    let backup_path = get_backup_path()?.join(name);
     let info: GameSnapshots = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
         GameSnapshots {
