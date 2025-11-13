@@ -45,6 +45,8 @@ pub struct Settings {
     pub save_list_expand_behavior: SaveListExpandBehavior,
     #[serde(default = "default_value::default_false")]
     pub save_list_last_expanded: bool,
+    #[serde(default = "default_value::default_zero_u32")]
+    pub max_auto_backup_count: u32,
 }
 
 impl Default for Settings {
@@ -64,6 +66,7 @@ impl Default for Settings {
             add_new_to_favorites: default_value::default_false(),
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
+            max_auto_backup_count: default_value::default_zero_u32(),
         }
     }
 }

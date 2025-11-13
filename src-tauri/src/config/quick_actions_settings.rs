@@ -18,17 +18,12 @@ impl Default for QuickActionHotkeys {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum QuickActionSoundSource {
+    #[default]
     Default,
     File { path: String },
-}
-
-impl Default for QuickActionSoundSource {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, Type)]

@@ -10,6 +10,7 @@
         "reset_settings": "Restauration de l ' acquiescement",
         "prompt_when_not_described": "Quand elles ne sont pas archivées, les balles indiquent",
         "prompt_when_auto_backup": "Lorsque la sauvegarde automatique est disponible, les balles indiquent",
+        "max_auto_backup_count": "Nombre maximum de sauvegardes automatiques à conserver (0 = illimité)",
         "exit_to_tray": "Départ d ' une voiture",
         "extra_backup_when_apply": "sauvegarde supplémentaire pour l'application (dans /save_data/ games/extra_backup files)",
         "enable_dark_mode": "Lancement de modèles de nuit",

@@ -11,6 +11,9 @@ pub fn default_true() -> bool {
 pub fn default_zero() -> u64 {
     0
 }
+pub fn default_zero_u32() -> u32 {
+    0
+}
 pub fn default_root_path() -> String {
     "/game-save-manager".to_string()
 }
