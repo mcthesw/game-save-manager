@@ -1,3 +1,5 @@
+use chrono::{Datelike, Timelike};
+use filetime::{set_file_mtime, FileTime};
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 use log::warn;
@@ -6,6 +8,7 @@ use std::{
     fs::{self, File},
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 use tauri::{AppHandle, Emitter};
 use zip::{ZipWriter, write::SimpleFileOptions};
@@ -17,12 +20,56 @@ use crate::{
     preclude::*,
 };
 
+pub(crate) fn system_time_to_zip_datetime(system_time: SystemTime) -> zip::DateTime {
+    let duration = system_time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default();
+    
+    let secs = duration.as_secs();
+    let datetime = chrono::DateTime::from_timestamp(secs as i64, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    
+    zip::DateTime::from_date_and_time(
+        datetime.year() as u16,
+        datetime.month() as u8,
+        datetime.day() as u8,
+        datetime.hour() as u8,
+        datetime.minute() as u8,
+        datetime.second() as u8,
+    )
+    .unwrap_or_default()
+}
+
+pub(crate) fn zip_datetime_to_system_time(zip_time: zip::DateTime) -> SystemTime {
+    let datetime = chrono::NaiveDateTime::new(
+        chrono::NaiveDate::from_ymd_opt(
+            zip_time.year() as i32,
+            zip_time.month() as u32,
+            zip_time.day() as u32,
+        )
+        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1980, 1, 1).unwrap()),
+        chrono::NaiveTime::from_hms_opt(
+            zip_time.hour() as u32,
+            zip_time.minute() as u32,
+            zip_time.second() as u32,
+        )
+        .unwrap_or_default(),
+    );
+    
+    let timestamp = datetime.and_utc().timestamp();
+    if timestamp < 0 {
+        SystemTime::UNIX_EPOCH
+    } else {
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(timestamp as u64)
+    }
+}
+
 /// [Code reference](https://github.com/matzefriedrich/zip-extensions-rs/blob/master/src/write.rs#:~:text=%7D-,fn,create_from_directory_with_options,-\()
 ///
 /// Write `origin` folder to zip `writer`, the files will in `prefix_path`
 ///
 /// Normally, `prefix_path` should be the file name of the `origin` folder
-fn add_directory<T>(
+pub(crate) fn add_directory<T>(
     writer: &mut ZipWriter<T>,
     origin: &PathBuf,
     prefix_path: &Path,
@@ -31,14 +78,19 @@ where
     T: std::io::Write,
     T: Seek,
 {
-    // Create the folder in zip
+    let origin_metadata = fs::metadata(origin)?;
+    let dir_mtime = origin_metadata.modified().unwrap_or_else(|_| SystemTime::now());
+    let dir_datetime = system_time_to_zip_datetime(dir_mtime);
+    
     let new_dir_path = prefix_path.to_path_buf();
     writer.add_directory(
         new_dir_path
             .to_str()
             .ok_or(BackupFileError::NonePathError)?
             .to_string(),
-        SimpleFileOptions::default().compression_method(zip::CompressionMethod::Bzip2),
+        SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Bzip2)
+            .last_modified_time(dir_datetime),
     )?;
     let mut paths = Vec::new();
     paths.push(origin);
@@ -55,11 +107,16 @@ where
             let mut cur_path = prefix_path.to_path_buf();
             cur_path = cur_path.join(entry.file_name());
             if entry_metadata.is_file() {
+                let file_mtime = entry_metadata.modified().unwrap_or_else(|_| SystemTime::now());
+                let file_datetime = system_time_to_zip_datetime(file_mtime);
+                
                 let mut f = File::open(&entry_path)?;
                 f.read_to_end(&mut buffer)?;
                 writer.start_file(
                     cur_path.to_str().ok_or(BackupFileError::NonePathError)?,
-                    SimpleFileOptions::default().compression_method(zip::CompressionMethod::Bzip2),
+                    SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Bzip2)
+                        .last_modified_time(file_datetime),
                 )?;
                 writer.write_all(&buffer)?;
                 buffer.clear();
@@ -94,6 +151,10 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64,
             if unit_path.exists() {
                 match x.unit_type {
                     SaveUnitType::File => {
+                        let file_metadata = fs::metadata(&unit_path)?;
+                        let file_mtime = file_metadata.modified().unwrap_or_else(|_| SystemTime::now());
+                        let file_datetime = system_time_to_zip_datetime(file_mtime);
+                        
                         let mut original_file = File::open(&unit_path)?;
                         let mut buf = vec![];
                         original_file.read_to_end(&mut buf)?;
@@ -104,7 +165,8 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64,
                                 .to_str()
                                 .ok_or(BackupFileError::NonePathError)?,
                             SimpleFileOptions::default()
-                                .compression_method(zip::CompressionMethod::Bzip2),
+                                .compression_method(zip::CompressionMethod::Bzip2)
+                                .last_modified_time(file_datetime),
                         )?;
                         zip.write_all(&buf)?;
                     }
@@ -147,11 +209,47 @@ pub fn decompress_from_file(
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
 
-    let tmp_folder = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?; // Temporary directory for extraction
-    let tmp_folder = tmp_folder.path().to_path_buf(); // Convert to PathBuf for easier manipulation
+    let tmp_folder = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?;
+    let tmp_folder = tmp_folder.path().to_path_buf();
     fs::create_dir_all(&tmp_folder).map_err(|e| CompressError::Single(e.into()))?;
-    zip.extract(&tmp_folder)
-        .map_err(|e| CompressError::Single(e.into()))?;
+    
+    let mut dir_timestamps: Vec<(PathBuf, FileTime)> = Vec::new();
+    
+    for i in 0..zip.len() {
+        let mut file = zip.by_index(i).map_err(|e| CompressError::Single(e.into()))?;
+        let outpath = tmp_folder.join(file.name());
+        
+        if file.is_dir() {
+            fs::create_dir_all(&outpath).map_err(|e| CompressError::Single(e.into()))?;
+            if let Some(zip_time) = file.last_modified() {
+                let system_time = zip_datetime_to_system_time(zip_time);
+                let file_time = FileTime::from_system_time(system_time);
+                dir_timestamps.push((outpath.clone(), file_time));
+            }
+        } else {
+            if let Some(parent) = outpath.parent() {
+                fs::create_dir_all(parent).map_err(|e| CompressError::Single(e.into()))?;
+            }
+            let mut outfile = File::create(&outpath).map_err(|e| CompressError::Single(e.into()))?;
+            std::io::copy(&mut file, &mut outfile).map_err(|e| CompressError::Single(e.into()))?;
+            drop(outfile);
+            
+            if let Some(zip_time) = file.last_modified() {
+                let system_time = zip_datetime_to_system_time(zip_time);
+                let file_time = FileTime::from_system_time(system_time);
+                let _ = set_file_mtime(&outpath, file_time);
+            }
+        }
+    }
+    
+    dir_timestamps.sort_by(|a, b| {
+        let depth_a = a.0.components().count();
+        let depth_b = b.0.components().count();
+        depth_b.cmp(&depth_a)
+    });
+    for (dir_path, file_time) in dir_timestamps {
+        let _ = set_file_mtime(&dir_path, file_time);
+    }
 
     let decompress_errors: Vec<_> = save_paths
         .iter()
