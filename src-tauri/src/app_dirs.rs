@@ -13,7 +13,23 @@ static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 ///    (Program Files, /usr/, /opt/, /Applications/, AppData/Local, etc.)
 ///    This heuristic assumes executables outside these directories are portable,
 ///    including those in user folders like Downloads, Desktop, or the home directory.
+///
+/// Note: In debug mode, pwd is checked first to avoid test configs being cleared in target/debug.
+/// The portable mode is determined at startup and remains fixed for the application lifetime.
 fn is_portable_mode() -> bool {
+    // In debug mode, prefer pwd if config exists there
+    // This avoids having test configs in target/debug cleared during builds
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(cwd) = std::env::current_dir() {
+            let pwd_config_path = cwd.join("GameSaveManager.config.json");
+            if pwd_config_path.exists() {
+                info!("Debug mode: found config in pwd, using non-portable mode");
+                return false;
+            }
+        }
+    }
+    
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             // Check if config exists next to executable (explicit portable mode)

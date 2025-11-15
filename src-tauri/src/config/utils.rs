@@ -54,6 +54,8 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// then send the config to the front end
 pub fn config_check() -> Result<(), ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
+    info!("Config file path: {}", config_path.display());
+    
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
     }
