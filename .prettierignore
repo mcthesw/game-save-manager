@@ -1,0 +1,33 @@
+# Build outputs
+.output
+.nuxt
+.cache
+dist
+dist-ssr
+
+# Dependencies
+node_modules
+pnpm-lock.yaml
+
+# Auto-generated files
+components.d.ts
+auto-imports.d.ts
+src/bindings.ts
+src-tauri/gen
+
+# Rust
+src-tauri/target
+src-tauri/Cargo.lock
+
+# Logs
+*.log
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Misc
+.git
