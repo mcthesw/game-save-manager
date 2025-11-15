@@ -3,12 +3,12 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;
-use std::{collections::HashMap, fs, path};
+use std::{collections::HashMap, fs};
 use tauri::{AppHandle, Emitter};
 
 use crate::backup::{GameSnapshots, SaveUnit, Snapshot, compress_to_file, decompress_from_file};
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
-use crate::config::{get_config, set_config};
+use crate::config::{get_backup_path, get_config, set_config};
 use crate::device::DeviceId;
 use crate::ipc_handler::{IpcNotification, NotificationLevel};
 use crate::preclude::*;
@@ -26,16 +26,14 @@ pub struct Game {
 
 impl Game {
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
-        let config = get_config()?;
-        let backup_path = path::Path::new(&config.backup_path)
+        let backup_path = get_backup_path()?
             .join(&self.name)
             .join("Backups.json");
         let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
         Ok(backup_info)
     }
     pub fn set_game_snapshots_info(&self, new_info: &GameSnapshots) -> Result<(), BackupError> {
-        let config = get_config()?;
-        let saves_path = path::Path::new(&config.backup_path)
+        let saves_path = get_backup_path()?
             .join(&self.name)
             .join("Backups.json");
         // 处理文件夹不存在的情况，一般发生在初次下载云存档时
@@ -48,7 +46,7 @@ impl Game {
     }
     pub async fn create_snapshot(&self, describe: &str) -> Result<(), BackupError> {
         let config = get_config()?;
-        let backup_path = path::Path::new(&config.backup_path).join(&self.name); // the backup zip file should be placed here
+        let backup_path = get_backup_path()?.join(&self.name); // the backup zip file should be placed here
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let save_paths = &self.save_paths; // everything you should copy
 
@@ -165,7 +163,7 @@ impl Game {
         app_handle: Option<&AppHandle>,
     ) -> Result<(), BackupError> {
         let config = get_config()?;
-        let backup_path = path::Path::new(&config.backup_path).join(&self.name);
+        let backup_path = get_backup_path()?.join(&self.name);
         if config.settings.extra_backup_when_apply {
             info!(target:"rgsm::backup::game","Creating extra backup.");
             if let Err(e) = self.create_overwrite_snapshot() {
@@ -188,8 +186,7 @@ impl Game {
         Result::Ok(())
     }
     pub fn create_overwrite_snapshot(&self) -> Result<(), BackupError> {
-        let config = get_config()?;
-        let extra_backup_path = path::Path::new(&config.backup_path)
+        let extra_backup_path = get_backup_path()?
             .join(&self.name)
             .join("extra_backup");
 
@@ -225,7 +222,7 @@ impl Game {
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<(), BackupError> {
         let config = get_config()?;
-        let save_path = PathBuf::from(&config.backup_path)
+        let save_path = get_backup_path()?
             .join(&self.name)
             .join(date.to_string() + ".zip");
         fs::remove_file(&save_path)?;
@@ -252,7 +249,7 @@ impl Game {
     }
     pub async fn delete_game(&self) -> Result<(), BackupError> {
         let mut config = get_config()?;
-        let backup_path = PathBuf::from(&config.backup_path).join(&self.name);
+        let backup_path = get_backup_path()?.join(&self.name);
         fs::remove_dir_all(&backup_path)?;
 
         config.games.retain(|x| x.name != self.name);

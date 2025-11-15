@@ -41,7 +41,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             version: String::from(std::env!("CARGO_PKG_VERSION")),
-            backup_path: String::from("./save_data"),
+            backup_path: String::from("save_data"),
             games: Vec::new(),
             settings: Settings {
                 prompt_when_not_described: false,
