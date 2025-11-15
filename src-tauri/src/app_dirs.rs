@@ -9,10 +9,10 @@ static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 ///
 /// Portable mode is detected when:
 /// 1. A config file exists next to the executable, OR
-/// 2. The executable is in a non-system directory (not installed)
-///
-/// This allows portable versions to work correctly while maintaining
-/// backwards compatibility with installed versions.
+/// 2. The executable is NOT in a typical system installation directory
+///    (Program Files, /usr/, /opt/, /Applications/, AppData/Local, etc.)
+///    This heuristic assumes executables outside these directories are portable,
+///    including those in user folders like Downloads, Desktop, or the home directory.
 fn is_portable_mode() -> bool {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
