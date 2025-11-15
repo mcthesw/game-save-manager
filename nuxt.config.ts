@@ -2,14 +2,10 @@
 export default defineNuxtConfig({
   srcDir: 'src',
   compatibilityDate: '2024-11-01',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NUXT_DEVTOOLS === 'true' },
   ssr: false,
   devServer: { host: process.env.TAURI_DEV_HOST || 'localhost' },
-  modules: [
-    'nuxt-lodash',
-    '@vueuse/nuxt',
-    '@element-plus/nuxt',
-  ],
+  modules: ['@vueuse/nuxt', '@element-plus/nuxt', '@nuxt/eslint'],
   imports: {
     dirs: ['src/composables'],
   },
@@ -23,9 +19,14 @@ export default defineNuxtConfig({
     server: {
       // Tauri requires a consistent port
       strictPort: true,
-    }
+    },
   },
   app: {
-    pageTransition: { name: 'page', mode: 'out-in' }
-  }
+    pageTransition: { name: 'page', mode: 'out-in' },
+  },
+  dir: {
+    public: 'src/public',
+    modules: 'src/modules',
+    shared: 'src/shared',
+  },
 });
