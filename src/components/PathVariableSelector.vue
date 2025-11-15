@@ -1,24 +1,23 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { $t } from "../i18n";
-import { commands } from "../bindings";
-import { QuestionFilled } from '@element-plus/icons-vue';
+import { $t } from '../i18n';
+import { commands } from '../bindings';
 
 const props = defineProps({
   // 当前路径值，用于在插入变量时保持其他部分不变
   currentPath: {
     type: String,
-    default: ''
+    default: '',
   },
   // 输入框的引用，用于在插入变量后聚焦
   inputRef: {
     type: Object,
-    default: null
-  }
+    default: null,
+  },
 });
 
 const emit = defineEmits<{
-  (e: 'insert', value: string): void
+  (e: 'insert', value: string): void;
 }>();
 
 // 路径变量分组
@@ -28,27 +27,39 @@ const pathVariables = computed(() => [
     variables: [
       { name: 'home', label: $t('path_variable.home'), value: '<home>' },
       { name: 'osUserName', label: $t('path_variable.os_user_name'), value: '<osUserName>' },
-    ]
+    ],
   },
   {
     group: $t('path_variable.windows'),
     variables: [
       { name: 'winAppData', label: $t('path_variable.win_app_data'), value: '<winAppData>' },
-      { name: 'winLocalAppData', label: $t('path_variable.win_local_app_data'), value: '<winLocalAppData>' },
-      { name: 'winLocalAppDataLow', label: $t('path_variable.win_local_app_data_low'), value: '<winLocalAppDataLow>' },
+      {
+        name: 'winLocalAppData',
+        label: $t('path_variable.win_local_app_data'),
+        value: '<winLocalAppData>',
+      },
+      {
+        name: 'winLocalAppDataLow',
+        label: $t('path_variable.win_local_app_data_low'),
+        value: '<winLocalAppDataLow>',
+      },
       { name: 'winDocuments', label: $t('path_variable.win_documents'), value: '<winDocuments>' },
       { name: 'winPublic', label: $t('path_variable.win_public'), value: '<winPublic>' },
-      { name: 'winProgramData', label: $t('path_variable.win_program_data'), value: '<winProgramData>' },
+      {
+        name: 'winProgramData',
+        label: $t('path_variable.win_program_data'),
+        value: '<winProgramData>',
+      },
       { name: 'winDir', label: $t('path_variable.win_dir'), value: '<winDir>' },
-    ]
+    ],
   },
   {
     group: $t('path_variable.linux'),
     variables: [
       { name: 'xdgData', label: $t('path_variable.xdg_data'), value: '<xdgData>' },
       { name: 'xdgConfig', label: $t('path_variable.xdg_config'), value: '<xdgConfig>' },
-    ]
-  }
+    ],
+  },
 ]);
 
 // 插入变量到路径
@@ -70,7 +81,7 @@ async function resolvePath() {
 
   try {
     const result = await commands.resolvePath(props.currentPath);
-    if (result.status === "ok") {
+    if (result.status === 'ok') {
       resolvedPath.value = result.data;
     } else {
       hasResolutionError.value = true;
@@ -100,8 +111,13 @@ async function resolvePath() {
         <div v-for="group in pathVariables" :key="group.group" class="variable-group">
           <div class="group-title">{{ group.group }}</div>
           <div class="group-variables">
-            <el-link v-for="variable in group.variables" :key="variable.name" size="small"
-              @click="insertVariable(variable.value)" :title="variable.label">
+            <el-link
+              v-for="variable in group.variables"
+              :key="variable.name"
+              size="small"
+              :title="variable.label"
+              @click="insertVariable(variable.value)"
+            >
               {{ variable.value }}
             </el-link>
           </div>
@@ -110,18 +126,17 @@ async function resolvePath() {
         <div class="path-tester">
           <div class="tester-title">{{ $t('path_variable.test_resolution') }}</div>
           <div class="resolve-button-container">
-            <el-button @click="resolvePath" :loading="isResolving" size="small">
+            <el-button :loading="isResolving" size="small" @click="resolvePath">
               {{ $t('path_variable.resolve') }}
             </el-button>
           </div>
 
-          <div v-if="resolvedPath" class="resolved-path" :class="{ 'error': hasResolutionError }">
+          <div v-if="resolvedPath" class="resolved-path" :class="{ error: hasResolutionError }">
             {{ resolvedPath }}
           </div>
         </div>
       </div>
     </el-popover>
-
   </div>
 </template>
 

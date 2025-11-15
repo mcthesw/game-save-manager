@@ -1,10 +1,9 @@
 ---
 name: 功能请求 Feature request
 about: 提出功能性的建议 Suggest an idea for this project
-title: "[功能/FEATURE]"
+title: '[功能/FEATURE]'
 labels: enhancement
 assignees: ''
-
 ---
 
 **新功能描述 Describe the feature**

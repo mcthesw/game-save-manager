@@ -23,7 +23,9 @@ impl Default for QuickActionHotkeys {
 pub enum QuickActionSoundSource {
     #[default]
     Default,
-    File { path: String },
+    File {
+        path: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, Type)]
