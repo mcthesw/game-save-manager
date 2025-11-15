@@ -35,6 +35,8 @@ Refer to `package.json` for instructions
 - `pnpm dev` Development mode, preview while developing
 - `pnpm build` Compile and package, output will be stored in `src-tauri/target`
 
+**Tip**: Set environment variable `NUXT_DEVTOOLS=true` to enable Nuxt DevTools. Disabled by default for faster startup.
+
 ## Architecture
 
 The software is divided into two main parts:
@@ -119,4 +121,4 @@ Other developers do not need to change the version number, just add their update
 - src-tauri: Root directory for the backend project
   - src: Source code for the backend project
 
-*This document was translated by Deepseek and manually proofread.*
+_This document was translated by Deepseek and manually proofread._

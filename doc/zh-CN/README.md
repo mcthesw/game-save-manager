@@ -35,6 +35,8 @@
 - `pnpm dev` 开发模式，一边预览一边开发
 - `pnpm build` 编译打包，输出会存放在`src-tauri/target`
 
+**提示**：设置环境变量 `NUXT_DEVTOOLS=true` 可启用 Nuxt DevTools，默认禁用以加快启动速度。
+
 ## 架构
 
 该软件分为两个主要部分：

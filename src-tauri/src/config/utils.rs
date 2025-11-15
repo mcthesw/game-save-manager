@@ -1,6 +1,6 @@
+use std::fs;
 use std::fs::File;
 use std::path::PathBuf;
-use std::fs;
 
 use crate::app_dirs::resolve_app_path;
 use crate::config::Config;
@@ -37,10 +37,7 @@ pub fn get_config() -> Result<Config, ConfigError> {
 /// Replace the config file with a new config struct
 pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
-    fs::write(
-        config_path,
-        serde_json::to_string_pretty(&config)?,
-    )?;
+    fs::write(config_path, serde_json::to_string_pretty(&config)?)?;
     // 处理云同步，上传新的配置文件
     if config.settings.cloud_settings.always_sync {
         let op = config.settings.cloud_settings.backend.get_op()?;
@@ -55,7 +52,7 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 pub fn config_check() -> Result<(), ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
     info!("Config file path: {}", config_path.display());
-    
+
     if !config_path.is_file() || !config_path.exists() {
         init_config()?;
     }
@@ -99,19 +96,21 @@ mod tests {
         // Test that old default path "./save_data" resolves the same as new default "save_data"
         let old_default = "./save_data";
         let new_default = "save_data";
-        
+
         let old_resolved = resolve_backup_path(old_default);
         let new_resolved = resolve_backup_path(new_default);
-        
+
         // Both should resolve to the same location
-        assert_eq!(old_resolved, new_resolved, 
-            "Old default path './save_data' should resolve to same location as new default 'save_data'");
-        
+        assert_eq!(
+            old_resolved, new_resolved,
+            "Old default path './save_data' should resolve to same location as new default 'save_data'"
+        );
+
         // Both should end with "save_data"
         assert!(old_resolved.ends_with("save_data"));
         assert!(new_resolved.ends_with("save_data"));
     }
-    
+
     #[test]
     fn test_backup_path_resolution_relative() {
         // Test various relative path formats
@@ -121,14 +120,18 @@ mod tests {
             ("backups/games", "games"),
             ("./backups/games", "games"),
         ];
-        
+
         for (input, expected_end) in test_cases {
             let resolved = resolve_backup_path(input);
-            assert!(resolved.ends_with(expected_end),
-                "Path '{}' should end with '{}'", input, expected_end);
+            assert!(
+                resolved.ends_with(expected_end),
+                "Path '{}' should end with '{}'",
+                input,
+                expected_end
+            );
         }
     }
-    
+
     #[test]
     fn test_backup_path_resolution_absolute() {
         // Test that absolute paths are preserved
@@ -136,29 +139,35 @@ mod tests {
         let absolute_path = "C:\\Users\\Test\\Backups";
         #[cfg(not(target_os = "windows"))]
         let absolute_path = "/home/test/backups";
-        
+
         let resolved = resolve_backup_path(absolute_path);
-        assert_eq!(resolved, PathBuf::from(absolute_path),
-            "Absolute paths should be preserved as-is");
+        assert_eq!(
+            resolved,
+            PathBuf::from(absolute_path),
+            "Absolute paths should be preserved as-is"
+        );
     }
-    
+
     #[test]
     fn test_config_path_formats_compatibility() {
         // Test that different path formats work correctly
         let formats = vec![
-            "save_data",      // New default
-            "./save_data",    // Old default
-            "save_data/",     // With trailing slash
-            "./save_data/",   // Old with trailing slash
+            "save_data",    // New default
+            "./save_data",  // Old default
+            "save_data/",   // With trailing slash
+            "./save_data/", // Old with trailing slash
         ];
-        
+
         for format in formats {
             let resolved = resolve_backup_path(format);
             // All should resolve to paths containing "save_data"
             let path_str = resolved.to_string_lossy();
-            assert!(path_str.contains("save_data"),
-                "Format '{}' should resolve to path containing 'save_data', got: {}", 
-                format, path_str);
+            assert!(
+                path_str.contains("save_data"),
+                "Format '{}' should resolve to path containing 'save_data', got: {}",
+                format,
+                path_str
+            );
         }
     }
 }

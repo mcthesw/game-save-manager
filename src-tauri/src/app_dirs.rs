@@ -1,6 +1,6 @@
+use log::info;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use log::info;
 
 /// Stores the application's data directory path
 static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -27,18 +27,24 @@ pub fn get_app_data_dir() -> &'static PathBuf {
                 }
             }
         }
-        
+
         // Standard behavior: use executable directory for both portable and installed versions
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
-                info!("Using executable directory as data directory: {}", exe_dir.display());
+                info!(
+                    "Using executable directory as data directory: {}",
+                    exe_dir.display()
+                );
                 return exe_dir.to_path_buf();
             }
         }
-        
+
         // Fallback only if we cannot determine executable directory
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        log::warn!("Failed to determine executable directory, falling back to current directory: {}", cwd.display());
+        log::warn!(
+            "Failed to determine executable directory, falling back to current directory: {}",
+            cwd.display()
+        );
         cwd
     })
 }
@@ -52,7 +58,7 @@ pub fn resolve_app_path(path: &str) -> PathBuf {
     if candidate.is_absolute() {
         return candidate;
     }
-    
+
     get_app_data_dir().join(path)
 }
 
@@ -75,7 +81,7 @@ mod tests {
     fn test_resolve_relative_path() {
         let relative_path = "config.json";
         let result = resolve_app_path(relative_path);
-        
+
         // The result should be relative to app data dir
         assert!(result.ends_with(relative_path));
     }

@@ -26,16 +26,12 @@ pub struct Game {
 
 impl Game {
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
-        let backup_path = get_backup_path()?
-            .join(&self.name)
-            .join("Backups.json");
+        let backup_path = get_backup_path()?.join(&self.name).join("Backups.json");
         let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
         Ok(backup_info)
     }
     pub fn set_game_snapshots_info(&self, new_info: &GameSnapshots) -> Result<(), BackupError> {
-        let saves_path = get_backup_path()?
-            .join(&self.name)
-            .join("Backups.json");
+        let saves_path = get_backup_path()?.join(&self.name).join("Backups.json");
         // 处理文件夹不存在的情况，一般发生在初次下载云存档时
         let prefix_root = saves_path.parent().ok_or(BackupError::NonePathError)?;
         if !prefix_root.exists() {
@@ -98,7 +94,7 @@ impl Game {
 
         let config = get_config()?;
         let mut infos = self.get_game_snapshots_info()?;
-        
+
         // Filter auto backups (Timer backups only)
         let mut auto_backups: Vec<_> = infos
             .backups
@@ -106,19 +102,19 @@ impl Game {
             .enumerate()
             .filter(|(_, snapshot)| snapshot.describe == "Auto Backup (Timer)")
             .collect();
-        
+
         // If we're within the limit, no cleanup needed
         if auto_backups.len() <= max_count as usize {
             return Ok(());
         }
-        
+
         // Sort by date (oldest first)
         auto_backups.sort_by(|a, b| a.1.date.cmp(&b.1.date));
-        
+
         // Calculate how many to delete
         let to_delete_count = auto_backups.len() - max_count as usize;
         let backups_to_delete = &auto_backups[..to_delete_count];
-        
+
         // Delete the oldest auto backups
         for (_idx, snapshot) in backups_to_delete {
             let zip_path = PathBuf::from(&snapshot.path);
@@ -126,7 +122,7 @@ impl Game {
                 fs::remove_file(&zip_path)?;
                 info!(target:"rgsm::backup::game", "Removed old auto backup: {}", snapshot.date);
             }
-            
+
             // If cloud sync is enabled, also delete from cloud
             if config.settings.cloud_settings.always_sync {
                 let op = config.settings.cloud_settings.backend.get_op()?;
@@ -138,23 +134,25 @@ impl Game {
                 op.delete(&p).await?;
             }
         }
-        
+
         // Remove deleted backups from the info list
         let dates_to_remove: Vec<String> = backups_to_delete
             .iter()
             .map(|(_, snapshot)| snapshot.date.clone())
             .collect();
-        infos.backups.retain(|snapshot| !dates_to_remove.contains(&snapshot.date));
-        
+        infos
+            .backups
+            .retain(|snapshot| !dates_to_remove.contains(&snapshot.date));
+
         // Save updated info
         self.set_game_snapshots_info(&infos)?;
-        
+
         // Update cloud if needed
         if config.settings.cloud_settings.always_sync {
             let op = config.settings.cloud_settings.backend.get_op()?;
             upload_game_snapshots(&op, infos).await?;
         }
-        
+
         Ok(())
     }
     pub fn restore_snapshot(
@@ -186,9 +184,7 @@ impl Game {
         Result::Ok(())
     }
     pub fn create_overwrite_snapshot(&self) -> Result<(), BackupError> {
-        let extra_backup_path = get_backup_path()?
-            .join(&self.name)
-            .join("extra_backup");
+        let extra_backup_path = get_backup_path()?.join(&self.name).join("extra_backup");
 
         // Create extra backup
         if !extra_backup_path.exists() {
