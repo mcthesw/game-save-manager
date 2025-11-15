@@ -14,6 +14,7 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 use crate::config::config_check;
 
+mod app_dirs;
 mod backup;
 mod cloud_sync;
 mod config;

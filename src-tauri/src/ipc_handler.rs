@@ -1,6 +1,6 @@
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all};
-use crate::config::{Config, QuickActionSoundPreferences, get_config};
+use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
 use crate::preclude::*;
@@ -11,7 +11,6 @@ use log::{debug, error, info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, Window};
 use tauri_plugin_dialog::DialogExt;
@@ -184,11 +183,11 @@ pub async fn create_snapshot(game: Game, describe: String, window: Window) -> Re
 #[specta::specta]
 pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
     info!(target:"rgsm::ipc", "Opening backup folder for game: {:?}", game);
-    let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+    let backup_path = get_backup_path().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get backup path: {:?}", e);
         e.to_string()
     })?;
-    let p = PathBuf::from(&config.backup_path).join(game.name);
+    let p = backup_path.join(game.name);
     Ok(open::that(p).is_ok())
 }
 
