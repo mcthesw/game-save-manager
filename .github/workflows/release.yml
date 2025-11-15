@@ -2,7 +2,7 @@ name: release
 on:
   push:
     tags:
-      - "v1*"
+      - 'v1*'
 jobs:
   create-release:
     permissions:
@@ -11,9 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Github release
-        uses: "marvinpinto/action-automatic-releases@latest"
+        uses: 'marvinpinto/action-automatic-releases@latest'
         with:
-          repo_token: "${{ secrets.RELEASE_TOKEN }}"
+          repo_token: '${{ secrets.RELEASE_TOKEN }}'
           prerelease: false
           files: |
             LICENSE
