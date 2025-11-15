@@ -1,10 +1,9 @@
 ---
 name: 错误报告 Bug report
 about: 创建帮助我们改进的报告 Create a report to help us improve
-title: "[错误/BUG]"
+title: '[错误/BUG]'
 labels: bug
 assignees: ''
-
 ---
 
 **问题简述 Describe the bug**
@@ -14,11 +13,13 @@ A clear and concise description of what the bug is.
 **如何触发错误 To Reproduce**
 
 你可以用这样的方式来描述：
+
 1. 进入'...'界面
 2. 单击'...'按钮
 3. '...'发生了'...'
 
 Steps to reproduce the behavior:
+
 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
@@ -34,9 +35,10 @@ If applicable, add screenshots to help explain your problem.
 
 **环境 Desktop:**
 请填写下方信息。
- Please complete the following information.
- - 操作系统 OS: [e.g. iOS]
- - 软件版本 Version [e.g. 22]
+Please complete the following information.
+
+- 操作系统 OS: [e.g. iOS]
+- 软件版本 Version [e.g. 22]
 
 **其余信息 Additional context**
 你可以在这补充更多信息。

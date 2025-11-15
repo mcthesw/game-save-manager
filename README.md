@@ -23,9 +23,9 @@
 该软件使用[Weblate](https://weblate.org/)进行翻译，你可以通过上方图标参与贡献
 
 ## 用户使用指南 👻
->
->建议阅读[官方网站](https://help.sworld.club)的指南，此处为简略版
->
+
+> 建议阅读[官方网站](https://help.sworld.club)的指南，此处为简略版
+
 ### 下载软件 😎
 
 在[官网的下载界面](https://help.sworld.club/docs/intro)可以下载到本软件，而在[Release 页面](https://github.com/mcthesw/game-save-manager/releases)可以下载到前沿测试版。Win10 或以上版本的用户推荐使用便携版(portable)，值得注意的是，本软件依赖于 WebView2 ，如果你不在 Win 上使用，请手动安装，如果你使用的是 Win7，或者你的系统没有附带 WebView2，请注意阅读下方文本。
@@ -50,8 +50,8 @@
 - ⚡[哔哩哔哩](https://space.bilibili.com/4087637)
 
 ## 开发者指南 🐱
->
->如果你在寻找旧版基于Electron框架的开发者指南，请看[旧版分支](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
+
+> 如果你在寻找旧版基于Electron框架的开发者指南，请看[旧版分支](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
 
 如果你能亲自参与这个项目，那真的太好了，不论是解决问题，还是说添加新功能，我们都是非常欢迎的，开发者使用的文档将会放置于本仓库的 `doc/<language>` 文件夹下，请点[此链接](doc/zh-CN/README.md)查看
 

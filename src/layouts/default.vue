@@ -9,32 +9,32 @@ provide('sidebarWidth', sidebarWidth);
 </script>
 
 <template>
-    <ElContainer>
-        <ElAside :width="sidebarWidth + 'px'">
-            <MainSideBar />
-        </ElAside>
-        <ElScrollbar>
-            <ElMain>
-                <slot />
-            </ElMain>
-        </ElScrollbar>
-    </ElContainer>
+  <ElContainer>
+    <ElAside :width="sidebarWidth + 'px'">
+      <MainSideBar />
+    </ElAside>
+    <ElScrollbar>
+      <ElMain>
+        <slot />
+      </ElMain>
+    </ElScrollbar>
+  </ElContainer>
 </template>
 
 <style scoped>
 .el-container {
-    height: 100vh;
-    overflow: hidden;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .el-aside {
-    height: 100%;
-    overflow: hidden;
+  height: 100%;
+  overflow: hidden;
 }
 
 .el-scrollbar {
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 </style>

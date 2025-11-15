@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import 'element-plus/theme-chalk/dark/css-vars.css' // 引入暗黑主题样式
+import 'element-plus/theme-chalk/dark/css-vars.css';
+
+import { listen } from '@tauri-apps/api/event';
+import { Loading } from '@element-plus/icons-vue';
+import { useDark } from '@vueuse/core';
+import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
+import { commands } from './bindings';
+import type { Device } from './bindings';
+import { useNotification } from './composables/useNotification';
+import { useConfig } from './composables/useConfig';
+import { useGlobalLoading } from './composables/useGlobalLoading';
+import { $t, i18n } from './i18n';
+import { ref } from 'vue';
+
 const { config, refreshConfig, saveConfig } = useConfig();
 useDark();
-
-import { events, commands } from "./bindings";
-import { useNotification } from "./composables/useNotification";
-import { useConfig } from "./composables/useConfig";
-import { useGlobalLoading } from "./composables/useGlobalLoading";
-import { $t, i18n } from "./i18n";
-import { ref, onMounted } from 'vue';
-import { Loading } from "@element-plus/icons-vue";
-import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
-import type { Device } from './bindings';
 
 const { showInfo, showWarning, showError, showSuccess } = useNotification();
 const { isLoading, loadingMessage } = useGlobalLoading();
@@ -27,19 +30,22 @@ async function checkDeviceSetup() {
   try {
     // 获取当前设备信息
     const result = await commands.getCurrentDeviceInfo();
-    if (result.status === "ok") {
+    if (result.status === 'ok') {
       currentDevice.value = result.data;
-      
+
       // 从配置中获取所有设备
       if (config.value && config.value.devices) {
         // 过滤掉当前设备，只显示其他设备
         otherDevices.value = Object.values(config.value.devices)
-          .filter(device => device && device.id !== currentDevice.value?.id)
+          .filter((device) => device && device.id !== currentDevice.value?.id)
           .filter((device): device is Device => device !== undefined);
       }
-      
+
       // 如果当前设备不在配置中，显示设备设置对话框
-      if (config.value && (!config.value.devices || !config.value.devices[currentDevice.value.id])) {
+      if (
+        config.value &&
+        (!config.value.devices || !config.value.devices[currentDevice.value.id])
+      ) {
         defaultDeviceName.value = currentDevice.value.name;
         showDeviceSetupDialog.value = true;
       }
@@ -54,24 +60,24 @@ async function checkDeviceSetup() {
 async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string) {
   try {
     if (!config.value || !currentDevice.value) return;
-    
+
     // 确保devices对象存在
     if (!config.value.devices) {
       config.value.devices = {};
     }
-    
+
     // 更新当前设备信息
     const updatedDevice = {
       ...currentDevice.value,
-      name: deviceName
+      name: deviceName,
     };
-    
+
     config.value.devices[updatedDevice.id] = updatedDevice;
-    
+
     // 如果选择了导入设备，则导入路径
     if (importFromDeviceId && config.value.games) {
       const currentDeviceId = updatedDevice.id;
-      
+
       // 遍历所有游戏，复制源设备的路径到当前设备
       for (const game of config.value.games) {
         // 复制存档路径
@@ -82,16 +88,16 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
             }
           }
         }
-        
+
         // 复制游戏启动路径
         if (game.game_paths && game.game_paths[importFromDeviceId]) {
           game.game_paths[currentDeviceId] = game.game_paths[importFromDeviceId];
         }
       }
-      
+
       showSuccess({ message: $t('device_setup.import_success') });
     }
-    
+
     // 保存配置
     await saveConfig();
   } catch (e) {
@@ -102,32 +108,38 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
 
 try {
   await refreshConfig();
-  i18n.global.locale.value = config.value.settings.locale! as any;
+  const currentLocale = config.value.settings.locale;
+  if (currentLocale) {
+    i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
+  }
   await navigateTo(config.value!.settings.home_page);
-  
+
   // 在应用启动时检查设备设置
   await checkDeviceSetup();
-} catch (e) {
-  showError({ message: $t("home.wrong_homepage") });
-  navigateTo("/");
+} catch {
+  showError({ message: $t('home.wrong_homepage') });
+  navigateTo('/');
 }
+type NotificationPayload = {
+  level: 'info' | 'warning' | 'error';
+  msg: string;
+  title?: string;
+};
 
-
-import { listen } from '@tauri-apps/api/event';
-listen('Notification', (event) => {
-  let ev = event.payload as any;
+listen<NotificationPayload>('Notification', (event) => {
+  const ev = event.payload;
   switch (ev.level.toLowerCase()) {
-    case "info":
+    case 'info':
       showInfo({ message: ev.msg, title: ev.title });
       break;
-    case "warning":
+    case 'warning':
       showWarning({ message: ev.msg, title: ev.title });
       break;
-    case "error":
+    case 'error':
       showError({ message: ev.msg, title: ev.title });
       break;
   }
-})
+});
 
 // 下方代码由于 tauri-specta 的bug导致无法正常运行，因此使用上方方式替代
 // events.ipcNotification.listen((event) => {
@@ -144,7 +156,6 @@ listen('Notification', (event) => {
 //       break;
 //   }
 // });
-
 </script>
 
 <template>

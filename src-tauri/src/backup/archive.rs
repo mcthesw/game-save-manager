@@ -1,5 +1,5 @@
 use chrono::{Datelike, Timelike};
-use filetime::{set_file_mtime, FileTime};
+use filetime::{FileTime, set_file_mtime};
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
 use log::warn;
@@ -24,11 +24,11 @@ pub(crate) fn system_time_to_zip_datetime(system_time: SystemTime) -> zip::DateT
     let duration = system_time
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default();
-    
+
     let secs = duration.as_secs();
     let datetime = chrono::DateTime::from_timestamp(secs as i64, 0)
         .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
-    
+
     zip::DateTime::from_date_and_time(
         datetime.year() as u16,
         datetime.month() as u8,
@@ -55,7 +55,7 @@ pub(crate) fn zip_datetime_to_system_time(zip_time: zip::DateTime) -> SystemTime
         )
         .unwrap_or_default(),
     );
-    
+
     let timestamp = datetime.and_utc().timestamp();
     if timestamp < 0 {
         SystemTime::UNIX_EPOCH
@@ -79,9 +79,11 @@ where
     T: Seek,
 {
     let origin_metadata = fs::metadata(origin)?;
-    let dir_mtime = origin_metadata.modified().unwrap_or_else(|_| SystemTime::now());
+    let dir_mtime = origin_metadata
+        .modified()
+        .unwrap_or_else(|_| SystemTime::now());
     let dir_datetime = system_time_to_zip_datetime(dir_mtime);
-    
+
     let new_dir_path = prefix_path.to_path_buf();
     writer.add_directory(
         new_dir_path
@@ -107,9 +109,11 @@ where
             let mut cur_path = prefix_path.to_path_buf();
             cur_path = cur_path.join(entry.file_name());
             if entry_metadata.is_file() {
-                let file_mtime = entry_metadata.modified().unwrap_or_else(|_| SystemTime::now());
+                let file_mtime = entry_metadata
+                    .modified()
+                    .unwrap_or_else(|_| SystemTime::now());
                 let file_datetime = system_time_to_zip_datetime(file_mtime);
-                
+
                 let mut f = File::open(&entry_path)?;
                 f.read_to_end(&mut buffer)?;
                 writer.start_file(
@@ -152,9 +156,11 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64,
                 match x.unit_type {
                     SaveUnitType::File => {
                         let file_metadata = fs::metadata(&unit_path)?;
-                        let file_mtime = file_metadata.modified().unwrap_or_else(|_| SystemTime::now());
+                        let file_mtime = file_metadata
+                            .modified()
+                            .unwrap_or_else(|_| SystemTime::now());
                         let file_datetime = system_time_to_zip_datetime(file_mtime);
-                        
+
                         let mut original_file = File::open(&unit_path)?;
                         let mut buf = vec![];
                         original_file.read_to_end(&mut buf)?;
@@ -212,13 +218,15 @@ pub fn decompress_from_file(
     let tmp_folder = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?;
     let tmp_folder = tmp_folder.path().to_path_buf();
     fs::create_dir_all(&tmp_folder).map_err(|e| CompressError::Single(e.into()))?;
-    
+
     let mut dir_timestamps: Vec<(PathBuf, FileTime)> = Vec::new();
-    
+
     for i in 0..zip.len() {
-        let mut file = zip.by_index(i).map_err(|e| CompressError::Single(e.into()))?;
+        let mut file = zip
+            .by_index(i)
+            .map_err(|e| CompressError::Single(e.into()))?;
         let outpath = tmp_folder.join(file.name());
-        
+
         if file.is_dir() {
             fs::create_dir_all(&outpath).map_err(|e| CompressError::Single(e.into()))?;
             if let Some(zip_time) = file.last_modified() {
@@ -230,10 +238,11 @@ pub fn decompress_from_file(
             if let Some(parent) = outpath.parent() {
                 fs::create_dir_all(parent).map_err(|e| CompressError::Single(e.into()))?;
             }
-            let mut outfile = File::create(&outpath).map_err(|e| CompressError::Single(e.into()))?;
+            let mut outfile =
+                File::create(&outpath).map_err(|e| CompressError::Single(e.into()))?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| CompressError::Single(e.into()))?;
             drop(outfile);
-            
+
             if let Some(zip_time) = file.last_modified() {
                 let system_time = zip_datetime_to_system_time(zip_time);
                 let file_time = FileTime::from_system_time(system_time);
@@ -241,7 +250,7 @@ pub fn decompress_from_file(
             }
         }
     }
-    
+
     dir_timestamps.sort_by(|a, b| {
         let depth_a = a.0.components().count();
         let depth_b = b.0.components().count();

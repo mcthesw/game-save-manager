@@ -23,9 +23,9 @@ Feature list:
 This software uses [Weblate](https://weblate.org/) for translation, and you can participate in the contribution through the icon above
 
 ## User Guide 👻
->
->It is recommended to read the guide on the [official website](https://help.sworld.club), this is a simplified version
->
+
+> It is recommended to read the guide on the [official website](https://help.sworld.club), this is a simplified version
+
 ### Download the software 😎
 
 You can download the software from the [download page of the official website](https://help.sworld.club/docs/intro), and you can download the latest test version from the [Release Page](https://github.com/mcthesw/game-save-manager/releases). Users of Win10 or above are recommended to use the portable version. It is worth noting that this software depends on WebView2. If you are not using it on Windows, please install it manually. If you are using Win7 or your system does not come with WebView2, please read the text below carefully.
@@ -50,8 +50,8 @@ You can make suggestions or submit feedback from the following platforms, I will
 - ⚡[Bilibili](https://space.bilibili.com/4087637)
 
 ## Developer Guide 🐱
->
->If you are looking for the old developer guide based on the Electron framework, please see the [old branch](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
+
+> If you are looking for the old developer guide based on the Electron framework, please see the [old branch](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
 
 If you can personally participate in this project, it would be great. Whether it's solving problems or adding new features, we are very welcome. The documentation used by developers will be placed in the `doc/<language>` folder of this repository. Please click [this link](doc/en/README.md) to view
 
