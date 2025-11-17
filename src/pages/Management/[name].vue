@@ -4,6 +4,7 @@ import { ElInput, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
+import SnapshotTreeView from '../../components/SnapshotTreeView.vue';
 import type { Game, Snapshot, Device } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
@@ -29,6 +30,7 @@ const top_buttons = [
 
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
+const viewMode = ref<'table' | 'tree'>('table'); // 视图模式：表格或树状
 
 const table_data = ref([
   {
@@ -72,6 +74,9 @@ let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
 
 // 批量操作记录列表
 const selected_game_snapshots: Ref<Snapshot[]> = ref([]);
+
+// Tree view state
+const currentHead = ref<string | null>(null);
 
 let stopQuickActionListener: (() => void) | null = null;
 
@@ -154,6 +159,7 @@ async function refresh_backups_info() {
     showError({ message: result.error });
   } else {
     table_data.value = result.data.backups;
+    currentHead.value = result.data.current_head || null;
   }
 }
 
@@ -461,6 +467,39 @@ async function checkCurrentDeviceSavePaths() {
   }
 }
 
+// Set current HEAD for tree view
+async function setSnapshotHead(date: string | null) {
+  try {
+    const result = await commands.setSnapshotHead(game.value, date);
+    if (result.status === 'error') {
+      showError({ message: $t('manage.set_head_failed') });
+    } else {
+      currentHead.value = date;
+      showSuccess({ message: $t('manage.set_head_success') });
+      refresh_backups_info();
+    }
+  } catch (e) {
+    error(`Error setting snapshot head: ${e}`);
+    showError({ message: $t('manage.set_head_failed') });
+  }
+}
+
+// Detach snapshot from parent (make it a root node)
+async function detachSnapshot(date: string) {
+  try {
+    const result = await commands.detachSnapshot(game.value, date);
+    if (result.status === 'error') {
+      showError({ message: $t('manage.detach_failed') });
+    } else {
+      showSuccess({ message: $t('manage.detach_success') });
+      refresh_backups_info();
+    }
+  } catch (e) {
+    error(`Error detaching snapshot: ${e}`);
+    showError({ message: $t('manage.detach_failed') });
+  }
+}
+
 // 从指定设备复制存档路径到当前设备
 async function copyPathsFromDevice(sourceDeviceId: string) {
   if (!currentDevice.value || !game.value) return;
@@ -546,9 +585,21 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
     </el-card>
     <!-- 下面是主体部分 -->
     <el-card class="saves-container">
-      <!-- 存档应当用点击展开+内部表格的方式来展示 -->
-      <!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
-      <el-table :data="filter_table" style="width: 100%" @selection-change="on_selection_change">
+      <!-- View mode toggle -->
+      <div class="view-mode-toggle">
+        <el-radio-group v-model="viewMode" size="small">
+          <el-radio-button label="table">{{ $t('manage.view_mode_table') }}</el-radio-button>
+          <el-radio-button label="tree">{{ $t('manage.view_mode_tree') }}</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <!-- Table view -->
+      <el-table
+        v-if="viewMode === 'table'"
+        :data="filter_table"
+        style="width: 100%"
+        @selection-change="on_selection_change"
+      >
         <el-table-column type="selection" width="55" />
         <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
         <el-table-column :label="$t('manage.description')" prop="describe" />
@@ -596,6 +647,18 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- Tree view -->
+      <snapshot-tree-view
+        v-else-if="viewMode === 'tree'"
+        :snapshots="table_data"
+        :current-head="currentHead"
+        @apply="apply_save"
+        @delete="del_save"
+        @change-describe="change_describe"
+        @set-head="setSnapshotHead"
+        @detach="detachSnapshot"
+      />
     </el-card>
     <!-- 下面是存档所在位置侧栏部分 -->
     <save-location-drawer
@@ -632,5 +695,11 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
 
 .saves-container {
   margin: auto;
+}
+
+.view-mode-toggle {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

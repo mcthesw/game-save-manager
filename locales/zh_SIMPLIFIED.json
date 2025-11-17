@@ -165,7 +165,18 @@
     "available_devices": "可用设备",
     "enter_device_id": "请输入设备ID",
     "select_device_placeholder": "选择设备",
-    "paths_copied_success": "存档路径复制成功"
+    "paths_copied_success": "存档路径复制成功",
+    "view_mode_table": "表格视图",
+    "view_mode_tree": "树状视图",
+    "tree_view_head": "当前位置",
+    "tree_view_root": "根节点",
+    "set_as_head": "设为当前位置",
+    "detach_from_parent": "从父节点分离",
+    "create_branch_from_here": "从此处创建分支",
+    "detach_success": "成功分离存档",
+    "detach_failed": "分离存档失败",
+    "set_head_success": "成功设置当前位置",
+    "set_head_failed": "设置当前位置失败"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",

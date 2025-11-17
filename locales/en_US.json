@@ -165,7 +165,18 @@
     "available_devices": "Available devices",
     "enter_device_id": "Enter device ID",
     "select_device_placeholder": "Select device",
-    "paths_copied_success": "Save paths copied successfully"
+    "paths_copied_success": "Save paths copied successfully",
+    "view_mode_table": "Table View",
+    "view_mode_tree": "Tree View",
+    "tree_view_head": "HEAD",
+    "tree_view_root": "Root",
+    "set_as_head": "Set as HEAD",
+    "detach_from_parent": "Detach from parent",
+    "create_branch_from_here": "Create branch from here",
+    "detach_success": "Successfully detached snapshot",
+    "detach_failed": "Failed to detach snapshot",
+    "set_head_success": "Successfully set HEAD",
+    "set_head_failed": "Failed to set HEAD"
   },
   "addgame": {
     "search_local": "Detect local games",
