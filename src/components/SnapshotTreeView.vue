@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { Snapshot } from '../bindings';
 import { $t } from '../i18n';
 
@@ -16,6 +16,7 @@ interface TreeNode extends Snapshot {
 }
 
 const props = defineProps<Props>();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const emit = defineEmits<{
   apply: [date: string];
   delete: [date: string];
@@ -25,7 +26,6 @@ const emit = defineEmits<{
 }>();
 
 const svgWidth = 1200;
-const svgHeight = ref(600);
 const nodeRadius = 8;
 const levelWidth = 200;
 const nodeSpacing = 60;
@@ -91,10 +91,11 @@ const treeRoots = computed(() => {
     globalY += 40; // Extra spacing between trees
   });
 
-  svgHeight.value = Math.max(600, globalY + 50);
-
-  return roots;
+  return { roots, height: Math.max(600, globalY + 50) };
 });
+
+// Calculate SVG height
+const svgHeight = computed(() => treeRoots.value.height);
 
 // Get all nodes in a flat array for rendering
 const allNodes = computed(() => {
@@ -103,7 +104,7 @@ const allNodes = computed(() => {
     nodes.push(node);
     node.children.forEach(traverse);
   };
-  treeRoots.value.forEach(traverse);
+  treeRoots.value.roots.forEach(traverse);
   return nodes;
 });
 
@@ -116,7 +117,7 @@ const edges = computed(() => {
       traverse(child);
     });
   };
-  treeRoots.value.forEach(traverse);
+  treeRoots.value.roots.forEach(traverse);
   return edgeList;
 });
 
@@ -172,23 +173,30 @@ const getNodeTitle = (node: TreeNode) => {
             {{ node.date }}
           </text>
 
-          <!-- Context menu trigger area (invisible circle for hover) -->
+          <!-- Interactive area for clicking -->
           <circle
             :cx="node.x"
             :cy="node.y"
             :r="nodeRadius * 2"
             class="node-hover-area"
-            @contextmenu.prevent="
-              (e) => {
-                // Show context menu
-              }
-            "
+            @click="emit('apply', node.date)"
           >
             <title>{{ getNodeTitle(node) }}</title>
           </circle>
         </g>
       </g>
     </svg>
+
+    <!-- Node info panel -->
+    <div v-if="allNodes.length > 0" class="node-info">
+      <p class="info-text">
+        {{ $t('manage.description') }}: {{ $t('manage.view_mode_tree') }}
+      </p>
+      <p class="info-text">
+        {{ $t('manage.tree_view_head') }}:
+        {{ currentHead || $t('manage.no_backup_error') }}
+      </p>
+    </div>
 
     <!-- Legend -->
     <div class="legend">
@@ -310,5 +318,18 @@ const getNodeTitle = (node: TreeNode) => {
 .legend-color.node-normal {
   background-color: var(--el-color-info-light-5);
   border-color: var(--el-color-info);
+}
+
+.node-info {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+}
+
+.info-text {
+  margin: 5px 0;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 </style>
