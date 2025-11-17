@@ -57,17 +57,26 @@ impl Game {
             }
         };
 
+        let mut infos = self.get_game_snapshots_info()?;
+        
+        // Set parent_id based on current_head
+        let parent_id = infos.current_head.clone();
+
         let game_snapshots_info = Snapshot {
-            date,
+            date: date.clone(),
             describe: describe.to_string(),
             path: zip_path
                 .to_str()
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
             size: file_size,
+            parent_id,
         };
-        let mut infos = self.get_game_snapshots_info()?;
         infos.backups.push(game_snapshots_info);
+        
+        // Update current_head to the newly created snapshot
+        infos.current_head = Some(date);
+        
         self.set_game_snapshots_info(&infos)?;
 
         // 随时同步到云端

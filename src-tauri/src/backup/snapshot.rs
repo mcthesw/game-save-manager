@@ -13,4 +13,7 @@ pub struct Snapshot {
     pub path: String, // like "D:\\SaveManager\save_data\Game1\date.zip"
     #[serde(default = "default_value::default_zero")]
     pub size: u64, // in bytes
+    /// Parent snapshot date for tree structure. None means root node.
+    #[serde(default = "default_value::default_none")]
+    pub parent_id: Option<String>,
 }

@@ -382,6 +382,57 @@ pub async fn get_current_device_info() -> Result<Device, String> {
     Ok(config.devices.get(device_id).cloned().unwrap_or_default())
 }
 
+/// Set the current HEAD for a game (used in tree view mode)
+#[tauri::command]
+#[specta::specta]
+pub async fn set_snapshot_head(game: Game, date: Option<String>) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Setting HEAD to: {:?} for game: {:?}", date, game);
+    
+    let mut infos = game.get_game_snapshots_info().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+    
+    infos.current_head = date;
+    
+    game.set_game_snapshots_info(&infos).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+    
+    info!(target:"rgsm::ipc", "Successfully set HEAD for game: {:?}", game);
+    Ok(())
+}
+
+/// Detach a snapshot from its parent (make it a root node)
+#[tauri::command]
+#[specta::specta]
+pub async fn detach_snapshot(game: Game, date: String) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Detaching snapshot: {:?} from game: {:?}", date, game);
+    
+    let mut infos = game.get_game_snapshots_info().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+    
+    // Find the snapshot and remove its parent
+    if let Some(snapshot) = infos.backups.iter_mut().find(|s| s.date == date) {
+        snapshot.parent_id = None;
+        
+        game.set_game_snapshots_info(&infos).map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+            e.to_string()
+        })?;
+        
+        info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?} from game: {:?}", date, game);
+        Ok(())
+    } else {
+        let err = format!("Snapshot with date {} not found", date);
+        error!(target:"rgsm::ipc", "{}", err);
+        Err(err)
+    }
+}
+
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
         match &e {

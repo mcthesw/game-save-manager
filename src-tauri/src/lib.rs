@@ -83,6 +83,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::toggle_quick_action_sound_preview,
             ipc_handler::stop_sound_playback,
             ipc_handler::choose_quick_action_sound_file,
+            ipc_handler::set_snapshot_head,
+            ipc_handler::detach_snapshot,
         ])
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,
