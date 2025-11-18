@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { onMounted, ref, watch, nextTick } from 'vue';
+import { createGitgraph, templateExtend, TemplateName } from '@gitgraph/js';
 import type { Snapshot } from '../bindings';
 import { $t } from '../i18n';
 
@@ -8,15 +9,7 @@ interface Props {
   currentHead?: string | null;
 }
 
-interface TreeNode extends Snapshot {
-  children: TreeNode[];
-  level: number;
-  x: number;
-  y: number;
-}
-
 const props = defineProps<Props>();
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const emit = defineEmits<{
   apply: [date: string];
   delete: [date: string];
@@ -25,191 +18,287 @@ const emit = defineEmits<{
   detach: [date: string];
 }>();
 
-const svgWidth = 1200;
-const nodeRadius = 8;
-const levelWidth = 200;
-const nodeSpacing = 60;
+const graphContainer = ref<HTMLElement | null>(null);
+const selectedNode = ref<Snapshot | null>(null);
+const showActions = ref(false);
 
-// Build tree structure
-const treeRoots = computed(() => {
-  const nodeMap = new Map<string, TreeNode>();
-  const roots: TreeNode[] = [];
+// Render the gitgraph
+const renderGraph = async () => {
+  await nextTick();
+  if (!graphContainer.value) return;
 
-  // Create all nodes
-  props.snapshots.forEach((snapshot) => {
-    nodeMap.set(snapshot.date, {
-      ...snapshot,
-      children: [],
-      level: 0,
-      x: 0,
-      y: 0,
-    });
+  // Clear previous graph
+  graphContainer.value.innerHTML = '';
+
+  if (props.snapshots.length === 0) {
+    graphContainer.value.innerHTML =
+      '<p style="text-align: center; padding: 40px;">No snapshots available</p>';
+    return;
+  }
+
+  // Create custom template
+  const customTemplate = templateExtend(TemplateName.Metro, {
+    colors: ['#5865F2', '#57F287', '#FEE75C', '#ED4245', '#EB459E', '#F26522', '#1ABC9C'],
+    branch: {
+      lineWidth: 4,
+      spacing: 60,
+      label: {
+        display: false,
+      },
+    },
+    commit: {
+      spacing: 70,
+      dot: {
+        size: 12,
+      },
+      message: {
+        displayAuthor: false,
+        displayHash: false,
+        font: 'normal 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      },
+    },
   });
 
-  // Build parent-child relationships
-  props.snapshots.forEach((snapshot) => {
-    const node = nodeMap.get(snapshot.date)!;
+  const gitgraph = createGitgraph(graphContainer.value, {
+    template: customTemplate,
+    orientation: 'vertical-reverse',
+    mode: 'compact',
+  });
+
+  // Sort snapshots by date (oldest first)
+  const sortedSnapshots = [...props.snapshots].sort((a, b) => a.date.localeCompare(b.date));
+
+  // Build parent-child map
+  const childrenMap = new Map<string, Snapshot[]>();
+  sortedSnapshots.forEach((snapshot) => {
     if (snapshot.parent_id) {
-      const parent = nodeMap.get(snapshot.parent_id);
-      if (parent) {
-        parent.children.push(node);
-      } else {
-        // Parent not found, treat as root
-        roots.push(node);
+      if (!childrenMap.has(snapshot.parent_id)) {
+        childrenMap.set(snapshot.parent_id, []);
       }
+      childrenMap.get(snapshot.parent_id)!.push(snapshot);
+    }
+  });
+
+  // Find roots
+  const roots = sortedSnapshots.filter((s) => !s.parent_id);
+
+  // Branch map to track created branches
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const branchMap = new Map<string, any>();
+
+  // Helper to get node color
+  const getNodeColor = (snapshot: Snapshot) => {
+    if (props.currentHead === snapshot.date) return '#57F287'; // HEAD - green
+    if (!snapshot.parent_id) return '#5865F2'; // Root - blue
+    return '#99AAB5'; // Normal - gray
+  };
+
+  // Helper to format display text
+  const formatNodeText = (snapshot: Snapshot) => {
+    const time = snapshot.date.substring(11, 19);
+    const desc = snapshot.describe || 'No description';
+    let badge = '';
+
+    if (props.currentHead === snapshot.date) {
+      badge = ' 🎯 HEAD';
+    } else if (!snapshot.parent_id) {
+      badge = ' 🌟 ROOT';
+    }
+
+    return `${time} - ${desc}${badge}`;
+  };
+
+  // Recursive function to render tree
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderTree = (snapshot: Snapshot, parentBranch: any = null, branchIndex: number = 0) => {
+    const color = getNodeColor(snapshot);
+
+    let branch;
+    if (parentBranch) {
+      // Create child branch
+      const branchName = `branch-${snapshot.date}`;
+      branch = parentBranch.branch({
+        name: branchName,
+        style: {
+          color: color,
+        },
+      });
     } else {
-      roots.push(node);
-    }
-  });
-
-  // Calculate positions
-  let globalY = 50;
-  const processNode = (node: TreeNode, level: number, baseY: number): number => {
-    node.level = level;
-    node.x = 100 + level * levelWidth;
-
-    if (node.children.length === 0) {
-      node.y = baseY;
-      return baseY + nodeSpacing;
+      // Create root branch
+      const branchName = `root-${branchIndex}`;
+      branch = gitgraph.branch({
+        name: branchName,
+        style: {
+          color: color,
+        },
+      });
     }
 
-    let currentY = baseY;
-    node.children.forEach((child) => {
-      currentY = processNode(child, level + 1, currentY);
+    // Store branch
+    branchMap.set(snapshot.date, branch);
+
+    // Create commit with click handler
+    const commitOptions = {
+      subject: formatNodeText(snapshot),
+      hash: snapshot.date.substring(11, 19),
+      style: {
+        dot: {
+          color: color,
+          size: 12,
+          strokeWidth: 3,
+          strokeColor: '#2C2F33',
+        },
+        message: {
+          color: 'var(--el-text-color-primary)',
+        },
+      },
+      onClick: () => {
+        selectedNode.value = snapshot;
+        showActions.value = true;
+      },
+    };
+
+    branch.commit(commitOptions);
+
+    // Render children
+    const children = childrenMap.get(snapshot.date) || [];
+    children.forEach((child) => {
+      renderTree(child, branch, branchIndex);
     });
-
-    // Position parent in the middle of children
-    const firstChild = node.children[0];
-    const lastChild = node.children[node.children.length - 1];
-    node.y = (firstChild.y + lastChild.y) / 2;
-
-    return currentY;
   };
 
-  roots.forEach((root) => {
-    globalY = processNode(root, 0, globalY);
-    globalY += 40; // Extra spacing between trees
+  // Render all root trees
+  roots.forEach((root, index) => {
+    renderTree(root, null, index);
   });
-
-  return { roots, height: Math.max(600, globalY + 50) };
-});
-
-// Calculate SVG height
-const svgHeight = computed(() => treeRoots.value.height);
-
-// Get all nodes in a flat array for rendering
-const allNodes = computed(() => {
-  const nodes: TreeNode[] = [];
-  const traverse = (node: TreeNode) => {
-    nodes.push(node);
-    node.children.forEach(traverse);
-  };
-  treeRoots.value.roots.forEach(traverse);
-  return nodes;
-});
-
-// Get all edges for rendering
-const edges = computed(() => {
-  const edgeList: Array<{ from: TreeNode; to: TreeNode }> = [];
-  const traverse = (node: TreeNode) => {
-    node.children.forEach((child) => {
-      edgeList.push({ from: node, to: child });
-      traverse(child);
-    });
-  };
-  treeRoots.value.roots.forEach(traverse);
-  return edgeList;
-});
-
-const getNodeClass = (node: TreeNode) => {
-  if (props.currentHead === node.date) return 'node-head';
-  if (!node.parent_id) return 'node-root';
-  return 'node-normal';
 };
 
-const getNodeTitle = (node: TreeNode) => {
-  const parts = [node.date, node.describe || $t('manage.description')];
-  if (props.currentHead === node.date) parts.push(`(${$t('manage.tree_view_head')})`);
-  if (!node.parent_id) parts.push(`(${$t('manage.tree_view_root')})`);
-  return parts.join(' - ');
+// Initialize graph
+onMounted(() => {
+  renderGraph();
+});
+
+// Re-render when data changes
+watch(
+  () => [props.snapshots, props.currentHead],
+  () => {
+    renderGraph();
+  },
+  { deep: true }
+);
+
+// Action handlers
+const handleApply = () => {
+  if (selectedNode.value) {
+    emit('apply', selectedNode.value.date);
+    showActions.value = false;
+  }
+};
+
+const handleDelete = () => {
+  if (selectedNode.value) {
+    emit('delete', selectedNode.value.date);
+    showActions.value = false;
+  }
+};
+
+const handleChangeDescribe = () => {
+  if (selectedNode.value) {
+    emit('changeDescribe', selectedNode.value.date);
+    showActions.value = false;
+  }
+};
+
+const handleSetHead = () => {
+  if (selectedNode.value) {
+    emit('setHead', selectedNode.value.date);
+    showActions.value = false;
+  }
+};
+
+const handleDetach = () => {
+  if (selectedNode.value) {
+    emit('detach', selectedNode.value.date);
+    showActions.value = false;
+  }
 };
 </script>
 
 <template>
   <div class="tree-view-container">
-    <svg :width="svgWidth" :height="svgHeight" class="tree-svg">
-      <!-- Draw edges first (so they appear behind nodes) -->
-      <g class="edges">
-        <line
-          v-for="(edge, idx) in edges"
-          :key="`edge-${idx}`"
-          :x1="edge.from.x"
-          :y1="edge.from.y"
-          :x2="edge.to.x"
-          :y2="edge.to.y"
-          class="edge-line"
-        />
-      </g>
+    <!-- Gitgraph container -->
+    <div ref="graphContainer" class="gitgraph-container"></div>
 
-      <!-- Draw nodes -->
-      <g class="nodes">
-        <g v-for="node in allNodes" :key="node.date" class="node-group">
-          <!-- Node circle -->
-          <circle
-            :cx="node.x"
-            :cy="node.y"
-            :r="nodeRadius"
-            :class="getNodeClass(node)"
-            :title="getNodeTitle(node)"
-          />
+    <!-- Action dialog -->
+    <el-dialog
+      v-model="showActions"
+      :title="$t('manage.description')"
+      width="400px"
+      :append-to-body="true"
+    >
+      <div v-if="selectedNode" class="node-details">
+        <div class="detail-row">
+          <strong>{{ $t('manage.save_date') }}:</strong>
+          <span>{{ selectedNode.date }}</span>
+        </div>
+        <div class="detail-row">
+          <strong>{{ $t('manage.description') }}:</strong>
+          <span>{{ selectedNode.describe || 'N/A' }}</span>
+        </div>
+        <div class="detail-row">
+          <strong>{{ $t('manage.size') }}:</strong>
+          <span>{{
+            selectedNode.size ? (selectedNode.size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'
+          }}</span>
+        </div>
+      </div>
 
-          <!-- Node label -->
-          <text :x="node.x + 15" :y="node.y - 10" class="node-label">
-            {{ node.describe || node.date.substring(11) }}
-          </text>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="handleApply">
+            {{ $t('manage.apply') }}
+          </el-button>
+          <el-button @click="handleChangeDescribe">
+            {{ $t('manage.change_describe') }}
+          </el-button>
+          <el-button @click="handleSetHead">
+            {{ $t('manage.set_as_head') }}
+          </el-button>
+          <el-button @click="handleDetach">
+            {{ $t('manage.detach_from_parent') }}
+          </el-button>
+          <el-button type="danger" @click="handleDelete">
+            {{ $t('manage.delete') }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
 
-          <!-- Node date (smaller text below) -->
-          <text :x="node.x + 15" :y="node.y + 5" class="node-date">
-            {{ node.date }}
-          </text>
-
-          <!-- Interactive area for clicking -->
-          <circle
-            :cx="node.x"
-            :cy="node.y"
-            :r="nodeRadius * 2"
-            class="node-hover-area"
-            @click="emit('apply', node.date)"
-          >
-            <title>{{ getNodeTitle(node) }}</title>
-          </circle>
-        </g>
-      </g>
-    </svg>
-
-    <!-- Node info panel -->
-    <div v-if="allNodes.length > 0" class="node-info">
-      <p class="info-text">
-        {{ $t('manage.description') }}: {{ $t('manage.view_mode_tree') }}
-      </p>
-      <p class="info-text">
-        {{ $t('manage.tree_view_head') }}:
-        {{ currentHead || $t('manage.no_backup_error') }}
-      </p>
+    <!-- Info panel -->
+    <div class="info-panel">
+      <div class="info-row">
+        <strong>{{ $t('manage.tree_view_head') }}:</strong>
+        <span>{{ currentHead || $t('manage.no_backup_error') }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-hint"
+          >💡 {{ $t('manage.description') }}: Click on any node to see available actions</span
+        >
+      </div>
     </div>
 
     <!-- Legend -->
     <div class="legend">
       <div class="legend-item">
-        <div class="legend-color node-head"></div>
-        <span>{{ $t('manage.tree_view_head') }}</span>
+        <div class="legend-color" style="background-color: #57f287; border-color: #2c2f33"></div>
+        <span>🎯 {{ $t('manage.tree_view_head') }}</span>
       </div>
       <div class="legend-item">
-        <div class="legend-color node-root"></div>
-        <span>{{ $t('manage.tree_view_root') }}</span>
+        <div class="legend-color" style="background-color: #5865f2; border-color: #2c2f33"></div>
+        <span>🌟 {{ $t('manage.tree_view_root') }}</span>
       </div>
       <div class="legend-item">
-        <div class="legend-color node-normal"></div>
+        <div class="legend-color" style="background-color: #99aab5; border-color: #2c2f33"></div>
         <span>{{ $t('manage.description') }}</span>
       </div>
     </div>
@@ -219,117 +308,132 @@ const getNodeTitle = (node: TreeNode) => {
 <style scoped>
 .tree-view-container {
   width: 100%;
-  overflow-x: auto;
   padding: 20px;
   background-color: var(--el-bg-color);
   border-radius: 8px;
 }
 
-.tree-svg {
-  display: block;
-  border: 1px solid var(--el-border-color);
+.gitgraph-container {
+  min-height: 400px;
+  max-height: 800px;
+  overflow: auto;
   background-color: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  padding: 30px;
+}
+
+.node-details {
+  padding: 10px 0;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: var(--el-fill-color-light);
   border-radius: 4px;
 }
 
-.edge-line {
-  stroke: var(--el-border-color);
-  stroke-width: 2;
-  fill: none;
+.detail-row strong {
+  color: var(--el-text-color-primary);
+  margin-right: 10px;
 }
 
-.node-group {
-  cursor: pointer;
+.detail-row span {
+  color: var(--el-text-color-regular);
+  text-align: right;
+  flex: 1;
 }
 
-.node-head {
-  fill: var(--el-color-success);
-  stroke: var(--el-color-success-dark-2);
-  stroke-width: 2;
+.dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
 }
 
-.node-root {
-  fill: var(--el-color-primary);
-  stroke: var(--el-color-primary-dark-2);
-  stroke-width: 2;
+.dialog-footer .el-button {
+  flex: 1 1 auto;
+  min-width: 120px;
 }
 
-.node-normal {
-  fill: var(--el-color-info-light-5);
-  stroke: var(--el-color-info);
-  stroke-width: 2;
+.info-panel {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: var(--el-fill-color-light);
+  border-radius: 8px;
+  border-left: 4px solid var(--el-color-primary);
 }
 
-.node-hover-area {
-  fill: transparent;
-  cursor: pointer;
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.node-hover-area:hover {
-  fill: rgba(0, 0, 0, 0.05);
+.info-row:last-child {
+  margin-bottom: 0;
 }
 
-.node-label {
+.info-row strong {
   font-size: 14px;
-  fill: var(--el-text-color-primary);
-  pointer-events: none;
-  user-select: none;
+  color: var(--el-text-color-primary);
 }
 
-.node-date {
-  font-size: 11px;
-  fill: var(--el-text-color-secondary);
-  pointer-events: none;
-  user-select: none;
+.info-row span {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+}
+
+.info-hint {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  font-style: italic;
 }
 
 .legend {
   display: flex;
   gap: 20px;
-  margin-top: 15px;
-  padding: 10px;
+  margin-top: 20px;
+  padding: 15px;
   background-color: var(--el-fill-color-light);
-  border-radius: 4px;
+  border-radius: 8px;
+  flex-wrap: wrap;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
 }
 
 .legend-color {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  border: 3px solid;
 }
 
-.legend-color.node-head {
-  background-color: var(--el-color-success);
-  border-color: var(--el-color-success-dark-2);
+/* Gitgraph custom styling */
+:deep(.gitgraph) {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.legend-color.node-root {
-  background-color: var(--el-color-primary);
-  border-color: var(--el-color-primary-dark-2);
+:deep(.gitgraph-commit-message) {
+  fill: var(--el-text-color-primary);
+  cursor: pointer;
 }
 
-.legend-color.node-normal {
-  background-color: var(--el-color-info-light-5);
-  border-color: var(--el-color-info);
+:deep(.gitgraph-dot) {
+  cursor: pointer;
 }
 
-.node-info {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: var(--el-fill-color-light);
-  border-radius: 4px;
-}
-
-.info-text {
-  margin: 5px 0;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
+:deep(.gitgraph-commit-message:hover) {
+  opacity: 0.8;
 }
 </style>
