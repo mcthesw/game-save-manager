@@ -59,6 +59,7 @@ impl Default for Config {
                 save_list_expand_behavior: SaveListExpandBehavior::default(),
                 save_list_last_expanded: false,
                 max_auto_backup_count: 0,
+                default_enable_hash_verification: false,
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),

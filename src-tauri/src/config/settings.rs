@@ -47,6 +47,8 @@ pub struct Settings {
     pub save_list_last_expanded: bool,
     #[serde(default = "default_value::default_zero_u32")]
     pub max_auto_backup_count: u32,
+    #[serde(default = "default_value::default_false")]
+    pub default_enable_hash_verification: bool,
 }
 
 impl Default for Settings {
@@ -67,6 +69,7 @@ impl Default for Settings {
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
             max_auto_backup_count: default_value::default_zero_u32(),
+            default_enable_hash_verification: default_value::default_false(),
         }
     }
 }

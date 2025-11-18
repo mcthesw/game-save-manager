@@ -11,6 +11,7 @@ use std::{
     time::SystemTime,
 };
 use tauri::{AppHandle, Emitter};
+use xxhash_rust::xxh3::xxh3_64;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
@@ -133,9 +134,22 @@ where
     Ok(())
 }
 
+/// Calculate xxh3 hash of a file
+pub fn calculate_file_hash(file_path: &Path) -> Result<String, BackupFileError> {
+    let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    let hash = xxh3_64(&buffer);
+    Ok(format!("{:016x}", hash))
+}
+
 /// Compress a set of save to a zip file in `backup_path` with name 'date.zip'
-/// Returns the size of the compressed file in bytes if successful
-pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64, CompressError> {
+/// Returns a tuple of (file_size, hash) if successful
+pub fn compress_to_file(
+    save_paths: &[SaveUnit],
+    zip_path: &Path,
+    calculate_hash: bool,
+) -> Result<(u64, Option<String>), CompressError> {
     let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
     let compress_errors: Vec<_> = save_paths
@@ -200,18 +214,40 @@ pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64,
         let file_size = fs::metadata(zip_path)
             .map_err(|e| CompressError::Single(e.into()))?
             .len();
-        Result::Ok(file_size)
+        
+        // Calculate hash if requested
+        let hash = if calculate_hash {
+            Some(calculate_file_hash(zip_path).map_err(CompressError::Single)?)
+        } else {
+            None
+        };
+        
+        Result::Ok((file_size, hash))
     }
 }
 
 /// Decompress a zip file to their original path
+/// If expected_hash is provided, verify the file hash before decompression
 pub fn decompress_from_file(
     save_paths: &[SaveUnit],
     backup_path: &Path,
     date: &str,
     app_handle: Option<&AppHandle>,
+    expected_hash: Option<&str>,
 ) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
+    
+    // Verify hash if provided
+    if let Some(expected) = expected_hash {
+        let actual_hash = calculate_file_hash(&zip_path).map_err(CompressError::Single)?;
+        if actual_hash != expected {
+            return Err(CompressError::Single(BackupFileError::HashMismatch {
+                expected: expected.to_string(),
+                actual: actual_hash,
+            }));
+        }
+    }
+    
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
 

@@ -17,6 +17,8 @@ pub enum BackupFileError {
     NonePathError,
     #[error("Path resolution error: {0:#?}")]
     PathResolution(#[from] ResolveError),
+    #[error("Hash verification failed: expected {expected}, got {actual}")]
+    HashMismatch { expected: String, actual: String },
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }

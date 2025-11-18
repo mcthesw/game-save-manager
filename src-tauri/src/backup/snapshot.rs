@@ -13,4 +13,6 @@ pub struct Snapshot {
     pub path: String, // like "D:\\SaveManager\save_data\Game1\date.zip"
     #[serde(default = "default_value::default_zero")]
     pub size: u64, // in bytes
+    #[serde(default)]
+    pub hash: Option<String>, // xxh3 hash of the zip file for integrity verification
 }

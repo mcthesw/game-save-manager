@@ -12,6 +12,7 @@
     "prompt_when_not_described": "When there is no describe for a save, a prompt pops up",
     "prompt_when_auto_backup": "When automatic backup occurs, a prompt pops up",
     "max_auto_backup_count": "Maximum number of automatic backups to keep (0 = unlimited)",
+    "default_enable_hash_verification": "Enable hash verification by default for new games",
     "exit_to_tray": "Minimize to tray",
     "extra_backup_when_apply": "Perform extra backups before apply (in the./save_data/game name/extra_backup folder)",
     "enable_dark_mode": "Dark mode",
@@ -345,7 +346,8 @@
       "backup_file_not_exist": "File %{name} does not exist, cannot be backed up or restored"
     },
     "archive": {
-      "file_not_exist": "The path %{path} does not exist and has been automatically created."
+      "file_not_exist": "The path %{path} does not exist and has been automatically created.",
+      "hash_verification_failed": "Hash verification failed! The backup file may be corrupted. Expected: %{expected}, Actual: %{actual}"
     }
   },
   "favorite": {

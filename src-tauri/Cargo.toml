@@ -46,6 +46,7 @@ dirs = "6.0.0"
 whoami = "1.6.0"
 machine-uid = "0.5.3"
 rodio = { version = "0.18.1", features = ["flac", "mp3", "vorbis"] }
+xxhash-rust = { version = "0.8.12", features = ["xxh3"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.0"

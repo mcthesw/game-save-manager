@@ -22,6 +22,9 @@ pub struct Game {
     // Key: DeviceId (String), Value: Path (String)
     #[serde(default)]
     pub game_paths: HashMap<DeviceId, String>,
+    // Enable hash verification for this game
+    #[serde(default)]
+    pub enable_hash_verification: bool,
 }
 
 impl Game {
@@ -47,9 +50,9 @@ impl Game {
         let save_paths = &self.save_paths; // everything you should copy
 
         let zip_path = backup_path.join([&date, ".zip"].concat());
-        // 获取压缩后的文件大小
-        let file_size = match compress_to_file(save_paths, &zip_path) {
-            Ok(size) => size,
+        // 获取压缩后的文件大小和哈希值
+        let (file_size, hash) = match compress_to_file(save_paths, &zip_path, self.enable_hash_verification) {
+            Ok(result) => result,
             Err(e) => {
                 // delete the zip if failed to write
                 fs::remove_file(&zip_path)?;
@@ -65,6 +68,7 @@ impl Game {
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
             size: file_size,
+            hash,
         };
         let mut infos = self.get_game_snapshots_info()?;
         infos.backups.push(game_snapshots_info);
@@ -180,7 +184,20 @@ impl Game {
                 warn!(target:"rgsm::backup::game","Failed to create extra backup: {:?}", e);
             }
         }
-        decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;
+        
+        // Get the hash from snapshot info if hash verification is enabled
+        let expected_hash = if self.enable_hash_verification {
+            let infos = self.get_game_snapshots_info()?;
+            infos
+                .backups
+                .iter()
+                .find(|s| s.date == date)
+                .and_then(|s| s.hash.clone())
+        } else {
+            None
+        };
+        
+        decompress_from_file(&self.save_paths, &backup_path, date, app_handle, expected_hash.as_deref())?;
         Result::Ok(())
     }
     pub fn create_overwrite_snapshot(&self) -> Result<(), BackupError> {
@@ -194,7 +211,8 @@ impl Game {
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
         let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
-        compress_to_file(&self.save_paths, zip_path)?;
+        // Extra backups don't need hash verification since they're temporary
+        compress_to_file(&self.save_paths, zip_path, false)?;
 
         // Delete oldest extra backup if there are more than 5 file
         let extra_backups_dir: Vec<_> = extra_backup_path.read_dir()?.collect();

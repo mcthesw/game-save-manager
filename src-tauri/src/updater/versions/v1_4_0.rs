@@ -71,6 +71,7 @@ impl From<Config> for CurrentConfig {
                     name: g.name,
                     save_paths,
                     game_paths,
+                    enable_hash_verification: false,
                 }
             })
             .collect();
