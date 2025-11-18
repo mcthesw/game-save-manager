@@ -28,7 +28,7 @@ const availableDevices = ref<Device[]>([]);
 // 当前选中的设备ID
 const selectedDeviceId = ref<string>('');
 // 临时存储修改的数据
-const tempGame = ref<Game>({ name: '', save_paths: [], game_paths: {} });
+const tempGame = ref<Game>({ name: '', save_paths: [], game_paths: {}, enable_hash_verification: false });
 // 是否有未保存的修改
 const hasUnsavedChanges = ref(false);
 
@@ -318,6 +318,15 @@ function cancelChanges() {
       </div>
     </div>
 
+    <!-- 游戏设置 -->
+    <div class="game-settings-section">
+      <h3>{{ $t('save_location_drawer.game_settings') }}</h3>
+      <div class="setting-item">
+        <el-switch v-model="tempGame.enable_hash_verification" @change="markAsChanged" />
+        <span class="setting-label">{{ $t('save_location_drawer.enable_hash_verification') }}</span>
+      </div>
+    </div>
+
     <!-- 存档路径表格 -->
     <h3>{{ $t('save_location_drawer.save_locations') }}</h3>
     <el-table :data="tempGame.save_paths" style="width: 100%" :border="true">
@@ -397,5 +406,24 @@ function cancelChanges() {
 .drawer-actions {
   display: flex;
   gap: 10px;
+}
+
+.game-settings-section {
+  margin: 20px 0;
+}
+
+.game-settings-section h3 {
+  margin-bottom: 10px;
+}
+
+.game-settings-section .setting-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.game-settings-section .setting-label {
+  font-size: 14px;
 }
 </style>

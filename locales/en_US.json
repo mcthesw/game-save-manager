@@ -238,7 +238,9 @@
     "open": "Open",
     "delete_before_apply": "Delete before overwrite",
     "launch_path": "Game launch path",
-    "save_locations": "Save file locations"
+    "save_locations": "Save file locations",
+    "game_settings": "Game Settings",
+    "enable_hash_verification": "Enable hash verification for this game"
   },
   "sync_settings": {
     "title": "Sync settings",

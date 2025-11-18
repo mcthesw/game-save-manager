@@ -632,6 +632,10 @@ const router_list = computed(() => {
             <span class="setting-label">{{ $t('settings.max_auto_backup_count') }}</span>
           </div>
           <div class="setting-box">
+            <ElSwitch v-model="config.settings.default_enable_hash_verification" />
+            <span class="setting-label">{{ $t('settings.default_enable_hash_verification') }}</span>
+          </div>
+          <div class="setting-box">
             <ElSwitch v-model="config.settings.extra_backup_when_apply" />
             <span class="setting-label">{{ $t('settings.extra_backup_when_apply') }}</span>
           </div>

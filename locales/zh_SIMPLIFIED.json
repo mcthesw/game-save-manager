@@ -243,7 +243,9 @@
     "current_device": "当前设备",
     "copy": "复制",
     "launch_path": "启动路径",
-    "save_locations": "存档路径"
+    "save_locations": "存档路径",
+    "game_settings": "游戏设置",
+    "enable_hash_verification": "为此游戏启用哈希校验"
   },
   "sync_settings": {
     "title": "同步设置",

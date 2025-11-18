@@ -236,7 +236,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.5"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_enable_hash_verification":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.5"} as const;
 
 /** user-defined types **/
 
@@ -285,7 +285,7 @@ export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolea
 /**
  * A game struct contains the save units and the game's launcher
  */
-export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }> }
+export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>; enable_hash_verification?: boolean }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -317,13 +317,13 @@ export type SaveUnit = { unit_type: SaveUnitType; paths?: Partial<{ [key in stri
  * A save unit should be a file or a folder
  */
 export type SaveUnitType = "File" | "Folder"
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number }
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; default_enable_hash_verification?: boolean }
 /**
  * A backup is a zip file that contains
  * all the file that the save unit has declared.
  * The date is the unique indicator for a backup
  */
-export type Snapshot = { date: string; describe: string; path: string; size?: number }
+export type Snapshot = { date: string; describe: string; path: string; size?: number; hash?: string | null }
 
 /** tauri-specta globals **/
 

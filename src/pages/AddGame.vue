@@ -182,6 +182,7 @@ async function save() {
   const game: Game = {
     name: game_name.value,
     save_paths: save_paths,
+    enable_hash_verification: config.value?.settings.default_enable_hash_verification ?? false,
   };
 
   // 如果有游戏路径和当前设备信息，则添加游戏路径
