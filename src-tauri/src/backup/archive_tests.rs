@@ -200,4 +200,19 @@ mod tests {
 
         Ok(())
     }
+
+    // Note: Comprehensive integration tests for the rollback functionality
+    // should be added in a separate integration test file that can properly
+    // initialize the config system and simulate real restore failures.
+    // 
+    // The rollback mechanism works as follows:
+    // 1. Before deletion, files/folders are moved to a temporary backup location
+    // 2. If restore succeeds, the backup is deleted
+    // 3. If restore fails, the backup is moved back to the original location
+    // 
+    // Key scenarios to test manually:
+    // - Restore fails due to file being locked (game running)
+    // - Restore fails due to permission issues
+    // - Restore fails due to disk space issues
+    // - Partial restore failure (some files succeed, some fail)
 }
