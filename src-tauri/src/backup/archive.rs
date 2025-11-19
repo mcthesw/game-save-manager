@@ -219,6 +219,11 @@ pub fn decompress_from_file(
     let tmp_folder = tmp_folder.path().to_path_buf();
     fs::create_dir_all(&tmp_folder).map_err(|e| CompressError::Single(e.into()))?;
 
+    // Create a separate temp folder for backing up files that will be deleted
+    let backup_temp_folder = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?;
+    let backup_temp_folder = backup_temp_folder.path().to_path_buf();
+    fs::create_dir_all(&backup_temp_folder).map_err(|e| CompressError::Single(e.into()))?;
+
     let mut dir_timestamps: Vec<(PathBuf, FileTime)> = Vec::new();
 
     for i in 0..zip.len() {
@@ -260,6 +265,46 @@ pub fn decompress_from_file(
         let _ = set_file_mtime(&dir_path, file_time);
     }
 
+    // Track backed up files for rollback in case of failure
+    let mut backup_records: Vec<(PathBuf, PathBuf, SaveUnitType)> = Vec::new();
+
+    // First pass: backup existing files/folders that need to be deleted
+    for unit in save_paths.iter() {
+        if unit.delete_before_apply {
+            let current_device_id = &get_current_device_id();
+            if let Some(unit_path_str) = unit.get_path_for_device(current_device_id) {
+                let config = crate::config::get_config().map_err(|e| CompressError::Single(BackupFileError::Unexpected(e.into())))?;
+                let unit_path = crate::path_resolver::resolve_path(unit_path_str, None, &config)
+                    .map_err(|e| CompressError::Single(e.into()))?;
+                
+                if unit_path.exists() {
+                    let backup_name = format!("backup_{}", unit_path
+                        .file_name()
+                        .ok_or(CompressError::Single(BackupFileError::NonePathError))?
+                        .to_str()
+                        .ok_or(CompressError::Single(BackupFileError::NonePathError))?);
+                    let backup_location = backup_temp_folder.join(&backup_name);
+                    
+                    // Move existing file/folder to backup location
+                    match unit.unit_type {
+                        SaveUnitType::File => {
+                            let option = fs_extra::file::CopyOptions::new().overwrite(false);
+                            move_file(&unit_path, &backup_location, &option)
+                                .map_err(|e| CompressError::Single(e.into()))?;
+                        }
+                        SaveUnitType::Folder => {
+                            let option = fs_extra::dir::CopyOptions::new().overwrite(false);
+                            move_dir(&unit_path, backup_temp_folder.as_path(), &option)
+                                .map_err(|e| CompressError::Single(e.into()))?;
+                        }
+                    }
+                    backup_records.push((unit_path.clone(), backup_location, unit.unit_type.clone()));
+                }
+            }
+        }
+    }
+
+    // Second pass: attempt to restore files from backup
     let decompress_errors: Vec<_> = save_paths
         .iter()
         .map(|unit| {
@@ -310,9 +355,6 @@ pub fn decompress_from_file(
                             }
                             fs::create_dir_all(prefix_root)?;
                         }
-                        if unit.delete_before_apply && unit_path.exists() {
-                            fs::remove_file(&unit_path)?;
-                        }
                         move_file(original_path, &unit_path, &option)?;
                     }
                     SaveUnitType::Folder => {
@@ -346,9 +388,6 @@ pub fn decompress_from_file(
                             }
                             fs::create_dir_all(target_path)?;
                         }
-                        if unit.delete_before_apply && unit_path.exists() {
-                            fs::remove_dir_all(&unit_path)?;
-                        }
                         move_dir(original_path, target_path, &option)?;
                     }
                 }
@@ -359,10 +398,50 @@ pub fn decompress_from_file(
         })
         .filter_map(|x| x.err())
         .collect();
+    
     fs::remove_dir_all(tmp_folder).map_err(|e| CompressError::Single(e.into()))?; //TODO:tmp dir
+    
+    // Handle rollback if there were errors
     if !decompress_errors.is_empty() {
+        warn!(target:"rgsm::backup::archive", "Restore failed, rolling back deletions...");
+        
+        // Attempt to restore backed up files
+        for (original_path, backup_location, unit_type) in backup_records.iter() {
+            if backup_location.exists() {
+                match unit_type {
+                    SaveUnitType::File => {
+                        let option = fs_extra::file::CopyOptions::new().overwrite(false);
+                        if let Err(e) = move_file(backup_location, original_path, &option) {
+                            warn!(target:"rgsm::backup::archive", "Failed to rollback file {:#?}: {:#?}", original_path, e);
+                        }
+                    }
+                    SaveUnitType::Folder => {
+                        let option = fs_extra::dir::CopyOptions::new().overwrite(false);
+                        let target_parent = original_path.parent().ok_or(CompressError::Single(BackupFileError::NonePathError))?;
+                        if let Err(e) = move_dir(backup_location, target_parent, &option) {
+                            warn!(target:"rgsm::backup::archive", "Failed to rollback folder {:#?}: {:#?}", original_path, e);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Notify user about the failure and rollback
+        if let Some(app_handle) = app_handle {
+            let _ = app_handle.emit(
+                "Notification",
+                IpcNotification {
+                    level: NotificationLevel::error,
+                    title: "ERROR".to_string(),
+                    msg: t!("backend.archive.restore_failed_rollback").to_string(),
+                },
+            );
+        }
+        
         Err(CompressError::Multiple(decompress_errors))
     } else {
+        // Success - clean up backup folder
+        let _ = fs::remove_dir_all(&backup_temp_folder);
         Result::Ok(())
     }
 }
