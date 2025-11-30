@@ -319,7 +319,6 @@ function onCreateBranch(date: string) {
 .branch-tree-view {
   width: 100%;
   height: 100%;
-  min-height: 400px;
   border-radius: 8px;
   overflow: hidden;
   position: relative;
