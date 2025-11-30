@@ -42,12 +42,6 @@ interface TreeNode {
   x: number;
   y: number;
   depth: number;
-  mod: number;
-  prelim: number;
-  shift: number;
-  change: number;
-  thread: TreeNode | null;
-  ancestor: TreeNode;
   number: number;
   parent: TreeNode | null;
 }
@@ -95,16 +89,9 @@ function buildTreeLayout(snapshots: Snapshot[]): { nodes: Node[]; edges: Edge[] 
       x: 0,
       y: depth,
       depth,
-      mod: 0,
-      prelim: 0,
-      shift: 0,
-      change: 0,
-      thread: null,
-      ancestor: null as unknown as TreeNode,
       number: 0,
       parent,
     };
-    node.ancestor = node;
 
     const children = childrenMap.get(snapshot.date) || [];
     node.children = children.map((child, index) => {
@@ -310,10 +297,9 @@ function onCreateBranch(date: string) {
 
       <Background
         :variant="BackgroundVariant.Dots"
-        pattern-color="#d0d0d0"
-        :gap="16"
+        :gap="20"
         :size="1"
-        bg-color="#ffffff"
+        class="vue-flow-background"
       />
 
       <!-- Custom controls -->
@@ -345,13 +331,21 @@ function onCreateBranch(date: string) {
   justify-content: center;
   height: 100%;
   min-height: 300px;
-  background: #ffffff;
+  background: var(--el-bg-color);
 }
 
 .vue-flow-wrapper {
   width: 100%;
   height: 100%;
-  background: #ffffff;
+  background: var(--el-bg-color);
+}
+
+:deep(.vue-flow-background) {
+  background-color: var(--el-bg-color);
+}
+
+:deep(.vue-flow__background pattern circle) {
+  fill: var(--el-border-color-lighter);
 }
 
 .custom-controls {
