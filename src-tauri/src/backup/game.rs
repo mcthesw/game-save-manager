@@ -57,17 +57,26 @@ impl Game {
             }
         };
 
+        let mut infos = self.get_game_snapshots_info()?;
+
+        // Set parent based on current HEAD
+        let parent = infos.head.clone();
+
         let game_snapshots_info = Snapshot {
-            date,
+            date: date.clone(),
             describe: describe.to_string(),
             path: zip_path
                 .to_str()
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
             size: file_size,
+            parent,
         };
-        let mut infos = self.get_game_snapshots_info()?;
         infos.backups.push(game_snapshots_info);
+
+        // Update HEAD to point to the new snapshot
+        infos.head = Some(date);
+
         self.set_game_snapshots_info(&infos)?;
 
         // 随时同步到云端
@@ -181,6 +190,12 @@ impl Game {
             }
         }
         decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;
+
+        // Update HEAD to point to the restored snapshot
+        let mut infos = self.get_game_snapshots_info()?;
+        infos.head = Some(date.to_string());
+        self.set_game_snapshots_info(&infos)?;
+
         Result::Ok(())
     }
     pub fn create_overwrite_snapshot(&self) -> Result<(), BackupError> {
@@ -224,6 +239,26 @@ impl Game {
         fs::remove_file(&save_path)?;
 
         let mut saves = self.get_game_snapshots_info()?;
+
+        // Find the parent of the deleted node
+        let deleted_parent = saves
+            .backups
+            .iter()
+            .find(|x| x.date == date)
+            .and_then(|x| x.parent.clone());
+
+        // Update children's parent to point to deleted node's parent
+        for snapshot in saves.backups.iter_mut() {
+            if snapshot.parent.as_deref() == Some(date) {
+                snapshot.parent = deleted_parent.clone();
+            }
+        }
+
+        // Update HEAD if it pointed to the deleted snapshot
+        if saves.head.as_deref() == Some(date) {
+            saves.head = deleted_parent.clone();
+        }
+
         saves.backups.retain(|x| x.date != date);
         self.set_game_snapshots_info(&saves)?;
 

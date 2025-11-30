@@ -220,6 +220,40 @@ async chooseQuickActionSoundFile() : Promise<Result<string, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Set the HEAD pointer to a specific snapshot
+ * This changes which snapshot new snapshots will branch from
+ */
+async setSnapshotHead(game: Game, date: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_snapshot_head", { game, date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Detach a snapshot from its parent, making it a new root node
+ */
+async detachSnapshot(game: Game, date: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("detach_snapshot", { game, date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Create a new snapshot as a child of a specific parent snapshot
+ */
+async createSnapshotAt(game: Game, describe: string, parentDate: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_snapshot_at", { game, describe, parentDate }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -291,7 +325,12 @@ export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<
  * It contains the name of the game,
  * and all backups' path
  */
-export type GameSnapshots = { name: string; backups: Snapshot[] }
+export type GameSnapshots = { name: string; backups: Snapshot[]; 
+/**
+ * HEAD points to the current snapshot that new snapshots will branch from.
+ * If None, new snapshots will be created as root nodes.
+ */
+head?: string | null }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type NotificationLevel = "info" | "warning" | "error"
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
@@ -323,7 +362,11 @@ export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_
  * all the file that the save unit has declared.
  * The date is the unique indicator for a backup
  */
-export type Snapshot = { date: string; describe: string; path: string; size?: number }
+export type Snapshot = { date: string; describe: string; path: string; size?: number; 
+/**
+ * Parent snapshot's date (None means this is a root node)
+ */
+parent?: string | null }
 
 /** tauri-specta globals **/
 
