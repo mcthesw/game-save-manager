@@ -1,5 +1,5 @@
 use crate::backup::{Game, GameSnapshots};
-use crate::cloud_sync::{self, Backend, upload_all};
+use crate::cloud_sync::{self, Backend, upload_all, upload_game_snapshots};
 use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::path_resolver;
@@ -389,6 +389,11 @@ pub async fn get_current_device_info() -> Result<Device, String> {
 pub async fn set_snapshot_head(game: Game, date: String) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
 
+    let config = get_config().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        e.to_string()
+    })?;
+
     let mut saves = game.get_game_snapshots_info().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
         e.to_string()
@@ -405,6 +410,23 @@ pub async fn set_snapshot_head(game: Game, date: String) -> Result<(), String> {
         e.to_string()
     })?;
 
+    // Sync to cloud if enabled
+    if config.settings.cloud_settings.always_sync {
+        let op = config
+            .settings
+            .cloud_settings
+            .backend
+            .get_op()
+            .map_err(|e| {
+                error!(target:"rgsm::ipc", "Failed to get cloud op: {:?}", e);
+                e.to_string()
+            })?;
+        upload_game_snapshots(&op, saves).await.map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to upload game snapshots: {:?}", e);
+            e.to_string()
+        })?;
+    }
+
     info!(target:"rgsm::ipc", "Successfully set HEAD to: {:?}", date);
     Ok(())
 }
@@ -414,6 +436,11 @@ pub async fn set_snapshot_head(game: Game, date: String) -> Result<(), String> {
 #[specta::specta]
 pub async fn detach_snapshot(game: Game, date: String) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
+
+    let config = get_config().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        e.to_string()
+    })?;
 
     let mut saves = game.get_game_snapshots_info().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
@@ -436,6 +463,23 @@ pub async fn detach_snapshot(game: Game, date: String) -> Result<(), String> {
         error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
         e.to_string()
     })?;
+
+    // Sync to cloud if enabled
+    if config.settings.cloud_settings.always_sync {
+        let op = config
+            .settings
+            .cloud_settings
+            .backend
+            .get_op()
+            .map_err(|e| {
+                error!(target:"rgsm::ipc", "Failed to get cloud op: {:?}", e);
+                e.to_string()
+            })?;
+        upload_game_snapshots(&op, saves).await.map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to upload game snapshots: {:?}", e);
+            e.to_string()
+        })?;
+    }
 
     info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?}", date);
     Ok(())
