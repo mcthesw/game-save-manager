@@ -59,8 +59,8 @@ function formatFileSize(bytes: number): string {
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
-  const size = sizes[i];
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + size;
+  // i is guaranteed to be within bounds due to Math.min above
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i]!;
 }
 </script>
 
