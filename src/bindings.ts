@@ -109,6 +109,14 @@ async createSnapshot(game: Game, describe: string) : Promise<Result<null, string
     else return { status: "error", error: e  as any };
 }
 },
+async detachSnapshot(game: Game, date: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("detach_snapshot", { game, date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async openBackupFolder(game: Game) : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_backup_folder", { game }) };
@@ -291,7 +299,7 @@ export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<
  * It contains the name of the game,
  * and all backups' path
  */
-export type GameSnapshots = { name: string; backups: Snapshot[] }
+export type GameSnapshots = { name: string; backups: Snapshot[]; heads?: Partial<{ [key in string]: string }> }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type NotificationLevel = "info" | "warning" | "error"
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
@@ -323,7 +331,7 @@ export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_
  * all the file that the save unit has declared.
  * The date is the unique indicator for a backup
  */
-export type Snapshot = { date: string; describe: string; path: string; size?: number }
+export type Snapshot = { date: string; describe: string; path: string; size?: number; parent?: string | null }
 
 /** tauri-specta globals **/
 

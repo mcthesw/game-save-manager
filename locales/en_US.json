@@ -144,6 +144,7 @@
     "change_info": "Modify backup info",
     "change_prompt": "Attention, this is a risky function that is not recommended for use. If you are sure you want to modify, please enter yes. Otherwise, click cancel. The old backup will be preserved, but using the old backup will only restore parts that intersect with the currently managed files. If the game name must be changed, a new save management will be created, and the original save management will be preserved",
     "change_describe": "Modify",
+    "detach": "Detach",
     "change_description": "Enter new description",
     "change_description_success": "Successfully modified",
     "change_description_failed": "Modification failed",

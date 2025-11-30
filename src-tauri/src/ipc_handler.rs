@@ -181,6 +181,18 @@ pub async fn create_snapshot(game: Game, describe: String, window: Window) -> Re
 
 #[tauri::command]
 #[specta::specta]
+pub async fn detach_snapshot(game: Game, date: String) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
+    game.detach_snapshot(&date).await.map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to detach snapshot: {:?}", e);
+        e.to_string()
+    })?;
+    info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?} for game: {:?}", date, game);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
     info!(target:"rgsm::ipc", "Opening backup folder for game: {:?}", game);
     let backup_path = get_backup_path().map_err(|e| {

@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter};
 use crate::backup::{GameSnapshots, SaveUnit, Snapshot, compress_to_file, decompress_from_file};
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_backup_path, get_config, set_config};
-use crate::device::DeviceId;
+use crate::device::{get_current_device_id, DeviceId};
 use crate::ipc_handler::{IpcNotification, NotificationLevel};
 use crate::preclude::*;
 
@@ -27,7 +27,43 @@ pub struct Game {
 impl Game {
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name).join("Backups.json");
-        let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
+        let mut backup_info: GameSnapshots = serde_json::from_slice(&fs::read(backup_path)?)?;
+
+        // Linear Migration: If no parents are set, assume linear history sorted by date
+        // Also initialize HEAD if missing
+        let device_id = get_current_device_id();
+        let mut needs_save = false;
+
+        // Check if migration is needed (if any snapshot has no parent and it's not the first one)
+        // Or if we should just force it for old snapshots.
+        // Let's check if ALL parents are None.
+        let all_none = backup_info.backups.iter().all(|s| s.parent.is_none());
+
+        // Check heads.is_empty() to avoid re-migrating if user intentionally detached all
+        if all_none && !backup_info.backups.is_empty() && backup_info.heads.is_empty() {
+            // Sort by date just in case
+            backup_info.backups.sort_by(|a, b| a.date.cmp(&b.date));
+
+            // Set parents
+            for i in 1..backup_info.backups.len() {
+                backup_info.backups[i].parent = Some(backup_info.backups[i - 1].date.clone());
+            }
+            needs_save = true;
+
+            // Also set HEAD to the last one if not present
+            if !backup_info.heads.contains_key(device_id) {
+                if let Some(last) = backup_info.backups.last() {
+                    backup_info
+                        .heads
+                        .insert(device_id.to_string(), last.date.clone());
+                }
+            }
+        }
+
+        if needs_save {
+            self.set_game_snapshots_info(&backup_info)?;
+        }
+
         Ok(backup_info)
     }
     pub fn set_game_snapshots_info(&self, new_info: &GameSnapshots) -> Result<(), BackupError> {
@@ -57,17 +93,27 @@ impl Game {
             }
         };
 
+        let mut infos = self.get_game_snapshots_info()?;
+        let device_id = get_current_device_id();
+        let parent = infos.heads.get(device_id).cloned();
+
         let game_snapshots_info = Snapshot {
-            date,
+            date: date.clone(),
             describe: describe.to_string(),
             path: zip_path
                 .to_str()
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
             size: file_size,
+            parent,
         };
-        let mut infos = self.get_game_snapshots_info()?;
         infos.backups.push(game_snapshots_info);
+
+        // Update HEAD
+        infos
+            .heads
+            .insert(device_id.to_string(), date.clone());
+
         self.set_game_snapshots_info(&infos)?;
 
         // 随时同步到云端
@@ -181,6 +227,13 @@ impl Game {
             }
         }
         decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;
+
+        // Update HEAD
+        let mut infos = self.get_game_snapshots_info()?;
+        let device_id = get_current_device_id();
+        infos.heads.insert(device_id.to_string(), date.to_string());
+        self.set_game_snapshots_info(&infos)?;
+
         Result::Ok(())
     }
     pub fn create_overwrite_snapshot(&self) -> Result<(), BackupError> {
@@ -224,7 +277,37 @@ impl Game {
         fs::remove_file(&save_path)?;
 
         let mut saves = self.get_game_snapshots_info()?;
+
+        // If we are deleting the HEAD, we should probably reset HEAD to parent?
+        let parent = saves
+            .backups
+            .iter()
+            .find(|x| x.date == date)
+            .and_then(|x| x.parent.clone());
+
         saves.backups.retain(|x| x.date != date);
+
+        // Handle HEAD
+        let device_id = get_current_device_id();
+        if let Some(head) = saves.heads.get(device_id) {
+            if head == date {
+                if let Some(p) = parent {
+                    saves.heads.insert(device_id.to_string(), p);
+                } else {
+                    saves.heads.remove(device_id);
+                }
+            }
+        }
+
+        // Handle children (Orphan them)
+        for snapshot in saves.backups.iter_mut() {
+            if let Some(p) = &snapshot.parent {
+                if p == date {
+                    snapshot.parent = None; // Orphan
+                }
+            }
+        }
+
         self.set_game_snapshots_info(&saves)?;
 
         // 随时同步到云端
@@ -285,6 +368,24 @@ impl Game {
         )?;
         saves.backups[pos].describe = describe.to_string();
         self.set_game_snapshots_info(&saves)?;
+        Ok(())
+    }
+
+    pub async fn detach_snapshot(&self, date: &str) -> Result<(), BackupError> {
+        let mut saves = self.get_game_snapshots_info()?;
+
+        if let Some(pos) = saves.backups.iter().position(|x| x.date == date) {
+            saves.backups[pos].parent = None;
+            self.set_game_snapshots_info(&saves)?;
+
+            // Cloud sync
+            let config = get_config()?;
+            if config.settings.cloud_settings.always_sync {
+                let op = config.settings.cloud_settings.backend.get_op()?;
+                upload_game_snapshots(&op, saves).await?;
+            }
+        }
+
         Ok(())
     }
 }

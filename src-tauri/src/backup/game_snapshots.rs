@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap;
 
+use crate::device::DeviceId;
 use super::Snapshot;
 
 /// A backup list info is a json file in a backup folder for a game.
@@ -10,4 +12,6 @@ use super::Snapshot;
 pub struct GameSnapshots {
     pub name: String,
     pub backups: Vec<Snapshot>,
+    #[serde(default)]
+    pub heads: HashMap<DeviceId, String>,
 }

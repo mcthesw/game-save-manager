@@ -2,9 +2,11 @@
 import { computed, ref, watch, onBeforeUnmount, onMounted } from 'vue';
 import { ElInput, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
+import { Menu, Share } from '@element-plus/icons-vue';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
-import type { Game, Snapshot, Device } from '../../bindings';
+import TreeView from '../../components/TreeView.vue';
+import type { Game, Snapshot, Device, GameSnapshots } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
 
@@ -29,6 +31,8 @@ const top_buttons = [
 
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
+const viewMode = ref<'table' | 'tree'>('table');
+const gameSnapshots = ref<GameSnapshots | null>(null);
 
 const table_data = ref([
   {
@@ -37,6 +41,11 @@ const table_data = ref([
     path: '',
   },
 ]);
+
+const currentHeadDate = computed(() => {
+  if (!gameSnapshots.value || !currentDevice.value) return undefined;
+  return gameSnapshots.value.heads?.[currentDevice.value.id];
+});
 
 const game: Ref<Game> = ref({
   name: '',
@@ -153,6 +162,7 @@ async function refresh_backups_info() {
   if (result.status === 'error') {
     showError({ message: result.error });
   } else {
+    gameSnapshots.value = result.data;
     table_data.value = result.data.backups;
   }
 }
@@ -234,6 +244,17 @@ async function del_save(date: string) {
   } catch (e) {
     error(`Failed to delete snapshot: ${e}`);
     showError({ message: $t('error.delete_snapshot_failed') });
+  }
+}
+
+async function detach_snapshot(date: string) {
+  try {
+    await commands.detachSnapshot(game.value, date);
+    refresh_backups_info();
+    showSuccess({ message: $t('manage.change_description_success') });
+  } catch (e) {
+    error(`Failed to detach snapshot: ${e}`);
+    showError({ message: 'Failed to detach snapshot' });
   }
 }
 
@@ -515,6 +536,15 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
     <!-- 下面是顶栏部分 -->
     <el-card class="manage-top-bar">
       <div class="button-bar">
+        <el-radio-group v-model="viewMode" style="margin-right: 10px; margin-top: 5px">
+          <el-radio-button value="table">
+            <el-icon><Menu /></el-icon>
+          </el-radio-button>
+          <el-radio-button value="tree">
+            <el-icon><Share /></el-icon>
+          </el-radio-button>
+        </el-radio-group>
+
         <template v-for="button in top_buttons" :key="button.text">
           <el-button type="primary" round @click="button.method">
             {{ button.text }}
@@ -548,54 +578,70 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
     <el-card class="saves-container">
       <!-- 存档应当用点击展开+内部表格的方式来展示 -->
       <!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
-      <el-table :data="filter_table" style="width: 100%" @selection-change="on_selection_change">
-        <el-table-column type="selection" width="55" />
-        <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
-        <el-table-column :label="$t('manage.description')" prop="describe" />
-        <el-table-column :label="$t('manage.size')" width="120px">
-          <template #default="scope">
-            <span v-if="scope.row.size && scope.row.size > 0">
-              {{ formatFileSize(scope.row.size) }}
-            </span>
-            <span v-else class="text-muted">
-              {{ $t('manage.size_not_available') }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column align="right">
-          <template #header>
-            <!-- 搜索 -->
-            <el-input
-              v-model="search"
-              size="small"
-              :placeholder="$t('manage.input_description_search_prompt')"
-              clearable
-            />
-          </template>
-          <template #default="scope">
-            <!-- scope.$index和scope.row可以被使用 -->
-            <el-popconfirm
-              :title="$t('manage.confirm_overwrite_prompt')"
-              @confirm="apply_save(scope.row.date)"
-            >
-              <template #reference>
-                <el-button size="small"> {{ $t('manage.apply') }} </el-button>
-              </template>
-            </el-popconfirm>
-            <el-button size="small" @click="change_describe(scope.row.date)">
-              {{ $t('manage.change_describe') }}
-            </el-button>
-            <el-popconfirm
-              :title="$t('manage.confirm_delete_prompt')"
-              @confirm="del_save(scope.row.date)"
-            >
-              <template #reference>
-                <el-button size="small" type="danger"> {{ $t('manage.delete') }} </el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div v-if="viewMode === 'table'">
+        <el-table
+          :data="filter_table"
+          style="width: 100%"
+          @selection-change="on_selection_change"
+        >
+          <el-table-column type="selection" width="55" />
+          <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
+          <el-table-column :label="$t('manage.description')" prop="describe" />
+          <el-table-column :label="$t('manage.size')" width="120px">
+            <template #default="scope">
+              <span v-if="scope.row.size && scope.row.size > 0">
+                {{ formatFileSize(scope.row.size) }}
+              </span>
+              <span v-else class="text-muted">
+                {{ $t('manage.size_not_available') }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column align="right">
+            <template #header>
+              <!-- 搜索 -->
+              <el-input
+                v-model="search"
+                size="small"
+                :placeholder="$t('manage.input_description_search_prompt')"
+                clearable
+              />
+            </template>
+            <template #default="scope">
+              <!-- scope.$index和scope.row可以被使用 -->
+              <el-popconfirm
+                :title="$t('manage.confirm_overwrite_prompt')"
+                @confirm="apply_save(scope.row.date)"
+              >
+                <template #reference>
+                  <el-button size="small"> {{ $t('manage.apply') }} </el-button>
+                </template>
+              </el-popconfirm>
+              <el-button size="small" @click="change_describe(scope.row.date)">
+                {{ $t('manage.change_describe') }}
+              </el-button>
+              <el-popconfirm
+                :title="$t('manage.confirm_delete_prompt')"
+                @confirm="del_save(scope.row.date)"
+              >
+                <template #reference>
+                  <el-button size="small" type="danger"> {{ $t('manage.delete') }} </el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <div v-else-if="viewMode === 'tree'" style="height: 600px">
+        <TreeView
+          :snapshots="table_data"
+          :head-date="currentHeadDate"
+          :on-restore="apply_save"
+          :on-delete="del_save"
+          :on-edit-describe="change_describe"
+          :on-detach="detach_snapshot"
+        />
+      </div>
     </el-card>
     <!-- 下面是存档所在位置侧栏部分 -->
     <save-location-drawer

@@ -3,6 +3,7 @@ use crate::config::{get_backup_path, get_config, set_config};
 use crate::preclude::*;
 
 use log::{error, info};
+use std::collections::HashMap;
 use std::fs;
 use tauri::AppHandle;
 
@@ -17,6 +18,7 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
         GameSnapshots {
             name: name.to_string(),
             backups: Vec::new(),
+            heads: HashMap::new(),
         }
     } else {
         // 如果已经存在，info从原来的文件中读取

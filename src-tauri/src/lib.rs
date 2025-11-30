@@ -70,6 +70,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_config,
             ipc_handler::reset_settings,
             ipc_handler::create_snapshot,
+            ipc_handler::detach_snapshot,
             ipc_handler::open_backup_folder,
             ipc_handler::check_cloud_backend,
             ipc_handler::cloud_upload_all,
