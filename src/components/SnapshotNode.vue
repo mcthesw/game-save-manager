@@ -28,7 +28,7 @@ const emit = defineEmits<{
 
 const formattedDate = computed(() => {
   const dateStr = props.data.snapshot.date;
-  // Parse date format: YYYY-MM-DD_HH-MM-SS
+  // Parse date format: YYYY-MM-DD_HH-mm-ss
   const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
   if (parsed.isValid()) {
     return parsed.format('MM/DD HH:mm');
@@ -58,8 +58,8 @@ function formatFileSize(bytes: number): string {
   if (!bytes || bytes === 0) return '';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const size = sizes[i] ?? 'B';
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  const size = sizes[i];
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + size;
 }
 </script>
