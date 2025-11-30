@@ -179,6 +179,7 @@
     "create_branch": "创建分支",
     "root_node": "根节点",
     "no_snapshots": "暂无快照",
+    "actions": "操作",
     "branch_from_here": "从此处创建快照",
     "current_position": "当前所在",
     "focus_head": "定位到当前位置",
