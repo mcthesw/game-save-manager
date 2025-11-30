@@ -179,6 +179,7 @@
     "create_branch": "Create branch",
     "root_node": "Root",
     "no_snapshots": "No snapshots yet",
+    "actions": "Actions",
     "branch_from_here": "Create snapshot from here",
     "current_position": "Current Position",
     "focus_head": "Focus on current position",

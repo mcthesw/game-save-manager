@@ -8,7 +8,18 @@ import BranchTreeView from '../../components/BranchTreeView.vue';
 import type { Game, Snapshot, Device, GameSnapshots } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
-import { List, Share } from '@element-plus/icons-vue';
+import {
+  List,
+  Share,
+  VideoPlay,
+  Folder,
+  Setting,
+  Delete,
+  RefreshLeft,
+  Plus,
+  Timer,
+  Edit,
+} from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 
 const { showInfo, showError, showSuccess } = useNotification();
@@ -19,20 +30,6 @@ const route = useRoute();
 
 // View mode: 'table' or 'branch'
 const viewMode = ref<'table' | 'branch'>('table');
-
-const top_buttons = [
-  { text: $t('manage.create_new_save'), method: create_new_save },
-  { text: $t('manage.load_latest_save'), method: load_latest_save },
-  { text: $t('manage.launch_game'), method: launch_game },
-  { text: $t('manage.open_backup_folder'), method: open_backup_folder },
-  {
-    text: $t('manage.show_drawer'),
-    method: () => {
-      drawer.value = !drawer.value;
-    },
-  },
-  { text: $t('manage.set_quick_backup'), method: set_quick_backup },
-];
 
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
@@ -574,150 +571,236 @@ async function onCreateBranch(parentDate: string) {
 const currentHead = computed(() => gameSnapshots.value?.head ?? null);
 
 // Format HEAD for human-readable display
-const currentHeadDisplay = computed(() => {
-  if (!currentHead.value) return '';
+const currentHeadSnapshot = computed(() => {
+  if (!currentHead.value) return null;
+  return table_data.value.find((s) => s.date === currentHead.value) ?? null;
+});
 
-  const snapshot = table_data.value.find((s) => s.date === currentHead.value);
-  if (!snapshot) return currentHead.value;
+const currentHeadDescription = computed(() => {
+  const snapshot = currentHeadSnapshot.value;
+  if (!snapshot) return '';
+  return snapshot.describe?.trim() || '';
+});
 
-  // Format date: YYYY-MM-DD_HH-mm-ss -> more readable format
-  const dateStr = snapshot.date;
-  const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
-  const formattedDate = parsed.isValid() ? parsed.format('MM/DD HH:mm') : dateStr;
+const currentHeadTime = computed(() => {
+  const snapshot = currentHeadSnapshot.value;
+  if (!snapshot) return '';
+  const parsed = dayjs(snapshot.date, 'YYYY-MM-DD_HH-mm-ss');
+  return parsed.isValid() ? parsed.format('MM/DD HH:mm') : snapshot.date;
+});
 
-  // Show description if available, otherwise just the date
-  if (snapshot.describe && snapshot.describe.trim()) {
-    return `${snapshot.describe} (${formattedDate})`;
+const currentHeadFullText = computed(() => {
+  const desc = currentHeadDescription.value;
+  const time = currentHeadTime.value;
+  if (desc) {
+    return `${desc} (${time})`;
   }
-  return formattedDate;
+  return time;
 });
 </script>
 
 <template>
   <div class="manage-container">
-    <!-- 下面是顶栏部分 -->
-    <el-card class="manage-top-bar">
-      <div class="button-bar">
-        <template v-for="button in top_buttons" :key="button.text">
-          <el-button type="primary" round @click="button.method">
-            {{ button.text }}
-          </el-button>
-        </template>
-
-        <!-- TODO: 移除该功能 -->
-        <!-- <el-button v-if="showEditButton" type="danger" round @click="edit_cur()">
-                    {{ $t('manage.change_info') }}
-                </el-button> -->
-        <el-button type="danger" round @click="del_cur()">
-          {{ $t('manage.delete_save_manage') }}
-        </el-button>
-        <el-button
-          v-if="selected_game_snapshots.length > 0 && viewMode === 'table'"
-          type="danger"
-          round
-          @click="batch_delete()"
-        >
-          {{ $t('manage.batch_delete') }}
-        </el-button>
-      </div>
-      <!-- 下面是当前存档描述信息 -->
-      <el-form @submit.prevent="create_new_save">
-        <el-input v-model="describe" :placeholder="$t('manage.input_description_prompt')">
-          <template #prepend>{{ game.name + $t('manage.new_save_of') }} </template>
-        </el-input>
-      </el-form>
-    </el-card>
-
-    <!-- 视图切换和HEAD信息 -->
-    <div class="view-controls">
-      <div class="view-toggle">
-        <span class="view-label">{{ $t('manage.view_mode') }}:</span>
-        <el-radio-group v-model="viewMode" size="small">
-          <el-radio-button value="table">
-            <el-icon><List /></el-icon>
-            {{ $t('manage.table_view') }}
-          </el-radio-button>
-          <el-radio-button value="branch">
-            <el-icon><Share /></el-icon>
-            {{ $t('manage.branch_view') }}
-          </el-radio-button>
-        </el-radio-group>
-      </div>
-      <div v-if="currentHead" class="head-info">
-        <el-tag type="success" effect="dark">
-          {{ $t('manage.current_position') }}: {{ currentHeadDisplay }}
-        </el-tag>
+    <!-- Page Header -->
+    <div class="page-header">
+      <h2 class="page-title">{{ game.name }}</h2>
+      <div class="header-actions">
+        <el-tooltip :content="$t('manage.launch_game')" placement="bottom">
+          <el-button circle :icon="VideoPlay" type="success" @click="launch_game" />
+        </el-tooltip>
+        <el-tooltip :content="$t('manage.open_backup_folder')" placement="bottom">
+          <el-button circle :icon="Folder" @click="open_backup_folder" />
+        </el-tooltip>
+        <el-tooltip :content="$t('manage.show_drawer')" placement="bottom">
+          <el-button circle :icon="Setting" @click="drawer = true" />
+        </el-tooltip>
+        <el-tooltip :content="$t('manage.set_quick_backup')" placement="bottom">
+          <el-button circle :icon="Timer" type="warning" @click="set_quick_backup" />
+        </el-tooltip>
+        <el-tooltip :content="$t('manage.delete_save_manage')" placement="bottom">
+          <el-button circle :icon="Delete" type="danger" @click="del_cur" />
+        </el-tooltip>
       </div>
     </div>
 
-    <!-- 下面是主体部分 -->
-    <!-- 表格视图 -->
-    <el-card v-if="viewMode === 'table'" class="saves-container">
-      <el-table :data="filter_table" style="width: 100%" @selection-change="on_selection_change">
-        <el-table-column type="selection" width="55" />
-        <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
-        <el-table-column :label="$t('manage.description')" prop="describe" />
-        <el-table-column :label="$t('manage.size')" width="120px">
-          <template #default="scope">
-            <span v-if="scope.row.size && scope.row.size > 0">
-              {{ formatFileSize(scope.row.size) }}
-            </span>
-            <span v-else class="text-muted">
-              {{ $t('manage.size_not_available') }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column align="right">
-          <template #header>
-            <!-- 搜索 -->
+    <!-- Quick Actions Card -->
+    <el-card class="quick-actions-card" shadow="never">
+      <div class="quick-actions-content">
+        <div class="create-backup-section">
+          <el-input
+            v-model="describe"
+            :placeholder="$t('manage.input_description_prompt')"
+            class="backup-input"
+            @keyup.enter="create_new_save"
+          >
+            <template #prepend>{{ $t('manage.new_save_of') }}</template>
+            <template #append>
+              <el-button type="primary" :icon="Plus" @click="create_new_save">
+                {{ $t('manage.create_new_save') }}
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+        <el-divider direction="vertical" class="action-divider" />
+        <div class="restore-section">
+          <el-button type="warning" :icon="RefreshLeft" @click="load_latest_save">
+            {{ $t('manage.load_latest_save') }}
+          </el-button>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- Main Content Area -->
+    <el-card class="main-content-card" shadow="never">
+      <template #header>
+        <div class="content-header">
+          <div class="left-controls">
+            <el-radio-group v-model="viewMode" size="small">
+              <el-radio-button value="table">
+                <el-icon class="mr-1"><List /></el-icon>
+                {{ $t('manage.table_view') }}
+              </el-radio-button>
+              <el-radio-button value="branch">
+                <el-icon class="mr-1"><Share /></el-icon>
+                {{ $t('manage.branch_view') }}
+              </el-radio-button>
+            </el-radio-group>
+
+            <el-divider direction="vertical" />
+
             <el-input
+              v-if="viewMode === 'table'"
               v-model="search"
               size="small"
               :placeholder="$t('manage.input_description_search_prompt')"
               clearable
+              style="width: 200px"
             />
-          </template>
-          <template #default="scope">
-            <!-- scope.$index和scope.row可以被使用 -->
-            <el-popconfirm
-              :title="$t('manage.confirm_overwrite_prompt')"
-              @confirm="apply_save(scope.row.date)"
+
+            <el-button
+              v-if="selected_game_snapshots.length > 0 && viewMode === 'table'"
+              type="danger"
+              size="small"
+              plain
+              :icon="Delete"
+              @click="batch_delete()"
             >
-              <template #reference>
-                <el-button size="small"> {{ $t('manage.apply') }} </el-button>
-              </template>
-            </el-popconfirm>
-            <el-button size="small" @click="change_describe(scope.row.date)">
-              {{ $t('manage.change_describe') }}
+              {{ $t('manage.batch_delete') }}
             </el-button>
-            <el-popconfirm
-              :title="$t('manage.confirm_delete_prompt')"
-              @confirm="del_save(scope.row.date)"
-            >
-              <template #reference>
-                <el-button size="small" type="danger"> {{ $t('manage.delete') }} </el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+
+          <el-tooltip
+            v-if="currentHead"
+            :content="currentHeadFullText"
+            placement="bottom-end"
+            :show-after="300"
+            popper-class="head-tooltip"
+          >
+            <el-tag type="success" effect="plain" round class="head-tag">
+              <span class="head-label">
+                {{ $t('manage.current_position') }}
+              </span>
+              <span class="head-separator">·</span>
+              <span v-if="currentHeadDescription" class="head-desc">
+                {{ currentHeadDescription }}
+              </span>
+              <span class="head-time">{{ currentHeadTime }}</span>
+            </el-tag>
+          </el-tooltip>
+        </div>
+      </template>
+
+      <!-- Table View -->
+      <div v-if="viewMode === 'table'" class="view-container">
+        <el-empty v-if="filter_table.length === 0" :description="$t('manage.no_snapshots')" />
+        <el-table v-else :data="filter_table" height="100%" @selection-change="on_selection_change">
+          <el-table-column type="selection" width="40" />
+          <el-table-column :label="$t('manage.save_date')" prop="date" width="180" sortable>
+            <template #default="{ row }">
+              <span class="font-mono text-sm">{{ row.date }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            :label="$t('manage.description')"
+            prop="describe"
+            min-width="200"
+            show-overflow-tooltip
+          />
+          <el-table-column :label="$t('manage.size')" width="100">
+            <template #default="{ row }">
+              <span class="text-gray-500 text-xs">{{
+                row.size ? formatFileSize(row.size) : '-'
+              }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('manage.actions')" align="center" width="140" fixed="right">
+            <template #default="{ row }">
+              <div class="action-buttons">
+                <el-tooltip
+                  :content="$t('manage.apply')"
+                  placement="top"
+                  :show-after="300"
+                  popper-class="action-tooltip"
+                >
+                  <span>
+                    <el-popconfirm
+                      :title="$t('manage.confirm_overwrite_prompt')"
+                      @confirm="apply_save(row.date)"
+                    >
+                      <template #reference>
+                        <el-button link type="success" :icon="VideoPlay" />
+                      </template>
+                    </el-popconfirm>
+                  </span>
+                </el-tooltip>
+                <el-tooltip
+                  :content="$t('manage.change_describe')"
+                  placement="top"
+                  :show-after="300"
+                  popper-class="action-tooltip"
+                >
+                  <el-button link type="warning" :icon="Edit" @click="change_describe(row.date)" />
+                </el-tooltip>
+                <el-tooltip
+                  :content="$t('manage.delete')"
+                  placement="top"
+                  :show-after="300"
+                  popper-class="action-tooltip"
+                >
+                  <span>
+                    <el-popconfirm
+                      :title="$t('manage.confirm_delete_prompt')"
+                      @confirm="del_save(row.date)"
+                    >
+                      <template #reference>
+                        <el-button link type="danger" :icon="Delete" />
+                      </template>
+                    </el-popconfirm>
+                  </span>
+                </el-tooltip>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- Branch View -->
+      <div v-else ref="branchViewContainer" class="view-container branch-view">
+        <BranchTreeView
+          v-if="viewMode === 'branch'"
+          :snapshots="table_data"
+          :head="currentHead"
+          @apply="apply_save"
+          @delete="del_save"
+          @change-description="change_describe"
+          @set-head="onSetHead"
+          @detach="onDetach"
+          @create-branch="onCreateBranch"
+        />
+      </div>
     </el-card>
 
-    <!-- 分支视图 -->
-    <el-card v-else class="saves-container branch-view-container">
-      <BranchTreeView
-        :snapshots="table_data"
-        :head="currentHead"
-        @apply="apply_save"
-        @delete="del_save"
-        @change-description="change_describe"
-        @set-head="onSetHead"
-        @detach="onDetach"
-        @create-branch="onCreateBranch"
-      />
-    </el-card>
-
-    <!-- 下面是存档所在位置侧栏部分 -->
+    <!-- Drawer -->
     <save-location-drawer
       v-if="game"
       v-model="drawer"
@@ -729,63 +812,183 @@ const currentHeadDisplay = computed(() => {
 </template>
 
 <style scoped>
-.el-button {
-  margin-left: 10px !important;
-  margin-top: 5px;
-}
-
-.manage-top-bar {
-  width: 98%;
-  padding-right: 10px;
-  padding-left: 10px;
-  margin: auto auto 5px;
-
+.manage-container {
+  /* ElMain has default 20px padding, so we subtract 40px from 100vh to fit exactly */
+  height: calc(100vh - 40px);
   display: flex;
-  border-radius: 10px;
-  align-items: center;
-  color: aliceblue;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.manage-top-bar .el-input {
-  margin-top: 15px;
-}
-
-.view-controls {
+.page-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 15px;
-  margin: 5px auto;
-  width: 98%;
 }
 
-.view-toggle {
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.quick-actions-card {
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.quick-actions-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
 }
 
-.view-label {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
+.create-backup-section {
+  flex: 1;
 }
 
-.head-info {
+.backup-input :deep(.el-input-group__append) {
+  background-color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+  color: white;
+}
+
+.backup-input :deep(.el-input-group__append button:hover) {
+  color: white;
+  opacity: 0.9;
+}
+
+.action-divider {
+  height: 24px;
+}
+
+.main-content-card {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.saves-container {
-  margin: auto;
+.main-content-card :deep(.el-card__header) {
+  flex-shrink: 0;
+  padding: 12px 16px;
 }
 
-.branch-view-container {
-  min-height: 500px;
-  height: calc(100vh - 280px);
-}
-
-.branch-view-container :deep(.el-card__body) {
-  height: 100%;
+.main-content-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
   padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.left-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-container {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.branch-view {
+  background-color: #f5f7fa;
+  overflow: hidden;
+}
+
+.text-danger {
+  color: var(--el-color-danger);
+}
+
+.font-mono {
+  font-family: var(--el-font-family-monospace);
+}
+
+.mr-1 {
+  margin-right: 4px;
+}
+
+.head-tag {
+  max-width: 260px;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.head-label {
+  flex-shrink: 0;
+  color: var(--el-color-success-dark-2);
+  font-weight: 500;
+}
+
+.head-separator {
+  flex-shrink: 0;
+  margin: 0 6px;
+  color: var(--el-color-success-light-3);
+}
+
+.head-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.head-time {
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.action-buttons .el-button {
+  font-size: 16px;
+}
+
+:deep(.head-tooltip),
+:deep(.action-tooltip) {
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-word;
 }
 </style>
