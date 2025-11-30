@@ -256,7 +256,27 @@ impl Game {
 
         // Update HEAD if it pointed to the deleted snapshot
         if saves.head.as_deref() == Some(date) {
-            saves.head = deleted_parent.clone();
+            // Find children of the deleted node (nodes that had deleted node as parent)
+            let children: Vec<_> = saves
+                .backups
+                .iter()
+                .filter(|x| x.parent.as_deref() == Some(date))
+                .collect();
+
+            saves.head = if !children.is_empty() {
+                // Set HEAD to the newest child (latest date)
+                children
+                    .iter()
+                    .max_by_key(|x| &x.date)
+                    .map(|x| x.date.clone())
+            } else if deleted_parent.is_some() {
+                // No children, fall back to parent
+                deleted_parent.clone()
+            } else {
+                // Deleted node was a root with no children
+                // Find the newest remaining snapshot
+                None
+            }
         }
 
         saves.backups.retain(|x| x.date != date);
