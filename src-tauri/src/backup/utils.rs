@@ -17,6 +17,7 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
         GameSnapshots {
             name: name.to_string(),
             backups: Vec::new(),
+            head: None,
         }
     } else {
         // 如果已经存在，info从原来的文件中读取

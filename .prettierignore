@@ -31,3 +31,7 @@ src-tauri/Cargo.lock
 
 # Misc
 .git
+
+# Test related
+src-tauri/GameSaveManager.config.json
+src-tauri/save_data/*
