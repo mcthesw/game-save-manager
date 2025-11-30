@@ -4,15 +4,22 @@ import { ElInput, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
-import type { Game, Snapshot, Device } from '../../bindings';
+import BranchTreeView from '../../components/BranchTreeView.vue';
+import type { Game, Snapshot, Device, GameSnapshots } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
+import { List, Share } from '@element-plus/icons-vue';
+import dayjs from 'dayjs';
 
 const { showInfo, showError, showSuccess } = useNotification();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
 const router = useRouter();
 const route = useRoute();
+
+// View mode: 'table' or 'branch'
+const viewMode = ref<'table' | 'branch'>('table');
+
 const top_buttons = [
   { text: $t('manage.create_new_save'), method: create_new_save },
   { text: $t('manage.load_latest_save'), method: load_latest_save },
@@ -30,13 +37,10 @@ const top_buttons = [
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
 
-const table_data = ref([
-  {
-    date: '',
-    describe: $t('manage.error_info'),
-    path: '',
-  },
-]);
+const table_data = ref<Snapshot[]>([]);
+
+// Game snapshots info including HEAD
+const gameSnapshots = ref<GameSnapshots | null>(null);
 
 const game: Ref<Game> = ref({
   name: '',
@@ -153,6 +157,7 @@ async function refresh_backups_info() {
   if (result.status === 'error') {
     showError({ message: result.error });
   } else {
+    gameSnapshots.value = result.data;
     table_data.value = result.data.backups;
   }
 }
@@ -508,6 +513,84 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
     }
   }
 }
+
+// Branch tree view handlers
+async function onSetHead(date: string) {
+  try {
+    const result = await commands.setSnapshotHead(game.value, date);
+    if (result.status === 'error') {
+      showError({ message: $t('manage.set_head_failed') });
+    } else {
+      showSuccess({ message: $t('manage.set_head_success') });
+      await refresh_backups_info();
+    }
+  } catch (e) {
+    error(`Failed to set HEAD: ${e}`);
+    showError({ message: $t('manage.set_head_failed') });
+  }
+}
+
+async function onDetach(date: string) {
+  try {
+    const result = await commands.detachSnapshot(game.value, date);
+    if (result.status === 'error') {
+      showError({ message: $t('manage.detach_failed') });
+    } else {
+      showSuccess({ message: $t('manage.detach_success') });
+      await refresh_backups_info();
+    }
+  } catch (e) {
+    error(`Failed to detach snapshot: ${e}`);
+    showError({ message: $t('manage.detach_failed') });
+  }
+}
+
+async function onCreateBranch(parentDate: string) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      $t('manage.input_description_prompt'),
+      $t('manage.create_branch'),
+      {
+        confirmButtonText: $t('manage.confirm'),
+        cancelButtonText: $t('manage.cancel'),
+      }
+    );
+
+    await withLoading(async () => {
+      const result = await commands.createSnapshotAt(game.value, value || '', parentDate);
+      if (result.status === 'error') {
+        showError({ message: result.error });
+      } else {
+        showSuccess({ message: $t('manage.backup_success') });
+        await refresh_backups_info();
+      }
+    }, $t('manage.creating_backup'));
+  } catch {
+    // User cancelled
+  }
+}
+
+// Computed property for current HEAD
+const currentHead = computed(() => gameSnapshots.value?.head ?? null);
+
+// Format HEAD for human-readable display
+const currentHeadDisplay = computed(() => {
+  if (!currentHead.value) return '';
+
+  const snapshot = table_data.value.find((s) => s.date === currentHead.value);
+  if (!snapshot) return currentHead.value;
+
+  // Format date: YYYY-MM-DD_HH-mm-ss -> more readable format
+  const dateStr = snapshot.date;
+  const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
+  const formattedDate = parsed.isValid() ? parsed.format('MM/DD HH:mm') : dateStr;
+
+  // Show description if available, otherwise just the date
+  if (snapshot.describe && snapshot.describe.trim()) {
+    return `${snapshot.describe} (${formattedDate})`;
+  }
+  return formattedDate;
+});
 </script>
 
 <template>
@@ -529,7 +612,7 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
           {{ $t('manage.delete_save_manage') }}
         </el-button>
         <el-button
-          v-if="selected_game_snapshots.length > 0"
+          v-if="selected_game_snapshots.length > 0 && viewMode === 'table'"
           type="danger"
           round
           @click="batch_delete()"
@@ -544,10 +627,32 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
         </el-input>
       </el-form>
     </el-card>
+
+    <!-- 视图切换和HEAD信息 -->
+    <div class="view-controls">
+      <div class="view-toggle">
+        <span class="view-label">{{ $t('manage.view_mode') }}:</span>
+        <el-radio-group v-model="viewMode" size="small">
+          <el-radio-button value="table">
+            <el-icon><List /></el-icon>
+            {{ $t('manage.table_view') }}
+          </el-radio-button>
+          <el-radio-button value="branch">
+            <el-icon><Share /></el-icon>
+            {{ $t('manage.branch_view') }}
+          </el-radio-button>
+        </el-radio-group>
+      </div>
+      <div v-if="currentHead" class="head-info">
+        <el-tag type="success" effect="dark">
+          {{ $t('manage.current_position') }}: {{ currentHeadDisplay }}
+        </el-tag>
+      </div>
+    </div>
+
     <!-- 下面是主体部分 -->
-    <el-card class="saves-container">
-      <!-- 存档应当用点击展开+内部表格的方式来展示 -->
-      <!-- 这里应该有添加新存档按钮，按下后选择标题和描述进行存档 -->
+    <!-- 表格视图 -->
+    <el-card v-if="viewMode === 'table'" class="saves-container">
       <el-table :data="filter_table" style="width: 100%" @selection-change="on_selection_change">
         <el-table-column type="selection" width="55" />
         <el-table-column :label="$t('manage.save_date')" prop="date" width="200px" sortable />
@@ -597,6 +702,21 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 分支视图 -->
+    <el-card v-else class="saves-container branch-view-container">
+      <BranchTreeView
+        :snapshots="table_data"
+        :head="currentHead"
+        @apply="apply_save"
+        @delete="del_save"
+        @change-description="change_describe"
+        @set-head="onSetHead"
+        @detach="onDetach"
+        @create-branch="onCreateBranch"
+      />
+    </el-card>
+
     <!-- 下面是存档所在位置侧栏部分 -->
     <save-location-drawer
       v-if="game"
@@ -630,7 +750,42 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
   margin-top: 15px;
 }
 
+.view-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  margin: 5px auto;
+  width: 98%;
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-label {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+}
+
+.head-info {
+  display: flex;
+  align-items: center;
+}
+
 .saves-container {
   margin: auto;
+}
+
+.branch-view-container {
+  min-height: 500px;
+  height: calc(100vh - 280px);
+}
+
+.branch-view-container :deep(.el-card__body) {
+  height: 100%;
+  padding: 0;
 }
 </style>

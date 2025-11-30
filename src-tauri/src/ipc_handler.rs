@@ -382,6 +382,104 @@ pub async fn get_current_device_info() -> Result<Device, String> {
     Ok(config.devices.get(device_id).cloned().unwrap_or_default())
 }
 
+/// Set the HEAD pointer to a specific snapshot
+/// This changes which snapshot new snapshots will branch from
+#[tauri::command]
+#[specta::specta]
+pub async fn set_snapshot_head(game: Game, date: String) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
+
+    let mut saves = game.get_game_snapshots_info().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+
+    // Verify the snapshot exists
+    if !saves.backups.iter().any(|s| s.date == date) {
+        return Err("Snapshot not found".to_string());
+    }
+
+    saves.head = Some(date.clone());
+    game.set_game_snapshots_info(&saves).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+
+    info!(target:"rgsm::ipc", "Successfully set HEAD to: {:?}", date);
+    Ok(())
+}
+
+/// Detach a snapshot from its parent, making it a new root node
+#[tauri::command]
+#[specta::specta]
+pub async fn detach_snapshot(game: Game, date: String) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
+
+    let mut saves = game.get_game_snapshots_info().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+
+    // Find and update the snapshot
+    let snapshot = saves
+        .backups
+        .iter_mut()
+        .find(|s| s.date == date)
+        .ok_or_else(|| {
+            error!(target:"rgsm::ipc", "Snapshot not found: {:?}", date);
+            "Snapshot not found".to_string()
+        })?;
+
+    snapshot.parent = None;
+
+    game.set_game_snapshots_info(&saves).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+
+    info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?}", date);
+    Ok(())
+}
+
+/// Create a new snapshot as a child of a specific parent snapshot
+#[tauri::command]
+#[specta::specta]
+pub async fn create_snapshot_at(
+    game: Game,
+    describe: String,
+    parent_date: Option<String>,
+    window: Window,
+) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
+
+    // Temporarily set HEAD to the parent
+    let mut saves = game.get_game_snapshots_info().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+
+    let original_head = saves.head.clone();
+    saves.head = parent_date;
+
+    game.set_game_snapshots_info(&saves).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+        e.to_string()
+    })?;
+
+    // Create the snapshot
+    let result = handle_backup_err(game.create_snapshot(&describe).await, window);
+
+    // If creation failed, restore original HEAD
+    if result.is_err() {
+        if let Ok(mut saves) = game.get_game_snapshots_info() {
+            saves.head = original_head;
+            let _ = game.set_game_snapshots_info(&saves);
+        }
+    }
+
+    result
+}
+
 fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(), String> {
     if let Err(e) = res {
         match &e {
