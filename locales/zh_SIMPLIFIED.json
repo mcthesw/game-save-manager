@@ -437,5 +437,27 @@
     "import_from": "从其他设备导入路径",
     "select_device": "选择设备",
     "import_success": "路径导入成功"
+  },
+  "steam_import": {
+    "title": "导入Steam游戏",
+    "detect_button": "检测Steam游戏",
+    "import_button": "导入选中的游戏",
+    "detecting": "正在检测Steam游戏...",
+    "importing": "正在导入游戏...",
+    "detect_success": "找到 {count} 款Steam游戏",
+    "detect_failed": "检测Steam游戏失败",
+    "import_success": "成功导入 {count} 款游戏",
+    "import_failed": "导入游戏失败",
+    "no_games_found": "未找到Steam游戏",
+    "select_all": "全选",
+    "deselect_all": "取消全选",
+    "game_name": "游戏名称",
+    "save_paths": "存档路径",
+    "no_save_paths": "未检测到存档路径",
+    "steam_not_found": "未找到Steam安装",
+    "first_time_title": "欢迎使用游戏存档管理器",
+    "first_time_message": "是否要自动导入您的Steam游戏？",
+    "skip": "跳过",
+    "import_now": "立即导入"
   }
 }

@@ -120,6 +120,14 @@ function open_log_folder() {
     commands.openFileOrFolder('log');
   } catch (e) {
     error(`open log folder error: ${e}`);
+  }
+}
+
+function navigateToSteamImport() {
+  navigateTo('/SteamImport');
+}
+  } catch (e) {
+    error(`open log folder error: ${e}`);
     showError({ message: $t('error.open_log_folder_failed') });
   }
 }
@@ -545,6 +553,9 @@ const router_list = computed(() => {
         </el-button>
         <el-button type="danger" @click="apply_all">
           {{ $t('settings.apply_all') }}
+        </el-button>
+        <el-button type="primary" @click="navigateToSteamImport">
+          {{ $t('steam_import.title') }}
         </el-button>
       </div>
 

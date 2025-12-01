@@ -254,6 +254,28 @@ async createSnapshotAt(game: Game, describe: string, parentDate: string | null) 
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Detect installed Steam games
+ */
+async detectSteamGames() : Promise<Result<SteamGame[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("detect_steam_games") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Import selected Steam games into the config
+ */
+async importSteamGames(steamGames: SteamGame[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_steam_games", { steamGames }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -270,7 +292,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.6"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"first_time_setup_completed":false,"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.6.0"} as const;
 
 /** user-defined types **/
 
@@ -313,7 +335,11 @@ export type Config = { version: string; backup_path: string; games: Game[]; sett
 /**
  * 设备ID到设备名称的映射
  */
-devices?: Partial<{ [key in string]: Device }> }
+devices?: Partial<{ [key in string]: Device }>; 
+/**
+ * 是否已完成首次设置
+ */
+first_time_setup_completed?: boolean }
 export type Device = { id: string; name: string }
 export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolean; children: FavoriteTreeNode[] | null }
 /**
@@ -367,6 +393,8 @@ export type Snapshot = { date: string; describe: string; path: string; size?: nu
  * Parent snapshot's date (None means this is a root node)
  */
 parent?: string | null }
+export type SteamGame = { app_id: string; name: string; install_dir: string; install_path: string; save_paths: SteamSavePath[] }
+export type SteamSavePath = { path: string; path_type: string }
 
 /** tauri-specta globals **/
 

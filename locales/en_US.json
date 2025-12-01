@@ -407,5 +407,27 @@
     "import_from": "Import paths from other devices",
     "select_device": "Select Device",
     "import_success": "Paths imported successfully"
+  },
+  "steam_import": {
+    "title": "Import Steam Games",
+    "detect_button": "Detect Steam Games",
+    "import_button": "Import Selected Games",
+    "detecting": "Detecting Steam games...",
+    "importing": "Importing games...",
+    "detect_success": "Found {count} Steam games",
+    "detect_failed": "Failed to detect Steam games",
+    "import_success": "Successfully imported {count} games",
+    "import_failed": "Failed to import games",
+    "no_games_found": "No Steam games found",
+    "select_all": "Select All",
+    "deselect_all": "Deselect All",
+    "game_name": "Game Name",
+    "save_paths": "Save Paths",
+    "no_save_paths": "No save paths detected",
+    "steam_not_found": "Steam installation not found",
+    "first_time_title": "Welcome to Game Save Manager",
+    "first_time_message": "Would you like to automatically import your Steam games?",
+    "skip": "Skip",
+    "import_now": "Import Now"
   }
 }
