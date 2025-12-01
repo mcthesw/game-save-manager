@@ -25,6 +25,7 @@ mod path_resolver;
 mod preclude;
 mod quick_actions;
 mod sound;
+mod steam_detector;
 mod updater;
 
 pub fn run() -> anyhow::Result<()> {
@@ -86,6 +87,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_snapshot_head,
             ipc_handler::detach_snapshot,
             ipc_handler::create_snapshot_at,
+            ipc_handler::detect_steam_games,
+            ipc_handler::import_steam_games,
         ])
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,

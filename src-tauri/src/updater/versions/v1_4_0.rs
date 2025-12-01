@@ -86,6 +86,7 @@ impl From<Config> for CurrentConfig {
             favorites: old.favorites,
             quick_action: old.quick_action,
             devices,
+            first_time_setup_completed: false,
         }
     }
 }

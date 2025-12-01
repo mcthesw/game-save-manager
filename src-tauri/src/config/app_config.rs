@@ -26,6 +26,9 @@ pub struct Config {
     /// 设备ID到设备名称的映射
     #[serde(default = "default_value::empty_map")]
     pub devices: HashMap<DeviceId, Device>,
+    /// 是否已完成首次设置
+    #[serde(default = "default_value::default_false")]
+    pub first_time_setup_completed: bool,
 }
 
 impl Sanitizable for Config {
@@ -63,6 +66,7 @@ impl Default for Config {
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),
             devices: HashMap::new(),
+            first_time_setup_completed: false,
         }
     }
 }

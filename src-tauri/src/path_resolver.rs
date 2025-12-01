@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::backup::Game;
@@ -197,6 +197,98 @@ pub fn resolve_path(
     Ok(PathBuf::from(result))
 }
 
+/// Resolves a Steam save path to an actual filesystem path
+///
+/// This function resolves ludusavi-manifest path placeholders like `<base>`, `<home>`, etc.
+/// 
+/// # Arguments
+///
+/// * `steam_path` - The path from ludusavi manifest (e.g., "<base>/saves" or "<winDocuments>/My Games")
+/// * `game_install_path` - The game's installation directory
+///
+/// # Returns
+///
+/// A resolved absolute path as a String
+pub fn resolve_steam_path(steam_path: &str, game_install_path: &Path) -> String {
+    let mut result = steam_path.to_string();
+
+    // Replace <base> with the game's install directory
+    if result.contains("<base>") {
+        if let Some(install_str) = game_install_path.to_str() {
+            result = result.replace("<base>", install_str);
+        }
+    }
+
+    // Replace <home> with the user's home directory
+    if result.contains("<home>") {
+        if let Some(home_dir) = dirs::home_dir() {
+            if let Some(home_str) = home_dir.to_str() {
+                result = result.replace("<home>", home_str);
+            }
+        }
+    }
+
+    // Replace <winDocuments> with the Documents folder
+    if result.contains("<winDocuments>") {
+        if let Some(docs_dir) = dirs::document_dir() {
+            if let Some(docs_str) = docs_dir.to_str() {
+                result = result.replace("<winDocuments>", docs_str);
+            }
+        }
+    }
+
+    // Replace <winAppData> with AppData
+    if result.contains("<winAppData>") {
+        if let Some(app_data) = dirs::data_dir() {
+            if let Some(app_data_str) = app_data.to_str() {
+                result = result.replace("<winAppData>", app_data_str);
+            }
+        }
+    }
+
+    // Replace <winLocalAppData> with LocalAppData
+    if result.contains("<winLocalAppData>") {
+        if let Some(local_app_data) = dirs::data_local_dir() {
+            if let Some(local_str) = local_app_data.to_str() {
+                result = result.replace("<winLocalAppData>", local_str);
+            }
+        }
+    }
+
+    // Replace <winLocalAppDataLow>
+    if result.contains("<winLocalAppDataLow>") {
+        if let Some(home_dir) = dirs::home_dir() {
+            let local_low = home_dir.join("AppData").join("LocalLow");
+            if let Some(local_low_str) = local_low.to_str() {
+                result = result.replace("<winLocalAppDataLow>", local_low_str);
+            }
+        }
+    }
+
+    // Replace <xdgData>
+    if result.contains("<xdgData>") {
+        if let Some(xdg_data) = dirs::data_dir() {
+            if let Some(xdg_str) = xdg_data.to_str() {
+                result = result.replace("<xdgData>", xdg_str);
+            }
+        }
+    }
+
+    // Replace <xdgConfig>
+    if result.contains("<xdgConfig>") {
+        if let Some(xdg_config) = dirs::config_dir() {
+            if let Some(xdg_str) = xdg_config.to_str() {
+                result = result.replace("<xdgConfig>", xdg_str);
+            }
+        }
+    }
+
+    // Clean up trailing slashes for consistency
+    result = result.trim_end_matches('/').to_string();
+    
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,6 +304,7 @@ mod tests {
             favorites: Vec::new(),
             quick_action: crate::config::QuickActionsSettings::default(),
             devices: std::collections::HashMap::new(),
+            first_time_setup_completed: false,
         }
     }
 

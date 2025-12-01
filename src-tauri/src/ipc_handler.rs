@@ -557,6 +557,91 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
     Ok(())
 }
 
+/// Detect installed Steam games
+#[tauri::command]
+#[specta::specta]
+pub async fn detect_steam_games() -> Result<Vec<crate::steam_detector::SteamGame>, String> {
+    info!(target:"rgsm::ipc", "Detecting Steam games...");
+    crate::steam_detector::detect_steam_games_with_saves().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to detect Steam games: {:?}", e);
+        e.to_string()
+    })
+}
+
+/// Import selected Steam games into the config
+#[tauri::command]
+#[specta::specta]
+pub async fn import_steam_games(
+    steam_games: Vec<crate::steam_detector::SteamGame>,
+) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Importing {} Steam games", steam_games.len());
+    
+    let config = get_config().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        e.to_string()
+    })?;
+
+    let device_id = crate::device::get_current_device_id().to_string();
+    
+    for steam_game in steam_games {
+        // Check if game already exists
+        if config.games.iter().any(|g| g.name == steam_game.name) {
+            warn!(target:"rgsm::ipc", "Game '{}' already exists, skipping", steam_game.name);
+            continue;
+        }
+
+        let mut save_paths = Vec::new();
+        
+        // Convert Steam save paths to SaveUnit format
+        for save_path in &steam_game.save_paths {
+            let resolved_path = crate::path_resolver::resolve_steam_path(
+                &save_path.path,
+                &steam_game.install_path,
+            );
+
+            let mut paths = std::collections::HashMap::new();
+            paths.insert(device_id.clone(), resolved_path);
+
+            let unit_type = match save_path.path_type.as_str() {
+                "file" => crate::backup::SaveUnitType::File,
+                _ => crate::backup::SaveUnitType::Folder,
+            };
+
+            save_paths.push(crate::backup::SaveUnit {
+                unit_type,
+                paths,
+                delete_before_apply: config.settings.default_delete_before_apply,
+            });
+        }
+
+        // Create game entry
+        let mut game_paths = std::collections::HashMap::new();
+        if let Some(exe_path) = steam_game.install_path.to_str() {
+            game_paths.insert(device_id.clone(), exe_path.to_string());
+        }
+
+        let game = Game {
+            name: steam_game.name.clone(),
+            save_paths,
+            game_paths,
+        };
+
+        // Add game with initial backup
+        match backup::create_game_backup(&game).await {
+            Ok(_) => {
+                info!(target:"rgsm::ipc", "Successfully imported game: {}", steam_game.name);
+            }
+            Err(e) => {
+                error!(target:"rgsm::ipc", "Failed to import game '{}': {:?}", steam_game.name, e);
+                // Continue with other games even if one fails
+            }
+        }
+    }
+
+    info!(target:"rgsm::ipc", "Steam game import completed");
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::{IpcNotification, NotificationLevel};
