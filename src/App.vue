@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Loading } from '@element-plus/icons-vue';
 import { useDark } from '@vueuse/core';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
+import FirstTimeSetupDialog from './components/FirstTimeSetupDialog.vue';
 import { commands } from './bindings';
 import type { Device } from './bindings';
 import { useNotification } from './composables/useNotification';
@@ -24,6 +25,9 @@ const showDeviceSetupDialog = ref(false);
 const currentDevice = ref<Device | null>(null);
 const otherDevices = ref<Device[]>([]);
 const defaultDeviceName = ref('');
+
+// 首次设置对话框
+const showFirstTimeSetupDialog = ref(false);
 
 // 检查当前设备是否已设置
 async function checkDeviceSetup() {
@@ -106,6 +110,35 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
   }
 }
 
+// 检查首次设置
+async function checkFirstTimeSetup() {
+  try {
+    if (config.value && !config.value.first_time_setup_completed) {
+      showFirstTimeSetupDialog.value = true;
+    }
+  } catch (e) {
+    console.error('Error checking first time setup:', e);
+  }
+}
+
+// 处理首次设置导入
+function handleFirstTimeImport() {
+  showFirstTimeSetupDialog.value = false;
+  navigateTo('/SteamImport');
+}
+
+// 处理首次设置跳过
+async function handleFirstTimeSkip() {
+  try {
+    if (config.value) {
+      config.value.first_time_setup_completed = true;
+      await saveConfig();
+    }
+  } catch (e) {
+    console.error('Error marking first time setup as completed:', e);
+  }
+}
+
 try {
   await refreshConfig();
   const currentLocale = config.value.settings.locale;
@@ -116,6 +149,9 @@ try {
 
   // 在应用启动时检查设备设置
   await checkDeviceSetup();
+  
+  // 检查首次设置（在设备设置之后）
+  await checkFirstTimeSetup();
 } catch {
   showError({ message: $t('home.wrong_homepage') });
   navigateTo('/');
@@ -170,6 +206,13 @@ listen<NotificationPayload>('Notification', (event) => {
       :default-device-name="defaultDeviceName"
       :other-devices="otherDevices"
       @confirm="handleDeviceSetup"
+    />
+
+    <!-- 首次设置对话框 -->
+    <FirstTimeSetupDialog
+      v-model="showFirstTimeSetupDialog"
+      @import="handleFirstTimeImport"
+      @skip="handleFirstTimeSkip"
     />
 
     <Transition name="global-loading-fade">
