@@ -558,7 +558,10 @@ const commonFonts = [
 // 应用自定义字体
 function applyCustomFont() {
   if (config.value.settings.custom_font_enabled && config.value.settings.custom_font_family) {
-    document.documentElement.style.setProperty('--el-font-family', config.value.settings.custom_font_family);
+    document.documentElement.style.setProperty(
+      '--el-font-family',
+      config.value.settings.custom_font_family
+    );
   } else {
     document.documentElement.style.removeProperty('--el-font-family');
   }
@@ -744,12 +747,7 @@ watch(
               :placeholder="$t('settings.custom_font_placeholder')"
               style="width: 300px"
             >
-              <ElOption
-                v-for="font in commonFonts"
-                :key="font"
-                :label="font"
-                :value="font"
-              />
+              <ElOption v-for="font in commonFonts" :key="font" :label="font" :value="font" />
             </ElSelect>
             <span class="setting-label">{{ $t('settings.custom_font_family') }}</span>
           </div>
