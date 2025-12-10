@@ -529,7 +529,7 @@ const router_list = computed(() => {
   return link_list;
 });
 
-// 常用字体列表
+// Common fonts list (including Western and CJK fonts)
 const commonFonts = [
   'Arial',
   'Helvetica',
@@ -555,19 +555,26 @@ const commonFonts = [
   'Source Han Sans CN',
 ];
 
-// 应用自定义字体
+// Sanitize font family string to prevent CSS injection
+function sanitizeFontFamily(fontFamily: string): string {
+  // Only allow alphanumeric, spaces, hyphens, and common font name characters
+  // Remove any potentially dangerous characters
+  return fontFamily.replace(/[^a-zA-Z0-9\s\-,'"]/g, '').trim();
+}
+
+// Apply custom font to the application
 function applyCustomFont() {
   if (config.value.settings.custom_font_enabled && config.value.settings.custom_font_family) {
-    document.documentElement.style.setProperty(
-      '--el-font-family',
-      config.value.settings.custom_font_family
-    );
+    const sanitizedFont = sanitizeFontFamily(config.value.settings.custom_font_family);
+    if (sanitizedFont) {
+      document.documentElement.style.setProperty('--el-font-family', sanitizedFont);
+    }
   } else {
     document.documentElement.style.removeProperty('--el-font-family');
   }
 }
 
-// 监听字体设置变化
+// Watch for font settings changes and apply them in real-time
 watch(
   () => [config.value.settings.custom_font_enabled, config.value.settings.custom_font_family],
   () => {
