@@ -557,7 +557,7 @@ const commonFonts = [
 
 // Sanitize font family string to prevent CSS injection
 function sanitizeFontFamily(fontFamily: string): string {
-  // Only allow alphanumeric, spaces, hyphens, and common font name characters
+  // Only allow alphanumeric characters, spaces, hyphens, commas, and quotes
   // Remove any potentially dangerous characters
   return fontFamily.replace(/[^a-zA-Z0-9\s\-,'"]/g, '').trim();
 }
@@ -573,6 +573,19 @@ function applyCustomFont() {
     document.documentElement.style.removeProperty('--el-font-family');
   }
 }
+
+// Sanitize font family input immediately when it changes
+watch(
+  () => config.value.settings.custom_font_family,
+  (newValue) => {
+    if (newValue) {
+      const sanitized = sanitizeFontFamily(newValue);
+      if (sanitized !== newValue) {
+        config.value.settings.custom_font_family = sanitized;
+      }
+    }
+  }
+);
 
 // Watch for font settings changes and apply them in real-time
 watch(
