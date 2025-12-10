@@ -557,9 +557,9 @@ const commonFonts = [
 
 // Sanitize font family string to prevent CSS injection
 function sanitizeFontFamily(fontFamily: string): string {
-  // Only allow alphanumeric characters, spaces, hyphens, commas, and quotes
-  // Remove any potentially dangerous characters
-  return fontFamily.replace(/[^a-zA-Z0-9\s\-,'"]/g, '').trim();
+  // Only allow alphanumeric characters, spaces, hyphens, and commas
+  // Remove quotes and any potentially dangerous characters
+  return fontFamily.replace(/[^a-zA-Z0-9\s\-,]/g, '').trim();
 }
 
 // Apply custom font to the application
@@ -575,13 +575,16 @@ function applyCustomFont() {
 }
 
 // Sanitize font family input immediately when it changes
+let sanitizing = false;
 watch(
   () => config.value.settings.custom_font_family,
   (newValue) => {
-    if (newValue) {
+    if (newValue && !sanitizing) {
       const sanitized = sanitizeFontFamily(newValue);
       if (sanitized !== newValue) {
+        sanitizing = true;
         config.value.settings.custom_font_family = sanitized;
+        sanitizing = false;
       }
     }
   }
