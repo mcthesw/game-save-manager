@@ -57,7 +57,11 @@
     "save_game_order": "Préservation de l'ordre du jeu",
     "unsaved_changes": "Changements non protégés",
     "hotkeys_saved": "La clé thermique a été mise à jour",
-    "game_order_saved": "L'ordre du jeu a été mis à jour"
+    "game_order_saved": "L'ordre du jeu a été mis à jour",
+    "appearance_settings": "Apparence",
+    "custom_font_enabled": "Activer la police personnalisée",
+    "custom_font_family": "Famille de police",
+    "custom_font_placeholder": "Sélectionner ou entrer un nom de police"
   },
   "home": {
     "hello_world": "Vos Excellences",

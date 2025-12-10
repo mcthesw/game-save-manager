@@ -47,6 +47,10 @@ pub struct Settings {
     pub save_list_last_expanded: bool,
     #[serde(default = "default_value::default_zero_u32")]
     pub max_auto_backup_count: u32,
+    #[serde(default = "default_value::default_false")]
+    pub custom_font_enabled: bool,
+    #[serde(default = "default_value::default")]
+    pub custom_font_family: String,
 }
 
 impl Default for Settings {
@@ -67,6 +71,8 @@ impl Default for Settings {
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
             max_auto_backup_count: default_value::default_zero_u32(),
+            custom_font_enabled: default_value::default_false(),
+            custom_font_family: default_value::default(),
         }
     }
 }

@@ -59,6 +59,8 @@ impl Default for Config {
                 save_list_expand_behavior: SaveListExpandBehavior::default(),
                 save_list_last_expanded: false,
                 max_auto_backup_count: 0,
+                custom_font_enabled: false,
+                custom_font_family: String::new(),
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),

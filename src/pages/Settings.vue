@@ -15,6 +15,7 @@ import {
   Unlock,
   Moon,
   Tools,
+  Brush,
 } from '@element-plus/icons-vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -527,6 +528,50 @@ const router_list = computed(() => {
   });
   return link_list;
 });
+
+// 常用字体列表
+const commonFonts = [
+  'Arial',
+  'Helvetica',
+  'Times New Roman',
+  'Courier New',
+  'Verdana',
+  'Georgia',
+  'Comic Sans MS',
+  'Trebuchet MS',
+  'Arial Black',
+  'Impact',
+  'Tahoma',
+  'Segoe UI',
+  'Microsoft YaHei',
+  'SimHei',
+  'SimSun',
+  'NSimSun',
+  'FangSong',
+  'KaiTi',
+  'PingFang SC',
+  'Hiragino Sans GB',
+  'Noto Sans CJK SC',
+  'Source Han Sans CN',
+];
+
+// 应用自定义字体
+function applyCustomFont() {
+  if (config.value.settings.custom_font_enabled && config.value.settings.custom_font_family) {
+    document.documentElement.style.setProperty('--el-font-family', config.value.settings.custom_font_family);
+  } else {
+    document.documentElement.style.removeProperty('--el-font-family');
+  }
+}
+
+// 监听字体设置变化
+watch(
+  () => [config.value.settings.custom_font_enabled, config.value.settings.custom_font_family],
+  () => {
+    applyCustomFont();
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -599,10 +644,6 @@ const router_list = computed(() => {
             <ElSwitch v-model="config.settings.log_to_file" />
             <span class="setting-label">{{ $t('settings.log_to_file') }}*</span>
           </div>
-          <div class="setting-box">
-            <ElSwitch v-model="isDark" />
-            <span class="setting-label">{{ $t('settings.enable_dark_mode') }}</span>
-          </div>
         </el-tab-pane>
 
         <!-- 备份设置 -->
@@ -674,6 +715,43 @@ const router_list = computed(() => {
           <div class="setting-box">
             <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
             <span class="setting-label">{{ $t('settings.default_expend_favorites_tree') }}</span>
+          </div>
+        </el-tab-pane>
+
+        <!-- 外观设置 -->
+        <el-tab-pane :label="$t('settings.appearance_settings')" name="appearance">
+          <el-divider content-position="left">
+            <el-icon>
+              <Brush />
+            </el-icon>
+            <span class="tab-title">{{ $t('settings.appearance_settings') }}</span>
+          </el-divider>
+
+          <div class="setting-box">
+            <ElSwitch v-model="isDark" />
+            <span class="setting-label">{{ $t('settings.enable_dark_mode') }}</span>
+          </div>
+          <div class="setting-box">
+            <ElSwitch v-model="config.settings.custom_font_enabled" />
+            <span class="setting-label">{{ $t('settings.custom_font_enabled') }}</span>
+          </div>
+          <div v-if="config.settings.custom_font_enabled" class="setting-box">
+            <ElSelect
+              v-model="config.settings.custom_font_family"
+              filterable
+              allow-create
+              default-first-option
+              :placeholder="$t('settings.custom_font_placeholder')"
+              style="width: 300px"
+            >
+              <ElOption
+                v-for="font in commonFonts"
+                :key="font"
+                :label="font"
+                :value="font"
+              />
+            </ElSelect>
+            <span class="setting-label">{{ $t('settings.custom_font_family') }}</span>
           </div>
         </el-tab-pane>
 

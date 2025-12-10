@@ -47,7 +47,11 @@
     "submit_settings": "சேமித்து மாற்றவும்",
     "submit_success": "வெற்றிகரமாக சேமித்து மாற்றவும்",
     "abort_change": "மாற்றத்தை கைவிடுங்கள்",
-    "confirm_reset": "மீட்டமைப்பை உறுதிப்படுத்தவா?"
+    "confirm_reset": "மீட்டமைப்பை உறுதிப்படுத்தவா?",
+    "appearance_settings": "Appearance",
+    "custom_font_enabled": "Enable custom font",
+    "custom_font_family": "Font family",
+    "custom_font_placeholder": "Select or enter a font name"
   },
   "home": {
     "jump_to_page": "சம்ப்",

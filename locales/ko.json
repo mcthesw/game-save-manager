@@ -57,7 +57,11 @@
     "save_game_order": "게임의 순서의 예약",
     "unsaved_changes": "위험 경고",
     "hotkeys_saved": "열 keying는 개정되었습니다",
-    "game_order_saved": "게임의 순서가 업데이트되었습니다"
+    "game_order_saved": "게임의 순서가 업데이트되었습니다",
+    "appearance_settings": "Appearance",
+    "custom_font_enabled": "Enable custom font",
+    "custom_font_family": "Font family",
+    "custom_font_placeholder": "Select or enter a font name"
   },
   "home": {
     "hello_world": "당신의 Excellencies",

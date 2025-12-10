@@ -57,7 +57,11 @@
     "unsaved_changes": "Незбережені зміни",
     "save_hotkeys": "Зберегти налаштування гарячих клавіш",
     "hotkey_settings": "Налаштування клавіш швидкого доступу",
-    "hotkeys_saved": "Налаштування гарячих клавіш оновлено"
+    "hotkeys_saved": "Налаштування гарячих клавіш оновлено",
+    "appearance_settings": "Appearance",
+    "custom_font_enabled": "Enable custom font",
+    "custom_font_family": "Font family",
+    "custom_font_placeholder": "Select or enter a font name"
   },
   "manage": {
     "confirm": "звичайно",

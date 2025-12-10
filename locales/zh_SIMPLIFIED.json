@@ -85,7 +85,11 @@
     "delete_device_confirm_title": "删除设备确认",
     "delete_device_confirm_message": "删除该设备将移除所有与其关联的存档路径和游戏设置，此操作不可撤销，确认继续？",
     "delete_device_success": "设备已删除",
-    "delete_device_failed": "删除设备失败"
+    "delete_device_failed": "删除设备失败",
+    "appearance_settings": "外观",
+    "custom_font_enabled": "启用自定义字体",
+    "custom_font_family": "字体",
+    "custom_font_placeholder": "选择或输入字体名称"
   },
   "home": {
     "name": "游戏存档管理器",

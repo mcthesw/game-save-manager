@@ -85,7 +85,11 @@
     "delete_device_confirm_title": "Delete Device Confirmation",
     "delete_device_confirm_message": "Deleting this device will remove all save path mappings and game-specific overrides associated with it. This action cannot be undone. Continue?",
     "delete_device_success": "Device removed successfully",
-    "delete_device_failed": "Failed to remove device"
+    "delete_device_failed": "Failed to remove device",
+    "appearance_settings": "Appearance",
+    "custom_font_enabled": "Enable custom font",
+    "custom_font_family": "Font family",
+    "custom_font_placeholder": "Select or enter a font name"
   },
   "home": {
     "hello_world": "Hello world",
