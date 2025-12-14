@@ -223,6 +223,7 @@
     "warning_for_save_file": "Adding files or folders with the same name is currently not supported. Please refrain from doing so. If needed, please provide feedback, and I will consider implementing it",
     "invalid_name_error": "Invalid game name. Please avoid including special characters that cannot be used to create files",
     "duplicated_name_error": "Game name duplicated (The game name is case-insensitive)",
+    "path_variable_hint": "You can use path variables (like <home>) to create cross-device compatible paths",
     "device_info": "Device"
   },
   "game_import": {
@@ -297,6 +298,7 @@
     "support_me": "Support me",
     "support_me_content_1": "You can click on the GitHub link below and give me a star. It would be a great encouragement for me. You can also contribute code and raise issues for this project on the open-source platform.",
     "support_me_content_2": "If you're a regular user, you could consider buying me a drink. I'd really appreciate it.",
+    "third_party_notices": "Third-party Notices",
     "open_source_acknowledgments": "Open Source Acknowledgments",
     "ludusavi_manifest_notice": "Game save data source",
     "thank_you_list": "Thanks",
@@ -331,6 +333,9 @@
     "open_file_header": "Open file",
     "open": "Open",
     "delete_before_apply": "Delete before overwrite",
+    "select_device": "Select device",
+    "current_device": "Current device",
+    "copy": "Copy",
     "launch_path": "Game launch path",
     "save_locations": "Save file locations"
   },
@@ -405,6 +410,8 @@
     "delete_snapshot_failed": "Delete snapshot failed, check logs for more information",
     "restore_snapshot_failed": "Apply backup failed, check logs for more information",
     "delete_game_failed": "Failed to delete game",
+    "get_device_info_failed": "Failed to get device information",
+    "resolve_path_failed": "Failed to resolve path",
     "open_backup_folder_failed": "Failed to open backup folder",
     "set_config_failed": "Failed to set config",
     "reset_settings_failed": "Failed to reset settings",
@@ -468,6 +475,29 @@
   },
   "setting": {
     "current_quick_action_game": "Current quick backup games"
+  },
+  "path_variable": {
+    "insert_variable": "Insert path variable",
+    "tooltip": "Path variables help you create cross-device compatible paths",
+    "common": "Common variables",
+    "windows": "Windows variables",
+    "linux": "Linux variables",
+    "home": "User home directory",
+    "os_user_name": "Operating system username",
+    "win_app_data": "AppData directory",
+    "win_local_app_data": "Local AppData directory",
+    "win_local_app_data_low": "Local AppData Low directory",
+    "win_documents": "Documents directory",
+    "win_public": "Public directory",
+    "win_program_data": "Program data directory",
+    "win_dir": "Windows directory",
+    "xdg_data": "XDG data directory",
+    "xdg_config": "XDG config directory",
+    "test_resolution": "Test path resolution",
+    "test_path_placeholder": "Enter a path with variables",
+    "resolve": "Resolve",
+    "test": "Test",
+    "resolved_to": "Resolved to: {path}"
   },
   "common": {
     "save_success": "save success",
