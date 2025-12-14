@@ -24,6 +24,7 @@ import type {
   QuickActionSoundSlots,
   QuickActionSoundSource,
   QuickActionsSettings,
+  LudusaviManifestStatus,
 } from '~/bindings';
 import { error, info } from '@tauri-apps/plugin-log';
 import type { Device } from '../bindings';
@@ -43,6 +44,83 @@ let skipQuickActionChange = true;
 // 设备管理相关
 const currentDevice = ref<Device>({ id: '', name: '' });
 const otherDevices = ref<Device[]>([]);
+
+// Ludusavi manifest management
+const ludusaviManifest = ref<LudusaviManifestStatus | null>(null);
+const ludusaviManifestLoading = ref(false);
+const ludusaviManifestUpdating = ref(false);
+const ludusaviManifestResetting = ref(false);
+
+function formatManifestSource(source?: string) {
+  if (source === 'local') return $t('settings.manifest_source_local');
+  if (source === 'bundled') return $t('settings.manifest_source_bundled');
+  return source || '-';
+}
+
+function formatManifestEtag(etag?: string | null) {
+  if (!etag) return '-';
+  // `W/"<hash>"` -> `<hash>` (trim for readability, best-effort)
+  const trimmed = etag.replace(/^W\//, '').replaceAll('"', '');
+  return trimmed.length > 16 ? `${trimmed.slice(0, 16)}...` : trimmed;
+}
+
+async function refreshLudusaviManifestStatus() {
+  try {
+    ludusaviManifestLoading.value = true;
+    const result = await commands.getLudusaviManifestStatus();
+    if (result.status === 'ok') {
+      ludusaviManifest.value = result.data;
+    } else {
+      showError({ message: result.error });
+    }
+  } catch (e) {
+    error(`Error getting ludusavi manifest status: ${e}`);
+    showError({ message: $t('settings.manifest_fetch_failed') });
+  } finally {
+    ludusaviManifestLoading.value = false;
+  }
+}
+
+async function updateLudusaviManifest() {
+  try {
+    ludusaviManifestUpdating.value = true;
+    const result = await commands.updateLudusaviManifest();
+    if (result.status === 'ok') {
+      ludusaviManifest.value = result.data;
+      showSuccess({ message: $t('settings.manifest_update_success') });
+    } else {
+      showError({ message: result.error });
+    }
+  } catch (e) {
+    error(`Error updating ludusavi manifest: ${e}`);
+    showError({ message: $t('settings.manifest_update_failed') });
+  } finally {
+    ludusaviManifestUpdating.value = false;
+  }
+}
+
+async function resetLudusaviManifest() {
+  const hadLocal = Boolean(ludusaviManifest.value?.hasLocal);
+  try {
+    ludusaviManifestResetting.value = true;
+    const result = await commands.resetLudusaviManifestToBundled();
+    if (result.status === 'ok') {
+      ludusaviManifest.value = result.data;
+      if (hadLocal) {
+        showSuccess({ message: $t('settings.manifest_reset_success') });
+      } else {
+        showInfo({ message: $t('settings.manifest_already_bundled') });
+      }
+    } else {
+      showError({ message: result.error });
+    }
+  } catch (e) {
+    error(`Error resetting ludusavi manifest: ${e}`);
+    showError({ message: $t('settings.manifest_reset_failed') });
+  } finally {
+    ludusaviManifestResetting.value = false;
+  }
+}
 
 // 使用debounce来合并多次保存操作
 const debouncedSaveConfig = useDebounceFn(async () => {
@@ -492,6 +570,7 @@ watch(
 // 页面加载时获取设备信息
 onMounted(async () => {
   await fetchDeviceInfo();
+  await refreshLudusaviManifestStatus();
 });
 
 watch(
@@ -602,6 +681,54 @@ const router_list = computed(() => {
           <div class="setting-box">
             <ElSwitch v-model="isDark" />
             <span class="setting-label">{{ $t('settings.enable_dark_mode') }}</span>
+          </div>
+
+          <el-divider content-position="left">
+            <el-icon>
+              <Document />
+            </el-icon>
+            <span class="tab-title">{{ $t('settings.ludusavi_manifest') }}</span>
+          </el-divider>
+
+          <div v-loading="ludusaviManifestLoading" class="manifest-box">
+            <el-alert type="info" :closable="false" class="manifest-hint">
+              {{ $t('settings.ludusavi_manifest_hint') }}
+            </el-alert>
+            <el-descriptions :column="1" size="small" border>
+              <el-descriptions-item :label="$t('settings.manifest_source')">
+                {{ formatManifestSource(ludusaviManifest?.source) }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="$t('settings.manifest_updated_at')">
+                {{ ludusaviManifest?.updatedAt || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="$t('settings.manifest_etag')">
+                {{ formatManifestEtag(ludusaviManifest?.etag) }}
+              </el-descriptions-item>
+            </el-descriptions>
+            <div class="manifest-actions">
+              <div class="manifest-actions-left">
+                <el-button @click="refreshLudusaviManifestStatus">
+                  {{ $t('settings.manifest_refresh') }}
+                </el-button>
+              </div>
+              <div class="manifest-actions-right">
+                <el-button
+                  type="primary"
+                  :loading="ludusaviManifestUpdating"
+                  @click="updateLudusaviManifest"
+                >
+                  {{ $t('settings.manifest_update') }}
+                </el-button>
+                <el-button
+                  type="danger"
+                  plain
+                  :loading="ludusaviManifestResetting"
+                  @click="resetLudusaviManifest"
+                >
+                  {{ $t('settings.manifest_reset') }}
+                </el-button>
+              </div>
+            </div>
           </div>
         </el-tab-pane>
 
@@ -843,9 +970,12 @@ const router_list = computed(() => {
 
 <style scoped>
 .el-button {
-  margin-left: 0px important;
   margin-right: 10px;
   margin-top: 5px;
+}
+
+.el-button + .el-button {
+  margin-left: 0 !important;
 }
 
 .el-card {
@@ -866,6 +996,49 @@ const router_list = computed(() => {
 
 .setting-box:hover {
   background-color: var(--el-fill-color-light);
+}
+
+.manifest-box {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: var(--el-fill-color-light);
+}
+
+.manifest-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.manifest-actions-left,
+.manifest-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.manifest-actions-right {
+  margin-left: auto;
+}
+
+.manifest-actions :deep(.el-button) {
+  margin: 0;
+}
+
+.manifest-hint {
+  margin-bottom: 12px;
+}
+
+.manifest-box :deep(.el-descriptions__table) {
+  table-layout: auto;
+}
+
+.manifest-box :deep(.el-descriptions__label) {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .setting-label {

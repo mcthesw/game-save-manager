@@ -25,8 +25,8 @@ export const i18n = createI18n({
 });
 
 // 导出简单的翻译函数
-export function $t(key: string) {
-  return i18n.global.t(key);
+export function $t(key: string, params?: Record<string, unknown>) {
+  return i18n.global.t(key, params ?? {});
 }
 
 // 导出所有支持的语言及其本地化名称

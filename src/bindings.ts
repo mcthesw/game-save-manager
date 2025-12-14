@@ -254,6 +254,60 @@ async createSnapshotAt(game: Game, describe: string, parentDate: string | null) 
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Fetches the list of importable games from the ludusavi manifest
+ */
+async fetchLudusaviGames(filterLocalOnly: boolean) : Promise<Result<ImportableGame[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_ludusavi_games", { filterLocalOnly }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Gets detailed save paths for a specific game from the ludusavi manifest
+ */
+async getGameSavePaths(gameName: string) : Promise<Result<SavePath[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_game_save_paths", { gameName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getLudusaviManifestStatus() : Promise<Result<LudusaviManifestStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_ludusavi_manifest_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateLudusaviManifest() : Promise<Result<LudusaviManifestStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_ludusavi_manifest") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resetLudusaviManifestToBundled() : Promise<Result<LudusaviManifestStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reset_ludusavi_manifest_to_bundled") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async checkPaths(paths: string[]) : Promise<Result<PathCheckResult[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_paths", { paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -270,7 +324,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.5.6"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.0"} as const;
 
 /** user-defined types **/
 
@@ -331,8 +385,58 @@ export type GameSnapshots = { name: string; backups: Snapshot[];
  * If None, new snapshots will be created as root nodes.
  */
 head?: string | null }
+/**
+ * Simplified game info for the import dialog
+ */
+export type ImportableGame = { 
+/**
+ * Game name
+ */
+name: string; 
+/**
+ * Steam ID if available
+ */
+steamId: number | null; 
+/**
+ * Whether this game is already managed
+ */
+isManaged: boolean; 
+/**
+ * Number of save paths detected
+ */
+savePathsCount: number }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
+export type LudusaviManifestStatus = { 
+/**
+ * Current manifest source: `local` or `bundled`.
+ */
+source: string; 
+/**
+ * Last update time (RFC3339, best-effort).
+ */
+updatedAt: string | null; 
+/**
+ * A version-like identifier (best-effort, e.g. HTTP ETag).
+ */
+etag: string | null; 
+/**
+ * Whether a local cached manifest exists.
+ */
+hasLocal: boolean; 
+/**
+ * Local cache path (if available as a string).
+ */
+localPath: string | null; 
+/**
+ * Local cache size in bytes (if present).
+ */
+localBytes: number | null; 
+/**
+ * Bundled manifest size in bytes.
+ */
+bundledBytes: number }
 export type NotificationLevel = "info" | "warning" | "error"
+export type PathCheckResult = { rawPath: string; resolvedPath: string | null; exists: boolean | null; error: string | null }
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionOperation = "Backup" | "Apply"
@@ -347,6 +451,18 @@ export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: 
  * Settings that can be configured by user
  */
 export type SaveListExpandBehavior = "always_open" | "always_closed" | "remember_last"
+/**
+ * Represents a save file path with its conditions
+ */
+export type SavePath = { 
+/**
+ * The path pattern
+ */
+path: string; 
+/**
+ * Tags like "save", "config", etc.
+ */
+tags: string[] }
 /**
  * A save unit declares one of the files/folders
  * that should be backup for a game

@@ -5,115 +5,285 @@ import { debug } from '@tauri-apps/plugin-log';
 
 const { showError } = useNotification();
 const { config } = useConfig();
-async function source_click(url: string) {
-  debug(`open url ${url}`);
+
+async function openUrl(url: string) {
+  debug(`Opening URL: ${url}`);
   try {
     await commands.openUrl(url);
-  } catch {
+  } catch (error) {
     showError({ message: $t('error.open_url_failed') });
+    console.error(`Failed to open URL ${url}:`, error);
   }
 }
 
-const thanks = [
-  { name: 'Sworld', describe: $t('about.project_initiator') },
-  { name: 'Itsusinn逸新', describe: $t('about.developer') },
-  { name: 'AsterNighT', describe: $t('about.developer') },
-  { name: 'noneSycamore', describe: $t('about.developer') },
-  { name: '勺子', describe: $t('about.ea_tester') },
-  { name: 'Wali', describe: $t('about.ea_tester') },
-  { name: '土拨鼠', describe: $t('about.ea_tester') },
-  { name: '布莱泽', describe: $t('about.ea_tester') },
+const contributors = [
+  { name: 'Sworld', role: $t('about.project_initiator') },
+  { name: 'Itsusinn逸新', role: $t('about.developer') },
+  { name: 'AsterNighT', role: $t('about.developer') },
+  { name: 'noneSycamore', role: $t('about.developer') },
+  { name: '勺子', role: $t('about.ea_tester') },
+  { name: 'Wali', role: $t('about.ea_tester') },
+  { name: '土拨鼠', role: $t('about.ea_tester') },
+  { name: '布莱泽', role: $t('about.ea_tester') },
 ];
-const frames = [
-  { name: 'Vue3', describe: $t('about.frontend_framework') },
-  { name: 'Tauri', describe: $t('about.desktop_framework') },
-  { name: 'Element-plus', describe: $t('about.ui_framework') },
+
+const frontendDeps = [
+  { name: 'Vue.js', url: 'https://vuejs.org/', license: 'MIT' },
+  { name: 'Vue Router', url: 'https://router.vuejs.org/', license: 'MIT' },
+  { name: 'Nuxt', url: 'https://nuxt.com/', license: 'MIT' },
+  { name: 'Element Plus', url: 'https://element-plus.org/', license: 'MIT' },
+  { name: 'VueUse', url: 'https://vueuse.org/', license: 'MIT' },
+  { name: 'Vue Flow', url: 'https://vueflow.dev/', license: 'MIT' },
+  { name: 'Vuedraggable', url: 'https://github.com/SortableJS/Vue.Draggable', license: 'MIT' },
+  { name: 'Day.js', url: 'https://day.js.org/', license: 'MIT' },
+  { name: 'UUID', url: 'https://github.com/uuidjs/uuid', license: 'MIT' },
+];
+
+const backendDeps = [
+  { name: 'Tauri', url: 'https://tauri.app/', license: 'MIT / Apache-2.0' },
+  { name: 'Ludusavi Manifest', url: 'https://github.com/mtkennerly/ludusavi-manifest', license: 'CC-BY-4.0' },
+  { name: 'OpenDAL', url: 'https://opendal.apache.org/', license: 'Apache-2.0' },
+  { name: 'Serde', url: 'https://serde.rs/', license: 'MIT / Apache-2.0' },
+  { name: 'Tokio', url: 'https://tokio.rs/', license: 'MIT' },
+  { name: 'Chrono', url: 'https://github.com/chronotope/chrono', license: 'MIT / Apache-2.0' },
+  { name: 'Reqwest', url: 'https://github.com/seanmonstar/reqwest', license: 'MIT / Apache-2.0' },
+  { name: 'zip-rs', url: 'https://github.com/zip-rs/zip', license: 'MIT' },
+  { name: 'Rodio', url: 'https://github.com/RustAudio/rodio', license: 'MIT / Apache-2.0' },
 ];
 </script>
 
 <template>
-  <el-container>
-    <el-main class="about-content">
-      <h2>{{ $t('about.content_1') }}</h2>
-      <p>
-        {{ $t('about.content_2') }}
-      </p>
-      <h2>{{ $t('about.support_me') }}</h2>
-      <p>
-        {{ $t('about.support_me_content_1') }}
-      </p>
-      <p>
-        {{ $t('about.support_me_content_2') }}
-      </p>
-      <el-container direction="horizontal" class="thanks-container">
-        <div class="thanks">
-          <el-scrollbar>
-            <h1>{{ $t('about.thank_you_list') }}</h1>
-            <el-timeline>
-              <el-timeline-item
-                v-for="thank in thanks"
-                :key="thank.name"
-                :timestamp="thank.describe"
-              >
-                {{ thank.name }}
-              </el-timeline-item>
-            </el-timeline>
-          </el-scrollbar>
+  <div class="about-page">
+    <div class="content-wrapper">
+      <el-scrollbar>
+        <div class="main-content">
+          <header class="app-header">
+            <img src="/orange.png" alt="App Logo" class="app-logo" />
+            <h1 class="app-title">{{ $t('home.name') }}</h1>
+            <div class="version-badge" v-if="config && config.version">
+              v{{ config.version }}
+            </div>
+            <p class="app-description">{{ $t('about.content_1') }}</p>
+
+            <div class="header-links">
+              <el-link @click="openUrl('https://gitee.com/sworldS/game-save-manager')">Gitee</el-link>
+              <el-divider direction="vertical" />
+              <el-link @click="openUrl('https://github.com/mcthesw/game-save-manager')">Github</el-link>
+              <el-divider direction="vertical" />
+              <el-link @click="openUrl('https://game.sworld.club/')">
+                {{ $t('about.official_website') }}
+              </el-link>
+              <el-divider direction="vertical" />
+              <el-link @click="openUrl('https://help.sworld.club/')">{{ $t('about.help') }}</el-link>
+            </div>
+          </header>
+
+          <section class="content-section">
+            <h2 class="section-title">{{ $t('about.support_me') }}</h2>
+            <div class="support-content">
+              <p>{{ $t('about.support_me_content_1') }}</p>
+              <p>{{ $t('about.support_me_content_2') }}</p>
+            </div>
+          </section>
+
+          <el-divider />
+
+          <section class="content-section">
+            <h2 class="section-title">{{ $t('about.thank_you_list') }}</h2>
+            <div class="contributors-list">
+              <div v-for="c in contributors" :key="c.name" class="contributor-item">
+                <span class="contributor-name">{{ c.name }}</span>
+                <span class="contributor-role">{{ c.role }}</span>
+              </div>
+            </div>
+          </section>
+
+          <el-divider />
+
+          <section class="content-section">
+            <h2 class="section-title">{{ $t('about.open_source_acknowledgments') }}</h2>
+            <div class="deps-container">
+              <div class="deps-column">
+                <h3 class="deps-subtitle">Frontend</h3>
+                <div class="deps-list">
+                  <div v-for="lib in frontendDeps" :key="lib.name" class="dep-row">
+                    <el-link type="primary" :underline="false" @click="openUrl(lib.url)" class="dep-name">
+                      {{ lib.name }}
+                    </el-link>
+                    <span class="dep-license">{{ lib.license }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="deps-column">
+                <h3 class="deps-subtitle">Backend</h3>
+                <div class="deps-list">
+                  <div v-for="lib in backendDeps" :key="lib.name" class="dep-row">
+                    <el-link type="primary" :underline="false" @click="openUrl(lib.url)" class="dep-name">
+                      {{ lib.name }}
+                    </el-link>
+                    <span class="dep-license">{{ lib.license }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
-        <div class="frames">
-          <el-scrollbar>
-            <h1>{{ $t('about.frameworks') }}</h1>
-            <el-timeline>
-              <el-timeline-item
-                v-for="frame in frames"
-                :key="frame.name"
-                :timestamp="frame.describe"
-              >
-                {{ frame.name }}
-              </el-timeline-item>
-            </el-timeline>
-          </el-scrollbar>
-        </div>
-      </el-container>
-    </el-main>
-    <el-footer>
-      <el-link @click="source_click('https://gitee.com/sworldS/game-save-manager')">Gitee</el-link>
-      |
-      <el-link @click="source_click('https://github.com/mcthesw/game-save-manager')"
-        >Github</el-link
-      >
-      |
-      <el-link @click="source_click('https://game.sworld.club/')">
-        {{ $t('about.official_website') }}
-      </el-link>
-      |
-      <el-link @click="source_click('https://help.sworld.club/')">{{ $t('about.help') }}</el-link>
-      <span class="version">{{ $t('about.version') + config?.version }}</span>
-    </el-footer>
-  </el-container>
+      </el-scrollbar>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.version {
-  font-size: 0.8rem;
-  text-align: right;
-  float: right;
+.about-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--el-bg-color);
+  overflow: hidden; /* Ensure no double scrollbars */
 }
 
-.thanks-container {
-  justify-content: space-around;
-  margin-top: 20px;
-  height: 250px;
+.content-wrapper {
+  flex: 1;
+  min-height: 0; /* Critical for flex child scrolling */
 }
 
-.frames,
-.thanks {
-  width: 45%;
-  height: 250px;
+.main-content {
+  padding: 3rem 15% 4rem;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-.thanks h1,
-.frames h1 {
-  margin-top: 0;
+.app-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.app-logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1rem;
+}
+
+.app-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  color: var(--el-text-color-primary);
+}
+
+.version-badge {
+  display: inline-block;
+  font-size: 0.9rem;
+  color: var(--el-color-info);
+  background-color: var(--el-fill-color-light);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-family: var(--el-font-family-monospace);
+}
+
+.app-description {
+  font-size: 1rem;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+
+.header-links {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.content-section {
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--el-text-color-primary);
+}
+
+/* Support Section */
+.support-content p {
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+  margin-bottom: 0.5rem;
+}
+
+/* Contributors List */
+.contributors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contributor-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.contributor-name {
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.contributor-role {
+  font-size: 0.9rem;
+  color: var(--el-text-color-secondary);
+}
+
+/* Dependencies Two-Column Layout */
+.deps-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .deps-container {
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+  }
+}
+
+.deps-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.deps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dep-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+}
+
+.dep-name {
+  font-size: 0.95rem;
+}
+
+.dep-license {
+  font-size: 0.85rem;
+  color: var(--el-text-color-secondary);
+  background-color: var(--el-fill-color-lighter);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 </style>
