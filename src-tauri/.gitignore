@@ -7,6 +7,10 @@ GameSaveManager.config.json
 *.bak
 save_data/
 
+# Ludusavi manifest cache (downloaded by user action in debug mode)
+/ludusavi_manifest.yaml
+/ludusavi_manifest.meta.json
+
 .vscode/*
 !.vscode/i18n-ally-custom-framework.yml
 !.vscode/launch.json

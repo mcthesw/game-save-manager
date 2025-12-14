@@ -21,6 +21,7 @@ mod config;
 mod default_value;
 mod device;
 mod ipc_handler;
+mod ludusavi_manifest;
 mod path_resolver;
 mod preclude;
 mod quick_actions;
@@ -86,6 +87,12 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_snapshot_head,
             ipc_handler::detach_snapshot,
             ipc_handler::create_snapshot_at,
+            ipc_handler::fetch_ludusavi_games,
+            ipc_handler::get_game_save_paths,
+            ipc_handler::get_ludusavi_manifest_status,
+            ipc_handler::update_ludusavi_manifest,
+            ipc_handler::reset_ludusavi_manifest_to_bundled,
+            ipc_handler::check_paths,
         ])
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,
