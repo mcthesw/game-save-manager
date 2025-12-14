@@ -2,6 +2,7 @@ use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all, upload_game_snapshots};
 use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
+use crate::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
 use crate::path_resolver;
 use crate::preclude::*;
 use crate::{backup, config, quick_actions, sound};
@@ -555,6 +556,128 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
         return Err(format!("{}", e));
     }
     Ok(())
+}
+
+/// Fetches the list of importable games from the ludusavi manifest
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_ludusavi_games(filter_local_only: bool) -> Result<Vec<ImportableGame>, String> {
+    info!(target:"rgsm::ipc", "Fetching ludusavi games (filter_local_only: {})", filter_local_only);
+    
+    // Get the current managed games
+    let config = get_config().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        e.to_string()
+    })?;
+    
+    let managed_game_names: Vec<String> = config.games.iter().map(|g| g.name.clone()).collect();
+    
+    // Fetch and parse the manifest
+    let manifest = ludusavi_manifest::fetch_manifest().await.map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to fetch manifest: {:?}", e);
+        e.to_string()
+    })?;
+    
+    let games =
+        ludusavi_manifest::parse_manifest_games(&manifest, &managed_game_names, filter_local_only, &config);
+    
+    info!(target:"rgsm::ipc", "Successfully fetched {} games from ludusavi manifest", games.len());
+    
+    Ok(games)
+}
+
+/// Gets detailed save paths for a specific game from the ludusavi manifest
+#[tauri::command]
+#[specta::specta]
+pub async fn get_game_save_paths(game_name: String) -> Result<Vec<SavePath>, String> {
+    info!(target:"rgsm::ipc", "Getting save paths for game: {}", game_name);
+    
+    // Fetch the manifest
+    let manifest = ludusavi_manifest::fetch_manifest().await.map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to fetch manifest: {:?}", e);
+        e.to_string()
+    })?;
+    
+    // Find the game in the manifest
+    let game_data = manifest.get(&game_name).ok_or_else(|| {
+        warn!(target:"rgsm::ipc", "Game not found in manifest: {}", game_name);
+        format!("Game '{}' not found in manifest", game_name)
+    })?;
+    
+    // Extract save paths
+    let paths = ludusavi_manifest::extract_save_paths(&game_name, game_data).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to extract save paths: {:?}", e);
+        e.to_string()
+    })?;
+    
+    info!(target:"rgsm::ipc", "Found {} save paths for game: {}", paths.len(), game_name);
+    
+    Ok(paths)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_ludusavi_manifest_status() -> Result<LudusaviManifestStatus, String> {
+    Ok(ludusavi_manifest::get_manifest_status())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn update_ludusavi_manifest() -> Result<LudusaviManifestStatus, String> {
+    ludusavi_manifest::update_manifest_from_remote()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn reset_ludusavi_manifest_to_bundled() -> Result<LudusaviManifestStatus, String> {
+    ludusavi_manifest::reset_manifest_to_bundled().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PathCheckResult {
+    pub raw_path: String,
+    pub resolved_path: Option<String>,
+    pub exists: Option<bool>,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_paths(paths: Vec<String>) -> Result<Vec<PathCheckResult>, String> {
+    let config = get_config().map_err(|e| e.to_string())?;
+
+    let mut results = Vec::with_capacity(paths.len());
+    for raw_path in paths {
+        if raw_path.starts_with("REGISTRY:") || raw_path.starts_with("HKEY_") {
+            results.push(PathCheckResult {
+                raw_path,
+                resolved_path: None,
+                exists: None,
+                error: Some("Registry paths are not supported yet".to_string()),
+            });
+            continue;
+        }
+
+        match path_resolver::resolve_path(&raw_path, None, &config) {
+            Ok(resolved) => results.push(PathCheckResult {
+                raw_path,
+                resolved_path: Some(resolved.to_string_lossy().to_string()),
+                exists: Some(resolved.exists()),
+                error: None,
+            }),
+            Err(e) => results.push(PathCheckResult {
+                raw_path,
+                resolved_path: None,
+                exists: None,
+                error: Some(e.to_string()),
+            }),
+        }
+    }
+
+    Ok(results)
 }
 
 #[cfg(test)]

@@ -63,9 +63,12 @@ pub fn resolve_path(
         result = result.replace("<osUserName>", &username);
     }
 
-    // Resolve <root> variable
+    // Resolve <root> variable (Steam install directory)
+    // This is typically used in ludusavi manifest for Steam game paths
+    // Format: <root>/userdata/<storeuserid>/...
     if result.contains("<root>") {
-        return Err(ResolveError::UnimplementedVar("<root>".to_string()));
+        let steam_root = get_steam_root()?;
+        result = result.replace("<root>", &steam_root);
     }
 
     // Resolve <game> variable
@@ -181,6 +184,43 @@ pub fn resolve_path(
         result = result.replace("<xdgConfig>", &xdg_config);
     }
 
+    // Resolve <storeuserid> variable (Steam user ID)
+    if result.contains("<storeuserid>") {
+        let steam_root = get_steam_root()?;
+        let userdata_path = std::path::Path::new(&steam_root).join("userdata");
+
+        let mut candidates: Vec<(std::time::SystemTime, String)> = Vec::new();
+        for entry in std::fs::read_dir(&userdata_path)
+            .map_err(|_| ResolveError::DirNotFound("Steam userdata directory".to_string()))?
+            .flatten()
+        {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let Some(dir_name) = entry.file_name().to_str().map(|s| s.to_string()) else {
+                continue;
+            };
+            if !dir_name.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
+
+            let modified = entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            candidates.push((modified, dir_name));
+        }
+
+        candidates.sort_by_key(|(modified, _)| *modified);
+        let Some((_, user_id)) = candidates.pop() else {
+            return Err(ResolveError::DirNotFound("Steam user id".to_string()));
+        };
+
+        result = result.replace("<storeuserid>", &user_id);
+    }
+
     // Check for unresolved variables
     if result.contains('<') && result.contains('>') {
         // Extract the unresolved variable name
@@ -195,6 +235,61 @@ pub fn resolve_path(
     }
 
     Ok(PathBuf::from(result))
+}
+
+/// Helper function to get Steam root directory
+fn get_steam_root() -> Result<String, ResolveError> {
+    let mut steam_roots: Vec<String> = Vec::new();
+
+    if let Ok(env_root) = env::var("STEAM_DIR") {
+        if !env_root.trim().is_empty() {
+            steam_roots.push(env_root);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(pf86) = env::var("PROGRAMFILES(X86)") {
+            steam_roots.push(format!("{}\\Steam", pf86.trim_end_matches('\\')));
+        }
+        if let Ok(pf) = env::var("PROGRAMFILES") {
+            steam_roots.push(format!("{}\\Steam", pf.trim_end_matches('\\')));
+        }
+        steam_roots.extend([
+            "C:\\Program Files (x86)\\Steam".to_string(),
+            "C:\\Program Files\\Steam".to_string(),
+            "C:\\Steam".to_string(),
+            "D:\\Steam".to_string(),
+            "E:\\Steam".to_string(),
+        ]);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let home = dirs::home_dir().unwrap_or_default();
+        steam_roots.push(home.join(".steam/steam").to_string_lossy().to_string());
+        steam_roots.push(home.join(".local/share/Steam").to_string_lossy().to_string());
+        steam_roots.push(
+            home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam")
+                .to_string_lossy()
+                .to_string(),
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = dirs::home_dir().unwrap_or_default();
+        steam_roots.push(
+            home.join("Library/Application Support/Steam")
+                .to_string_lossy()
+                .to_string(),
+        );
+    }
+
+    steam_roots
+        .into_iter()
+        .find(|path| std::path::Path::new(path).exists())
+        .ok_or(ResolveError::DirNotFound("Steam root directory".to_string()))
 }
 
 #[cfg(test)]

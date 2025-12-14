@@ -1,11 +1,21 @@
 <script lang="ts" setup>
 import { DocumentAdd, Check, RefreshRight, Download } from '@element-plus/icons-vue';
 import { reactive, ref, watchEffect } from 'vue';
-import { commands, type Game, type SaveUnit, type Device } from '../bindings';
+import {
+  commands,
+  type Game,
+  type SaveUnit,
+  type Device,
+  type ImportableGame,
+  type SavePath,
+} from '../bindings';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import { error } from '@tauri-apps/plugin-log';
 import PathVariableSelector from '../components/PathVariableSelector.vue';
+import GameImportDialog from '../components/GameImportDialog.vue';
+import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
+import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -38,6 +48,23 @@ const game_path = ref(''); // 选择游戏启动程序
 const game_icon_src = ref('/orange.png');
 const is_editing = ref(false); // 是否正在编辑已有的游戏
 const currentDevice = ref<Device | null>(null); // 当前设备信息
+
+// Import dialog state
+const showImportDialog = ref(false);
+const importDialogLoading = ref(false);
+const importableGames = ref<ImportableGame[]>([]);
+
+// Customize dialog state (single game)
+const showCustomizeDialog = ref(false);
+const customizeDialogLoading = ref(false);
+const customizingGame = ref<ImportableGame | null>(null);
+const customizingSavePaths = ref<SavePath[]>([]);
+
+// Batch import dialog state (multiple games)
+const showBatchImportDialog = ref(false);
+const batchImportLoading = ref(false);
+const batchImportGames = ref<ImportableGame[]>([]);
+const batchGamePaths = ref<Record<string, SavePath[]>>({});
 
 // 获取当前设备信息
 async function fetchCurrentDevice() {
@@ -160,9 +187,301 @@ function submit_handler(button_method: () => void) {
   // 映射按钮的ID和他们要触发的方法
   button_method();
 }
-function search_local() {
-  // TODO:导入已有配置
-  showWarning({ message: $t('addgame.wip_warning') });
+
+async function search_local() {
+  try {
+    importDialogLoading.value = true;
+    showImportDialog.value = true;
+
+    // Fetch games from ludusavi manifest (local games only by default)
+    const result = await commands.fetchLudusaviGames(true);
+
+    if (result.status === 'ok') {
+      importableGames.value = result.data;
+    } else {
+      showError({ message: $t('game_import.fetch_error') + ': ' + result.error });
+      showImportDialog.value = false;
+    }
+  } catch (e) {
+    error(`Error fetching ludusavi games: ${e}`);
+    showError({ message: $t('game_import.fetch_error') });
+    showImportDialog.value = false;
+  } finally {
+    importDialogLoading.value = false;
+  }
+}
+
+async function handleLocalToggle(enabled: boolean) {
+  try {
+    importDialogLoading.value = true;
+
+    // Refetch games with new filter setting
+    const result = await commands.fetchLudusaviGames(enabled);
+
+    if (result.status === 'ok') {
+      importableGames.value = result.data;
+    } else {
+      showError({ message: $t('game_import.fetch_error') + ': ' + result.error });
+    }
+  } catch (e) {
+    error(`Error toggling local filter: ${e}`);
+    showError({ message: $t('game_import.fetch_error') });
+  } finally {
+    importDialogLoading.value = false;
+  }
+}
+
+async function handleImportGames(selectedGames: ImportableGame[]) {
+  if (selectedGames.length === 0) {
+    return;
+  }
+
+  showImportDialog.value = false;
+
+  if (selectedGames.length === 1) {
+    // Show customization dialog for single game
+    const firstGame = selectedGames[0];
+    if (firstGame) {
+      await showCustomizationDialog(firstGame);
+    }
+  } else {
+    // Show batch import dialog for multiple games with editing capability
+    await openBatchImportDialog(selectedGames);
+  }
+}
+
+async function openBatchImportDialog(games: ImportableGame[]) {
+  try {
+    batchImportLoading.value = true;
+    batchImportGames.value = games;
+    batchGamePaths.value = {};
+    showBatchImportDialog.value = true;
+
+    // Fetch save paths for all selected games (parallel)
+    const results = await Promise.allSettled(
+      games.map((game) => commands.getGameSavePaths(game.name))
+    );
+
+    results.forEach((res, index) => {
+      const game = games[index];
+      if (!game) return;
+
+      if (res.status === 'fulfilled') {
+        const result = res.value;
+        if (result.status === 'ok') {
+          batchGamePaths.value[game.name] = result.data;
+        } else {
+          error(`Error fetching paths for ${game.name}: ${result.error}`);
+        }
+      } else {
+        error(`Error fetching paths for ${game.name}: ${res.reason}`);
+      }
+    });
+  } catch (e) {
+    error(`Error preparing batch import: ${e}`);
+    showError({ message: $t('game_import.fetch_error') });
+    showBatchImportDialog.value = false;
+  } finally {
+    batchImportLoading.value = false;
+  }
+}
+
+async function showCustomizationDialog(game: ImportableGame) {
+  try {
+    customizeDialogLoading.value = true;
+    customizingGame.value = game;
+
+    // Fetch detailed save paths for this game
+    const result = await commands.getGameSavePaths(game.name);
+
+    if (result.status === 'ok') {
+      customizingSavePaths.value = result.data;
+      showCustomizeDialog.value = true;
+    } else {
+      showError({ message: $t('game_import.fetch_error') + ': ' + result.error });
+    }
+  } catch (e) {
+    error(`Error fetching game save paths: ${e}`);
+    showError({ message: $t('game_import.fetch_error') });
+  } finally {
+    customizeDialogLoading.value = false;
+  }
+}
+
+async function handleCustomizeConfirm(data: { gameName: string; savePaths: SavePath[] }) {
+  try {
+    // Convert the customized data to our Game format
+    const gameName = data.gameName || customizingGame.value?.name || '';
+
+    // Filter and map save paths, removing empty ones
+    const validSavePaths: SaveUnit[] = [];
+    let skippedRegistry = 0;
+
+    for (const sp of data.savePaths) {
+      // Skip empty or whitespace-only paths
+      if (!sp.path || sp.path.trim() === '') {
+        continue;
+      }
+      if (sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_')) {
+        skippedRegistry++;
+        continue;
+      }
+
+      const saveUnit: SaveUnit = {
+        unit_type: determineSaveUnitType(sp.path),
+        paths: {},
+        delete_before_apply: config.value?.settings.default_delete_before_apply,
+      };
+
+      // Add path for current device
+      if (currentDevice.value) {
+        saveUnit.paths![currentDevice.value.id] = sp.path;
+      }
+
+      validSavePaths.push(saveUnit);
+    }
+
+    // Validate that we have at least one valid path
+    if (validSavePaths.length === 0) {
+      showWarning({ message: $t('game_import_customize.no_paths_selected') });
+      return;
+    }
+
+    if (skippedRegistry > 0) {
+      showWarning({ message: $t('game_import.registry_skipped', { count: skippedRegistry }) });
+    }
+
+    // Set the game data in the form and save immediately (align with batch import)
+    game_name.value = gameName;
+    save_paths.splice(0, save_paths.length, ...validSavePaths);
+
+    await save();
+  } catch (e) {
+    error(`Error importing game: ${e}`);
+    showError({ message: $t('game_import.import_error') });
+  }
+}
+
+interface GameConfig {
+  name: string;
+  customName: string;
+  selected: boolean;
+  paths: Array<{
+    path: string;
+    tags: string[];
+    selected: boolean;
+  }>;
+}
+
+async function handleBatchImportConfirm(configs: GameConfig[]) {
+  let successCount = 0;
+  let skippedRegistryCount = 0;
+  let failedCount = 0;
+  const existingNames = new Set(
+    (config.value?.games ?? []).map((g) => (g.name ?? '').toLowerCase())
+  );
+
+  for (const gameConfig of configs) {
+    try {
+      // Get selected paths
+      const selectedPaths = gameConfig.paths.filter((p) => p.selected);
+
+      if (selectedPaths.length === 0) {
+        continue;
+      }
+
+      // Convert to SaveUnits
+      const savePaths: SaveUnit[] = [];
+
+      for (const sp of selectedPaths) {
+        if (!sp.path || sp.path.trim() === '') {
+          continue;
+        }
+        if (sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_')) {
+          skippedRegistryCount++;
+          continue;
+        }
+
+        const saveUnit: SaveUnit = {
+          unit_type: determineSaveUnitType(sp.path),
+          paths: {},
+          delete_before_apply: config.value?.settings.default_delete_before_apply,
+        };
+
+        if (currentDevice.value) {
+          saveUnit.paths![currentDevice.value.id] = sp.path;
+        }
+
+        savePaths.push(saveUnit);
+      }
+
+      // Skip if no valid paths
+      if (savePaths.length === 0) {
+        continue;
+      }
+
+      // Use custom name if provided, otherwise use original name
+      const gameName = (gameConfig.customName || gameConfig.name).trim();
+      if (!gameName || !check_name_valid(gameName)) {
+        failedCount++;
+        continue;
+      }
+      const normalized = gameName.toLowerCase();
+      if (existingNames.has(normalized)) {
+        failedCount++;
+        continue;
+      }
+
+      // Create the game
+      const newGame: Game = {
+        name: gameName,
+        save_paths: savePaths,
+      };
+
+      const addResult = await commands.addGame(newGame);
+
+      if (addResult.status === 'ok') {
+        successCount++;
+        existingNames.add(normalized);
+        if (config.value && config.value.settings.add_new_to_favorites) {
+          config.value.favorites = config.value.favorites ?? [];
+          config.value.favorites.push({
+            label: newGame.name,
+            is_leaf: true,
+            children: [],
+            node_id: uuidv4().toString(),
+          });
+        }
+      } else {
+        failedCount++;
+      }
+    } catch (e) {
+      error(`Error importing game ${gameConfig.name}: ${e}`);
+      failedCount++;
+    }
+  }
+
+  if (config.value && config.value.settings.add_new_to_favorites) {
+    try {
+      await saveConfig();
+    } catch (e) {
+      error(`Error saving favorites after batch import: ${e}`);
+    }
+  }
+
+  if (skippedRegistryCount > 0) {
+    showWarning({ message: $t('game_import.registry_skipped', { count: skippedRegistryCount }) });
+  }
+
+  if (successCount > 0) {
+    showSuccess({ message: $t('game_import.import_success', { count: successCount }) });
+    await refreshConfig();
+    if (failedCount > 0) {
+      showWarning({ message: $t('game_import.import_partial', { success: successCount, failed: failedCount }) });
+    }
+  } else {
+    showError({ message: $t('game_import.import_error') });
+  }
 }
 async function save() {
   // 去除头尾空字符，防止触发Windows文件命名规则问题
@@ -231,6 +550,30 @@ function reset_info(show_notification: boolean = true) {
 function deleteRow(index: number) {
   save_paths.splice(index, 1);
 }
+
+// Helper function to determine save unit type from path
+function determineSaveUnitType(path: string): 'File' | 'Folder' {
+  // Registry paths are treated as files, but are currently skipped during import
+  if (path.startsWith('REGISTRY:') || path.startsWith('HKEY_')) {
+    return 'File';
+  }
+
+  // Paths ending with / are folders
+  if (path.endsWith('/') || path.endsWith('\\')) {
+    return 'Folder';
+  }
+
+  // Paths with common file extensions are files
+  const fileExtensions = ['.sav', '.dat', '.cfg', '.ini', '.xml', '.json', '.txt', '.bin'];
+  const lowerPath = path.toLowerCase();
+  if (fileExtensions.some((ext) => lowerPath.endsWith(ext))) {
+    return 'File';
+  }
+
+  // Default to Folder for ambiguous cases
+  return 'Folder';
+}
+
 </script>
 
 <template>
@@ -345,6 +688,33 @@ function deleteRow(index: number) {
         </el-button>
       </el-tooltip>
     </el-container>
+
+    <!-- Game Import Dialog -->
+    <game-import-dialog
+      v-model="showImportDialog"
+      :games="importableGames"
+      :loading="importDialogLoading"
+      @import="handleImportGames"
+      @toggle-local="handleLocalToggle"
+    />
+
+    <!-- Game Customize Dialog (single game) -->
+    <game-import-customize-dialog
+      v-model="showCustomizeDialog"
+      :game-name="customizingGame?.name || ''"
+      :save-paths="customizingSavePaths"
+      :loading="customizeDialogLoading"
+      @confirm="handleCustomizeConfirm"
+    />
+
+    <!-- Batch Import Dialog (multiple games) -->
+    <game-batch-import-dialog
+      v-model="showBatchImportDialog"
+      :games="batchImportGames"
+      :game-paths="batchGamePaths"
+      :loading="batchImportLoading"
+      @confirm="handleBatchImportConfirm"
+    />
   </div>
 </template>
 
