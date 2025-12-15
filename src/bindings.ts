@@ -436,7 +436,11 @@ localBytes: number | null;
  */
 bundledBytes: number }
 export type NotificationLevel = "info" | "warning" | "error"
-export type PathCheckResult = { rawPath: string; resolvedPath: string | null; exists: boolean | null; error: string | null }
+export type PathCheckResult =
+  | { status: "ok"; rawPath: string; resolvedPath: string; isFile: boolean }
+  | { status: "notFound"; rawPath: string; resolvedPath: string }
+  | { status: "registryNotSupported"; rawPath: string }
+  | { status: "resolveFailed"; rawPath: string; error: string }
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionOperation = "Backup" | "Apply"
