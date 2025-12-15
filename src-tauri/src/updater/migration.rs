@@ -6,11 +6,11 @@ use log::{error, info, warn};
 use semver::Version;
 
 use crate::backup::GameSnapshots;
-use crate::config::{get_backup_path, Config};
+use crate::config::{Config, get_backup_path};
 use crate::preclude::*;
 use crate::updater::{
     probe::probe_config_version,
-    versions::{Config1_4_0, CURRENT_VERSION, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0},
+    versions::{CURRENT_VERSION, Config1_4_0, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0},
 };
 
 /// Update configuration file to the latest version

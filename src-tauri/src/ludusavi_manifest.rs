@@ -1,3 +1,4 @@
+use crate::{app_dirs, config::Config, embedded_resources, path_resolver};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use log::{debug, info, warn};
@@ -8,17 +9,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use crate::{app_dirs, config::Config, path_resolver};
 
 /// URL to the ludusavi manifest raw YAML file (used only for user-triggered updates).
 const MANIFEST_URL: &str =
     "https://raw.githubusercontent.com/mtkennerly/ludusavi-manifest/master/data/manifest.yaml";
-
-/// Bundled Ludusavi manifest (YAML).
-///
-/// This is a snapshot shipped with the app so that import works offline by default.
-const BUNDLED_MANIFEST_YAML: &str = include_str!("../resources/ludusavi_manifest.yaml");
-const BUNDLED_MANIFEST_META_JSON: &str = include_str!("../resources/ludusavi_manifest.meta.json");
 
 /// Local manifest cache filename in app data dir.
 const LOCAL_MANIFEST_FILENAME: &str = "ludusavi_manifest.yaml";
@@ -118,15 +112,15 @@ pub async fn fetch_manifest() -> Result<HashMap<String, serde_yaml::Value>> {
             }
         }
     }
-    
+
     // Load manifest YAML (offline-first)
     let text = load_manifest_yaml().context("Failed to load Ludusavi manifest YAML")?;
 
     let manifest: HashMap<String, serde_yaml::Value> =
         serde_yaml::from_str(&text).context("Failed to parse manifest YAML")?;
-    
+
     info!(target: "rgsm::ludusavi", "Successfully parsed manifest with {} games", manifest.len());
-    
+
     // Update cache
     {
         let mut cache = MANIFEST_CACHE.lock().unwrap();
@@ -135,7 +129,7 @@ pub async fn fetch_manifest() -> Result<HashMap<String, serde_yaml::Value>> {
             fetched_at: Instant::now(),
         });
     }
-    
+
     Ok(manifest)
 }
 
@@ -166,20 +160,27 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
         let etag = meta.and_then(|m| m.etag);
         (updated_at, etag)
     } else {
-        let meta = serde_json::from_str::<ManifestMeta>(BUNDLED_MANIFEST_META_JSON).ok();
+        let meta = serde_json::from_str::<ManifestMeta>(
+            embedded_resources::ludusavi_manifest_meta_json().as_ref(),
+        )
+        .ok();
         let updated_at = meta.as_ref().and_then(|m| m.updated_at.clone());
         let etag = meta.and_then(|m| m.etag);
         (updated_at, etag)
     };
 
     LudusaviManifestStatus {
-        source: if has_local { "local".to_string() } else { "bundled".to_string() },
+        source: if has_local {
+            "local".to_string()
+        } else {
+            "bundled".to_string()
+        },
         updated_at,
         etag,
         has_local,
         local_path: local_path_str,
         local_bytes,
-        bundled_bytes: BUNDLED_MANIFEST_YAML.len() as u64,
+        bundled_bytes: embedded_resources::ludusavi_manifest_yaml_len(),
     }
 }
 
@@ -204,7 +205,10 @@ pub async fn update_manifest_from_remote() -> Result<LudusaviManifestStatus> {
         .get(reqwest::header::ETAG)
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
-    let text = response.text().await.context("Failed to read manifest text")?;
+    let text = response
+        .text()
+        .await
+        .context("Failed to read manifest text")?;
 
     // Validate YAML before writing.
     let _: HashMap<String, serde_yaml::Value> =
@@ -294,9 +298,9 @@ fn load_manifest_yaml() -> Result<Cow<'static, str>> {
     info!(
         target: "rgsm::ludusavi",
         "Using bundled Ludusavi manifest snapshot ({} bytes)",
-        BUNDLED_MANIFEST_YAML.len()
+        embedded_resources::ludusavi_manifest_yaml_len()
     );
-    Ok(Cow::Borrowed(BUNDLED_MANIFEST_YAML))
+    Ok(embedded_resources::ludusavi_manifest_yaml())
 }
 
 /// Checks if a path's `when` conditions match the current system
@@ -305,7 +309,7 @@ fn matches_current_system(when_value: Option<&serde_yaml::Value>) -> bool {
     let Some(when_array) = when_value.and_then(|v| v.as_sequence()) else {
         return true;
     };
-    
+
     // Current OS
     #[cfg(target_os = "windows")]
     let current_os = "windows";
@@ -313,7 +317,7 @@ fn matches_current_system(when_value: Option<&serde_yaml::Value>) -> bool {
     let current_os = "linux";
     #[cfg(target_os = "macos")]
     let current_os = "mac";
-    
+
     // Check if any condition matches
     for condition in when_array {
         if let Some(os) = condition.get("os").and_then(|o| o.as_str()) {
@@ -325,7 +329,7 @@ fn matches_current_system(when_value: Option<&serde_yaml::Value>) -> bool {
             return true;
         }
     }
-    
+
     false
 }
 
@@ -336,9 +340,9 @@ pub fn detect_local_games(
     config: &Config,
 ) -> HashSet<String> {
     let mut detected = HashSet::new();
-    
+
     info!(target: "rgsm::ludusavi", "Scanning for locally installed games on current OS...");
-    
+
     for (name, value) in manifest {
         // Check if any save paths exist locally
         if let Some(files) = value.get("files").and_then(|f| f.as_mapping()) {
@@ -349,13 +353,13 @@ pub fn detect_local_games(
                     if !matches_current_system(when_conditions) {
                         continue;
                     }
-                    
+
                     // Skip registry paths on non-Windows
                     #[cfg(not(target_os = "windows"))]
                     if path_str.starts_with("HKEY_") || path_str.contains("REGISTRY:") {
                         continue;
                     }
-                    
+
                     // Try to resolve the path
                     if let Ok(resolved) = path_resolver::resolve_path(path_str, None, config) {
                         // Only check if the actual path exists (not parent)
@@ -369,7 +373,7 @@ pub fn detect_local_games(
                 }
             }
         }
-        
+
         // Also check registry paths on Windows
         #[cfg(target_os = "windows")]
         if let Some(registry) = value.get("registry").and_then(|r| r.as_mapping()) {
@@ -380,7 +384,7 @@ pub fn detect_local_games(
                     if !matches_current_system(when_conditions) {
                         continue;
                     }
-                    
+
                     // For registry, we could check if the key exists
                     // For now, skip registry detection as it's complex
                     // TODO: Implement Windows registry checking
@@ -388,7 +392,7 @@ pub fn detect_local_games(
             }
         }
     }
-    
+
     info!(target: "rgsm::ludusavi", "Detected {} locally installed games", detected.len());
     detected
 }
@@ -401,20 +405,17 @@ pub fn parse_manifest_games(
     config: &Config,
 ) -> Vec<ImportableGame> {
     // Create a HashSet of lowercase managed game names for O(1) lookups
-    let managed_set: HashSet<String> = managed_games
-        .iter()
-        .map(|g| g.to_lowercase())
-        .collect();
-    
+    let managed_set: HashSet<String> = managed_games.iter().map(|g| g.to_lowercase()).collect();
+
     // Detect local games if filtering is enabled
     let local_games = if filter_local_only {
         Some(detect_local_games(manifest, config))
     } else {
         None
     };
-    
+
     let mut games = Vec::new();
-    
+
     for (name, value) in manifest {
         // If filtering by local games, skip games not detected locally
         if let Some(ref local) = local_games {
@@ -422,20 +423,20 @@ pub fn parse_manifest_games(
                 continue;
             }
         }
-        
+
         // Extract Steam ID if available
         let steam_id = value
             .get("steam")
             .and_then(|s| s.get("id"))
             .and_then(|id| id.as_u64())
             .map(|id| id as u32);
-        
+
         // Count save paths
         let save_paths_count = count_save_paths(value);
-        
+
         // Check if already managed (case-insensitive) using O(1) lookup
         let is_managed = managed_set.contains(&name.to_lowercase());
-        
+
         games.push(ImportableGame {
             name: name.clone(),
             steam_id,
@@ -443,43 +444,38 @@ pub fn parse_manifest_games(
             save_paths_count,
         });
     }
-    
+
     // Sort: unmanaged first, then alphabetically
-    games.sort_by(|a, b| {
-        match (a.is_managed, b.is_managed) {
-            (false, true) => std::cmp::Ordering::Less,
-            (true, false) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
+    games.sort_by(|a, b| match (a.is_managed, b.is_managed) {
+        (false, true) => std::cmp::Ordering::Less,
+        (true, false) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
-    
+
     games
 }
 
 /// Counts the number of save paths in a game manifest entry
 fn count_save_paths(value: &serde_yaml::Value) -> usize {
     let mut count = 0;
-    
+
     // Count file paths
     if let Some(files) = value.get("files").and_then(|f| f.as_mapping()) {
         count += files.len();
     }
-    
+
     // Count registry paths
     if let Some(registry) = value.get("registry").and_then(|r| r.as_mapping()) {
         count += registry.len();
     }
-    
+
     count
 }
 
 /// Extracts save paths from a game's manifest entry, filtered by current OS
-pub fn extract_save_paths(
-    game_name: &str,
-    value: &serde_yaml::Value,
-) -> Result<Vec<SavePath>> {
+pub fn extract_save_paths(game_name: &str, value: &serde_yaml::Value) -> Result<Vec<SavePath>> {
     let mut paths = Vec::new();
-    
+
     // Extract file paths
     if let Some(files) = value.get("files").and_then(|f| f.as_mapping()) {
         for (path_key, path_value) in files {
@@ -489,13 +485,13 @@ pub fn extract_save_paths(
                 if !matches_current_system(when_conditions) {
                     continue;
                 }
-                
+
                 // Skip registry paths on non-Windows
                 #[cfg(not(target_os = "windows"))]
                 if path_str.starts_with("HKEY_") {
                     continue;
                 }
-                
+
                 let tags = extract_tags(path_value);
                 paths.push(SavePath {
                     path: path_str.to_string(),
@@ -504,7 +500,7 @@ pub fn extract_save_paths(
             }
         }
     }
-    
+
     // Extract registry paths (for Windows only)
     #[cfg(target_os = "windows")]
     if let Some(registry) = value.get("registry").and_then(|r| r.as_mapping()) {
@@ -515,7 +511,7 @@ pub fn extract_save_paths(
                 if !matches_current_system(when_conditions) {
                     continue;
                 }
-                
+
                 let tags = extract_tags(path_value);
                 paths.push(SavePath {
                     path: format!("REGISTRY:{}", path_str),
@@ -524,11 +520,11 @@ pub fn extract_save_paths(
             }
         }
     }
-    
+
     if paths.is_empty() {
         warn!(target: "rgsm::ludusavi", "No save paths found for game: {} on current OS", game_name);
     }
-    
+
     Ok(paths)
 }
 
@@ -548,7 +544,7 @@ fn extract_tags(value: &serde_yaml::Value) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_count_save_paths() {
         let yaml = r#"
@@ -567,7 +563,7 @@ registry:
         let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(count_save_paths(&value), 3);
     }
-    
+
     #[test]
     fn test_extract_save_paths_binding_of_isaac() {
         // Test with The Binding of Isaac paths from the manifest
@@ -585,17 +581,17 @@ files:
 "#;
         let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
         let paths = extract_save_paths("The Binding of Isaac: Rebirth", &value).unwrap();
-        
+
         assert_eq!(paths.len(), 3);
         assert!(paths.iter().any(|p| p.path.contains("<home>")));
         assert!(paths.iter().any(|p| p.path.contains("<windocuments>")));
         assert!(paths.iter().any(|p| p.path.contains("<xdgdata>")));
-        
+
         for path in &paths {
             assert_eq!(path.tags, vec!["save"]);
         }
     }
-    
+
     #[test]
     fn test_extract_save_paths_with_storeuserid() {
         // Test with Age of Empires paths that include <storeuserid>
@@ -610,16 +606,16 @@ files:
 "#;
         let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
         let paths = extract_save_paths("Age of Empires II: Definitive Edition", &value).unwrap();
-        
+
         assert_eq!(paths.len(), 2);
         assert!(paths.iter().any(|p| p.path.contains("<root>")));
         assert!(paths.iter().any(|p| p.path.contains("<storeuserid>")));
     }
-    
+
     #[test]
     fn test_parse_manifest_games_filtering() {
         let mut manifest = HashMap::new();
-        
+
         // Add a test game
         let game_yaml = r#"
 steam:
@@ -633,9 +629,9 @@ files:
             "Test Game".to_string(),
             serde_yaml::from_str(game_yaml).unwrap(),
         );
-        
+
         let managed_games = vec![];
-        
+
         // Test without filtering
         let all_games = parse_manifest_games(&manifest, &managed_games, false, &Config::default());
         assert_eq!(all_games.len(), 1);
@@ -643,11 +639,11 @@ files:
         assert_eq!(all_games[0].steam_id, Some(12345));
         assert!(!all_games[0].is_managed);
     }
-    
+
     #[test]
     fn test_parse_manifest_games_managed_detection() {
         let mut manifest = HashMap::new();
-        
+
         let game_yaml = r#"
 files:
   "<winDocuments>/TestGame":
@@ -658,9 +654,9 @@ files:
             "Test Game".to_string(),
             serde_yaml::from_str(game_yaml).unwrap(),
         );
-        
+
         let managed_games = vec!["Test Game".to_string()];
-        
+
         let games = parse_manifest_games(&manifest, &managed_games, false, &Config::default());
         assert_eq!(games.len(), 1);
         assert!(games[0].is_managed);

@@ -268,7 +268,11 @@ fn get_steam_root() -> Result<String, ResolveError> {
     {
         let home = dirs::home_dir().unwrap_or_default();
         steam_roots.push(home.join(".steam/steam").to_string_lossy().to_string());
-        steam_roots.push(home.join(".local/share/Steam").to_string_lossy().to_string());
+        steam_roots.push(
+            home.join(".local/share/Steam")
+                .to_string_lossy()
+                .to_string(),
+        );
         steam_roots.push(
             home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam")
                 .to_string_lossy()
@@ -289,7 +293,9 @@ fn get_steam_root() -> Result<String, ResolveError> {
     steam_roots
         .into_iter()
         .find(|path| std::path::Path::new(path).exists())
-        .ok_or(ResolveError::DirNotFound("Steam root directory".to_string()))
+        .ok_or(ResolveError::DirNotFound(
+            "Steam root directory".to_string(),
+        ))
 }
 
 #[cfg(test)]
