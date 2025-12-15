@@ -55,3 +55,6 @@ rust-embed = { version = "8.9.0", features = ["compression", "debug-embed", "inc
 tauri-plugin-global-shortcut = "2.3.0"
 tauri-plugin-single-instance = "2.3.4"
 tauri-plugin-window-state = "2.4.0"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"

@@ -50,12 +50,13 @@ The application is divided into a frontend and a backend.
 - **Backend (`src-tauri/`)**: A Rust-based Tauri application.
   - `src/main.rs`: Application entry point.
   - `src/lib.rs`: Main library, defines Tauri commands.
-  - `src/ipc_handler.rs`: Handles Inter-Process Communication (IPC) commands.
+  - `src/ipc_handler.rs`: **Thin export layer only.** This file should only contain `#[tauri::command]` function signatures that delegate to other modules. Do not put business logic here - keep commands simple (1-3 lines) that just call functions from domain modules and handle error conversion. Complex logic belongs in dedicated modules like `backup/`, `config/`, `path_resolver.rs`, etc.
   - `src/backup/`: Logic for creating and restoring game save backups.
   - `src/cloud_sync/`: Logic for WebDAV and S3 synchronization.
   - `src/config/`: Manages `GameSaveManager.config.json`.
   - `src/quick_actions/`: Implements hotkeys, tray menu, and timers.
-  - Any IPC commands should be placed in `ipc_handler.rs`.
+  - `src/path_resolver.rs`: Path variable resolution and filesystem checks.
+  - Any IPC commands should be placed in `ipc_handler.rs`, but their implementation should be in domain modules.
 
 - **Contracts (`src/bindings.ts`)**: This auto-generated file contains TypeScript definitions for all Rust `#[tauri::command]` functions. It is the primary contract between the frontend and backend. **Never edit it manually.**
 
