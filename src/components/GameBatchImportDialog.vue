@@ -24,7 +24,12 @@
           {{ $t('game_batch_import.only_selected') }}
         </el-checkbox>
         <el-tag size="small" type="info" class="summary-tag">
-          {{ $t('game_batch_import.selected_summary', { games: selectedCount, paths: selectedPathsCount }) }}
+          {{
+            $t('game_batch_import.selected_summary', {
+              games: selectedCount,
+              paths: selectedPathsCount,
+            })
+          }}
         </el-tag>
         <div class="toolbar-actions">
           <el-button size="small" :loading="isChecking" @click="checkAllPaths()">
@@ -53,7 +58,8 @@
               <el-checkbox v-model="game.selected" class="game-checkbox" @click.stop />
               <span class="game-name">{{ game.name }}</span>
               <el-tag size="small" class="path-count">
-                {{ countSelectedPaths(game) }}/{{ game.paths.length }} {{ $t('game_batch_import.paths') }}
+                {{ countSelectedPaths(game) }}/{{ game.paths.length }}
+                {{ $t('game_batch_import.paths') }}
               </el-tag>
             </div>
           </template>
@@ -86,11 +92,7 @@
                 {{ $t('game_batch_import.registry_unsupported') }}
               </el-tag>
               <template v-else>
-                <el-tooltip
-                  v-if="path.check?.error"
-                  :content="path.check?.error"
-                  placement="top"
-                >
+                <el-tooltip v-if="path.check?.error" :content="path.check?.error" placement="top">
                   <el-tag type="danger" size="small" class="path-tag">
                     {{ $t('game_batch_import.status_error') }}
                   </el-tag>
@@ -140,6 +142,11 @@
 import { ref, computed, watch } from 'vue';
 import { $t } from '../i18n';
 import { commands, type ImportableGame, type SavePath, type PathCheckResult } from '../bindings';
+
+/** Check if a path is a Windows registry path (not supported for backup) */
+function isRegistryPath(path: string): boolean {
+  return path.startsWith('REGISTRY:') || path.startsWith('HKEY_');
+}
 
 interface GameConfig {
   name: string;
@@ -204,8 +211,8 @@ watch(
         paths: paths.map((p) => ({
           path: p.path,
           tags: p.tags,
-          isRegistry: p.path.startsWith('REGISTRY:') || p.path.startsWith('HKEY_'),
-          selected: !(p.path.startsWith('REGISTRY:') || p.path.startsWith('HKEY_')),
+          isRegistry: isRegistryPath(p.path),
+          selected: !isRegistryPath(p.path),
           check: null,
         })),
       };
@@ -252,7 +259,9 @@ const filteredGameConfigs = computed(() => {
   }
   if (searchText.value) {
     const q = searchText.value.toLowerCase();
-    list = list.filter((g) => g.name.toLowerCase().includes(q) || g.customName.toLowerCase().includes(q));
+    list = list.filter(
+      (g) => g.name.toLowerCase().includes(q) || g.customName.toLowerCase().includes(q)
+    );
   }
   return list;
 });
@@ -302,11 +311,16 @@ async function checkAllPaths(applySelection: boolean = false) {
         if (!idx) return;
         const pathItem = gameConfigs.value[idx.gameIndex]?.paths[idx.pathIndex];
         if (!pathItem) return;
-        pathItem.check = {
-          resolvedPath: c.resolvedPath ?? undefined,
-          exists: c.exists ?? undefined,
-          error: c.error ?? undefined,
-        };
+        // Map enum variants to the check object format
+        if (c.status === 'ok') {
+          pathItem.check = { resolvedPath: c.resolvedPath, exists: true };
+        } else if (c.status === 'notFound') {
+          pathItem.check = { resolvedPath: c.resolvedPath, exists: false };
+        } else if (c.status === 'registryNotSupported') {
+          pathItem.check = { error: 'Registry paths are not supported' };
+        } else if (c.status === 'resolveFailed') {
+          pathItem.check = { error: c.error };
+        }
       });
       if (applySelection) {
         applySelectionByCheck();

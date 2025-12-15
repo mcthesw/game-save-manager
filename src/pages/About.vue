@@ -41,7 +41,11 @@ const frontendDeps = [
 
 const backendDeps = [
   { name: 'Tauri', url: 'https://tauri.app/', license: 'MIT / Apache-2.0' },
-  { name: 'Ludusavi Manifest', url: 'https://github.com/mtkennerly/ludusavi-manifest', license: 'CC-BY-4.0' },
+  {
+    name: 'Ludusavi Manifest',
+    url: 'https://github.com/mtkennerly/ludusavi-manifest',
+    license: 'CC-BY-4.0',
+  },
   { name: 'OpenDAL', url: 'https://opendal.apache.org/', license: 'Apache-2.0' },
   { name: 'Serde', url: 'https://serde.rs/', license: 'MIT / Apache-2.0' },
   { name: 'Tokio', url: 'https://tokio.rs/', license: 'MIT' },
@@ -60,21 +64,25 @@ const backendDeps = [
           <header class="app-header">
             <img src="/orange.png" alt="App Logo" class="app-logo" />
             <h1 class="app-title">{{ $t('home.name') }}</h1>
-            <div class="version-badge" v-if="config && config.version">
-              v{{ config.version }}
-            </div>
+            <div v-if="config && config.version" class="version-badge">v{{ config.version }}</div>
             <p class="app-description">{{ $t('about.content_1') }}</p>
 
             <div class="header-links">
-              <el-link @click="openUrl('https://gitee.com/sworldS/game-save-manager')">Gitee</el-link>
+              <el-link @click="openUrl('https://gitee.com/sworldS/game-save-manager')"
+                >Gitee</el-link
+              >
               <el-divider direction="vertical" />
-              <el-link @click="openUrl('https://github.com/mcthesw/game-save-manager')">Github</el-link>
+              <el-link @click="openUrl('https://github.com/mcthesw/game-save-manager')"
+                >Github</el-link
+              >
               <el-divider direction="vertical" />
               <el-link @click="openUrl('https://game.sworld.club/')">
                 {{ $t('about.official_website') }}
               </el-link>
               <el-divider direction="vertical" />
-              <el-link @click="openUrl('https://help.sworld.club/')">{{ $t('about.help') }}</el-link>
+              <el-link @click="openUrl('https://help.sworld.club/')">{{
+                $t('about.help')
+              }}</el-link>
             </div>
           </header>
 
@@ -107,7 +115,12 @@ const backendDeps = [
                 <h3 class="deps-subtitle">Frontend</h3>
                 <div class="deps-list">
                   <div v-for="lib in frontendDeps" :key="lib.name" class="dep-row">
-                    <el-link type="primary" :underline="false" @click="openUrl(lib.url)" class="dep-name">
+                    <el-link
+                      type="primary"
+                      :underline="false"
+                      class="dep-name"
+                      @click="openUrl(lib.url)"
+                    >
                       {{ lib.name }}
                     </el-link>
                     <span class="dep-license">{{ lib.license }}</span>
@@ -118,7 +131,12 @@ const backendDeps = [
                 <h3 class="deps-subtitle">Backend</h3>
                 <div class="deps-list">
                   <div v-for="lib in backendDeps" :key="lib.name" class="dep-row">
-                    <el-link type="primary" :underline="false" @click="openUrl(lib.url)" class="dep-name">
+                    <el-link
+                      type="primary"
+                      :underline="false"
+                      class="dep-name"
+                      @click="openUrl(lib.url)"
+                    >
                       {{ lib.name }}
                     </el-link>
                     <span class="dep-license">{{ lib.license }}</span>

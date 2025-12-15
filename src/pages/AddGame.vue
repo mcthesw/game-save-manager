@@ -8,6 +8,7 @@ import {
   type Device,
   type ImportableGame,
   type SavePath,
+  type PathCheckResult,
 } from '../bindings';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
@@ -313,12 +314,11 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
     // Convert the customized data to our Game format
     const gameName = data.gameName || customizingGame.value?.name || '';
 
-    // Filter and map save paths, removing empty ones
-    const validSavePaths: SaveUnit[] = [];
+    // Filter out empty and registry paths first
+    const pathsToCheck: string[] = [];
     let skippedRegistry = 0;
 
     for (const sp of data.savePaths) {
-      // Skip empty or whitespace-only paths
       if (!sp.path || sp.path.trim() === '') {
         continue;
       }
@@ -326,25 +326,40 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
         skippedRegistry++;
         continue;
       }
+      pathsToCheck.push(sp.path);
+    }
 
+    if (pathsToCheck.length === 0) {
+      showWarning({ message: $t('game_import_customize.no_paths_selected') });
+      return;
+    }
+
+    // Check paths with backend to determine file/folder type
+    const checkResult = await commands.checkPaths(pathsToCheck);
+    const pathInfoMap = new Map<string, PathCheckResult>();
+    if (checkResult.status === 'ok') {
+      for (const info of checkResult.data) {
+        pathInfoMap.set(info.rawPath, info);
+      }
+    }
+
+    // Build save units with accurate type info
+    const validSavePaths: SaveUnit[] = [];
+    for (const path of pathsToCheck) {
+      const pathInfo = pathInfoMap.get(path);
+      // Extract isFile only when status is 'ok'
+      const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
       const saveUnit: SaveUnit = {
-        unit_type: determineSaveUnitType(sp.path),
+        unit_type: determineSaveUnitType(path, isFile),
         paths: {},
         delete_before_apply: config.value?.settings.default_delete_before_apply,
       };
 
-      // Add path for current device
       if (currentDevice.value) {
-        saveUnit.paths![currentDevice.value.id] = sp.path;
+        saveUnit.paths![currentDevice.value.id] = path;
       }
 
       validSavePaths.push(saveUnit);
-    }
-
-    // Validate that we have at least one valid path
-    if (validSavePaths.length === 0) {
-      showWarning({ message: $t('game_import_customize.no_paths_selected') });
-      return;
     }
 
     if (skippedRegistry > 0) {
@@ -376,10 +391,37 @@ interface GameConfig {
 async function handleBatchImportConfirm(configs: GameConfig[]) {
   let successCount = 0;
   let skippedRegistryCount = 0;
-  let failedCount = 0;
+  const failedGames: Array<{ name: string; reason: string }> = [];
   const existingNames = new Set(
     (config.value?.games ?? []).map((g) => (g.name ?? '').toLowerCase())
   );
+
+  // Collect all paths from all games to check at once
+  const allPathsToCheck: string[] = [];
+  for (const gameConfig of configs) {
+    for (const sp of gameConfig.paths) {
+      if (
+        sp.selected &&
+        sp.path &&
+        sp.path.trim() !== '' &&
+        !sp.path.startsWith('REGISTRY:') &&
+        !sp.path.startsWith('HKEY_')
+      ) {
+        allPathsToCheck.push(sp.path);
+      }
+    }
+  }
+
+  // Check all paths with backend to determine file/folder type
+  const pathInfoMap = new Map<string, PathCheckResult>();
+  if (allPathsToCheck.length > 0) {
+    const checkResult = await commands.checkPaths(allPathsToCheck);
+    if (checkResult.status === 'ok') {
+      for (const info of checkResult.data) {
+        pathInfoMap.set(info.rawPath, info);
+      }
+    }
+  }
 
   for (const gameConfig of configs) {
     try {
@@ -402,8 +444,11 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
           continue;
         }
 
+        const pathInfo = pathInfoMap.get(sp.path);
+        // Extract isFile only when status is 'ok'
+        const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
         const saveUnit: SaveUnit = {
-          unit_type: determineSaveUnitType(sp.path),
+          unit_type: determineSaveUnitType(sp.path, isFile),
           paths: {},
           delete_before_apply: config.value?.settings.default_delete_before_apply,
         };
@@ -423,12 +468,12 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
       // Use custom name if provided, otherwise use original name
       const gameName = (gameConfig.customName || gameConfig.name).trim();
       if (!gameName || !check_name_valid(gameName)) {
-        failedCount++;
+        failedGames.push({ name: gameConfig.name, reason: $t('addgame.invalid_name_error') });
         continue;
       }
       const normalized = gameName.toLowerCase();
       if (existingNames.has(normalized)) {
-        failedCount++;
+        failedGames.push({ name: gameName, reason: $t('addgame.duplicated_name_error') });
         continue;
       }
 
@@ -453,11 +498,14 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
           });
         }
       } else {
-        failedCount++;
+        failedGames.push({ name: gameName, reason: addResult.error });
       }
     } catch (e) {
       error(`Error importing game ${gameConfig.name}: ${e}`);
-      failedCount++;
+      failedGames.push({
+        name: gameConfig.name,
+        reason: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -476,8 +524,14 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
   if (successCount > 0) {
     showSuccess({ message: $t('game_import.import_success', { count: successCount }) });
     await refreshConfig();
-    if (failedCount > 0) {
-      showWarning({ message: $t('game_import.import_partial', { success: successCount, failed: failedCount }) });
+    if (failedGames.length > 0) {
+      const failedDetails = failedGames.map((f) => `${f.name}: ${f.reason}`).join('\n');
+      showWarning({
+        message:
+          $t('game_import.import_partial', { success: successCount, failed: failedGames.length }) +
+          '\n' +
+          failedDetails,
+      });
     }
   } else {
     showError({ message: $t('game_import.import_error') });
@@ -552,7 +606,13 @@ function deleteRow(index: number) {
 }
 
 // Helper function to determine save unit type from path
-function determineSaveUnitType(path: string): 'File' | 'Folder' {
+// If isFile is provided (from backend check_paths), use it; otherwise fallback to path heuristics
+function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 'Folder' {
+  // If backend provided the answer, use it
+  if (isFile !== undefined && isFile !== null) {
+    return isFile ? 'File' : 'Folder';
+  }
+
   // Registry paths are treated as files, but are currently skipped during import
   if (path.startsWith('REGISTRY:') || path.startsWith('HKEY_')) {
     return 'File';
@@ -563,17 +623,9 @@ function determineSaveUnitType(path: string): 'File' | 'Folder' {
     return 'Folder';
   }
 
-  // Paths with common file extensions are files
-  const fileExtensions = ['.sav', '.dat', '.cfg', '.ini', '.xml', '.json', '.txt', '.bin'];
-  const lowerPath = path.toLowerCase();
-  if (fileExtensions.some((ext) => lowerPath.endsWith(ext))) {
-    return 'File';
-  }
-
-  // Default to Folder for ambiguous cases
+  // Default to Folder for ambiguous cases (backend should provide accurate info)
   return 'Folder';
 }
-
 </script>
 
 <template>

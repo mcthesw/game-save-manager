@@ -639,49 +639,13 @@ pub fn reset_ludusavi_manifest_to_bundled() -> Result<LudusaviManifestStatus, St
     ludusavi_manifest::reset_manifest_to_bundled().map_err(|e| e.to_string())
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PathCheckResult {
-    pub raw_path: String,
-    pub resolved_path: Option<String>,
-    pub exists: Option<bool>,
-    pub error: Option<String>,
-}
-
 #[tauri::command]
 #[specta::specta]
-pub async fn check_paths(paths: Vec<String>) -> Result<Vec<PathCheckResult>, String> {
+pub async fn check_paths(
+    paths: Vec<String>,
+) -> Result<Vec<path_resolver::PathCheckResult>, String> {
     let config = get_config().map_err(|e| e.to_string())?;
-
-    let mut results = Vec::with_capacity(paths.len());
-    for raw_path in paths {
-        if raw_path.starts_with("REGISTRY:") || raw_path.starts_with("HKEY_") {
-            results.push(PathCheckResult {
-                raw_path,
-                resolved_path: None,
-                exists: None,
-                error: Some("Registry paths are not supported yet".to_string()),
-            });
-            continue;
-        }
-
-        match path_resolver::resolve_path(&raw_path, None, &config) {
-            Ok(resolved) => results.push(PathCheckResult {
-                raw_path,
-                resolved_path: Some(resolved.to_string_lossy().to_string()),
-                exists: Some(resolved.exists()),
-                error: None,
-            }),
-            Err(e) => results.push(PathCheckResult {
-                raw_path,
-                resolved_path: None,
-                exists: None,
-                error: Some(e.to_string()),
-            }),
-        }
-    }
-
-    Ok(results)
+    Ok(path_resolver::check_paths(&paths, &config))
 }
 
 #[cfg(test)]

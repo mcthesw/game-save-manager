@@ -2,6 +2,9 @@ use std::env;
 use std::path::PathBuf;
 use thiserror::Error;
 
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
 use crate::backup::Game;
 use crate::config::Config;
 
@@ -22,6 +25,69 @@ pub enum ResolveError {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+/// Result of checking a single path
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum PathCheckResult {
+    /// Path resolved and exists on filesystem
+    #[serde(rename_all = "camelCase")]
+    Ok {
+        raw_path: String,
+        resolved_path: String,
+        is_file: bool,
+    },
+    /// Path resolved but doesn't exist on filesystem
+    #[serde(rename_all = "camelCase")]
+    NotFound {
+        raw_path: String,
+        resolved_path: String,
+    },
+    /// Registry path (not supported for backup)
+    #[serde(rename_all = "camelCase")]
+    RegistryNotSupported { raw_path: String },
+    /// Failed to resolve path variables
+    #[serde(rename_all = "camelCase")]
+    ResolveFailed { raw_path: String, error: String },
+}
+
+/// Check a single path: resolve variables and check filesystem status
+pub fn check_path(raw_path: &str, config: &Config) -> PathCheckResult {
+    // Handle registry paths
+    if raw_path.starts_with("REGISTRY:") || raw_path.starts_with("HKEY_") {
+        return PathCheckResult::RegistryNotSupported {
+            raw_path: raw_path.to_string(),
+        };
+    }
+
+    // Try to resolve the path
+    match resolve_path(raw_path, None, config) {
+        Ok(resolved) => {
+            let resolved_str = resolved.to_string_lossy().to_string();
+            if resolved.exists() {
+                PathCheckResult::Ok {
+                    raw_path: raw_path.to_string(),
+                    resolved_path: resolved_str,
+                    is_file: resolved.is_file(),
+                }
+            } else {
+                PathCheckResult::NotFound {
+                    raw_path: raw_path.to_string(),
+                    resolved_path: resolved_str,
+                }
+            }
+        }
+        Err(e) => PathCheckResult::ResolveFailed {
+            raw_path: raw_path.to_string(),
+            error: e.to_string(),
+        },
+    }
+}
+
+/// Check multiple paths at once
+pub fn check_paths(paths: &[String], config: &Config) -> Vec<PathCheckResult> {
+    paths.iter().map(|p| check_path(p, config)).collect()
 }
 
 /// Resolves a path string containing variables to an actual filesystem path
@@ -237,10 +303,86 @@ pub fn resolve_path(
     Ok(PathBuf::from(result))
 }
 
+/// Try to get Steam installation path from Windows Registry
+#[cfg(target_os = "windows")]
+fn get_steam_path_from_registry() -> Option<String> {
+    use winreg::RegKey;
+    use winreg::enums::*;
+
+    // Try HKEY_CURRENT_USER first (user-specific installation)
+    if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Software\\Valve\\Steam") {
+        if let Ok(path) = hkcu.get_value::<String, _>("SteamPath") {
+            let normalized = path.replace('/', "\\");
+            if std::path::Path::new(&normalized).exists() {
+                return Some(normalized);
+            }
+        }
+    }
+
+    // Try HKEY_LOCAL_MACHINE (machine-wide installation, 32-bit on 64-bit Windows)
+    if let Ok(hklm) =
+        RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
+    {
+        if let Ok(path) = hklm.get_value::<String, _>("InstallPath") {
+            let normalized = path.replace('/', "\\");
+            if std::path::Path::new(&normalized).exists() {
+                return Some(normalized);
+            }
+        }
+    }
+
+    // Try HKEY_LOCAL_MACHINE (32-bit Windows or native key)
+    if let Ok(hklm) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\Valve\\Steam") {
+        if let Ok(path) = hklm.get_value::<String, _>("InstallPath") {
+            let normalized = path.replace('/', "\\");
+            if std::path::Path::new(&normalized).exists() {
+                return Some(normalized);
+            }
+        }
+    }
+
+    None
+}
+
+/// Get potential Steam paths from all available drives on Windows
+#[cfg(target_os = "windows")]
+fn get_steam_paths_from_all_drives() -> Vec<String> {
+    let mut paths = Vec::new();
+
+    // Check drives A-Z
+    for letter in b'A'..=b'Z' {
+        let drive = format!("{}:", letter as char);
+        let drive_path = std::path::Path::new(&drive);
+
+        // Skip if drive doesn't exist
+        if !drive_path.exists() {
+            continue;
+        }
+
+        // Common Steam installation paths on each drive
+        let potential_paths = [
+            format!("{}\\Program Files (x86)\\Steam", drive),
+            format!("{}\\Program Files\\Steam", drive),
+            format!("{}\\Steam", drive),
+            format!("{}\\SteamLibrary", drive),
+        ];
+
+        for path in potential_paths {
+            // Only add paths that we haven't checked yet via other methods
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+    }
+
+    paths
+}
+
 /// Helper function to get Steam root directory
 fn get_steam_root() -> Result<String, ResolveError> {
     let mut steam_roots: Vec<String> = Vec::new();
 
+    // First, try environment variable
     if let Ok(env_root) = env::var("STEAM_DIR") {
         if !env_root.trim().is_empty() {
             steam_roots.push(env_root);
@@ -249,19 +391,21 @@ fn get_steam_root() -> Result<String, ResolveError> {
 
     #[cfg(target_os = "windows")]
     {
+        // Try reading from Windows Registry first (most reliable)
+        if let Some(reg_path) = get_steam_path_from_registry() {
+            steam_roots.insert(0, reg_path);
+        }
+
+        // Fallback to common paths with PROGRAMFILES environment variables
         if let Ok(pf86) = env::var("PROGRAMFILES(X86)") {
             steam_roots.push(format!("{}\\Steam", pf86.trim_end_matches('\\')));
         }
         if let Ok(pf) = env::var("PROGRAMFILES") {
             steam_roots.push(format!("{}\\Steam", pf.trim_end_matches('\\')));
         }
-        steam_roots.extend([
-            "C:\\Program Files (x86)\\Steam".to_string(),
-            "C:\\Program Files\\Steam".to_string(),
-            "C:\\Steam".to_string(),
-            "D:\\Steam".to_string(),
-            "E:\\Steam".to_string(),
-        ]);
+
+        // Check all available drives for Steam installation
+        steam_roots.extend(get_steam_paths_from_all_drives());
     }
 
     #[cfg(target_os = "linux")]

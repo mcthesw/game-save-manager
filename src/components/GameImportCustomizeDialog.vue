@@ -38,7 +38,12 @@
               <template #default="{ row }">
                 <div class="path-cell">
                   <el-input v-model="row.path" size="small" />
-                  <el-tag v-if="isRegistryPath(row.path)" type="warning" size="small" class="registry-tag">
+                  <el-tag
+                    v-if="isRegistryPath(row.path)"
+                    type="warning"
+                    size="small"
+                    class="registry-tag"
+                  >
                     {{ $t('game_import_customize.registry_unsupported') }}
                   </el-tag>
                 </div>
@@ -251,11 +256,19 @@ async function checkAllPaths(applySelection: boolean = false) {
     const result = await commands.checkPaths(paths);
     if (result.status === 'ok') {
       const checks = result.data as PathCheckResult[];
-      pathChecks.value = checks.map((c) => ({
-        resolvedPath: c.resolvedPath ?? undefined,
-        exists: c.exists ?? undefined,
-        error: c.error ?? undefined,
-      }));
+      // Map enum variants to the check object format
+      pathChecks.value = checks.map((c) => {
+        if (c.status === 'ok') {
+          return { resolvedPath: c.resolvedPath, exists: true };
+        } else if (c.status === 'notFound') {
+          return { resolvedPath: c.resolvedPath, exists: false };
+        } else if (c.status === 'registryNotSupported') {
+          return { error: 'Registry paths are not supported' };
+        } else if (c.status === 'resolveFailed') {
+          return { error: c.error };
+        }
+        return {};
+      });
       if (applySelection) {
         await nextTick();
         applySelectionByCheck();
