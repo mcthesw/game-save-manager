@@ -20,6 +20,7 @@ mod cloud_sync;
 mod config;
 mod default_value;
 mod device;
+mod embedded_resources;
 mod ipc_handler;
 mod ludusavi_manifest;
 mod path_resolver;
