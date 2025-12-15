@@ -563,26 +563,30 @@ fn handle_backup_err(res: Result<(), BackupError>, window: Window) -> Result<(),
 #[specta::specta]
 pub async fn fetch_ludusavi_games(filter_local_only: bool) -> Result<Vec<ImportableGame>, String> {
     info!(target:"rgsm::ipc", "Fetching ludusavi games (filter_local_only: {})", filter_local_only);
-    
+
     // Get the current managed games
     let config = get_config().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
         e.to_string()
     })?;
-    
+
     let managed_game_names: Vec<String> = config.games.iter().map(|g| g.name.clone()).collect();
-    
+
     // Fetch and parse the manifest
     let manifest = ludusavi_manifest::fetch_manifest().await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to fetch manifest: {:?}", e);
         e.to_string()
     })?;
-    
-    let games =
-        ludusavi_manifest::parse_manifest_games(&manifest, &managed_game_names, filter_local_only, &config);
-    
+
+    let games = ludusavi_manifest::parse_manifest_games(
+        &manifest,
+        &managed_game_names,
+        filter_local_only,
+        &config,
+    );
+
     info!(target:"rgsm::ipc", "Successfully fetched {} games from ludusavi manifest", games.len());
-    
+
     Ok(games)
 }
 
@@ -591,27 +595,27 @@ pub async fn fetch_ludusavi_games(filter_local_only: bool) -> Result<Vec<Importa
 #[specta::specta]
 pub async fn get_game_save_paths(game_name: String) -> Result<Vec<SavePath>, String> {
     info!(target:"rgsm::ipc", "Getting save paths for game: {}", game_name);
-    
+
     // Fetch the manifest
     let manifest = ludusavi_manifest::fetch_manifest().await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to fetch manifest: {:?}", e);
         e.to_string()
     })?;
-    
+
     // Find the game in the manifest
     let game_data = manifest.get(&game_name).ok_or_else(|| {
         warn!(target:"rgsm::ipc", "Game not found in manifest: {}", game_name);
         format!("Game '{}' not found in manifest", game_name)
     })?;
-    
+
     // Extract save paths
     let paths = ludusavi_manifest::extract_save_paths(&game_name, game_data).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to extract save paths: {:?}", e);
         e.to_string()
     })?;
-    
+
     info!(target:"rgsm::ipc", "Found {} save paths for game: {}", paths.len(), game_name);
-    
+
     Ok(paths)
 }
 
