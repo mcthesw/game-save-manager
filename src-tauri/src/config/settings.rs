@@ -5,6 +5,23 @@ use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::preclude::*;
 
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct AppearanceSettings {
+    #[serde(default = "default_value::default_false")]
+    pub custom_font_enabled: bool,
+    #[serde(default = "default_value::default")]
+    pub ui_font_family: String,
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            custom_font_enabled: default_value::default_false(),
+            ui_font_family: default_value::default(),
+        }
+    }
+}
+
 /// Settings that can be configured by user
 #[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
 #[serde(rename_all = "snake_case")]
@@ -47,6 +64,8 @@ pub struct Settings {
     pub save_list_last_expanded: bool,
     #[serde(default = "default_value::default_zero_u32")]
     pub max_auto_backup_count: u32,
+    #[serde(default = "default_value::default")]
+    pub appearance: AppearanceSettings,
 }
 
 impl Default for Settings {
@@ -67,6 +86,7 @@ impl Default for Settings {
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
             max_auto_backup_count: default_value::default_zero_u32(),
+            appearance: AppearanceSettings::default(),
         }
     }
 }

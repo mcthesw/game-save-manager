@@ -41,6 +41,42 @@ const { withLoading } = useGlobalLoading();
 type SoundModeOption = 'default' | 'file';
 let skipQuickActionChange = true;
 
+// System fonts loaded from backend
+const systemFonts = ref<string[]>([]);
+const systemFontsLoading = ref(false);
+
+// Fallback font suggestions when system fonts are not yet loaded
+const fallbackFontSuggestions = [
+  'Segoe UI',
+  'Microsoft YaHei',
+  'PingFang SC',
+  'Hiragino Sans GB',
+  'Noto Sans',
+  'Noto Sans CJK SC',
+  'Inter',
+  'Roboto',
+  'Helvetica Neue',
+  'Arial',
+  'system-ui',
+];
+
+// Use system fonts if available, otherwise fallback to suggestions
+const fontOptions = computed(() =>
+  systemFonts.value.length > 0 ? systemFonts.value : fallbackFontSuggestions
+);
+
+async function fetchSystemFonts() {
+  try {
+    systemFontsLoading.value = true;
+    systemFonts.value = await commands.getSystemFonts();
+  } catch (e) {
+    error(`Error fetching system fonts: ${e}`);
+    // Silently fail, fallback will be used
+  } finally {
+    systemFontsLoading.value = false;
+  }
+}
+
 // 设备管理相关
 const currentDevice = ref<Device>({ id: '', name: '' });
 const otherDevices = ref<Device[]>([]);
@@ -571,6 +607,7 @@ watch(
 onMounted(async () => {
   await fetchDeviceInfo();
   await refreshLudusaviManifestStatus();
+  fetchSystemFonts(); // Load in background, no await needed
 });
 
 watch(
@@ -802,6 +839,40 @@ const router_list = computed(() => {
             <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
             <span class="setting-label">{{ $t('settings.default_expend_favorites_tree') }}</span>
           </div>
+        </el-tab-pane>
+
+        <!-- 外观设置 -->
+        <el-tab-pane :label="$t('settings.appearance_settings')" name="appearance">
+          <el-divider content-position="left">
+            <el-icon>
+              <Moon />
+            </el-icon>
+            <span class="tab-title">{{ $t('settings.appearance_settings') }}</span>
+          </el-divider>
+
+          <div class="setting-box">
+            <ElSwitch v-model="config.settings.appearance!.custom_font_enabled" />
+            <span class="setting-label">{{ $t('settings.custom_font_enabled') }}</span>
+          </div>
+          <div class="setting-box">
+            <ElSelect
+              v-model="config.settings.appearance!.ui_font_family"
+              class="font-select"
+              filterable
+              allow-create
+              default-first-option
+              clearable
+              :loading="systemFontsLoading"
+              :disabled="!config.settings.appearance?.custom_font_enabled"
+              :placeholder="$t('settings.ui_font_family_placeholder')"
+            >
+              <ElOption v-for="font in fontOptions" :key="font" :label="font" :value="font" />
+            </ElSelect>
+            <span class="setting-label">{{ $t('settings.ui_font_family') }}</span>
+          </div>
+          <el-alert type="info" :closable="false" class="manifest-hint">
+            {{ $t('settings.custom_font_hint') }}
+          </el-alert>
         </el-tab-pane>
 
         <!-- 设备管理 -->
@@ -1140,6 +1211,10 @@ const router_list = computed(() => {
 
 .el-select {
   max-width: 200px;
+}
+
+.el-select.font-select {
+  max-width: 360px;
 }
 
 .settings-tabs {
