@@ -308,6 +308,12 @@ async checkPaths(paths: string[]) : Promise<Result<PathCheckResult[], string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Gets a list of system font family names
+ */
+async getSystemFonts() : Promise<string[]> {
+    return await TAURI_INVOKE("get_system_fonts");
 }
 }
 
@@ -324,10 +330,11 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.0"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.1"} as const;
 
 /** user-defined types **/
 
+export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
 export type Backend = { type: "Disabled" } | 
 /**
  * WebDAV 后端
@@ -436,11 +443,26 @@ localBytes: number | null;
  */
 bundledBytes: number }
 export type NotificationLevel = "info" | "warning" | "error"
-export type PathCheckResult =
-  | { status: "ok"; rawPath: string; resolvedPath: string; isFile: boolean }
-  | { status: "notFound"; rawPath: string; resolvedPath: string }
-  | { status: "registryNotSupported"; rawPath: string }
-  | { status: "resolveFailed"; rawPath: string; error: string }
+/**
+ * Result of checking a single path
+ */
+export type PathCheckResult = 
+/**
+ * Path resolved and exists on filesystem
+ */
+{ status: "ok"; rawPath: string; resolvedPath: string; isFile: boolean } | 
+/**
+ * Path resolved but doesn't exist on filesystem
+ */
+{ status: "notFound"; rawPath: string; resolvedPath: string } | 
+/**
+ * Registry path (not supported for backup)
+ */
+{ status: "registryNotSupported"; rawPath: string } | 
+/**
+ * Failed to resolve path variables
+ */
+{ status: "resolveFailed"; rawPath: string; error: string }
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionOperation = "Backup" | "Apply"
@@ -476,7 +498,7 @@ export type SaveUnit = { unit_type: SaveUnitType; paths?: Partial<{ [key in stri
  * A save unit should be a file or a folder
  */
 export type SaveUnitType = "File" | "Folder"
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number }
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; appearance?: AppearanceSettings }
 /**
  * A backup is a zip file that contains
  * all the file that the save unit has declared.
