@@ -27,6 +27,7 @@ mod path_resolver;
 mod preclude;
 mod quick_actions;
 mod sound;
+mod system_fonts;
 mod updater;
 
 pub fn run() -> anyhow::Result<()> {
@@ -94,6 +95,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::update_ludusavi_manifest,
             ipc_handler::reset_ludusavi_manifest_to_bundled,
             ipc_handler::check_paths,
+            ipc_handler::get_system_fonts,
         ])
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,

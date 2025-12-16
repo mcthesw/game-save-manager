@@ -11,7 +11,7 @@ import { useNotification } from './composables/useNotification';
 import { useConfig } from './composables/useConfig';
 import { useGlobalLoading } from './composables/useGlobalLoading';
 import { $t, i18n } from './i18n';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const { config, refreshConfig, saveConfig } = useConfig();
 useDark();
@@ -24,6 +24,38 @@ const showDeviceSetupDialog = ref(false);
 const currentDevice = ref<Device | null>(null);
 const otherDevices = ref<Device[]>([]);
 const defaultDeviceName = ref('');
+
+const defaultUiFontFallbackStack =
+  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+
+function toCssFontFamily(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes(',')) return trimmed;
+  if (trimmed.includes('"') || trimmed.includes("'")) return trimmed;
+  return trimmed.includes(' ') ? `"${trimmed}"` : trimmed;
+}
+
+const uiFontStack = computed(() => {
+  const appearance = config.value?.settings?.appearance;
+  if (!appearance?.custom_font_enabled) return null;
+  const family = String(appearance?.ui_font_family ?? '');
+  const cssFamily = toCssFontFamily(family);
+  if (!cssFamily) return null;
+  return `${cssFamily}, ${defaultUiFontFallbackStack}`;
+});
+
+function applyUiFont(stack: string | null) {
+  if (!import.meta.client) return;
+  const style = document.documentElement.style;
+  if (stack) {
+    style.setProperty('--rgsm-ui-font-family', stack);
+    style.setProperty('--el-font-family', stack);
+  } else {
+    style.removeProperty('--rgsm-ui-font-family');
+    style.removeProperty('--el-font-family');
+  }
+}
 
 // 检查当前设备是否已设置
 async function checkDeviceSetup() {
@@ -112,6 +144,7 @@ try {
   if (currentLocale) {
     i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
   }
+  applyUiFont(uiFontStack.value);
   await navigateTo(config.value!.settings.home_page);
 
   // 在应用启动时检查设备设置
@@ -140,6 +173,10 @@ listen<NotificationPayload>('Notification', (event) => {
       break;
   }
 });
+
+if (import.meta.client) {
+  watch(uiFontStack, (stack) => applyUiFont(stack), { immediate: true });
+}
 
 // 下方代码由于 tauri-specta 的bug导致无法正常运行，因此使用上方方式替代
 // events.ipcNotification.listen((event) => {
@@ -188,6 +225,35 @@ listen<NotificationPayload>('Notification', (event) => {
 <style>
 body {
   margin: 0px !important;
+}
+
+/* Custom font family - applied globally when user enables custom font */
+:root {
+  --rgsm-ui-font-family: var(--el-font-family);
+}
+
+body,
+button,
+input,
+select,
+textarea,
+.el-button,
+.el-input__inner,
+.el-select,
+.el-menu,
+.el-menu-item,
+.el-tabs__item,
+.el-dialog,
+.el-message-box,
+.el-notification,
+.el-table,
+.el-form-item__label,
+.el-checkbox__label,
+.el-radio__label,
+.el-alert,
+.el-tag,
+[class^='el-'] {
+  font-family: var(--rgsm-ui-font-family) !important;
 }
 
 .global-loading-overlay {

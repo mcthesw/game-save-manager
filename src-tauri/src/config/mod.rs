@@ -8,5 +8,5 @@ pub use quick_actions_settings::{
     QuickActionSoundPreferences, QuickActionSoundSlots, QuickActionSoundSource,
     QuickActionsSettings,
 };
-pub use settings::{SaveListExpandBehavior, Settings};
+pub use settings::{AppearanceSettings, SaveListExpandBehavior, Settings};
 pub use utils::*;

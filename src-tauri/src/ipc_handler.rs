@@ -5,7 +5,7 @@ use crate::device::{Device, get_current_device_id};
 use crate::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
 use crate::path_resolver;
 use crate::preclude::*;
-use crate::{backup, config, quick_actions, sound};
+use crate::{backup, config, quick_actions, sound, system_fonts};
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -646,6 +646,14 @@ pub async fn check_paths(
 ) -> Result<Vec<path_resolver::PathCheckResult>, String> {
     let config = get_config().map_err(|e| e.to_string())?;
     Ok(path_resolver::check_paths(&paths, &config))
+}
+
+/// Gets a list of system font family names
+#[tauri::command]
+#[specta::specta]
+pub fn get_system_fonts() -> Vec<String> {
+    info!(target:"rgsm::ipc", "Getting system fonts");
+    system_fonts::get_system_fonts()
 }
 
 #[cfg(test)]
