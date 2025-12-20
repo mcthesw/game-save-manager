@@ -10,6 +10,7 @@ import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 
 const { config, saveConfig } = useConfig();
 const { showWarning, showSuccess, showError } = useNotification();
+const feedback = useFeedback();
 const enable_edit = ref(false);
 const add_game_dialog_visible = ref(false);
 
@@ -120,7 +121,7 @@ async function add_folder() {
   // 弹出对话框
   let name: MessageBoxInputData;
   try {
-    name = await ElMessageBox.prompt($t('favorite.new_folder_name'), $t('home.hint'), {
+    name = await feedback.prompt($t('favorite.new_folder_name'), $t('home.hint'), {
       confirmButtonText: $t('settings.confirm'),
       cancelButtonText: $t('settings.cancel'),
     });
@@ -151,7 +152,7 @@ function node_drag_end_handler(start: Node, end: Node | null, end_type: string, 
 
 async function add_all_games() {
   try {
-    await ElMessageBox.confirm($t('favorite.confirm_add_all_games'), $t('home.hint'), {
+    await feedback.confirm($t('favorite.confirm_add_all_games'), $t('home.hint'), {
       confirmButtonText: $t('settings.confirm'),
       cancelButtonText: $t('settings.cancel'),
       type: 'warning',

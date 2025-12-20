@@ -2,6 +2,7 @@ import { ElNotification } from 'element-plus';
 import type { NotificationParams, NotificationHandle } from 'element-plus';
 import { $t } from '../i18n';
 import { ref } from 'vue';
+import { LAYER } from '../ui/layers';
 
 /**
  * 通知类型，包括成功、警告、错误和信息
@@ -119,6 +120,8 @@ const show = (type: NotificationType, options: NotificationOptions, id: string) 
     message,
     type,
     duration,
+    // Keep notifications visible when app-level overlays (e.g. global loading) are active.
+    zIndex: LAYER.notification,
   } as NotificationParams);
 
   activeNotifications.value.push({ id, handle });

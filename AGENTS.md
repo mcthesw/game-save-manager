@@ -67,6 +67,12 @@ The application is divided into a frontend and a backend.
   - Components: `PascalCase` (e.g., `GameList.vue`).
   - Composables: `camelCase` with a `use` prefix (e.g., `useConfig.ts`).
   - Use Element Plus for UI consistency.
+  - **User feedback (toast/confirm/prompt)**:
+    - Toast notifications: use `useNotification()` (do not call `ElNotification` directly in pages/components).
+    - Confirm/prompt dialogs: use `useFeedback()` (do not call `ElMessageBox` directly in pages/components).
+  - **Overlay & z-index**:
+    - Do not introduce scattered z-index magic numbers.
+    - Use `src/ui/layers.ts` (`LAYER.*`) for any overlay/notification/dialog layering decisions.
   - Never use tauri's `invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T>`, you can use `pnpm dev` to launch app so that `src/bindings.ts` will be updated.
 
 - **Backend (Rust)**:
