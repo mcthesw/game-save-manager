@@ -2,7 +2,7 @@
 // TODO:调整日志设置，比如删除日
 import { computed, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
-import { ElMessageBox, ElOption } from 'element-plus';
+import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
 import {
   DocumentAdd,
@@ -32,6 +32,7 @@ import type { Device } from '../bindings';
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { showSuccess, showError, showInfo } = useNotification();
+const feedback = useFeedback();
 const locale_message = i18n.global.messages;
 const locale_names = i18n.global.availableLocales;
 const activeTab = ref('general');
@@ -188,7 +189,7 @@ async function reset_settings() {
 
 async function backup_all() {
   try {
-    await ElMessageBox.prompt($t('settings.backup_all_hint'), $t('home.hint'), {
+    await feedback.prompt($t('settings.backup_all_hint'), $t('home.hint'), {
       confirmButtonText: $t('settings.confirm'),
       cancelButtonText: $t('settings.cancel'),
       inputPattern: /yes/,
@@ -211,7 +212,7 @@ async function backup_all() {
 
 async function apply_all() {
   try {
-    await ElMessageBox.prompt($t('settings.apply_all_hint'), $t('home.hint'), {
+    await feedback.prompt($t('settings.apply_all_hint'), $t('home.hint'), {
       confirmButtonText: $t('settings.confirm'),
       cancelButtonText: $t('settings.cancel'),
       inputPattern: /yes/,
@@ -326,15 +327,11 @@ async function updateDeviceInfo() {
 // 从其他设备导入路径
 async function importFromDevice(deviceId: string) {
   try {
-    await ElMessageBox.confirm(
-      $t('settings.import_paths_confirm'),
-      $t('settings.import_paths_title'),
-      {
-        confirmButtonText: $t('settings.confirm'),
-        cancelButtonText: $t('settings.cancel'),
-        type: 'warning',
-      }
-    );
+    await feedback.confirm($t('settings.import_paths_confirm'), $t('settings.import_paths_title'), {
+      confirmButtonText: $t('settings.confirm'),
+      cancelButtonText: $t('settings.cancel'),
+      type: 'warning',
+    });
 
     // 获取当前设备ID
     const currentDeviceId = currentDevice.value?.id;
@@ -537,7 +534,7 @@ async function deleteDevice(deviceId: string) {
   }
 
   try {
-    await ElMessageBox.confirm(
+    await feedback.confirm(
       `${$t('settings.delete_device_confirm_message')}
 
 ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,

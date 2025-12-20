@@ -28,6 +28,7 @@ const { config, refreshConfig, saveConfig } = useConfig(); // 配置文件
 const cloud_settings = ref(config.value!.settings.cloud_settings); // 云同步配置
 const { showInfo, showError, showSuccess } = useNotification();
 const { withLoading } = useGlobalLoading();
+const feedback = useFeedback();
 
 const webdav_settings: Ref<WebDAV> = ref({
   type: 'WebDAV',
@@ -152,7 +153,7 @@ function abort_change() {
 
 async function upload_all() {
   try {
-    await ElMessageBox.prompt($t('sync_settings.confirm_upload_all'), $t('home.hint'), {
+    await feedback.prompt($t('sync_settings.confirm_upload_all'), $t('home.hint'), {
       confirmButtonText: $t('sync_settings.confirm'),
       cancelButtonText: $t('sync_settings.cancel'),
       inputPattern: /yes/,
@@ -176,7 +177,7 @@ async function upload_all() {
 
 async function download_all() {
   try {
-    await ElMessageBox.prompt($t('sync_settings.confirm_download_all'), $t('home.hint'), {
+    await feedback.prompt($t('sync_settings.confirm_download_all'), $t('home.hint'), {
       confirmButtonText: $t('sync_settings.confirm'),
       cancelButtonText: $t('sync_settings.cancel'),
       inputPattern: /yes/,

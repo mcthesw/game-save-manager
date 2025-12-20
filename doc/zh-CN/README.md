@@ -94,6 +94,13 @@ vue-devtools
 
 暂时没有完善的编码风格文档，如果你能帮助完成这部分文档我将不胜感激，暂时请参考其余部分代码，尽量保持简洁，且留下合适的文档
 
+### UI 覆盖层、层级（z-index）与用户反馈
+
+- 耗时操作使用 `src/App.vue` 的全局 Loading 覆盖层（通过 `useGlobalLoading()` 控制）。
+- 右上角 toast 通知统一使用 `useNotification()`。
+- 确认/输入对话框统一使用 `useFeedback()`。
+- 任何弹层/覆盖层的层级（z-index）**不要散落写魔法数字**，统一使用 `src/ui/layers.ts` 中的语义化常量 `LAYER.*`，以确保通知在全局覆盖层开启时仍可见。
+
 ## 提交信息
 
 请按照[约定式提交](https://www.conventionalcommits.org/)来编写 commit 信息，这样有助于合作以及自动化构建，你可以使用 VSCode 插件 `Conventional Commits` 来辅助编写你的提交信息
