@@ -94,6 +94,14 @@ Next, please find `index.html` in the project root directory and add the followi
 
 There is no complete coding style document for now. If you can help complete this part of the document, I would be very grateful. For now, please refer to the rest of the code, try to keep it concise, and leave appropriate documentation.
 
+### UI overlays, z-index, and user feedback
+
+- Long-running operations use the global loading overlay in `src/App.vue` (via `useGlobalLoading()`).
+- Toast notifications must go through `useNotification()`.
+- Confirm/prompt dialogs must go through `useFeedback()`.
+- For any stacking/layering decisions, **do not add magic numbers**.
+  Use the semantic tokens in `src/ui/layers.ts` (`LAYER.*`) so notifications stay visible above overlays.
+
 ## Commit Messages
 
 Please follow [Conventional Commits](https://www.conventionalcommits.org/) to write commit messages. This will help with collaboration and automated builds. You can use the VSCode plugin `Conventional Commits` to assist in writing your commit messages.

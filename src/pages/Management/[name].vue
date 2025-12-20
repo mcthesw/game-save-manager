@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onBeforeUnmount, onMounted } from 'vue';
-import { ElInput, ElMessageBox } from 'element-plus';
+import { ElInput } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
@@ -23,6 +23,7 @@ import {
 import dayjs from 'dayjs';
 
 const { showInfo, showError, showSuccess } = useNotification();
+const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
 const router = useRouter();
@@ -114,7 +115,7 @@ function on_selection_change(val: Snapshot[]) {
 }
 async function batch_delete() {
   try {
-    const result = await ElMessageBox.prompt($t('manage.batch_delete_prompt'), $t('home.hint'), {
+    const result = await feedback.prompt($t('manage.batch_delete_prompt'), $t('home.hint'), {
       confirmButtonText: $t('manage.confirm'),
       cancelButtonText: $t('manage.cancel'),
       inputPattern: /yes/,
@@ -196,7 +197,7 @@ async function send_save_to_background() {
 async function create_new_save() {
   if (config.value.settings.prompt_when_not_described && !describe.value) {
     try {
-      await ElMessageBox.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
+      await feedback.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
         confirmButtonText: $t('manage.confirm_save'),
         cancelButtonText: $t('manage.cancel'),
         type: 'warning',
@@ -265,7 +266,7 @@ async function apply_save(date: string) {
 
 async function change_describe(date: string) {
   try {
-    const { value } = await ElMessageBox.prompt(
+    const { value } = await feedback.prompt(
       $t('manage.input_description_prompt'),
       $t('manage.change_description'),
       {
@@ -300,7 +301,7 @@ function load_latest_save() {
 
 async function del_cur() {
   try {
-    const { value } = await ElMessageBox.prompt($t('manage.delete_prompt'), $t('home.hint'), {
+    const { value } = await feedback.prompt($t('manage.delete_prompt'), $t('home.hint'), {
       confirmButtonText: $t('manage.confirm'),
       cancelButtonText: $t('manage.cancel'),
       inputPattern: /yes/,
@@ -402,7 +403,7 @@ async function checkCurrentDeviceSavePaths() {
 
   try {
     // 询问用户是否要复制其他设备的存档路径
-    const confirmResult = await ElMessageBox.confirm(
+    const confirmResult = await feedback.confirm(
       $t('manage.empty_paths_prompt'),
       $t('manage.empty_paths_title'),
       {
@@ -438,7 +439,7 @@ async function checkCurrentDeviceSavePaths() {
         .map((d, index) => `${index + 1}. ${d.label} (${d.value})`)
         .join('\n');
 
-      const { value } = await ElMessageBox.prompt(
+      const { value } = await feedback.prompt(
         `${$t('manage.select_device_prompt')}\n\n${items}\n\n${$t('manage.enter_device_id')}:`,
         $t('manage.select_device_title'),
         {
@@ -544,7 +545,7 @@ async function onDetach(date: string) {
 
 async function onCreateBranch(parentDate: string) {
   try {
-    const { value } = await ElMessageBox.prompt(
+    const { value } = await feedback.prompt(
       $t('manage.input_description_prompt'),
       $t('manage.create_branch'),
       {

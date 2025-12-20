@@ -10,6 +10,7 @@ import type { Device } from './bindings';
 import { useNotification } from './composables/useNotification';
 import { useConfig } from './composables/useConfig';
 import { useGlobalLoading } from './composables/useGlobalLoading';
+import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
 import { computed, ref, watch } from 'vue';
 
@@ -18,6 +19,10 @@ useDark();
 
 const { showInfo, showWarning, showError, showSuccess } = useNotification();
 const { isLoading, loadingMessage } = useGlobalLoading();
+
+const globalLoadingStyle = computed(() => ({
+  zIndex: LAYER.globalLoading,
+}));
 
 // 设备设置对话框
 const showDeviceSetupDialog = ref(false);
@@ -210,7 +215,7 @@ if (import.meta.client) {
     />
 
     <Transition name="global-loading-fade">
-      <div v-if="isLoading" class="global-loading-overlay">
+      <div v-if="isLoading" class="global-loading-overlay" :style="globalLoadingStyle">
         <div class="global-loading-card">
           <el-icon class="global-loading-spinner" :size="36">
             <Loading />
@@ -263,7 +268,6 @@ textarea,
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
   backdrop-filter: blur(2px);
 }
 
