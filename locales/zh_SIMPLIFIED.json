@@ -309,7 +309,8 @@
     "frameworks": "使用框架",
     "official_website": "官方网站",
     "version": "版本号: {0}",
-    "help": "帮助文档"
+    "help": "帮助文档",
+    "open_source_acknowledgments": "开源致谢"
   },
   "misc": {
     "error": "错误",
