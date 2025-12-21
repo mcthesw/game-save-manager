@@ -5,18 +5,14 @@ import { $t, i18n } from '../i18n';
 import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
 import {
-  DocumentAdd,
-  HotWater,
-  InfoFilled,
-  MostlyCloudy,
   Setting,
-  SwitchFilled,
   Document,
   Unlock,
   Moon,
   Tools,
 } from '@element-plus/icons-vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
+import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
 import { commands } from '~/bindings';
 import type {
@@ -626,20 +622,7 @@ watch(
   { deep: true } // 深度监听对象变化
 );
 
-const router_list = computed(() => {
-  // TODO:抽离到新文件中，同时`MainSideBar.vue`也要抽离
-  const link_list = [
-    { text: $t('sidebar.homepage'), link: '/', icon: HotWater },
-    { text: $t('sidebar.add_game'), link: '/AddGame', icon: DocumentAdd },
-    { text: $t('sidebar.sync_settings'), link: '/SyncSettings', icon: MostlyCloudy },
-    { text: $t('sidebar.settings'), link: '/Settings', icon: Setting },
-    { text: $t('sidebar.about'), link: '/About', icon: InfoFilled },
-  ];
-  config.value?.games.forEach((game) => {
-    link_list.push({ text: game.name, link: `/Management/${game.name}`, icon: SwitchFilled });
-  });
-  return link_list;
-});
+const { linksWithGames: router_list } = useNavigationLinks();
 </script>
 
 <template>
