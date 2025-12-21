@@ -117,7 +117,7 @@ const backendDeps = [
                   <div v-for="lib in frontendDeps" :key="lib.name" class="dep-row">
                     <el-link
                       type="primary"
-                      :underline="false"
+                      underline="never"
                       class="dep-name"
                       @click="openUrl(lib.url)"
                     >
@@ -133,7 +133,7 @@ const backendDeps = [
                   <div v-for="lib in backendDeps" :key="lib.name" class="dep-row">
                     <el-link
                       type="primary"
-                      :underline="false"
+                      underline="never"
                       class="dep-name"
                       @click="openUrl(lib.url)"
                     >

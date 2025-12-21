@@ -4,13 +4,7 @@ import { computed, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
 import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
-import {
-  Setting,
-  Document,
-  Unlock,
-  Moon,
-  Tools,
-} from '@element-plus/icons-vue';
+import { Setting, Document, Unlock, Moon, Tools } from '@element-plus/icons-vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -695,10 +689,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <ElSwitch v-model="config.settings.log_to_file" />
             <span class="setting-label">{{ $t('settings.log_to_file') }}*</span>
           </div>
-          <div class="setting-box">
-            <ElSwitch v-model="isDark" />
-            <span class="setting-label">{{ $t('settings.enable_dark_mode') }}</span>
-          </div>
 
           <el-divider content-position="left">
             <el-icon>
@@ -830,6 +820,10 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <span class="tab-title">{{ $t('settings.appearance_settings') }}</span>
           </el-divider>
 
+          <div class="setting-box">
+            <ElSwitch v-model="isDark" />
+            <span class="setting-label">{{ $t('settings.enable_dark_mode') }}</span>
+          </div>
           <div class="setting-box">
             <ElSwitch v-model="config.settings.appearance!.custom_font_enabled" />
             <span class="setting-label">{{ $t('settings.custom_font_enabled') }}</span>
