@@ -1,34 +1,20 @@
 <script lang="ts" setup>
-import { computed, ref, watch, inject, onMounted, nextTick } from 'vue';
+import { computed, ref } from 'vue';
 import FavoriteSideBar from './FavoriteSideBar.vue';
-import {
-  DocumentAdd,
-  Files,
-  InfoFilled,
-  HotWater,
-  Setting,
-  MostlyCloudy,
-  Search,
-  Star,
-  Menu,
-} from '@element-plus/icons-vue';
+import { Files, Search, Star, Menu } from '@element-plus/icons-vue';
 import { $t } from '../i18n';
 import { debug } from '@tauri-apps/plugin-log';
 import type { MenuInstance } from 'element-plus';
+import { useNavigationLinks } from '../composables/useNavigationLinks';
+import { useSidebarResize } from '../composables/useSidebarResize';
+import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehavior';
 
-const { config, saveConfig } = useConfig();
-
-const min_width = ref(200);
-const max_width = ref(400);
-
-// TODO:抽离到新文件中，同时`Settings.vue`也要抽离
-const links = computed(() => [
-  { text: $t('sidebar.homepage'), link: '/', icon: HotWater },
-  { text: $t('sidebar.add_game'), link: '/AddGame', icon: DocumentAdd },
-  { text: $t('sidebar.sync_settings'), link: '/SyncSettings', icon: MostlyCloudy },
-  { text: $t('sidebar.settings'), link: '/Settings', icon: Setting },
-  { text: $t('sidebar.about'), link: '/About', icon: InfoFilled },
-]);
+const { config } = useConfig();
+const { baseLinks } = useNavigationLinks();
+const { sidebarWidth, isResizing, startResize } = useSidebarResize({
+  minWidth: 200,
+  maxWidth: 400,
+});
 
 const games = computed(() => {
   return config.value.games;
@@ -42,33 +28,6 @@ const searchQuery = ref('');
 const menuRef = ref<MenuInstance>();
 const saveListMenuIndex = 'save-list';
 
-function getSaveListBehavior() {
-  return config.value.settings?.save_list_expand_behavior ?? 'always_closed';
-}
-
-function getSavedExpandState() {
-  return config.value.settings?.save_list_last_expanded ?? false;
-}
-
-function shouldExpandSaveList() {
-  const behavior = getSaveListBehavior();
-  if (behavior === 'always_open') {
-    return true;
-  }
-  if (behavior === 'remember_last') {
-    return getSavedExpandState();
-  }
-  return false;
-}
-
-const saveListDefaultOpeneds = computed(() => (shouldExpandSaveList() ? [saveListMenuIndex] : []));
-
-// 从父组件注入侧边栏宽度
-const sidebarWidth = inject('sidebarWidth', ref(240));
-const isResizing = ref(false);
-const startX = ref(0);
-const startWidth = ref(0);
-
 // 过滤菜单项
 const filteredGames = computed(() => {
   if (!searchQuery.value) return games.value;
@@ -78,10 +37,17 @@ const filteredGames = computed(() => {
 
 // 过滤常规菜单
 const filteredLinks = computed(() => {
-  if (!searchQuery.value) return links.value;
+  if (!searchQuery.value) return baseLinks.value;
   const query = searchQuery.value.toLowerCase();
-  return links.value.filter((link) => link.text.toLowerCase().includes(query));
+  return baseLinks.value.filter((link) => link.text.toLowerCase().includes(query));
 });
+
+const { saveListDefaultOpeneds, handleMenuOpen, handleMenuClose } = useSaveListExpandBehavior({
+  menuRef,
+  filteredGames,
+  showFavorite: show_favorite,
+});
+
 function select_handler(key: string, keyPath: string) {
   const targetPath = keyPath[keyPath.length - 1];
   debug(`${$t('misc.navigate_to')} ${targetPath}`);
@@ -90,116 +56,10 @@ function select_handler(key: string, keyPath: string) {
   }
 }
 
-// 侧边栏大小调整处理函数
-function startResize(event: MouseEvent) {
-  event.preventDefault();
-  isResizing.value = true;
-  startX.value = event.clientX;
-  startWidth.value = sidebarWidth.value;
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', stopResize);
-}
-
-function handleMouseMove(event: MouseEvent) {
-  if (!isResizing.value) return;
-  const delta = event.clientX - startX.value;
-  // 设置最小和最大宽度限制
-  const newWidth = Math.max(min_width.value, Math.min(max_width.value, startWidth.value + delta));
-  sidebarWidth.value = newWidth;
-}
-
-function stopResize() {
-  isResizing.value = false;
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', stopResize);
-}
-
 // 清除搜索
 function clearSearch() {
   searchQuery.value = '';
 }
-
-async function applySaveListExpandState() {
-  await nextTick();
-  const menu = menuRef.value;
-  if (!menu) {
-    return;
-  }
-  if (shouldExpandSaveList()) {
-    menu.open(saveListMenuIndex);
-  } else {
-    menu.close(saveListMenuIndex);
-  }
-}
-
-async function persistSaveListState(expanded: boolean) {
-  if (getSavedExpandState() === expanded) {
-    return;
-  }
-  if (!config.value.settings) {
-    return;
-  }
-  config.value.settings.save_list_last_expanded = expanded;
-  await saveConfig();
-}
-
-async function handleMenuOpen(index: string) {
-  if (index !== saveListMenuIndex) {
-    return;
-  }
-  if (getSaveListBehavior() === 'remember_last') {
-    await persistSaveListState(true);
-  }
-}
-
-async function handleMenuClose(index: string) {
-  if (index !== saveListMenuIndex) {
-    return;
-  }
-  if (getSaveListBehavior() === 'remember_last') {
-    await persistSaveListState(false);
-  }
-}
-
-watch(
-  () => config.value.settings?.save_list_expand_behavior,
-  async (behavior) => {
-    await applySaveListExpandState();
-    if (behavior === 'always_open') {
-      await persistSaveListState(true);
-    } else if (behavior === 'always_closed') {
-      await persistSaveListState(false);
-    }
-  },
-  { immediate: true }
-);
-
-watch(
-  () => config.value.settings?.save_list_last_expanded,
-  async () => {
-    if (getSaveListBehavior() === 'remember_last') {
-      await applySaveListExpandState();
-    }
-  }
-);
-
-watch(
-  filteredGames,
-  () => {
-    void applySaveListExpandState();
-  },
-  { deep: true }
-);
-
-watch(show_favorite, (value) => {
-  if (!value) {
-    void applySaveListExpandState();
-  }
-});
-
-onMounted(() => {
-  void applySaveListExpandState();
-});
 </script>
 
 <template>
