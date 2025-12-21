@@ -11,7 +11,7 @@ import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehav
 
 const { config } = useConfig();
 const { baseLinks } = useNavigationLinks();
-const { sidebarWidth, isResizing, startResize } = useSidebarResize({
+const { isResizing, startResize } = useSidebarResize({
   minWidth: 200,
   maxWidth: 400,
 });

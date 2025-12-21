@@ -38,7 +38,9 @@ export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
     return false;
   }
 
-  const saveListDefaultOpeneds = computed(() => (shouldExpandSaveList() ? [saveListMenuIndex] : []));
+  const saveListDefaultOpeneds = computed(() =>
+    shouldExpandSaveList() ? [saveListMenuIndex] : []
+  );
 
   async function applySaveListExpandState() {
     await nextTick();
