@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
+import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
 import type { Game, Snapshot, Device, GameSnapshots } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
@@ -13,6 +14,7 @@ import {
   Share,
   VideoPlay,
   Folder,
+  DocumentCopy,
   Setting,
   Delete,
   RefreshLeft,
@@ -34,6 +36,7 @@ const viewMode = ref<'table' | 'branch'>('table');
 
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
+const extraBackupDrawer = ref(false); // 是否显示额外备份抽屉
 
 const table_data = ref<Snapshot[]>([]);
 
@@ -612,6 +615,9 @@ const currentHeadFullText = computed(() => {
         <el-tooltip :content="$t('manage.open_backup_folder')" placement="bottom">
           <el-button circle :icon="Folder" @click="open_backup_folder" />
         </el-tooltip>
+        <el-tooltip :content="$t('manage.extra_backups')" placement="bottom">
+          <el-button circle :icon="DocumentCopy" @click="extraBackupDrawer = true" />
+        </el-tooltip>
         <el-tooltip :content="$t('manage.show_drawer')" placement="bottom">
           <el-button circle :icon="Setting" @click="drawer = true" />
         </el-tooltip>
@@ -809,6 +815,8 @@ const currentHeadFullText = computed(() => {
       @closed="drawer = false"
       @save-changes="on_drawer_save_changes"
     />
+
+    <extra-backup-drawer v-if="game" v-model="extraBackupDrawer" :game="game" />
   </div>
 </template>
 
@@ -828,6 +836,8 @@ const currentHeadFullText = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .page-title {
@@ -835,6 +845,8 @@ const currentHeadFullText = computed(() => {
   font-size: 20px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
