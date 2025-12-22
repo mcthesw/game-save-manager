@@ -159,15 +159,14 @@ async function del(date: string) {
       </div>
 
       <!-- Empty State -->
-      <el-empty v-if="!loading && items.length === 0" :description="$t('manage.no_extra_backups')" />
+      <el-empty
+        v-if="!loading && items.length === 0"
+        :description="$t('manage.no_extra_backups')"
+      />
 
       <!-- Backup List -->
       <div v-else v-loading="loading" class="backup-list">
-        <div
-          v-for="item in items"
-          :key="item.date"
-          class="backup-item"
-        >
+        <div v-for="item in items" :key="item.date" class="backup-item">
           <div class="backup-main">
             <div class="backup-time">{{ formatTime(item) }}</div>
             <div class="backup-size">{{ formatFileSize(item.size) }}</div>
@@ -287,4 +286,3 @@ async function del(date: string) {
   color: var(--el-text-color-secondary);
 }
 </style>
-

@@ -816,7 +816,7 @@ const currentHeadFullText = computed(() => {
       @save-changes="on_drawer_save_changes"
     />
 
-    <extra-backup-drawer v-if="game" v-model="extraBackupDrawer" :game="game" />
+    <ExtraBackupDrawer v-if="game" v-model="extraBackupDrawer" :game="game" />
   </div>
 </template>
 
