@@ -64,6 +64,10 @@ pub struct Settings {
     pub save_list_last_expanded: bool,
     #[serde(default = "default_value::default_zero_u32")]
     pub max_auto_backup_count: u32,
+    /// Maximum number of extra overwrite backups to keep per game.
+    /// Keep the newest N backups; 0 means unlimited.
+    #[serde(default = "default_value::default_five_u32")]
+    pub max_extra_backup_count: u32,
     #[serde(default = "default_value::default")]
     pub appearance: AppearanceSettings,
 }
@@ -86,6 +90,7 @@ impl Default for Settings {
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
             max_auto_backup_count: default_value::default_zero_u32(),
+            max_extra_backup_count: default_value::default_five_u32(),
             appearance: AppearanceSettings::default(),
         }
     }

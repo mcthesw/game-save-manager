@@ -2,7 +2,7 @@ use log::{info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{collections::HashMap, fs};
 use tauri::{AppHandle, Emitter};
 
@@ -173,7 +173,7 @@ impl Game {
         let backup_path = get_backup_path()?.join(&self.name);
         if config.settings.extra_backup_when_apply {
             info!(target:"rgsm::backup::game","Creating extra backup.");
-            if let Err(e) = self.create_overwrite_snapshot() {
+            if let Err(e) = self.create_overwrite_snapshot(config.settings.max_extra_backup_count) {
                 if let Some(app_handle) = app_handle {
                     app_handle
                         .emit(
@@ -198,7 +198,10 @@ impl Game {
 
         Result::Ok(())
     }
-    pub fn create_overwrite_snapshot(&self) -> Result<(), BackupError> {
+    pub fn create_overwrite_snapshot(
+        &self,
+        max_extra_backup_count: u32,
+    ) -> Result<(), BackupError> {
         let extra_backup_path = get_backup_path()?.join(&self.name).join("extra_backup");
 
         // Create extra backup
@@ -209,26 +212,18 @@ impl Game {
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
         let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
-        compress_to_file(&self.save_paths, zip_path)?;
-
-        // Delete oldest extra backup if there are more than 5 file
-        let extra_backups_dir: Vec<_> = extra_backup_path.read_dir()?.collect();
-        let mut extra_backups = Vec::new();
-        if extra_backups_dir.len() >= 5 {
-            extra_backups_dir.into_iter().try_for_each(|f| {
-                extra_backups.push(
-                    f?.file_name()
-                        .to_str()
-                        .ok_or(BackupError::NonePathError)?
-                        .to_string(),
+        if let Err(e) = compress_to_file(&self.save_paths, zip_path) {
+            if let Err(rm_err) = fs::remove_file(zip_path) {
+                warn!(
+                    target: "rgsm::backup",
+                    "Failed to cleanup failed extra backup zip: {:?}",
+                    rm_err
                 );
-                Result::<(), BackupError>::Ok(())
-            })?;
-            extra_backups.sort();
-            let oldest = extra_backups.first().ok_or(BackupError::NonePathError)?; // 一定要改好这一行
-            info!("Remove oldest: {:?}", oldest);
-            fs::remove_file(extra_backup_path.join(oldest))?;
+            }
+            return Err(e.into());
         }
+
+        cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
         Result::Ok(())
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<(), BackupError> {
@@ -345,4 +340,41 @@ impl Game {
         self.set_game_snapshots_info(&saves)?;
         Ok(())
     }
+}
+
+fn cleanup_oldest_extra_backups(
+    extra_backup_path: &Path,
+    max_count: u32,
+) -> Result<(), BackupError> {
+    if max_count == 0 {
+        return Ok(());
+    }
+
+    let mut items: Vec<_> = extra_backup_path
+        .read_dir()?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let path = e.path();
+            if path.extension().and_then(|x| x.to_str()) != Some("zip") {
+                return None;
+            }
+            let file_name = path.file_name()?.to_os_string();
+            let modified = fs::metadata(&path).ok()?.modified().ok()?;
+            Some((modified, file_name))
+        })
+        .collect();
+
+    if items.len() <= max_count as usize {
+        return Ok(());
+    }
+
+    items.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+
+    let to_delete = items.len() - max_count as usize;
+    for (_mtime, file_name) in items.into_iter().take(to_delete) {
+        let p = extra_backup_path.join(file_name);
+        let _ = fs::remove_file(p);
+    }
+
+    Ok(())
 }

@@ -59,6 +59,7 @@ impl Default for Config {
                 save_list_expand_behavior: SaveListExpandBehavior::default(),
                 save_list_last_expanded: false,
                 max_auto_backup_count: 0,
+                max_extra_backup_count: 5,
                 appearance: AppearanceSettings::default(),
             },
             favorites: vec![],

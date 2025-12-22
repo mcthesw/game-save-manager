@@ -1,4 +1,4 @@
-use crate::backup::{Game, GameSnapshots};
+use crate::backup::{ExtraBackupItem, Game, GameSnapshots};
 use crate::cloud_sync::{self, Backend, upload_all, upload_game_snapshots};
 use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
@@ -189,6 +189,47 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
         e.to_string()
     })?;
     let p = backup_path.join(game.name);
+    Ok(open::that(p).is_ok())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_game_extra_backups(game: Game) -> Result<Vec<ExtraBackupItem>, String> {
+    info!(target:"rgsm::ipc", "Getting extra backups for game: {:?}", game);
+    backup::list_extra_backups(&game).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to list extra backups: {:?}", e);
+        e.to_string()
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_extra_backup(game: Game, date: String) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Deleting extra backup: {:?} for game: {:?}", date, game);
+    backup::delete_extra_backup(&game, &date).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to delete extra backup: {:?}", e);
+        e.to_string()
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn restore_extra_backup(game: Game, date: String, app: AppHandle) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Restoring extra backup: {:?} for game: {:?}", date, game);
+    backup::restore_extra_backup(&game, &date, Some(&app)).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to restore extra backup: {:?}", e);
+        e.to_string()
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_extra_backup_folder(game: Game) -> Result<bool, String> {
+    info!(target:"rgsm::ipc", "Opening extra backup folder for game: {:?}", game);
+    let p = backup::extra_backup_folder_path(&game).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get extra backup path: {:?}", e);
+        e.to_string()
+    })?;
     Ok(open::that(p).is_ok())
 }
 
