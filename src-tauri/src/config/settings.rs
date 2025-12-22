@@ -65,7 +65,7 @@ pub struct Settings {
     #[serde(default = "default_value::default_zero_u32")]
     pub max_auto_backup_count: u32,
     /// Maximum number of extra overwrite backups to keep per game.
-    /// 0 means unlimited.
+    /// Keep the newest N backups; 0 means unlimited.
     #[serde(default = "default_value::default_five_u32")]
     pub max_extra_backup_count: u32,
     #[serde(default = "default_value::default")]

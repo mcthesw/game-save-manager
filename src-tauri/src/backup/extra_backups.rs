@@ -52,13 +52,12 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
         });
     }
 
-    items.sort_by(|a, b| {
-        match (a.modified_time_ms, b.modified_time_ms) {
-            (Some(a_ms), Some(b_ms)) => a_ms.cmp(&b_ms).then_with(|| a.date.cmp(&b.date)),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => a.date.cmp(&b.date),
-        }
+    // Sort by modified time ascending (oldest first) to make retention cleanup predictable.
+    items.sort_by(|a, b| match (a.modified_time_ms, b.modified_time_ms) {
+        (Some(a_ms), Some(b_ms)) => a_ms.cmp(&b_ms).then_with(|| a.date.cmp(&b.date)),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.date.cmp(&b.date),
     });
 
     Ok(items)
@@ -66,7 +65,7 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
 
 pub fn delete_extra_backup(game: &Game, date: &str) -> Result<(), BackupError> {
     let dir = extra_backup_folder_path(game)?;
-    let zip_path = dir.join([date, ".zip"].concat());
+    let zip_path = dir.join(format!("{date}.zip"));
     if !zip_path.exists() {
         return Ok(());
     }
@@ -88,4 +87,3 @@ fn system_time_to_ms(t: SystemTime) -> Option<i64> {
     let d = t.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     i64::try_from(d.as_millis()).ok()
 }
-

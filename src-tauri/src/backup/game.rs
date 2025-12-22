@@ -210,11 +210,17 @@ impl Game {
             .to_string();
         let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
         if let Err(e) = compress_to_file(&self.save_paths, zip_path) {
-            let _ = fs::remove_file(zip_path);
+            if let Err(rm_err) = fs::remove_file(zip_path) {
+                warn!(
+                    target: "rgsm::backup",
+                    "Failed to cleanup failed extra backup zip: {:?}",
+                    rm_err
+                );
+            }
             return Err(e.into());
         }
 
-        cleanup_old_extra_backups(&extra_backup_path, max_extra_backup_count)?;
+        cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
         Result::Ok(())
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<(), BackupError> {
@@ -333,7 +339,7 @@ impl Game {
     }
 }
 
-fn cleanup_old_extra_backups(extra_backup_path: &PathBuf, max_count: u32) -> Result<(), BackupError> {
+fn cleanup_oldest_extra_backups(extra_backup_path: &PathBuf, max_count: u32) -> Result<(), BackupError> {
     if max_count == 0 {
         return Ok(());
     }
