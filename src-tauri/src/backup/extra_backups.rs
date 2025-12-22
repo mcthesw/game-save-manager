@@ -52,12 +52,12 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
         });
     }
 
-    // Sort by modified time ascending (oldest first) to make retention cleanup predictable.
+    // Sort by modified time descending (newest first) for better UX.
     items.sort_by(|a, b| match (a.modified_time_ms, b.modified_time_ms) {
-        (Some(a_ms), Some(b_ms)) => a_ms.cmp(&b_ms).then_with(|| a.date.cmp(&b.date)),
+        (Some(a_ms), Some(b_ms)) => b_ms.cmp(&a_ms).then_with(|| b.date.cmp(&a.date)),
         (Some(_), None) => std::cmp::Ordering::Less,
         (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => a.date.cmp(&b.date),
+        (None, None) => b.date.cmp(&a.date),
     });
 
     Ok(items)

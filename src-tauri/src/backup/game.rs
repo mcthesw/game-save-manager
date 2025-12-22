@@ -2,7 +2,7 @@ use log::{info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{collections::HashMap, fs};
 use tauri::{AppHandle, Emitter};
 
@@ -198,7 +198,10 @@ impl Game {
 
         Result::Ok(())
     }
-    pub fn create_overwrite_snapshot(&self, max_extra_backup_count: u32) -> Result<(), BackupError> {
+    pub fn create_overwrite_snapshot(
+        &self,
+        max_extra_backup_count: u32,
+    ) -> Result<(), BackupError> {
         let extra_backup_path = get_backup_path()?.join(&self.name).join("extra_backup");
 
         // Create extra backup
@@ -339,7 +342,10 @@ impl Game {
     }
 }
 
-fn cleanup_oldest_extra_backups(extra_backup_path: &PathBuf, max_count: u32) -> Result<(), BackupError> {
+fn cleanup_oldest_extra_backups(
+    extra_backup_path: &Path,
+    max_count: u32,
+) -> Result<(), BackupError> {
     if max_count == 0 {
         return Ok(());
     }

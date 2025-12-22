@@ -14,7 +14,7 @@
     "max_auto_backup_count": "Maximum number of automatic backups to keep (0 = unlimited)",
     "max_extra_backup_count": "Maximum number of extra overwrite backups to keep (0 = unlimited)",
     "exit_to_tray": "Minimize to tray",
-    "extra_backup_when_apply": "Perform extra backups before apply (in the./save_data/game name/extra_backup folder)",
+    "extra_backup_when_apply": "Perform extra backups before apply (in the ./save_data/game name/extra_backup folder)",
     "enable_dark_mode": "Dark mode",
     "adjust_game_order": "Adjust the display order of the game (settings need to be saved)",
     "name": "Game name",
