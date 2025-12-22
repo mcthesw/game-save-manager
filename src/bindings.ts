@@ -117,6 +117,38 @@ async openBackupFolder(game: Game) : Promise<Result<boolean, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getGameExtraBackups(game: Game) : Promise<Result<ExtraBackupItem[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_game_extra_backups", { game }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteExtraBackup(game: Game, date: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_extra_backup", { game, date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async restoreExtraBackup(game: Game, date: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("restore_extra_backup", { game, date }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async openExtraBackupFolder(game: Game) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_extra_backup_folder", { game }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async checkCloudBackend(backend: Backend) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("check_cloud_backend", { backend }) };
@@ -330,7 +362,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.3"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.3"} as const;
 
 /** user-defined types **/
 
@@ -376,6 +408,15 @@ export type Config = { version: string; backup_path: string; games: Game[]; sett
  */
 devices?: Partial<{ [key in string]: Device }> }
 export type Device = { id: string; name: string }
+export type ExtraBackupItem = { 
+/**
+ * Filename without extension, e.g. `Overwrite_2025-12-22_12-34-56`.
+ */
+date: string; size: number; 
+/**
+ * File modification time in milliseconds since Unix epoch.
+ */
+modified_time_ms: number | null }
 export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolean; children: FavoriteTreeNode[] | null }
 /**
  * A game struct contains the save units and the game's launcher
@@ -498,7 +539,12 @@ export type SaveUnit = { unit_type: SaveUnitType; paths?: Partial<{ [key in stri
  * A save unit should be a file or a folder
  */
 export type SaveUnitType = "File" | "Folder"
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; appearance?: AppearanceSettings }
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; 
+/**
+ * Maximum number of extra overwrite backups to keep per game.
+ * 0 means unlimited.
+ */
+max_extra_backup_count?: number; appearance?: AppearanceSettings }
 /**
  * A backup is a zip file that contains
  * all the file that the save unit has declared.
