@@ -770,6 +770,16 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <span class="setting-label">{{ $t('settings.extra_backup_when_apply') }}</span>
           </div>
           <div class="setting-box">
+            <ElInputNumber
+              v-model="config.settings.max_extra_backup_count"
+              :min="0"
+              :max="999"
+              :step="1"
+              :disabled="!config.settings.extra_backup_when_apply"
+            />
+            <span class="setting-label">{{ $t('settings.max_extra_backup_count') }}</span>
+          </div>
+          <div class="setting-box">
             <ElSwitch v-model="config.settings.default_delete_before_apply" />
             <span class="setting-label">{{ $t('settings.default_delete_before_apply') }}</span>
           </div>
