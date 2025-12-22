@@ -52,6 +52,8 @@ switch (cloud_settings.value!.backend!.type) {
   case 'S3':
     s3_settings.value = cloud_settings.value!.backend as S3;
     break;
+  case 'Disabled':
+    break;
   default:
     showError({ message: $t('sync_settings.unknown_backend') }); // TODO:更换成更合适的提醒
     break;
