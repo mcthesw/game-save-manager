@@ -72,7 +72,7 @@ impl Backend {
     pub async fn check(&self) -> Result<(), BackendError> {
         const TEST_FILENAME: &str = "test.txt";
         const TEST_CONTENT: &str = "Hello from game save manager";
-        const TEST_DIR: &str = "test_dir";
+        const TEST_DIR: &str = "test_dir/";
 
         let op = self.get_op()?;
         // Step1: 检查是否可以列出文件
