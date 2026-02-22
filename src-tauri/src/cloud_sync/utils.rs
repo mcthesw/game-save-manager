@@ -40,7 +40,9 @@ pub async fn upload_all(op: &Operator) -> Result<(), BackendError> {
         for backup in backup_info.backups {
             let cloud_zip_path = game_cloud_zip_path(&game.name, &backup.date)?;
             let local_zip_path = if backup.path.is_empty() {
-                backup_root.join(&game.name).join(format!("{}.zip", backup.date))
+                backup_root
+                    .join(&game.name)
+                    .join(format!("{}.zip", backup.date))
             } else {
                 PathBuf::from(&backup.path)
             };
