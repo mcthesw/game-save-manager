@@ -7,6 +7,7 @@ use std::{collections::HashMap, fs};
 use tauri::{AppHandle, Emitter};
 
 use crate::backup::{GameSnapshots, SaveUnit, Snapshot, compress_to_file, decompress_from_file};
+use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_backup_path, get_config, set_config};
 use crate::device::DeviceId;
@@ -91,7 +92,9 @@ impl Game {
                 .map(|s| s.to_str().ok_or(BackupError::NonePathError))
                 .collect::<Result<Vec<&str>, BackupError>>()?
                 .join("/");
-            op.write(&p, fs::read(&zip_path)?).await?;
+            CloudTransfer::new(&op)
+                .upload_file_streaming(&zip_path, &p)
+                .await?;
         }
         Result::Ok(())
     }
