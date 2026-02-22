@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use opendal::layers::RetryLayer;
 use opendal::Operator;
 use opendal::services;
 use serde::{Deserialize, Serialize};
@@ -32,6 +35,14 @@ pub enum Backend {
 }
 
 impl Backend {
+    fn retry_layer() -> RetryLayer {
+        RetryLayer::new()
+            .with_jitter()
+            .with_min_delay(Duration::from_millis(200))
+            .with_max_delay(Duration::from_secs(2))
+            .with_max_times(3)
+    }
+
     /// 获取 Operator 实例
     pub fn get_op(&self) -> Result<Operator, BackendError> {
         let root = get_config()?.settings.cloud_settings.root_path;
@@ -47,7 +58,7 @@ impl Backend {
                     .username(username)
                     .password(password)
                     .root(&root);
-                Ok(Operator::new(builder)?.finish())
+                Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
             }
             Backend::S3 {
                 endpoint,
@@ -63,7 +74,7 @@ impl Backend {
                     .access_key_id(access_key_id)
                     .secret_access_key(secret_access_key)
                     .root(&root);
-                Ok(Operator::new(builder)?.finish())
+                Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
             }
         }
     }
