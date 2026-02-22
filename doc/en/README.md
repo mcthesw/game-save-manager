@@ -48,8 +48,19 @@ The software is divided into two main parts:
   - Uses vue-i18n for internationalization
 - The backend is responsible for managing game save files. It is written in Rust
   - Uses opendal to access cloud storage
+  - Cloud sync is split by responsibility:
+    - `cloud_sync/backend.rs`: backend setup and retry-enabled operator creation
+    - `cloud_sync/transfer.rs`: unified streaming upload/download abstraction (with hooks)
+    - `cloud_sync/utils.rs`: sync workflows
+    - `cloud_sync/facade.rs`: entry points for IPC commands
   - Uses serde for serialization and deserialization of data
   - Uses thiserror and anyhow for error handling
+
+### Backend Layering Notes
+
+- Keep `ipc_handler.rs` as a thin command export layer.
+- Do not construct OpenDAL operators in IPC handlers; call cloud-sync facade functions instead.
+- Put transfer logic in `cloud_sync/transfer.rs` and keep workflow orchestration in `cloud_sync/utils.rs`.
 
 ## Development Process
 

@@ -48,8 +48,19 @@
   - 使用 vue-i18n 进行国际化
 - 后端负责管理游戏存档文件。它使用 Rust 编写
   - 使用 opendal 来访问云存储
+  - 云同步按职责拆分为：
+    - `cloud_sync/backend.rs`：后端配置与带重试策略的 Operator 构建
+    - `cloud_sync/transfer.rs`：统一流式上传/下载抽象（含 hook 扩展点）
+    - `cloud_sync/utils.rs`：同步工作流编排
+    - `cloud_sync/facade.rs`：供 IPC 调用的领域入口
   - 使用 serde 来序列化和反序列化数据
   - 使用 thiserror 和 anyhow 进行错误处理
+
+### 后端分层约定
+
+- 保持 `ipc_handler.rs` 为薄导出层。
+- IPC 层不要直接构造 OpenDAL Operator，应调用 cloud-sync facade。
+- 传输逻辑放在 `cloud_sync/transfer.rs`，流程编排放在 `cloud_sync/utils.rs`。
 
 ## 开发流程
 
