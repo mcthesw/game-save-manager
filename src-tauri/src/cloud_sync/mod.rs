@@ -1,5 +1,6 @@
 mod backend;
 mod cloud_settings;
+pub mod transfer;
 mod utils;
 
 pub use backend::Backend;
