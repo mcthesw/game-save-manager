@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use opendal::layers::RetryLayer;
 use opendal::Operator;
+use opendal::layers::RetryLayer;
 use opendal::services;
 use serde::{Deserialize, Serialize};
 use specta::Type;
