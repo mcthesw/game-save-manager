@@ -70,9 +70,10 @@ impl Backend {
 
     /// 检查后端是否可用
     pub async fn check(&self) -> Result<(), BackendError> {
+        // FIXME: 某些后端不支持目录操作，因此这里注释掉目录的创建和删除检查
         const TEST_FILENAME: &str = "test.txt";
         const TEST_CONTENT: &str = "Hello from game save manager";
-        const TEST_DIR: &str = "test_dir/";
+        // const TEST_DIR: &str = "test_dir/";
 
         let op = self.get_op()?;
         // Step1: 检查是否可以列出文件
@@ -101,13 +102,13 @@ impl Backend {
             .await
             .map_err(|_| BackendError::OperatorCheck("Failed to delete test file.".into()))?;
         // Step5: 检查是否可以创建目录
-        op.create_dir(TEST_DIR)
-            .await
-            .map_err(|_| BackendError::OperatorCheck("Failed to create test directory.".into()))?;
+        // op.create_dir(TEST_DIR)
+        //     .await
+        //     .map_err(|_| BackendError::OperatorCheck("Failed to create test directory.".into()))?;
         // Step6: 检查是否可以删除目录
-        op.delete(TEST_DIR)
-            .await
-            .map_err(|_| BackendError::OperatorCheck("Failed to delete test directory.".into()))?;
+        // op.delete(TEST_DIR)
+        //     .await
+        //     .map_err(|_| BackendError::OperatorCheck("Failed to delete test directory.".into()))?;
         Ok(())
     }
 }
