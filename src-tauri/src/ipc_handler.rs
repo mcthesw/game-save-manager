@@ -1,5 +1,5 @@
 use crate::backup::{ExtraBackupItem, Game, GameSnapshots};
-use crate::cloud_sync::{self, Backend, upload_all, upload_game_snapshots};
+use crate::cloud_sync::{self, Backend, upload_game_snapshots};
 use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
 use crate::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
@@ -253,11 +253,7 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
 #[specta::specta]
 pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Uploading all backups to cloud backend: {:?}", backend.clone().sanitize());
-    let op = backend.get_op().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get cloud backend operator: {:?}", e);
-        e.to_string()
-    })?;
-    match upload_all(&op).await {
+    match cloud_sync::upload_all_from_backend(&backend).await {
         Ok(_) => {
             info!(target:"rgsm::ipc", "Successfully uploaded all backups to cloud backend: {:?}", backend.sanitize());
             Ok(())
@@ -273,11 +269,7 @@ pub async fn cloud_upload_all(backend: Backend) -> Result<(), String> {
 #[specta::specta]
 pub async fn cloud_download_all(backend: Backend) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Downloading all backups from cloud backend: {:?}", backend.clone().sanitize());
-    let op = backend.get_op().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get cloud backend operator: {:?}", e);
-        e.to_string()
-    })?;
-    match cloud_sync::download_all(&op).await {
+    match cloud_sync::download_all_from_backend(&backend).await {
         Ok(_) => {
             info!(target:"rgsm::ipc", "Successfully downloaded all backups from cloud backend: {:?}", backend.sanitize());
             Ok(())
