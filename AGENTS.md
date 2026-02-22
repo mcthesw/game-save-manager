@@ -51,8 +51,13 @@ The application is divided into a frontend and a backend.
   - `src/main.rs`: Application entry point.
   - `src/lib.rs`: Main library, defines Tauri commands.
   - `src/ipc_handler.rs`: **Thin export layer only.** This file should only contain `#[tauri::command]` function signatures that delegate to other modules. Do not put business logic here - keep commands simple (1-3 lines) that just call functions from domain modules and handle error conversion. Complex logic belongs in dedicated modules like `backup/`, `config/`, `path_resolver.rs`, etc.
+    - For cloud sync commands, IPC should call the cloud-sync facade and must not construct/use OpenDAL `Operator` directly.
   - `src/backup/`: Logic for creating and restoring game save backups.
   - `src/cloud_sync/`: Logic for WebDAV and S3 synchronization.
+    - `backend.rs`: Backend config and OpenDAL operator creation (with retry policy).
+    - `transfer.rs`: Unified streaming transfer abstraction and hook extension points.
+    - `utils.rs`: Cloud sync workflows (full upload/download, metadata sync).
+    - `facade.rs`: Domain entry points used by IPC layer.
   - `src/config/`: Manages `GameSaveManager.config.json`.
   - `src/quick_actions/`: Implements hotkeys, tray menu, and timers.
   - `src/path_resolver.rs`: Path variable resolution and filesystem checks.
@@ -101,10 +106,16 @@ All user-facing strings must be internationalized.
 
 ## Testing Guidelines
 
-The project currently relies on manual testing. Before submitting a pull request, verify that core features work as expected:
+The project has both automated tests and manual verification. Before submitting a pull request:
+
+- Run automated checks:
+  - `cargo check`
+  - `cargo test --lib` (or `cargo test` when related)
+  - `cargo clippy --all-targets --all-features`
+- Ensure all checks pass without warnings.
+- Then verify core features manually:
 
 - Backup and restore operations.
 - Cloud synchronization with a test account.
 - Hotkey and system tray functionality.
 - Settings are saved and loaded correctly after restarting the app.
-- Always run clippy(and other linters) before committing.
