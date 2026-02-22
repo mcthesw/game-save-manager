@@ -30,10 +30,7 @@ pub struct CloudTransfer<'a, H: TransferHook = NoopTransferHook> {
 
 impl<'a> CloudTransfer<'a, NoopTransferHook> {
     pub fn new(op: &'a Operator) -> Self {
-        Self {
-            op,
-            hook: NoopTransferHook,
-        }
+        Self::with_hook(op, NoopTransferHook)
     }
 }
 
