@@ -1,13 +1,18 @@
 use crate::backup::archive::{
-    ZIP_COMMENT_LOCAL_TIME_MARKER, ZipTimestampInterpretation, add_directory,
-    system_time_to_zip_datetime, zip_datetime_to_system_time,
-    zip_timestamp_interpretation_from_comment,
+    ZIP_COMMENT_LOCAL_TIME_MARKER, ZipTimestampInterpretation, add_directory, compress_to_file,
+    decompress_from_file, local_result_to_timestamp, system_time_to_zip_datetime,
+    zip_datetime_to_system_time, zip_timestamp_interpretation_from_comment,
 };
+use crate::backup::{SaveUnit, SaveUnitType};
+use crate::config::Config;
+use crate::device::get_current_device_id;
 use filetime::{FileTime, set_file_mtime};
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
+    sync::Mutex,
     time::{Duration, SystemTime},
 };
 use zip::{ZipWriter, write::SimpleFileOptions};
@@ -15,7 +20,55 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Datelike, Timelike};
+    use chrono::{Datelike, LocalResult, Timelike};
+
+    static CONFIG_FILE_LOCK: Mutex<()> = Mutex::new(());
+
+    struct ConfigFileGuard {
+        path: PathBuf,
+        original_contents: Option<Vec<u8>>,
+    }
+
+    impl ConfigFileGuard {
+        fn write_default_config() -> Result<Self, Box<dyn std::error::Error>> {
+            let path = crate::app_dirs::resolve_app_path("GameSaveManager.config.json");
+            let original_contents = fs::read(&path).ok();
+
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+
+            fs::write(&path, serde_json::to_vec_pretty(&Config::default())?)?;
+
+            Ok(Self {
+                path,
+                original_contents,
+            })
+        }
+    }
+
+    impl Drop for ConfigFileGuard {
+        fn drop(&mut self) {
+            if let Some(contents) = &self.original_contents {
+                let _ = fs::write(&self.path, contents);
+            } else {
+                let _ = fs::remove_file(&self.path);
+            }
+        }
+    }
+
+    fn build_file_save_unit(path: &Path) -> SaveUnit {
+        let mut paths = HashMap::new();
+        paths.insert(
+            get_current_device_id().clone(),
+            path.to_string_lossy().to_string(),
+        );
+        SaveUnit {
+            unit_type: SaveUnitType::File,
+            paths,
+            delete_before_apply: false,
+        }
+    }
 
     #[test]
     fn test_timestamp_preservation_file() -> Result<(), Box<dyn std::error::Error>> {
@@ -254,5 +307,152 @@ mod tests {
             "Legacy UTC timestamp should be preserved (within 2 seconds)"
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_compress_and_decompress_file_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = CONFIG_FILE_LOCK.lock().expect("config lock poisoned");
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+
+        let save_file = temp_path.join("profile.sav");
+        fs::write(&save_file, b"original-content")?;
+
+        let original_time = SystemTime::now() - Duration::from_secs(12 * 3600 + 45);
+        set_file_mtime(&save_file, FileTime::from_system_time(original_time))?;
+
+        let save_unit = build_file_save_unit(&save_file);
+        let date = "e2e_snapshot";
+        let zip_path = backup_dir.join(format!("{date}.zip"));
+
+        let compressed_size = compress_to_file(std::slice::from_ref(&save_unit), &zip_path)?;
+        assert!(compressed_size > 0);
+
+        let zip_file = File::open(&zip_path)?;
+        let zip_archive = zip::ZipArchive::new(zip_file)?;
+        assert_eq!(
+            zip_archive.comment(),
+            ZIP_COMMENT_LOCAL_TIME_MARKER.as_bytes()
+        );
+
+        fs::write(&save_file, b"mutated-content")?;
+        set_file_mtime(&save_file, FileTime::from_system_time(SystemTime::now()))?;
+
+        decompress_from_file(std::slice::from_ref(&save_unit), &backup_dir, date, None)?;
+
+        let restored_content = fs::read(&save_file)?;
+        assert_eq!(restored_content, b"original-content");
+
+        let restored_time = fs::metadata(&save_file)?.modified()?;
+        let original_secs = original_time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        let restored_secs = restored_time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        assert!(
+            (original_secs as i64 - restored_secs as i64).abs() <= 2,
+            "End-to-end restore should preserve file timestamp (within 2 seconds)"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_decompress_legacy_zip_without_comment_uses_utc()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = CONFIG_FILE_LOCK.lock().expect("config lock poisoned");
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+
+        let save_file = temp_path.join("legacy_profile.sav");
+        fs::write(&save_file, b"newer-content")?;
+
+        let date = "legacy_snapshot";
+        let zip_path = backup_dir.join(format!("{date}.zip"));
+        let expected_time = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_001);
+        let expected_utc = chrono::DateTime::<chrono::Utc>::from(expected_time);
+        let zip_time = zip::DateTime::from_date_and_time(
+            expected_utc.year() as u16,
+            expected_utc.month() as u8,
+            expected_utc.day() as u8,
+            expected_utc.hour() as u8,
+            expected_utc.minute() as u8,
+            expected_utc.second() as u8,
+        )?;
+
+        let mut zip_writer = ZipWriter::new(File::create(&zip_path)?);
+        zip_writer.start_file(
+            save_file
+                .file_name()
+                .expect("file name must exist")
+                .to_str()
+                .expect("utf-8 filename required"),
+            SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Bzip2)
+                .last_modified_time(zip_time),
+        )?;
+        zip_writer.write_all(b"legacy-content")?;
+        zip_writer.finish()?;
+
+        let zip_archive = zip::ZipArchive::new(File::open(&zip_path)?)?;
+        assert!(
+            zip_archive.comment().is_empty(),
+            "Legacy archive should have no timestamp marker"
+        );
+
+        let save_unit = build_file_save_unit(&save_file);
+        decompress_from_file(std::slice::from_ref(&save_unit), &backup_dir, date, None)?;
+
+        let restored_content = fs::read(&save_file)?;
+        assert_eq!(restored_content, b"legacy-content");
+
+        let restored_time = fs::metadata(&save_file)?.modified()?;
+        let expected_secs = expected_time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        let restored_secs = restored_time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        assert!(
+            (expected_secs as i64 - restored_secs as i64).abs() <= 2,
+            "Legacy archive restore should preserve UTC timestamp (within 2 seconds)"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_local_result_to_timestamp_prefers_early_ambiguous_value() {
+        let naive = chrono::NaiveDate::from_ymd_opt(2024, 11, 3)
+            .expect("valid date")
+            .and_hms_opt(1, 30, 0)
+            .expect("valid time");
+        let early = chrono::DateTime::<chrono::Local>::from(
+            SystemTime::UNIX_EPOCH + Duration::from_secs(1_730_631_600),
+        );
+        let late = early + chrono::Duration::hours(1);
+
+        let resolved_ts = local_result_to_timestamp(naive, LocalResult::Ambiguous(early, late));
+        assert_eq!(resolved_ts, early.with_timezone(&chrono::Utc).timestamp());
+    }
+
+    #[test]
+    fn test_local_result_to_timestamp_falls_back_to_utc_when_none() {
+        let naive = chrono::NaiveDate::from_ymd_opt(2024, 3, 10)
+            .expect("valid date")
+            .and_hms_opt(2, 30, 0)
+            .expect("valid time");
+
+        let resolved_ts = local_result_to_timestamp(naive, LocalResult::None);
+        assert_eq!(resolved_ts, naive.and_utc().timestamp());
     }
 }
