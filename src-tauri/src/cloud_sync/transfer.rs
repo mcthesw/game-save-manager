@@ -1,5 +1,6 @@
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use opendal::Operator;
 use tokio::fs;
@@ -7,6 +8,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 use crate::preclude::*;
+
+static TEMP_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const TEMP_FILE_CREATE_RETRY_LIMIT: usize = 16;
 
 pub trait TransferHook: Send + Sync {
     fn on_upload_start(&self, _local_path: &Path, _remote_path: &str) {}
@@ -32,6 +36,123 @@ impl<'a> CloudTransfer<'a, NoopTransferHook> {
     pub fn new(op: &'a Operator) -> Self {
         Self::with_hook(op, NoopTransferHook)
     }
+}
+
+/// Build a temp file path next to the destination so rename stays in the same directory.
+fn build_scoped_temp_path(local_path: &Path, suffix: &str) -> Result<PathBuf, BackendError> {
+    let parent = local_path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Path has no parent: {}", local_path.display()),
+        )
+    })?;
+    let file_name = local_path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Path has no file name: {}", local_path.display()),
+        )
+    })?;
+
+    let seq = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let mut temp_name = std::ffi::OsString::from(".");
+    temp_name.push(file_name);
+    temp_name.push(format!(".{suffix}.{seq}.tmp"));
+    Ok(parent.join(temp_name))
+}
+
+/// Create a temp file with `create_new(true)` and retry on rare name collisions.
+async fn create_temp_file_with_retry(
+    local_path: &Path,
+    suffix: &str,
+) -> Result<(PathBuf, fs::File), BackendError> {
+    let mut last_already_exists_err = None;
+    for _ in 0..TEMP_FILE_CREATE_RETRY_LIMIT {
+        let temp_path = build_scoped_temp_path(local_path, suffix)?;
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+            .await
+        {
+            Ok(file) => return Ok((temp_path, file)),
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                last_already_exists_err = Some(err);
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+
+    Err(last_already_exists_err
+        .unwrap_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!(
+                    "Failed to create a unique temp file for {} after {} attempts",
+                    local_path.display(),
+                    TEMP_FILE_CREATE_RETRY_LIMIT
+                ),
+            )
+        })
+        .into())
+}
+
+/// Replace destination with temp file while preserving the old file on failure.
+///
+/// On platforms where direct rename-overwrite can fail (for example Windows),
+/// this falls back to: move old file to backup -> move temp to destination -> rollback if needed.
+async fn replace_path_preserving_existing(
+    temp_path: &Path,
+    local_path: &Path,
+) -> Result<(), BackendError> {
+    if fs::rename(temp_path, local_path).await.is_ok() {
+        return Ok(());
+    }
+
+    if !fs::try_exists(local_path).await? {
+        fs::rename(temp_path, local_path).await?;
+        return Ok(());
+    }
+
+    let backup_path = build_scoped_temp_path(local_path, "backup")?;
+    fs::rename(local_path, &backup_path).await?;
+
+    match fs::rename(temp_path, local_path).await {
+        Ok(_) => {
+            let _ = fs::remove_file(&backup_path).await;
+            Ok(())
+        }
+        Err(err) => {
+            let _ = fs::rename(&backup_path, local_path).await;
+            let _ = fs::remove_file(temp_path).await;
+            Err(err.into())
+        }
+    }
+}
+
+/// Write stream data into a temp file and commit via atomic-ish rename semantics.
+///
+/// If the stream fails midway, the destination file remains untouched.
+async fn write_stream_atomically<R: tokio::io::AsyncRead + Unpin>(
+    mut source: R,
+    local_path: &Path,
+) -> Result<(), BackendError> {
+    if let Some(parent) = local_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    let (temp_path, mut target) = create_temp_file_with_retry(local_path, "download").await?;
+
+    let copy_result = tokio::io::copy(&mut source, &mut target).await;
+    if let Err(err) = copy_result {
+        let _ = fs::remove_file(&temp_path).await;
+        return Err(err.into());
+    }
+
+    target.flush().await?;
+    target.sync_all().await?;
+    drop(target);
+
+    replace_path_preserving_existing(&temp_path, local_path).await
 }
 
 impl<'a, H: TransferHook> CloudTransfer<'a, H> {
@@ -67,10 +188,6 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
     ) -> Result<(), BackendError> {
         self.hook.on_download_start(remote_path, local_path);
 
-        if let Some(parent) = local_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-
         let mut source = self
             .op
             .reader(remote_path)
@@ -78,9 +195,9 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
             .into_futures_async_read(..)
             .await?
             .compat();
-        let mut target = fs::File::create(local_path).await?;
-        tokio::io::copy(&mut source, &mut target).await?;
-        target.flush().await?;
+
+        // Keep existing snapshot intact if download fails midway.
+        write_stream_atomically(&mut source, local_path).await?;
 
         self.hook.on_download_done(remote_path, local_path);
         Ok(())
@@ -117,6 +234,24 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
         source.read_to_end(&mut data).await?;
         Ok(data)
     }
+
+    pub async fn write_local_bytes_atomically(
+        &self,
+        local_path: &Path,
+        data: &[u8],
+    ) -> Result<(), BackendError> {
+        if let Some(parent) = local_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+
+        let (temp_path, mut target) = create_temp_file_with_retry(local_path, "bytes").await?;
+        target.write_all(data).await?;
+        target.flush().await?;
+        target.sync_all().await?;
+        drop(target);
+
+        replace_path_preserving_existing(&temp_path, local_path).await
+    }
 }
 
 pub fn path_to_remote_key(path: &Path) -> Result<String, BackendError> {
@@ -137,10 +272,13 @@ pub fn path_to_remote_key(path: &Path) -> Result<String, BackendError> {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::task::{Context, Poll};
 
     use opendal::Operator;
     use opendal::services;
+    use tokio::io::{AsyncRead, ReadBuf};
 
     use super::*;
 
@@ -257,6 +395,77 @@ mod tests {
         assert_eq!(transfer.hook.upload_done.load(Ordering::Relaxed), 1);
         assert_eq!(transfer.hook.download_start.load(Ordering::Relaxed), 1);
         assert_eq!(transfer.hook.download_done.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    struct FailAfterReader {
+        data: Vec<u8>,
+        pos: usize,
+        fail_after: usize,
+    }
+
+    impl AsyncRead for FailAfterReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            if self.pos >= self.fail_after {
+                return Poll::Ready(Err(io::Error::other("injected read failure")));
+            }
+
+            if self.pos >= self.data.len() {
+                return Poll::Ready(Ok(()));
+            }
+
+            let remaining_data = self.data.len() - self.pos;
+            let remaining_before_fail = self.fail_after - self.pos;
+            let to_copy = buf
+                .remaining()
+                .min(remaining_data)
+                .min(remaining_before_fail);
+            let start = self.pos;
+            let end = start + to_copy;
+            buf.put_slice(&self.data[start..end]);
+            self.pos = end;
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stream_download_keeps_existing_file_on_failure() -> Result<(), BackendError> {
+        let temp_dir = temp_dir::TempDir::new().expect("temp dir should be created");
+        let local_path = temp_dir.path().join("snapshot.zip");
+        fs::write(&local_path, b"existing-valid-backup").await?;
+
+        let reader = FailAfterReader {
+            data: b"new-backup-content".to_vec(),
+            pos: 0,
+            fail_after: 5,
+        };
+        let result = write_stream_atomically(reader, &local_path).await;
+        assert!(result.is_err());
+
+        let persisted = fs::read(&local_path).await?;
+        assert_eq!(persisted, b"existing-valid-backup");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_local_bytes_atomically_replaces_existing_file() -> Result<(), BackendError>
+    {
+        let op = build_memory_operator();
+        let transfer = CloudTransfer::new(&op);
+        let temp_dir = temp_dir::TempDir::new().expect("temp dir should be created");
+        let local_path = temp_dir.path().join("Backups.json");
+        fs::write(&local_path, b"old-json").await?;
+
+        transfer
+            .write_local_bytes_atomically(&local_path, b"new-json")
+            .await?;
+
+        let persisted = fs::read(&local_path).await?;
+        assert_eq!(persisted, b"new-json");
         Ok(())
     }
 }
