@@ -6,7 +6,11 @@ use std::path::{Path, PathBuf};
 use std::{collections::HashMap, fs};
 use tauri::{AppHandle, Emitter};
 
-use crate::backup::{GameSnapshots, SaveUnit, Snapshot, compress_to_file, decompress_from_file};
+use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
+use crate::backup::{
+    GameSnapshots, SaveUnit, Snapshot, TIMER_AUTO_BACKUP_DESCRIPTION, compress_to_file,
+    decompress_from_file,
+};
 use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::{upload_config, upload_game_snapshots};
 use crate::config::{get_backup_path, get_config, set_config};
@@ -23,6 +27,12 @@ pub struct Game {
     // Key: DeviceId (String), Value: Path (String)
     #[serde(default)]
     pub game_paths: HashMap<DeviceId, String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TimerSnapshotDecision {
+    Created,
+    SkippedUnchanged,
 }
 
 impl Game {
@@ -44,6 +54,7 @@ impl Game {
     pub async fn create_snapshot(&self, describe: &str) -> Result<(), BackupError> {
         let config = get_config()?;
         let backup_path = get_backup_path()?.join(&self.name); // the backup zip file should be placed here
+        // Keep the timestamp format sortable so lexicographic order equals chronological order.
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let save_paths = &self.save_paths; // everything you should copy
 
@@ -98,6 +109,69 @@ impl Game {
         }
         Result::Ok(())
     }
+
+    pub async fn create_timer_snapshot_if_changed(
+        &self,
+        describe: &str,
+    ) -> Result<TimerSnapshotDecision, BackupError> {
+        let infos = self.get_game_snapshots_info()?;
+        // `date` uses `%Y-%m-%d_%H-%M-%S`, so max lexicographic value is the newest snapshot.
+        let latest_auto_snapshot = infos
+            .backups
+            .iter()
+            .filter(|snapshot| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
+            .max_by_key(|snapshot| &snapshot.date);
+
+        let Some(latest_auto_snapshot) = latest_auto_snapshot else {
+            self.create_snapshot(describe).await?;
+            return Ok(TimerSnapshotDecision::Created);
+        };
+
+        let current_fingerprint = match fingerprint_source_state(&self.save_paths) {
+            Ok(fingerprint) => fingerprint,
+            Err(err) => {
+                warn!(
+                    target: "rgsm::backup::game",
+                    "Failed to fingerprint current save state, fallback to creating snapshot: {err:?}"
+                );
+                self.create_snapshot(describe).await?;
+                return Ok(TimerSnapshotDecision::Created);
+            }
+        };
+
+        let latest_zip_path = PathBuf::from(&latest_auto_snapshot.path);
+        match fingerprint_zip_state(&latest_zip_path) {
+            Ok(Some(previous_fingerprint)) if previous_fingerprint == current_fingerprint => {
+                info!(
+                    target: "rgsm::backup::game",
+                    "Skip timer auto backup for game {} because fingerprint is unchanged",
+                    self.name
+                );
+                Ok(TimerSnapshotDecision::SkippedUnchanged)
+            }
+            Ok(Some(_)) => {
+                self.create_snapshot(describe).await?;
+                Ok(TimerSnapshotDecision::Created)
+            }
+            Ok(None) => {
+                info!(
+                    target: "rgsm::backup::game",
+                    "Latest timer backup is legacy format; create one new timer backup before dedup"
+                );
+                self.create_snapshot(describe).await?;
+                Ok(TimerSnapshotDecision::Created)
+            }
+            Err(err) => {
+                warn!(
+                    target: "rgsm::backup::game",
+                    "Failed to fingerprint previous timer backup, fallback to creating snapshot: {err:?}"
+                );
+                self.create_snapshot(describe).await?;
+                Ok(TimerSnapshotDecision::Created)
+            }
+        }
+    }
+
     pub async fn cleanup_old_auto_backups(&self, max_count: u32) -> Result<(), BackupError> {
         if max_count == 0 {
             // 0 means unlimited, no cleanup needed
@@ -112,7 +186,7 @@ impl Game {
             .backups
             .iter()
             .enumerate()
-            .filter(|(_, snapshot)| snapshot.describe == "Auto Backup (Timer)")
+            .filter(|(_, snapshot)| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
             .collect();
 
         // If we're within the limit, no cleanup needed
@@ -120,7 +194,7 @@ impl Game {
             return Ok(());
         }
 
-        // Sort by date (oldest first)
+        // Sort by date (oldest first). Date string format preserves chronological order.
         auto_backups.sort_by(|a, b| a.1.date.cmp(&b.1.date));
 
         // Calculate how many to delete
