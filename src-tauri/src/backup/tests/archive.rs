@@ -1,10 +1,10 @@
+use super::support::{ConfigFileGuard, lock_config_file};
 use crate::backup::archive::{
     ZIP_COMMENT_LOCAL_TIME_MARKER, ZipTimestampInterpretation, add_directory, compress_to_file,
     decompress_from_file, local_result_to_timestamp, system_time_to_zip_datetime,
     zip_datetime_to_system_time, zip_timestamp_interpretation_from_comment,
 };
 use crate::backup::{SaveUnit, SaveUnitType};
-use crate::config::Config;
 use crate::device::get_current_device_id;
 use filetime::{FileTime, set_file_mtime};
 use std::{
@@ -12,7 +12,6 @@ use std::{
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard},
     time::{Duration, SystemTime},
 };
 use zip::{ZipWriter, write::SimpleFileOptions};
@@ -21,41 +20,6 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 mod tests {
     use super::*;
     use chrono::{Datelike, LocalResult, Timelike};
-
-    static CONFIG_FILE_LOCK: Mutex<()> = Mutex::new(());
-
-    struct ConfigFileGuard {
-        path: PathBuf,
-        original_contents: Option<Vec<u8>>,
-    }
-
-    impl ConfigFileGuard {
-        fn write_default_config() -> Result<Self, Box<dyn std::error::Error>> {
-            let path = crate::app_dirs::resolve_app_path("GameSaveManager.config.json");
-            let original_contents = fs::read(&path).ok();
-
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-
-            fs::write(&path, serde_json::to_vec_pretty(&Config::default())?)?;
-
-            Ok(Self {
-                path,
-                original_contents,
-            })
-        }
-    }
-
-    impl Drop for ConfigFileGuard {
-        fn drop(&mut self) {
-            if let Some(contents) = &self.original_contents {
-                let _ = fs::write(&self.path, contents);
-            } else {
-                let _ = fs::remove_file(&self.path);
-            }
-        }
-    }
 
     fn build_file_save_unit(path: &Path) -> SaveUnit {
         let mut paths = HashMap::new();
@@ -67,13 +31,6 @@ mod tests {
             unit_type: SaveUnitType::File,
             paths,
             delete_before_apply: false,
-        }
-    }
-
-    fn lock_config_file<'a>() -> MutexGuard<'a, ()> {
-        match CONFIG_FILE_LOCK.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
         }
     }
 
