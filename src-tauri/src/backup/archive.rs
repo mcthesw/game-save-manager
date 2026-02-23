@@ -320,6 +320,10 @@ pub fn decompress_from_file(
                         let option = fs_extra::file::CopyOptions::new().overwrite(true);
                         let prefix_root =
                             unit_path.parent().ok_or(BackupFileError::NonePathError)?;
+                        let restored_file_mtime = fs::metadata(&original_path)
+                            .ok()
+                            .and_then(|m| m.modified().ok())
+                            .map(FileTime::from_system_time);
                         if !prefix_root.exists() {
                             // 若文件夹不存在，需要发出警告
                             warn!(target:"rgsm::backup::archive","Path {:#?} not exists, auto created",prefix_root
@@ -351,6 +355,9 @@ pub fn decompress_from_file(
                             fs::remove_file(&unit_path)?;
                         }
                         move_file(original_path, &unit_path, &option)?;
+                        if let Some(file_time) = restored_file_mtime {
+                            let _ = set_file_mtime(&unit_path, file_time);
+                        }
                     }
                     SaveUnitType::Folder => {
                         let option = fs_extra::dir::CopyOptions::new().overwrite(true);
