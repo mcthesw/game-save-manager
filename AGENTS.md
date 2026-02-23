@@ -108,6 +108,9 @@ All user-facing strings must be internationalized.
 
 The project has both automated tests and manual verification. Before submitting a pull request:
 
+- Bug-fix workflow (TDD-first): for bug fixes, write a test that reproduces the bug first, confirm it fails, then implement the fix and make the test pass.
+  - If TDD-first is not practical (e.g. third-party outage, platform-only behavior that cannot be reliably reproduced in CI, or urgent hotfix constraints), clearly document the reason and provide the closest possible automated regression coverage.
+
 - Run automated checks:
   - `cargo check`
   - `cargo test --lib` (or `cargo test` when related)
