@@ -12,7 +12,7 @@ use std::{
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, MutexGuard},
     time::{Duration, SystemTime},
 };
 use zip::{ZipWriter, write::SimpleFileOptions};
@@ -67,6 +67,13 @@ mod tests {
             unit_type: SaveUnitType::File,
             paths,
             delete_before_apply: false,
+        }
+    }
+
+    fn lock_config_file<'a>() -> MutexGuard<'a, ()> {
+        match CONFIG_FILE_LOCK.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
         }
     }
 
@@ -311,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_compress_and_decompress_file_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
-        let _config_lock = CONFIG_FILE_LOCK.lock().expect("config lock poisoned");
+        let _config_lock = lock_config_file();
         let _config_guard = ConfigFileGuard::write_default_config()?;
 
         let temp_dir = temp_dir::TempDir::new()?;
@@ -356,7 +363,7 @@ mod tests {
             .as_secs();
         assert!(
             (original_secs as i64 - restored_secs as i64).abs() <= 2,
-            "End-to-end restore should preserve file timestamp (within 2 seconds)"
+            "End-to-end restore should preserve file timestamp (within 2 seconds), original={original_secs}, restored={restored_secs}"
         );
 
         Ok(())
@@ -365,7 +372,7 @@ mod tests {
     #[test]
     fn test_decompress_legacy_zip_without_comment_uses_utc()
     -> Result<(), Box<dyn std::error::Error>> {
-        let _config_lock = CONFIG_FILE_LOCK.lock().expect("config lock poisoned");
+        let _config_lock = lock_config_file();
         let _config_guard = ConfigFileGuard::write_default_config()?;
 
         let temp_dir = temp_dir::TempDir::new()?;
