@@ -6,6 +6,8 @@ mod path_format;
 mod save_unit;
 mod snapshot;
 mod state_fingerprint;
+#[cfg(test)]
+mod tests;
 mod utils;
 
 use archive::{compress_to_file, decompress_from_file};
