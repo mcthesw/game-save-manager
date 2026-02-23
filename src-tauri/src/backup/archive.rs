@@ -76,18 +76,26 @@ pub(crate) fn zip_datetime_to_system_time(
     let datetime = zip_datetime_to_naive_datetime(zip_time);
     let timestamp = match interpretation {
         ZipTimestampInterpretation::LegacyUtc => datetime.and_utc().timestamp(),
-        ZipTimestampInterpretation::LocalTime => match chrono::Local.from_local_datetime(&datetime)
-        {
-            LocalResult::Single(local_time) => local_time.with_timezone(&Utc).timestamp(),
-            LocalResult::Ambiguous(early, _late) => early.with_timezone(&Utc).timestamp(),
-            LocalResult::None => datetime.and_utc().timestamp(),
-        },
+        ZipTimestampInterpretation::LocalTime => {
+            local_result_to_timestamp(datetime, chrono::Local.from_local_datetime(&datetime))
+        }
     };
 
     if timestamp < 0 {
         SystemTime::UNIX_EPOCH
     } else {
         SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(timestamp as u64)
+    }
+}
+
+pub(crate) fn local_result_to_timestamp(
+    datetime: chrono::NaiveDateTime,
+    local_result: LocalResult<chrono::DateTime<chrono::Local>>,
+) -> i64 {
+    match local_result {
+        LocalResult::Single(local_time) => local_time.with_timezone(&Utc).timestamp(),
+        LocalResult::Ambiguous(early, _late) => early.with_timezone(&Utc).timestamp(),
+        LocalResult::None => datetime.and_utc().timestamp(),
     }
 }
 
