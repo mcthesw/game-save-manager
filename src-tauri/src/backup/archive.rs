@@ -1,4 +1,4 @@
-use chrono::{Datelike, Timelike};
+use chrono::{Datelike, LocalResult, TimeZone, Timelike, Utc};
 use filetime::{FileTime, set_file_mtime};
 use fs_extra::dir::move_dir;
 use fs_extra::file::move_file;
@@ -20,14 +20,43 @@ use crate::{
     preclude::*,
 };
 
-pub(crate) fn system_time_to_zip_datetime(system_time: SystemTime) -> zip::DateTime {
-    let duration = system_time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
+pub(crate) const ZIP_COMMENT_LOCAL_TIME_MARKER: &str = "RGSM_TS_MODE=LOCAL_V1";
 
-    let secs = duration.as_secs();
-    let datetime = chrono::DateTime::from_timestamp(secs as i64, 0)
-        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ZipTimestampInterpretation {
+    LegacyUtc,
+    LocalTime,
+}
+
+pub(crate) fn zip_timestamp_interpretation_from_comment(
+    comment: &[u8],
+) -> ZipTimestampInterpretation {
+    if comment == ZIP_COMMENT_LOCAL_TIME_MARKER.as_bytes() {
+        ZipTimestampInterpretation::LocalTime
+    } else {
+        ZipTimestampInterpretation::LegacyUtc
+    }
+}
+
+fn zip_datetime_to_naive_datetime(zip_time: zip::DateTime) -> chrono::NaiveDateTime {
+    chrono::NaiveDateTime::new(
+        chrono::NaiveDate::from_ymd_opt(
+            zip_time.year() as i32,
+            zip_time.month() as u32,
+            zip_time.day() as u32,
+        )
+        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1980, 1, 1).expect("valid date")),
+        chrono::NaiveTime::from_hms_opt(
+            zip_time.hour() as u32,
+            zip_time.minute() as u32,
+            zip_time.second() as u32,
+        )
+        .unwrap_or_default(),
+    )
+}
+
+pub(crate) fn system_time_to_zip_datetime(system_time: SystemTime) -> zip::DateTime {
+    let datetime = chrono::DateTime::<chrono::Local>::from(system_time).naive_local();
 
     zip::DateTime::from_date_and_time(
         datetime.year() as u16,
@@ -40,23 +69,21 @@ pub(crate) fn system_time_to_zip_datetime(system_time: SystemTime) -> zip::DateT
     .unwrap_or_default()
 }
 
-pub(crate) fn zip_datetime_to_system_time(zip_time: zip::DateTime) -> SystemTime {
-    let datetime = chrono::NaiveDateTime::new(
-        chrono::NaiveDate::from_ymd_opt(
-            zip_time.year() as i32,
-            zip_time.month() as u32,
-            zip_time.day() as u32,
-        )
-        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1980, 1, 1).unwrap()),
-        chrono::NaiveTime::from_hms_opt(
-            zip_time.hour() as u32,
-            zip_time.minute() as u32,
-            zip_time.second() as u32,
-        )
-        .unwrap_or_default(),
-    );
+pub(crate) fn zip_datetime_to_system_time(
+    zip_time: zip::DateTime,
+    interpretation: ZipTimestampInterpretation,
+) -> SystemTime {
+    let datetime = zip_datetime_to_naive_datetime(zip_time);
+    let timestamp = match interpretation {
+        ZipTimestampInterpretation::LegacyUtc => datetime.and_utc().timestamp(),
+        ZipTimestampInterpretation::LocalTime => match chrono::Local.from_local_datetime(&datetime)
+        {
+            LocalResult::Single(local_time) => local_time.with_timezone(&Utc).timestamp(),
+            LocalResult::Ambiguous(early, _late) => early.with_timezone(&Utc).timestamp(),
+            LocalResult::None => datetime.and_utc().timestamp(),
+        },
+    };
 
-    let timestamp = datetime.and_utc().timestamp();
     if timestamp < 0 {
         SystemTime::UNIX_EPOCH
     } else {
@@ -138,6 +165,7 @@ where
 pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64, CompressError> {
     let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
+    zip.set_comment(ZIP_COMMENT_LOCAL_TIME_MARKER);
     let compress_errors: Vec<_> = save_paths
         .iter()
         .map(|x| {
@@ -214,6 +242,7 @@ pub fn decompress_from_file(
     let zip_path = backup_path.join([date, ".zip"].concat());
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
+    let timestamp_interpretation = zip_timestamp_interpretation_from_comment(zip.comment());
 
     let tmp_folder = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?;
     let tmp_folder = tmp_folder.path().to_path_buf();
@@ -230,7 +259,7 @@ pub fn decompress_from_file(
         if file.is_dir() {
             fs::create_dir_all(&outpath).map_err(|e| CompressError::Single(e.into()))?;
             if let Some(zip_time) = file.last_modified() {
-                let system_time = zip_datetime_to_system_time(zip_time);
+                let system_time = zip_datetime_to_system_time(zip_time, timestamp_interpretation);
                 let file_time = FileTime::from_system_time(system_time);
                 dir_timestamps.push((outpath.clone(), file_time));
             }
@@ -244,7 +273,7 @@ pub fn decompress_from_file(
             drop(outfile);
 
             if let Some(zip_time) = file.last_modified() {
-                let system_time = zip_datetime_to_system_time(zip_time);
+                let system_time = zip_datetime_to_system_time(zip_time, timestamp_interpretation);
                 let file_time = FileTime::from_system_time(system_time);
                 let _ = set_file_mtime(&outpath, file_time);
             }
