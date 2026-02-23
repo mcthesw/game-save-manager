@@ -1,18 +1,21 @@
 use crate::backup::archive::{
-    add_directory, system_time_to_zip_datetime, zip_datetime_to_system_time,
+    ZIP_COMMENT_LOCAL_TIME_MARKER, ZipTimestampInterpretation, add_directory,
+    system_time_to_zip_datetime, zip_datetime_to_system_time,
+    zip_timestamp_interpretation_from_comment,
 };
 use filetime::{FileTime, set_file_mtime};
 use std::{
     fs::{self, File},
     io::{Read, Write},
     path::PathBuf,
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{Datelike, Timelike};
 
     #[test]
     fn test_timestamp_preservation_file() -> Result<(), Box<dyn std::error::Error>> {
@@ -69,7 +72,8 @@ mod tests {
             drop(outfile);
 
             if let Some(zip_time) = file.last_modified() {
-                let system_time = zip_datetime_to_system_time(zip_time);
+                let system_time =
+                    zip_datetime_to_system_time(zip_time, ZipTimestampInterpretation::LocalTime);
                 let file_time = FileTime::from_system_time(system_time);
                 set_file_mtime(&outpath, file_time)?;
             }
@@ -139,7 +143,10 @@ mod tests {
             if file.is_dir() {
                 fs::create_dir_all(&outpath)?;
                 if let Some(zip_time) = file.last_modified() {
-                    let system_time = zip_datetime_to_system_time(zip_time);
+                    let system_time = zip_datetime_to_system_time(
+                        zip_time,
+                        ZipTimestampInterpretation::LocalTime,
+                    );
                     let file_time = FileTime::from_system_time(system_time);
                     dir_timestamps.push((outpath.clone(), file_time));
                 }
@@ -152,7 +159,10 @@ mod tests {
                 drop(outfile);
 
                 if let Some(zip_time) = file.last_modified() {
-                    let system_time = zip_datetime_to_system_time(zip_time);
+                    let system_time = zip_datetime_to_system_time(
+                        zip_time,
+                        ZipTimestampInterpretation::LocalTime,
+                    );
                     let file_time = FileTime::from_system_time(system_time);
                     let _ = set_file_mtime(&outpath, file_time);
                 }
@@ -198,6 +208,51 @@ mod tests {
             "Directory timestamp should be preserved (within 2 seconds)"
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_zip_timestamp_interpretation_from_comment() {
+        assert_eq!(
+            zip_timestamp_interpretation_from_comment(ZIP_COMMENT_LOCAL_TIME_MARKER.as_bytes()),
+            ZipTimestampInterpretation::LocalTime
+        );
+        assert_eq!(
+            zip_timestamp_interpretation_from_comment(b""),
+            ZipTimestampInterpretation::LegacyUtc
+        );
+        assert_eq!(
+            zip_timestamp_interpretation_from_comment(b"something-else"),
+            ZipTimestampInterpretation::LegacyUtc
+        );
+    }
+
+    #[test]
+    fn test_legacy_utc_timestamp_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let source_time = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_001);
+        let source_datetime = chrono::DateTime::<chrono::Utc>::from(source_time);
+        let zip_time = zip::DateTime::from_date_and_time(
+            source_datetime.year() as u16,
+            source_datetime.month() as u8,
+            source_datetime.day() as u8,
+            source_datetime.hour() as u8,
+            source_datetime.minute() as u8,
+            source_datetime.second() as u8,
+        )?;
+
+        let restored_time =
+            zip_datetime_to_system_time(zip_time, ZipTimestampInterpretation::LegacyUtc);
+
+        let source_secs = source_time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        let restored_secs = restored_time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs();
+        assert!(
+            (source_secs as i64 - restored_secs as i64).abs() <= 2,
+            "Legacy UTC timestamp should be preserved (within 2 seconds)"
+        );
         Ok(())
     }
 }
