@@ -1,4 +1,5 @@
 use crate::{
+    backup::{TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision},
     config::{QuickActionSoundPreferences, QuickActionsSettings, get_config},
     preclude::*,
     sound::{QuickActionSoundEffect, play_quick_action_sound},
@@ -20,7 +21,7 @@ pub enum QuickActionType {
 impl QuickActionType {
     fn generate_describe(self) -> String {
         match self {
-            QuickActionType::Timer => String::from("Auto Backup (Timer)"),
+            QuickActionType::Timer => String::from(TIMER_AUTO_BACKUP_DESCRIPTION),
             QuickActionType::Tray => String::from("Quick Backup (Tray)"),
             QuickActionType::Hotkey => String::from("Quick Backup (Hotkey)"),
         }
@@ -188,7 +189,25 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     };
 
     // 执行备份操作
-    let result = game.create_snapshot(&t.generate_describe()).await;
+    let result = if t == QuickActionType::Timer {
+        match game
+            .create_timer_snapshot_if_changed(&t.generate_describe())
+            .await
+        {
+            Ok(TimerSnapshotDecision::Created) => Ok(()),
+            Ok(TimerSnapshotDecision::SkippedUnchanged) => {
+                info!(
+                    target: "rgsm::quick_action",
+                    "Skipped timer backup for game {} because state is unchanged",
+                    game.name
+                );
+                return;
+            }
+            Err(e) => Err(e),
+        }
+    } else {
+        game.create_snapshot(&t.generate_describe()).await
+    };
 
     // 处理结果
     match result {
