@@ -97,11 +97,12 @@ pub async fn download_all(op: &Operator) -> Result<(), BackendError> {
             backup.path = local_zip_path.to_string_lossy().to_string();
         }
 
-        fs::write(
-            local_game_backup_dir.join("Backups.json"),
-            serde_json::to_vec_pretty(&backup_info)?,
-        )
-        .await?;
+        transfer
+            .write_local_bytes_atomically(
+                &local_game_backup_dir.join("Backups.json"),
+                &serde_json::to_vec_pretty(&backup_info)?,
+            )
+            .await?;
     }
 
     Ok(())
