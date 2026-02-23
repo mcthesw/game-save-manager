@@ -2,6 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use log::warn;
 use opendal::Operator;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -53,6 +54,7 @@ fn build_scoped_temp_path(local_path: &Path, suffix: &str) -> Result<PathBuf, Ba
         )
     })?;
 
+    // Relaxed is enough here: we only need uniqueness, not cross-thread ordering.
     let seq = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let mut temp_name = std::ffi::OsString::from(".");
     temp_name.push(file_name);
@@ -82,18 +84,31 @@ async fn create_temp_file_with_retry(
         }
     }
 
-    Err(last_already_exists_err
-        .unwrap_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!(
-                    "Failed to create a unique temp file for {} after {} attempts",
-                    local_path.display(),
-                    TEMP_FILE_CREATE_RETRY_LIMIT
-                ),
-            )
-        })
-        .into())
+    if let Some(err) = last_already_exists_err {
+        return Err(err.into());
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        format!(
+            "Failed to create a unique temp file for {} after {} attempts",
+            local_path.display(),
+            TEMP_FILE_CREATE_RETRY_LIMIT
+        ),
+    )
+    .into())
+}
+
+async fn cleanup_temp_file(temp_path: &Path, cleanup_context: &str) {
+    if let Err(cleanup_err) = fs::remove_file(temp_path).await {
+        warn!(
+            target: "rgsm::cloud::transfer",
+            "Failed to cleanup temp file {} after {}: {}",
+            temp_path.display(),
+            cleanup_context,
+            cleanup_err
+        );
+    }
 }
 
 /// Replace destination with temp file while preserving the old file on failure.
@@ -118,14 +133,48 @@ async fn replace_path_preserving_existing(
 
     match fs::rename(temp_path, local_path).await {
         Ok(_) => {
-            let _ = fs::remove_file(&backup_path).await;
+            if let Err(cleanup_err) = fs::remove_file(&backup_path).await {
+                warn!(
+                    target: "rgsm::cloud::transfer",
+                    "Replaced {} but failed to cleanup backup {}: {}",
+                    local_path.display(),
+                    backup_path.display(),
+                    cleanup_err
+                );
+            }
             Ok(())
         }
-        Err(err) => {
-            let _ = fs::rename(&backup_path, local_path).await;
-            let _ = fs::remove_file(temp_path).await;
-            Err(err.into())
-        }
+        Err(err) => match fs::rename(&backup_path, local_path).await {
+            Ok(_) => {
+                if let Err(cleanup_err) = fs::remove_file(temp_path).await {
+                    warn!(
+                        target: "rgsm::cloud::transfer",
+                        "Failed to cleanup temp file {} after rollback: {}",
+                        temp_path.display(),
+                        cleanup_err
+                    );
+                }
+                Err(err.into())
+            }
+            Err(rollback_err) => {
+                warn!(
+                    target: "rgsm::cloud::transfer",
+                    "Replace failed for {} and rollback also failed. temp={}, backup={}, replace_err={}, rollback_err={}",
+                    local_path.display(),
+                    temp_path.display(),
+                    backup_path.display(),
+                    err,
+                    rollback_err
+                );
+                Err(io::Error::other(format!(
+                    "Failed to replace {} and rollback. Keep temp {} and backup {} for recovery.",
+                    local_path.display(),
+                    temp_path.display(),
+                    backup_path.display()
+                ))
+                .into())
+            }
+        },
     }
 }
 
@@ -144,12 +193,15 @@ async fn write_stream_atomically<R: tokio::io::AsyncRead + Unpin>(
 
     let copy_result = tokio::io::copy(&mut source, &mut target).await;
     if let Err(err) = copy_result {
-        let _ = fs::remove_file(&temp_path).await;
+        cleanup_temp_file(&temp_path, "stream copy failure").await;
         return Err(err.into());
     }
 
-    target.flush().await?;
-    target.sync_all().await?;
+    if let Err(err) = target.sync_all().await {
+        drop(target);
+        cleanup_temp_file(&temp_path, "sync failure").await;
+        return Err(err.into());
+    }
     drop(target);
 
     replace_path_preserving_existing(&temp_path, local_path).await
@@ -240,17 +292,8 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
         local_path: &Path,
         data: &[u8],
     ) -> Result<(), BackendError> {
-        if let Some(parent) = local_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-
-        let (temp_path, mut target) = create_temp_file_with_retry(local_path, "bytes").await?;
-        target.write_all(data).await?;
-        target.flush().await?;
-        target.sync_all().await?;
-        drop(target);
-
-        replace_path_preserving_existing(&temp_path, local_path).await
+        // Reuse the same atomic stream pipeline so failure semantics stay identical.
+        write_stream_atomically(data, local_path).await
     }
 }
 
