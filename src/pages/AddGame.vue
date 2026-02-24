@@ -643,20 +643,21 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
         >
           <template #prepend> {{ $t('addgame.game_name') }} </template>
         </el-input>
-        <el-input
-          v-model="game_path"
-          :placeholder="$t('addgame.input_game_launch_path_prompt')"
-          class="game-path"
-        >
-          <template #prepend> {{ $t('addgame.game_launch_path') }} </template>
-          <template #append>
-            <el-button @click="choose_executable_file()">
-              <el-icon>
-                <document-add />
-              </el-icon>
-            </el-button>
-          </template>
-        </el-input>
+        <div class="game-path">
+          <div class="game-path-label">{{ $t('addgame.game_launch_path') }}</div>
+          <path-variable-input
+            v-model="game_path"
+            :show-status="true"
+          >
+            <template #append>
+              <el-button @click="choose_executable_file()">
+                <el-icon>
+                  <document-add />
+                </el-icon>
+              </el-button>
+            </template>
+          </path-variable-input>
+        </div>
       </div>
       <div class="add-button-area">
         <div class="button-row">
@@ -689,6 +690,7 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
                 :model-value="
                   scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''
                 "
+                :show-status="true"
                 @update:model-value="
                   (value) => {
                     if (currentDevice && scope.row.paths) {
@@ -795,6 +797,12 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
 .game-path {
   grid-column: 2/3;
   grid-row: 6/7;
+}
+
+.game-path-label {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+  margin-bottom: 4px;
 }
 
 .game-icon {

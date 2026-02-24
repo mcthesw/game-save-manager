@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { $t } from '../i18n';
+import { commands } from '../bindings';
+
+type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 
 const props = defineProps({
   modelValue: {
     type: String,
     default: '',
+  },
+  /** When true, show a debounced path-resolution status indicator below the editor. */
+  showStatus: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -15,6 +23,7 @@ const emit = defineEmits<{
 
 const rootRef = ref<HTMLElement | null>(null);
 const editorRef = ref<HTMLDivElement | null>(null);
+const suggestionsRef = ref<HTMLElement | null>(null);
 let savedCursorOffset = -1;
 
 const VAR_RE = /<([a-zA-Z]+)>/g;
@@ -373,19 +382,65 @@ function insertAtCursor(variable: string) {
 
 defineExpose({ insertAtCursor });
 
+// ── Debounced path resolution ──
+
+const pathStatus = ref<PathStatus>('idle');
+const resolvedPathText = ref('');
+let resolveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleResolve(path: string) {
+  if (!props.showStatus) return;
+  if (resolveTimer) clearTimeout(resolveTimer);
+
+  if (!path || !path.includes('<')) {
+    // No variables to resolve — still show status if path is non-empty
+    if (!path) {
+      pathStatus.value = 'idle';
+      resolvedPathText.value = '';
+      return;
+    }
+  }
+
+  pathStatus.value = 'resolving';
+  resolveTimer = setTimeout(async () => {
+    try {
+      const result = await commands.resolvePath(path);
+      // Guard against stale responses
+      if (path !== props.modelValue) return;
+      if (result.status === 'ok') {
+        resolvedPathText.value = result.data;
+        pathStatus.value = 'ok';
+      } else {
+        resolvedPathText.value = result.error;
+        pathStatus.value = 'error';
+      }
+    } catch {
+      if (path !== props.modelValue) return;
+      pathStatus.value = 'error';
+      resolvedPathText.value = '';
+    }
+  }, 500);
+}
+
 // ── Lifecycle ──
 
-function onWindowScroll() {
+function onWindowScroll(e: Event) {
+  // Don't close when scrolling inside the suggestions dropdown itself
+  if (suggestionsRef.value && e.target instanceof Node && suggestionsRef.value.contains(e.target)) {
+    return;
+  }
   showSuggestions.value = false;
 }
 
 onMounted(() => {
   renderContent(props.modelValue);
   window.addEventListener('scroll', onWindowScroll, true);
+  if (props.showStatus && props.modelValue) scheduleResolve(props.modelValue);
 });
 
 onUnmounted(() => {
   window.removeEventListener('scroll', onWindowScroll, true);
+  if (resolveTimer) clearTimeout(resolveTimer);
 });
 
 watch(
@@ -394,26 +449,33 @@ watch(
     if (newVal !== extractPath()) {
       renderContent(newVal);
     }
+    scheduleResolve(newVal);
   },
 );
 </script>
 
 <template>
-  <div ref="rootRef" class="pvi-root">
-    <div class="pvi-editor-area">
-      <div
-        ref="editorRef"
-        class="pvi-editor"
-        contenteditable="true"
-        spellcheck="false"
-        @input="onInput"
-        @blur="onBlur"
-        @keydown="onKeydown"
-        @paste="onPaste"
-      />
+  <div>
+    <div ref="rootRef" class="pvi-root">
+      <div class="pvi-editor-area">
+        <div
+          ref="editorRef"
+          class="pvi-editor"
+          contenteditable="true"
+          spellcheck="false"
+          @input="onInput"
+          @blur="onBlur"
+          @keydown="onKeydown"
+          @paste="onPaste"
+        />
+      </div>
+      <div v-if="$slots.append" class="pvi-append">
+        <slot name="append" :insert-at-cursor="insertAtCursor" />
+      </div>
     </div>
-    <div v-if="$slots.append" class="pvi-append">
-      <slot name="append" :insert-at-cursor="insertAtCursor" />
+    <div v-if="showStatus && modelValue" class="pvi-status" :class="`pvi-status--${pathStatus}`">
+      <span class="pvi-status-dot" />
+      <span class="pvi-status-text">{{ resolvedPathText }}</span>
     </div>
   </div>
 
@@ -422,6 +484,7 @@ watch(
     <Transition name="pvi-dropdown">
       <div
         v-if="showSuggestions && filteredVariables.length > 0"
+        ref="suggestionsRef"
         class="pvi-suggestions"
         :style="suggestionsStyle"
       >
@@ -565,5 +628,56 @@ watch(
   background: var(--el-fill-color-light);
   border-left: 1px solid var(--el-border-color);
   border-radius: 0 var(--el-border-radius-base) var(--el-border-radius-base) 0;
+}
+
+.pvi-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  min-height: 16px;
+}
+
+.pvi-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pvi-status--idle .pvi-status-dot {
+  background: var(--el-color-info-light-5);
+}
+
+.pvi-status--resolving .pvi-status-dot {
+  background: var(--el-color-info-light-5);
+  animation: pvi-pulse 1s infinite;
+}
+
+.pvi-status--ok .pvi-status-dot {
+  background: var(--el-color-success);
+}
+
+.pvi-status--not-found .pvi-status-dot,
+.pvi-status--error .pvi-status-dot {
+  background: var(--el-color-danger);
+}
+
+.pvi-status-text {
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pvi-status--error .pvi-status-text {
+  color: var(--el-color-danger);
+}
+
+@keyframes pvi-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 </style>

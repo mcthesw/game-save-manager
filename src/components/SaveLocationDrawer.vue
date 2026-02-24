@@ -274,6 +274,7 @@ function cancelChanges() {
       <div class="path-input-container">
         <path-variable-input
           :model-value="getGameLaunchPath(selectedDeviceId)"
+          :show-status="true"
           @update:model-value="(value) => updateGameLaunchPath(selectedDeviceId, value)"
         />
       </div>
@@ -288,6 +289,7 @@ function cancelChanges() {
           <div class="path-input-container">
             <path-variable-input
               :model-value="getDevicePath(scope.row, selectedDeviceId)"
+              :show-status="true"
               @update:model-value="
                 (value) => updateDevicePath(scope.$index, selectedDeviceId, value)
               "
