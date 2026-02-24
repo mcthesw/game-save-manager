@@ -376,7 +376,7 @@ defineExpose({ insertAtCursor });
 // ── Lifecycle ──
 
 function onWindowScroll() {
-  if (showSuggestions.value) showSuggestions.value = false;
+  showSuggestions.value = false;
 }
 
 onMounted(() => {
