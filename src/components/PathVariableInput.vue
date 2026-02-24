@@ -114,7 +114,8 @@ function getCursorOffset(): number {
   const children = Array.from(editorRef.value.childNodes);
 
   for (let i = 0; i < children.length; i++) {
-    const node = children[i]!;
+    const node = children[i];
+    if (!node) continue;
 
     // When startContainer is the editor itself, startOffset is the child index
     if (range.startContainer === editorRef.value && i === range.startOffset) return offset;
@@ -147,7 +148,8 @@ function setCursorAtOffset(targetOffset: number) {
     if (offset + len >= targetOffset) {
       const r = document.createRange();
       if (node.nodeType === Node.TEXT_NODE) {
-        r.setStart(node, targetOffset - offset);
+        const pos = Math.min(targetOffset - offset, node.textContent?.length || 0);
+        r.setStart(node, pos);
       } else {
         // Element node (tag) – place cursor right after it
         r.setStartAfter(node);
@@ -225,7 +227,8 @@ function insertAtCursor(variable: string) {
     offset = raw.length;
   }
 
-  if (offset < 0 || offset > raw.length) offset = raw.length;
+  // Clamp to valid range as a safety measure
+  if (offset > raw.length) offset = raw.length;
 
   const newRaw = raw.slice(0, offset) + variable + raw.slice(offset);
   emit('update:modelValue', newRaw);
