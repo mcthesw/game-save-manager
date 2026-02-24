@@ -6,6 +6,7 @@ import { useNotification } from '../composables/useNotification';
 import { useConfig } from '../composables/useConfig';
 import { ref, watch } from 'vue';
 import PathVariableSelector from './PathVariableSelector.vue';
+import PathVariableInput from './PathVariableInput.vue';
 
 const { showError } = useNotification();
 
@@ -194,35 +195,6 @@ function updateGameLaunchPath(deviceId: string, path: string) {
   hasUnsavedChanges.value = true;
 }
 
-// 在路径输入框中插入变量
-function insertPathVariable(variable: string, index: number, deviceId: string) {
-  if (!tempGame.value || !tempGame.value.save_paths) return;
-
-  const unit = tempGame.value.save_paths[index];
-  if (!unit) return;
-
-  if (!unit.paths) {
-    unit.paths = {};
-  }
-
-  const currentPath = unit.paths[deviceId] || '';
-  unit.paths[deviceId] = currentPath + variable;
-  hasUnsavedChanges.value = true;
-}
-
-// 在游戏启动路径输入框中插入变量
-function insertGamePathVariable(variable: string, deviceId: string) {
-  if (!tempGame.value) return;
-
-  if (!tempGame.value.game_paths) {
-    tempGame.value.game_paths = {};
-  }
-
-  const currentPath = tempGame.value.game_paths[deviceId] || '';
-  tempGame.value.game_paths[deviceId] = currentPath + variable;
-  hasUnsavedChanges.value = true;
-}
-
 async function open(url: string) {
   const result = await commands.openFileOrFolder(url);
   if (result.status === 'error') {
@@ -301,20 +273,17 @@ function cancelChanges() {
     <div class="launch-path-section">
       <h3>{{ $t('save_location_drawer.launch_path') }}</h3>
       <div class="path-input-container">
-        <el-input
+        <path-variable-input
           :model-value="getGameLaunchPath(selectedDeviceId)"
-          size="small"
           @update:model-value="(value) => updateGameLaunchPath(selectedDeviceId, value)"
         >
-          <template #append>
-            <div class="path-actions">
-              <path-variable-selector
-                :current-path="getGameLaunchPath(selectedDeviceId)"
-                @insert="(variable) => insertGamePathVariable(variable, selectedDeviceId)"
-              />
-            </div>
+          <template #append="{ insertAtCursor }">
+            <path-variable-selector
+              :current-path="getGameLaunchPath(selectedDeviceId)"
+              @insert="insertAtCursor"
+            />
           </template>
-        </el-input>
+        </path-variable-input>
       </div>
     </div>
 
@@ -325,24 +294,19 @@ function cancelChanges() {
       <el-table-column :label="$t('save_location_drawer.prompt')" min-width="300">
         <template #default="scope">
           <div class="path-input-container">
-            <el-input
+            <path-variable-input
               :model-value="getDevicePath(scope.row, selectedDeviceId)"
-              size="small"
               @update:model-value="
                 (value) => updateDevicePath(scope.$index, selectedDeviceId, value)
               "
             >
-              <template #append>
-                <div class="path-actions">
-                  <path-variable-selector
-                    :current-path="getDevicePath(scope.row, selectedDeviceId)"
-                    @insert="
-                      (variable) => insertPathVariable(variable, scope.$index, selectedDeviceId)
-                    "
-                  />
-                </div>
+              <template #append="{ insertAtCursor }">
+                <path-variable-selector
+                  :current-path="getDevicePath(scope.row, selectedDeviceId)"
+                  @insert="insertAtCursor"
+                />
               </template>
-            </el-input>
+            </path-variable-input>
           </div>
         </template>
       </el-table-column>

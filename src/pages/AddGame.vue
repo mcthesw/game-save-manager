@@ -14,6 +14,7 @@ import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import { error } from '@tauri-apps/plugin-log';
 import PathVariableSelector from '../components/PathVariableSelector.vue';
+import PathVariableInput from '../components/PathVariableInput.vue';
 import GameImportDialog from '../components/GameImportDialog.vue';
 import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
@@ -685,11 +686,10 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
         <el-table-column :label="$t('addgame.path')" min-width="300">
           <template #default="scope">
             <div class="path-input-container">
-              <el-input
+              <path-variable-input
                 :model-value="
                   scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''
                 "
-                size="small"
                 @update:model-value="
                   (value) => {
                     if (currentDevice && scope.row.paths) {
@@ -698,24 +698,17 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
                   }
                 "
               >
-                <template #append>
+                <template #append="{ insertAtCursor }">
                   <path-variable-selector
                     :current-path="
                       scope.row.paths && currentDevice
                         ? scope.row.paths[currentDevice.id] || ''
                         : ''
                     "
-                    @insert="
-                      (variable) => {
-                        if (currentDevice && scope.row.paths) {
-                          const currentPath = scope.row.paths[currentDevice.id] || '';
-                          scope.row.paths[currentDevice.id] = currentPath + variable;
-                        }
-                      }
-                    "
+                    @insert="insertAtCursor"
                   />
                 </template>
-              </el-input>
+              </path-variable-input>
             </div>
           </template>
         </el-table-column>
