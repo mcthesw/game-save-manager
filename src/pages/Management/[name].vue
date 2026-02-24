@@ -23,6 +23,7 @@ import {
   Edit,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
+const { fromNow } = useRelativeTime();
 
 const { showInfo, showError, showSuccess } = useNotification();
 const feedback = useFeedback();
@@ -722,9 +723,12 @@ const currentHeadFullText = computed(() => {
         <el-empty v-if="filter_table.length === 0" :description="$t('manage.no_snapshots')" />
         <el-table v-else :data="filter_table" height="100%" @selection-change="on_selection_change">
           <el-table-column type="selection" width="40" />
-          <el-table-column :label="$t('manage.save_date')" prop="date" width="180" sortable>
+          <el-table-column :label="$t('manage.save_date')" prop="date" width="220" sortable>
             <template #default="{ row }">
-              <span class="font-mono text-sm">{{ row.date }}</span>
+              <div class="date-cell">
+                <span class="font-mono text-sm">{{ row.date }}</span>
+                <span class="time-ago-badge">{{ fromNow(row.date).value }}</span>
+              </div>
             </template>
           </el-table-column>
           <el-table-column
@@ -944,6 +948,21 @@ const currentHeadFullText = computed(() => {
 
 .font-mono {
   font-family: var(--el-font-family-monospace);
+}
+
+.date-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+
+.time-ago-badge {
+  font-size: 11px;
+  color: var(--el-color-primary);
+  opacity: 0.85;
+  cursor: default;
+  white-space: nowrap;
 }
 
 .mr-1 {

@@ -6,6 +6,8 @@ import { $t } from '../i18n';
 import dayjs from 'dayjs';
 import { VideoPlay, Edit, Delete, Flag, Share, Scissor } from '@element-plus/icons-vue';
 
+const { fromNow } = useRelativeTime();
+
 interface Props {
   data: {
     snapshot: Snapshot;
@@ -54,6 +56,8 @@ const truncatedDescription = computed(() => {
   return desc.length > 12 ? desc.slice(0, 12) + '...' : desc;
 });
 
+const relativeDate = computed(() => fromNow(props.data.snapshot.date).value);
+
 function formatFileSize(bytes: number): string {
   if (!bytes || bytes === 0) return '';
   const k = 1024;
@@ -83,6 +87,7 @@ function formatFileSize(bytes: number): string {
             <span class="node-date" :title="fullDate">{{ formattedDate }}</span>
             <el-tag v-if="data.isHead" size="small" type="success" class="head-tag"> HEAD </el-tag>
           </div>
+          <div class="node-relative-time">{{ relativeDate }}</div>
           <div class="node-description" :title="description">
             {{ truncatedDescription }}
           </div>
@@ -232,6 +237,16 @@ function formatFileSize(bytes: number): string {
 .head-tag {
   transform: scale(0.9);
   font-weight: bold;
+}
+
+.node-relative-time {
+  font-size: 11px;
+  color: var(--el-color-primary);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .node-description {
