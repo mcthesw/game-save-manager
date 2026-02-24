@@ -5,7 +5,6 @@ import { commands } from '../bindings';
 import { useNotification } from '../composables/useNotification';
 import { useConfig } from '../composables/useConfig';
 import { ref, watch } from 'vue';
-import PathVariableSelector from './PathVariableSelector.vue';
 import PathVariableInput from './PathVariableInput.vue';
 
 const { showError } = useNotification();
@@ -276,14 +275,7 @@ function cancelChanges() {
         <path-variable-input
           :model-value="getGameLaunchPath(selectedDeviceId)"
           @update:model-value="(value) => updateGameLaunchPath(selectedDeviceId, value)"
-        >
-          <template #append="{ insertAtCursor }">
-            <path-variable-selector
-              :current-path="getGameLaunchPath(selectedDeviceId)"
-              @insert="insertAtCursor"
-            />
-          </template>
-        </path-variable-input>
+        />
       </div>
     </div>
 
@@ -299,14 +291,7 @@ function cancelChanges() {
               @update:model-value="
                 (value) => updateDevicePath(scope.$index, selectedDeviceId, value)
               "
-            >
-              <template #append="{ insertAtCursor }">
-                <path-variable-selector
-                  :current-path="getDevicePath(scope.row, selectedDeviceId)"
-                  @insert="insertAtCursor"
-                />
-              </template>
-            </path-variable-input>
+            />
           </div>
         </template>
       </el-table-column>

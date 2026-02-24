@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { $t } from '../i18n';
 
 const props = defineProps({
   modelValue: {
@@ -12,14 +13,56 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
 }>();
 
+const rootRef = ref<HTMLElement | null>(null);
 const editorRef = ref<HTMLDivElement | null>(null);
-// Cursor offset stored as a position in the raw string (survives re-renders)
 let savedCursorOffset = -1;
 
-// Regex for matching path variables like <home>, <winAppData>, etc.
 const VAR_RE = /<([a-zA-Z]+)>/g;
 
-// ---------- parsing helpers ----------
+// ── Path variable definitions ──
+
+interface PathVariable {
+  name: string;
+  labelKey: string;
+  value: string;
+}
+
+const pathVariables: PathVariable[] = [
+  { name: 'home', labelKey: 'home', value: '<home>' },
+  { name: 'osUserName', labelKey: 'os_user_name', value: '<osUserName>' },
+  { name: 'winAppData', labelKey: 'win_app_data', value: '<winAppData>' },
+  { name: 'winLocalAppData', labelKey: 'win_local_app_data', value: '<winLocalAppData>' },
+  {
+    name: 'winLocalAppDataLow',
+    labelKey: 'win_local_app_data_low',
+    value: '<winLocalAppDataLow>',
+  },
+  { name: 'winDocuments', labelKey: 'win_documents', value: '<winDocuments>' },
+  { name: 'winPublic', labelKey: 'win_public', value: '<winPublic>' },
+  { name: 'winProgramData', labelKey: 'win_program_data', value: '<winProgramData>' },
+  { name: 'winDir', labelKey: 'win_dir', value: '<winDir>' },
+  { name: 'xdgData', labelKey: 'xdg_data', value: '<xdgData>' },
+  { name: 'xdgConfig', labelKey: 'xdg_config', value: '<xdgConfig>' },
+];
+
+// ── Autocomplete state ──
+
+const showSuggestions = ref(false);
+const suggestionFilter = ref('');
+const selectedIndex = ref(0);
+const suggestionsStyle = ref<Record<string, string>>({});
+
+const filteredVariables = computed(() => {
+  const q = suggestionFilter.value.toLowerCase();
+  if (!q) return pathVariables;
+  return pathVariables.filter(
+    (v) =>
+      v.name.toLowerCase().includes(q) ||
+      $t(`path_variable.${v.labelKey}`).toLowerCase().includes(q),
+  );
+});
+
+// ── Parsing helpers ──
 
 interface PathSegment {
   type: 'text' | 'variable';
@@ -64,9 +107,8 @@ function segmentsToHtml(segments: PathSegment[]): string {
     .join('');
 }
 
-// ---------- DOM ↔ raw string ----------
+// ── DOM ↔ raw string ──
 
-/** Walk editor children and compute the raw-string length contribution of each node. */
 function nodeRawLen(node: Node): number {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length || 0;
   if (node.nodeType === Node.ELEMENT_NODE) {
@@ -100,9 +142,8 @@ function renderContent(path: string) {
   editorRef.value.innerHTML = segmentsToHtml(parsePath(path));
 }
 
-// ---------- cursor offset helpers ----------
+// ── Cursor offset helpers ──
 
-/** Convert the current DOM selection position to an offset in the raw string. */
 function getCursorOffset(): number {
   if (!editorRef.value) return -1;
   const sel = window.getSelection();
@@ -116,24 +157,15 @@ function getCursorOffset(): number {
   for (let i = 0; i < children.length; i++) {
     const node = children[i];
     if (!node) continue;
-
-    // When startContainer is the editor itself, startOffset is the child index
     if (range.startContainer === editorRef.value && i === range.startOffset) return offset;
-
-    // Cursor inside this text node
     if (range.startContainer === node) return offset + range.startOffset;
-
-    // Cursor inside a child element (rare for contenteditable="false" spans)
     if (node.contains(range.startContainer)) return offset;
-
     offset += nodeRawLen(node);
   }
 
-  // Cursor at the very end
   return offset;
 }
 
-/** Set the browser selection to the position corresponding to a raw-string offset. */
 function setCursorAtOffset(targetOffset: number) {
   if (!editorRef.value) return;
   const sel = window.getSelection();
@@ -144,14 +176,12 @@ function setCursorAtOffset(targetOffset: number) {
 
   for (const node of children) {
     const len = nodeRawLen(node);
-
     if (offset + len >= targetOffset) {
       const r = document.createRange();
       if (node.nodeType === Node.TEXT_NODE) {
         const pos = Math.min(targetOffset - offset, node.textContent?.length || 0);
         r.setStart(node, pos);
       } else {
-        // Element node (tag) – place cursor right after it
         r.setStartAfter(node);
       }
       r.collapse(true);
@@ -159,11 +189,9 @@ function setCursorAtOffset(targetOffset: number) {
       sel.addRange(r);
       return;
     }
-
     offset += len;
   }
 
-  // Fallback: place at end
   const r = document.createRange();
   r.selectNodeContents(editorRef.value);
   r.collapse(false);
@@ -171,17 +199,96 @@ function setCursorAtOffset(targetOffset: number) {
   sel.addRange(r);
 }
 
-// ---------- event handlers ----------
+// ── Autocomplete logic ──
+
+function updateSuggestionsPosition() {
+  if (!rootRef.value) return;
+  const rect = rootRef.value.getBoundingClientRect();
+  suggestionsStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: '2050',
+  };
+}
+
+function checkAutocomplete() {
+  const raw = extractPath();
+  const offset = getCursorOffset();
+  if (offset < 0) {
+    showSuggestions.value = false;
+    return;
+  }
+
+  const beforeCursor = raw.slice(0, offset);
+  const lastOpen = beforeCursor.lastIndexOf('<');
+  const lastClose = beforeCursor.lastIndexOf('>');
+
+  if (lastOpen >= 0 && lastOpen > lastClose) {
+    suggestionFilter.value = beforeCursor.slice(lastOpen + 1);
+    selectedIndex.value = 0;
+    updateSuggestionsPosition();
+    showSuggestions.value = true;
+  } else {
+    showSuggestions.value = false;
+  }
+}
+
+function selectSuggestion(variable: PathVariable) {
+  const raw = props.modelValue || '';
+  let offset = getCursorOffset();
+  if (offset < 0) offset = savedCursorOffset;
+  if (offset < 0) return;
+
+  const beforeCursor = raw.slice(0, offset);
+  const lastOpen = beforeCursor.lastIndexOf('<');
+  if (lastOpen < 0) return;
+
+  const newRaw = raw.slice(0, lastOpen) + variable.value + raw.slice(offset);
+  emit('update:modelValue', newRaw);
+  showSuggestions.value = false;
+  savedCursorOffset = -1;
+
+  const newCursorPos = lastOpen + variable.value.length;
+  nextTick(() => {
+    renderContent(newRaw);
+    setCursorAtOffset(newCursorPos);
+    editorRef.value?.focus();
+  });
+}
+
+function scrollSelectedIntoView() {
+  nextTick(() => {
+    const active = document.querySelector('.pvi-suggestion-item.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+// ── Event handlers ──
 
 function onInput() {
-  emit('update:modelValue', extractPath());
+  const raw = extractPath();
+  emit('update:modelValue', raw);
+  checkAutocomplete();
+
+  // Real-time tag rendering when autocomplete is not active
+  if (!showSuggestions.value) {
+    const curOffset = getCursorOffset();
+    nextTick(() => {
+      renderContent(raw);
+      if (curOffset >= 0) setCursorAtOffset(curOffset);
+    });
+  }
 }
 
 function onBlur() {
-  // Save cursor offset (survives DOM re-renders)
   savedCursorOffset = getCursorOffset();
+  // Delay to allow mousedown on suggestion items to fire first
+  setTimeout(() => {
+    showSuggestions.value = false;
+  }, 150);
 
-  // Re-render so manually-typed variables become tags
   nextTick(() => {
     if (editorRef.value && !editorRef.value.contains(document.activeElement)) {
       renderContent(props.modelValue);
@@ -190,6 +297,33 @@ function onBlur() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (showSuggestions.value && filteredVariables.value.length > 0) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIndex.value = (selectedIndex.value + 1) % filteredVariables.value.length;
+      scrollSelectedIntoView();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIndex.value =
+        (selectedIndex.value - 1 + filteredVariables.value.length) %
+        filteredVariables.value.length;
+      scrollSelectedIntoView();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const v = filteredVariables.value[selectedIndex.value];
+      if (v) selectSuggestion(v);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      showSuggestions.value = false;
+      return;
+    }
+  }
   if (e.key === 'Enter') e.preventDefault();
 }
 
@@ -209,14 +343,12 @@ function onPaste(e: ClipboardEvent) {
   onInput();
 }
 
-// ---------- public API ----------
+// ── Public API ──
 
 function insertAtCursor(variable: string) {
   if (!editorRef.value) return;
 
   const raw = props.modelValue || '';
-
-  // Determine insertion offset in the raw string
   let offset: number;
   const cur = getCursorOffset();
   if (cur >= 0) {
@@ -226,15 +358,12 @@ function insertAtCursor(variable: string) {
   } else {
     offset = raw.length;
   }
-
-  // Clamp to valid range as a safety measure
   if (offset > raw.length) offset = raw.length;
 
   const newRaw = raw.slice(0, offset) + variable + raw.slice(offset);
   emit('update:modelValue', newRaw);
   savedCursorOffset = -1;
 
-  // Re-render and restore cursor after the inserted variable
   nextTick(() => {
     renderContent(newRaw);
     setCursorAtOffset(offset + variable.length);
@@ -244,7 +373,20 @@ function insertAtCursor(variable: string) {
 
 defineExpose({ insertAtCursor });
 
-// ---------- reactivity ----------
+// ── Lifecycle ──
+
+function onWindowScroll() {
+  if (showSuggestions.value) showSuggestions.value = false;
+}
+
+onMounted(() => {
+  renderContent(props.modelValue);
+  window.addEventListener('scroll', onWindowScroll, true);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onWindowScroll, true);
+});
 
 watch(
   () => props.modelValue,
@@ -254,14 +396,10 @@ watch(
     }
   },
 );
-
-onMounted(() => {
-  renderContent(props.modelValue);
-});
 </script>
 
 <template>
-  <div class="pvi-root">
+  <div ref="rootRef" class="pvi-root">
     <div class="pvi-editor-area">
       <div
         ref="editorRef"
@@ -278,9 +416,31 @@ onMounted(() => {
       <slot name="append" :insert-at-cursor="insertAtCursor" />
     </div>
   </div>
+
+  <!-- Teleport to body to avoid overflow clipping in table cells -->
+  <Teleport to="body">
+    <Transition name="pvi-dropdown">
+      <div
+        v-if="showSuggestions && filteredVariables.length > 0"
+        class="pvi-suggestions"
+        :style="suggestionsStyle"
+      >
+        <div
+          v-for="(v, i) in filteredVariables"
+          :key="v.name"
+          class="pvi-suggestion-item"
+          :class="{ active: i === selectedIndex }"
+          @mousedown.prevent="selectSuggestion(v)"
+        >
+          <span class="pvi-suggestion-var">{{ v.value }}</span>
+          <span class="pvi-suggestion-label">{{ $t(`path_variable.${v.labelKey}`) }}</span>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
-<!-- Global (non-scoped) styles for dynamically-created tags inside contenteditable -->
+<!-- Non-scoped styles for dynamic tag elements and teleported dropdown -->
 <style>
 .pvi-tag {
   display: inline-block;
@@ -296,10 +456,66 @@ onMounted(() => {
   user-select: all;
   cursor: default;
 }
+
+.pvi-suggestions {
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: var(--el-border-radius-base);
+  box-shadow: var(--el-box-shadow-light);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pvi-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pvi-suggestion-item:hover,
+.pvi-suggestion-item.active {
+  background: var(--el-fill-color-light);
+}
+
+.pvi-suggestion-var {
+  display: inline-block;
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning-dark-2);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 20px;
+  flex-shrink: 0;
+}
+
+.pvi-suggestion-label {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pvi-dropdown-enter-active,
+.pvi-dropdown-leave-active {
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+
+.pvi-dropdown-enter-from,
+.pvi-dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
 </style>
 
 <style scoped>
 .pvi-root {
+  position: relative;
   display: inline-flex;
   align-items: stretch;
   width: 100%;
@@ -333,7 +549,12 @@ onMounted(() => {
   white-space: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
   color: var(--el-text-color-regular);
+}
+
+.pvi-editor::-webkit-scrollbar {
+  display: none;
 }
 
 .pvi-append {

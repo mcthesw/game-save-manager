@@ -13,7 +13,6 @@ import {
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import { error } from '@tauri-apps/plugin-log';
-import PathVariableSelector from '../components/PathVariableSelector.vue';
 import PathVariableInput from '../components/PathVariableInput.vue';
 import GameImportDialog from '../components/GameImportDialog.vue';
 import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
@@ -697,18 +696,7 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
                     }
                   }
                 "
-              >
-                <template #append="{ insertAtCursor }">
-                  <path-variable-selector
-                    :current-path="
-                      scope.row.paths && currentDevice
-                        ? scope.row.paths[currentDevice.id] || ''
-                        : ''
-                    "
-                    @insert="insertAtCursor"
-                  />
-                </template>
-              </path-variable-input>
+              />
             </div>
           </template>
         </el-table-column>
