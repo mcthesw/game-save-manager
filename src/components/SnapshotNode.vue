@@ -56,7 +56,7 @@ const truncatedDescription = computed(() => {
   return desc.length > 12 ? desc.slice(0, 12) + '...' : desc;
 });
 
-const relativeDate = computed(() => fromNow(props.data.snapshot.date).value);
+const relativeDate = computed(() => fromNow(props.data.snapshot.date));
 
 function formatFileSize(bytes: number): string {
   if (!bytes || bytes === 0) return '';

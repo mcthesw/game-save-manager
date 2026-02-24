@@ -727,7 +727,7 @@ const currentHeadFullText = computed(() => {
             <template #default="{ row }">
               <div class="date-cell">
                 <span class="font-mono text-sm">{{ row.date }}</span>
-                <span class="time-ago-badge">{{ fromNow(row.date).value }}</span>
+                <span class="time-ago-badge">{{ fromNow(row.date) }}</span>
               </div>
             </template>
           </el-table-column>
