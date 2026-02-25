@@ -644,16 +644,13 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
         <div class="fields">
           <el-form label-position="top" class="field-form">
             <el-form-item :label="$t('addgame.game_name')">
-              <el-input
-                v-model="game_name"
-                :placeholder="$t('addgame.input_game_name_prompt')"
-              />
+              <el-input v-model="game_name" :placeholder="$t('addgame.input_game_name_prompt')" />
             </el-form-item>
 
             <el-form-item :label="$t('addgame.game_launch_path')">
               <path-variable-input v-model="game_path" :show-status="true">
                 <template #append>
-                  <el-button @click="choose_executable_file()">
+                  <el-button text @click="choose_executable_file()">
                     <el-icon><DocumentAdd /></el-icon>
                   </el-button>
                 </template>
@@ -687,13 +684,17 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
         <el-table-column :label="$t('addgame.path')" min-width="300">
           <template #default="scope">
             <path-variable-input
-              :model-value="scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''"
+              :model-value="
+                scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''
+              "
               status-mode="below"
-              @update:model-value="(value) => {
-                if (currentDevice && scope.row.paths) {
-                  scope.row.paths[currentDevice.id] = value;
+              @update:model-value="
+                (value) => {
+                  if (currentDevice && scope.row.paths) {
+                    scope.row.paths[currentDevice.id] = value;
+                  }
                 }
-              }"
+              "
             />
           </template>
         </el-table-column>
@@ -714,7 +715,12 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
 
     <!-- Actions -->
     <div class="actions">
-      <el-tooltip v-for="button in buttons" :key="button.text" :content="button.text" placement="top">
+      <el-tooltip
+        v-for="button in buttons"
+        :key="button.text"
+        :content="button.text"
+        placement="top"
+      >
         <el-button :type="button.type" circle @click="submit_handler(button.method)">
           <el-icon><component :is="button.icon" /></el-icon>
         </el-button>
