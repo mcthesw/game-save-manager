@@ -77,7 +77,7 @@ const filteredVariables = computed(() => {
   return pathVariables.filter(
     (v) =>
       v.name.toLowerCase().includes(q) ||
-      $t(`path_variable.${v.labelKey}`).toLowerCase().includes(q),
+      $t(`path_variable.${v.labelKey}`).toLowerCase().includes(q)
   );
 });
 
@@ -354,8 +354,7 @@ function onKeydown(e: KeyboardEvent) {
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       selectedIndex.value =
-        (selectedIndex.value - 1 + filteredVariables.value.length) %
-        filteredVariables.value.length;
+        (selectedIndex.value - 1 + filteredVariables.value.length) % filteredVariables.value.length;
       scrollSelectedIntoView();
       return;
     }
@@ -507,7 +506,7 @@ watch(
       renderContent(newVal);
     }
     scheduleResolve(newVal);
-  },
+  }
 );
 </script>
 
@@ -543,10 +542,7 @@ watch(
         placement="top"
         :show-after="200"
       >
-        <span
-          class="pvi-status-dot-compact"
-          :class="`pvi-status--${pathStatus}`"
-        />
+        <span class="pvi-status-dot-compact" :class="`pvi-status--${pathStatus}`" />
       </el-tooltip>
       <div v-if="$slots.append" class="pvi-append">
         <slot name="append" :insert-at-cursor="insertAtCursor" />
@@ -589,16 +585,18 @@ watch(
 <!-- Non-scoped styles for dynamic tag elements and teleported dropdown -->
 <style>
 .pvi-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   background: var(--el-color-warning-light-9);
   color: var(--el-color-warning-dark-2);
   border-radius: 4px;
   border: 1px solid var(--el-color-warning-light-5);
-  padding: 0 5px;
+  padding: 0 6px;
+  height: 20px;
   margin: 0 1px;
   font-family: inherit;
   font-size: 11px;
-  line-height: 18px;
+  line-height: 1;
   vertical-align: middle;
   user-select: all;
   cursor: default;
@@ -666,6 +664,7 @@ watch(
   display: inline-flex;
   align-items: stretch;
   width: 100%;
+  min-height: 34px;
   box-shadow: 0 0 0 1px var(--el-border-color) inset;
   border-radius: var(--el-border-radius-base);
   background: var(--el-fill-color-blank);
@@ -680,7 +679,9 @@ watch(
 }
 
 .pvi-root:focus-within {
-  box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px var(--el-color-primary-light-8);
+  box-shadow:
+    0 0 0 1px var(--el-color-primary) inset,
+    0 0 0 3px var(--el-color-primary-light-8);
 }
 
 .pvi-wrapper {
@@ -700,9 +701,10 @@ watch(
 .pvi-editor {
   flex: 1;
   min-width: 0;
-  min-height: 22px;
-  padding: 0 8px;
+  min-height: 24px;
+  padding: 4px 8px;
   outline: none;
+  line-height: 22px;
   white-space: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
@@ -735,9 +737,10 @@ watch(
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  background: var(--el-fill-color-light);
-  border-left: 1px solid var(--el-border-color);
+  justify-content: center;
+  padding: 0 4px 0 0;
+  background: transparent;
+  border-left: none;
   border-radius: 0 var(--el-border-radius-base) var(--el-border-radius-base) 0;
 }
 
@@ -822,7 +825,12 @@ watch(
 }
 
 @keyframes pvi-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 </style>
