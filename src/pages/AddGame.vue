@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { DocumentAdd, Check, RefreshRight, Download } from '@element-plus/icons-vue';
+import { DocumentAdd, Check, RefreshRight, Download, InfoFilled } from '@element-plus/icons-vue';
 import { reactive, ref, watchEffect } from 'vue';
 import {
   commands,
@@ -13,7 +13,7 @@ import {
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import { error } from '@tauri-apps/plugin-log';
-import PathVariableSelector from '../components/PathVariableSelector.vue';
+import PathVariableInput from '../components/PathVariableInput.vue';
 import GameImportDialog from '../components/GameImportDialog.vue';
 import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
@@ -629,119 +629,100 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
 </script>
 
 <template>
-  <div class="select-container">
-    <el-card class="game-info">
-      <div class="top-part">
-        <img class="game-icon" :src="game_icon_src" />
-        <div class="bold">
-          {{ $t('addgame.warning_for_save_file') }}
-        </div>
-        <el-input
-          v-model="game_name"
-          :placeholder="$t('addgame.input_game_name_prompt')"
-          class="game-name"
-        >
-          <template #prepend> {{ $t('addgame.game_name') }} </template>
-        </el-input>
-        <el-input
-          v-model="game_path"
-          :placeholder="$t('addgame.input_game_launch_path_prompt')"
-          class="game-path"
-        >
-          <template #prepend> {{ $t('addgame.game_launch_path') }} </template>
-          <template #append>
-            <el-button @click="choose_executable_file()">
-              <el-icon>
-                <document-add />
-              </el-icon>
-            </el-button>
-          </template>
-        </el-input>
-      </div>
-      <div class="add-button-area">
-        <div class="button-row">
-          <el-button type="primary" @click="add_save_directory">{{
-            $t('addgame.add_save_directory')
-          }}</el-button>
-          <el-button type="primary" @click="add_save_file">{{
-            $t('addgame.add_save_file')
-          }}</el-button>
-        </div>
-        <div class="path-variable-info">
-          <el-alert type="info" :closable="false" show-icon>
-            {{ $t('addgame.path_variable_hint') }}
-          </el-alert>
+  <div class="page">
+    <el-alert
+      :title="$t('addgame.warning_for_save_file')"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
+
+    <el-card class="form-card">
+      <!-- Top: icon + fields -->
+      <div class="top-row">
+        <img class="game-icon" :src="game_icon_src" alt="" />
+
+        <div class="fields">
+          <el-form label-position="top" class="field-form">
+            <el-form-item :label="$t('addgame.game_name')">
+              <el-input
+                v-model="game_name"
+                :placeholder="$t('addgame.input_game_name_prompt')"
+              />
+            </el-form-item>
+
+            <el-form-item :label="$t('addgame.game_launch_path')">
+              <path-variable-input v-model="game_path" :show-status="true">
+                <template #append>
+                  <el-button @click="choose_executable_file()">
+                    <el-icon><DocumentAdd /></el-icon>
+                  </el-button>
+                </template>
+              </path-variable-input>
+            </el-form-item>
+          </el-form>
         </div>
       </div>
-      <el-table :data="save_paths" class="save-table">
-        <el-table-column fixed prop="unit_type" :label="$t('addgame.type')" width="120" />
-        <el-table-column :label="$t('addgame.operations')" width="120">
+    </el-card>
+
+    <el-card class="form-card">
+      <!-- Toolbar -->
+      <div class="table-toolbar">
+        <div class="toolbar-left">
+          <el-button type="primary" @click="add_save_directory">
+            {{ $t('addgame.add_save_directory') }}
+          </el-button>
+          <el-button @click="add_save_file">
+            {{ $t('addgame.add_save_file') }}
+          </el-button>
+        </div>
+        <div class="toolbar-hint">
+          <el-icon><InfoFilled /></el-icon>
+          <span>{{ $t('addgame.path_variable_hint') }}</span>
+        </div>
+      </div>
+
+      <!-- Save paths table -->
+      <el-table :data="save_paths" style="width: 100%">
+        <el-table-column prop="unit_type" :label="$t('addgame.type')" width="110" />
+        <el-table-column :label="$t('addgame.path')" min-width="300">
           <template #default="scope">
-            <el-button link type="primary" size="small" @click.prevent="deleteRow(scope.$index)">
+            <path-variable-input
+              :model-value="scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''"
+              status-mode="below"
+              @update:model-value="(value) => {
+                if (currentDevice && scope.row.paths) {
+                  scope.row.paths[currentDevice.id] = value;
+                }
+              }"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column v-if="currentDevice" :label="$t('addgame.device_info')" width="180">
+          <template #default>
+            <el-tag size="small" type="info">{{ currentDevice?.name }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('addgame.operations')" width="100" align="center">
+          <template #default="scope">
+            <el-button link type="danger" size="small" @click.prevent="deleteRow(scope.$index)">
               {{ $t('addgame.remove') }}
             </el-button>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('addgame.path')" min-width="300">
-          <template #default="scope">
-            <div class="path-input-container">
-              <el-input
-                :model-value="
-                  scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''
-                "
-                size="small"
-                @update:model-value="
-                  (value) => {
-                    if (currentDevice && scope.row.paths) {
-                      scope.row.paths[currentDevice.id] = value;
-                    }
-                  }
-                "
-              >
-                <template #append>
-                  <path-variable-selector
-                    :current-path="
-                      scope.row.paths && currentDevice
-                        ? scope.row.paths[currentDevice.id] || ''
-                        : ''
-                    "
-                    @insert="
-                      (variable) => {
-                        if (currentDevice && scope.row.paths) {
-                          const currentPath = scope.row.paths[currentDevice.id] || '';
-                          scope.row.paths[currentDevice.id] = currentPath + variable;
-                        }
-                      }
-                    "
-                  />
-                </template>
-              </el-input>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column v-if="currentDevice" :label="$t('addgame.device_info')" width="200">
-          <template #default>
-            <el-tag size="small">{{ currentDevice?.name }}</el-tag>
-          </template>
-        </el-table-column>
       </el-table>
     </el-card>
-    <el-container class="submit-bar">
-      <el-tooltip
-        v-for="button in buttons"
-        :key="button.text"
-        :content="button.text"
-        placement="top"
-      >
+
+    <!-- Actions -->
+    <div class="actions">
+      <el-tooltip v-for="button in buttons" :key="button.text" :content="button.text" placement="top">
         <el-button :type="button.type" circle @click="submit_handler(button.method)">
-          <el-icon>
-            <component :is="button.icon" />
-          </el-icon>
+          <el-icon><component :is="button.icon" /></el-icon>
         </el-button>
       </el-tooltip>
-    </el-container>
+    </div>
 
-    <!-- Game Import Dialog -->
+    <!-- Dialogs -->
     <game-import-dialog
       v-model="showImportDialog"
       :games="importableGames"
@@ -749,8 +730,6 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
       @import="handleImportGames"
       @toggle-local="handleLocalToggle"
     />
-
-    <!-- Game Customize Dialog (single game) -->
     <game-import-customize-dialog
       v-model="showCustomizeDialog"
       :game-name="customizingGame?.name || ''"
@@ -758,8 +737,6 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
       :loading="customizeDialogLoading"
       @confirm="handleCustomizeConfirm"
     />
-
-    <!-- Batch Import Dialog (multiple games) -->
     <game-batch-import-dialog
       v-model="showBatchImportDialog"
       :games="batchImportGames"
@@ -771,79 +748,98 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
 </template>
 
 <style scoped>
-.bold {
-  margin-left: 10px;
-  font-weight: bold;
-  color: var(--el-text-color-primary);
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
 }
 
-.save-table {
-  margin-top: 20px;
-  margin-bottom: 20px;
-}
-
-.select-container {
-  height: 90%;
+.form-card {
   width: 100%;
 }
 
-.el-card {
-  margin-bottom: 15px;
-  padding-bottom: 20px;
-}
-
-.top-part {
-  height: 200px;
+.top-row {
   display: grid;
-  grid-template-columns: 1fr 3fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
-}
-
-.top-part > img {
-  grid-column: 1/2;
-  grid-row: 1/7;
-  margin: auto;
-}
-
-.game-name {
-  grid-column: 2/3;
-  grid-row: 5/6;
-  margin-bottom: 5px;
-}
-
-.game-path {
-  grid-column: 2/3;
-  grid-row: 6/7;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
 }
 
 .game-icon {
-  float: left;
-  height: 200px;
-  width: 200px;
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: var(--el-border-radius-base);
+  object-fit: cover;
+  border: 1px solid var(--el-border-color-light);
 }
 
-.add-button-area {
-  margin-top: 20px;
-}
-
-.button-row {
+.fields {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.path-variable-info {
-  margin-top: 10px;
-  margin-bottom: 10px;
+.field-form {
+  margin: 0;
 }
 
-.path-input-container {
+.field-form :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.field-form :deep(.el-form-item + .el-form-item) {
+  margin-top: 12px;
+}
+
+.table-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.submit-bar {
+.toolbar-left {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  max-width: 100%;
+}
+
+.toolbar-hint span {
+  min-width: 0;
+}
+
+.page :deep(.el-table__body .el-table__cell) {
+  vertical-align: top;
+}
+
+@media (max-width: 980px) {
+  .top-row {
+    grid-template-columns: 1fr;
+  }
+
+  .game-icon {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+.actions {
+  display: flex;
   justify-content: flex-end;
-  height: 10%;
+  gap: 8px;
 }
 </style>

@@ -508,7 +508,12 @@
     "test_path_placeholder": "Enter a path with variables",
     "resolve": "Resolve",
     "test": "Test",
-    "resolved_to": "Resolved to: {path}"
+    "resolved_to": "Resolved to: {path}",
+    "resolving": "Resolving…",
+    "not_found": "path not found",
+    "registry_not_supported": "Registry paths are not supported",
+    "editor_badge_tooltip": "This field supports path variables. Type < to autocomplete.",
+    "placeholder": "Path, or type < for variables"
   },
   "common": {
     "save_success": "save success",
