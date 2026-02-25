@@ -284,8 +284,10 @@ function selectSuggestion(variable: PathVariable) {
 
 function scrollSelectedIntoView() {
   nextTick(() => {
-    const active = document.querySelector('.pvi-suggestion-item.active');
-    if (active) active.scrollIntoView({ block: 'nearest' });
+    const active = suggestionsRef.value?.querySelector('.pvi-suggestion-item.active');
+    if (active instanceof HTMLElement) {
+      active.scrollIntoView({ block: 'nearest' });
+    }
   });
 }
 
