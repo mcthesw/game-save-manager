@@ -39,7 +39,6 @@ async function fetchCurrentDevice() {
     if (result.status === 'ok') {
       currentDevice.value = result.data;
       selectedDeviceId.value = currentDevice.value.id;
-      console.log('Current device:', currentDevice.value);
     } else {
       showError({ message: result.error });
     }
