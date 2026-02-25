@@ -73,7 +73,6 @@ async function fetchCurrentDevice() {
     const result = await commands.getCurrentDeviceInfo();
     if (result.status === 'ok') {
       currentDevice.value = result.data;
-      console.log('Current device:', currentDevice.value);
     } else {
       showError({ message: result.error });
     }
