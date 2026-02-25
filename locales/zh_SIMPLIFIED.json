@@ -508,7 +508,12 @@
     "test_path_placeholder": "输入包含变量的路径",
     "resolve": "解析",
     "test": "测试",
-    "resolved_to": "解析结果: {path}"
+    "resolved_to": "解析结果: {path}",
+    "resolving": "解析中…",
+    "not_found": "路径不存在",
+    "registry_not_supported": "不支持注册表路径",
+    "editor_badge_tooltip": "此字段支持路径变量，输入 < 可自动补全。",
+    "placeholder": "输入路径，或键入 < 插入变量"
   },
   "common": {
     "save": "保存",
