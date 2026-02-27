@@ -1,16 +1,14 @@
-use crate::cloud_sync::upload_game_snapshots;
-use crate::config::{get_backup_path, get_config, set_config};
+use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::preclude::*;
 
 use log::{error, info};
 use std::fs;
 use tauri::AppHandle;
 
+use super::game::SnapshotCreated;
 use super::{Game, GameSnapshots};
 
 async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
-    let config = get_config()?;
-
     let backup_path = get_backup_path()?.join(name);
     let info: GameSnapshots = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
@@ -28,13 +26,6 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
         backup_path.join("Backups.json"),
         serde_json::to_string_pretty(&info)?,
     )?;
-
-    // 处理云同步
-    if config.settings.cloud_settings.always_sync {
-        let op = config.settings.cloud_settings.backend.get_op()?;
-        // 上传存档记录信息
-        upload_game_snapshots(&op, info).await?;
-    }
 
     Ok(())
 }
@@ -55,25 +46,31 @@ pub async fn create_game_backup(game: &Game) -> Result<(), BackupError> {
             config.games.push(game.clone());
         }
     }
-    set_config(&config).await?;
+    set_config_local(&config)?;
     Ok(())
 }
 
-pub async fn backup_all() -> Result<(), BackupError> {
+pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
     let config = get_config()?;
+    let mut created_snapshots = Vec::new();
     for game in &config.games {
-        if let Err(e) = game.create_snapshot("Backup all").await {
-            error!(target: "rgsm::backup", "Backup all failed for game {:#?}", game);
-            return Err(e);
-        } else {
-            info!(target: "rgsm::backup", "Backup all succeeded for game {:#?}", game.name);
+        match game.create_snapshot("Backup all").await {
+            Ok(created) => {
+                created_snapshots.push(created);
+                info!(target: "rgsm::backup", "Backup all succeeded for game {:#?}", game.name);
+            }
+            Err(e) => {
+                error!(target: "rgsm::backup", "Backup all failed for game {:#?}", game);
+                return Err(e);
+            }
         }
     }
-    Ok(())
+    Ok(created_snapshots)
 }
 
-pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<(), BackupError> {
+pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<Vec<GameSnapshots>, BackupError> {
     let config = get_config()?;
+    let mut restored = Vec::new();
     for game in &config.games {
         let date = game
             .get_game_snapshots_info()?
@@ -82,12 +79,16 @@ pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<(), BackupError
             .ok_or(BackupError::NoBackupAvailable)?
             .date
             .clone();
-        if let Err(e) = game.restore_snapshot(&date, app_handle) {
-            error!(target: "rgsm::backup", "Apply all failed for game {:#?} with date {}", game, date);
-            return Err(e);
-        } else {
-            info!(target: "rgsm::backup", "Apply all succeeded for game {:#?} with date {}", game.name, date);
+        match game.restore_snapshot(&date, app_handle) {
+            Ok(snapshots) => {
+                info!(target: "rgsm::backup", "Apply all succeeded for game {:#?} with date {}", game.name, date);
+                restored.push(snapshots);
+            }
+            Err(e) => {
+                error!(target: "rgsm::backup", "Apply all failed for game {:#?} with date {}", game, date);
+                return Err(e);
+            }
         }
     }
-    Ok(())
+    Ok(restored)
 }

@@ -222,7 +222,8 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
         let mut source = fs::File::open(local_path).await?;
         let mut target = self
             .op
-            .writer(remote_path)
+            .writer_with(remote_path)
+            .chunk(8 * 1024 * 1024)
             .await?
             .into_futures_async_write()
             .compat_write();
@@ -260,14 +261,7 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
         data: &[u8],
         remote_path: &str,
     ) -> Result<(), BackendError> {
-        let mut target = self
-            .op
-            .writer(remote_path)
-            .await?
-            .into_futures_async_write()
-            .compat_write();
-        target.write_all(data).await?;
-        target.shutdown().await?;
+        self.op.write(remote_path, data.to_vec()).await?;
         Ok(())
     }
 

@@ -34,10 +34,16 @@ pub fn get_config() -> Result<Config, ConfigError> {
     Ok(serde_json::from_reader(file)?)
 }
 
-/// Replace the config file with a new config struct
-pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
+/// Replace the config file with a new config struct without triggering cloud sync.
+pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
     fs::write(config_path, serde_json::to_string_pretty(&config)?)?;
+    Ok(())
+}
+
+/// Replace the config file with a new config struct
+pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
+    set_config_local(config)?;
     // 处理云同步，上传新的配置文件
     if config.settings.cloud_settings.always_sync {
         let op = config.settings.cloud_settings.backend.get_op()?;
