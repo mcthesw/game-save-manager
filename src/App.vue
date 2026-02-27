@@ -4,6 +4,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css';
 import { listen } from '@tauri-apps/api/event';
 import { Loading } from '@element-plus/icons-vue';
 import { useDark } from '@vueuse/core';
+import CloudSyncIndicator from './components/CloudSyncIndicator.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
 import { commands } from './bindings';
 import type { Device } from './bindings';
@@ -224,12 +225,16 @@ if (import.meta.client) {
         </div>
       </div>
     </Transition>
+
+    <CloudSyncIndicator />
   </div>
 </template>
 
 <style>
+html,
 body {
-  margin: 0px !important;
+  margin: 0;
+  overflow: hidden;
 }
 
 /* Custom font family - applied globally when user enables custom font */

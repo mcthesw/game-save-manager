@@ -24,7 +24,7 @@ import {
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 
-const { showInfo, showError, showSuccess } = useNotification();
+const { showInfo, showError, showSuccess, showWarning } = useNotification();
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
@@ -126,8 +126,22 @@ async function batch_delete() {
     });
 
     if (result.value === 'yes') {
-      for (const item of selected_game_snapshots.value) {
-        await del_save(item.date);
+      const items = [...selected_game_snapshots.value];
+      let succeeded = 0;
+      let failed = 0;
+      for (const item of items) {
+        try {
+          await commands.deleteSnapshot(game.value, item.date);
+          succeeded++;
+        } catch {
+          failed++;
+        }
+      }
+      refresh_backups_info();
+      if (failed === 0) {
+        showSuccess({ message: $t('manage.batch_delete_success', { count: succeeded }) });
+      } else {
+        showWarning({ message: $t('manage.batch_delete_partial', { succeeded, failed }) });
       }
     } else {
       showInfo({ message: $t('manage.invalid_input_error') });
@@ -185,7 +199,10 @@ async function send_save_to_background() {
     if (result.status === 'error') {
       showError({ message: result.error });
     } else {
-      showSuccess({ message: $t('manage.backup_success') });
+      const msg = config.value.settings.cloud_settings?.always_sync
+        ? $t('manage.backup_success_with_sync')
+        : $t('manage.backup_success');
+      showSuccess({ message: msg });
     }
   }, $t('manage.creating_backup'));
   backup_button_backup_limit = true;
@@ -562,7 +579,10 @@ async function onCreateBranch(parentDate: string) {
       if (result.status === 'error') {
         showError({ message: result.error });
       } else {
-        showSuccess({ message: $t('manage.backup_success') });
+        const msg = config.value.settings.cloud_settings?.always_sync
+          ? $t('manage.backup_success_with_sync')
+          : $t('manage.backup_success');
+        showSuccess({ message: msg });
         await refresh_backups_info();
       }
     }, $t('manage.creating_backup'));

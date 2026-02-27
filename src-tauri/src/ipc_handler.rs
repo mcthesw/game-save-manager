@@ -166,7 +166,11 @@ pub async fn restore_snapshot(game: Game, date: String, app: AppHandle) -> Resul
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_snapshot(game: Game, date: String, app_handle: AppHandle) -> Result<(), String> {
+pub async fn delete_snapshot(
+    game: Game,
+    date: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Deleting backup: {:?} for game: {:?}", date, game);
     let deleted = game.delete_snapshot(&date).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to delete backup: {:?}", e);
@@ -396,7 +400,8 @@ pub async fn set_snapshot_description(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting backup describe for game: {:?}", game);
-    let snapshots = game.set_snapshot_description(&date, &describe)
+    let snapshots = game
+        .set_snapshot_description(&date, &describe)
         .await
         .map_err(|e| {
             error!(target:"rgsm::ipc", "Failed to set backup describe: {:?}", e);
@@ -578,7 +583,11 @@ pub async fn get_current_device_info() -> Result<Device, String> {
 /// This changes which snapshot new snapshots will branch from
 #[tauri::command]
 #[specta::specta]
-pub async fn set_snapshot_head(game: Game, date: String, app_handle: AppHandle) -> Result<(), String> {
+pub async fn set_snapshot_head(
+    game: Game,
+    date: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
 
     let config = get_config().map_err(|e| {
@@ -622,7 +631,11 @@ pub async fn set_snapshot_head(game: Game, date: String, app_handle: AppHandle) 
 /// Detach a snapshot from its parent, making it a new root node
 #[tauri::command]
 #[specta::specta]
-pub async fn detach_snapshot(game: Game, date: String, app_handle: AppHandle) -> Result<(), String> {
+pub async fn detach_snapshot(
+    game: Game,
+    date: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
 
     let config = get_config().map_err(|e| {
@@ -732,30 +745,30 @@ fn handle_backup_err<T>(res: Result<T, BackupError>, window: Window) -> Result<T
         Ok(value) => Ok(value),
         Err(e) => {
             match &e {
-            BackupError::Compress(CompressError::Multiple(files)) => {
-                files.iter().for_each(|file| {
-                    error!(target:"rgsm::ipc","{}",file);
-                    if let BackupFileError::NotExists(path) = file {
-                        window
-                            .emit(
-                                "Notification",
-                                IpcNotification {
-                                    level: NotificationLevel::error,
-                                    title: "ERROR".to_string(),
-                                    msg: t!(
-                                        "backend.backup.backup_file_not_exist",
-                                        name = path.to_str().unwrap_or("Cannot get path")
-                                    )
-                                    .to_string(),
-                                },
-                            )
-                            .unwrap(); // safe: ipc方法通过前端调用，此时window必然存在
-                    }
-                });
-            }
-            other => {
-                error!(target:"rgsm::ipc","{}",other);
-            }
+                BackupError::Compress(CompressError::Multiple(files)) => {
+                    files.iter().for_each(|file| {
+                        error!(target:"rgsm::ipc","{}",file);
+                        if let BackupFileError::NotExists(path) = file {
+                            window
+                                .emit(
+                                    "Notification",
+                                    IpcNotification {
+                                        level: NotificationLevel::error,
+                                        title: "ERROR".to_string(),
+                                        msg: t!(
+                                            "backend.backup.backup_file_not_exist",
+                                            name = path.to_str().unwrap_or("Cannot get path")
+                                        )
+                                        .to_string(),
+                                    },
+                                )
+                                .unwrap(); // safe: ipc方法通过前端调用，此时window必然存在
+                        }
+                    });
+                }
+                other => {
+                    error!(target:"rgsm::ipc","{}",other);
+                }
             }
             Err(format!("{}", e))
         }

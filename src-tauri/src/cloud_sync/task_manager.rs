@@ -389,7 +389,6 @@ impl CloudSyncTaskManager {
             });
         }
     }
-
 }
 
 impl Drop for CloudSyncTaskManager {
@@ -476,9 +475,7 @@ async fn execute_job_once(
             remote_zip_path,
             ..
         } => {
-            let op = backend
-                .get_op()
-                .map_err(CloudSyncExecuteError::Backend)?;
+            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, upload_game_snapshots(&op, snapshots.clone())).await?;
             let transfer = CloudTransfer::new(&op);
             run_cancellable(
@@ -491,9 +488,7 @@ async fn execute_job_once(
         CloudSyncJob::UploadMetadata {
             backend, snapshots, ..
         } => {
-            let op = backend
-                .get_op()
-                .map_err(CloudSyncExecuteError::Backend)?;
+            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, upload_game_snapshots(&op, snapshots.clone())).await?;
             Ok(())
         }
@@ -503,9 +498,7 @@ async fn execute_job_once(
             remote_zip_path,
             ..
         } => {
-            let op = backend
-                .get_op()
-                .map_err(CloudSyncExecuteError::Backend)?;
+            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, async {
                 op.delete(remote_zip_path).await.map_err(BackendError::from)
             })
@@ -519,9 +512,7 @@ async fn execute_job_once(
             remote_zip_paths,
             ..
         } => {
-            let op = backend
-                .get_op()
-                .map_err(CloudSyncExecuteError::Backend)?;
+            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             for remote_path in remote_zip_paths {
                 run_cancellable(token, async {
                     op.delete(remote_path).await.map_err(BackendError::from)
@@ -536,9 +527,7 @@ async fn execute_job_once(
             remote_game_dir_path,
             ..
         } => {
-            let op = backend
-                .get_op()
-                .map_err(CloudSyncExecuteError::Backend)?;
+            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, async {
                 op.remove_all(remote_game_dir_path)
                     .await
@@ -549,9 +538,7 @@ async fn execute_job_once(
             Ok(())
         }
         CloudSyncJob::UploadConfig { backend, .. } => {
-            let op = backend
-                .get_op()
-                .map_err(CloudSyncExecuteError::Backend)?;
+            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, upload_config(&op)).await?;
             Ok(())
         }

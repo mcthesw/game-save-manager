@@ -23,6 +23,7 @@
     "default_delete_before_apply": "முன்னிருப்பாக காப்புப்பிரதியை நீக்கவும் (புதிய விளையாட்டுகளுக்கு பயனுள்ளதாக இருக்கும்)",
     "backup_all": "அனைத்து காப்பகங்களையும் காப்புப் பிரதி எடுக்கவும்",
     "backup_all_hint": "இந்த செயல்பாடு அனைத்து விளையாட்டுகளின் காப்பகங்களையும் காப்புப் பிரதி எடுக்கும், இதற்கு நீண்ட நேரம் ஆகலாம், தயவுசெய்து ஆம் என உள்ளிடவும்",
+    "backup_all_success_with_sync": "All games backed up. Cloud sync continues in background.",
     "apply_all": "அனைத்து காப்பகங்களையும் பயன்படுத்துங்கள்",
     "apply_all_hint": "இது ஒரு உயர் -ரிச்க் நடவடிக்கை, இது நீண்ட நேரம் ஆகலாம். சரி, ஆம் உள்ளிடவும்",
     "confirm": "நிச்சயமாக",
@@ -76,6 +77,8 @@
     "warning": "எச்சரிக்கை: இந்த செயல்பாட்டைப் பயன்படுத்துவதற்கு முன்பு டுடோரியலைப் படிக்க மறக்காதீர்கள், இல்லையெனில் அது தரவு இழப்பை ஏற்படுத்தக்கூடும்",
     "manual_link": "பயிற்சி முகவரி",
     "always_sync_hint": "காப்பகங்களைச் சேர்ப்பது மற்றும் நீக்கும்போது தானாகவே ஒத்திசைக்கவும்.",
+    "max_concurrency": "Max concurrency",
+    "max_concurrency_hint": "Maximum number of parallel cloud transfers. Lower values reduce server load. (Requires app restart)",
     "manual_sync": "கையேடு ஒத்திசைவு",
     "save_button": "அமைப்புகளை சேமிக்கவும்",
     "abort_button": "மாற்றங்களை விட்டுவிடுங்கள்",
@@ -153,6 +156,7 @@
     "last_backup_unfinished_error": "காப்புப்பிரதி கடைசியாக முடிக்கப்படவில்லை, தயவுசெய்து காத்திருங்கள்",
     "last_overwrite_unfinished_error": "கடைசியாக, கவரேச் முடிக்கப்படவில்லை, தயவுசெய்து காத்திருங்கள்",
     "backup_success": "வெற்றிகரமான காப்புப்பிரதி",
+    "backup_success_with_sync": "Backup successful. Cloud sync continues in background.",
     "no_description_warning": "இந்த காப்பகத்தின் விளக்கத்தை நீங்கள் தொடர்ந்து வழங்கினீர்களா?",
     "warning": "எச்சரிக்கை",
     "confirm_save": "பாதுகாப்பை வலியுறுத்துங்கள்",
@@ -185,7 +189,9 @@
     "set_quick_backup_success": "வெற்றிகரமாக அமைக்க, விரைவாக செயல்பட நீங்கள் குறுக்குவழி அல்லது தட்டு சின்னங்களைப் பயன்படுத்தலாம்",
     "set_quick_backup_failed": "அமைக்கத் தவறிவிட்டது",
     "batch_delete": "தொகுதி நீக்குதல்",
-    "batch_delete_prompt": "தேர்ந்தெடுக்கப்பட்ட அனைத்து காப்பகங்களையும் செயல்பாடு நீக்கும் என்பதை நினைவில் கொள்க, தயவுசெய்து ஆம் என உள்ளிடவும்"
+    "batch_delete_prompt": "தேர்ந்தெடுக்கப்பட்ட அனைத்து காப்பகங்களையும் செயல்பாடு நீக்கும் என்பதை நினைவில் கொள்க, தயவுசெய்து ஆம் என உள்ளிடவும்",
+    "batch_delete_success": "Successfully deleted {count} snapshot(s)",
+    "batch_delete_partial": "Deleted {succeeded} snapshot(s), {failed} failed"
   },
   "addgame": {
     "search_local": "உள்ளக விளையாட்டுகளை தானாக அடையாளம் காணவும்",
@@ -254,6 +260,23 @@
     "open_file_header": "கோப்பைத் திறக்கவும்",
     "open": "திறந்த",
     "delete_before_apply": "பயன்பாட்டிற்கு முன் நீக்கு"
+  },
+  "cloud_sync": {
+    "title": "Cloud Sync",
+    "default_description": "Syncing queued cloud tasks...",
+    "queued_jobs": "Queued jobs: {count}",
+    "cancel": "Cancel",
+    "cancelled": "Cloud sync has been cancelled",
+    "listen_failed": "Failed to listen for cloud sync updates",
+    "failed": "Cloud sync failed: {error}. You can retry from Sync Settings.",
+    "failed_with_game": "Cloud sync failed for {game}: {error}. You can retry from Sync Settings.",
+    "status_running": "Running",
+    "status_queued": "Queued",
+    "status_completed": "Completed",
+    "status_failed": "Failed",
+    "status_cancelled": "Cancelled",
+    "no_recent_jobs": "No recent sync activity",
+    "active_count": "{count} active"
   },
   "error": {
     "open_url_failed": "இணைப்பைத் திறக்க முடியவில்லை",

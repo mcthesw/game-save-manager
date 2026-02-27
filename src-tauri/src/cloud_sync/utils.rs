@@ -62,9 +62,11 @@ pub async fn upload_all(op: &Operator, max_concurrency: usize) -> Result<(), Bac
                 PathBuf::from(&backup.path)
             };
 
-            let permit = semaphore.clone().acquire_owned().await.map_err(|_| {
-                acquire_error()
-            })?;
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| acquire_error())?;
             let op_clone = op.clone();
             tasks.spawn(async move {
                 info!(
@@ -117,9 +119,11 @@ pub async fn download_all(op: &Operator, max_concurrency: usize) -> Result<(), B
             let cloud_zip_path = game_cloud_zip_path(&game.name, &backup.date)?;
             let local_zip_path = local_game_backup_dir.join(format!("{}.zip", backup.date));
 
-            let permit = semaphore.clone().acquire_owned().await.map_err(|_| {
-                acquire_error()
-            })?;
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| acquire_error())?;
             let op_clone = op.clone();
             tasks.spawn(async move {
                 info!(

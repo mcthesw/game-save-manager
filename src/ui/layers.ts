@@ -19,6 +19,9 @@ export const LAYER = {
   // App-level global overlay for long operations.
   globalLoading: 9000,
 
+  // Lightweight cloud sync status widget for background operations.
+  cloudSyncIndicator: 9050,
+
   // Toast/notification should always be visible even when global loading is active.
   notification: 9100,
 } as const;
