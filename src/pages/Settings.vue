@@ -190,7 +190,11 @@ async function backup_all() {
       await withLoading(async () => {
         await commands.backupAll();
       }, $t('settings.backup_all_in_progress'));
-      showSuccess({ message: $t('settings.success') });
+      showSuccess({
+        message: config.value.settings.cloud_settings?.always_sync
+          ? $t('settings.backup_all_success_with_sync')
+          : $t('settings.success'),
+      });
     } catch (e) {
       error(`backup all error: ${e}`);
       showError({ message: $t('settings.failed') });

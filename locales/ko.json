@@ -29,6 +29,7 @@
     "name": "무효",
     "game_path": "도로 시작",
     "backup_all_hint": "작업은 모든 게임을 위해 아카이브 될 것이며 입력 foryes를 결정하는 장시간 걸릴 수 있습니다",
+    "backup_all_success_with_sync": "All games backed up. Cloud sync continues in background.",
     "apply_all": "모든 파일의 신청",
     "apply_all_hint": "시간이 걸릴 수 있고, 모든 게임을 커버하기로 결정할 수 있는 높은-리스크 이동입니까? inputyes의 id",
     "success": "작업 성공",
@@ -86,6 +87,7 @@
     "save_too_fast_error": "다수 서류가 1 초 안에 일어날 수 없습니다",
     "last_backup_unfinished_error": "마지막 규정은 완료되지 않았으며, 종료",
     "backup_success": "백업에서 성공",
+    "backup_success_with_sync": "Backup successful. Cloud sync continues in background.",
     "no_description_warning": "이 빠른 트랙을 설명하지 않고 계속",
     "warning": "제품정보",
     "confirm_save": "자주 묻는 질문",
@@ -122,6 +124,8 @@
     "set_quick_backup_failed": "실패",
     "batch_delete": "입력 deletion",
     "batch_delete_prompt": "작업이 모든 선택에서 빠르 트랙을 삭제하고 입력 intoyes에 대한 식별",
+    "batch_delete_success": "Successfully deleted {count} snapshot(s)",
+    "batch_delete_partial": "Deleted {succeeded} snapshot(s), {failed} failed",
     "recover_failed": "복구 실패",
     "size": "문서의 볼륨",
     "size_not_available": "기록 없음"
@@ -180,6 +184,8 @@
     "warning": "경고: 이 기능의 앞에 과정을 읽는 것이 근본적, 그렇지 않으면 자료의 손실에 지도할지도 모릅니다",
     "manual_link": "교육 배경",
     "always_sync_hint": "추가, 삭제 및 아카이브 자동 동기화 첫 번째 사용, 이는 동시 시작에 의해 미리해야합니다",
+    "max_concurrency": "Max concurrency",
+    "max_concurrency_hint": "Maximum number of parallel cloud transfers. Lower values reduce server load. (Requires app restart)",
     "manual_sync": "기타",
     "save_button": "- 연혁",
     "auto_sync_interval": "동기화",
@@ -221,6 +227,23 @@
       "secret_access_key": "비밀 방문 키",
       "region_hint": "공기 공간은 필요한 경우 시험을 입력해야합니다"
     }
+  },
+  "cloud_sync": {
+    "title": "Cloud Sync",
+    "default_description": "Syncing queued cloud tasks...",
+    "queued_jobs": "Queued jobs: {count}",
+    "cancel": "Cancel",
+    "cancelled": "Cloud sync has been cancelled",
+    "listen_failed": "Failed to listen for cloud sync updates",
+    "failed": "Cloud sync failed: {error}. You can retry from Sync Settings.",
+    "failed_with_game": "Cloud sync failed for {game}: {error}. You can retry from Sync Settings.",
+    "status_running": "Running",
+    "status_queued": "Queued",
+    "status_completed": "Completed",
+    "status_failed": "Failed",
+    "status_cancelled": "Cancelled",
+    "no_recent_jobs": "No recent sync activity",
+    "active_count": "{count} active"
   },
   "error": {
     "delete_snapshot_failed": "빠른 트랙 실패 삭제, 더 많은 정보를 얻기 위해 로그 확인",

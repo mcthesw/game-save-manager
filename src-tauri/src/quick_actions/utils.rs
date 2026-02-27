@@ -14,8 +14,6 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 pub enum QuickActionType {
     Timer,
@@ -222,7 +220,9 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
             Err(e) => Err(e),
         }
     } else {
-        game.create_snapshot(&t.generate_describe()).await.map(|_| ())
+        game.create_snapshot(&t.generate_describe())
+            .await
+            .map(|_| ())
     };
 
     // 处理结果
@@ -307,9 +307,15 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     }
 }
 
-fn build_upload_snapshot_job_from_latest(game: &crate::backup::Game, backend: crate::cloud_sync::Backend) -> Result<CloudSyncJob, BackupError> {
+fn build_upload_snapshot_job_from_latest(
+    game: &crate::backup::Game,
+    backend: crate::cloud_sync::Backend,
+) -> Result<CloudSyncJob, BackupError> {
     let snapshots = game.get_game_snapshots_info()?;
-    let head = snapshots.head.clone().ok_or(BackupError::NoBackupAvailable)?;
+    let head = snapshots
+        .head
+        .clone()
+        .ok_or(BackupError::NoBackupAvailable)?;
     let latest_snapshot = snapshots
         .backups
         .iter()
