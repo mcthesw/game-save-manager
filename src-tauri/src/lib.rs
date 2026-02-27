@@ -81,6 +81,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::check_cloud_backend,
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
+            ipc_handler::cancel_cloud_sync,
             ipc_handler::set_snapshot_description,
             ipc_handler::backup_all,
             ipc_handler::apply_all,
@@ -103,7 +104,9 @@ pub fn run() -> anyhow::Result<()> {
         ])
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,
-            quick_actions::QuickActionCompleted
+            quick_actions::QuickActionCompleted,
+            cloud_sync::CloudSyncStatus,
+            cloud_sync::CloudSyncError
         ])
         .constant("DEFAULT_CONFIG", config::Config::default());
 
@@ -139,6 +142,9 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(command_builder.invoke_handler())
         .setup(move |app| {
+            let cloud_sync_manager = cloud_sync::CloudSyncTaskManager::new(app.handle());
+            app.manage(cloud_sync_manager);
+
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键
             quick_actions::setup(app).expect("Cannot setup quick actions");

@@ -1,5 +1,6 @@
 use crate::{
     backup::{TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision},
+    cloud_sync::{CloudSyncJob, CloudSyncTaskManager},
     config::{QuickActionSoundPreferences, QuickActionsSettings, get_config},
     preclude::*,
     sound::{QuickActionSoundEffect, play_quick_action_sound},
@@ -8,8 +9,12 @@ use log::{error, info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::AppHandle;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
+
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 pub enum QuickActionType {
@@ -133,7 +138,18 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
                 Some(game.name.clone()),
             );
         }
-        Ok(_) => {
+        Ok(snapshots) => {
+            if config.settings.cloud_settings.always_sync {
+                let manager: tauri::State<Arc<CloudSyncTaskManager>> = app.state();
+                manager
+                    .enqueue(CloudSyncJob::UploadMetadata {
+                        backend: config.settings.cloud_settings.backend.clone(),
+                        game_name: snapshots.name.clone(),
+                        snapshots,
+                    })
+                    .await;
+            }
+
             maybe_show_success_notification(
                 &quick_settings,
                 true,
@@ -206,7 +222,7 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
             Err(e) => Err(e),
         }
     } else {
-        game.create_snapshot(&t.generate_describe()).await
+        game.create_snapshot(&t.generate_describe()).await.map(|_| ())
     };
 
     // 处理结果
@@ -228,13 +244,43 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
             );
         }
         Ok(_) => {
+            if config.settings.cloud_settings.always_sync {
+                let backend = config.settings.cloud_settings.backend.clone();
+                match build_upload_snapshot_job_from_latest(&game, backend.clone()) {
+                    Ok(job) => {
+                        let manager_state = app.state::<Arc<CloudSyncTaskManager>>();
+                        Arc::clone(manager_state.inner()).enqueue(job).await;
+                    }
+                    Err(err) => {
+                        warn!(target:"rgsm::quick_action", "Failed to build quick backup cloud sync job: {err:?}");
+                    }
+                }
+            }
+
             // Cleanup old auto backups if this is a timer backup and limit is set
             if t == QuickActionType::Timer && config.settings.max_auto_backup_count > 0 {
-                if let Err(e) = game
+                match game
                     .cleanup_old_auto_backups(config.settings.max_auto_backup_count)
                     .await
                 {
-                    warn!(target:"rgsm::quick_action", "Failed to cleanup old auto backups: {:#?}", e);
+                    Ok(cleanup_result) => {
+                        if config.settings.cloud_settings.always_sync
+                            && !cleanup_result.deleted_remote_paths.is_empty()
+                        {
+                            let manager_state = app.state::<Arc<CloudSyncTaskManager>>();
+                            Arc::clone(manager_state.inner())
+                                .enqueue(CloudSyncJob::DeleteFilesAndUploadMetadata {
+                                    backend: config.settings.cloud_settings.backend.clone(),
+                                    game_name: cleanup_result.snapshots.name.clone(),
+                                    snapshots: cleanup_result.snapshots,
+                                    remote_zip_paths: cleanup_result.deleted_remote_paths,
+                                })
+                                .await;
+                        }
+                    }
+                    Err(e) => {
+                        warn!(target:"rgsm::quick_action", "Failed to cleanup old auto backups: {:#?}", e);
+                    }
                 }
             }
 
@@ -259,6 +305,30 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
             );
         }
     }
+}
+
+fn build_upload_snapshot_job_from_latest(game: &crate::backup::Game, backend: crate::cloud_sync::Backend) -> Result<CloudSyncJob, BackupError> {
+    let snapshots = game.get_game_snapshots_info()?;
+    let head = snapshots.head.clone().ok_or(BackupError::NoBackupAvailable)?;
+    let latest_snapshot = snapshots
+        .backups
+        .iter()
+        .find(|snapshot| snapshot.date == head)
+        .ok_or(BackupError::BackupNotExist {
+            name: snapshots.name.clone(),
+            date: head,
+        })?;
+
+    let local_zip_path = PathBuf::from(&latest_snapshot.path);
+    let remote_zip_path = format!("save_data/{}/{}.zip", snapshots.name, latest_snapshot.date);
+
+    Ok(CloudSyncJob::UploadSnapshot {
+        backend,
+        game_name: snapshots.name.clone(),
+        snapshots,
+        local_zip_path,
+        remote_zip_path,
+    })
 }
 
 fn show_no_game_selected_error(
