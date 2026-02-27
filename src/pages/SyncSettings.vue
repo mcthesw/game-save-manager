@@ -224,6 +224,17 @@ async function open_manual() {
           <ElSwitch v-model="cloud_settings!.always_sync" />
           <span class="hint">{{ $t('sync_settings.always_sync_hint') }}</span>
         </ElFormItem>
+        <ElFormItem :label="$t('sync_settings.max_concurrency')">
+          <ElInputNumber
+            v-model="cloud_settings!.max_concurrency"
+            :value-on-clear="1"
+            :step="1"
+            :step-strictly="true"
+            :min="1"
+            :max="32"
+          />
+          <span class="hint">{{ $t('sync_settings.max_concurrency_hint') }}</span>
+        </ElFormItem>
         <ElFormItem :label="$t('sync_settings.auto_sync_interval')">
           <ElInputNumber
             :disabled="true"

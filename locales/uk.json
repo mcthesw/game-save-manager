@@ -26,6 +26,7 @@
     "default_delete_before_apply": "Придбання для видалення резервного копіювання (ефективні для нових ігор)",
     "backup_all": "Всі файли резервного копіювання",
     "backup_all_hint": "для всіх ігор, і може зайняти довгий час, щоб визначити вхідні іграшки",
+    "backup_all_success_with_sync": "All games backed up. Cloud sync continues in background.",
     "apply_all": "Застосування всіх файлів",
     "apply_all_hint": "чи є це високий крок, який може зайняти довгий час, і ви вирішили покрити всі ігри? ідентифікація вводів",
     "cancel": "Аболування",
@@ -73,6 +74,7 @@
     "last_backup_unfinished_error": "Останнє резервне копіювання не було завершено, зачекайте",
     "last_overwrite_unfinished_error": "Останнє покриття не завершено, зачекайте",
     "backup_success": "Резервне копіювання успішно",
+    "backup_success_with_sync": "Backup successful. Cloud sync continues in background.",
     "no_description_warning": "Ви не надали опис для цього знімка, продовжити?",
     "warning": "попередити",
     "confirm_save": "продовжуйте заощаджувати",
@@ -104,6 +106,8 @@
     "set_quick_backup_failed": "Помилка налаштування",
     "batch_delete": "Пакетне видалення",
     "batch_delete_prompt": "Зауважте, що ця операція видалить усі вибрані знімки, введіть так для підтвердження",
+    "batch_delete_success": "Successfully deleted {count} snapshot(s)",
+    "batch_delete_partial": "Deleted {succeeded} snapshot(s), {failed} failed",
     "recover_failed": "Не вдалося відновити",
     "size": "Розмір файлу",
     "size_not_available": "Не записано"
@@ -228,6 +232,8 @@
     "warning": "Попередження: обов’язково прочитайте підручник перед використанням цієї функції, інакше дані можуть бути втрачені",
     "manual_link": "Адреса підручника",
     "always_sync_hint": "Автоматична синхронізація під час додавання або видалення архівів, будь ласка, спочатку завантажте, коли використовуєте його вперше, а потім починайте синхронізацію в будь-який час",
+    "max_concurrency": "Max concurrency",
+    "max_concurrency_hint": "Maximum number of parallel cloud transfers. Lower values reduce server load. (Requires app restart)",
     "manual_sync": "Ручна синхронізація",
     "save_button": "Послуги",
     "abort_button": "Скасувати зміни",
@@ -271,6 +277,23 @@
       "secret_access_key": "секретний ключ доступу",
       "region_hint": "Будь ласка, введіть тест, якщо він не потрібен, не залишайте поле порожнім"
     }
+  },
+  "cloud_sync": {
+    "title": "Cloud Sync",
+    "default_description": "Syncing queued cloud tasks...",
+    "queued_jobs": "Queued jobs: {count}",
+    "cancel": "Cancel",
+    "cancelled": "Cloud sync has been cancelled",
+    "listen_failed": "Failed to listen for cloud sync updates",
+    "failed": "Cloud sync failed: {error}. You can retry from Sync Settings.",
+    "failed_with_game": "Cloud sync failed for {game}: {error}. You can retry from Sync Settings.",
+    "status_running": "Running",
+    "status_queued": "Queued",
+    "status_completed": "Completed",
+    "status_failed": "Failed",
+    "status_cancelled": "Cancelled",
+    "no_recent_jobs": "No recent sync activity",
+    "active_count": "{count} active"
   },
   "error": {
     "open_url_failed": "Неможливо відкрити посилання",
