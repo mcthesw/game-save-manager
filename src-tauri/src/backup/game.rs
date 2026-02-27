@@ -11,9 +11,7 @@ use crate::backup::{
     GameSnapshots, SaveUnit, Snapshot, TIMER_AUTO_BACKUP_DESCRIPTION, compress_to_file,
     decompress_from_file,
 };
-use crate::cloud_sync::transfer::CloudTransfer;
-use crate::cloud_sync::{upload_config, upload_game_snapshots};
-use crate::config::{get_backup_path, get_config, set_config};
+use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::DeviceId;
 use crate::ipc_handler::{IpcNotification, NotificationLevel};
 use crate::preclude::*;
@@ -35,6 +33,30 @@ pub(crate) enum TimerSnapshotDecision {
     SkippedUnchanged,
 }
 
+#[derive(Debug, Clone)]
+pub struct SnapshotCreated {
+    pub snapshots: GameSnapshots,
+    pub local_zip_path: PathBuf,
+    pub remote_zip_path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutoBackupsCleanupResult {
+    pub snapshots: GameSnapshots,
+    pub deleted_remote_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SnapshotDeleted {
+    pub snapshots: GameSnapshots,
+    pub remote_zip_path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GameDeleted {
+    pub remote_game_dir_path: String,
+}
+
 impl Game {
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name).join("Backups.json");
@@ -51,8 +73,7 @@ impl Game {
         fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
         Ok(())
     }
-    pub async fn create_snapshot(&self, describe: &str) -> Result<(), BackupError> {
-        let config = get_config()?;
+    pub async fn create_snapshot(&self, describe: &str) -> Result<SnapshotCreated, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name); // the backup zip file should be placed here
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
@@ -87,27 +108,15 @@ impl Game {
         infos.backups.push(game_snapshots_info);
 
         // Update HEAD to point to the new snapshot
-        infos.head = Some(date);
+        infos.head = Some(date.clone());
 
         self.set_game_snapshots_info(&infos)?;
 
-        // 随时同步到云端
-        if config.settings.cloud_settings.always_sync {
-            let op = config.settings.cloud_settings.backend.get_op()?;
-            // 上传存档记录信息
-            upload_game_snapshots(&op, infos).await?;
-            // 上传对应压缩包
-            // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
-            let p = zip_path
-                .iter()
-                .map(|s| s.to_str().ok_or(BackupError::NonePathError))
-                .collect::<Result<Vec<&str>, BackupError>>()?
-                .join("/");
-            CloudTransfer::new(&op)
-                .upload_file_streaming(&zip_path, &p)
-                .await?;
-        }
-        Result::Ok(())
+        Ok(SnapshotCreated {
+            snapshots: infos,
+            remote_zip_path: format!("save_data/{}/{date}.zip", self.name),
+            local_zip_path: zip_path,
+        })
     }
 
     pub async fn create_timer_snapshot_if_changed(
@@ -172,13 +181,18 @@ impl Game {
         }
     }
 
-    pub async fn cleanup_old_auto_backups(&self, max_count: u32) -> Result<(), BackupError> {
+    pub async fn cleanup_old_auto_backups(
+        &self,
+        max_count: u32,
+    ) -> Result<AutoBackupsCleanupResult, BackupError> {
         if max_count == 0 {
             // 0 means unlimited, no cleanup needed
-            return Ok(());
+            return Ok(AutoBackupsCleanupResult {
+                snapshots: self.get_game_snapshots_info()?,
+                deleted_remote_paths: Vec::new(),
+            });
         }
 
-        let config = get_config()?;
         let mut infos = self.get_game_snapshots_info()?;
 
         // Filter auto backups (Timer backups only)
@@ -191,7 +205,10 @@ impl Game {
 
         // If we're within the limit, no cleanup needed
         if auto_backups.len() <= max_count as usize {
-            return Ok(());
+            return Ok(AutoBackupsCleanupResult {
+                snapshots: infos,
+                deleted_remote_paths: Vec::new(),
+            });
         }
 
         // Sort by date (oldest first). Date string format preserves chronological order.
@@ -201,6 +218,8 @@ impl Game {
         let to_delete_count = auto_backups.len() - max_count as usize;
         let backups_to_delete = &auto_backups[..to_delete_count];
 
+        let mut deleted_remote_paths = Vec::new();
+
         // Delete the oldest auto backups
         for (_idx, snapshot) in backups_to_delete {
             let zip_path = PathBuf::from(&snapshot.path);
@@ -209,16 +228,7 @@ impl Game {
                 info!(target:"rgsm::backup::game", "Removed old auto backup: {}", snapshot.date);
             }
 
-            // If cloud sync is enabled, also delete from cloud
-            if config.settings.cloud_settings.always_sync {
-                let op = config.settings.cloud_settings.backend.get_op()?;
-                let p = zip_path
-                    .iter()
-                    .map(|s| s.to_str().ok_or(BackupError::NonePathError))
-                    .collect::<Result<Vec<&str>, BackupError>>()?
-                    .join("/");
-                op.delete(&p).await?;
-            }
+            deleted_remote_paths.push(format!("save_data/{}/{}.zip", self.name, snapshot.date));
         }
 
         // Remove deleted backups from the info list
@@ -233,19 +243,16 @@ impl Game {
         // Save updated info
         self.set_game_snapshots_info(&infos)?;
 
-        // Update cloud if needed
-        if config.settings.cloud_settings.always_sync {
-            let op = config.settings.cloud_settings.backend.get_op()?;
-            upload_game_snapshots(&op, infos).await?;
-        }
-
-        Ok(())
+        Ok(AutoBackupsCleanupResult {
+            snapshots: infos,
+            deleted_remote_paths,
+        })
     }
     pub fn restore_snapshot(
         &self,
         date: &str,
         app_handle: Option<&AppHandle>,
-    ) -> Result<(), BackupError> {
+    ) -> Result<GameSnapshots, BackupError> {
         let config = get_config()?;
         let backup_path = get_backup_path()?.join(&self.name);
         if config.settings.extra_backup_when_apply {
@@ -273,7 +280,7 @@ impl Game {
         infos.head = Some(date.to_string());
         self.set_game_snapshots_info(&infos)?;
 
-        Result::Ok(())
+        Ok(infos)
     }
     pub fn create_overwrite_snapshot(
         &self,
@@ -303,8 +310,7 @@ impl Game {
         cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
         Result::Ok(())
     }
-    pub async fn delete_snapshot(&self, date: &str) -> Result<(), BackupError> {
-        let config = get_config()?;
+    pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
         let save_path = get_backup_path()?
             .join(&self.name)
             .join(date.to_string() + ".zip");
@@ -357,55 +363,33 @@ impl Game {
         saves.backups.retain(|x| x.date != date);
         self.set_game_snapshots_info(&saves)?;
 
-        // 随时同步到云端
-        if config.settings.cloud_settings.always_sync {
-            let op = config.settings.cloud_settings.backend.get_op()?;
-            // 上传存档记录信息
-            upload_game_snapshots(&op, saves).await?;
-            // 删除对应压缩包
-            // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
-            let p = save_path
-                .iter()
-                .map(|s| s.to_str().ok_or(BackupError::NonePathError))
-                .collect::<Result<Vec<&str>, BackupError>>()?
-                .join("/");
-            op.delete(&p).await?;
-        }
-        Ok(())
+        Ok(SnapshotDeleted {
+            snapshots: saves,
+            remote_zip_path: format!("save_data/{}/{date}.zip", self.name),
+        })
     }
-    pub async fn delete_game(&self) -> Result<(), BackupError> {
+    pub async fn delete_game(&self) -> Result<GameDeleted, BackupError> {
         let mut config = get_config()?;
         let backup_path = get_backup_path()?.join(&self.name);
         fs::remove_dir_all(&backup_path)?;
 
         config.games.retain(|x| x.name != self.name);
-        set_config(&config).await?;
+        set_config_local(&config)?;
 
-        // 随时同步到云端
-        if config.settings.cloud_settings.always_sync {
-            let op = config.settings.cloud_settings.backend.get_op()?;
-            info!(target:"rgsm::backup::game",
-                "Delete Game: {:#?}",
-                backup_path.to_str().ok_or(BackupError::NonePathError)?
-            );
-            // 此处防止路径中出现反斜杠，导致云端无法识别，替换win的反斜杠为斜杠
-            let p = backup_path
-                .iter()
-                .map(|s| s.to_str().ok_or(BackupError::NonePathError))
-                .collect::<Result<Vec<&str>, BackupError>>()?
-                .join("/");
-            op.remove_all(&p).await?;
-            // 也上传新的配置文件
-            upload_config(&op).await?;
-        }
+        info!(target:"rgsm::backup::game",
+            "Delete Game(local only): {:#?}",
+            backup_path.to_str().ok_or(BackupError::NonePathError)?
+        );
 
-        Ok(())
+        Ok(GameDeleted {
+            remote_game_dir_path: format!("save_data/{}", self.name),
+        })
     }
     pub async fn set_snapshot_description(
         &self,
         date: &str,
         describe: &str,
-    ) -> Result<(), BackupError> {
+    ) -> Result<GameSnapshots, BackupError> {
         let mut saves = self.get_game_snapshots_info()?;
         let pos = saves.backups.iter().position(|x| x.date == date).ok_or(
             BackupError::BackupNotExist {
@@ -415,7 +399,7 @@ impl Game {
         )?;
         saves.backups[pos].describe = describe.to_string();
         self.set_game_snapshots_info(&saves)?;
-        Ok(())
+        Ok(saves)
     }
 }
 

@@ -173,6 +173,14 @@ async cloudDownloadAll(backend: Backend) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async cancelCloudSync() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_cloud_sync") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setSnapshotDescription(game: Game, date: string, describe: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_snapshot_description", { game, date, describe }) };
@@ -353,16 +361,20 @@ async getSystemFonts() : Promise<string[]> {
 
 
 export const events = __makeEvents__<{
+cloudSyncError: CloudSyncError,
+cloudSyncStatus: CloudSyncStatus,
 ipcNotification: IpcNotification,
 quickActionCompleted: QuickActionCompleted
 }>({
+cloudSyncError: "cloud-sync-error",
+cloudSyncStatus: "cloud-sync-status",
 ipcNotification: "ipc-notification",
 quickActionCompleted: "quick-action-completed"
 })
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.4"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.4"} as const;
 
 /** user-defined types **/
 
@@ -396,7 +408,15 @@ root_path?: string;
 /**
  * 云同步后端设置
  */
-backend?: Backend }
+backend?: Backend; 
+/**
+ * 最大并发数
+ */
+max_concurrency?: number }
+export type CloudSyncError = { game_name: string | null; error: string }
+export type CloudSyncJobInfo = { id: number; description: string; status: CloudSyncJobStatus; error: string | null }
+export type CloudSyncJobStatus = "Queued" | "Running" | "Completed" | "Failed" | "Cancelled"
+export type CloudSyncStatus = { active_jobs: number; current_description: string | null; jobs: CloudSyncJobInfo[] }
 /**
  * The software's configuration
  * include the version, backup's location path, games'info,

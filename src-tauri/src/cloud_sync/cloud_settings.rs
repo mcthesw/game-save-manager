@@ -20,6 +20,9 @@ pub struct CloudSettings {
     /// 云同步后端设置
     #[serde(default = "default_value::default_backend")]
     pub backend: Backend,
+    /// 最大并发数
+    #[serde(default = "default_value::default_one_usize")]
+    pub max_concurrency: usize,
 }
 
 impl Default for CloudSettings {
@@ -29,6 +32,7 @@ impl Default for CloudSettings {
             auto_sync_interval: 0,
             root_path: "/game-save-manager".to_string(),
             backend: Backend::Disabled,
+            max_concurrency: 1,
         }
     }
 }
