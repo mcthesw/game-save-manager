@@ -24,7 +24,7 @@ import {
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 
-const { showInfo, showError, showSuccess, showWarning } = useNotification();
+const { showInfo, showError, showSuccess } = useNotification();
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
@@ -118,30 +118,21 @@ function on_selection_change(val: Snapshot[]) {
 }
 async function batch_delete() {
   try {
-    const result = await feedback.prompt($t('manage.batch_delete_prompt'), $t('home.hint'), {
+    const promptResult = await feedback.prompt($t('manage.batch_delete_prompt'), $t('home.hint'), {
       confirmButtonText: $t('manage.confirm'),
       cancelButtonText: $t('manage.cancel'),
       inputPattern: /yes/,
       inputErrorMessage: $t('manage.invalid_input_error'),
     });
 
-    if (result.value === 'yes') {
-      const items = [...selected_game_snapshots.value];
-      let succeeded = 0;
-      let failed = 0;
-      for (const item of items) {
-        try {
-          await commands.deleteSnapshot(game.value, item.date);
-          succeeded++;
-        } catch {
-          failed++;
-        }
-      }
-      refresh_backups_info();
-      if (failed === 0) {
-        showSuccess({ message: $t('manage.batch_delete_success', { count: succeeded }) });
+    if (promptResult.value === 'yes') {
+      const dates = selected_game_snapshots.value.map((item) => item.date);
+      const deleteResult = await commands.batchDeleteSnapshots(game.value, dates);
+      await refresh_backups_info();
+      if (deleteResult.status === 'ok') {
+        showSuccess({ message: $t('manage.batch_delete_success', { count: dates.length }) });
       } else {
-        showWarning({ message: $t('manage.batch_delete_partial', { succeeded, failed }) });
+        showError({ message: deleteResult.error });
       }
     } else {
       showInfo({ message: $t('manage.invalid_input_error') });

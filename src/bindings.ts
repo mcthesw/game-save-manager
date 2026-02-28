@@ -69,6 +69,14 @@ async deleteSnapshot(game: Game, date: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async batchDeleteSnapshots(game: Game, dates: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("batch_delete_snapshots", { game, dates }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteGame(game: Game) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_game", { game }) };

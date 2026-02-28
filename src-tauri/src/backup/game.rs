@@ -2,8 +2,9 @@ use log::{info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{collections::HashMap, fs};
 use tauri::{AppHandle, Emitter};
 
 use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
@@ -50,6 +51,12 @@ pub struct AutoBackupsCleanupResult {
 pub struct SnapshotDeleted {
     pub snapshots: GameSnapshots,
     pub remote_zip_path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct BatchSnapshotsDeleted {
+    pub snapshots: GameSnapshots,
+    pub deleted_remote_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -368,6 +375,93 @@ impl Game {
             remote_zip_path: format!("save_data/{}/{date}.zip", self.name),
         })
     }
+
+    pub async fn batch_delete_snapshots(
+        &self,
+        dates: &[String],
+    ) -> Result<BatchSnapshotsDeleted, BackupError> {
+        if dates.is_empty() {
+            return Ok(BatchSnapshotsDeleted {
+                snapshots: self.get_game_snapshots_info()?,
+                deleted_remote_paths: Vec::new(),
+            });
+        }
+
+        let backup_dir = get_backup_path()?.join(&self.name);
+        let to_delete: HashSet<&str> = dates.iter().map(|d| d.as_str()).collect();
+
+        // Delete zip files
+        let mut deleted_remote_paths = Vec::new();
+        for date in dates {
+            let zip_path = backup_dir.join(format!("{date}.zip"));
+            if zip_path.exists() {
+                fs::remove_file(&zip_path)?;
+            }
+            deleted_remote_paths.push(format!("save_data/{}/{date}.zip", self.name));
+        }
+
+        let mut saves = self.get_game_snapshots_info()?;
+
+        // Build parent lookup for resolving ancestor chains
+        let parent_map: HashMap<&str, Option<&str>> = saves
+            .backups
+            .iter()
+            .map(|s| (s.date.as_str(), s.parent.as_deref()))
+            .collect();
+
+        // Find the nearest surviving ancestor for a deleted date
+        let find_surviving_ancestor = |date: &str| -> Option<String> {
+            let mut current = parent_map.get(date).copied().flatten();
+            while let Some(p) = current {
+                if !to_delete.contains(p) {
+                    return Some(p.to_string());
+                }
+                current = parent_map.get(p).copied().flatten();
+            }
+            None
+        };
+
+        // Pre-compute surviving ancestor for each deleted date
+        let surviving_ancestors: HashMap<&str, Option<String>> = to_delete
+            .iter()
+            .map(|&d| (d, find_surviving_ancestor(d)))
+            .collect();
+
+        // Re-parent surviving children of deleted nodes
+        for snapshot in saves.backups.iter_mut() {
+            if to_delete.contains(snapshot.date.as_str()) {
+                continue;
+            }
+            if let Some(ref parent) = snapshot.parent {
+                if to_delete.contains(parent.as_str()) {
+                    snapshot.parent = surviving_ancestors[parent.as_str()].clone();
+                }
+            }
+        }
+
+        // Update HEAD if it points to a deleted snapshot
+        if let Some(ref head) = saves.head {
+            if to_delete.contains(head.as_str()) {
+                saves.head = saves
+                    .backups
+                    .iter()
+                    .filter(|s| !to_delete.contains(s.date.as_str()))
+                    .max_by_key(|s| &s.date)
+                    .map(|s| s.date.clone());
+            }
+        }
+
+        saves
+            .backups
+            .retain(|s| !to_delete.contains(s.date.as_str()));
+        self.set_game_snapshots_info(&saves)?;
+
+        Ok(BatchSnapshotsDeleted {
+            snapshots: saves,
+            deleted_remote_paths,
+        })
+    }
+
     pub async fn delete_game(&self) -> Result<GameDeleted, BackupError> {
         let mut config = get_config()?;
         let backup_path = get_backup_path()?.join(&self.name);
