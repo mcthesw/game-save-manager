@@ -87,6 +87,20 @@ The application is divided into a frontend and a backend.
   - Use `Result` and `thiserror`/`anyhow` for robust error handling. (prefer `thiserror` in internal modules)
   - Always run `cargo clippy` and clear all warns before commit.
 
+## Pre-commit Checks
+
+Run all of the following before each commit to catch issues early. They can be run in a single command chain:
+
+```bash
+# Rust: format, lint, and test
+cargo fmt && cargo clippy --all-targets --all-features && cargo test --lib
+
+# Frontend: lint and typecheck
+npx eslint src/ && npx nuxt typecheck
+```
+
+CI will verify these checks. Fix any issues before committing.
+
 ## Commit & Pull Request Guidelines
 
 Follow the Conventional Commit specification with emojis. The format is `type(scope): :emoji: summary`.
@@ -103,6 +117,7 @@ All user-facing strings must be internationalized.
 - **Frontend**: Use the `$t('key')` function from `vue-i18n`. Strings are in `locales/*.json`.
 - **Backend**: Use the `rust-i18n` crate.
 - To add a new string, add the key to `locales/en_US.json` and its translation to other locale files. (`en_US` and `zh_SIMPLIFIED` are the tier 1 locales)
+- **All locale files must stay in sync**: when adding new keys, they must be added to **every** locale file (`en_US`, `zh_SIMPLIFIED`, `fr`, `ko`, `ta`, `uk`). Tier 2 locales (`fr`, `ko`, `ta`, `uk`) should use English fallback values for new keys.
 
 ## Testing Guidelines
 
