@@ -68,6 +68,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::add_game,
             ipc_handler::restore_snapshot,
             ipc_handler::delete_snapshot,
+            ipc_handler::batch_delete_snapshots,
             ipc_handler::delete_game,
             ipc_handler::get_game_snapshots_info,
             ipc_handler::set_config,

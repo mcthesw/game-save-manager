@@ -198,6 +198,38 @@ pub async fn delete_snapshot(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn batch_delete_snapshots(
+    game: Game,
+    dates: Vec<String>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Batch deleting {} snapshots for game: {:?}", dates.len(), game.name);
+    let deleted = game.batch_delete_snapshots(&dates).await.map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to batch delete snapshots: {:?}", e);
+        e.to_string()
+    })?;
+
+    if let Ok(config) = get_config() {
+        if config.settings.cloud_settings.always_sync && !deleted.deleted_remote_paths.is_empty() {
+            enqueue_cloud_sync_job(
+                &app_handle,
+                CloudSyncJob::DeleteFilesAndUploadMetadata {
+                    backend: config.settings.cloud_settings.backend,
+                    game_name: deleted.snapshots.name.clone(),
+                    snapshots: deleted.snapshots,
+                    remote_zip_paths: deleted.deleted_remote_paths,
+                },
+            )
+            .await;
+        }
+    }
+
+    info!(target:"rgsm::ipc", "Successfully batch deleted {} snapshots for game: {:?}", dates.len(), game.name);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Deleting game: {:?}", game);
     let deleted = game.delete_game().await.map_err(|e| {
