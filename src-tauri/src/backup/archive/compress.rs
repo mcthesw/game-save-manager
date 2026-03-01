@@ -80,6 +80,13 @@ where
     Ok(())
 }
 
+/// Write a single save unit into the ZIP under its index prefix (`{index}/...`).
+///
+/// **Index stability rule**: The `index` is the positional index of the save unit
+/// within `save_paths`. This index is persisted in the archive and used during
+/// restore to map entries back to save units. Like protobuf field numbers,
+/// save-unit indices must remain stable — when removing a save unit, its index
+/// slot must not be reused by a different unit.
 fn append_save_unit<T>(
     writer: &mut ZipWriter<T>,
     save_unit: &SaveUnit,

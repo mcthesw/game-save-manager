@@ -16,7 +16,7 @@ pub enum CompressionPreset {
     /// Zstd level 3 — best speed/ratio balance (recommended).
     #[default]
     Standard,
-    /// Zstd level 19 — maximum compression, slowest.
+    /// Zstd level 19 — very high compression, slower.
     Best,
 }
 
@@ -41,13 +41,14 @@ impl CompressionPreset {
         }
     }
 
-    /// Short identifier used in the archive V2 comment.
+    /// Short identifier used in the archive V2 comment metadata.
+    /// Encodes method and level so archives can be distinguished.
     pub fn comment_id(self) -> &'static str {
         match self {
             Self::Store => "stored",
             Self::Fast => "deflate",
-            Self::Standard => "zstd",
-            Self::Best => "zstd",
+            Self::Standard => "zstd:3",
+            Self::Best => "zstd:19",
         }
     }
 }

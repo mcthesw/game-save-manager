@@ -792,7 +792,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <ElOption label="Store" value="Store" />
               <ElOption label="Fast (Deflate)" value="Fast" />
               <ElOption label="Standard (Zstd)" value="Standard" />
-              <ElOption label="Best (Zstd Max)" value="Best" />
+              <ElOption label="Best (Zstd L19)" value="Best" />
             </ElSelect>
             <span class="setting-label">{{ $t('settings.compression_preset') }}</span>
           </div>
