@@ -13,10 +13,7 @@ use crate::{
     preclude::*,
 };
 
-use super::archive::{
-    ZipTimestampInterpretation, system_time_to_zip_datetime,
-    zip_timestamp_interpretation_from_comment,
-};
+use super::archive::{ArchiveVersion, system_time_to_zip_datetime};
 
 const FINGERPRINT_MAGIC: &[u8] = b"RGSM_FP_V1";
 
@@ -163,6 +160,7 @@ fn normalize_zip_entry_name(name: &str, is_dir: bool) -> String {
 
 fn collect_entries_from_zip(
     archive: &mut zip::ZipArchive<File>,
+    version: ArchiveVersion,
 ) -> Result<Vec<SaveEntryMeta>, CompressError> {
     let mut entries = Vec::new();
 
@@ -171,7 +169,12 @@ fn collect_entries_from_zip(
             .by_index(index)
             .map_err(|e| CompressError::Single(e.into()))?;
         let is_dir = zip_file.is_dir();
-        let rel_path = normalize_zip_entry_name(zip_file.name(), is_dir);
+        let raw_path = normalize_zip_entry_name(zip_file.name(), is_dir);
+
+        let rel_path = match version.normalize_entry_path(&raw_path) {
+            Some(p) => p.to_string(),
+            None => continue,
+        };
 
         if rel_path.is_empty() {
             continue;
@@ -201,11 +204,11 @@ pub(crate) fn fingerprint_zip_state(zip_path: &Path) -> Result<Option<String>, C
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
 
-    let interpretation = zip_timestamp_interpretation_from_comment(archive.comment());
-    if interpretation != ZipTimestampInterpretation::LocalTime {
+    let version = ArchiveVersion::from_comment(archive.comment());
+    if !version.uses_local_timestamps() {
         return Ok(None);
     }
 
-    let entries = collect_entries_from_zip(&mut archive)?;
+    let entries = collect_entries_from_zip(&mut archive, version)?;
     Ok(Some(build_fingerprint(entries)))
 }

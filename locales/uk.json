@@ -24,6 +24,7 @@
     "move_down": "Далі",
     "enable_edit_manage": "Зміни, відображені в інтерфейсі управління архівом",
     "default_delete_before_apply": "Придбання для видалення резервного копіювання (ефективні для нових ігор)",
+    "compression_preset": "Backup compression level",
     "backup_all": "Всі файли резервного копіювання",
     "backup_all_hint": "для всіх ігор, і може зайняти довгий час, щоб визначити вхідні іграшки",
     "backup_all_success_with_sync": "All games backed up. Cloud sync continues in background.",

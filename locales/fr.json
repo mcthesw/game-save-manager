@@ -34,6 +34,7 @@
     "operation_canceled": "Vous avez annulé cette opération",
     "reset_success": "Reprise du succès",
     "default_delete_before_apply": "Acquiescence pour supprimer le back-up (efficacité pour les nouveaux jeux)",
+    "compression_preset": "Backup compression level",
     "default_expend_favorites_tree": "Vestes de collection Acquiesced",
     "save_list_expand_behavior": "Comportement d'expansion de la liste des sauvegardes",
     "save_list_expand_behavior_default_open": "Toujours déployé",

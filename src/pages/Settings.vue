@@ -788,6 +788,15 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <span class="setting-label">{{ $t('settings.default_delete_before_apply') }}</span>
           </div>
           <div class="setting-box">
+            <ElSelect v-model="config.settings.compression_preset" style="width: 160px">
+              <ElOption label="Store" value="Store" />
+              <ElOption label="Fast (Deflate)" value="Fast" />
+              <ElOption label="Standard (Zstd)" value="Standard" />
+              <ElOption label="Best (Zstd Max)" value="Best" />
+            </ElSelect>
+            <span class="setting-label">{{ $t('settings.compression_preset') }}</span>
+          </div>
+          <div class="setting-box">
             <ElSwitch v-model="config.settings.add_new_to_favorites" />
             <span class="setting-label">{{ $t('settings.add_new_to_favorites') }}</span>
           </div>
