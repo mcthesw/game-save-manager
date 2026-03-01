@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::backup::CompressionPreset;
 use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::preclude::*;
@@ -70,6 +71,8 @@ pub struct Settings {
     pub max_extra_backup_count: u32,
     #[serde(default = "default_value::default")]
     pub appearance: AppearanceSettings,
+    #[serde(default)]
+    pub compression_preset: CompressionPreset,
 }
 
 impl Default for Settings {
@@ -92,6 +95,7 @@ impl Default for Settings {
             max_auto_backup_count: default_value::default_zero_u32(),
             max_extra_backup_count: default_value::default_five_u32(),
             appearance: AppearanceSettings::default(),
+            compression_preset: CompressionPreset::default(),
         }
     }
 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::backup::Game;
+use crate::backup::{CompressionPreset, Game};
 use crate::cloud_sync::CloudSettings;
 use crate::config::{AppearanceSettings, QuickActionsSettings, SaveListExpandBehavior, Settings};
 use crate::default_value;
@@ -61,6 +61,7 @@ impl Default for Config {
                 max_auto_backup_count: 0,
                 max_extra_backup_count: 5,
                 appearance: AppearanceSettings::default(),
+                compression_preset: CompressionPreset::default(),
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),

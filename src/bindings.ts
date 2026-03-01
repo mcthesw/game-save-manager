@@ -382,7 +382,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.4"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.4"} as const;
 
 /** user-defined types **/
 
@@ -425,6 +425,29 @@ export type CloudSyncError = { game_name: string | null; error: string }
 export type CloudSyncJobInfo = { id: number; description: string; status: CloudSyncJobStatus; error: string | null }
 export type CloudSyncJobStatus = "Queued" | "Running" | "Completed" | "Failed" | "Cancelled"
 export type CloudSyncStatus = { active_jobs: number; current_description: string | null; jobs: CloudSyncJobInfo[] }
+/**
+ * User-facing compression presets for backup archives.
+ * 
+ * Each preset maps to a specific `zip::CompressionMethod` and compression level.
+ * Old archives using BZip2 remain fully readable regardless of the current preset.
+ */
+export type CompressionPreset = 
+/**
+ * No compression — fastest backup, largest file size.
+ */
+"Store" | 
+/**
+ * Deflate level 1 — fast with reasonable compression.
+ */
+"Fast" | 
+/**
+ * Zstd level 3 — best speed/ratio balance (recommended).
+ */
+"Standard" | 
+/**
+ * Zstd level 19 — maximum compression, slowest.
+ */
+"Best"
 /**
  * The software's configuration
  * include the version, backup's location path, games'info,
@@ -572,7 +595,7 @@ export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_
  * Maximum number of extra overwrite backups to keep per game.
  * Keep the newest N backups; 0 means unlimited.
  */
-max_extra_backup_count?: number; appearance?: AppearanceSettings }
+max_extra_backup_count?: number; appearance?: AppearanceSettings; compression_preset?: CompressionPreset }
 /**
  * A backup is a zip file that contains
  * all the file that the save unit has declared.

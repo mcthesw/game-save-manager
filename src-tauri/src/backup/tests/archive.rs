@@ -1,8 +1,8 @@
 use super::utils::{ConfigFileGuard, lock_config_file};
 use crate::backup::archive::{
-    ZIP_COMMENT_LOCAL_TIME_MARKER, ZipTimestampInterpretation, add_directory, compress_to_file,
+    ArchiveVersion, CompressionPreset, V1_COMMENT_MARKER, add_directory, compress_to_file,
     decompress_from_file, local_result_to_timestamp, system_time_to_zip_datetime,
-    zip_datetime_to_system_time, zip_timestamp_interpretation_from_comment,
+    zip_datetime_to_system_time,
 };
 use crate::backup::{SaveUnit, SaveUnitType};
 use crate::device::get_current_device_id;
@@ -89,8 +89,7 @@ mod tests {
             drop(outfile);
 
             if let Some(zip_time) = file.last_modified() {
-                let system_time =
-                    zip_datetime_to_system_time(zip_time, ZipTimestampInterpretation::LocalTime);
+                let system_time = zip_datetime_to_system_time(zip_time, ArchiveVersion::V2);
                 let file_time = FileTime::from_system_time(system_time);
                 set_file_mtime(&outpath, file_time)?;
             }
@@ -142,7 +141,12 @@ mod tests {
         let zip_file = File::create(&zip_path)?;
         let mut zip_writer = ZipWriter::new(zip_file);
 
-        add_directory(&mut zip_writer, &test_dir, &PathBuf::from("test_dir"))?;
+        add_directory(
+            &mut zip_writer,
+            &test_dir,
+            &PathBuf::from("test_dir"),
+            CompressionPreset::Standard,
+        )?;
         zip_writer.finish()?;
 
         let extract_dir = temp_path.join("extract");
@@ -160,10 +164,7 @@ mod tests {
             if file.is_dir() {
                 fs::create_dir_all(&outpath)?;
                 if let Some(zip_time) = file.last_modified() {
-                    let system_time = zip_datetime_to_system_time(
-                        zip_time,
-                        ZipTimestampInterpretation::LocalTime,
-                    );
+                    let system_time = zip_datetime_to_system_time(zip_time, ArchiveVersion::V2);
                     let file_time = FileTime::from_system_time(system_time);
                     dir_timestamps.push((outpath.clone(), file_time));
                 }
@@ -176,10 +177,7 @@ mod tests {
                 drop(outfile);
 
                 if let Some(zip_time) = file.last_modified() {
-                    let system_time = zip_datetime_to_system_time(
-                        zip_time,
-                        ZipTimestampInterpretation::LocalTime,
-                    );
+                    let system_time = zip_datetime_to_system_time(zip_time, ArchiveVersion::V2);
                     let file_time = FileTime::from_system_time(system_time);
                     let _ = set_file_mtime(&outpath, file_time);
                 }
@@ -229,18 +227,15 @@ mod tests {
     }
 
     #[test]
-    fn test_zip_timestamp_interpretation_from_comment() {
+    fn test_archive_version_from_comment() {
         assert_eq!(
-            zip_timestamp_interpretation_from_comment(ZIP_COMMENT_LOCAL_TIME_MARKER.as_bytes()),
-            ZipTimestampInterpretation::LocalTime
+            ArchiveVersion::from_comment(V1_COMMENT_MARKER.as_bytes()),
+            ArchiveVersion::V1
         );
+        assert_eq!(ArchiveVersion::from_comment(b""), ArchiveVersion::Legacy);
         assert_eq!(
-            zip_timestamp_interpretation_from_comment(b""),
-            ZipTimestampInterpretation::LegacyUtc
-        );
-        assert_eq!(
-            zip_timestamp_interpretation_from_comment(b"something-else"),
-            ZipTimestampInterpretation::LegacyUtc
+            ArchiveVersion::from_comment(b"something-else"),
+            ArchiveVersion::Legacy
         );
     }
 
@@ -257,8 +252,7 @@ mod tests {
             source_datetime.second() as u8,
         )?;
 
-        let restored_time =
-            zip_datetime_to_system_time(zip_time, ZipTimestampInterpretation::LegacyUtc);
+        let restored_time = zip_datetime_to_system_time(zip_time, ArchiveVersion::Legacy);
 
         let source_secs = source_time
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -293,15 +287,20 @@ mod tests {
         let date = "e2e_snapshot";
         let zip_path = backup_dir.join(format!("{date}.zip"));
 
-        let compressed_size = compress_to_file(std::slice::from_ref(&save_unit), &zip_path)?;
+        let compressed_size = compress_to_file(
+            std::slice::from_ref(&save_unit),
+            &zip_path,
+            CompressionPreset::Standard,
+        )?;
         assert!(compressed_size > 0);
 
         let zip_file = File::open(&zip_path)?;
         let zip_archive = zip::ZipArchive::new(zip_file)?;
-        assert_eq!(
-            zip_archive.comment(),
-            ZIP_COMMENT_LOCAL_TIME_MARKER.as_bytes()
-        );
+        // V2 comment starts with RGSM_ARCHIVE_V2 header
+        let comment = std::str::from_utf8(zip_archive.comment()).unwrap();
+        assert!(comment.starts_with("RGSM_ARCHIVE_V2"));
+        assert!(comment.contains("\"version\":2"));
+        assert!(comment.contains("\"compression\":"));
 
         fs::write(&save_file, b"mutated-content")?;
         set_file_mtime(&save_file, FileTime::from_system_time(SystemTime::now()))?;
@@ -418,5 +417,107 @@ mod tests {
 
         let resolved_ts = local_result_to_timestamp(naive, LocalResult::None);
         assert_eq!(resolved_ts, naive.and_utc().timestamp());
+    }
+
+    /// Two save units with identically-named files must both survive a
+    /// compress → decompress round-trip (V2 index-prefix fix for #144).
+    #[test]
+    fn test_same_name_files_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+
+        // Two separate directories each containing a file with the same name
+        let dir_a = temp_path.join("unit_a");
+        let dir_b = temp_path.join("unit_b");
+        fs::create_dir_all(&dir_a)?;
+        fs::create_dir_all(&dir_b)?;
+
+        let file_a = dir_a.join("save.dat");
+        let file_b = dir_b.join("save.dat");
+        fs::write(&file_a, b"content-from-unit-a")?;
+        fs::write(&file_b, b"content-from-unit-b")?;
+
+        let unit_a = build_file_save_unit(&file_a);
+        let unit_b = build_file_save_unit(&file_b);
+        let save_units = [unit_a, unit_b];
+
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let date = "collision_test";
+        let zip_path = backup_dir.join(format!("{date}.zip"));
+
+        compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)?;
+
+        // Verify the ZIP contains index-prefixed entries
+        let zip_file = File::open(&zip_path)?;
+        let mut archive = zip::ZipArchive::new(zip_file)?;
+        let entry_names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        assert!(
+            entry_names.iter().any(|n| n == "0/save.dat"),
+            "Expected entry 0/save.dat, got: {entry_names:?}"
+        );
+        assert!(
+            entry_names.iter().any(|n| n == "1/save.dat"),
+            "Expected entry 1/save.dat, got: {entry_names:?}"
+        );
+
+        // Mutate files to confirm restore works
+        fs::write(&file_a, b"mutated")?;
+        fs::write(&file_b, b"mutated")?;
+
+        decompress_from_file(&save_units, &backup_dir, date, None)?;
+
+        assert_eq!(fs::read(&file_a)?, b"content-from-unit-a");
+        assert_eq!(fs::read(&file_b)?, b"content-from-unit-b");
+
+        Ok(())
+    }
+
+    /// All compression presets must produce valid archives that decompress correctly.
+    #[test]
+    fn test_all_compression_presets() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let presets = [
+            CompressionPreset::Store,
+            CompressionPreset::Fast,
+            CompressionPreset::Standard,
+            CompressionPreset::Best,
+        ];
+
+        for preset in presets {
+            let temp_dir = temp_dir::TempDir::new()?;
+            let temp_path = temp_dir.path();
+
+            let save_file = temp_path.join("data.bin");
+            fs::write(&save_file, b"hello world from preset test")?;
+
+            let save_unit = build_file_save_unit(&save_file);
+            let backup_dir = temp_path.join("backup");
+            fs::create_dir_all(&backup_dir)?;
+            let date = "preset_test";
+            let zip_path = backup_dir.join(format!("{date}.zip"));
+
+            let size = compress_to_file(std::slice::from_ref(&save_unit), &zip_path, preset)?;
+            assert!(size > 0, "Preset {preset:?} produced empty archive");
+
+            // Mutate and restore
+            fs::write(&save_file, b"overwritten")?;
+            decompress_from_file(std::slice::from_ref(&save_unit), &backup_dir, date, None)?;
+
+            let restored = fs::read(&save_file)?;
+            assert_eq!(
+                restored, b"hello world from preset test",
+                "Preset {preset:?} failed to roundtrip"
+            );
+        }
+
+        Ok(())
     }
 }
