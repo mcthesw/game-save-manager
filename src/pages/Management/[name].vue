@@ -17,7 +17,7 @@ import {
   DocumentCopy,
   Setting,
   Delete,
-  RefreshLeft,
+  Back,
   Plus,
   Timer,
   Edit,
@@ -74,6 +74,22 @@ const describe = ref('');
 let backup_button_time_limit = true; // 两次备份时间间隔1秒
 let backup_button_backup_limit = true; // 上次没备份好禁止再备份或读取
 let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
+
+// 撤销上次应用的状态
+interface UndoInfo {
+  extraBackupDate: string;
+  previousHead: string | null;
+}
+const undoInfo = ref<UndoInfo | null>(null);
+
+// 撤销按钮是否可用
+const canUndo = computed(() => undoInfo.value !== null);
+const extraBackupEnabled = computed(() => config.value.settings.extra_backup_when_apply !== false);
+const undoTooltip = computed(() => {
+  if (!extraBackupEnabled.value) return $t('manage.undo_requires_extra_backup');
+  if (!canUndo.value) return $t('manage.undo_not_available');
+  return $t('manage.undo_last_apply');
+});
 
 // 批量操作记录列表
 const selected_game_snapshots: Ref<Snapshot[]> = ref([]);
@@ -263,15 +279,74 @@ async function apply_save(date: string) {
     return;
   }
   apply_button_apply_limit = false;
+
+  // 记录应用前的 HEAD，用于撤销
+  const previousHead = currentHead.value ?? null;
+
   await withLoading(async () => {
     const result = await commands.restoreSnapshot(game.value, date);
     if (result.status === 'error') {
       showError({ message: $t('manage.recover_failed') });
     } else {
       showSuccess({ message: $t('manage.recover_success') });
+
+      // 尝试获取刚创建的额外备份，用于撤销
+      if (extraBackupEnabled.value) {
+        try {
+          const extraResult = await commands.getGameExtraBackups(game.value);
+          if (extraResult.status === 'ok' && extraResult.data.length > 0) {
+            const latestExtra = extraResult.data[0];
+            if (latestExtra) {
+              undoInfo.value = {
+                extraBackupDate: latestExtra.date,
+                previousHead,
+              };
+            }
+          }
+        } catch (e) {
+          error(`Failed to get extra backups for undo: ${e}`);
+        }
+      }
     }
   }, $t('manage.restoring_backup'));
   apply_button_apply_limit = true;
+  refresh_backups_info();
+}
+
+async function undo_last_apply() {
+  if (!undoInfo.value) return;
+
+  try {
+    await feedback.confirm($t('manage.undo_confirm'), $t('manage.warning'), {
+      confirmButtonText: $t('manage.confirm'),
+      cancelButtonText: $t('manage.cancel'),
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+
+  const { extraBackupDate, previousHead } = undoInfo.value;
+
+  await withLoading(async () => {
+    const result = await commands.restoreExtraBackup(game.value, extraBackupDate);
+    if (result.status === 'error') {
+      showError({ message: $t('manage.undo_failed') });
+      return;
+    }
+
+    // 恢复之前的 HEAD 指针
+    if (previousHead) {
+      const headResult = await commands.setSnapshotHead(game.value, previousHead);
+      if (headResult.status === 'error') {
+        error(`Failed to restore HEAD on undo: ${headResult.error}`);
+      }
+    }
+
+    undoInfo.value = null;
+    showSuccess({ message: $t('manage.undo_success') });
+  }, $t('manage.restoring_backup'));
+
   refresh_backups_info();
 }
 
@@ -651,7 +726,6 @@ const currentHeadFullText = computed(() => {
             class="backup-input"
             @keyup.enter="create_new_save"
           >
-            <template #prepend>{{ $t('manage.new_save_of') }}</template>
             <template #append>
               <el-button type="primary" :icon="Plus" @click="create_new_save">
                 {{ $t('manage.create_new_save') }}
@@ -661,9 +735,20 @@ const currentHeadFullText = computed(() => {
         </div>
         <el-divider direction="vertical" class="action-divider" />
         <div class="restore-section">
-          <el-button type="warning" :icon="RefreshLeft" @click="load_latest_save">
+          <el-button type="warning" :icon="VideoPlay" @click="load_latest_save">
             {{ $t('manage.load_latest_save') }}
           </el-button>
+          <el-tooltip :content="undoTooltip" placement="bottom">
+            <span>
+              <el-button
+                circle
+                :type="canUndo && extraBackupEnabled ? 'success' : ''"
+                :icon="Back"
+                :disabled="!canUndo || !extraBackupEnabled"
+                @click="undo_last_apply"
+              />
+            </span>
+          </el-tooltip>
         </div>
       </div>
     </el-card>
@@ -899,6 +984,13 @@ const currentHeadFullText = computed(() => {
 
 .action-divider {
   height: 24px;
+}
+
+.restore-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .main-content-card {
