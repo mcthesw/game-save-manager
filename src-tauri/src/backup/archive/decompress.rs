@@ -153,7 +153,6 @@ fn restore_folder_unit(
 
 fn restore_save_unit_from_temp(
     unit: &SaveUnit,
-    index: usize,
     version: ArchiveVersion,
     temp_root: &Path,
     app_handle: Option<&AppHandle>,
@@ -163,14 +162,11 @@ fn restore_save_unit_from_temp(
         .file_name()
         .ok_or(BackupFileError::NonePathError)?;
 
-    // V2+ archives store entries under {index}/{name}, older versions use flat layout.
-    //
-    // **Index stability rule**: The index is the positional index of the save unit
-    // within `save_paths` at the time the archive was created. Restore relies on
-    // the same ordering. Like protobuf field numbers, save-unit indices must remain
-    // stable — removing a save unit must not cause remaining units to shift indices.
+    // V2+ archives store entries under `{save_unit_id}/{name}`, older versions use flat layout.
+    // The ID is a stable, monotonically-assigned identifier that does not change when
+    // save units are added or removed.
     let original_path = if version.uses_index_prefix() {
-        temp_root.join(index.to_string()).join(file_name)
+        temp_root.join(unit.id.to_string()).join(file_name)
     } else {
         temp_root.join(file_name)
     };
@@ -212,9 +208,8 @@ pub(super) fn decompress_from_archive(
     }
 
     let mut restore_errors = Vec::new();
-    for (index, unit) in save_paths.iter().enumerate() {
-        if let Err(err) = restore_save_unit_from_temp(unit, index, version, &temp_root, app_handle)
-        {
+    for unit in save_paths {
+        if let Err(err) = restore_save_unit_from_temp(unit, version, &temp_root, app_handle) {
             restore_errors.push(err);
         }
     }
