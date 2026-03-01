@@ -67,7 +67,17 @@ pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
     for game in config.games {
         let sem = Arc::clone(&semaphore);
         set.spawn(async move {
-            let _permit = sem.acquire_owned().await.expect("semaphore closed");
+            let game_name = game.name.clone();
+            let _permit = match sem.acquire_owned().await {
+                Ok(permit) => permit,
+                Err(e) => {
+                    let msg = format!(
+                        "Backup all semaphore closed while starting backup for game {game_name}: {e:?}"
+                    );
+                    error!(target: "rgsm::backup", "{msg}");
+                    return Err(BackupError::Unexpected(anyhow::anyhow!(msg)));
+                }
+            };
             info!(target: "rgsm::backup", "Backup all: starting {}", game.name);
             game.create_snapshot("Backup all").await
         });
