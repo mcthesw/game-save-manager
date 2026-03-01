@@ -1,9 +1,10 @@
 //! ZIP archive creation from save units.
 //!
-//! Writes V2 archives with index-prefixed entries and structured metadata.
-//! Each save unit is stored under `{index}/` to prevent same-name collisions.
+//! Writes V2 archives with ID-prefixed entries and structured metadata.
+//! Each save unit is stored under `{id}/` to prevent same-name collisions.
 
 use std::{
+    collections::HashSet,
     fs::{self, File},
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
@@ -115,6 +116,18 @@ where
     }
 }
 
+fn ensure_unique_save_unit_ids(save_paths: &[SaveUnit]) -> Result<(), CompressError> {
+    let mut seen = HashSet::with_capacity(save_paths.len());
+    for save_unit in save_paths {
+        if !seen.insert(save_unit.id) {
+            return Err(CompressError::Single(BackupFileError::DuplicateSaveUnitId(
+                save_unit.id,
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Write an origin directory to zip writer.
 ///
 /// `prefix_path` should usually be the origin directory name.
@@ -151,6 +164,8 @@ pub fn compress_to_file(
     zip_path: &Path,
     preset: CompressionPreset,
 ) -> Result<u64, CompressError> {
+    ensure_unique_save_unit_ids(save_paths)?;
+
     let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
     zip.set_comment(ArchiveMeta::new(preset).to_comment());
