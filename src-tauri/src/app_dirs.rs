@@ -4,6 +4,8 @@ use std::sync::OnceLock;
 
 /// Stores the application's data directory path
 static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+#[cfg(test)]
+static TEST_APP_DATA_DIR: OnceLock<temp_dir::TempDir> = OnceLock::new();
 
 /// Get the directory where application data should be stored
 ///
@@ -14,39 +16,64 @@ static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 /// The result is cached after the first call.
 /// The data directory is determined at startup and remains fixed for the application lifetime.
 pub fn get_app_data_dir() -> &'static PathBuf {
-    APP_DATA_DIR.get_or_init(|| {
-        // In debug mode, check pwd first to avoid test configs in target/debug
-        // being cleared during cargo clean or rebuilds
-        #[cfg(debug_assertions)]
-        {
-            if let Ok(cwd) = std::env::current_dir() {
-                let pwd_config_path = cwd.join("GameSaveManager.config.json");
-                if pwd_config_path.exists() {
-                    info!("Debug mode: Using pwd as data directory: {}", cwd.display());
-                    return cwd;
-                }
+    APP_DATA_DIR.get_or_init(init_app_data_dir)
+}
+
+#[cfg(test)]
+fn init_app_data_dir() -> PathBuf {
+    init_test_app_data_dir()
+}
+
+#[cfg(not(test))]
+fn init_app_data_dir() -> PathBuf {
+    init_runtime_app_data_dir()
+}
+
+#[cfg(test)]
+fn init_test_app_data_dir() -> PathBuf {
+    let test_data_dir = TEST_APP_DATA_DIR.get_or_init(|| {
+        temp_dir::TempDir::new().expect("failed to create temporary test data directory")
+    });
+    info!(
+        "Test mode: Using temp directory as data directory: {}",
+        test_data_dir.path().display()
+    );
+    test_data_dir.path().to_path_buf()
+}
+
+#[cfg_attr(test, allow(dead_code))]
+fn init_runtime_app_data_dir() -> PathBuf {
+    // In debug mode, check pwd first to avoid test configs in target/debug
+    // being cleared during cargo clean or rebuilds
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(cwd) = std::env::current_dir() {
+            let pwd_config_path = cwd.join("GameSaveManager.config.json");
+            if pwd_config_path.exists() {
+                info!("Debug mode: Using pwd as data directory: {}", cwd.display());
+                return cwd;
             }
         }
+    }
 
-        // Standard behavior: use executable directory for both portable and installed versions
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                info!(
-                    "Using executable directory as data directory: {}",
-                    exe_dir.display()
-                );
-                return exe_dir.to_path_buf();
-            }
+    // Standard behavior: use executable directory for both portable and installed versions
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            info!(
+                "Using executable directory as data directory: {}",
+                exe_dir.display()
+            );
+            return exe_dir.to_path_buf();
         }
+    }
 
-        // Fallback only if we cannot determine executable directory
-        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        log::warn!(
-            "Failed to determine executable directory, falling back to current directory: {}",
-            cwd.display()
-        );
-        cwd
-    })
+    // Fallback only if we cannot determine executable directory
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    log::warn!(
+        "Failed to determine executable directory, falling back to current directory: {}",
+        cwd.display()
+    );
+    cwd
 }
 
 /// Resolve a path relative to the app data directory
