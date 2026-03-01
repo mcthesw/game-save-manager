@@ -200,14 +200,13 @@ impl Game {
             });
         }
 
-        let mut infos = self.get_game_snapshots_info()?;
+        let infos = self.get_game_snapshots_info()?;
 
         // Filter auto backups (Timer backups only)
         let mut auto_backups: Vec<_> = infos
             .backups
             .iter()
-            .enumerate()
-            .filter(|(_, snapshot)| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
+            .filter(|snapshot| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
             .collect();
 
         // If we're within the limit, no cleanup needed
@@ -219,40 +218,25 @@ impl Game {
         }
 
         // Sort by date (oldest first). Date string format preserves chronological order.
-        auto_backups.sort_by(|a, b| a.1.date.cmp(&b.1.date));
+        auto_backups.sort_by(|a, b| a.date.cmp(&b.date));
 
-        // Calculate how many to delete
+        // Collect dates of oldest auto backups that exceed the limit
         let to_delete_count = auto_backups.len() - max_count as usize;
-        let backups_to_delete = &auto_backups[..to_delete_count];
+        let dates_to_delete: Vec<String> = auto_backups[..to_delete_count]
+            .iter()
+            .map(|snapshot| snapshot.date.clone())
+            .collect();
 
-        let mut deleted_remote_paths = Vec::new();
+        // Reuse batch_delete_snapshots for consistent parent-chain re-linking and HEAD update
+        let result = self.batch_delete_snapshots(&dates_to_delete).await?;
 
-        // Delete the oldest auto backups
-        for (_idx, snapshot) in backups_to_delete {
-            let zip_path = PathBuf::from(&snapshot.path);
-            if zip_path.exists() {
-                fs::remove_file(&zip_path)?;
-                info!(target:"rgsm::backup::game", "Removed old auto backup: {}", snapshot.date);
-            }
-
-            deleted_remote_paths.push(format!("save_data/{}/{}.zip", self.name, snapshot.date));
+        for date in &dates_to_delete {
+            info!(target:"rgsm::backup::game", "Removed old auto backup: {date}");
         }
 
-        // Remove deleted backups from the info list
-        let dates_to_remove: Vec<String> = backups_to_delete
-            .iter()
-            .map(|(_, snapshot)| snapshot.date.clone())
-            .collect();
-        infos
-            .backups
-            .retain(|snapshot| !dates_to_remove.contains(&snapshot.date));
-
-        // Save updated info
-        self.set_game_snapshots_info(&infos)?;
-
         Ok(AutoBackupsCleanupResult {
-            snapshots: infos,
-            deleted_remote_paths,
+            snapshots: result.snapshots,
+            deleted_remote_paths: result.deleted_remote_paths,
         })
     }
     pub fn restore_snapshot(
