@@ -4,6 +4,7 @@ use crate::backup::archive::{
     decompress_from_file, local_result_to_timestamp, system_time_to_zip_datetime,
     zip_datetime_to_system_time,
 };
+use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{SaveUnit, SaveUnitType};
 use crate::device::get_current_device_id;
 use filetime::{FileTime, set_file_mtime};
@@ -517,6 +518,45 @@ mod tests {
                 "Preset {preset:?} failed to roundtrip"
             );
         }
+
+        Ok(())
+    }
+
+    /// Fingerprints match between source and V2 archive even when two save units
+    /// have identically-named files (the index prefix is stripped symmetrically).
+    #[test]
+    fn test_fingerprint_matches_with_same_name_files() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+
+        let dir_a = temp_path.join("unit_a");
+        let dir_b = temp_path.join("unit_b");
+        fs::create_dir_all(&dir_a)?;
+        fs::create_dir_all(&dir_b)?;
+
+        let file_a = dir_a.join("save.dat");
+        let file_b = dir_b.join("save.dat");
+        fs::write(&file_a, b"data-a")?;
+        fs::write(&file_b, b"data-b")?;
+
+        let save_units = [build_file_save_unit(&file_a), build_file_save_unit(&file_b)];
+
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let zip_path = backup_dir.join("fp_test.zip");
+        compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)?;
+
+        let source_fp = fingerprint_source_state(&save_units)?;
+        let zip_fp =
+            fingerprint_zip_state(&zip_path)?.expect("V2 archive should produce a fingerprint");
+
+        assert_eq!(
+            source_fp, zip_fp,
+            "Source and ZIP fingerprints must match for same-name files"
+        );
 
         Ok(())
     }

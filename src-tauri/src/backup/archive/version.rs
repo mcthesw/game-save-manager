@@ -146,7 +146,7 @@ mod tests {
 
         let parsed = ArchiveMeta::from_comment(comment.as_bytes()).unwrap();
         assert_eq!(parsed.version, 2);
-        assert_eq!(parsed.compression, "zstd");
+        assert_eq!(parsed.compression, "zstd:19");
     }
 
     #[test]

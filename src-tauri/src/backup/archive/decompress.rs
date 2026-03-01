@@ -60,7 +60,14 @@ fn extract_zip_entries_to_temp(
         let mut zip_file = zip
             .by_index(index)
             .map_err(|e| CompressError::Single(e.into()))?;
-        let out_path = temp_root.join(zip_file.name());
+
+        // Use enclosed_name() to prevent Zip Slip path traversal attacks.
+        // Entries with names containing ".." or absolute paths are skipped.
+        let safe_name = match zip_file.enclosed_name() {
+            Some(name) => name.to_owned(),
+            None => continue,
+        };
+        let out_path = temp_root.join(&safe_name);
 
         if zip_file.is_dir() {
             fs::create_dir_all(&out_path).map_err(|e| CompressError::Single(e.into()))?;
@@ -156,7 +163,12 @@ fn restore_save_unit_from_temp(
         .file_name()
         .ok_or(BackupFileError::NonePathError)?;
 
-    // V2+ archives store entries under {index}/{name}, older versions use flat layout
+    // V2+ archives store entries under {index}/{name}, older versions use flat layout.
+    //
+    // **Index stability rule**: The index is the positional index of the save unit
+    // within `save_paths` at the time the archive was created. Restore relies on
+    // the same ordering. Like protobuf field numbers, save-unit indices must remain
+    // stable — removing a save unit must not cause remaining units to shift indices.
     let original_path = if version.uses_index_prefix() {
         temp_root.join(index.to_string()).join(file_name)
     } else {
