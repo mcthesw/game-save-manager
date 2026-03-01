@@ -15,6 +15,8 @@ pub enum BackupFileError {
     Fs(#[from] fs_extra::error::Error),
     #[error("Cannot convert path to string")]
     NonePathError,
+    #[error("Duplicate save-unit id detected in game config: {0}")]
+    DuplicateSaveUnitId(u32),
     #[error("Path resolution error: {0:#?}")]
     PathResolution(#[from] ResolveError),
     #[error(transparent)]

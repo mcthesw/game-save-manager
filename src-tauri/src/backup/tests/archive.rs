@@ -7,6 +7,7 @@ use crate::backup::archive::{
 use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{SaveUnit, SaveUnitType};
 use crate::device::get_current_device_id;
+use crate::preclude::{BackupFileError, CompressError};
 use filetime::{FileTime, set_file_mtime};
 use std::{
     collections::HashMap,
@@ -480,6 +481,49 @@ mod tests {
 
         assert_eq!(fs::read(&file_a)?, b"content-from-unit-a");
         assert_eq!(fs::read(&file_b)?, b"content-from-unit-b");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_compress_rejects_duplicate_save_unit_ids() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let zip_path = backup_dir.join("duplicate_id.zip");
+
+        let dir_a = temp_path.join("unit_a");
+        let dir_b = temp_path.join("unit_b");
+        fs::create_dir_all(&dir_a)?;
+        fs::create_dir_all(&dir_b)?;
+
+        let file_a = dir_a.join("save.dat");
+        let file_b = dir_b.join("save.dat");
+        fs::write(&file_a, b"a")?;
+        fs::write(&file_b, b"b")?;
+
+        let save_units = [
+            build_file_save_unit_with_id(&file_a, 0),
+            build_file_save_unit_with_id(&file_b, 0),
+        ];
+
+        let err = compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)
+            .expect_err("duplicate save-unit IDs should be rejected");
+        assert!(
+            matches!(
+                err,
+                CompressError::Single(BackupFileError::DuplicateSaveUnitId(0))
+            ),
+            "unexpected error: {err:?}"
+        );
+        assert!(
+            !zip_path.exists(),
+            "zip file should not be created when duplicate IDs are rejected"
+        );
 
         Ok(())
     }
