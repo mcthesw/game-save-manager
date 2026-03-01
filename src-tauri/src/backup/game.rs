@@ -25,6 +25,10 @@ pub struct Game {
     // Key: DeviceId (String), Value: Path (String)
     #[serde(default)]
     pub game_paths: HashMap<DeviceId, String>,
+    /// Monotonically increasing counter for assigning unique save-unit IDs.
+    /// Each call to `new_save_unit_id()` returns the current value and increments it.
+    #[serde(default)]
+    pub next_save_unit_id: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

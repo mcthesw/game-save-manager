@@ -35,6 +35,7 @@ fn build_file_save_unit(path: &Path) -> SaveUnit {
         path.to_string_lossy().to_string(),
     );
     SaveUnit {
+        id: 0,
         unit_type: SaveUnitType::File,
         paths,
         delete_before_apply: false,
@@ -142,6 +143,7 @@ fn timer_backup_skips_when_unchanged() -> TestResult {
             name: game_name.to_string(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
+            next_save_unit_id: 1,
         };
 
         let first = game
@@ -183,6 +185,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
             name: game_name.to_string(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
+            next_save_unit_id: 1,
         };
 
         let first = game
@@ -232,6 +235,7 @@ fn timer_backup_compares_only_latest_auto_backup() -> TestResult {
             name: game_name.to_string(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
+            next_save_unit_id: 1,
         };
 
         let first = game
@@ -280,6 +284,7 @@ fn legacy_auto_snapshot_creates_once_before_dedup() -> TestResult {
             name: game_name.to_string(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
+            next_save_unit_id: 1,
         };
 
         create_legacy_auto_snapshot(&game, &save_file, "2000-01-01_00-00-00")?;
@@ -322,6 +327,7 @@ fn fingerprint_source_and_zip_match_for_fresh_snapshot() -> TestResult {
             name: game_name.to_string(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
+            next_save_unit_id: 1,
         };
 
         game.create_snapshot("Manual Snapshot").await?;
@@ -376,6 +382,7 @@ fn make_test_game(game_name: &str, backup_root: &Path) -> Result<Game, Box<dyn s
         name: game_name.to_string(),
         save_paths: Vec::new(),
         game_paths: HashMap::new(),
+        next_save_unit_id: 0,
     })
 }
 

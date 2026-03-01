@@ -80,17 +80,14 @@ where
     Ok(())
 }
 
-/// Write a single save unit into the ZIP under its index prefix (`{index}/...`).
+/// Write a single save unit into the ZIP under its ID prefix (`{id}/...`).
 ///
-/// **Index stability rule**: The `index` is the positional index of the save unit
-/// within `save_paths`. This index is persisted in the archive and used during
-/// restore to map entries back to save units. Like protobuf field numbers,
-/// save-unit indices must remain stable — when removing a save unit, its index
-/// slot must not be reused by a different unit.
+/// The `id` is `save_unit.id` — a stable, monotonically-assigned identifier
+/// that does not change when save units are added or removed. This replaces
+/// the former positional index, which could shift and break old archives.
 fn append_save_unit<T>(
     writer: &mut ZipWriter<T>,
     save_unit: &SaveUnit,
-    index: usize,
     preset: CompressionPreset,
 ) -> Result<(), BackupFileError>
 where
@@ -101,19 +98,19 @@ where
         return Err(BackupFileError::NotExists(unit_path));
     }
 
-    let index_prefix = PathBuf::from(index.to_string());
+    let id_prefix = PathBuf::from(save_unit.id.to_string());
     match save_unit.unit_type {
         SaveUnitType::File => {
             let file_name = unit_path
                 .file_name()
                 .ok_or(BackupFileError::NonePathError)?;
-            write_file_entry(writer, &unit_path, &index_prefix.join(file_name), preset)
+            write_file_entry(writer, &unit_path, &id_prefix.join(file_name), preset)
         }
         SaveUnitType::Folder => {
             let folder_name = unit_path
                 .file_name()
                 .ok_or(BackupFileError::NonePathError)?;
-            add_directory(writer, &unit_path, &index_prefix.join(folder_name), preset)
+            add_directory(writer, &unit_path, &id_prefix.join(folder_name), preset)
         }
     }
 }
@@ -159,8 +156,8 @@ pub fn compress_to_file(
     zip.set_comment(ArchiveMeta::new(preset).to_comment());
 
     let mut compress_errors = Vec::new();
-    for (index, save_unit) in save_paths.iter().enumerate() {
-        if let Err(err) = append_save_unit(&mut zip, save_unit, index, preset) {
+    for save_unit in save_paths {
+        if let Err(err) = append_save_unit(&mut zip, save_unit, preset) {
             compress_errors.push(err);
         }
     }
