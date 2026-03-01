@@ -30,15 +30,15 @@ const saveListMenuIndex = 'save-list';
 
 // 过滤菜单项
 const filteredGames = computed(() => {
-  if (!searchQuery.value) return games.value;
-  const query = searchQuery.value.toLowerCase();
+  const query = searchQuery.value.trim().toLowerCase();
+  if (!query) return games.value;
   return games.value.filter((game) => game.name.toLowerCase().includes(query));
 });
 
 // 过滤常规菜单
 const filteredLinks = computed(() => {
-  if (!searchQuery.value) return baseLinks.value;
-  const query = searchQuery.value.toLowerCase();
+  const query = searchQuery.value.trim().toLowerCase();
+  if (!query) return baseLinks.value;
   return baseLinks.value.filter((link) => link.text.toLowerCase().includes(query));
 });
 
@@ -118,7 +118,10 @@ function clearSearch() {
             @close="handleMenuClose"
           >
             <!-- 存档栏 -->
-            <el-sub-menu v-if="filteredGames.length > 0 || !searchQuery" :index="saveListMenuIndex">
+            <el-sub-menu
+              v-if="filteredGames.length > 0 || !searchQuery.trim()"
+              :index="saveListMenuIndex"
+            >
               <template #title>
                 <el-icon>
                   <Files />
