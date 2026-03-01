@@ -9,6 +9,7 @@ This is a simple and easy-to-use open source game save manager. It can help you 
 - [Official Website](https://help.sworld.club): Provides resources such as help documentation and downloads
 - [Changelog](https://help.sworld.club/blog): Recent updates can be viewed on Github and here
 - [Milestone](https://github.com/mcthesw/game-save-manager/milestone/3): Records the functions planned to be implemented in the future
+- [Roadmap](ROADMAP.md): Development direction and architecture decisions for V2.0 and beyond
 - [QQ Group](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=2zkfioUwcqA-Y2ZZqfnhjhQcOUEfcYFD&authKey=7eFKqarle0w7QUsFXZbp%2BLkIvEI0ORoggsnNATOSU6maYiu9mSWSTRxcSorp9eex&noverify=0&group_code=837390423): 837390423
 
 Feature list:

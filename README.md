@@ -9,6 +9,7 @@
 - [官方网站](https://help.sworld.club)：提供了帮助文档、下载等资源
 - [更新日志](https://help.sworld.club/blog)：Github和这里都可以看到最近的更新
 - [下个版本计划](https://github.com/mcthesw/game-save-manager/milestone/3)：记录了未来计划实现的功能
+- [路线图](ROADMAP.md)：V2.0 及未来版本的开发方向和架构决策
 - [QQ交流群](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=2zkfioUwcqA-Y2ZZqfnhjhQcOUEfcYFD&authKey=7eFKqarle0w7QUsFXZbp%2BLkIvEI0ORoggsnNATOSU6maYiu9mSWSTRxcSorp9eex&noverify=0&group_code=837390423)：837390423
 
 特性列表：
