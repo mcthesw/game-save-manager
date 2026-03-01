@@ -138,7 +138,7 @@
     "size_not_available": "기록 없음"
   },
   "addgame": {
-    "duplicated_filename_error": "이 소프트웨어는 동일한 문서 / 문서 폴더의 advent를 지원하지 않습니다",
+    "duplicated_path_error": "This path has already been added as a save location",
     "wip_warning": "- WIP - 이 함수는 아직 완료되지 않았습니다",
     "no_name_error": "적어도 재생 이름과 아카이브 경로의 입력",
     "add_game_success": "성공 추가",
@@ -152,7 +152,6 @@
     "operations": "제품정보",
     "remove": "제품 정보",
     "path": "로드 중 ..",
-    "warning_for_save_file": "나는 같은 문서, 폴더의 추가를 지원하지 않습니다, 시간에 대한,하지만 그것을 사용하지 않을 것입니다, 그리고, 필요한 경우, 저에게 피드백을 제공, 나는 그것을 생산 고려할 것입니다",
     "invalid_name_error": "잘못된 재생 이름, 문서를 만들지 않는 특별한 단어를 포함하지 마십시오",
     "duplicated_name_error": "반복적인 놀이 이름 (크기와 크기 사이 구별 없음)",
     "search_local": "현지 게임의 자동 식별",

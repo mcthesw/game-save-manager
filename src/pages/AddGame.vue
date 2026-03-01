@@ -116,7 +116,7 @@ function check_save_unit_unique(p: string) {
       return Object.values(x.paths).includes(p);
     })
   ) {
-    showWarning({ message: $t('addgame.duplicated_filename_error') });
+    showWarning({ message: $t('addgame.duplicated_path_error') });
     return false;
   }
   return true;
@@ -629,13 +629,6 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
 
 <template>
   <div class="page">
-    <el-alert
-      :title="$t('addgame.warning_for_save_file')"
-      type="warning"
-      :closable="false"
-      show-icon
-    />
-
     <el-card class="form-card">
       <!-- Top: icon + fields -->
       <div class="top-row">
