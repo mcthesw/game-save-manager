@@ -3,7 +3,9 @@ use crate::preclude::*;
 
 use log::{error, info};
 use std::fs;
+use std::sync::Arc;
 use tauri::AppHandle;
+use tokio::sync::Semaphore;
 
 use super::game::SnapshotCreated;
 use super::{Game, GameSnapshots};
@@ -52,19 +54,48 @@ pub async fn create_game_backup(game: &Game) -> Result<(), BackupError> {
 
 pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
     let config = get_config()?;
+    if config.games.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Cap concurrent disk operations to avoid overwhelming the I/O subsystem.
+    const MAX_CONCURRENT_BACKUPS: usize = 4;
+    let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT_BACKUPS));
+    let mut set: tokio::task::JoinSet<Result<SnapshotCreated, BackupError>> =
+        tokio::task::JoinSet::new();
+
+    for game in config.games {
+        let sem = Arc::clone(&semaphore);
+        set.spawn(async move {
+            let _permit = sem.acquire_owned().await.expect("semaphore closed");
+            info!(target: "rgsm::backup", "Backup all: starting {}", game.name);
+            game.create_snapshot("Backup all").await
+        });
+    }
+
     let mut created_snapshots = Vec::new();
-    for game in &config.games {
-        match game.create_snapshot("Backup all").await {
-            Ok(created) => {
+    let mut first_error: Option<BackupError> = None;
+
+    while let Some(join_result) = set.join_next().await {
+        match join_result {
+            Ok(Ok(created)) => {
+                info!(target: "rgsm::backup", "Backup all succeeded for game {}", created.snapshots.name);
                 created_snapshots.push(created);
-                info!(target: "rgsm::backup", "Backup all succeeded for game {:#?}", game.name);
+            }
+            Ok(Err(e)) => {
+                error!(target: "rgsm::backup", "Backup all failed: {e:?}");
+                first_error.get_or_insert(e);
             }
             Err(e) => {
-                error!(target: "rgsm::backup", "Backup all failed for game {:#?}", game);
-                return Err(e);
+                error!(target: "rgsm::backup", "Backup all task panicked: {e:?}");
             }
         }
     }
+
+    if let Some(e) = first_error {
+        return Err(e);
+    }
+
     Ok(created_snapshots)
 }
 
