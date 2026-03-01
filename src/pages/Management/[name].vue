@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onBeforeUnmount, onMounted } from 'vue';
-import { ElInput } from 'element-plus';
+import { ElInput, TableV2FixedDir, TableV2SortOrder } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
@@ -39,6 +39,12 @@ const drawer = ref(false); // 是否显示存档位置侧栏
 const extraBackupDrawer = ref(false); // 是否显示额外备份抽屉
 
 const table_data = ref<Snapshot[]>([]);
+const table_data_desc = ref<Snapshot[]>([]);
+const tableSortBy = ref<{ key: string; order: TableV2SortOrder }>({
+  key: 'date',
+  order: TableV2SortOrder.DESC,
+});
+const selectedDates = ref<Set<string>>(new Set());
 
 // Game snapshots info including HEAD
 const gameSnapshots = ref<GameSnapshots | null>(null);
@@ -91,9 +97,6 @@ const undoTooltip = computed(() => {
   return $t('manage.undo_not_available');
 });
 
-// 批量操作记录列表
-const selected_game_snapshots: Ref<Snapshot[]> = ref([]);
-
 let stopQuickActionListener: (() => void) | null = null;
 
 onMounted(async () => {
@@ -128,9 +131,6 @@ function formatFileSize(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-function on_selection_change(val: Snapshot[]) {
-  selected_game_snapshots.value = val;
 }
 async function batch_delete() {
   try {
@@ -182,6 +182,8 @@ async function refresh_backups_info() {
   } else {
     gameSnapshots.value = result.data;
     table_data.value = result.data.backups;
+    table_data_desc.value = [...result.data.backups].reverse();
+    selectedDates.value = new Set();
   }
 }
 
@@ -467,13 +469,130 @@ async function on_drawer_save_changes(updatedGame: Game) {
   drawer.value = false;
 }
 
+const orderedTableData = computed(() =>
+  tableSortBy.value.order === TableV2SortOrder.ASC ? table_data.value : table_data_desc.value
+);
+
 const filter_table = computed(() => {
-  return table_data.value
-    .filter(
-      (data) =>
-        !search.value || data.describe.includes(search.value) || data.date.includes(search.value)
-    )
-    .reverse();
+  const keyword = search.value.trim();
+  if (!keyword) {
+    return orderedTableData.value;
+  }
+
+  return orderedTableData.value.filter(
+    (data) => data.describe.includes(keyword) || data.date.includes(keyword)
+  );
+});
+
+const selected_game_snapshots = computed<Snapshot[]>(() => {
+  if (selectedDates.value.size === 0) {
+    return [];
+  }
+  return filter_table.value.filter((snapshot) => selectedDates.value.has(snapshot.date));
+});
+
+const selectedCountInView = computed(() => {
+  if (selectedDates.value.size === 0) {
+    return 0;
+  }
+  let count = 0;
+  for (const snapshot of filter_table.value) {
+    if (selectedDates.value.has(snapshot.date)) {
+      count += 1;
+    }
+  }
+  return count;
+});
+
+const isAllSelected = computed(() => {
+  const total = filter_table.value.length;
+  return total > 0 && selectedCountInView.value === total;
+});
+
+const isSelectionIndeterminate = computed(() => {
+  const total = filter_table.value.length;
+  return total > 0 && selectedCountInView.value > 0 && selectedCountInView.value < total;
+});
+
+const tableColumns = computed(() => [
+  { key: 'selection', dataKey: 'selection', title: '', width: 50, align: 'center' as const },
+  {
+    key: 'date',
+    dataKey: 'date',
+    title: $t('manage.save_date'),
+    width: 190,
+    sortable: true,
+  },
+  {
+    key: 'describe',
+    dataKey: 'describe',
+    title: $t('manage.description'),
+    width: 280,
+    minWidth: 220,
+    flexGrow: 1,
+  },
+  { key: 'size', dataKey: 'size', title: $t('manage.size'), width: 120 },
+  {
+    key: 'actions',
+    dataKey: 'actions',
+    title: $t('manage.actions'),
+    width: 150,
+    align: 'center' as const,
+    fixed: TableV2FixedDir.RIGHT,
+  },
+]);
+
+function onTableColumnSort({
+  key,
+  order,
+}: {
+  key: string | number | symbol;
+  order: TableV2SortOrder;
+}) {
+  if (key !== 'date') return;
+  tableSortBy.value = { key: 'date', order };
+}
+
+function isSnapshotSelected(date: string) {
+  return selectedDates.value.has(date);
+}
+
+function toggleSnapshotSelection(date: string, checked: boolean) {
+  const next = new Set(selectedDates.value);
+  if (checked) {
+    next.add(date);
+  } else {
+    next.delete(date);
+  }
+  selectedDates.value = next;
+}
+
+function toggleSelectAll(value: unknown) {
+  const checked = value === true;
+  if (checked) {
+    selectedDates.value = new Set(filter_table.value.map((snapshot) => snapshot.date));
+    return;
+  }
+  selectedDates.value = new Set();
+}
+
+watch(filter_table, (rows) => {
+  if (selectedDates.value.size === 0) return;
+  const visibleDates = new Set(rows.map((snapshot) => snapshot.date));
+  const next = new Set<string>();
+  let changed = false;
+
+  for (const date of selectedDates.value) {
+    if (visibleDates.has(date)) {
+      next.add(date);
+    } else {
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    selectedDates.value = next;
+  }
 });
 
 // 检查当前设备的存档路径是否为空
@@ -830,77 +949,106 @@ const currentHeadFullText = computed(() => {
       </template>
 
       <!-- Table View -->
-      <div v-if="viewMode === 'table'" class="view-container">
+      <div v-if="viewMode === 'table'" class="view-container table-view">
         <el-empty v-if="filter_table.length === 0" :description="$t('manage.no_snapshots')" />
-        <el-table v-else :data="filter_table" height="100%" @selection-change="on_selection_change">
-          <el-table-column type="selection" width="40" />
-          <el-table-column :label="$t('manage.save_date')" prop="date" width="180" sortable>
-            <template #default="{ row }">
-              <span class="font-mono text-sm">{{ row.date }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            :label="$t('manage.description')"
-            prop="describe"
-            min-width="200"
-            show-overflow-tooltip
-          />
-          <el-table-column :label="$t('manage.size')" width="100">
-            <template #default="{ row }">
-              <span class="text-gray-500 text-xs">{{
-                row.size ? formatFileSize(row.size) : '-'
-              }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column :label="$t('manage.actions')" align="center" width="140" fixed="right">
-            <template #default="{ row }">
-              <div class="action-buttons">
+        <el-auto-resizer v-else>
+          <template #default="{ height, width }">
+            <el-table-v2
+              :columns="tableColumns"
+              :data="filter_table"
+              :width="width"
+              :height="height"
+              row-key="date"
+              :row-height="50"
+              :header-height="44"
+              :sort-by="tableSortBy"
+              class="snapshot-table-v2"
+              @column-sort="onTableColumnSort"
+            >
+              <template #header-cell="{ column }">
+                <el-checkbox
+                  v-if="column.key === 'selection'"
+                  :model-value="isAllSelected"
+                  :indeterminate="isSelectionIndeterminate"
+                  @change="toggleSelectAll"
+                />
+                <span v-else>{{ column.title }}</span>
+              </template>
+
+              <template #cell="{ column, rowData }">
+                <el-checkbox
+                  v-if="column.key === 'selection'"
+                  :model-value="isSnapshotSelected(rowData.date)"
+                  @change="(value) => toggleSnapshotSelection(rowData.date, value === true)"
+                />
+                <span v-else-if="column.key === 'date'" class="font-mono text-sm">
+                  {{ rowData.date }}
+                </span>
                 <el-tooltip
-                  :content="$t('manage.apply')"
+                  v-else-if="column.key === 'describe'"
+                  :content="rowData.describe"
                   placement="top"
                   :show-after="300"
                   popper-class="action-tooltip"
                 >
-                  <span>
-                    <el-popconfirm
-                      :title="$t('manage.confirm_overwrite_prompt')"
-                      @confirm="apply_save(row.date)"
-                    >
-                      <template #reference>
-                        <el-button link type="success" :icon="VideoPlay" />
-                      </template>
-                    </el-popconfirm>
-                  </span>
+                  <span class="table-cell-ellipsis">{{ rowData.describe }}</span>
                 </el-tooltip>
-                <el-tooltip
-                  :content="$t('manage.change_describe')"
-                  placement="top"
-                  :show-after="300"
-                  popper-class="action-tooltip"
-                >
-                  <el-button link type="warning" :icon="Edit" @click="change_describe(row.date)" />
-                </el-tooltip>
-                <el-tooltip
-                  :content="$t('manage.delete')"
-                  placement="top"
-                  :show-after="300"
-                  popper-class="action-tooltip"
-                >
-                  <span>
-                    <el-popconfirm
-                      :title="$t('manage.confirm_delete_prompt')"
-                      @confirm="del_save(row.date)"
-                    >
-                      <template #reference>
-                        <el-button link type="danger" :icon="Delete" />
-                      </template>
-                    </el-popconfirm>
-                  </span>
-                </el-tooltip>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
+                <span v-else-if="column.key === 'size'" class="text-gray-500 text-xs">
+                  {{ rowData.size ? formatFileSize(rowData.size) : '-' }}
+                </span>
+                <div v-else-if="column.key === 'actions'" class="action-buttons">
+                  <el-tooltip
+                    :content="$t('manage.apply')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <span>
+                      <el-popconfirm
+                        :title="$t('manage.confirm_overwrite_prompt')"
+                        @confirm="apply_save(rowData.date)"
+                      >
+                        <template #reference>
+                          <el-button link type="success" :icon="VideoPlay" />
+                        </template>
+                      </el-popconfirm>
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    :content="$t('manage.change_describe')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <el-button
+                      link
+                      type="warning"
+                      :icon="Edit"
+                      @click="change_describe(rowData.date)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip
+                    :content="$t('manage.delete')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <span>
+                      <el-popconfirm
+                        :title="$t('manage.confirm_delete_prompt')"
+                        @confirm="del_save(rowData.date)"
+                      >
+                        <template #reference>
+                          <el-button link type="danger" :icon="Delete" />
+                        </template>
+                      </el-popconfirm>
+                    </span>
+                  </el-tooltip>
+                </div>
+              </template>
+            </el-table-v2>
+          </template>
+        </el-auto-resizer>
       </div>
 
       <!-- Branch View -->
@@ -1050,6 +1198,33 @@ const currentHeadFullText = computed(() => {
   overflow: auto;
   width: 100%;
   height: 100%;
+}
+
+.table-view {
+  overflow: hidden;
+}
+
+.snapshot-table-v2 {
+  width: 100%;
+  height: 100%;
+}
+
+.snapshot-table-v2 :deep(.el-table-v2__header-cell),
+.snapshot-table-v2 :deep(.el-table-v2__row-cell) {
+  display: flex;
+  align-items: center;
+}
+
+.snapshot-table-v2 :deep(.el-table-v2__header-cell .el-checkbox),
+.snapshot-table-v2 :deep(.el-table-v2__row-cell .el-checkbox) {
+  margin: 0 auto;
+}
+
+.table-cell-ellipsis {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .branch-view {
