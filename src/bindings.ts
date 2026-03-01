@@ -445,7 +445,7 @@ export type CompressionPreset =
  */
 "Standard" | 
 /**
- * Zstd level 19 — maximum compression, slowest.
+ * Zstd level 19 — very high compression, slower.
  */
 "Best"
 /**
