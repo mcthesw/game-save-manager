@@ -87,7 +87,11 @@ pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
                 first_error.get_or_insert(e);
             }
             Err(e) => {
-                error!(target: "rgsm::backup", "Backup all task panicked: {e:?}");
+                let panic_msg = format!("Backup all task panicked or was cancelled: {e:?}");
+                error!(target: "rgsm::backup", "{panic_msg}");
+                set.abort_all();
+                first_error.get_or_insert(BackupError::Unexpected(anyhow::anyhow!(panic_msg)));
+                break;
             }
         }
     }

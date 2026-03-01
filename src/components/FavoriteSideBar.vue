@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type Node from 'element-plus/es/components/tree/src/model/node';
 import type { MessageBoxInputData } from 'element-plus';
-import { computed, ref } from 'vue';
+import { computed, ref, toRaw } from 'vue';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import type { AllowDropType } from 'element-plus/es/components/tree/src/tree.type';
@@ -24,9 +24,8 @@ const props = defineProps({
 
 // 过滤收藏夹树
 const filteredFavorites = computed(() => {
-  if (!props.searchQuery || !config.value?.favorites) return config.value?.favorites;
-
-  const query = props.searchQuery.toLowerCase();
+  const query = props.searchQuery.trim().toLowerCase();
+  if (!query || !config.value?.favorites) return config.value?.favorites;
 
   // 递归过滤函数
   const filterNodes = (nodes: FavoriteTreeNode[]): FavoriteTreeNode[] => {
@@ -51,7 +50,7 @@ const filteredFavorites = computed(() => {
   };
 
   // 创建一个深拷贝以避免修改原始数据
-  const clonedFavorites = structuredClone(config.value.favorites);
+  const clonedFavorites = structuredClone(toRaw(config.value.favorites));
   return filterNodes(clonedFavorites);
 });
 

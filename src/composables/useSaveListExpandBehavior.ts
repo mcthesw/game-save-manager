@@ -21,7 +21,7 @@ export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
   const saveListMenuIndex = options.saveListMenuIndex ?? 'save-list';
 
   function isSearchActive() {
-    return !!searchQuery?.value;
+    return !!searchQuery?.value.trim();
   }
 
   function getSaveListBehavior() {
@@ -138,7 +138,7 @@ export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
   // Auto-expand when search is active, restore configured state when cleared
   if (searchQuery) {
     watch(searchQuery, async (query) => {
-      if (query) {
+      if (query.trim()) {
         await nextTick();
         menuRef.value?.open(saveListMenuIndex);
       } else {
