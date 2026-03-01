@@ -60,3 +60,10 @@ tauri-plugin-window-state = "2.4.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "compression_algorithms"
+harness = false
