@@ -6,7 +6,7 @@ use tauri::AppHandle;
 use crate::config::get_backup_path;
 use crate::preclude::*;
 
-use super::{Game, decompress_from_file};
+use super::{ArchiveBackend, Game, ZipBackend};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct ExtraBackupItem {
@@ -79,7 +79,8 @@ pub fn restore_extra_backup(
     app_handle: Option<&AppHandle>,
 ) -> Result<(), BackupError> {
     let dir = extra_backup_folder_path(game)?;
-    decompress_from_file(&game.save_paths, &dir, date, app_handle)?;
+    let archive_path = dir.join(format!("{date}.zip"));
+    ZipBackend.decompress(&game.save_paths, &archive_path, app_handle)?;
     Ok(())
 }
 

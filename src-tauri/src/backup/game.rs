@@ -9,8 +9,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{
-    GameSnapshots, SaveUnit, Snapshot, TIMER_AUTO_BACKUP_DESCRIPTION, compress_to_file,
-    decompress_from_file,
+    ArchiveBackend, GameSnapshots, SaveUnit, Snapshot, TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::DeviceId;
@@ -85,10 +84,11 @@ impl Game {
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let save_paths = &self.save_paths; // everything you should copy
+        let preset = get_config()?.settings.compression_preset;
 
         let zip_path = backup_path.join([&date, ".zip"].concat());
         // 获取压缩后的文件大小
-        let file_size = match compress_to_file(save_paths, &zip_path) {
+        let file_size = match ZipBackend.compress(save_paths, &zip_path, preset) {
             Ok(size) => size,
             Err(e) => {
                 // delete the zip if failed to write
@@ -264,7 +264,8 @@ impl Game {
                 warn!(target:"rgsm::backup::game","Failed to create extra backup: {:?}", e);
             }
         }
-        decompress_from_file(&self.save_paths, &backup_path, date, app_handle)?;
+        let archive_path = backup_path.join(format!("{date}.zip"));
+        ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
 
         // Update HEAD to point to the restored snapshot
         let mut infos = self.get_game_snapshots_info()?;
@@ -287,7 +288,8 @@ impl Game {
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
         let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
-        if let Err(e) = compress_to_file(&self.save_paths, zip_path) {
+        let preset = get_config()?.settings.compression_preset;
+        if let Err(e) = ZipBackend.compress(&self.save_paths, zip_path, preset) {
             if let Err(rm_err) = fs::remove_file(zip_path) {
                 warn!(
                     target: "rgsm::backup",

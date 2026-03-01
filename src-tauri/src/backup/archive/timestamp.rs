@@ -1,23 +1,13 @@
+//! ZIP timestamp conversion utilities.
+//!
+//! Handles the difference between legacy UTC timestamps and V1+/V2 local timestamps
+//! stored in ZIP entries. The `zip` crate's `DateTime` is a bare date/time without
+//! timezone info, so interpretation depends on [`ArchiveVersion`].
+
 use chrono::{Datelike, LocalResult, TimeZone, Timelike, Utc};
 use std::time::SystemTime;
 
-pub(crate) const ZIP_COMMENT_LOCAL_TIME_MARKER: &str = "RGSM_TS_MODE=LOCAL_V1";
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ZipTimestampInterpretation {
-    LegacyUtc,
-    LocalTime,
-}
-
-pub(crate) fn zip_timestamp_interpretation_from_comment(
-    comment: &[u8],
-) -> ZipTimestampInterpretation {
-    if comment == ZIP_COMMENT_LOCAL_TIME_MARKER.as_bytes() {
-        ZipTimestampInterpretation::LocalTime
-    } else {
-        ZipTimestampInterpretation::LegacyUtc
-    }
-}
+use super::version::ArchiveVersion;
 
 fn zip_datetime_to_naive_datetime(zip_time: zip::DateTime) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::new(
@@ -52,14 +42,13 @@ pub(crate) fn system_time_to_zip_datetime(system_time: SystemTime) -> zip::DateT
 
 pub(crate) fn zip_datetime_to_system_time(
     zip_time: zip::DateTime,
-    interpretation: ZipTimestampInterpretation,
+    version: ArchiveVersion,
 ) -> SystemTime {
     let datetime = zip_datetime_to_naive_datetime(zip_time);
-    let timestamp = match interpretation {
-        ZipTimestampInterpretation::LegacyUtc => datetime.and_utc().timestamp(),
-        ZipTimestampInterpretation::LocalTime => {
-            local_result_to_timestamp(datetime, chrono::Local.from_local_datetime(&datetime))
-        }
+    let timestamp = if version.uses_local_timestamps() {
+        local_result_to_timestamp(datetime, chrono::Local.from_local_datetime(&datetime))
+    } else {
+        datetime.and_utc().timestamp()
     };
 
     if timestamp < 0 {

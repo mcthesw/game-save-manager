@@ -15,6 +15,7 @@
     "move_down": "다음 단계",
     "enable_edit_manage": "아카이브 관리 인터페이스에 표시된 변화",
     "default_delete_before_apply": "back-up을 삭제하는 Acquiescence (새로운 게임에 효과적인)",
+    "compression_preset": "Backup compression level",
     "backup_all": "모든 백업 파일",
     "confirm": "이름 *",
     "cancel": "제품정보",

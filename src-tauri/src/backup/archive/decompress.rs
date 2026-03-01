@@ -1,3 +1,8 @@
+//! ZIP archive extraction and save unit restoration.
+//!
+//! Handles all archive versions (Legacy, V1, V2) transparently.
+//! V2 archives have index-prefixed entries that are mapped back to save units by index.
+
 use std::{
     fs::{self, File},
     path::{Path, PathBuf},
@@ -15,7 +20,7 @@ use crate::{
     preclude::*,
 };
 
-use super::timestamp::{zip_datetime_to_system_time, zip_timestamp_interpretation_from_comment};
+use super::{timestamp::zip_datetime_to_system_time, version::ArchiveVersion};
 
 fn emit_missing_path_warning(
     path: &Path,
@@ -47,8 +52,8 @@ fn emit_missing_path_warning(
 fn extract_zip_entries_to_temp(
     zip: &mut zip::ZipArchive<File>,
     temp_root: &Path,
+    version: ArchiveVersion,
 ) -> Result<Vec<(PathBuf, FileTime)>, CompressError> {
-    let timestamp_interpretation = zip_timestamp_interpretation_from_comment(zip.comment());
     let mut dir_timestamps = Vec::new();
 
     for index in 0..zip.len() {
@@ -60,7 +65,7 @@ fn extract_zip_entries_to_temp(
         if zip_file.is_dir() {
             fs::create_dir_all(&out_path).map_err(|e| CompressError::Single(e.into()))?;
             if let Some(zip_time) = zip_file.last_modified() {
-                let system_time = zip_datetime_to_system_time(zip_time, timestamp_interpretation);
+                let system_time = zip_datetime_to_system_time(zip_time, version);
                 dir_timestamps.push((out_path, FileTime::from_system_time(system_time)));
             }
             continue;
@@ -77,7 +82,7 @@ fn extract_zip_entries_to_temp(
         drop(output_file);
 
         if let Some(zip_time) = zip_file.last_modified() {
-            let system_time = zip_datetime_to_system_time(zip_time, timestamp_interpretation);
+            let system_time = zip_datetime_to_system_time(zip_time, version);
             let _ = set_file_mtime(&out_path, FileTime::from_system_time(system_time));
         }
     }
@@ -141,15 +146,22 @@ fn restore_folder_unit(
 
 fn restore_save_unit_from_temp(
     unit: &SaveUnit,
+    index: usize,
+    version: ArchiveVersion,
     temp_root: &Path,
     app_handle: Option<&AppHandle>,
 ) -> Result<(), BackupFileError> {
     let unit_path = unit.resolve_path_for_current_device()?;
-    let original_path = temp_root.join(
-        unit_path
-            .file_name()
-            .ok_or(BackupFileError::NonePathError)?,
-    );
+    let file_name = unit_path
+        .file_name()
+        .ok_or(BackupFileError::NonePathError)?;
+
+    // V2+ archives store entries under {index}/{name}, older versions use flat layout
+    let original_path = if version.uses_index_prefix() {
+        temp_root.join(index.to_string()).join(file_name)
+    } else {
+        temp_root.join(file_name)
+    };
 
     if !original_path.exists() {
         return Err(BackupFileError::NotExists(original_path));
@@ -161,22 +173,22 @@ fn restore_save_unit_from_temp(
     }
 }
 
-/// Decompress a zip file to the original save-unit paths.
-pub fn decompress_from_file(
+/// Decompress a zip archive at the given path to the original save-unit paths.
+pub(super) fn decompress_from_archive(
     save_paths: &[SaveUnit],
-    backup_path: &Path,
-    date: &str,
+    archive_path: &Path,
     app_handle: Option<&AppHandle>,
 ) -> Result<(), CompressError> {
-    let zip_path = backup_path.join([date, ".zip"].concat());
-    let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
+    let file = File::open(archive_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
+
+    let version = ArchiveVersion::from_comment(zip.comment());
 
     let temp_dir = temp_dir::TempDir::new().map_err(|e| CompressError::Single(e.into()))?;
     let temp_root = temp_dir.path().to_path_buf();
     fs::create_dir_all(&temp_root).map_err(|e| CompressError::Single(e.into()))?;
 
-    let mut dir_timestamps = extract_zip_entries_to_temp(&mut zip, &temp_root)?;
+    let mut dir_timestamps = extract_zip_entries_to_temp(&mut zip, &temp_root, version)?;
     dir_timestamps.sort_by(|a, b| {
         let depth_a = a.0.components().count();
         let depth_b = b.0.components().count();
@@ -188,8 +200,9 @@ pub fn decompress_from_file(
     }
 
     let mut restore_errors = Vec::new();
-    for unit in save_paths {
-        if let Err(err) = restore_save_unit_from_temp(unit, &temp_root, app_handle) {
+    for (index, unit) in save_paths.iter().enumerate() {
+        if let Err(err) = restore_save_unit_from_temp(unit, index, version, &temp_root, app_handle)
+        {
             restore_errors.push(err);
         }
     }
@@ -199,4 +212,18 @@ pub fn decompress_from_file(
     }
 
     Ok(())
+}
+
+/// Decompress a zip file to the original save-unit paths.
+///
+/// Constructs the archive path from `backup_path` and `date` (e.g., `backup_path/date.zip`).
+#[cfg(test)]
+pub fn decompress_from_file(
+    save_paths: &[SaveUnit],
+    backup_path: &Path,
+    date: &str,
+    app_handle: Option<&AppHandle>,
+) -> Result<(), CompressError> {
+    let zip_path = backup_path.join([date, ".zip"].concat());
+    decompress_from_archive(save_paths, &zip_path, app_handle)
 }

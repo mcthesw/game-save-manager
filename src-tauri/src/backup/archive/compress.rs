@@ -1,3 +1,8 @@
+//! ZIP archive creation from save units.
+//!
+//! Writes V2 archives with index-prefixed entries and structured metadata.
+//! Each save unit is stored under `{index}/` to prevent same-name collisions.
+
 use std::{
     fs::{self, File},
     io::{Read, Seek, Write},
@@ -9,11 +14,13 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::backup::path_format::path_to_zip_style;
 use crate::{
-    backup::{SaveUnit, SaveUnitType},
+    backup::{CompressionPreset, SaveUnit, SaveUnitType},
     preclude::*,
 };
 
-use super::timestamp::{ZIP_COMMENT_LOCAL_TIME_MARKER, system_time_to_zip_datetime};
+use super::version::ArchiveMeta;
+
+use super::timestamp::system_time_to_zip_datetime;
 
 fn file_modified_to_zip_datetime(path: &Path) -> Result<zip::DateTime, BackupFileError> {
     let modified = fs::metadata(path)?
@@ -22,17 +29,25 @@ fn file_modified_to_zip_datetime(path: &Path) -> Result<zip::DateTime, BackupFil
     Ok(system_time_to_zip_datetime(modified))
 }
 
-fn zip_options_with_mtime(path: &Path) -> Result<SimpleFileOptions, BackupFileError> {
+fn zip_options_with_mtime(
+    path: &Path,
+    preset: CompressionPreset,
+) -> Result<SimpleFileOptions, BackupFileError> {
     let mtime = file_modified_to_zip_datetime(path)?;
-    Ok(SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Bzip2)
-        .last_modified_time(mtime))
+    let mut opts = SimpleFileOptions::default()
+        .compression_method(preset.zip_method())
+        .last_modified_time(mtime);
+    if let Some(level) = preset.compression_level() {
+        opts = opts.compression_level(Some(level));
+    }
+    Ok(opts)
 }
 
 fn write_file_entry<T>(
     writer: &mut ZipWriter<T>,
     source_path: &Path,
     entry_name: &Path,
+    preset: CompressionPreset,
 ) -> Result<(), BackupFileError>
 where
     T: Write + Seek,
@@ -43,7 +58,7 @@ where
 
     writer.start_file(
         path_to_zip_style(entry_name)?,
-        zip_options_with_mtime(source_path)?,
+        zip_options_with_mtime(source_path, preset)?,
     )?;
     writer.write_all(&buffer)?;
     Ok(())
@@ -53,13 +68,14 @@ fn write_directory_entry<T>(
     writer: &mut ZipWriter<T>,
     source_path: &Path,
     entry_name: &Path,
+    preset: CompressionPreset,
 ) -> Result<(), BackupFileError>
 where
     T: Write + Seek,
 {
     writer.add_directory(
         path_to_zip_style(entry_name)?,
-        zip_options_with_mtime(source_path)?,
+        zip_options_with_mtime(source_path, preset)?,
     )?;
     Ok(())
 }
@@ -67,6 +83,8 @@ where
 fn append_save_unit<T>(
     writer: &mut ZipWriter<T>,
     save_unit: &SaveUnit,
+    index: usize,
+    preset: CompressionPreset,
 ) -> Result<(), BackupFileError>
 where
     T: Write + Seek,
@@ -76,18 +94,19 @@ where
         return Err(BackupFileError::NotExists(unit_path));
     }
 
+    let index_prefix = PathBuf::from(index.to_string());
     match save_unit.unit_type {
         SaveUnitType::File => {
             let file_name = unit_path
                 .file_name()
                 .ok_or(BackupFileError::NonePathError)?;
-            write_file_entry(writer, &unit_path, &PathBuf::from(file_name))
+            write_file_entry(writer, &unit_path, &index_prefix.join(file_name), preset)
         }
         SaveUnitType::Folder => {
             let folder_name = unit_path
                 .file_name()
                 .ok_or(BackupFileError::NonePathError)?;
-            add_directory(writer, &unit_path, &PathBuf::from(folder_name))
+            add_directory(writer, &unit_path, &index_prefix.join(folder_name), preset)
         }
     }
 }
@@ -99,11 +118,12 @@ pub(crate) fn add_directory<T>(
     writer: &mut ZipWriter<T>,
     origin: &Path,
     prefix_path: &Path,
+    preset: CompressionPreset,
 ) -> Result<(), BackupFileError>
 where
     T: Write + Seek,
 {
-    write_directory_entry(writer, origin, prefix_path)?;
+    write_directory_entry(writer, origin, prefix_path, preset)?;
 
     for entry in fs::read_dir(origin)? {
         let entry = entry?;
@@ -111,9 +131,9 @@ where
         let entry_name = prefix_path.join(entry.file_name());
 
         if entry_path.is_file() {
-            write_file_entry(writer, &entry_path, &entry_name)?;
+            write_file_entry(writer, &entry_path, &entry_name, preset)?;
         } else if entry_path.is_dir() {
-            add_directory(writer, &entry_path, &entry_name)?;
+            add_directory(writer, &entry_path, &entry_name, preset)?;
         }
     }
 
@@ -122,14 +142,18 @@ where
 
 /// Compress save units to a zip file.
 /// Returns the compressed file size in bytes.
-pub fn compress_to_file(save_paths: &[SaveUnit], zip_path: &Path) -> Result<u64, CompressError> {
+pub fn compress_to_file(
+    save_paths: &[SaveUnit],
+    zip_path: &Path,
+    preset: CompressionPreset,
+) -> Result<u64, CompressError> {
     let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
-    zip.set_comment(ZIP_COMMENT_LOCAL_TIME_MARKER);
+    zip.set_comment(ArchiveMeta::new(preset).to_comment());
 
     let mut compress_errors = Vec::new();
-    for save_unit in save_paths {
-        if let Err(err) = append_save_unit(&mut zip, save_unit) {
+    for (index, save_unit) in save_paths.iter().enumerate() {
+        if let Err(err) = append_save_unit(&mut zip, save_unit, index, preset) {
             compress_errors.push(err);
         }
     }

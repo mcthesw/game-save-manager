@@ -21,6 +21,7 @@
     "move_down": "கீழே செல்லுங்கள்",
     "enable_edit_manage": "காப்பக மேலாண்மை இடைமுகத்தில் மாற்றும் பொத்தானைக் காண்பி",
     "default_delete_before_apply": "முன்னிருப்பாக காப்புப்பிரதியை நீக்கவும் (புதிய விளையாட்டுகளுக்கு பயனுள்ளதாக இருக்கும்)",
+    "compression_preset": "Backup compression level",
     "backup_all": "அனைத்து காப்பகங்களையும் காப்புப் பிரதி எடுக்கவும்",
     "backup_all_hint": "இந்த செயல்பாடு அனைத்து விளையாட்டுகளின் காப்பகங்களையும் காப்புப் பிரதி எடுக்கும், இதற்கு நீண்ட நேரம் ஆகலாம், தயவுசெய்து ஆம் என உள்ளிடவும்",
     "backup_all_success_with_sync": "All games backed up. Cloud sync continues in background.",
