@@ -61,6 +61,7 @@ impl From<Config> for CurrentConfig {
                         let mut paths = HashMap::new();
                         paths.insert(current_device_id.clone(), su.path);
                         SaveUnit {
+                            id: 0,
                             unit_type: su.unit_type,
                             paths,
                             delete_before_apply: su.delete_before_apply,
@@ -71,6 +72,7 @@ impl From<Config> for CurrentConfig {
                     name: g.name,
                     save_paths,
                     game_paths,
+                    next_save_unit_id: 0,
                 }
             })
             .collect();

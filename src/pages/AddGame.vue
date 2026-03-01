@@ -49,6 +49,7 @@ const game_path = ref(''); // 选择游戏启动程序
 const game_icon_src = ref('/orange.png');
 const is_editing = ref(false); // 是否正在编辑已有的游戏
 const currentDevice = ref<Device | null>(null); // 当前设备信息
+const nextSaveUnitId = ref(0); // monotonically increasing save-unit ID counter
 
 // Import dialog state
 const showImportDialog = ref(false);
@@ -93,6 +94,7 @@ watchEffect(() => {
       is_editing.value = true;
       game_name.value = gameConfig.name;
       save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
+      nextSaveUnitId.value = gameConfig.next_save_unit_id ?? 0;
 
       // 获取当前设备的游戏路径
       if (gameConfig.game_paths && currentDevice.value) {
@@ -127,9 +129,11 @@ function check_name_valid(name: string) {
 }
 function generate_save_unit(unit_type: 'Folder' | 'File', path: string): SaveUnit {
   const delete_before_apply = config.value?.settings.default_delete_before_apply;
+  const id = nextSaveUnitId.value++;
 
   // 创建一个基本的 SaveUnit，使用当前设备ID作为路径映射的键
   const saveUnit: SaveUnit = {
+    id,
     unit_type,
     paths: {},
     delete_before_apply,
@@ -349,6 +353,7 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
       // Extract isFile only when status is 'ok'
       const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
       const saveUnit: SaveUnit = {
+        id: nextSaveUnitId.value++,
         unit_type: determineSaveUnitType(path, isFile),
         paths: {},
         delete_before_apply: config.value?.settings.default_delete_before_apply,
@@ -433,6 +438,7 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
 
       // Convert to SaveUnits
       const savePaths: SaveUnit[] = [];
+      let batchNextId = 0;
 
       for (const sp of selectedPaths) {
         if (!sp.path || sp.path.trim() === '') {
@@ -447,6 +453,7 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
         // Extract isFile only when status is 'ok'
         const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
         const saveUnit: SaveUnit = {
+          id: batchNextId++,
           unit_type: determineSaveUnitType(sp.path, isFile),
           paths: {},
           delete_before_apply: config.value?.settings.default_delete_before_apply,
@@ -480,6 +487,7 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
       const newGame: Game = {
         name: gameName,
         save_paths: savePaths,
+        next_save_unit_id: batchNextId,
       };
 
       const addResult = await commands.addGame(newGame);
@@ -554,6 +562,7 @@ async function save() {
   const game: Game = {
     name: game_name.value,
     save_paths: save_paths,
+    next_save_unit_id: nextSaveUnitId.value,
   };
 
   // 如果有游戏路径和当前设备信息，则添加游戏路径
@@ -594,6 +603,7 @@ function reset_info(show_notification: boolean = true) {
   game_name.value = '';
   save_paths.splice(0, save_paths.length);
   game_path.value = '';
+  nextSaveUnitId.value = 0;
   // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
   if (show_notification) {
     showSuccess({ message: $t('settings.reset_success') });

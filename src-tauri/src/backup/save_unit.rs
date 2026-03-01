@@ -15,9 +15,17 @@ pub enum SaveUnitType {
 }
 
 /// A save unit declares one of the files/folders
-/// that should be backup for a game
+/// that should be backup for a game.
+///
+/// The `id` field is a stable identifier used as the index prefix in V2 archives.
+/// Unlike positional indices, it does not change when save units are added or removed,
+/// ensuring old archives can always be restored correctly.
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct SaveUnit {
+    /// Stable identifier for this save unit, used as archive entry prefix in V2 format.
+    /// Assigned by `Game::new_save_unit_id()` and never reused within a game.
+    #[serde(default)]
+    pub id: u32,
     pub unit_type: SaveUnitType,
     #[serde(default)] // 如果反序列化时字段不存在，则使用默认值 (空 HashMap)
     pub paths: HashMap<DeviceId, String>, // 存储不同设备的路径

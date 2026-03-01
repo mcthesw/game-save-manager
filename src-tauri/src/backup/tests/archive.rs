@@ -23,12 +23,17 @@ mod tests {
     use chrono::{Datelike, LocalResult, Timelike};
 
     fn build_file_save_unit(path: &Path) -> SaveUnit {
+        build_file_save_unit_with_id(path, 0)
+    }
+
+    fn build_file_save_unit_with_id(path: &Path, id: u32) -> SaveUnit {
         let mut paths = HashMap::new();
         paths.insert(
             get_current_device_id().clone(),
             path.to_string_lossy().to_string(),
         );
         SaveUnit {
+            id,
             unit_type: SaveUnitType::File,
             paths,
             delete_before_apply: false,
@@ -441,8 +446,8 @@ mod tests {
         fs::write(&file_a, b"content-from-unit-a")?;
         fs::write(&file_b, b"content-from-unit-b")?;
 
-        let unit_a = build_file_save_unit(&file_a);
-        let unit_b = build_file_save_unit(&file_b);
+        let unit_a = build_file_save_unit_with_id(&file_a, 0);
+        let unit_b = build_file_save_unit_with_id(&file_b, 1);
         let save_units = [unit_a, unit_b];
 
         let backup_dir = temp_path.join("backup");
@@ -542,7 +547,10 @@ mod tests {
         fs::write(&file_a, b"data-a")?;
         fs::write(&file_b, b"data-b")?;
 
-        let save_units = [build_file_save_unit(&file_a), build_file_save_unit(&file_b)];
+        let save_units = [
+            build_file_save_unit_with_id(&file_a, 0),
+            build_file_save_unit_with_id(&file_b, 1),
+        ];
 
         let backup_dir = temp_path.join("backup");
         fs::create_dir_all(&backup_dir)?;

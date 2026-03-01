@@ -382,7 +382,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.4"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.5"} as const;
 
 /** user-defined types **/
 
@@ -472,7 +472,12 @@ export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolea
 /**
  * A game struct contains the save units and the game's launcher
  */
-export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }> }
+export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>; 
+/**
+ * Monotonically increasing counter for assigning unique save-unit IDs.
+ * Each call to `new_save_unit_id()` returns the current value and increments it.
+ */
+next_save_unit_id?: number }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -583,9 +588,18 @@ path: string;
 tags: string[] }
 /**
  * A save unit declares one of the files/folders
- * that should be backup for a game
+ * that should be backup for a game.
+ * 
+ * The `id` field is a stable identifier used as the index prefix in V2 archives.
+ * Unlike positional indices, it does not change when save units are added or removed,
+ * ensuring old archives can always be restored correctly.
  */
-export type SaveUnit = { unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean }
+export type SaveUnit = { 
+/**
+ * Stable identifier for this save unit, used as archive entry prefix in V2 format.
+ * Assigned by `Game::new_save_unit_id()` and never reused within a game.
+ */
+id?: number; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean }
 /**
  * A save unit should be a file or a folder
  */

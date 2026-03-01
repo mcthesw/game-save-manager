@@ -10,7 +10,10 @@ use crate::config::{Config, get_backup_path};
 use crate::preclude::*;
 use crate::updater::{
     probe::probe_config_version,
-    versions::{CURRENT_VERSION, Config1_4_0, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0},
+    versions::{
+        CURRENT_VERSION, Config1_4_0, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0,
+        VERSION_1_7_5,
+    },
 };
 
 /// Update configuration file to the latest version
@@ -34,6 +37,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     let current = Version::parse(CURRENT_VERSION)?;
     let min_supported = Version::parse(MIN_SUPPORTED_VERSION)?;
     let version_1_6_0 = Version::parse(VERSION_1_6_0)?;
+    let version_1_7_5 = Version::parse(VERSION_1_7_5)?;
 
     // Version compatibility check
     if version > current {
@@ -56,11 +60,16 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     let content = fs::read_to_string(path)?;
 
     // Migrate based on version
-    let new_cfg = migrate_config(&content, &version)?;
+    let mut new_cfg = migrate_config(&content, &version)?;
 
     // Migrate game snapshots if upgrading from before 1.6.0
     if version < version_1_6_0 {
         migrate_game_snapshots_to_chain()?;
+    }
+
+    // Assign stable IDs to save units if upgrading from before 1.7.5
+    if version < version_1_7_5 {
+        new_cfg = migrate_save_unit_ids(new_cfg);
     }
 
     // Write new config
@@ -197,4 +206,110 @@ fn migrate_game_snapshots_to_chain() -> Result<(), UpdaterError> {
 
     info!(target: "rgsm::updater", "Game snapshots migration completed");
     Ok(())
+}
+
+/// Assign stable IDs to save units that were created before v1.7.5.
+///
+/// Old save units have `id: 0` (the serde default). This migration assigns
+/// sequential IDs starting from 0 and sets `next_save_unit_id` to one past
+/// the last assigned ID. This preserves the positional-index mapping that
+/// old V2 archives were created with.
+fn migrate_save_unit_ids(mut config: Config) -> Config {
+    for game in &mut config.games {
+        // Skip games that already have non-zero IDs (already migrated or created post-1.7.5)
+        let needs_migration = game.next_save_unit_id == 0
+            && game.save_paths.iter().all(|u| u.id == 0)
+            && !game.save_paths.is_empty();
+
+        if !needs_migration {
+            continue;
+        }
+
+        // Assign IDs matching the positional index so existing V2 archives
+        // (which used `enumerate()` index as prefix) remain compatible.
+        for (i, unit) in game.save_paths.iter_mut().enumerate() {
+            unit.id = i as u32;
+        }
+        game.next_save_unit_id = game.save_paths.len() as u32;
+
+        info!(
+            target: "rgsm::updater",
+            "Assigned stable IDs to {} save units for game '{}'",
+            game.save_paths.len(),
+            game.name
+        );
+    }
+
+    config
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backup::{SaveUnit, SaveUnitType};
+
+    #[test]
+    fn migrate_save_unit_ids_assigns_sequential_ids() {
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "TestGame".to_string(),
+            save_paths: vec![
+                SaveUnit {
+                    id: 0,
+                    unit_type: SaveUnitType::Folder,
+                    paths: Default::default(),
+                    delete_before_apply: false,
+                },
+                SaveUnit {
+                    id: 0,
+                    unit_type: SaveUnitType::File,
+                    paths: Default::default(),
+                    delete_before_apply: false,
+                },
+            ],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+        });
+
+        let migrated = migrate_save_unit_ids(config);
+        let game = &migrated.games[0];
+        assert_eq!(game.save_paths[0].id, 0);
+        assert_eq!(game.save_paths[1].id, 1);
+        assert_eq!(game.next_save_unit_id, 2);
+    }
+
+    #[test]
+    fn migrate_save_unit_ids_skips_already_migrated() {
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "AlreadyMigrated".to_string(),
+            save_paths: vec![SaveUnit {
+                id: 5,
+                unit_type: SaveUnitType::File,
+                paths: Default::default(),
+                delete_before_apply: false,
+            }],
+            game_paths: Default::default(),
+            next_save_unit_id: 6,
+        });
+
+        let migrated = migrate_save_unit_ids(config);
+        let game = &migrated.games[0];
+        assert_eq!(game.save_paths[0].id, 5);
+        assert_eq!(game.next_save_unit_id, 6);
+    }
+
+    #[test]
+    fn migrate_save_unit_ids_skips_empty_games() {
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "EmptyGame".to_string(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+        });
+
+        let migrated = migrate_save_unit_ids(config);
+        assert_eq!(migrated.games[0].next_save_unit_id, 0);
+    }
 }
