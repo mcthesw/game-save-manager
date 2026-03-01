@@ -141,7 +141,7 @@
     "search_local": "Identification automatique des jeux locaux",
     "save_current_profile": "Ajouté à la collection",
     "reset_current_profile": "Reconfiguration de la configuration actuelle",
-    "duplicated_filename_error": "Le logiciel ne supporte pas l'avènement du même dossier document/document",
+    "duplicated_path_error": "This path has already been added as a save location",
     "wip_warning": "- WIP - CETTE FONCTION N'A PAS ENCORE ÉTÉ REMPLIE",
     "no_name_error": "Entrée d'au moins un nom de jeu et un chemin archivé",
     "add_game_success": "Ajout de succès",
@@ -155,7 +155,6 @@
     "operations": "Contrôle",
     "remove": "Removal",
     "path": "Gestion des archives",
-    "warning_for_save_file": "Je ne soutiendrai pas l'ajout du même document, dossier, pour le moment, mais je ne l'utiliserai pas, et, si nécessaire, fournirai des commentaires à moi, et je vais envisager de le produire",
     "invalid_name_error": "Les noms de jeux invalides, s'il vous plaît ne pas inclure des mots spéciaux qui ne créent pas de documents",
     "duplicated_name_error": "Noms de jeu répétitifs (pas de distinction entre taille et taille)"
   },
