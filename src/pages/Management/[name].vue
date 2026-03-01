@@ -86,9 +86,9 @@ const undoInfo = ref<UndoInfo | null>(null);
 const canUndo = computed(() => undoInfo.value !== null);
 const extraBackupEnabled = computed(() => config.value.settings.extra_backup_when_apply !== false);
 const undoTooltip = computed(() => {
+  if (canUndo.value) return $t('manage.undo_last_apply');
   if (!extraBackupEnabled.value) return $t('manage.undo_requires_extra_backup');
-  if (!canUndo.value) return $t('manage.undo_not_available');
-  return $t('manage.undo_last_apply');
+  return $t('manage.undo_not_available');
 });
 
 // 批量操作记录列表
@@ -167,6 +167,7 @@ watch(
     }
     const name = newValue;
     game.value = config.value.games.find((x) => x.name == name) as Game;
+    undoInfo.value = null;
     refresh_backups_info();
     // 检查当前设备的存档路径是否为空
     checkCurrentDeviceSavePaths();
@@ -283,6 +284,19 @@ async function apply_save(date: string) {
   // 记录应用前的 HEAD，用于撤销
   const previousHead = currentHead.value ?? null;
 
+  // 记录应用前最新额外备份的 date，用于验证新备份是否成功创建
+  let latestExtraDateBefore: string | null = null;
+  if (extraBackupEnabled.value) {
+    try {
+      const beforeResult = await commands.getGameExtraBackups(game.value);
+      if (beforeResult.status === 'ok' && beforeResult.data.length > 0 && beforeResult.data[0]) {
+        latestExtraDateBefore = beforeResult.data[0].date;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   await withLoading(async () => {
     const result = await commands.restoreSnapshot(game.value, date);
     if (result.status === 'error') {
@@ -290,13 +304,13 @@ async function apply_save(date: string) {
     } else {
       showSuccess({ message: $t('manage.recover_success') });
 
-      // 尝试获取刚创建的额外备份，用于撤销
+      // 验证最新额外备份已更新（date 不同），才启用撤销
       if (extraBackupEnabled.value) {
         try {
           const extraResult = await commands.getGameExtraBackups(game.value);
           if (extraResult.status === 'ok' && extraResult.data.length > 0) {
             const latestExtra = extraResult.data[0];
-            if (latestExtra) {
+            if (latestExtra && latestExtra.date !== latestExtraDateBefore) {
               undoInfo.value = {
                 extraBackupDate: latestExtra.date,
                 previousHead,
@@ -336,6 +350,8 @@ async function undo_last_apply() {
     }
 
     // 恢复之前的 HEAD 指针
+    // TODO: 当 previousHead 为 null 时（首次应用前 HEAD 未设置），
+    // 需要后端支持 clearSnapshotHead 命令才能完全恢复状态
     if (previousHead) {
       const headResult = await commands.setSnapshotHead(game.value, previousHead);
       if (headResult.status === 'error') {
@@ -742,9 +758,9 @@ const currentHeadFullText = computed(() => {
             <span>
               <el-button
                 circle
-                :type="canUndo && extraBackupEnabled ? 'success' : ''"
+                :type="canUndo ? 'success' : ''"
                 :icon="Back"
-                :disabled="!canUndo || !extraBackupEnabled"
+                :disabled="!canUndo"
                 @click="undo_last_apply"
               />
             </span>
