@@ -6,6 +6,7 @@ export interface SaveListExpandOptions {
   saveListMenuIndex?: string;
   filteredGames?: Ref<unknown[]>;
   showFavorite?: Ref<boolean>;
+  searchQuery?: Ref<string>;
 }
 
 /**
@@ -16,8 +17,12 @@ export interface SaveListExpandOptions {
  */
 export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
   const { config, saveConfig } = useConfig();
-  const { menuRef, filteredGames, showFavorite } = options;
+  const { menuRef, filteredGames, showFavorite, searchQuery } = options;
   const saveListMenuIndex = options.saveListMenuIndex ?? 'save-list';
+
+  function isSearchActive() {
+    return !!searchQuery?.value;
+  }
 
   function getSaveListBehavior() {
     return config.value.settings?.save_list_expand_behavior ?? 'always_closed';
@@ -28,6 +33,9 @@ export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
   }
 
   function shouldExpandSaveList() {
+    // Always expand when searching so results are visible
+    if (isSearchActive()) return true;
+
     const behavior = getSaveListBehavior();
     if (behavior === 'always_open') {
       return true;
@@ -123,6 +131,18 @@ export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
     watch(showFavorite, (value) => {
       if (!value) {
         void applySaveListExpandState();
+      }
+    });
+  }
+
+  // Auto-expand when search is active, restore configured state when cleared
+  if (searchQuery) {
+    watch(searchQuery, async (query) => {
+      if (query) {
+        await nextTick();
+        menuRef.value?.open(saveListMenuIndex);
+      } else {
+        await applySaveListExpandState();
       }
     });
   }

@@ -46,6 +46,7 @@ const { saveListDefaultOpeneds, handleMenuOpen, handleMenuClose } = useSaveListE
   menuRef,
   filteredGames,
   showFavorite: show_favorite,
+  searchQuery,
 });
 
 function select_handler(key: string, keyPath: string) {
