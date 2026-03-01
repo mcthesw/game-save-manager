@@ -51,7 +51,7 @@ const filteredFavorites = computed(() => {
   };
 
   // 创建一个深拷贝以避免修改原始数据
-  const clonedFavorites = JSON.parse(JSON.stringify(config.value.favorites));
+  const clonedFavorites = structuredClone(config.value.favorites);
   return filterNodes(clonedFavorites);
 });
 
@@ -158,43 +158,38 @@ async function add_all_games() {
       type: 'warning',
     });
 
-    // 首先创建一个集合来存储收藏夹中所有游戏的名称
     const existingGameNames = new Set<string>();
-
-    // 递归遍历收藏夹树，查找所有叶子节点（游戏）
     function findExistingGames(nodes: FavoriteTreeNode[] | null) {
       if (!nodes) return;
-
       for (const node of nodes) {
-        if (node.is_leaf) {
-          // 如果是叶子节点（游戏），添加到集合中
-          existingGameNames.add(node.label);
-        } else if (node.children) {
-          // 如果是文件夹节点，递归查找其子节点
-          findExistingGames(node.children);
-        }
+        if (node.is_leaf) existingGameNames.add(node.label);
+        else if (node.children) findExistingGames(node.children);
       }
     }
-
-    // 开始遍历收藏夹树
     findExistingGames(config.value?.favorites || []);
 
-    // 遍历游戏列表，添加不在收藏夹中的游戏
-    let addedCount = 0;
+    const newNodes: FavoriteTreeNode[] = [];
     for (const game of config.value!.games!) {
       if (!existingGameNames.has(game.name)) {
-        add_game_to_favorite(game);
-        addedCount++;
+        newNodes.push({
+          label: game.name,
+          is_leaf: true,
+          children: null,
+          node_id: uuidv4().toString(),
+        });
       }
     }
 
-    if (addedCount > 0) {
-      showSuccess({
-        message: $t('favorite.add_all_success').replace('{count}', addedCount.toString()),
-      });
-    } else {
+    if (newNodes.length === 0) {
       showWarning({ message: $t('favorite.no_new_games') });
+      return;
     }
+
+    config.value!.favorites = [...(config.value!.favorites ?? []), ...newNodes];
+    save_and_refresh();
+    showSuccess({
+      message: $t('favorite.add_all_success').replace('{count}', newNodes.length.toString()),
+    });
   } catch {
     // User cancelled
     return;
