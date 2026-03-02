@@ -44,9 +44,15 @@ pub enum PathCheckResult {
         raw_path: String,
         resolved_path: String,
     },
-    /// Registry path (not supported for backup)
+    /// Registry path
     #[serde(rename_all = "camelCase")]
-    RegistryNotSupported { raw_path: String },
+    RegistryPath {
+        raw_path: String,
+        /// Whether the registry key exists (always `false` on non-Windows).
+        exists: bool,
+        /// Whether registry operations are supported on this platform.
+        supported: bool,
+    },
     /// Failed to resolve path variables
     #[serde(rename_all = "camelCase")]
     ResolveFailed { raw_path: String, error: String },
@@ -56,9 +62,23 @@ pub enum PathCheckResult {
 pub fn check_path(raw_path: &str, config: &Config) -> PathCheckResult {
     // Handle registry paths
     if raw_path.starts_with("REGISTRY:") || raw_path.starts_with("HKEY_") {
-        return PathCheckResult::RegistryNotSupported {
-            raw_path: raw_path.to_string(),
-        };
+        #[cfg(target_os = "windows")]
+        {
+            let exists = crate::backup::registry::export_registry_key(raw_path).is_ok();
+            return PathCheckResult::RegistryPath {
+                raw_path: raw_path.to_string(),
+                exists,
+                supported: true,
+            };
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            return PathCheckResult::RegistryPath {
+                raw_path: raw_path.to_string(),
+                exists: false,
+                supported: false,
+            };
+        }
     }
 
     // Try to resolve the path

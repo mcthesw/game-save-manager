@@ -472,7 +472,10 @@ async function verify_archive_hashes() {
 
   await withLoading(async () => {
     for (const snapshot of snapshots) {
-      const result = await commands.verifyArchiveIntegrity(snapshot.path, snapshot.archive_hash ?? null);
+      const result = await commands.verifyArchiveIntegrity(
+        snapshot.path,
+        snapshot.archive_hash ?? null
+      );
       if (result.status === 'ok' && result.data) {
         passed++;
       } else {
@@ -488,9 +491,10 @@ async function verify_archive_hashes() {
     const listHtml = failedSnapshots
       .map((d) => `<li style="font-family:monospace;margin:2px 0">${d}</li>`)
       .join('');
-    const html = `<p>${$t('manage.verify_failed_summary', { passed, failed: failedSnapshots.length })}</p>`
-      + `<ul style="max-height:200px;overflow-y:auto;padding-left:20px;margin:8px 0">${listHtml}</ul>`
-      + `<p style="color:#909399;font-size:12px">${$t('manage.verify_failed_hint')}</p>`;
+    const html =
+      `<p>${$t('manage.verify_failed_summary', { passed, failed: failedSnapshots.length })}</p>` +
+      `<ul style="max-height:200px;overflow-y:auto;padding-left:20px;margin:8px 0">${listHtml}</ul>` +
+      `<p style="color:#909399;font-size:12px">${$t('manage.verify_failed_hint')}</p>`;
     try {
       await feedback.alert(html, $t('manage.verify_failed_title'), {
         type: 'error',

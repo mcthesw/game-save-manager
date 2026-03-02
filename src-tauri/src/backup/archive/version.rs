@@ -84,8 +84,9 @@ impl ArchiveVersion {
 pub struct ArchiveMeta {
     pub version: u32,
     pub compression: String,
-    // Future extensibility — add new fields as Option<T> with
-    // #[serde(skip_serializing_if = "Option::is_none")]
+    /// Source fingerprint at the time of compression, used for timer dedup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_fingerprint: Option<String>,
 }
 
 impl ArchiveMeta {
@@ -93,6 +94,7 @@ impl ArchiveMeta {
         Self {
             version: 2,
             compression: preset.comment_id().to_string(),
+            source_fingerprint: None,
         }
     }
 

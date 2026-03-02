@@ -251,6 +251,8 @@
     "game_launch_path": "启动文件",
     "add_save_directory": "添加存档文件夹",
     "add_save_file": "添加存档文件",
+    "add_registry_key": "添加注册表项",
+    "registry_key_prompt": "输入要备份的 Windows 注册表路径（如 HKEY_CURRENT_USER\\SOFTWARE\\GameName）",
     "type": "类型",
     "operations": "控制",
     "remove": "移除",

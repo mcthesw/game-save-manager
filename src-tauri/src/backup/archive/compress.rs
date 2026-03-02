@@ -15,7 +15,8 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::backup::path_format::path_to_zip_style;
 use crate::{
-    backup::{CompressionPreset, SaveUnit, SaveUnitType},
+    backup::{CompressionPreset, SaveUnit, SaveUnitType, registry},
+    device::get_current_device_id,
     preclude::*,
 };
 
@@ -81,6 +82,54 @@ where
     Ok(())
 }
 
+/// Write raw bytes as a ZIP entry (not backed by a filesystem file).
+fn write_bytes_entry<T>(
+    writer: &mut ZipWriter<T>,
+    data: &[u8],
+    entry_name: &Path,
+    preset: CompressionPreset,
+) -> Result<(), BackupFileError>
+where
+    T: Write + Seek,
+{
+    let mtime = system_time_to_zip_datetime(SystemTime::now());
+    let mut opts = SimpleFileOptions::default()
+        .compression_method(preset.zip_method())
+        .last_modified_time(mtime);
+    if let Some(level) = preset.compression_level() {
+        opts = opts.compression_level(Some(level));
+    }
+    writer.start_file(path_to_zip_style(entry_name)?, opts)?;
+    writer.write_all(data)?;
+    Ok(())
+}
+
+/// Append a Windows Registry save unit: export the key tree to JSON
+/// and store it as `{id}/registry.json` inside the archive.
+fn append_registry_unit<T>(
+    writer: &mut ZipWriter<T>,
+    save_unit: &SaveUnit,
+    id_prefix: &Path,
+    preset: CompressionPreset,
+) -> Result<(), BackupFileError>
+where
+    T: Write + Seek,
+{
+    let reg_path_str = save_unit
+        .get_path_for_device(get_current_device_id())
+        .ok_or(BackupFileError::NonePathError)?;
+    let reg_data = registry::export_registry_key(reg_path_str)
+        .map_err(|e| BackupFileError::RegistryError(e.to_string()))?;
+    let json_bytes =
+        serde_json::to_vec_pretty(&reg_data).map_err(|e| BackupFileError::Unexpected(e.into()))?;
+    write_bytes_entry(
+        writer,
+        &json_bytes,
+        &id_prefix.join(registry::REGISTRY_DATA_FILENAME),
+        preset,
+    )
+}
+
 /// Write a single save unit into the ZIP under its ID prefix (`{id}/...`).
 ///
 /// The `id` is `save_unit.id` — a stable, monotonically-assigned identifier
@@ -94,12 +143,17 @@ fn append_save_unit<T>(
 where
     T: Write + Seek,
 {
+    let id_prefix = PathBuf::from(save_unit.id.to_string());
+
+    if let SaveUnitType::WinRegistry = save_unit.unit_type {
+        return append_registry_unit(writer, save_unit, &id_prefix, preset);
+    }
+
     let unit_path = save_unit.resolve_path_for_current_device()?;
     if !unit_path.exists() {
         return Err(BackupFileError::NotExists(unit_path));
     }
 
-    let id_prefix = PathBuf::from(save_unit.id.to_string());
     match save_unit.unit_type {
         SaveUnitType::File => {
             let file_name = unit_path
@@ -113,6 +167,7 @@ where
                 .ok_or(BackupFileError::NonePathError)?;
             add_directory(writer, &unit_path, &id_prefix.join(folder_name), preset)
         }
+        SaveUnitType::WinRegistry => unreachable!(),
     }
 }
 
@@ -166,9 +221,14 @@ pub fn compress_to_file(
 ) -> Result<u64, CompressError> {
     ensure_unique_save_unit_ids(save_paths)?;
 
+    // Compute source fingerprint for timer dedup (stored in ZIP comment).
+    let source_fp = crate::backup::state_fingerprint::fingerprint_source_state(save_paths).ok();
+    let mut meta = ArchiveMeta::new(preset);
+    meta.source_fingerprint = source_fp;
+
     let file = File::create(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = ZipWriter::new(file);
-    zip.set_comment(ArchiveMeta::new(preset).to_comment());
+    zip.set_comment(meta.to_comment());
 
     let mut compress_errors = Vec::new();
     for save_unit in save_paths {

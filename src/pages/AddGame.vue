@@ -21,6 +21,7 @@ import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
 const route = useRoute();
 const router = useRouter();
 const { showError, showWarning, showSuccess } = useNotification();
+const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const buttons = [
   {
@@ -125,7 +126,10 @@ function check_name_valid(name: string) {
   const invalid_reg = /[<>:"/\\|?*]/;
   return !invalid_reg.test(name);
 }
-function generate_save_unit(unit_type: 'Folder' | 'File', path: string): SaveUnitDraft {
+function generate_save_unit(
+  unit_type: 'Folder' | 'File' | 'WinRegistry',
+  path: string
+): SaveUnitDraft {
   const delete_before_apply = config.value?.settings.default_delete_before_apply;
 
   // 创建一个基本的 SaveUnit，使用当前设备ID作为路径映射的键
@@ -167,6 +171,22 @@ async function add_save_file() {
   } catch (e) {
     error(`Error choosing save file: ${e}`);
     showError({ message: $t('error.choose_save_file_error') });
+  }
+}
+
+async function add_registry_key() {
+  try {
+    const result = await feedback.prompt(
+      $t('addgame.registry_key_prompt'),
+      $t('addgame.add_registry_key'),
+      { inputPlaceholder: 'HKEY_CURRENT_USER\\SOFTWARE\\GameName' }
+    );
+    const path = result.value?.trim();
+    if (!path) return;
+    if (!check_save_unit_unique(path)) return;
+    save_paths.push(generate_save_unit('WinRegistry', path));
+  } catch {
+    // dialog cancelled
   }
 }
 
@@ -313,40 +333,41 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
     // Convert the customized data to our Game format
     const gameName = data.gameName || customizingGame.value?.name || '';
 
-    // Filter out empty and registry paths first
-    const pathsToCheck: string[] = [];
-    let skippedRegistry = 0;
+    // Filter out empty paths; registry paths are now supported
+    const validPaths: string[] = [];
+    const registryPaths: string[] = [];
 
     for (const sp of data.savePaths) {
       if (!sp.path || sp.path.trim() === '') {
         continue;
       }
       if (sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_')) {
-        skippedRegistry++;
-        continue;
+        registryPaths.push(sp.path);
+      } else {
+        validPaths.push(sp.path);
       }
-      pathsToCheck.push(sp.path);
     }
 
-    if (pathsToCheck.length === 0) {
+    if (validPaths.length === 0 && registryPaths.length === 0) {
       showWarning({ message: $t('game_import_customize.no_paths_selected') });
       return;
     }
 
-    // Check paths with backend to determine file/folder type
-    const checkResult = await commands.checkPaths(pathsToCheck);
+    // Check non-registry paths with backend to determine file/folder type
     const pathInfoMap = new Map<string, PathCheckResult>();
-    if (checkResult.status === 'ok') {
-      for (const info of checkResult.data) {
-        pathInfoMap.set(info.rawPath, info);
+    if (validPaths.length > 0) {
+      const checkResult = await commands.checkPaths(validPaths);
+      if (checkResult.status === 'ok') {
+        for (const info of checkResult.data) {
+          pathInfoMap.set(info.rawPath, info);
+        }
       }
     }
 
     // Build save units with accurate type info
-    const validSavePaths: SaveUnitDraft[] = [];
-    for (const path of pathsToCheck) {
+    const savePaths: SaveUnitDraft[] = [];
+    for (const path of validPaths) {
       const pathInfo = pathInfoMap.get(path);
-      // Extract isFile only when status is 'ok'
       const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
       const saveUnit: SaveUnitDraft = {
         unit_type: determineSaveUnitType(path, isFile),
@@ -358,16 +379,26 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
         saveUnit.paths![currentDevice.value.id] = path;
       }
 
-      validSavePaths.push(saveUnit);
+      savePaths.push(saveUnit);
     }
 
-    if (skippedRegistry > 0) {
-      showWarning({ message: $t('game_import.registry_skipped', { count: skippedRegistry }) });
+    // Add registry save units
+    for (const path of registryPaths) {
+      const saveUnit: SaveUnitDraft = {
+        unit_type: 'WinRegistry',
+        paths: {},
+      };
+
+      if (currentDevice.value) {
+        saveUnit.paths![currentDevice.value.id] = path;
+      }
+
+      savePaths.push(saveUnit);
     }
 
     // Set the game data in the form and save immediately (align with batch import)
     game_name.value = gameName;
-    save_paths.splice(0, save_paths.length, ...validSavePaths);
+    save_paths.splice(0, save_paths.length, ...savePaths);
 
     await save();
   } catch (e) {
@@ -389,13 +420,12 @@ interface GameConfig {
 
 async function handleBatchImportConfirm(configs: GameConfig[]) {
   let successCount = 0;
-  let skippedRegistryCount = 0;
   const failedGames: Array<{ name: string; reason: string }> = [];
   const existingNames = new Set(
     (config.value?.games ?? []).map((g) => (g.name ?? '').toLowerCase())
   );
 
-  // Collect all paths from all games to check at once
+  // Collect all non-registry paths from all games to check at once
   const allPathsToCheck: string[] = [];
   for (const gameConfig of configs) {
     for (const sp of gameConfig.paths) {
@@ -438,13 +468,21 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
         if (!sp.path || sp.path.trim() === '') {
           continue;
         }
-        if (sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_')) {
-          skippedRegistryCount++;
+
+        const isRegistry = sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_');
+        if (isRegistry) {
+          const saveUnit: SaveUnitDraft = {
+            unit_type: 'WinRegistry',
+            paths: {},
+          };
+          if (currentDevice.value) {
+            saveUnit.paths![currentDevice.value.id] = sp.path;
+          }
+          savePaths.push(saveUnit);
           continue;
         }
 
         const pathInfo = pathInfoMap.get(sp.path);
-        // Extract isFile only when status is 'ok'
         const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
         const saveUnit: SaveUnitDraft = {
           unit_type: determineSaveUnitType(sp.path, isFile),
@@ -514,10 +552,6 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
     } catch (e) {
       error(`Error saving favorites after batch import: ${e}`);
     }
-  }
-
-  if (skippedRegistryCount > 0) {
-    showWarning({ message: $t('game_import.registry_skipped', { count: skippedRegistryCount }) });
   }
 
   if (successCount > 0) {
@@ -606,15 +640,18 @@ function deleteRow(index: number) {
 
 // Helper function to determine save unit type from path
 // If isFile is provided (from backend check_paths), use it; otherwise fallback to path heuristics
-function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 'Folder' {
+function determineSaveUnitType(
+  path: string,
+  isFile?: boolean | null
+): 'File' | 'Folder' | 'WinRegistry' {
+  // Registry paths become WinRegistry save units
+  if (path.startsWith('REGISTRY:') || path.startsWith('HKEY_')) {
+    return 'WinRegistry';
+  }
+
   // If backend provided the answer, use it
   if (isFile !== undefined && isFile !== null) {
     return isFile ? 'File' : 'Folder';
-  }
-
-  // Registry paths are treated as files, but are currently skipped during import
-  if (path.startsWith('REGISTRY:') || path.startsWith('HKEY_')) {
-    return 'File';
   }
 
   // Paths ending with / are folders
@@ -663,6 +700,9 @@ function determineSaveUnitType(path: string, isFile?: boolean | null): 'File' | 
           </el-button>
           <el-button @click="add_save_file">
             {{ $t('addgame.add_save_file') }}
+          </el-button>
+          <el-button @click="add_registry_key">
+            {{ $t('addgame.add_registry_key') }}
           </el-button>
         </div>
         <div class="toolbar-hint">

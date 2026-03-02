@@ -4,7 +4,9 @@ use crate::backup::archive::{
     decompress_from_file, local_result_to_timestamp, system_time_to_zip_datetime,
     zip_datetime_to_system_time,
 };
-use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
+use crate::backup::state_fingerprint::{
+    fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
+};
 use crate::backup::{SaveUnit, SaveUnitType};
 use crate::device::get_current_device_id;
 use crate::preclude::{BackupFileError, CompressError};
@@ -36,6 +38,17 @@ mod tests {
         SaveUnit {
             id,
             unit_type: SaveUnitType::File,
+            paths,
+            delete_before_apply: false,
+        }
+    }
+
+    fn build_registry_save_unit_with_id(path: &str, id: u32) -> SaveUnit {
+        let mut paths = HashMap::new();
+        paths.insert(get_current_device_id().clone(), path.to_string());
+        SaveUnit {
+            id,
+            unit_type: SaveUnitType::WinRegistry,
             paths,
             delete_before_apply: false,
         }
@@ -610,6 +623,62 @@ mod tests {
             "Source and ZIP fingerprints must match for same-name files"
         );
 
+        // Also verify stored fingerprint in comment matches
+        let stored_fp =
+            read_stored_fingerprint(&zip_path).expect("V2 archive should have stored fingerprint");
+        assert_eq!(
+            source_fp, stored_fp,
+            "Stored fingerprint must equal source fingerprint for file-only archives"
+        );
+
         Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_fingerprint_stored_in_comment_with_registry() -> Result<(), Box<dyn std::error::Error>>
+    {
+        use winreg::RegKey;
+        use winreg::enums::HKEY_CURRENT_USER;
+
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let zip_path = backup_dir.join("registry_fp_test.zip");
+
+        let unique = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_nanos();
+        let reg_subkey = format!("Software\\RGSM_FP_{unique}");
+        let reg_path = format!("HKEY_CURRENT_USER\\{reg_subkey}");
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+        // Keep test idempotent in case of previous failed runs.
+        let _ = hkcu.delete_subkey_all(&reg_subkey);
+
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            let (key, _) = hkcu.create_subkey(&reg_subkey)?;
+            key.set_value("TestVal", &"registry-fingerprint")?;
+            key.set_value("Version", &1u32)?;
+
+            let save_units = [build_registry_save_unit_with_id(&reg_path, 0)];
+            compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)?;
+
+            let source_fp = fingerprint_source_state(&save_units)?;
+            let stored_fp = read_stored_fingerprint(&zip_path)
+                .expect("V2 archive should have stored source fingerprint");
+            assert_eq!(
+                source_fp, stored_fp,
+                "Stored fingerprint must match current source state"
+            );
+            Ok(())
+        })();
+
+        let _ = hkcu.delete_subkey_all(&reg_subkey);
+        result
     }
 }

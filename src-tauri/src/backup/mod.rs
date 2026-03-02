@@ -3,6 +3,7 @@ mod extra_backups;
 mod game;
 mod game_snapshots;
 mod path_format;
+pub(crate) mod registry;
 mod save_unit;
 mod snapshot;
 mod state_fingerprint;

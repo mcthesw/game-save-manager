@@ -7,7 +7,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
-use crate::backup::state_fingerprint::{compute_file_hash, fingerprint_source_state, fingerprint_zip_state};
+use crate::backup::state_fingerprint::{
+    compute_file_hash, fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
+};
 use crate::backup::{
     ArchiveBackend, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
     TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
@@ -285,8 +287,13 @@ impl Game {
         };
 
         let latest_zip_path = PathBuf::from(&latest_auto_snapshot.path);
-        match fingerprint_zip_state(&latest_zip_path) {
-            Ok(Some(previous_fingerprint)) if previous_fingerprint == current_fingerprint => {
+        // Prefer stored fingerprint from ZIP comment (handles registry units),
+        // fall back to scanning ZIP entries for legacy archives.
+        let previous_fingerprint = read_stored_fingerprint(&latest_zip_path)
+            .or_else(|| fingerprint_zip_state(&latest_zip_path).ok().flatten());
+
+        match previous_fingerprint {
+            Some(ref fp) if *fp == current_fingerprint => {
                 info!(
                     target: "rgsm::backup::game",
                     "Skip timer auto backup for game {} because fingerprint is unchanged",
@@ -294,22 +301,14 @@ impl Game {
                 );
                 Ok(TimerSnapshotDecision::SkippedUnchanged)
             }
-            Ok(Some(_)) => {
+            Some(_) => {
                 self.create_snapshot(describe).await?;
                 Ok(TimerSnapshotDecision::Created)
             }
-            Ok(None) => {
+            None => {
                 info!(
                     target: "rgsm::backup::game",
                     "Latest timer backup is legacy format; create one new timer backup before dedup"
-                );
-                self.create_snapshot(describe).await?;
-                Ok(TimerSnapshotDecision::Created)
-            }
-            Err(err) => {
-                warn!(
-                    target: "rgsm::backup::game",
-                    "Failed to fingerprint previous timer backup, fallback to creating snapshot: {err:?}"
                 );
                 self.create_snapshot(describe).await?;
                 Ok(TimerSnapshotDecision::Created)
@@ -412,7 +411,7 @@ impl Game {
             }
         }
 
-                ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
+        ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
 
         // Update HEAD to point to the restored snapshot
         let mut infos = self.get_game_snapshots_info()?;
