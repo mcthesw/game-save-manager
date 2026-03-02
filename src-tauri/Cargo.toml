@@ -52,6 +52,7 @@ reqwest = "0.12"
 lazy_static = "1.5"
 rust-embed = { version = "8.9.0", features = ["compression", "debug-embed", "include-exclude"] }
 font-kit = "0.14"
+base64 = "0.22.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.0"

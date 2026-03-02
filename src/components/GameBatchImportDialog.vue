@@ -72,24 +72,15 @@
           <!-- Save paths list -->
           <el-form-item :label="$t('game_batch_import.save_paths')">
             <div v-for="(path, pathIndex) in game.paths" :key="pathIndex" class="path-item">
-              <el-checkbox
-                v-model="path.selected"
-                class="path-checkbox"
-                :disabled="path.isRegistry"
-              />
+              <el-checkbox v-model="path.selected" class="path-checkbox" />
               <el-input
                 v-model="path.path"
                 size="small"
                 class="path-input"
-                :disabled="!path.selected || path.isRegistry"
+                :disabled="!path.selected"
               />
-              <el-tag
-                v-if="path.isRegistry"
-                type="warning"
-                size="small"
-                class="path-tag registry-tag"
-              >
-                {{ $t('game_batch_import.registry_unsupported') }}
+              <el-tag v-if="path.isRegistry" type="info" size="small" class="path-tag registry-tag">
+                Registry
               </el-tag>
               <template v-else>
                 <el-tooltip v-if="path.check?.error" :content="path.check?.error" placement="top">
@@ -212,7 +203,7 @@ watch(
           path: p.path,
           tags: p.tags,
           isRegistry: isRegistryPath(p.path),
-          selected: !isRegistryPath(p.path),
+          selected: true,
           check: null,
         })),
       };
@@ -316,8 +307,10 @@ async function checkAllPaths(applySelection: boolean = false) {
           pathItem.check = { resolvedPath: c.resolvedPath, exists: true };
         } else if (c.status === 'notFound') {
           pathItem.check = { resolvedPath: c.resolvedPath, exists: false };
-        } else if (c.status === 'registryNotSupported') {
-          pathItem.check = { error: 'Registry paths are not supported' };
+        } else if (c.status === 'registryPath') {
+          pathItem.check = c.supported
+            ? { resolvedPath: c.rawPath, exists: c.exists }
+            : { error: 'Registry paths are not supported on this platform' };
         } else if (c.status === 'resolveFailed') {
           pathItem.check = { error: c.error };
         }
@@ -354,7 +347,7 @@ function selectAllSupported() {
   gameConfigs.value.forEach((game) => {
     game.selected = true;
     game.paths.forEach((p) => {
-      p.selected = !p.isRegistry;
+      p.selected = true;
     });
   });
 }
@@ -362,8 +355,9 @@ function selectAllSupported() {
 function applySelectionByCheck() {
   gameConfigs.value.forEach((game) => {
     game.paths.forEach((p) => {
+      // Registry paths: select if supported and exists
       if (p.isRegistry) {
-        p.selected = false;
+        p.selected = !!p.check && !p.check.error && p.check.exists !== false;
         return;
       }
       p.selected = !!p.check && !p.check.error && p.check.exists === true;

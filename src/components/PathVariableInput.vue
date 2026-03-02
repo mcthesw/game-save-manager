@@ -467,9 +467,14 @@ function scheduleResolve(path: string) {
           resolvedPathText.value = check.error;
           pathStatus.value = 'error';
           break;
-        case 'registryNotSupported':
-          resolvedPathText.value = $t('path_variable.registry_not_supported');
-          pathStatus.value = 'error';
+        case 'registryPath':
+          if (check.supported) {
+            resolvedPathText.value = check.rawPath;
+            pathStatus.value = check.exists ? 'ok' : 'not-found';
+          } else {
+            resolvedPathText.value = $t('path_variable.registry_not_supported');
+            pathStatus.value = 'error';
+          }
           break;
       }
     } catch {

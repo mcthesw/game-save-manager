@@ -251,6 +251,8 @@
     "game_launch_path": "Executable file",
     "add_save_directory": "Add save folder",
     "add_save_file": "Add save file",
+    "add_registry_key": "Add registry key",
+    "registry_key_prompt": "Enter the Windows Registry path to back up (e.g. HKEY_CURRENT_USER\\SOFTWARE\\GameName)",
     "type": "Type",
     "operations": "Control",
     "remove": "Remove",

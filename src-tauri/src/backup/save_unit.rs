@@ -7,11 +7,13 @@ use crate::default_value;
 use crate::device::{DeviceId, get_current_device_id};
 use crate::preclude::BackupFileError;
 
-/// A save unit should be a file or a folder
+/// The kind of data a save unit backs up.
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub enum SaveUnitType {
     File,
     Folder,
+    /// Windows Registry key tree (stored as `registry.json` inside the archive).
+    WinRegistry,
 }
 
 /// A save unit declares one of the files/folders

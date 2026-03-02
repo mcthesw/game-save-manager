@@ -187,6 +187,8 @@
     "game_launch_path": "файл запуску",
     "add_save_directory": "Додати архівну папку",
     "add_save_file": "Додати архівний файл",
+    "add_registry_key": "Add registry key",
+    "registry_key_prompt": "Enter the Windows Registry path to back up (e.g. HKEY_CURRENT_USER\\SOFTWARE\\GameName)",
     "type": "типу",
     "operations": "КОНТРОЛЬ",
     "remove": "Видалення",

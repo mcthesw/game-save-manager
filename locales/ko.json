@@ -161,6 +161,8 @@
     "game_launch_path": "시작 문서",
     "add_save_directory": "아카이브 문서",
     "add_save_file": "관련 파일",
+    "add_registry_key": "Add registry key",
+    "registry_key_prompt": "Enter the Windows Registry path to back up (e.g. HKEY_CURRENT_USER\\SOFTWARE\\GameName)",
     "type": "제품정보",
     "operations": "제품정보",
     "remove": "제품 정보",

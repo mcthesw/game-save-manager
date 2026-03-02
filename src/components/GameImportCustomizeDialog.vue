@@ -40,11 +40,11 @@
                   <el-input v-model="row.path" size="small" />
                   <el-tag
                     v-if="isRegistryPath(row.path)"
-                    type="warning"
+                    type="info"
                     size="small"
                     class="registry-tag"
                   >
-                    {{ $t('game_import_customize.registry_unsupported') }}
+                    Registry
                   </el-tag>
                 </div>
               </template>
@@ -172,8 +172,9 @@ function isRegistryPath(path: string) {
   return path.startsWith('REGISTRY:') || path.startsWith('HKEY_');
 }
 
-function isRowSelectable(row: SavePath) {
-  return !isRegistryPath(row.path);
+function isRowSelectable(_row: SavePath) {
+  // Registry paths are selectable on Windows (backend checks support)
+  return true;
 }
 
 function handleSelectionChange(selection: SavePath[]) {
@@ -262,8 +263,10 @@ async function checkAllPaths(applySelection: boolean = false) {
           return { resolvedPath: c.resolvedPath, exists: true };
         } else if (c.status === 'notFound') {
           return { resolvedPath: c.resolvedPath, exists: false };
-        } else if (c.status === 'registryNotSupported') {
-          return { error: 'Registry paths are not supported' };
+        } else if (c.status === 'registryPath') {
+          return c.supported
+            ? { resolvedPath: c.rawPath, exists: c.exists }
+            : { error: 'Registry paths are not supported on this platform' };
         } else if (c.status === 'resolveFailed') {
           return { error: c.error };
         }
