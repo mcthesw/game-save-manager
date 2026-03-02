@@ -212,3 +212,11 @@ pub(crate) fn fingerprint_zip_state(zip_path: &Path) -> Result<Option<String>, C
     let entries = collect_entries_from_zip(&mut archive, version)?;
     Ok(Some(build_fingerprint(entries)))
 }
+
+/// Compute an XXH3 hash of a file's contents for integrity verification.
+pub(crate) fn compute_file_hash(path: &Path) -> Result<String, CompressError> {
+    let data = fs::read(path).map_err(|e| CompressError::Single(e.into()))?;
+    let mut hasher = Xxh3::new();
+    hasher.write(&data);
+    Ok(format!("{:016x}", hasher.finish()))
+}

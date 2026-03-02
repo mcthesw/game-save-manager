@@ -811,6 +811,17 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <ElSwitch v-model="config.settings.add_new_to_favorites" />
             <span class="setting-label">{{ $t('settings.add_new_to_favorites') }}</span>
           </div>
+          <div class="setting-box">
+            <ElSwitch v-model="config.settings.compute_archive_hash" />
+            <span class="setting-label">{{ $t('settings.compute_archive_hash') }}</span>
+          </div>
+          <div class="setting-box">
+            <ElSwitch
+              v-model="config.settings.verify_archive_before_apply"
+              :disabled="!config.settings.compute_archive_hash"
+            />
+            <span class="setting-label">{{ $t('settings.verify_archive_before_apply') }}</span>
+          </div>
         </el-tab-pane>
 
         <!-- 界面设置 -->

@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
-use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
+use crate::backup::state_fingerprint::{compute_file_hash, fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{
     ArchiveBackend, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
     TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
@@ -223,6 +223,13 @@ impl Game {
         // Set parent based on current HEAD
         let parent = infos.head.clone();
 
+        // Compute archive hash for integrity verification (if enabled)
+        let archive_hash = if get_config()?.settings.compute_archive_hash {
+            compute_file_hash(&zip_path).ok()
+        } else {
+            None
+        };
+
         let game_snapshots_info = Snapshot {
             date: date.clone(),
             describe: describe.to_string(),
@@ -232,6 +239,7 @@ impl Game {
                 .to_string(),
             size: file_size,
             parent,
+            archive_hash,
         };
         infos.backups.push(game_snapshots_info);
 
@@ -386,7 +394,25 @@ impl Game {
             }
         }
         let archive_path = backup_path.join(format!("{date}.zip"));
-        ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
+
+        // Verify archive integrity before applying (if enabled and hash is available)
+        if config.settings.verify_archive_before_apply {
+            let infos = self.get_game_snapshots_info()?;
+            if let Some(snapshot) = infos.backups.iter().find(|s| s.date == date) {
+                if let Some(expected_hash) = &snapshot.archive_hash {
+                    let actual_hash =
+                        compute_file_hash(&archive_path).map_err(BackupError::Compress)?;
+                    if &actual_hash != expected_hash {
+                        return Err(BackupError::IntegrityCheckFailed {
+                            expected: expected_hash.clone(),
+                            actual: actual_hash,
+                        });
+                    }
+                }
+            }
+        }
+
+                ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
 
         // Update HEAD to point to the restored snapshot
         let mut infos = self.get_game_snapshots_info()?;

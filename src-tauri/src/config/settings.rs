@@ -73,6 +73,12 @@ pub struct Settings {
     pub appearance: AppearanceSettings,
     #[serde(default)]
     pub compression_preset: CompressionPreset,
+    /// Compute an XXH3 hash when creating snapshots (for integrity verification).
+    #[serde(default = "default_value::default_false")]
+    pub compute_archive_hash: bool,
+    /// Verify archive hash before applying a snapshot.
+    #[serde(default = "default_value::default_false")]
+    pub verify_archive_before_apply: bool,
 }
 
 impl Default for Settings {
@@ -96,6 +102,8 @@ impl Default for Settings {
             max_extra_backup_count: default_value::default_five_u32(),
             appearance: AppearanceSettings::default(),
             compression_preset: CompressionPreset::default(),
+            compute_archive_hash: default_value::default_true(),
+            verify_archive_before_apply: default_value::default_false(),
         }
     }
 }
