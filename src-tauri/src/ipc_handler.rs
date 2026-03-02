@@ -1,4 +1,4 @@
-use crate::backup::{ExtraBackupItem, Game, GameSnapshots};
+use crate::backup::{ExtraBackupItem, Game, GameDraft, GameSnapshots};
 use crate::cloud_sync::{self, Backend, CloudSyncJob, CloudSyncTaskManager};
 use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
@@ -94,8 +94,8 @@ pub async fn get_local_config() -> Result<Config, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn add_game(game: Game, app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Adding game: {:?}", game);
+pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Adding game draft: {:?}", game);
     backup::create_game_backup(&game).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to add game: {:?}", e);
         e.to_string()
@@ -103,36 +103,44 @@ pub async fn add_game(game: Game, app_handle: AppHandle) -> Result<(), String> {
 
     if let Ok(config) = get_config() {
         if config.settings.cloud_settings.always_sync {
-            match game.get_game_snapshots_info() {
-                Ok(snapshots) => {
-                    enqueue_cloud_sync_job(
-                        &app_handle,
-                        CloudSyncJob::UploadMetadata {
-                            backend: config.settings.cloud_settings.backend.clone(),
-                            game_name: snapshots.name.clone(),
-                            snapshots,
-                        },
-                    )
-                    .await;
+            if let Some(saved_game) = config.games.iter().find(|g| g.name == game.name) {
+                match saved_game.get_game_snapshots_info() {
+                    Ok(snapshots) => {
+                        enqueue_cloud_sync_job(
+                            &app_handle,
+                            CloudSyncJob::UploadMetadata {
+                                backend: config.settings.cloud_settings.backend.clone(),
+                                game_name: snapshots.name.clone(),
+                                snapshots,
+                            },
+                        )
+                        .await;
 
-                    enqueue_cloud_sync_job(
-                        &app_handle,
-                        CloudSyncJob::UploadConfig {
-                            backend: config.settings.cloud_settings.backend,
-                            context: "add_game".to_string(),
-                        },
-                    )
-                    .await;
+                        enqueue_cloud_sync_job(
+                            &app_handle,
+                            CloudSyncJob::UploadConfig {
+                                backend: config.settings.cloud_settings.backend,
+                                context: "add_game".to_string(),
+                            },
+                        )
+                        .await;
+                    }
+                    Err(err) => warn!(
+                        target: "rgsm::ipc",
+                        "Failed to collect new game snapshots for cloud enqueue: {err:?}"
+                    ),
                 }
-                Err(err) => warn!(
+            } else {
+                warn!(
                     target: "rgsm::ipc",
-                    "Failed to collect new game snapshots for cloud enqueue: {err:?}"
-                ),
+                    "Saved game '{}' not found in config after add_game",
+                    game.name
+                );
             }
         }
     }
 
-    info!(target:"rgsm::ipc", "Successfully added game: {:?}", game);
+    info!(target:"rgsm::ipc", "Successfully added game draft: {:?}", game.name);
     Ok(())
 }
 
