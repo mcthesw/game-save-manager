@@ -8,12 +8,16 @@ use std::{
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::backup::path_format::path_to_zip_style;
+#[cfg(target_os = "windows")]
+use crate::backup::registry;
+#[cfg(target_os = "windows")]
+use crate::device::get_current_device_id;
 use crate::{
     backup::{SaveUnit, SaveUnitType},
     preclude::*,
 };
 
-use super::archive::{ArchiveVersion, system_time_to_zip_datetime};
+use super::archive::{ArchiveMeta, ArchiveVersion, system_time_to_zip_datetime};
 
 const FINGERPRINT_MAGIC: &[u8] = b"RGSM_FP_V1";
 
@@ -125,6 +129,11 @@ fn collect_entries_from_source(
     let mut entries = Vec::new();
 
     for save_unit in save_paths {
+        if let SaveUnitType::WinRegistry = save_unit.unit_type {
+            // Registry content is fingerprinted separately via extend_with_registry().
+            continue;
+        }
+
         let source_path = save_unit.resolve_path_for_current_device()?;
         if !source_path.exists() {
             return Err(BackupFileError::NotExists(source_path));
@@ -143,10 +152,64 @@ fn collect_entries_from_source(
                     .ok_or(BackupFileError::NonePathError)?;
                 collect_directory_entries(&source_path, &PathBuf::from(folder_name), &mut entries)?;
             }
+            SaveUnitType::WinRegistry => unreachable!(),
         }
     }
 
     Ok(entries)
+}
+
+/// Extend a base fingerprint by hashing Windows Registry content for any
+/// `WinRegistry` save units. For file-only games the base is returned unchanged,
+/// keeping backward compatibility with older archives.
+#[cfg(target_os = "windows")]
+fn extend_with_registry(base: String, save_paths: &[SaveUnit]) -> Result<String, CompressError> {
+    let mut registry_data = Vec::new();
+    for save_unit in save_paths {
+        if let SaveUnitType::WinRegistry = save_unit.unit_type {
+            let reg_path = save_unit
+                .get_path_for_device(get_current_device_id())
+                .ok_or(CompressError::Single(BackupFileError::NonePathError))?;
+            let reg = registry::export_registry_key(reg_path).map_err(|e| {
+                CompressError::Single(BackupFileError::RegistryError(e.to_string()))
+            })?;
+            let json = serde_json::to_vec_pretty(&reg)
+                .map_err(|e| CompressError::Single(BackupFileError::Unexpected(e.into())))?;
+            registry_data.push(json);
+        }
+    }
+
+    if registry_data.is_empty() {
+        return Ok(base);
+    }
+
+    let mut hasher = Xxh3::new();
+    hasher.write(base.as_bytes());
+    hasher.write(b"RGSM_REG");
+    for data in &registry_data {
+        hasher.write(&(data.len() as u64).to_le_bytes());
+        hasher.write(data);
+    }
+    Ok(format!("{:016x}", hasher.finish()))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn extend_with_registry(base: String, _save_paths: &[SaveUnit]) -> Result<String, CompressError> {
+    Ok(base)
+}
+
+pub(crate) fn fingerprint_source_state(save_paths: &[SaveUnit]) -> Result<String, CompressError> {
+    let entries = collect_entries_from_source(save_paths).map_err(CompressError::Single)?;
+    let base = build_fingerprint(entries);
+    extend_with_registry(base, save_paths)
+}
+
+/// Read the stored source fingerprint from a ZIP archive's comment metadata.
+pub(crate) fn read_stored_fingerprint(zip_path: &Path) -> Option<String> {
+    let file = File::open(zip_path).ok()?;
+    let archive = zip::ZipArchive::new(file).ok()?;
+    let meta = ArchiveMeta::from_comment(archive.comment())?;
+    meta.source_fingerprint
 }
 
 fn normalize_zip_entry_name(name: &str, is_dir: bool) -> String {
@@ -193,11 +256,6 @@ fn collect_entries_from_zip(
     }
 
     Ok(entries)
-}
-
-pub(crate) fn fingerprint_source_state(save_paths: &[SaveUnit]) -> Result<String, CompressError> {
-    let entries = collect_entries_from_source(save_paths).map_err(CompressError::Single)?;
-    Ok(build_fingerprint(entries))
 }
 
 pub(crate) fn fingerprint_zip_state(zip_path: &Path) -> Result<Option<String>, CompressError> {

@@ -228,6 +228,8 @@
     "game_launch_path": "கோப்பைத் தொடங்கவும்",
     "add_save_directory": "காப்பக கோப்புறையைச் சேர்க்கவும்",
     "add_save_file": "காப்பகக் கோப்பைச் சேர்க்கவும்",
+    "add_registry_key": "Add registry key",
+    "registry_key_prompt": "Enter the Windows Registry path to back up (e.g. HKEY_CURRENT_USER\\SOFTWARE\\GameName)",
     "type": "தட்டச்சு செய்க",
     "operations": "கட்டுப்பாடு",
     "remove": "அகற்று",

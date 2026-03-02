@@ -151,12 +151,55 @@ fn restore_folder_unit(
     Ok(())
 }
 
+/// Restore a Windows Registry save unit from the extracted temp directory.
+///
+/// Reads `{id}/registry.json`, parses it, and imports the values back into
+/// the Windows Registry. On non-Windows platforms the import is silently skipped.
+fn restore_registry_unit(
+    unit: &SaveUnit,
+    version: ArchiveVersion,
+    temp_root: &Path,
+) -> Result<(), BackupFileError> {
+    use crate::backup::registry;
+
+    if !version.uses_index_prefix() {
+        warn!(target: "rgsm::backup::archive", "Registry restore skipped: legacy archive format");
+        return Ok(());
+    }
+
+    let reg_json_path = temp_root
+        .join(unit.id.to_string())
+        .join(registry::REGISTRY_DATA_FILENAME);
+
+    if !reg_json_path.exists() {
+        warn!(target: "rgsm::backup::archive", "Registry data file not found: {}", reg_json_path.display());
+        return Ok(());
+    }
+
+    let json_bytes = fs::read(&reg_json_path)?;
+    let reg_data: registry::RegistryData =
+        serde_json::from_slice(&json_bytes).map_err(|e| BackupFileError::Unexpected(e.into()))?;
+
+    match registry::import_registry_data(&reg_data) {
+        Ok(()) => Ok(()),
+        Err(registry::RegistryError::UnsupportedPlatform) => {
+            warn!(target: "rgsm::backup::archive", "Registry restore skipped: not on Windows");
+            Ok(())
+        }
+        Err(e) => Err(BackupFileError::RegistryError(e.to_string())),
+    }
+}
+
 fn restore_save_unit_from_temp(
     unit: &SaveUnit,
     version: ArchiveVersion,
     temp_root: &Path,
     app_handle: Option<&AppHandle>,
 ) -> Result<(), BackupFileError> {
+    if let SaveUnitType::WinRegistry = unit.unit_type {
+        return restore_registry_unit(unit, version, temp_root);
+    }
+
     let unit_path = unit.resolve_path_for_current_device()?;
     let file_name = unit_path
         .file_name()
@@ -178,6 +221,7 @@ fn restore_save_unit_from_temp(
     match unit.unit_type {
         SaveUnitType::File => restore_file_unit(unit, original_path, unit_path, app_handle),
         SaveUnitType::Folder => restore_folder_unit(unit, original_path, unit_path, app_handle),
+        SaveUnitType::WinRegistry => unreachable!(),
     }
 }
 

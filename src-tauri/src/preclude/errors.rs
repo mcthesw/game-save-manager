@@ -17,6 +17,8 @@ pub enum BackupFileError {
     NonePathError,
     #[error("Duplicate save-unit id detected in game config: {0}")]
     DuplicateSaveUnitId(u32),
+    #[error("Registry error: {0}")]
+    RegistryError(String),
     #[error("Path resolution error: {0:#?}")]
     PathResolution(#[from] ResolveError),
     #[error(transparent)]
