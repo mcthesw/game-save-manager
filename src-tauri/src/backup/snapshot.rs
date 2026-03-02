@@ -16,4 +16,7 @@ pub struct Snapshot {
     /// Parent snapshot's date (None means this is a root node)
     #[serde(default = "default_value::default_none")]
     pub parent: Option<String>,
+    /// XXH3 hash of the archive file for integrity verification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archive_hash: Option<String>,
 }

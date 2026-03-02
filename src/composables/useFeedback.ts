@@ -7,6 +7,7 @@ import { LAYER } from '../ui/layers';
 
 type ConfirmOptions = Parameters<typeof ElMessageBox.confirm>[2];
 type PromptOptions = Parameters<typeof ElMessageBox.prompt>[2];
+type AlertOptions = Parameters<typeof ElMessageBox.alert>[2];
 
 function withDefaults(options: ConfirmOptions): ConfirmOptions {
   if (!options) {
@@ -27,6 +28,9 @@ function withPromptDefaults(options: PromptOptions): PromptOptions {
 
 export function useFeedback() {
   return {
+    alert: (message: string, title: string, options?: AlertOptions) =>
+      ElMessageBox.alert(message, title, withDefaults(options)),
+
     confirm: (message: string, title: string, options?: ConfirmOptions) =>
       ElMessageBox.confirm(message, title, withDefaults(options)),
 

@@ -20,6 +20,7 @@ pub use game::{Game, GameDraft};
 pub use game_snapshots::GameSnapshots;
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitType};
 pub use snapshot::Snapshot;
+pub(crate) use state_fingerprint::compute_file_hash;
 pub use utils::*;
 
 pub(crate) const TIMER_AUTO_BACKUP_DESCRIPTION: &str = "Auto Backup (Timer)";

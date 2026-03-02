@@ -61,7 +61,7 @@ async addGame(game: GameDraft) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async restoreSnapshot(game: Game, date: string) : Promise<Result<null, string>> {
+async restoreSnapshot(game: Game, date: string) : Promise<Result<null, RestoreError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("restore_snapshot", { game, date }) };
 } catch (e) {
@@ -96,6 +96,18 @@ async deleteGame(game: Game) : Promise<Result<null, string>> {
 async getGameSnapshotsInfo(game: Game) : Promise<Result<GameSnapshots, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_game_snapshots_info", { game }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Verify archive integrity by comparing the stored hash against a freshly computed one.
+ * Returns `true` if the hash matches (or no stored hash exists), `false` if mismatched.
+ */
+async verifyArchiveIntegrity(archivePath: string, expectedHash: string | null) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("verify_archive_integrity", { archivePath, expectedHash }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -390,7 +402,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false},"version":"1.7.5"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"always_sync":false,"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false},"version":"1.7.5"} as const;
 
 /** user-defined types **/
 
@@ -567,9 +579,9 @@ export type PathCheckResult =
  */
 { status: "notFound"; rawPath: string; resolvedPath: string } | 
 /**
- * Registry path (not supported for backup)
+ * Registry path
  */
-{ status: "registryNotSupported"; rawPath: string } | 
+{ status: "registryPath"; rawPath: string; exists: boolean; supported: boolean } | 
 /**
  * Failed to resolve path variables
  */
@@ -584,6 +596,11 @@ export type QuickActionSoundSource = { kind: "default" } | { kind: "file"; path:
 export type QuickActionStatus = "Success" | "Failure"
 export type QuickActionType = "Timer" | "Tray" | "Hotkey"
 export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; sounds?: QuickActionSoundSlots }
+/**
+ * Typed error for restore operations, allowing the frontend to
+ * pattern-match on specific failure modes without string parsing.
+ */
+export type RestoreError = { type: "IntegrityCheckFailed"; expected: string; actual: string } | { type: "BackupNotFound"; date: string } | { type: "DecompressFailed"; message: string } | { type: "Io"; message: string } | { type: "Other"; message: string }
 /**
  * Settings that can be configured by user
  */
@@ -621,15 +638,27 @@ id?: number; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string 
  */
 export type SaveUnitDraft = { unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean }
 /**
- * A save unit should be a file or a folder
+ * The kind of data a save unit backs up.
  */
-export type SaveUnitType = "File" | "Folder"
+export type SaveUnitType = "File" | "Folder" | 
+/**
+ * Windows Registry key tree (stored as `registry.json` inside the archive).
+ */
+"WinRegistry"
 export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; 
 /**
  * Maximum number of extra overwrite backups to keep per game.
  * Keep the newest N backups; 0 means unlimited.
  */
-max_extra_backup_count?: number; appearance?: AppearanceSettings; compression_preset?: CompressionPreset }
+max_extra_backup_count?: number; appearance?: AppearanceSettings; compression_preset?: CompressionPreset; 
+/**
+ * Compute an XXH3 hash when creating snapshots (for integrity verification).
+ */
+compute_archive_hash?: boolean; 
+/**
+ * Verify archive hash before applying a snapshot.
+ */
+verify_archive_before_apply?: boolean }
 /**
  * A backup is a zip file that contains
  * all the file that the save unit has declared.
@@ -639,7 +668,11 @@ export type Snapshot = { date: string; describe: string; path: string; size?: nu
 /**
  * Parent snapshot's date (None means this is a root node)
  */
-parent?: string | null }
+parent?: string | null; 
+/**
+ * XXH3 hash of the archive file for integrity verification.
+ */
+archive_hash?: string | null }
 
 /** tauri-specta globals **/
 

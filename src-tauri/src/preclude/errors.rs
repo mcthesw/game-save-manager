@@ -89,6 +89,8 @@ pub enum BackupError {
     Backend(Box<BackendError>),
     #[error("Compress/Decompress error: {0:#?}")]
     Compress(#[from] CompressError),
+    #[error("Archive integrity check failed: expected {expected}, got {actual}")]
+    IntegrityCheckFailed { expected: String, actual: String },
     #[error("Deserialize error: {0:#?}")]
     Deserialize(#[from] serde_json::Error),
     #[error("Cannot convert path to string")]
