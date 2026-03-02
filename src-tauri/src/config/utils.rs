@@ -37,7 +37,11 @@ pub fn get_config() -> Result<Config, ConfigError> {
 /// Replace the config file with a new config struct without triggering cloud sync.
 pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
-    fs::write(config_path, serde_json::to_string_pretty(&config)?)?;
+    let mut normalized = config.clone();
+    for game in &mut normalized.games {
+        game.normalize_save_unit_ids();
+    }
+    fs::write(config_path, serde_json::to_string_pretty(&normalized)?)?;
     Ok(())
 }
 

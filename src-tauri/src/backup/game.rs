@@ -2,14 +2,15 @@ use log::{info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
 use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{
-    ArchiveBackend, GameSnapshots, SaveUnit, Snapshot, TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
+    ArchiveBackend, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
+    TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::DeviceId;
@@ -26,9 +27,34 @@ pub struct Game {
     #[serde(default)]
     pub game_paths: HashMap<DeviceId, String>,
     /// Monotonically increasing counter for assigning unique save-unit IDs.
-    /// Each call to `new_save_unit_id()` returns the current value and increments it.
+    /// IDs can be provided by callers (frontend/CLI/FFI), and backend normalization
+    /// keeps this counter aligned with the highest in-use ID.
     #[serde(default)]
     pub next_save_unit_id: u32,
+}
+
+/// Frontend/IPC input shape for creating/updating a game.
+/// Save-unit IDs are assigned and normalized in backend domain logic.
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct GameDraft {
+    pub name: String,
+    pub save_paths: Vec<SaveUnitDraft>,
+    #[serde(default)]
+    pub game_paths: HashMap<DeviceId, String>,
+}
+
+fn save_unit_identity(
+    unit_type: &crate::backup::SaveUnitType,
+    paths: &HashMap<DeviceId, String>,
+) -> String {
+    let mut entries: Vec<_> = paths.iter().collect();
+    entries.sort_by(|(left_id, _), (right_id, _)| left_id.cmp(right_id));
+    let paths_key = entries
+        .into_iter()
+        .map(|(device_id, path)| format!("{device_id}={path}"))
+        .collect::<Vec<_>>()
+        .join("|");
+    format!("{unit_type:?}|{paths_key}")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,7 +93,98 @@ pub struct GameDeleted {
     pub remote_game_dir_path: String,
 }
 
+impl GameDraft {
+    /// Convert frontend/IPC draft to persisted game model with stable save-unit IDs.
+    pub fn into_game(self, existing: Option<&Game>) -> Game {
+        let mut existing_ids_by_identity: HashMap<String, VecDeque<u32>> = HashMap::new();
+        let mut next_save_unit_id = existing.map(|game| game.next_save_unit_id).unwrap_or(0);
+
+        if let Some(existing_game) = existing {
+            for save_unit in &existing_game.save_paths {
+                let identity = save_unit_identity(&save_unit.unit_type, &save_unit.paths);
+                existing_ids_by_identity
+                    .entry(identity)
+                    .or_default()
+                    .push_back(save_unit.id);
+                if save_unit.id >= next_save_unit_id {
+                    next_save_unit_id = save_unit.id.saturating_add(1);
+                }
+            }
+        }
+
+        let mut used_ids = HashSet::new();
+        let mut save_paths = Vec::with_capacity(self.save_paths.len());
+        for draft in self.save_paths {
+            let identity = save_unit_identity(&draft.unit_type, &draft.paths);
+            let reused_id = existing_ids_by_identity
+                .get_mut(&identity)
+                .and_then(|ids| ids.pop_front());
+
+            let id = if let Some(id) = reused_id {
+                used_ids.insert(id);
+                id
+            } else {
+                while used_ids.contains(&next_save_unit_id) {
+                    next_save_unit_id = next_save_unit_id.saturating_add(1);
+                }
+                let id = next_save_unit_id;
+                used_ids.insert(id);
+                next_save_unit_id = next_save_unit_id.saturating_add(1);
+                id
+            };
+
+            save_paths.push(SaveUnit {
+                id,
+                unit_type: draft.unit_type,
+                paths: draft.paths,
+                delete_before_apply: draft.delete_before_apply,
+            });
+        }
+
+        let mut game = Game {
+            name: self.name,
+            save_paths,
+            game_paths: self.game_paths,
+            next_save_unit_id,
+        };
+        game.normalize_save_unit_ids();
+        game
+    }
+}
+
 impl Game {
+    /// Normalize save-unit IDs to keep them unique and stable inside this game.
+    ///
+    /// This is the backend safety net for all callers (frontend/CLI/FFI):
+    /// - keep the first occurrence of each existing ID;
+    /// - reassign only duplicated IDs using the monotonic counter;
+    /// - move `next_save_unit_id` forward to one past the highest assigned ID.
+    pub fn normalize_save_unit_ids(&mut self) {
+        let mut used_ids = HashSet::with_capacity(self.save_paths.len());
+        let mut next_id = self.next_save_unit_id;
+
+        for save_unit in &self.save_paths {
+            if used_ids.insert(save_unit.id) && save_unit.id >= next_id {
+                next_id = save_unit.id.saturating_add(1);
+            }
+        }
+
+        used_ids.clear();
+        for save_unit in &mut self.save_paths {
+            if used_ids.insert(save_unit.id) {
+                continue;
+            }
+            while used_ids.contains(&next_id) {
+                next_id = next_id.saturating_add(1);
+            }
+            save_unit.id = next_id;
+            used_ids.insert(next_id);
+            next_id = next_id.saturating_add(1);
+        }
+
+        self.next_save_unit_id = next_id;
+    }
+
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name).join("Backups.json");
         let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;

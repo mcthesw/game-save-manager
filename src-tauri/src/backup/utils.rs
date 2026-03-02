@@ -8,7 +8,7 @@ use tauri::AppHandle;
 use tokio::sync::Semaphore;
 
 use super::game::SnapshotCreated;
-use super::{Game, GameSnapshots};
+use super::{GameDraft, GameSnapshots};
 
 async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     let backup_path = get_backup_path()?.join(name);
@@ -32,7 +32,7 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     Ok(())
 }
 
-pub async fn create_game_backup(game: &Game) -> Result<(), BackupError> {
+pub async fn create_game_backup(game: &GameDraft) -> Result<(), BackupError> {
     let mut config = get_config()?;
     create_backup_folder(&game.name).await?;
 
@@ -41,11 +41,12 @@ pub async fn create_game_backup(game: &Game) -> Result<(), BackupError> {
     match pos {
         Some(index) => {
             // 如果找到了，就用新的游戏覆盖它
-            config.games[index] = game.clone();
+            let existing = &config.games[index];
+            config.games[index] = game.clone().into_game(Some(existing));
         }
         None => {
             // 如果没有找到，就将新的游戏添加到 `games` 数组中
-            config.games.push(game.clone());
+            config.games.push(game.clone().into_game(None));
         }
     }
     set_config_local(&config)?;

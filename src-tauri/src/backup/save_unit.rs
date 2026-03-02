@@ -19,16 +19,28 @@ pub enum SaveUnitType {
 ///
 /// The `id` field is a stable identifier used as the index prefix in V2 archives.
 /// Unlike positional indices, it does not change when save units are added or removed,
-/// ensuring old archives can always be restored correctly.
+/// ensuring old archives can always be restored correctly. The backend will
+/// normalize duplicated IDs when persisting config.
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct SaveUnit {
     /// Stable identifier for this save unit, used as archive entry prefix in V2 format.
-    /// Assigned by `Game::new_save_unit_id()` and never reused within a game.
+    /// Provided by the caller (frontend/CLI/FFI) and kept unique by backend normalization.
     #[serde(default)]
     pub id: u32,
     pub unit_type: SaveUnitType,
     #[serde(default)] // 如果反序列化时字段不存在，则使用默认值 (空 HashMap)
     pub paths: HashMap<DeviceId, String>, // 存储不同设备的路径
+    #[serde(default = "default_value::default_false")]
+    pub delete_before_apply: bool,
+}
+
+/// Frontend/IPC input shape for save-unit editing.
+/// ID allocation is handled by backend domain logic.
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct SaveUnitDraft {
+    pub unit_type: SaveUnitType,
+    #[serde(default)]
+    pub paths: HashMap<DeviceId, String>,
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
 }
