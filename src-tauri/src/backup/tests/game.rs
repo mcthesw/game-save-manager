@@ -2,8 +2,8 @@ use super::utils::{ConfigFileGuard, lock_config_file};
 use crate::backup::archive::system_time_to_zip_datetime;
 use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{
-    Game, GameSnapshots, SaveUnit, SaveUnitType, Snapshot, TIMER_AUTO_BACKUP_DESCRIPTION,
-    TimerSnapshotDecision,
+    Game, GameDraft, GameSnapshots, SaveUnit, SaveUnitDraft, SaveUnitType, Snapshot,
+    TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision,
 };
 use crate::config::Config;
 use crate::device::get_current_device_id;
@@ -578,4 +578,135 @@ fn batch_delete_empty_dates_is_noop() -> TestResult {
 
         Ok(())
     })
+}
+
+#[test]
+fn normalize_save_unit_ids_reassigns_duplicates() {
+    let mut game = Game {
+        name: "normalize-dup".to_string(),
+        save_paths: vec![
+            SaveUnit {
+                id: 0,
+                unit_type: SaveUnitType::File,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+            SaveUnit {
+                id: 0,
+                unit_type: SaveUnitType::Folder,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+            SaveUnit {
+                id: 2,
+                unit_type: SaveUnitType::File,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+            SaveUnit {
+                id: 2,
+                unit_type: SaveUnitType::Folder,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+        ],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 1,
+    };
+
+    game.normalize_save_unit_ids();
+
+    let ids: Vec<u32> = game.save_paths.iter().map(|u| u.id).collect();
+    assert_eq!(ids, vec![0, 3, 2, 4]);
+    assert_eq!(game.next_save_unit_id, 5);
+}
+
+#[test]
+fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
+    let mut game = Game {
+        name: "normalize-legacy".to_string(),
+        save_paths: vec![
+            SaveUnit {
+                id: 0,
+                unit_type: SaveUnitType::File,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+            SaveUnit {
+                id: 0,
+                unit_type: SaveUnitType::Folder,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+            SaveUnit {
+                id: 0,
+                unit_type: SaveUnitType::File,
+                paths: HashMap::new(),
+                delete_before_apply: false,
+            },
+        ],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 0,
+    };
+
+    game.normalize_save_unit_ids();
+
+    let ids: Vec<u32> = game.save_paths.iter().map(|u| u.id).collect();
+    assert_eq!(ids, vec![0, 1, 2]);
+    assert_eq!(game.next_save_unit_id, 3);
+}
+
+#[test]
+fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
+    let device_id = "device-a".to_string();
+
+    let mut existing_path_a = HashMap::new();
+    existing_path_a.insert(device_id.clone(), "C:\\A\\save.dat".to_string());
+    let mut existing_path_b = HashMap::new();
+    existing_path_b.insert(device_id.clone(), "C:\\B\\save.dat".to_string());
+
+    let existing = Game {
+        name: "DraftReuse".to_string(),
+        save_paths: vec![
+            SaveUnit {
+                id: 5,
+                unit_type: SaveUnitType::File,
+                paths: existing_path_a.clone(),
+                delete_before_apply: false,
+            },
+            SaveUnit {
+                id: 7,
+                unit_type: SaveUnitType::File,
+                paths: existing_path_b,
+                delete_before_apply: false,
+            },
+        ],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 8,
+    };
+
+    let mut new_path = HashMap::new();
+    new_path.insert(device_id, "C:\\C\\save.dat".to_string());
+    let draft = GameDraft {
+        name: "DraftReuse".to_string(),
+        save_paths: vec![
+            SaveUnitDraft {
+                unit_type: SaveUnitType::File,
+                paths: existing_path_a,
+                delete_before_apply: false,
+            },
+            SaveUnitDraft {
+                unit_type: SaveUnitType::File,
+                paths: new_path,
+                delete_before_apply: false,
+            },
+        ],
+        game_paths: HashMap::new(),
+    };
+
+    let game = draft.into_game(Some(&existing));
+    let ids: Vec<u32> = game.save_paths.iter().map(|u| u.id).collect();
+
+    assert_eq!(ids, vec![5, 8]);
+    assert_eq!(game.next_save_unit_id, 9);
 }

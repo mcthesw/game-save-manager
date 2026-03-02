@@ -45,7 +45,7 @@ async getLocalConfig() : Promise<Result<Config, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async addGame(game: Game) : Promise<Result<null, string>> {
+async addGame(game: GameDraft) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("add_game", { game }) };
 } catch (e) {
@@ -475,9 +475,15 @@ export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolea
 export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>; 
 /**
  * Monotonically increasing counter for assigning unique save-unit IDs.
- * Each call to `new_save_unit_id()` returns the current value and increments it.
+ * IDs can be provided by callers (frontend/CLI/FFI), and backend normalization
+ * keeps this counter aligned with the highest in-use ID.
  */
 next_save_unit_id?: number }
+/**
+ * Frontend/IPC input shape for creating/updating a game.
+ * Save-unit IDs are assigned and normalized in backend domain logic.
+ */
+export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?: Partial<{ [key in string]: string }> }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -592,14 +598,20 @@ tags: string[] }
  * 
  * The `id` field is a stable identifier used as the index prefix in V2 archives.
  * Unlike positional indices, it does not change when save units are added or removed,
- * ensuring old archives can always be restored correctly.
+ * ensuring old archives can always be restored correctly. The backend will
+ * normalize duplicated IDs when persisting config.
  */
 export type SaveUnit = { 
 /**
  * Stable identifier for this save unit, used as archive entry prefix in V2 format.
- * Assigned by `Game::new_save_unit_id()` and never reused within a game.
+ * Provided by the caller (frontend/CLI/FFI) and kept unique by backend normalization.
  */
 id?: number; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean }
+/**
+ * Frontend/IPC input shape for save-unit editing.
+ * ID allocation is handled by backend domain logic.
+ */
+export type SaveUnitDraft = { unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean }
 /**
  * A save unit should be a file or a folder
  */
