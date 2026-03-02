@@ -17,6 +17,43 @@ use tauri::{AppHandle, Emitter, Manager, Window};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
 
+/// Typed error for restore operations, allowing the frontend to
+/// pattern-match on specific failure modes without string parsing.
+#[derive(Debug, Serialize, Deserialize, Clone, Type, thiserror::Error)]
+#[serde(tag = "type")]
+pub enum RestoreError {
+    #[error("Integrity check failed: expected {expected}, got {actual}")]
+    IntegrityCheckFailed { expected: String, actual: String },
+    #[error("Backup not found: {date}")]
+    BackupNotFound { date: String },
+    #[error("Decompression failed: {message}")]
+    DecompressFailed { message: String },
+    #[error("IO error: {message}")]
+    Io { message: String },
+    #[error("{message}")]
+    Other { message: String },
+}
+
+impl From<BackupError> for RestoreError {
+    fn from(e: BackupError) -> Self {
+        match e {
+            BackupError::IntegrityCheckFailed { expected, actual } => {
+                RestoreError::IntegrityCheckFailed { expected, actual }
+            }
+            BackupError::BackupNotExist { date, .. } => RestoreError::BackupNotFound { date },
+            BackupError::Compress(ce) => RestoreError::DecompressFailed {
+                message: ce.to_string(),
+            },
+            BackupError::Io(io) => RestoreError::Io {
+                message: io.to_string(),
+            },
+            other => RestoreError::Other {
+                message: other.to_string(),
+            },
+        }
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub enum NotificationLevel {
@@ -160,12 +197,15 @@ pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), Stri
 
 #[tauri::command]
 #[specta::specta]
-pub async fn restore_snapshot(game: Game, date: String, app: AppHandle) -> Result<(), String> {
-    //handle_backup_err(game.restore_snapshot(&date,window), )
+pub async fn restore_snapshot(
+    game: Game,
+    date: String,
+    app: AppHandle,
+) -> Result<(), RestoreError> {
     info!(target:"rgsm::ipc", "Applying backup: {:?} for game: {:?}", date, game);
     let snapshots = game.restore_snapshot(&date, Some(&app)).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
-        e.to_string()
+        RestoreError::from(e)
     })?;
 
     if let Ok(config) = get_config() {
@@ -285,6 +325,26 @@ pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String
         error!(target:"rgsm::ipc", "Failed to get backup list info: {:?}", e);
         e.to_string()
     })
+}
+
+/// Verify archive integrity by comparing the stored hash against a freshly computed one.
+/// Returns `true` if the hash matches (or no stored hash exists), `false` if mismatched.
+#[tauri::command]
+#[specta::specta]
+pub async fn verify_archive_integrity(
+    archive_path: String,
+    expected_hash: Option<String>,
+) -> Result<bool, String> {
+    use crate::backup::compute_file_hash;
+
+    let Some(expected) = expected_hash else {
+        return Ok(true);
+    };
+    let actual = compute_file_hash(std::path::Path::new(&archive_path)).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to compute archive hash: {:?}", e);
+        e.to_string()
+    })?;
+    Ok(actual == expected)
 }
 
 #[tauri::command]

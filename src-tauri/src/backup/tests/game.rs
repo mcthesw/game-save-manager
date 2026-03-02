@@ -108,6 +108,7 @@ fn create_legacy_auto_snapshot(
         path: zip_path.to_string_lossy().to_string(),
         size: fs::metadata(&zip_path)?.len(),
         parent: None,
+        archive_hash: None,
     });
     snapshots.head = Some(date.to_string());
     game.set_game_snapshots_info(&snapshots)?;
@@ -370,6 +371,7 @@ fn insert_snapshot(
         path: zip_path.to_string_lossy().to_string(),
         size: fs::metadata(&zip_path)?.len(),
         parent: parent.map(|s| s.to_string()),
+        archive_hash: None,
     });
     snapshots.head = Some(date.to_string());
     game.set_game_snapshots_info(&snapshots)?;

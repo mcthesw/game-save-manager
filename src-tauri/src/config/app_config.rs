@@ -62,6 +62,8 @@ impl Default for Config {
                 max_extra_backup_count: 5,
                 appearance: AppearanceSettings::default(),
                 compression_preset: CompressionPreset::default(),
+                compute_archive_hash: false,
+                verify_archive_before_apply: false,
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),

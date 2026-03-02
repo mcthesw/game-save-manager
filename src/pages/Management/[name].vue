@@ -21,6 +21,7 @@ import {
   Plus,
   Timer,
   Edit,
+  CircleCheck,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 
@@ -299,10 +300,20 @@ async function apply_save(date: string) {
     }
   }
 
+  let integrityFailed = false;
+  let restoreError = '';
+
   await withLoading(async () => {
     const result = await commands.restoreSnapshot(game.value, date);
     if (result.status === 'error') {
-      showError({ message: $t('manage.recover_failed') });
+      const err = result.error;
+      if (err.type === 'IntegrityCheckFailed') {
+        integrityFailed = true;
+      } else if (err.type === 'BackupNotFound') {
+        restoreError = $t('manage.backup_not_found', { date: err.date });
+      } else {
+        restoreError = err.message;
+      }
     } else {
       showSuccess({ message: $t('manage.recover_success') });
 
@@ -327,6 +338,21 @@ async function apply_save(date: string) {
   }, $t('manage.restoring_backup'));
   apply_button_apply_limit = true;
   refresh_backups_info();
+
+  // Show error dialogs after loading overlay is dismissed
+  if (integrityFailed) {
+    try {
+      await feedback.alert(
+        $t('manage.integrity_failed_detail'),
+        $t('manage.integrity_failed_title'),
+        { type: 'error', confirmButtonText: $t('manage.confirm') }
+      );
+    } catch {
+      // dialog dismissed
+    }
+  } else if (restoreError) {
+    showError({ message: $t('manage.recover_failed') + ': ' + restoreError });
+  }
 }
 
 async function undo_last_apply() {
@@ -431,6 +457,51 @@ async function open_backup_folder() {
   const result = await commands.openBackupFolder(game.value);
   if (result.status === 'error') {
     showError({ message: $t('error.open_backup_folder_failed') });
+  }
+}
+
+async function verify_archive_hashes() {
+  const snapshots = table_data.value.filter((s) => s.archive_hash);
+  if (snapshots.length === 0) {
+    showInfo({ message: $t('manage.verify_no_hashes') });
+    return;
+  }
+
+  let passed = 0;
+  const failedSnapshots: string[] = [];
+
+  await withLoading(async () => {
+    for (const snapshot of snapshots) {
+      const result = await commands.verifyArchiveIntegrity(snapshot.path, snapshot.archive_hash ?? null);
+      if (result.status === 'ok' && result.data) {
+        passed++;
+      } else {
+        failedSnapshots.push(snapshot.date);
+      }
+    }
+  }, $t('manage.verifying_archives'));
+
+  // Show results after loading overlay is dismissed
+  if (failedSnapshots.length === 0) {
+    showSuccess({ message: $t('manage.verify_all_passed', { count: passed }) });
+  } else {
+    const listHtml = failedSnapshots
+      .map((d) => `<li style="font-family:monospace;margin:2px 0">${d}</li>`)
+      .join('');
+    const html = `<p>${$t('manage.verify_failed_summary', { passed, failed: failedSnapshots.length })}</p>`
+      + `<ul style="max-height:200px;overflow-y:auto;padding-left:20px;margin:8px 0">${listHtml}</ul>`
+      + `<p style="color:#909399;font-size:12px">${$t('manage.verify_failed_hint')}</p>`;
+    try {
+      await feedback.alert(html, $t('manage.verify_failed_title'), {
+        type: 'error',
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: $t('manage.verify_select_corrupted'),
+      });
+      // User clicked "Select corrupted" — select those snapshots in the table
+      selectedDates.value = new Set(failedSnapshots);
+    } catch {
+      // dialog dismissed via close button
+    }
   }
 }
 
@@ -835,6 +906,9 @@ const currentHeadFullText = computed(() => {
         </el-tooltip>
         <el-tooltip :content="$t('manage.open_backup_folder')" placement="bottom">
           <el-button circle :icon="Folder" @click="open_backup_folder" />
+        </el-tooltip>
+        <el-tooltip :content="$t('manage.verify_archive_hashes')" placement="bottom">
+          <el-button circle :icon="CircleCheck" @click="verify_archive_hashes" />
         </el-tooltip>
         <el-tooltip :content="$t('manage.extra_backups')" placement="bottom">
           <el-button circle :icon="DocumentCopy" @click="extraBackupDrawer = true" />
