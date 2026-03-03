@@ -102,7 +102,7 @@ impl Default for Settings {
             max_extra_backup_count: default_value::default_five_u32(),
             appearance: AppearanceSettings::default(),
             compression_preset: CompressionPreset::default(),
-            compute_archive_hash: default_value::default_true(),
+            compute_archive_hash: default_value::default_false(),
             verify_archive_before_apply: default_value::default_false(),
         }
     }

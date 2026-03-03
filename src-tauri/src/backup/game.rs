@@ -227,7 +227,14 @@ impl Game {
 
         // Compute archive hash for integrity verification (if enabled)
         let archive_hash = if get_config()?.settings.compute_archive_hash {
-            compute_file_hash(&zip_path).ok()
+            match compute_file_hash(&zip_path) {
+                Ok(hash) => Some(hash),
+                Err(e) => {
+                    // Best-effort cleanup: do not keep a snapshot archive when integrity hashing fails.
+                    let _ = fs::remove_file(&zip_path);
+                    return Err(BackupError::Compress(e));
+                }
+            }
         } else {
             None
         };

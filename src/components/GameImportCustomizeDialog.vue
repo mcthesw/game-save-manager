@@ -44,7 +44,7 @@
                     size="small"
                     class="registry-tag"
                   >
-                    Registry
+                    {{ $t('game_import_customize.registry') }}
                   </el-tag>
                 </div>
               </template>
@@ -173,7 +173,7 @@ function isRegistryPath(path: string) {
 }
 
 function isRowSelectable(_row: SavePath) {
-  // Registry paths are selectable on Windows (backend checks support)
+  // Row selection itself is always enabled; checked/existing-path logic controls effective picks.
   return true;
 }
 
@@ -266,7 +266,7 @@ async function checkAllPaths(applySelection: boolean = false) {
         } else if (c.status === 'registryPath') {
           return c.supported
             ? { resolvedPath: c.rawPath, exists: c.exists }
-            : { error: 'Registry paths are not supported on this platform' };
+            : { error: $t('game_import_customize.registry_not_supported_platform') };
         } else if (c.status === 'resolveFailed') {
           return { error: c.error };
         }

@@ -118,8 +118,14 @@ where
     let reg_path_str = save_unit
         .get_path_for_device(get_current_device_id())
         .ok_or(BackupFileError::NonePathError)?;
-    let reg_data = registry::export_registry_key(reg_path_str)
-        .map_err(|e| BackupFileError::RegistryError(e.to_string()))?;
+    let reg_data = match registry::export_registry_key(reg_path_str) {
+        Ok(data) => data,
+        Err(registry::RegistryError::UnsupportedPlatform) => {
+            log::warn!(target: "rgsm::backup", "Skipping registry save unit on unsupported platform");
+            return Ok(());
+        }
+        Err(e) => return Err(BackupFileError::RegistryError(e.to_string())),
+    };
     let json_bytes =
         serde_json::to_vec_pretty(&reg_data).map_err(|e| BackupFileError::Unexpected(e.into()))?;
     write_bytes_entry(

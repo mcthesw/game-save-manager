@@ -184,6 +184,16 @@ async function add_registry_key() {
     const path = result.value?.trim();
     if (!path) return;
     if (!check_save_unit_unique(path)) return;
+
+    // Validate registry path on current platform
+    const checkResult = await commands.checkPaths([path]);
+    if (checkResult.status === 'ok') {
+      const [check] = checkResult.data;
+      if (check && check.status === 'registryPath' && !check.supported) {
+        showWarning({ message: $t('addgame.registry_non_windows_warning') });
+      }
+    }
+
     save_paths.push(generate_save_unit('WinRegistry', path));
   } catch {
     // dialog cancelled

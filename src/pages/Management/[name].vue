@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch, onBeforeUnmount, onMounted } from 'vue';
+import { computed, ref, watch, onBeforeUnmount, onMounted, h } from 'vue';
 import { ElInput, TableV2FixedDir, TableV2SortOrder } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
@@ -488,17 +488,18 @@ async function verify_archive_hashes() {
   if (failedSnapshots.length === 0) {
     showSuccess({ message: $t('manage.verify_all_passed', { count: passed }) });
   } else {
-    const listHtml = failedSnapshots
-      .map((d) => `<li style="font-family:monospace;margin:2px 0">${d}</li>`)
-      .join('');
-    const html =
-      `<p>${$t('manage.verify_failed_summary', { passed, failed: failedSnapshots.length })}</p>` +
-      `<ul style="max-height:200px;overflow-y:auto;padding-left:20px;margin:8px 0">${listHtml}</ul>` +
-      `<p style="color:#909399;font-size:12px">${$t('manage.verify_failed_hint')}</p>`;
+    const messageVNode = h('div', [
+      h('p', $t('manage.verify_failed_summary', { passed, failed: failedSnapshots.length })),
+      h(
+        'ul',
+        { style: 'max-height:200px;overflow-y:auto;padding-left:20px;margin:8px 0' },
+        failedSnapshots.map((d) => h('li', { style: 'font-family:monospace;margin:2px 0' }, d))
+      ),
+      h('p', { style: 'color:#909399;font-size:12px' }, $t('manage.verify_failed_hint')),
+    ]);
     try {
-      await feedback.alert(html, $t('manage.verify_failed_title'), {
+      await feedback.alert(messageVNode, $t('manage.verify_failed_title'), {
         type: 'error',
-        dangerouslyUseHTMLString: true,
         confirmButtonText: $t('manage.verify_select_corrupted'),
       });
       // User clicked "Select corrupted" — select those snapshots in the table
