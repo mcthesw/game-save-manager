@@ -53,6 +53,7 @@ use thiserror::Error;
 pub enum RegistryError {
     #[error("Unsupported registry hive: {0}")]
     UnsupportedHive(String),
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     #[error("Registry operations are not supported on this platform")]
     UnsupportedPlatform,
     #[error("Registry I/O error: {0}")]
@@ -61,6 +62,14 @@ pub enum RegistryError {
     Json(#[from] serde_json::Error),
     #[error("Base64 decode error: {0}")]
     Base64(#[from] base64::DecodeError),
+    #[error(
+        "Invalid registry value data length for '{name}': expected at least {expected} bytes, got {actual}"
+    )]
+    InvalidValueDataLength {
+        name: String,
+        expected: usize,
+        actual: usize,
+    },
     #[cfg(target_os = "windows")]
     #[error("Registry access error: {0}")]
     WinReg(String),
@@ -161,36 +170,42 @@ mod platform {
                 })
             }
             REG_DWORD => {
-                let data = if value.bytes.len() >= 4 {
-                    u32::from_le_bytes([
-                        value.bytes[0],
-                        value.bytes[1],
-                        value.bytes[2],
-                        value.bytes[3],
-                    ])
-                } else {
-                    0
-                };
+                if value.bytes.len() < 4 {
+                    return Err(RegistryError::InvalidValueDataLength {
+                        name: val_name,
+                        expected: 4,
+                        actual: value.bytes.len(),
+                    });
+                }
+                let data = u32::from_le_bytes([
+                    value.bytes[0],
+                    value.bytes[1],
+                    value.bytes[2],
+                    value.bytes[3],
+                ]);
                 Ok(RegistryValue::Dword {
                     name: val_name,
                     data,
                 })
             }
             REG_QWORD => {
-                let data = if value.bytes.len() >= 8 {
-                    u64::from_le_bytes([
-                        value.bytes[0],
-                        value.bytes[1],
-                        value.bytes[2],
-                        value.bytes[3],
-                        value.bytes[4],
-                        value.bytes[5],
-                        value.bytes[6],
-                        value.bytes[7],
-                    ])
-                } else {
-                    0
-                };
+                if value.bytes.len() < 8 {
+                    return Err(RegistryError::InvalidValueDataLength {
+                        name: val_name,
+                        expected: 8,
+                        actual: value.bytes.len(),
+                    });
+                }
+                let data = u64::from_le_bytes([
+                    value.bytes[0],
+                    value.bytes[1],
+                    value.bytes[2],
+                    value.bytes[3],
+                    value.bytes[4],
+                    value.bytes[5],
+                    value.bytes[6],
+                    value.bytes[7],
+                ]);
                 Ok(RegistryValue::Qword {
                     name: val_name,
                     data,
@@ -340,6 +355,17 @@ mod platform {
         })
     }
 
+    /// Check whether the target registry key exists.
+    pub fn registry_key_exists(path: &str) -> Result<bool, RegistryError> {
+        let (hive, subkey) = parse_registry_path(path)?;
+        let root = RegKey::predef(hive);
+        match root.open_subkey(&subkey) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(RegistryError::WinReg(e.to_string())),
+        }
+    }
+
     /// Import `RegistryData` back into the Windows Registry.
     pub fn import_registry_data(data: &RegistryData) -> Result<(), RegistryError> {
         let (hive, base_subkey) = parse_registry_path(&data.root_key)?;
@@ -376,10 +402,14 @@ mod platform {
     pub fn import_registry_data(_data: &RegistryData) -> Result<(), RegistryError> {
         Err(RegistryError::UnsupportedPlatform)
     }
+
+    pub fn registry_key_exists(_path: &str) -> Result<bool, RegistryError> {
+        Err(RegistryError::UnsupportedPlatform)
+    }
 }
 
 // Re-export platform functions at module level.
-pub use platform::{export_registry_key, import_registry_data};
+pub use platform::{export_registry_key, import_registry_data, registry_key_exists};
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
@@ -456,10 +486,12 @@ mod tests {
     #[cfg(target_os = "windows")]
     mod windows_tests {
         use super::*;
+        use std::sync::Mutex;
         use winreg::RegKey;
         use winreg::enums::*;
 
         const TEST_KEY: &str = "HKEY_CURRENT_USER\\Software\\RGSM_TEST";
+        static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
         fn cleanup_test_key() {
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
@@ -478,6 +510,7 @@ mod tests {
 
         #[test]
         fn export_and_import_roundtrip() {
+            let _guard = TEST_MUTEX.lock().unwrap();
             setup_test_key();
 
             // Export
@@ -507,6 +540,7 @@ mod tests {
 
         #[test]
         fn export_nonexistent_key_errors() {
+            let _guard = TEST_MUTEX.lock().unwrap();
             let result =
                 export_registry_key("HKEY_CURRENT_USER\\Software\\RGSM_NONEXISTENT_KEY_12345");
             assert!(result.is_err());
@@ -514,6 +548,7 @@ mod tests {
 
         #[test]
         fn parse_ludusavi_registry_prefix() {
+            let _guard = TEST_MUTEX.lock().unwrap();
             let (_, subkey) =
                 platform::parse_registry_path("REGISTRY:HKEY_CURRENT_USER/Software/Game").unwrap();
             assert_eq!(subkey, "Software\\Game");
@@ -521,6 +556,7 @@ mod tests {
 
         #[test]
         fn export_ludusavi_style_path_uses_normalized_subkey() {
+            let _guard = TEST_MUTEX.lock().unwrap();
             setup_test_key();
             let result = export_registry_key("REGISTRY:HKEY_CURRENT_USER/Software/RGSM_TEST");
             assert!(result.is_ok());

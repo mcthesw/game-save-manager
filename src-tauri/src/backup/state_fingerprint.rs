@@ -1,6 +1,7 @@
 use std::{
     fs::{self, File},
     hash::Hasher,
+    io::Read,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -273,8 +274,17 @@ pub(crate) fn fingerprint_zip_state(zip_path: &Path) -> Result<Option<String>, C
 
 /// Compute an XXH3 hash of a file's contents for integrity verification.
 pub(crate) fn compute_file_hash(path: &Path) -> Result<String, CompressError> {
-    let data = fs::read(path).map_err(|e| CompressError::Single(e.into()))?;
+    let mut file = File::open(path).map_err(|e| CompressError::Single(e.into()))?;
+    let mut buffer = [0u8; 64 * 1024];
     let mut hasher = Xxh3::new();
-    hasher.write(&data);
+    loop {
+        let bytes_read = file
+            .read(&mut buffer)
+            .map_err(|e| CompressError::Single(e.into()))?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.write(&buffer[..bytes_read]);
+    }
     Ok(format!("{:016x}", hasher.finish()))
 }
