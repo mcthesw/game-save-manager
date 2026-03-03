@@ -64,7 +64,7 @@ pub fn check_path(raw_path: &str, config: &Config) -> PathCheckResult {
     if raw_path.starts_with("REGISTRY:") || raw_path.starts_with("HKEY_") {
         #[cfg(target_os = "windows")]
         {
-            let exists = crate::backup::registry::export_registry_key(raw_path).is_ok();
+            let exists = crate::backup::registry::registry_key_exists(raw_path).unwrap_or(false);
             return PathCheckResult::RegistryPath {
                 raw_path: raw_path.to_string(),
                 exists,
