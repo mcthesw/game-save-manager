@@ -224,9 +224,20 @@ async function apply_all() {
   }
 }
 
-function open_log_folder() {
+async function open_log_folder() {
   try {
-    commands.openFileOrFolder('log');
+    const logDirResult = await commands.getAppLogDir();
+    if (logDirResult.status === 'error') {
+      error(`get log dir error: ${logDirResult.error}`);
+      showError({ message: $t('error.open_log_folder_failed') });
+      return;
+    }
+
+    const result = await commands.openFileOrFolder(logDirResult.data);
+    if (result.status === 'error') {
+      error(`open log folder error: ${result.error}`);
+      showError({ message: $t('error.open_log_folder_failed') });
+    }
   } catch (e) {
     error(`open log folder error: ${e}`);
     showError({ message: $t('error.open_log_folder_failed') });
