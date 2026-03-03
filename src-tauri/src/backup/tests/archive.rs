@@ -43,6 +43,7 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "windows")]
     fn build_registry_save_unit_with_id(path: &str, id: u32) -> SaveUnit {
         let mut paths = HashMap::new();
         paths.insert(get_current_device_id().clone(), path.to_string());

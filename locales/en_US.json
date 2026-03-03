@@ -253,6 +253,7 @@
     "add_save_file": "Add save file",
     "add_registry_key": "Add registry key",
     "registry_key_prompt": "Enter the Windows Registry path to back up (e.g. HKEY_CURRENT_USER\\SOFTWARE\\GameName)",
+    "registry_non_windows_warning": "Registry backup is only supported on Windows. This entry will be skipped on other platforms.",
     "type": "Type",
     "operations": "Control",
     "remove": "Remove",
@@ -297,7 +298,9 @@
     "status_error": "Error",
     "path_hint": "You can customize the paths above. Path variables like <winLocalAppData> will be resolved automatically.",
     "no_paths_selected": "Please select at least one save path",
-    "registry_unsupported": "Registry not supported"
+    "registry_unsupported": "Registry not supported",
+    "registry": "Registry",
+    "registry_not_supported_platform": "Registry paths are not supported on this platform"
   },
   "game_batch_import": {
     "title": "Batch Import: {count} games",
@@ -306,6 +309,8 @@
     "save_paths": "Save Paths",
     "import_selected": "Import {count} selected game(s)",
     "registry_unsupported": "Registry not supported",
+    "registry": "Registry",
+    "registry_not_supported_platform": "Registry paths are not supported on this platform",
     "verify_paths": "Verify paths",
     "select_all_supported": "Select all",
     "select_by_check": "Select existing",

@@ -154,7 +154,7 @@ fn restore_folder_unit(
 /// Restore a Windows Registry save unit from the extracted temp directory.
 ///
 /// Reads `{id}/registry.json`, parses it, and imports the values back into
-/// the Windows Registry. On non-Windows platforms the import is silently skipped.
+/// the Windows Registry. On non-Windows platforms the import is skipped with a warning log.
 fn restore_registry_unit(
     unit: &SaveUnit,
     version: ArchiveVersion,

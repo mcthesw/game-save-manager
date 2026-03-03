@@ -80,7 +80,7 @@
                 :disabled="!path.selected"
               />
               <el-tag v-if="path.isRegistry" type="info" size="small" class="path-tag registry-tag">
-                Registry
+                {{ $t('game_batch_import.registry') }}
               </el-tag>
               <template v-else>
                 <el-tooltip v-if="path.check?.error" :content="path.check?.error" placement="top">
@@ -310,7 +310,7 @@ async function checkAllPaths(applySelection: boolean = false) {
         } else if (c.status === 'registryPath') {
           pathItem.check = c.supported
             ? { resolvedPath: c.rawPath, exists: c.exists }
-            : { error: 'Registry paths are not supported on this platform' };
+            : { error: $t('game_batch_import.registry_not_supported_platform') };
         } else if (c.status === 'resolveFailed') {
           pathItem.check = { error: c.error };
         }
