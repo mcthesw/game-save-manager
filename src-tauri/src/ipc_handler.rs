@@ -61,6 +61,20 @@ pub async fn open_file_or_folder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_app_log_dir(app: AppHandle) -> Result<String, String> {
+    info!(target:"rgsm::ipc", "Getting app log directory");
+
+    let log_dir = app.path().app_log_dir().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to get app log directory: {:?}", e);
+        e.to_string()
+    })?;
+
+    debug!(target:"rgsm::ipc", "Log directory: {}", log_dir.display());
+    Ok(log_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn choose_save_file(app: AppHandle) -> Result<String, String> {
     info!(target:"rgsm::ipc", "Opening file dialog.");
     if let Some(path) = app.dialog().file().blocking_pick_file() {
