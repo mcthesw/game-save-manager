@@ -1,4 +1,5 @@
 import { ElMessageBox } from 'element-plus';
+import type { VNode } from 'vue';
 import { LAYER } from '../ui/layers';
 
 // A small, centralized façade for user feedback patterns.
@@ -28,7 +29,7 @@ function withPromptDefaults(options: PromptOptions): PromptOptions {
 
 export function useFeedback() {
   return {
-    alert: (message: string, title: string, options?: AlertOptions) =>
+    alert: (message: string | VNode, title: string, options?: AlertOptions) =>
       ElMessageBox.alert(message, title, withDefaults(options)),
 
     confirm: (message: string, title: string, options?: ConfirmOptions) =>

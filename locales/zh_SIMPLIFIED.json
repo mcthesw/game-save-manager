@@ -260,7 +260,8 @@
     "invalid_name_error": "无效的游戏名，请不要包含无法创建文件的特殊字符",
     "duplicated_name_error": "重复的游戏名（游戏名不区分大小写）",
     "path_variable_hint": "您可以使用路径变量（如 <home>）来创建跨设备兼容的路径",
-    "device_info": "设备信息"
+    "device_info": "设备信息",
+    "registry_non_windows_warning": "注册表备份仅在 Windows 上支持，此条目在其他平台将被跳过。"
   },
   "game_import": {
     "title": "导入游戏（自动探测存档位置）",
@@ -297,7 +298,9 @@
     "status_error": "错误",
     "path_hint": "您可以自定义上面的路径。路径变量（如 <winLocalAppData>）将自动解析。",
     "no_paths_selected": "请至少选择一个存档路径",
-    "registry_unsupported": "暂不支持注册表"
+    "registry_unsupported": "暂不支持注册表",
+    "registry": "注册表",
+    "registry_not_supported_platform": "当前平台不支持注册表路径"
   },
   "game_batch_import": {
     "title": "批量导入：{count} 款游戏",
@@ -317,7 +320,9 @@
     "status_unchecked": "未验证",
     "status_exists": "存在",
     "status_missing": "不存在",
-    "status_error": "错误"
+    "status_error": "错误",
+    "registry": "注册表",
+    "registry_not_supported_platform": "当前平台不支持注册表路径"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"

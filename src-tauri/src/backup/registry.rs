@@ -6,6 +6,7 @@
 //!
 //! On non-Windows platforms, export/import return `RegistryError::UnsupportedPlatform`.
 
+#[cfg(any(target_os = "windows", test))]
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -51,6 +52,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RegistryError {
+    #[cfg(target_os = "windows")]
     #[error("Unsupported registry hive: {0}")]
     UnsupportedHive(String),
     #[cfg_attr(target_os = "windows", allow(dead_code))]
@@ -62,6 +64,7 @@ pub enum RegistryError {
     Json(#[from] serde_json::Error),
     #[error("Base64 decode error: {0}")]
     Base64(#[from] base64::DecodeError),
+    #[cfg(target_os = "windows")]
     #[error(
         "Invalid registry value data length for '{name}': expected at least {expected} bytes, got {actual}"
     )]
@@ -211,14 +214,17 @@ mod platform {
                     data,
                 })
             }
-            _ => {
-                // REG_BINARY and all other types → store as base64
+            REG_BINARY => {
                 let data = BASE64.encode(&value.bytes);
                 Ok(RegistryValue::Binary {
                     name: val_name,
                     data,
                 })
             }
+            _ => Err(RegistryError::WinReg(format!(
+                "Unsupported registry value type for '{}': {:?}",
+                val_name, value.vtype
+            ))),
         }
     }
 
@@ -303,11 +309,18 @@ mod platform {
         rel_subkey: &str,
         entries: &mut Vec<RegistryKeyEntry>,
     ) -> Result<(), RegistryError> {
-        // Collect values for this key
+        // Collect values for this key (sorted by name for deterministic output)
         let mut values = Vec::new();
-        for name_result in key.enum_values() {
-            let (name, _) = name_result.map_err(|e| RegistryError::WinReg(e.to_string()))?;
-            match read_value(key, &name) {
+        let mut value_names: Vec<String> = key
+            .enum_values()
+            .map(|r| {
+                r.map(|(name, _)| name)
+                    .map_err(|e| RegistryError::WinReg(e.to_string()))
+            })
+            .collect::<Result<_, _>>()?;
+        value_names.sort();
+        for name in &value_names {
+            match read_value(key, name) {
                 Ok(val) => values.push(val),
                 Err(e) => {
                     log::warn!(target: "rgsm::backup::registry", "Skipping value '{name}': {e}");
@@ -320,11 +333,15 @@ mod platform {
             values,
         });
 
-        // Recurse into subkeys
-        for subkey_result in key.enum_keys() {
-            let subkey_name = subkey_result.map_err(|e| RegistryError::WinReg(e.to_string()))?;
+        // Recurse into subkeys (sorted for deterministic output)
+        let mut subkey_names: Vec<String> = key
+            .enum_keys()
+            .map(|r| r.map_err(|e| RegistryError::WinReg(e.to_string())))
+            .collect::<Result<_, _>>()?;
+        subkey_names.sort();
+        for subkey_name in &subkey_names {
             let child = key
-                .open_subkey(&subkey_name)
+                .open_subkey(subkey_name)
                 .map_err(|e| RegistryError::WinReg(e.to_string()))?;
             let child_rel = if rel_subkey.is_empty() {
                 subkey_name.clone()
@@ -402,14 +419,15 @@ mod platform {
     pub fn import_registry_data(_data: &RegistryData) -> Result<(), RegistryError> {
         Err(RegistryError::UnsupportedPlatform)
     }
-
-    pub fn registry_key_exists(_path: &str) -> Result<bool, RegistryError> {
-        Err(RegistryError::UnsupportedPlatform)
-    }
 }
 
 // Re-export platform functions at module level.
-pub use platform::{export_registry_key, import_registry_data, registry_key_exists};
+pub use platform::{export_registry_key, import_registry_data};
+
+#[cfg(target_os = "windows")]
+pub fn registry_key_exists(path: &str) -> Result<bool, RegistryError> {
+    platform::registry_key_exists(path)
+}
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
