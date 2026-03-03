@@ -128,7 +128,8 @@ pub fn run() -> anyhow::Result<()> {
                 .targets([tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::LogDir { file_name: None },
                 )])
-                .max_file_size(5_000_000 /* 5 MB */)
+                .max_file_size(500_000 /* 5 KB */)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )
