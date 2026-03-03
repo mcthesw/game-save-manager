@@ -62,6 +62,7 @@ pub fn run() -> anyhow::Result<()> {
         .commands(tauri_specta::collect_commands![
             ipc_handler::open_url,
             ipc_handler::open_file_or_folder,
+            ipc_handler::get_app_log_dir,
             ipc_handler::choose_save_file,
             ipc_handler::choose_save_dir,
             ipc_handler::get_local_config,
@@ -126,10 +127,11 @@ pub fn run() -> anyhow::Result<()> {
             tauri_plugin_log::Builder::new()
                 .target(tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::LogDir {
-                        file_name: Some("logs".to_string()),
+                        file_name: Some("app".to_string()),
                     },
                 ))
-                .max_file_size(50_000 /* bytes */)
+                .max_file_size(5_000_000 /* 5 MB */)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )
