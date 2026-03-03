@@ -172,8 +172,7 @@ fn restore_registry_unit(
         .join(registry::REGISTRY_DATA_FILENAME);
 
     if !reg_json_path.exists() {
-        warn!(target: "rgsm::backup::archive", "Registry data file not found: {}", reg_json_path.display());
-        return Ok(());
+        return Err(BackupFileError::NotExists(reg_json_path));
     }
 
     let json_bytes = fs::read(&reg_json_path)?;
