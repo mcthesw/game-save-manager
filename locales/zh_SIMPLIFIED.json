@@ -52,6 +52,7 @@
     "manifest_source": "数据库来源",
     "manifest_source_local": "本地缓存",
     "manifest_source_bundled": "内置（离线可用）",
+    "manifest_source_missing": "未内置（需下载）",
     "manifest_updated_at": "更新时间",
     "manifest_etag": "版本标识",
     "manifest_refresh": "刷新",

@@ -14,6 +14,10 @@ rust-version = "1.85.1"
 name = "rgsm_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = ["bundled-ludusavi-manifest"]
+bundled-ludusavi-manifest = []
+
 [build-dependencies]
 tauri-build = { version = "2.4.1", features = [] }
 

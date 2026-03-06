@@ -137,6 +137,7 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
     let local_path = app_dirs::resolve_app_path(LOCAL_MANIFEST_FILENAME);
     let meta_path = app_dirs::resolve_app_path(LOCAL_MANIFEST_META_FILENAME);
     let has_local = local_path.exists();
+    let bundled_bytes = embedded_resources::ludusavi_manifest_yaml_len().unwrap_or(0);
     let local_bytes = if has_local {
         fs::metadata(&local_path).ok().map(|m| m.len())
     } else {
@@ -160,10 +161,8 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
         let etag = meta.and_then(|m| m.etag);
         (updated_at, etag)
     } else {
-        let meta = serde_json::from_str::<ManifestMeta>(
-            embedded_resources::ludusavi_manifest_meta_json().as_ref(),
-        )
-        .ok();
+        let meta = embedded_resources::ludusavi_manifest_meta_json()
+            .and_then(|data| serde_json::from_str::<ManifestMeta>(data.as_ref()).ok());
         let updated_at = meta.as_ref().and_then(|m| m.updated_at.clone());
         let etag = meta.and_then(|m| m.etag);
         (updated_at, etag)
@@ -172,15 +171,17 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
     LudusaviManifestStatus {
         source: if has_local {
             "local".to_string()
-        } else {
+        } else if bundled_bytes > 0 {
             "bundled".to_string()
+        } else {
+            "missing".to_string()
         },
         updated_at,
         etag,
         has_local,
         local_path: local_path_str,
         local_bytes,
-        bundled_bytes: embedded_resources::ludusavi_manifest_yaml_len(),
+        bundled_bytes,
     }
 }
 
@@ -249,6 +250,12 @@ pub async fn update_manifest_from_remote() -> Result<LudusaviManifestStatus> {
 }
 
 pub fn reset_manifest_to_bundled() -> Result<LudusaviManifestStatus> {
+    if embedded_resources::ludusavi_manifest_yaml().is_none() {
+        anyhow::bail!(
+            "Bundled Ludusavi manifest is not available in this build. Please download the manifest from Settings first."
+        );
+    }
+
     let local_path = app_dirs::resolve_app_path(LOCAL_MANIFEST_FILENAME);
     if local_path.exists() {
         fs::remove_file(&local_path).with_context(|| {
@@ -295,12 +302,18 @@ fn load_manifest_yaml() -> Result<Cow<'static, str>> {
         return Ok(Cow::Owned(text));
     }
 
-    info!(
-        target: "rgsm::ludusavi",
-        "Using bundled Ludusavi manifest snapshot ({} bytes)",
-        embedded_resources::ludusavi_manifest_yaml_len()
+    if let Some(bundled) = embedded_resources::ludusavi_manifest_yaml() {
+        info!(
+            target: "rgsm::ludusavi",
+            "Using bundled Ludusavi manifest snapshot ({} bytes)",
+            embedded_resources::ludusavi_manifest_yaml_len().unwrap_or(0)
+        );
+        return Ok(bundled);
+    }
+
+    anyhow::bail!(
+        "Bundled Ludusavi manifest is not available in this build. Please update the manifest from Settings first."
     );
-    Ok(embedded_resources::ludusavi_manifest_yaml())
 }
 
 /// Checks if a path's `when` conditions match the current system

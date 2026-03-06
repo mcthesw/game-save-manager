@@ -34,6 +34,7 @@ Refer to `package.json` for instructions
 
 - `pnpm dev` Development mode, preview while developing
 - `pnpm build` Compile and package, output will be stored in `src-tauri/target`
+- Optional slim build (no bundled Ludusavi manifest, downloads at runtime): `cargo build --manifest-path src-tauri/Cargo.toml --no-default-features` or `pnpm tauri build -- --no-default-features`
 
 **Tip**: Set environment variable `NUXT_DEVTOOLS=true` to enable Nuxt DevTools. Disabled by default for faster startup.
 

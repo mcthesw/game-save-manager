@@ -52,6 +52,7 @@
     "manifest_source": "Manifest source",
     "manifest_source_local": "Local cache",
     "manifest_source_bundled": "Bundled (offline)",
+    "manifest_source_missing": "Not bundled in this build",
     "manifest_updated_at": "Last updated",
     "manifest_etag": "Manifest version",
     "manifest_refresh": "Refresh",

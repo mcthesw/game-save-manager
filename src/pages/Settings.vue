@@ -81,6 +81,7 @@ const ludusaviManifestResetting = ref(false);
 function formatManifestSource(source?: string) {
   if (source === 'local') return $t('settings.manifest_source_local');
   if (source === 'bundled') return $t('settings.manifest_source_bundled');
+  if (source === 'missing') return $t('settings.manifest_source_missing');
   return source || '-';
 }
 
