@@ -436,6 +436,36 @@
       "region_hint": "Please enter test if not required, do not leave it blank",
       "access_key_id": "Access key ID",
       "secret_access_key": "Secret access key"
+    },
+    "overview": {
+      "tab": "Overview",
+      "game_name": "Game",
+      "cloud_sync": "Auto Sync",
+      "status": "Status",
+      "last_sync": "Last Sync",
+      "actions": "Manual Sync",
+      "config_row": "Config",
+      "always_synced": "Always synced",
+      "sync_all": "Sync All",
+      "syncing_all": "Syncing all games...",
+      "no_games": "No games configured",
+      "status_synced": "Synced",
+      "status_pending": "Pending",
+      "status_failed": "Failed",
+      "status_disabled": "Disabled",
+      "status_conflict": "Conflict",
+      "status_unknown": "Unknown"
+    },
+    "backend_tab": {
+      "tab": "Backend"
+    },
+    "operations": {
+      "tab": "Operations",
+      "warning": "These operations may overwrite data. Use with caution.",
+      "upload_desc": "Upload all local backups to the cloud, overwriting remote data.",
+      "download_desc": "Download all cloud backups to local, overwriting local data.",
+      "cancel_sync": "Cancel Current Sync",
+      "cancel_sync_desc": "Cancel the currently running cloud sync operation."
     }
   },
   "cloud_sync": {

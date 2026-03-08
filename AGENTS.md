@@ -117,7 +117,7 @@ All user-facing strings must be internationalized.
 - **Frontend**: Use the `$t('key')` function from `vue-i18n`. Strings are in `locales/*.json`.
 - **Backend**: Use the `rust-i18n` crate.
 - To add a new string, add the key to `locales/en_US.json` and its translation to other locale files. (`en_US` and `zh_SIMPLIFIED` are the tier 1 locales)
-- **All locale files must stay in sync**: when adding new keys, they must be added to **every** locale file (`en_US`, `zh_SIMPLIFIED`, `fr`, `ko`, `ta`, `uk`). Tier 2 locales (`fr`, `ko`, `ta`, `uk`) should use English fallback values for new keys.
+- **Tier 1 locale files must stay in sync**: when adding new keys, you must add the text for `en_US` and `zh_SIMPLIFIED`. Tier 2 locales (`fr`, `ko`, `ta`, `uk`) automatically fall back to English and do not need manual placeholder entries for new keys.
 
 ## Testing Guidelines
 
