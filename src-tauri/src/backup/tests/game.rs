@@ -46,14 +46,7 @@ fn init_backups_json(game_name: &str, backup_root: &Path) -> TestResult {
     let game_dir = backup_root.join(game_name);
     fs::create_dir_all(&game_dir)?;
 
-    let snapshots = GameSnapshots {
-        name: game_name.to_string(),
-        backups: Vec::new(),
-        head: None,
-        sync_version: 0,
-        last_sync_device: None,
-        last_sync_timestamp: None,
-    };
+    let snapshots = GameSnapshots::new(game_name);
 
     fs::write(
         game_dir.join("Backups.json"),
@@ -114,7 +107,7 @@ fn create_legacy_auto_snapshot(
         archive_hash: None,
         device_id: None,
     });
-    snapshots.head = Some(date.to_string());
+    snapshots.set_current_device_head(Some(date.to_string()));
     game.set_game_snapshots_info(&snapshots)?;
     Ok(())
 }
@@ -383,7 +376,7 @@ fn insert_snapshot(
         archive_hash: None,
         device_id: None,
     });
-    snapshots.head = Some(date.to_string());
+    snapshots.set_current_device_head(Some(date.to_string()));
     game.set_game_snapshots_info(&snapshots)?;
     Ok(())
 }
@@ -559,7 +552,7 @@ fn batch_delete_updates_head_to_newest_remaining() -> TestResult {
 
         // HEAD should move to newest remaining (B)
         assert_eq!(
-            result.snapshots.head.as_deref(),
+            result.snapshots.current_device_head().map(String::as_str),
             Some("2025-01-02_00-00-00")
         );
 

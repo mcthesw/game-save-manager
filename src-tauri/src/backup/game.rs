@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
 use crate::backup::state_fingerprint::{
-    compute_file_hash, fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
+    fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
 use crate::backup::{
     ArchiveBackend, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
@@ -192,7 +192,8 @@ impl Game {
 
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name).join("Backups.json");
-        let backup_info = serde_json::from_slice(&fs::read(backup_path)?)?;
+        let mut backup_info: GameSnapshots = serde_json::from_slice(&fs::read(backup_path)?)?;
+        backup_info.normalize_heads();
         Ok(backup_info)
     }
     pub fn set_game_snapshots_info(&self, new_info: &GameSnapshots) -> Result<(), BackupError> {
@@ -202,10 +203,20 @@ impl Game {
         if !prefix_root.exists() {
             fs::create_dir_all(prefix_root)?;
         }
-        fs::write(saves_path, serde_json::to_string_pretty(&new_info)?)?;
+        let mut normalized = new_info.clone();
+        normalized.normalize_heads();
+        fs::write(saves_path, serde_json::to_string_pretty(&normalized)?)?;
         Ok(())
     }
     pub async fn create_snapshot(&self, describe: &str) -> Result<SnapshotCreated, BackupError> {
+        self.create_snapshot_with_parent(describe, None).await
+    }
+
+    pub async fn create_snapshot_with_parent(
+        &self,
+        describe: &str,
+        parent_date: Option<String>,
+    ) -> Result<SnapshotCreated, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name); // the backup zip file should be placed here
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
@@ -225,22 +236,7 @@ impl Game {
 
         let mut infos = self.get_game_snapshots_info()?;
 
-        // Set parent based on current HEAD
-        let parent = infos.head.clone();
-
-        // Compute archive hash for integrity verification (if enabled)
-        let archive_hash = if get_config()?.settings.compute_archive_hash {
-            match compute_file_hash(&zip_path) {
-                Ok(hash) => Some(hash),
-                Err(e) => {
-                    // Best-effort cleanup: do not keep a snapshot archive when integrity hashing fails.
-                    let _ = fs::remove_file(&zip_path);
-                    return Err(BackupError::Compress(e));
-                }
-            }
-        } else {
-            None
-        };
+        let parent = parent_date.or_else(|| infos.current_device_head().cloned());
 
         let game_snapshots_info = Snapshot {
             date: date.clone(),
@@ -251,13 +247,12 @@ impl Game {
                 .to_string(),
             size: file_size,
             parent,
-            archive_hash,
+            archive_hash: None,
             device_id: Some(get_current_device_id().clone()),
         };
         infos.backups.push(game_snapshots_info);
 
-        // Update HEAD to point to the new snapshot
-        infos.head = Some(date.clone());
+        infos.set_current_device_head(Some(date.clone()));
 
         self.set_game_snapshots_info(&infos)?;
 
@@ -393,9 +388,8 @@ impl Game {
 
         ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
 
-        // Update HEAD to point to the restored snapshot
         let mut infos = self.get_game_snapshots_info()?;
-        infos.head = Some(date.to_string());
+        infos.set_current_device_head(Some(date.to_string()));
         self.set_game_snapshots_info(&infos)?;
 
         Ok(infos)
@@ -459,24 +453,25 @@ impl Game {
             }
         }
 
-        // Update HEAD if it pointed to the deleted snapshot
-        if saves.head.as_deref() == Some(date) {
-            saves.head = if !children_dates.is_empty() {
-                // Set HEAD to the newest child (latest date)
-                children_dates.iter().max().cloned()
-            } else if deleted_parent.is_some() {
-                // No children, fall back to parent
-                deleted_parent.clone()
-            } else {
-                // Deleted node was a root with no children
-                // Find the newest remaining snapshot
-                saves
-                    .backups
-                    .iter()
-                    .filter(|x| x.date != date)
-                    .max_by_key(|x| &x.date)
-                    .map(|x| x.date.clone())
-            };
+        let replacement_head = if !children_dates.is_empty() {
+            children_dates.iter().max().cloned()
+        } else if deleted_parent.is_some() {
+            deleted_parent.clone()
+        } else {
+            saves
+                .backups
+                .iter()
+                .filter(|x| x.date != date)
+                .max_by_key(|x| &x.date)
+                .map(|x| x.date.clone())
+        };
+        let affected_devices: Vec<_> = saves
+            .head_entries()
+            .filter(|(_, head)| head.as_str() == date)
+            .map(|(device_id, _)| device_id.clone())
+            .collect();
+        for device_id in affected_devices {
+            saves.set_head_for_device(device_id, replacement_head.clone());
         }
 
         saves.backups.retain(|x| x.date != date);
@@ -515,20 +510,20 @@ impl Game {
         let mut saves = self.get_game_snapshots_info()?;
 
         // Build parent lookup for resolving ancestor chains
-        let parent_map: HashMap<&str, Option<&str>> = saves
+        let parent_map: HashMap<String, Option<String>> = saves
             .backups
             .iter()
-            .map(|s| (s.date.as_str(), s.parent.as_deref()))
+            .map(|s| (s.date.clone(), s.parent.clone()))
             .collect();
 
         // Find the nearest surviving ancestor for a deleted date
         let find_surviving_ancestor = |date: &str| -> Option<String> {
-            let mut current = parent_map.get(date).copied().flatten();
+            let mut current = parent_map.get(date).cloned().flatten();
             while let Some(p) = current {
-                if !to_delete.contains(p) {
-                    return Some(p.to_string());
+                if !to_delete.contains(p.as_str()) {
+                    return Some(p);
                 }
-                current = parent_map.get(p).copied().flatten();
+                current = parent_map.get(&p).cloned().flatten();
             }
             None
         };
@@ -551,16 +546,23 @@ impl Game {
             }
         }
 
-        // Update HEAD if it points to a deleted snapshot
-        if let Some(ref head) = saves.head {
-            if to_delete.contains(head.as_str()) {
-                saves.head = saves
-                    .backups
-                    .iter()
-                    .filter(|s| !to_delete.contains(s.date.as_str()))
-                    .max_by_key(|s| &s.date)
-                    .map(|s| s.date.clone());
-            }
+        let newest_surviving = saves
+            .backups
+            .iter()
+            .filter(|s| !to_delete.contains(s.date.as_str()))
+            .max_by_key(|s| &s.date)
+            .map(|s| s.date.clone());
+        let affected_devices: Vec<_> = saves
+            .head_entries()
+            .filter(|(_, head)| to_delete.contains(head.as_str()))
+            .map(|(device_id, head)| {
+                let replacement =
+                    find_surviving_ancestor(head).or_else(|| newest_surviving.clone());
+                (device_id.clone(), replacement)
+            })
+            .collect();
+        for (device_id, replacement) in affected_devices {
+            saves.set_head_for_device(device_id, replacement);
         }
 
         saves

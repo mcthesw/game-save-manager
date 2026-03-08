@@ -485,7 +485,7 @@ fn record_job_sync_state(job: &CloudSyncJob, result: &Result<(), CloudSyncExecut
             snapshots,
             ..
         } => {
-            let state = build_state_for_result(snapshots.head.clone(), result);
+            let state = build_state_for_result(snapshots.current_device_head_cloned(), result);
             if let Err(err) = with_sync_state(|sync_state| {
                 update_game_sync_state(sync_state, &session, game_name, state);
             }) {

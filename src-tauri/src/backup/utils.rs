@@ -14,14 +14,7 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
     let backup_path = get_backup_path()?.join(name);
     let info: GameSnapshots = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
-        GameSnapshots {
-            name: name.to_string(),
-            backups: Vec::new(),
-            head: None,
-            sync_version: 0,
-            last_sync_device: None,
-            last_sync_timestamp: None,
-        }
+        GameSnapshots::new(name)
     } else {
         // 如果已经存在，info从原来的文件中读取
         let bytes = fs::read(backup_path.join("Backups.json"));
