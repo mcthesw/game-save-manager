@@ -1,7 +1,10 @@
 use crate::{
     backup::{TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision},
-    cloud_sync::{CloudSyncJob, CloudSyncTaskManager},
-    config::{QuickActionSoundPreferences, QuickActionsSettings, get_config},
+    config::{QuickActionSoundPreferences, QuickActionsSettings, get_backup_path, get_config},
+    hooks::{
+        BeforeRestoreCtx, HookPipeline, HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx,
+        SnapshotDeletedCtx,
+    },
     preclude::*,
     sound::{QuickActionSoundEffect, play_quick_action_sound},
 };
@@ -29,6 +32,15 @@ impl QuickActionType {
             QuickActionType::Hotkey => String::from("Quick Backup (Hotkey)"),
         }
     }
+
+    /// Convert to the corresponding HookSource variant.
+    pub fn to_hook_source(self) -> HookSource {
+        match self {
+            QuickActionType::Timer => HookSource::TimerAutoBackup,
+            QuickActionType::Tray => HookSource::QuickActionTray,
+            QuickActionType::Hotkey => HookSource::QuickActionHotkey,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
@@ -51,28 +63,6 @@ pub struct QuickActionCompleted {
     pub game_name: Option<String>,
 }
 
-fn emit_quick_action_event(
-    app: &AppHandle,
-    trigger: QuickActionType,
-    operation: QuickActionOperation,
-    status: QuickActionStatus,
-    game_name: Option<String>,
-) {
-    if let Err(err) = (QuickActionCompleted {
-        operation,
-        status,
-        trigger,
-        game_name,
-    })
-    .emit(app)
-    {
-        warn!(
-            target: "rgsm::quick_action",
-            "Failed to emit quick action event: {err:?}"
-        );
-    }
-}
-
 pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
     info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}", t.generate_describe());
     let config = match get_config() {
@@ -91,13 +81,6 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
     let game = match quick_settings.quick_action_game.clone() {
         Some(game) => game,
         None => {
-            emit_quick_action_event(
-                app,
-                t,
-                QuickActionOperation::Apply,
-                QuickActionStatus::Failure,
-                None,
-            );
             show_no_game_selected_error(app, &quick_settings, &sound_preferences);
             return;
         }
@@ -107,14 +90,29 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
 
     // 执行恢复操作
     let result = async {
-        let newest_date = game
-            .get_game_snapshots_info()?
+        let snapshots_info = game.get_game_snapshots_info()?;
+        let snapshot = snapshots_info
             .backups
             .last()
             .ok_or(BackupError::NoBackupAvailable)?
-            .date
             .clone();
-        game.restore_snapshot(&newest_date, None)
+        let archive_path = get_backup_path()?
+            .join(&game.name)
+            .join(format!("{}.zip", snapshot.date));
+
+        // Gate hooks: extra backup + integrity check
+        let pipeline = app.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_before_restore(&BeforeRestoreCtx {
+                source: t.to_hook_source(),
+                game: game.clone(),
+                snapshot: snapshot.clone(),
+                snapshots: snapshots_info,
+                archive_path,
+            })
+            .await?;
+
+        game.restore_snapshot(&snapshot.date, None)
     }
     .await;
 
@@ -122,51 +120,27 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
     match result {
         Err(e) => {
             error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", &e);
+            // Failure notifications stay inline — no hook event for failures
             maybe_show_notification(
                 &quick_settings,
                 t!("backend.tray.error"),
                 format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
-            emit_quick_action_event(
-                app,
-                t,
-                QuickActionOperation::Apply,
-                QuickActionStatus::Failure,
-                Some(game.name.clone()),
-            );
         }
         Ok(snapshots) => {
-            if config.settings.cloud_settings.always_sync {
-                let manager: tauri::State<Arc<CloudSyncTaskManager>> = app.state();
-                manager
-                    .enqueue(CloudSyncJob::UploadMetadata {
-                        backend: config.settings.cloud_settings.backend.clone(),
-                        game_name: snapshots.name.clone(),
+            // Fire hook pipeline — NotificationHook handles sound/notification/event
+            if let Some(snapshot) = snapshots.backups.last().cloned() {
+                let pipeline = app.state::<Arc<HookPipeline>>();
+                pipeline
+                    .fire_snapshot_applied(&SnapshotAppliedCtx {
+                        source: t.to_hook_source(),
+                        game: game.clone(),
+                        snapshot,
                         snapshots,
                     })
                     .await;
             }
-
-            maybe_show_success_notification(
-                &quick_settings,
-                true,
-                t!("backend.tray.success"),
-                format!(
-                    "{:#?} {} {}",
-                    game.name,
-                    t!("backend.tray.quick_apply"),
-                    t!("backend.tray.success")
-                ),
-            );
-            play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Success);
-            emit_quick_action_event(
-                app,
-                t,
-                QuickActionOperation::Apply,
-                QuickActionStatus::Success,
-                Some(game.name.clone()),
-            );
         }
     }
 }
@@ -181,7 +155,6 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
         }
     };
 
-    let prompt_when_auto_backup = config.settings.prompt_when_auto_backup;
     let quick_settings = config.quick_action.clone();
     let sound_preferences: QuickActionSoundPreferences =
         QuickActionSoundPreferences::from(&quick_settings);
@@ -190,13 +163,6 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     let game = match quick_settings.quick_action_game.clone() {
         Some(game) => game,
         None => {
-            emit_quick_action_event(
-                app,
-                t,
-                QuickActionOperation::Backup,
-                QuickActionStatus::Failure,
-                None,
-            );
             show_no_game_selected_error(app, &quick_settings, &sound_preferences);
             return;
         }
@@ -229,31 +195,38 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     match result {
         Err(e) => {
             error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
+            // Failure notifications stay inline — no hook event for failures
             maybe_show_notification(
                 &quick_settings,
                 t!("backend.tray.error"),
                 format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
-            emit_quick_action_event(
-                app,
-                t,
-                QuickActionOperation::Backup,
-                QuickActionStatus::Failure,
-                Some(game.name.clone()),
-            );
         }
         Ok(_) => {
-            if config.settings.cloud_settings.always_sync {
-                let backend = config.settings.cloud_settings.backend.clone();
-                match build_upload_snapshot_job_from_latest(&game, backend.clone()) {
-                    Ok(job) => {
-                        let manager_state = app.state::<Arc<CloudSyncTaskManager>>();
-                        Arc::clone(manager_state.inner()).enqueue(job).await;
+            // Fire hook pipeline — NotificationHook handles sound/notification/event
+            let hook_source = t.to_hook_source();
+            match game.get_game_snapshots_info() {
+                Ok(snapshots) => {
+                    if let Some(snapshot) = snapshots.backups.last().cloned() {
+                        let local_zip_path = PathBuf::from(&snapshot.path);
+                        let remote_zip_path =
+                            format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
+                        let pipeline = app.state::<Arc<HookPipeline>>();
+                        pipeline
+                            .fire_snapshot_created(&SnapshotCreatedCtx {
+                                source: hook_source,
+                                game: game.clone(),
+                                snapshot,
+                                snapshots,
+                                local_zip_path,
+                                remote_zip_path,
+                            })
+                            .await;
                     }
-                    Err(err) => {
-                        warn!(target:"rgsm::quick_action", "Failed to build quick backup cloud sync job: {err:?}");
-                    }
+                }
+                Err(err) => {
+                    warn!(target:"rgsm::quick_action", "Failed to get snapshots for hook pipeline: {err:?}");
                 }
             }
 
@@ -264,16 +237,14 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
                     .await
                 {
                     Ok(cleanup_result) => {
-                        if config.settings.cloud_settings.always_sync
-                            && !cleanup_result.deleted_remote_paths.is_empty()
-                        {
-                            let manager_state = app.state::<Arc<CloudSyncTaskManager>>();
-                            Arc::clone(manager_state.inner())
-                                .enqueue(CloudSyncJob::DeleteFilesAndUploadMetadata {
-                                    backend: config.settings.cloud_settings.backend.clone(),
-                                    game_name: cleanup_result.snapshots.name.clone(),
+                        if !cleanup_result.deleted_remote_paths.is_empty() {
+                            let pipeline = app.state::<Arc<HookPipeline>>();
+                            pipeline
+                                .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                                    source: HookSource::TimerAutoBackup,
+                                    game: game.clone(),
                                     snapshots: cleanup_result.snapshots,
-                                    remote_zip_paths: cleanup_result.deleted_remote_paths,
+                                    deleted_remote_paths: cleanup_result.deleted_remote_paths,
                                 })
                                 .await;
                         }
@@ -283,58 +254,8 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
                     }
                 }
             }
-
-            maybe_show_success_notification(
-                &quick_settings,
-                prompt_when_auto_backup || t != QuickActionType::Timer,
-                t!("backend.tray.success"),
-                format!(
-                    "{:#?} {} {}",
-                    game.name,
-                    t!("backend.tray.quick_backup"),
-                    t!("backend.tray.success")
-                ),
-            );
-            play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Success);
-            emit_quick_action_event(
-                app,
-                t,
-                QuickActionOperation::Backup,
-                QuickActionStatus::Success,
-                Some(game.name.clone()),
-            );
         }
     }
-}
-
-fn build_upload_snapshot_job_from_latest(
-    game: &crate::backup::Game,
-    backend: crate::cloud_sync::Backend,
-) -> Result<CloudSyncJob, BackupError> {
-    let snapshots = game.get_game_snapshots_info()?;
-    let head = snapshots
-        .head
-        .clone()
-        .ok_or(BackupError::NoBackupAvailable)?;
-    let latest_snapshot = snapshots
-        .backups
-        .iter()
-        .find(|snapshot| snapshot.date == head)
-        .ok_or(BackupError::BackupNotExist {
-            name: snapshots.name.clone(),
-            date: head,
-        })?;
-
-    let local_zip_path = PathBuf::from(&latest_snapshot.path);
-    let remote_zip_path = format!("save_data/{}/{}.zip", snapshots.name, latest_snapshot.date);
-
-    Ok(CloudSyncJob::UploadSnapshot {
-        backend,
-        game_name: snapshots.name.clone(),
-        snapshots,
-        local_zip_path,
-        remote_zip_path,
-    })
 }
 
 fn show_no_game_selected_error(
@@ -361,17 +282,6 @@ fn maybe_show_notification<T1: AsRef<str>, T2: AsRef<str>>(
     body: T2,
 ) {
     if settings.enable_notification {
-        show_notification(title, body);
-    }
-}
-
-fn maybe_show_success_notification<T1: AsRef<str>, T2: AsRef<str>>(
-    settings: &QuickActionsSettings,
-    should_notify: bool,
-    title: T1,
-    body: T2,
-) {
-    if settings.enable_notification && should_notify {
         show_notification(title, body);
     }
 }

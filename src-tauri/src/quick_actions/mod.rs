@@ -4,7 +4,10 @@ mod tray;
 mod utils;
 
 pub use manager::QuickActionManager;
-pub use utils::{QuickActionCompleted, QuickActionType, quick_apply, quick_backup};
+pub use utils::{
+    QuickActionCompleted, QuickActionOperation, QuickActionStatus, QuickActionType, quick_apply,
+    quick_backup,
+};
 
 use hotkeys::setup_hotkeys;
 use tauri::Manager;
