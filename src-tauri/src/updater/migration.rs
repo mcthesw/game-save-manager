@@ -160,8 +160,10 @@ fn migrate_game_snapshots_to_chain() -> Result<(), UpdaterError> {
             }
         };
 
-        // Skip if already migrated (has parent or head set)
-        if game_snapshots.head.is_some()
+        game_snapshots.normalize_heads();
+
+        // Skip if already migrated (has parent or device head set)
+        if !game_snapshots.device_heads.is_empty()
             || game_snapshots.backups.iter().any(|s| s.parent.is_some())
         {
             info!(target: "rgsm::updater", "Skipping {:?}: already has chain structure", backups_json_path);
@@ -172,7 +174,7 @@ fn migrate_game_snapshots_to_chain() -> Result<(), UpdaterError> {
         if game_snapshots.backups.len() <= 1 {
             // For single snapshot, just set it as head
             if let Some(snapshot) = game_snapshots.backups.first() {
-                game_snapshots.head = Some(snapshot.date.clone());
+                game_snapshots.set_current_device_head(Some(snapshot.date.clone()));
             }
         } else {
             // Sort snapshots by date (ascending - oldest first)
@@ -186,7 +188,7 @@ fn migrate_game_snapshots_to_chain() -> Result<(), UpdaterError> {
 
             // Set head to the newest (last) snapshot
             if let Some(newest) = game_snapshots.backups.last() {
-                game_snapshots.head = Some(newest.date.clone());
+                game_snapshots.set_current_device_head(Some(newest.date.clone()));
             }
         }
 

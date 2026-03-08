@@ -20,11 +20,6 @@ pub(crate) fn lock_config_test_file() -> MutexGuard<'static, ()> {
     CONFIG_FILE_TEST_LOCK.blocking_lock()
 }
 
-#[cfg(test)]
-pub(crate) async fn lock_config_test_file_async() -> MutexGuard<'static, ()> {
-    CONFIG_FILE_TEST_LOCK.lock().await
-}
-
 fn deserialize_config_with_legacy_cloud_sync(content: &str) -> Result<Config, ConfigError> {
     let mut config: Config = serde_json::from_str(content)?;
     let raw: Value = serde_json::from_str(content)?;
