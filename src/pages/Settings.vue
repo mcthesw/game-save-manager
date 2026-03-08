@@ -191,9 +191,11 @@ async function backup_all() {
         await commands.backupAll();
       }, $t('settings.backup_all_in_progress'));
       showSuccess({
-        message: config.value.settings.cloud_settings?.always_sync
-          ? $t('settings.backup_all_success_with_sync')
-          : $t('settings.success'),
+        message:
+          config.value.settings.cloud_settings?.backend?.type !== 'Disabled' &&
+          config.value.games.some((game) => game.cloud_sync_enabled !== false)
+            ? $t('settings.backup_all_success_with_sync')
+            : $t('settings.success'),
       });
     } catch (e) {
       error(`backup all error: ${e}`);
