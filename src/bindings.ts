@@ -177,31 +177,31 @@ async openExtraBackupFolder(game: Game) : Promise<Result<boolean, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async checkCloudBackend(backend: Backend) : Promise<Result<null, string>> {
+async checkCloudBackend(session: CloudSyncSessionConfig) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("check_cloud_backend", { backend }) };
+    return { status: "ok", data: await TAURI_INVOKE("check_cloud_backend", { session }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async cloudUploadAll(backend: Backend) : Promise<Result<null, string>> {
+async cloudUploadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { backend }) };
+    return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { session }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async cloudDownloadAll(backend: Backend) : Promise<Result<null, string>> {
+async cloudDownloadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cloud_download_all", { backend }) };
+    return { status: "ok", data: await TAURI_INVOKE("cloud_download_all", { session }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async cancelCloudSync() : Promise<Result<null, string>> {
+async cancelCloudSync() : Promise<Result<CancelCloudSyncResult, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cancel_cloud_sync") };
 } catch (e) {
@@ -382,6 +382,45 @@ async checkPaths(paths: string[]) : Promise<Result<PathCheckResult[], string>> {
  */
 async getSystemFonts() : Promise<string[]> {
     return await TAURI_INVOKE("get_system_fonts");
+},
+/**
+ * Get the local sync state (device-specific, never uploaded).
+ */
+async getSyncState() : Promise<Result<SyncState, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_sync_state") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List available config backup files (newest first).
+ */
+async listConfigBackups() : Promise<string[]> {
+    return await TAURI_INVOKE("list_config_backups");
+},
+/**
+ * Restore config from a backup by index (0 = most recent).
+ */
+async restoreConfigBackup(index: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("restore_config_backup", { index }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sync one game by comparing local and remote snapshots.
+ */
+async syncGame(gameName: string) : Promise<Result<SyncGameOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sync_game", { gameName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -407,22 +446,16 @@ export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites
 /** user-defined types **/
 
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
-export type Backend = { type: "Disabled" } | 
-/**
- * WebDAV 后端
- * 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
- * 不支持 blocking
- */
-{ type: "WebDAV"; endpoint: string; username: string; password: string } | 
-/**
- * Amazon S3 后端
- * 参考：https://docs.rs/opendal/latest/opendal/services/struct.S3.html
- * 不支持 rename 和 blocking
- */
-{ type: "S3"; endpoint: string; bucket: string; region: string; access_key_id: string; secret_access_key: string }
+export type Backend = { type: "Disabled" } | { type: "WebDAV"; endpoint: string; username: string; password: string } | { type: "S3"; endpoint: string; bucket: string; region: string; access_key_id: string; secret_access_key: string }
+export type BatchSyncItemReport = { name: string; status: BatchSyncItemStatus }
+export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
+export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
+export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CloudSettings = { 
 /**
- * 是否启用跟随云同步（用户添加、删除时自动同步）
+ * Legacy field — kept only for deserialization of old configs.
+ * Per-game `cloud_sync_enabled` on `Game` replaces this.
+ * @deprecated Use Game.cloud_sync_enabled instead
  */
 always_sync?: boolean; 
 /**
@@ -444,6 +477,7 @@ max_concurrency?: number }
 export type CloudSyncError = { game_name: string | null; error: string }
 export type CloudSyncJobInfo = { id: number; description: string; status: CloudSyncJobStatus; error: string | null }
 export type CloudSyncJobStatus = "Queued" | "Running" | "Completed" | "Failed" | "Cancelled"
+export type CloudSyncSessionConfig = { root_path: string; max_concurrency: number; backend: Backend }
 export type CloudSyncStatus = { active_jobs: number; current_description: string | null; jobs: CloudSyncJobInfo[] }
 /**
  * User-facing compression presets for backup archives.
@@ -498,7 +532,12 @@ export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<
  * IDs can be provided by callers (frontend/CLI/FFI), and backend normalization
  * keeps this counter aligned with the highest in-use ID.
  */
-next_save_unit_id?: number }
+next_save_unit_id?: number; 
+/**
+ * Whether this game participates in cloud sync.
+ * Defaults to true so existing games are automatically included.
+ */
+cloud_sync_enabled?: boolean }
 /**
  * Frontend/IPC input shape for creating/updating a game.
  * Save-unit IDs are assigned and normalized in backend domain logic.
@@ -514,7 +553,20 @@ export type GameSnapshots = { name: string; backups: Snapshot[];
  * HEAD points to the current snapshot that new snapshots will branch from.
  * If None, new snapshots will be created as root nodes.
  */
-head?: string | null }
+head?: string | null; 
+/**
+ * Monotonically increasing version for sync conflict detection.
+ */
+sync_version?: number; 
+/**
+ * The device that last modified this metadata.
+ */
+last_sync_device?: string | null; 
+/**
+ * ISO 8601 timestamp of the last sync operation.
+ */
+last_sync_timestamp?: string | null }
+export type GameSyncState = { last_known_local_head?: string | null; last_known_remote_head?: string | null; last_sync_result?: SyncResult | null; last_sync_at?: string | null; pending_action?: PendingAction }
 /**
  * Simplified game info for the import dialog
  */
@@ -586,6 +638,7 @@ export type PathCheckResult =
  * Failed to resolve path variables
  */
 { status: "resolveFailed"; rawPath: string; error: string }
+export type PendingAction = "none" | "retry_required" | "user_decision_required"
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionOperation = "Backup" | "Apply"
@@ -672,7 +725,14 @@ parent?: string | null;
 /**
  * XXH3 hash of the archive file for integrity verification.
  */
-archive_hash?: string | null }
+archive_hash?: string | null; 
+/**
+ * The device that created this snapshot.
+ */
+device_id?: string | null }
+export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "conflict"
+export type SyncResult = "success" | { error: string } | "conflict" | "cancelled"
+export type SyncState = { schema_version: number; backend_fingerprint?: string; current_device_id?: string; config_state?: GameSyncState; games?: Partial<{ [key in string]: GameSyncState }> }
 
 /** tauri-specta globals **/
 
