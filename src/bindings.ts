@@ -313,7 +313,7 @@ async detachSnapshot(game: Game, date: string) : Promise<Result<null, string>> {
 }
 },
 /**
- * Create a new snapshot as a child of a specific parent snapshot
+ * Create a new snapshot, optionally branching from a specific parent snapshot
  */
 async createSnapshotAt(game: Game, describe: string, parentDate: string | null) : Promise<Result<null, string>> {
     try {
@@ -446,7 +446,19 @@ export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites
 /** user-defined types **/
 
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
-export type Backend = { type: "Disabled" } | { type: "WebDAV"; endpoint: string; username: string; password: string } | { type: "S3"; endpoint: string; bucket: string; region: string; access_key_id: string; secret_access_key: string }
+export type Backend = { type: "Disabled" } | 
+/**
+ * WebDAV 后端
+ * 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
+ * 不支持 blocking
+ */
+{ type: "WebDAV"; endpoint: string; username: string; password: string } | 
+/**
+ * Amazon S3 后端
+ * 参考：https://docs.rs/opendal/latest/opendal/services/struct.S3.html
+ * 不支持 rename 和 blocking
+ */
+{ type: "S3"; endpoint: string; bucket: string; region: string; access_key_id: string; secret_access_key: string }
 export type BatchSyncItemReport = { name: string; status: BatchSyncItemStatus }
 export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
 export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
@@ -550,10 +562,10 @@ export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?
  */
 export type GameSnapshots = { name: string; backups: Snapshot[]; 
 /**
- * HEAD points to the current snapshot that new snapshots will branch from.
- * If None, new snapshots will be created as root nodes.
+ * Device-specific HEAD pointers. Each device tracks which snapshot new
+ * snapshots should branch from locally.
  */
-head?: string | null; 
+device_heads?: Partial<{ [key in string]: string }>; 
 /**
  * Monotonically increasing version for sync conflict detection.
  */
@@ -730,7 +742,7 @@ archive_hash?: string | null;
  * The device that created this snapshot.
  */
 device_id?: string | null }
-export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "conflict"
+export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "merged" | "conflict"
 export type SyncResult = "success" | { error: string } | "conflict" | "cancelled"
 export type SyncState = { schema_version: number; backend_fingerprint?: string; current_device_id?: string; config_state?: GameSyncState; games?: Partial<{ [key in string]: GameSyncState }> }
 

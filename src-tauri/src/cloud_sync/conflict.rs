@@ -1,129 +1,191 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::backup::GameSnapshots;
+use crate::device::{DeviceId, get_current_device_id};
 
 /// Describes the relationship between local and remote snapshot trees.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncRelation {
-    /// Both sides point to the same HEAD — nothing to do.
+    /// Both sides already describe the same snapshot graph and per-device heads.
     InSync,
-    /// Local HEAD is an ancestor of remote HEAD → safe to fast-forward pull.
-    LocalBehind,
-    /// Remote HEAD is an ancestor of local HEAD → safe to push.
-    LocalAhead,
-    /// Both HEADs exist on the same tree but diverged — not a true conflict
-    /// because each device is on a different branch.
-    Diverged,
-    /// True conflict: competing updates on the same HEAD that cannot be
-    /// auto-resolved. User must choose A / B / fork.
-    Conflict,
-    /// Cannot determine relationship (e.g., one side has no HEAD).
-    Unknown,
+    /// Local metadata can safely advance the current device state on remote.
+    CurrentDeviceAhead,
+    /// Remote metadata can safely advance the current device state locally.
+    CurrentDeviceBehind,
+    /// Both sides share history, but each side contains additional branches or
+    /// device heads that should coexist.
+    SharedTreeDiverged,
+    /// Both sides have disjoint histories; they are parallel branches rather
+    /// than a user-facing conflict.
+    ParallelBranches,
+    /// Metadata is internally inconsistent (for example, the same device points
+    /// to incompatible branches on local and remote).
+    IncompatibleState,
 }
 
 /// What the user chose to do when a conflict is detected.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictResolution {
-    /// Keep local state, overwrite remote.
     KeepLocal,
-    /// Accept remote state, overwrite local.
     AcceptRemote,
-    /// Keep both branches — create a fork point.
     Fork,
-    /// User cancelled — do nothing for now.
     Cancelled,
 }
 
-/// Compare local and remote snapshot metadata to determine sync relationship.
-///
-/// This function uses snapshot-tree semantics:
-/// - Two HEADs on **different branches** (neither is ancestor of the other,
-///   but both share a common ancestor) → `Diverged` (not conflict).
-/// - Same HEAD → `InSync`.
-/// - One HEAD is reachable from the other → `LocalBehind` / `LocalAhead`.
-/// - Otherwise → `Conflict`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeviceHeadRelation {
+    Same,
+    LocalAhead,
+    LocalBehind,
+    LocalMissing,
+    RemoteMissing,
+    Diverged,
+}
+
 pub fn determine_sync_relation(local: &GameSnapshots, remote: &GameSnapshots) -> SyncRelation {
-    let local_head = match &local.head {
-        Some(h) => h.clone(),
-        None => {
-            return if remote.head.is_some() {
-                SyncRelation::LocalBehind
-            } else {
-                SyncRelation::InSync
-            };
-        }
+    let Ok(parent_map) = build_parent_map(local, remote) else {
+        return SyncRelation::IncompatibleState;
     };
 
-    let remote_head = match &remote.head {
-        Some(h) => h.clone(),
-        None => return SyncRelation::LocalAhead,
-    };
-
-    // Same HEAD → in sync.
-    if local_head == remote_head {
-        // But check if local has newer snapshots not on remote.
-        let local_dates: HashSet<_> = local.backups.iter().map(|s| &s.date).collect();
-        let remote_dates: HashSet<_> = remote.backups.iter().map(|s| &s.date).collect();
-        let local_only: Vec<_> = local_dates.difference(&remote_dates).collect();
-        let remote_only: Vec<_> = remote_dates.difference(&local_dates).collect();
-
-        if local_only.is_empty() && remote_only.is_empty() {
-            return SyncRelation::InSync;
-        }
-        if !local_only.is_empty() && remote_only.is_empty() {
-            return SyncRelation::LocalAhead;
-        }
-        if local_only.is_empty() && !remote_only.is_empty() {
-            return SyncRelation::LocalBehind;
-        }
-        // Both have unique snapshots but same HEAD — diverged, not conflict.
-        return SyncRelation::Diverged;
+    if has_incompatible_same_device_heads(local, remote, &parent_map) {
+        return SyncRelation::IncompatibleState;
     }
 
-    // Check ancestry: is remote_head reachable from local snapshots?
-    let remote_head_in_local = is_ancestor(&local_head, &remote_head, &local.backups);
-    let local_head_in_remote = is_ancestor(&remote_head, &local_head, &remote.backups);
+    let local_dates: HashSet<_> = local
+        .backups
+        .iter()
+        .map(|snapshot| snapshot.date.as_str())
+        .collect();
+    let remote_dates: HashSet<_> = remote
+        .backups
+        .iter()
+        .map(|snapshot| snapshot.date.as_str())
+        .collect();
+    let local_only = local_dates.difference(&remote_dates).count();
+    let remote_only = remote_dates.difference(&local_dates).count();
+    let has_common_snapshot = !local_dates.is_disjoint(&remote_dates);
 
-    match (remote_head_in_local, local_head_in_remote) {
-        // Remote HEAD is an ancestor of local HEAD → local is ahead.
-        (true, _) => SyncRelation::LocalAhead,
-        // Local HEAD is an ancestor of remote HEAD → local is behind.
-        (_, true) => SyncRelation::LocalBehind,
-        // Neither is ancestor of the other → check if they share a common root.
-        _ => {
-            // If they share any common snapshot, they diverged from a common point.
-            let local_dates: HashSet<_> = local.backups.iter().map(|s| &s.date).collect();
-            let has_common = remote.backups.iter().any(|s| local_dates.contains(&s.date));
-            if has_common {
-                SyncRelation::Diverged
-            } else {
-                SyncRelation::Conflict
-            }
+    let current_device_relation =
+        compare_device_head(get_current_device_id(), local, remote, &parent_map);
+
+    if local_only == 0 && remote_only == 0 {
+        if local.device_heads == remote.device_heads {
+            return SyncRelation::InSync;
         }
+
+        return match current_device_relation {
+            DeviceHeadRelation::LocalAhead | DeviceHeadRelation::RemoteMissing => {
+                SyncRelation::CurrentDeviceAhead
+            }
+            DeviceHeadRelation::LocalBehind | DeviceHeadRelation::LocalMissing => {
+                SyncRelation::CurrentDeviceBehind
+            }
+            DeviceHeadRelation::Same => SyncRelation::SharedTreeDiverged,
+            DeviceHeadRelation::Diverged => SyncRelation::IncompatibleState,
+        };
+    }
+
+    if remote_only == 0 {
+        return SyncRelation::CurrentDeviceAhead;
+    }
+
+    if local_only == 0 {
+        return SyncRelation::CurrentDeviceBehind;
+    }
+
+    if has_common_snapshot {
+        SyncRelation::SharedTreeDiverged
+    } else {
+        SyncRelation::ParallelBranches
     }
 }
 
-/// Walk the parent chain from `from` and check if `target` is reachable.
-fn is_ancestor(from: &str, target: &str, snapshots: &[crate::backup::Snapshot]) -> bool {
-    let mut current = from.to_string();
+fn build_parent_map(
+    local: &GameSnapshots,
+    remote: &GameSnapshots,
+) -> Result<HashMap<String, Option<String>>, ()> {
+    let mut parent_map = HashMap::new();
+
+    for snapshot in local.backups.iter().chain(remote.backups.iter()) {
+        match parent_map.get(&snapshot.date) {
+            Some(existing_parent) if existing_parent != &snapshot.parent => return Err(()),
+            Some(_) => {}
+            None => {
+                parent_map.insert(snapshot.date.clone(), snapshot.parent.clone());
+            }
+        }
+    }
+
+    Ok(parent_map)
+}
+
+fn has_incompatible_same_device_heads(
+    local: &GameSnapshots,
+    remote: &GameSnapshots,
+    parent_map: &HashMap<String, Option<String>>,
+) -> bool {
+    let shared_devices: HashSet<&DeviceId> = local
+        .device_heads
+        .keys()
+        .filter(|device_id| remote.device_heads.contains_key(*device_id))
+        .collect();
+
+    shared_devices.into_iter().any(|device_id| {
+        compare_device_head(device_id, local, remote, parent_map) == DeviceHeadRelation::Diverged
+    })
+}
+
+fn compare_device_head(
+    device_id: &DeviceId,
+    local: &GameSnapshots,
+    remote: &GameSnapshots,
+    parent_map: &HashMap<String, Option<String>>,
+) -> DeviceHeadRelation {
+    match (
+        local.head_for_device(device_id),
+        remote.head_for_device(device_id),
+    ) {
+        (Some(local_head), Some(remote_head)) if local_head == remote_head => {
+            DeviceHeadRelation::Same
+        }
+        (Some(local_head), Some(remote_head)) => {
+            if is_ancestor(local_head, remote_head, parent_map) {
+                DeviceHeadRelation::LocalAhead
+            } else if is_ancestor(remote_head, local_head, parent_map) {
+                DeviceHeadRelation::LocalBehind
+            } else {
+                DeviceHeadRelation::Diverged
+            }
+        }
+        (Some(_), None) => DeviceHeadRelation::RemoteMissing,
+        (None, Some(_)) => DeviceHeadRelation::LocalMissing,
+        (None, None) => DeviceHeadRelation::Same,
+    }
+}
+
+/// Returns true when `ancestor` is reachable from `descendant` by following parent links.
+fn is_ancestor(
+    descendant: &str,
+    ancestor: &str,
+    parent_map: &HashMap<String, Option<String>>,
+) -> bool {
+    let mut current = descendant.to_string();
     let mut visited = HashSet::new();
+
     loop {
-        if current == target {
+        if current == ancestor {
             return true;
         }
         if !visited.insert(current.clone()) {
-            return false; // cycle guard
+            return false;
         }
-        match snapshots.iter().find(|s| s.date == current) {
-            Some(s) => match &s.parent {
-                Some(p) => current = p.clone(),
-                None => return false,
-            },
+        match parent_map.get(&current).cloned().flatten() {
+            Some(parent) => current = parent,
             None => return false,
         }
     }
@@ -132,7 +194,7 @@ fn is_ancestor(from: &str, target: &str, snapshots: &[crate::backup::Snapshot]) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backup::{GameSnapshots, Snapshot};
+    use crate::backup::Snapshot;
 
     fn snap(date: &str, parent: Option<&str>) -> Snapshot {
         Snapshot {
@@ -146,21 +208,19 @@ mod tests {
         }
     }
 
-    fn gs(name: &str, backups: Vec<Snapshot>, head: Option<&str>) -> GameSnapshots {
-        GameSnapshots {
-            name: name.to_string(),
-            backups,
-            head: head.map(|s| s.to_string()),
-            sync_version: 0,
-            last_sync_device: None,
-            last_sync_timestamp: None,
+    fn gs(name: &str, backups: Vec<Snapshot>, heads: &[(&str, &str)]) -> GameSnapshots {
+        let mut snapshots = GameSnapshots::new(name);
+        snapshots.backups = backups;
+        for (device_id, head) in heads {
+            snapshots.set_head_for_device((*device_id).to_string(), Some((*head).to_string()));
         }
+        snapshots
     }
 
     #[test]
     fn both_empty_is_in_sync() {
-        let local = gs("g", vec![], None);
-        let remote = gs("g", vec![], None);
+        let local = gs("g", vec![], &[]);
+        let remote = gs("g", vec![], &[]);
         assert_eq!(
             determine_sync_relation(&local, &remote),
             SyncRelation::InSync
@@ -168,30 +228,32 @@ mod tests {
     }
 
     #[test]
-    fn local_has_no_head_remote_has() {
-        let local = gs("g", vec![], None);
-        let remote = gs("g", vec![snap("a", None)], Some("a"));
+    fn remote_only_history_is_current_device_behind() {
+        let local = gs("g", vec![], &[]);
+        let remote = gs("g", vec![snap("a", None)], &[("remote-device", "a")]);
         assert_eq!(
             determine_sync_relation(&local, &remote),
-            SyncRelation::LocalBehind
+            SyncRelation::CurrentDeviceBehind
         );
     }
 
     #[test]
-    fn local_has_head_remote_empty() {
-        let local = gs("g", vec![snap("a", None)], Some("a"));
-        let remote = gs("g", vec![], None);
+    fn local_only_history_is_current_device_ahead() {
+        let current = get_current_device_id().clone();
+        let local = gs("g", vec![snap("a", None)], &[(current.as_str(), "a")]);
+        let remote = gs("g", vec![], &[]);
         assert_eq!(
             determine_sync_relation(&local, &remote),
-            SyncRelation::LocalAhead
+            SyncRelation::CurrentDeviceAhead
         );
     }
 
     #[test]
-    fn same_head_same_snapshots_is_in_sync() {
+    fn same_graph_same_heads_is_in_sync() {
+        let current = get_current_device_id().clone();
         let snaps = vec![snap("a", None), snap("b", Some("a"))];
-        let local = gs("g", snaps.clone(), Some("b"));
-        let remote = gs("g", snaps, Some("b"));
+        let local = gs("g", snaps.clone(), &[(current.as_str(), "b")]);
+        let remote = gs("g", snaps, &[(current.as_str(), "b")]);
         assert_eq!(
             determine_sync_relation(&local, &remote),
             SyncRelation::InSync
@@ -199,49 +261,63 @@ mod tests {
     }
 
     #[test]
-    fn local_ahead_linear_chain() {
-        // a → b → c (local HEAD=c, remote HEAD=b)
-        let snaps = vec![snap("a", None), snap("b", Some("a")), snap("c", Some("b"))];
-        let local = gs("g", snaps.clone(), Some("c"));
-        let remote = gs("g", vec![snap("a", None), snap("b", Some("a"))], Some("b"));
+    fn current_device_head_metadata_only_can_be_ahead() {
+        let current = get_current_device_id().clone();
+        let snaps = vec![snap("a", None), snap("b", Some("a"))];
+        let local = gs("g", snaps.clone(), &[(current.as_str(), "b")]);
+        let remote = gs("g", snaps, &[(current.as_str(), "a")]);
         assert_eq!(
             determine_sync_relation(&local, &remote),
-            SyncRelation::LocalAhead
+            SyncRelation::CurrentDeviceAhead
         );
     }
 
     #[test]
-    fn local_behind_linear_chain() {
-        let local = gs("g", vec![snap("a", None), snap("b", Some("a"))], Some("b"));
+    fn diverged_shared_tree_is_not_conflict() {
+        let current = get_current_device_id().clone();
+        let local = gs(
+            "g",
+            vec![snap("a", None), snap("b", Some("a"))],
+            &[(current.as_str(), "b")],
+        );
         let remote = gs(
             "g",
-            vec![snap("a", None), snap("b", Some("a")), snap("c", Some("b"))],
-            Some("c"),
+            vec![snap("a", None), snap("c", Some("a"))],
+            &[("remote-device", "c")],
         );
         assert_eq!(
             determine_sync_relation(&local, &remote),
-            SyncRelation::LocalBehind
-        );
-    }
-
-    #[test]
-    fn diverged_different_branches_from_common_ancestor() {
-        // Both share snapshot "a", local goes a→b, remote goes a→c
-        let local = gs("g", vec![snap("a", None), snap("b", Some("a"))], Some("b"));
-        let remote = gs("g", vec![snap("a", None), snap("c", Some("a"))], Some("c"));
-        assert_eq!(
-            determine_sync_relation(&local, &remote),
-            SyncRelation::Diverged
+            SyncRelation::SharedTreeDiverged
         );
     }
 
     #[test]
-    fn conflict_no_common_snapshots() {
-        let local = gs("g", vec![snap("x", None)], Some("x"));
-        let remote = gs("g", vec![snap("y", None)], Some("y"));
+    fn disjoint_trees_are_parallel_branches() {
+        let current = get_current_device_id().clone();
+        let local = gs("g", vec![snap("x", None)], &[(current.as_str(), "x")]);
+        let remote = gs("g", vec![snap("y", None)], &[("remote-device", "y")]);
         assert_eq!(
             determine_sync_relation(&local, &remote),
-            SyncRelation::Conflict
+            SyncRelation::ParallelBranches
+        );
+    }
+
+    #[test]
+    fn same_device_diverging_heads_are_incompatible() {
+        let current = get_current_device_id().clone();
+        let local = gs(
+            "g",
+            vec![snap("a", None), snap("b", Some("a"))],
+            &[(current.as_str(), "b")],
+        );
+        let remote = gs(
+            "g",
+            vec![snap("a", None), snap("c", Some("a"))],
+            &[(current.as_str(), "c")],
+        );
+        assert_eq!(
+            determine_sync_relation(&local, &remote),
+            SyncRelation::IncompatibleState
         );
     }
 }

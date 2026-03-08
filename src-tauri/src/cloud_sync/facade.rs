@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use log::warn;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -25,6 +27,7 @@ pub enum SyncGameOutcome {
     AlreadyInSync,
     Uploaded,
     Downloaded,
+    Merged,
     Conflict,
 }
 
@@ -106,14 +109,205 @@ async fn upload_config_with_token(
 }
 
 fn empty_remote_snapshots(game_name: &str) -> GameSnapshots {
-    GameSnapshots {
-        name: game_name.to_string(),
-        backups: Vec::new(),
-        head: None,
-        sync_version: 0,
-        last_sync_device: None,
-        last_sync_timestamp: None,
+    GameSnapshots::new(game_name)
+}
+
+fn current_device_head(info: &GameSnapshots) -> Option<String> {
+    info.current_device_head_cloned()
+}
+
+fn is_ancestor(
+    descendant: &str,
+    ancestor: &str,
+    parent_map: &HashMap<String, Option<String>>,
+) -> bool {
+    let mut current = descendant.to_string();
+    let mut visited = std::collections::HashSet::new();
+
+    loop {
+        if current == ancestor {
+            return true;
+        }
+        if !visited.insert(current.clone()) {
+            return false;
+        }
+        match parent_map.get(&current).cloned().flatten() {
+            Some(parent) => current = parent,
+            None => return false,
+        }
     }
+}
+
+fn merge_snapshot(
+    existing: &mut crate::backup::Snapshot,
+    incoming: &crate::backup::Snapshot,
+) -> Result<(), BackendError> {
+    if existing.parent != incoming.parent {
+        return Err(BackendError::Unexpected(anyhow::anyhow!(
+            "Snapshot '{}' has incompatible parents during coexist merge",
+            existing.date
+        )));
+    }
+
+    if existing.device_id.is_none() {
+        existing.device_id = incoming.device_id.clone();
+    }
+    if existing.archive_hash.is_none() {
+        existing.archive_hash = incoming.archive_hash.clone();
+    }
+    if existing.describe.is_empty() && !incoming.describe.is_empty() {
+        existing.describe = incoming.describe.clone();
+    }
+    if existing.size == 0 {
+        existing.size = incoming.size;
+    }
+    if existing.path.is_empty() && !incoming.path.is_empty() {
+        existing.path = incoming.path.clone();
+    }
+
+    Ok(())
+}
+
+fn merge_snapshots_metadata(
+    local: &GameSnapshots,
+    remote: &GameSnapshots,
+) -> Result<GameSnapshots, BackendError> {
+    let mut merged = GameSnapshots::new(&local.name);
+    merged.sync_version = local.sync_version.max(remote.sync_version);
+    merged.last_sync_device = local
+        .last_sync_device
+        .clone()
+        .or_else(|| remote.last_sync_device.clone());
+    merged.last_sync_timestamp = local
+        .last_sync_timestamp
+        .clone()
+        .or_else(|| remote.last_sync_timestamp.clone());
+
+    let mut snapshots_by_date: HashMap<String, crate::backup::Snapshot> = local
+        .backups
+        .iter()
+        .cloned()
+        .map(|snapshot| (snapshot.date.clone(), snapshot))
+        .collect();
+    for snapshot in &remote.backups {
+        match snapshots_by_date.get_mut(&snapshot.date) {
+            Some(existing) => merge_snapshot(existing, snapshot)?,
+            None => {
+                snapshots_by_date.insert(snapshot.date.clone(), snapshot.clone());
+            }
+        }
+    }
+
+    merged.backups = snapshots_by_date.into_values().collect();
+    merged
+        .backups
+        .sort_by(|left, right| left.date.cmp(&right.date));
+    merged.device_heads = local.device_heads.clone();
+
+    let parent_map: HashMap<String, Option<String>> = merged
+        .backups
+        .iter()
+        .map(|snapshot| (snapshot.date.clone(), snapshot.parent.clone()))
+        .collect();
+    for (device_id, remote_head) in &remote.device_heads {
+        match merged.device_heads.get(device_id) {
+            None => {
+                merged
+                    .device_heads
+                    .insert(device_id.clone(), remote_head.clone());
+            }
+            Some(local_head) if local_head == remote_head => {}
+            Some(local_head) => {
+                if is_ancestor(local_head, remote_head, &parent_map) {
+                    continue;
+                }
+                if is_ancestor(remote_head, local_head, &parent_map) {
+                    merged
+                        .device_heads
+                        .insert(device_id.clone(), remote_head.clone());
+                    continue;
+                }
+                return Err(BackendError::Unexpected(anyhow::anyhow!(
+                    "Device '{}' has incompatible heads during coexist merge",
+                    device_id
+                )));
+            }
+        }
+    }
+
+    merged.normalize_heads();
+    Ok(merged)
+}
+
+async fn copy_remote_snapshots_into_local(
+    backup_root: &std::path::Path,
+    info: &mut GameSnapshots,
+) -> Result<(), BackendError> {
+    let local_game_dir = backup_root.join(&info.name);
+    fs::create_dir_all(&local_game_dir).await?;
+
+    for snapshot in &mut info.backups {
+        let source = std::path::PathBuf::from(&snapshot.path);
+        let target = local_game_dir.join(format!("{}.zip", snapshot.date));
+        if !target.exists() {
+            fs::copy(&source, &target).await?;
+        }
+        snapshot.path = target.to_string_lossy().to_string();
+    }
+
+    Ok(())
+}
+
+async fn coexist_game_from_remote(
+    session: &CloudSyncSessionConfig,
+    game: &crate::backup::Game,
+    op: &opendal::Operator,
+) -> Result<GameSnapshots, BackendError> {
+    let backup_root = get_backup_path()?;
+    let stage_root = new_stage_root(&backup_root, "game-coexist-stage");
+    if stage_root.exists() {
+        let _ = fs::remove_dir_all(&stage_root).await;
+    }
+    fs::create_dir_all(&stage_root).await?;
+
+    let result = async {
+        let mut downloaded = stage_remote_game_download(
+            op,
+            &game.name,
+            &stage_root,
+            session.normalized_max_concurrency(),
+            None,
+        )
+        .await
+        .map_err(|err| match err {
+            SyncOperationError::Cancelled => {
+                BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
+            }
+            SyncOperationError::Backend(inner) => inner,
+        })?;
+
+        copy_remote_snapshots_into_local(&backup_root, &mut downloaded).await?;
+
+        let local = game.get_game_snapshots_info()?;
+        let merged = merge_snapshots_metadata(&local, &downloaded)?;
+        game.set_game_snapshots_info(&merged)?;
+
+        upload_game_data(op, &game.name, session.normalized_max_concurrency(), None)
+            .await
+            .map_err(|err| match err {
+                SyncOperationError::Cancelled => {
+                    BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
+                }
+                SyncOperationError::Backend(inner) => inner,
+            })
+    }
+    .await;
+
+    if stage_root.exists() {
+        let _ = fs::remove_dir_all(&stage_root).await;
+    }
+
+    result
 }
 
 pub async fn upload_all_from_session(
@@ -149,7 +343,7 @@ pub async fn upload_all_from_session(
         let local_head = game
             .get_game_snapshots_info()
             .ok()
-            .and_then(|info| info.head);
+            .and_then(|info| current_device_head(&info));
         match upload_game_data(
             &op,
             &game.name,
@@ -166,8 +360,8 @@ pub async fn upload_all_from_session(
                 record_game_state(
                     session,
                     &game.name,
-                    info.head.clone(),
-                    info.head,
+                    current_device_head(&info),
+                    current_device_head(&info),
                     SyncResult::Success,
                     PendingAction::None,
                 );
@@ -308,8 +502,8 @@ pub async fn download_all_from_session(
         record_game_state(
             session,
             &info.name,
-            info.head.clone(),
-            info.head,
+            current_device_head(&info),
+            current_device_head(&info),
             SyncResult::Success,
             PendingAction::None,
         );
@@ -346,14 +540,14 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             record_game_state(
                 &session,
                 game_name,
-                local.head.clone(),
-                remote.head.clone(),
+                current_device_head(&local),
+                current_device_head(&remote),
                 SyncResult::Success,
                 PendingAction::None,
             );
             Ok(SyncGameOutcome::AlreadyInSync)
         }
-        SyncRelation::LocalAhead => {
+        SyncRelation::CurrentDeviceAhead => {
             let uploaded =
                 upload_game_data(&op, game_name, session.normalized_max_concurrency(), None)
                     .await
@@ -366,14 +560,14 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             record_game_state(
                 &session,
                 game_name,
-                uploaded.head.clone(),
-                uploaded.head,
+                current_device_head(&uploaded),
+                current_device_head(&uploaded),
                 SyncResult::Success,
                 PendingAction::None,
             );
             Ok(SyncGameOutcome::Uploaded)
         }
-        SyncRelation::LocalBehind => {
+        SyncRelation::CurrentDeviceBehind => {
             let backup_root = get_backup_path()?;
             let stage_root = new_stage_root(&backup_root, "game-download-stage");
             if stage_root.exists() {
@@ -401,19 +595,31 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             record_game_state(
                 &session,
                 game_name,
-                downloaded.head.clone(),
-                downloaded.head,
+                current_device_head(&downloaded),
+                current_device_head(&downloaded),
                 SyncResult::Success,
                 PendingAction::None,
             );
             Ok(SyncGameOutcome::Downloaded)
         }
-        SyncRelation::Diverged | SyncRelation::Conflict | SyncRelation::Unknown => {
+        SyncRelation::SharedTreeDiverged | SyncRelation::ParallelBranches => {
+            let merged = coexist_game_from_remote(&session, game, &op).await?;
             record_game_state(
                 &session,
                 game_name,
-                local.head.clone(),
-                remote.head.clone(),
+                current_device_head(&merged),
+                current_device_head(&merged),
+                SyncResult::Success,
+                PendingAction::None,
+            );
+            Ok(SyncGameOutcome::Merged)
+        }
+        SyncRelation::IncompatibleState => {
+            record_game_state(
+                &session,
+                game_name,
+                current_device_head(&local),
+                current_device_head(&remote),
                 SyncResult::Conflict,
                 PendingAction::UserDecisionRequired,
             );
@@ -429,4 +635,80 @@ pub fn session_from_backend(backend: &Backend) -> Result<CloudSyncSessionConfig,
         max_concurrency: config.settings.cloud_settings.max_concurrency.max(1),
         backend: backend.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backup::Snapshot;
+    use crate::device::get_current_device_id;
+
+    fn snapshot(date: &str, parent: Option<&str>, device_id: Option<&str>) -> Snapshot {
+        Snapshot {
+            date: date.to_string(),
+            describe: String::new(),
+            path: format!("/tmp/{date}.zip"),
+            size: 0,
+            parent: parent.map(str::to_string),
+            archive_hash: None,
+            device_id: device_id.map(str::to_string),
+        }
+    }
+
+    fn snapshots(name: &str, backups: Vec<Snapshot>, heads: &[(&str, &str)]) -> GameSnapshots {
+        let mut snapshots = GameSnapshots::new(name);
+        snapshots.backups = backups;
+        for (device_id, head) in heads {
+            snapshots
+                .device_heads
+                .insert((*device_id).to_string(), (*head).to_string());
+        }
+        snapshots
+    }
+
+    #[test]
+    fn merge_snapshots_metadata_keeps_parallel_device_heads() {
+        let current_device = get_current_device_id().clone();
+        let local = snapshots(
+            "TestGame",
+            vec![snapshot("2025-01-01_00-00-00", None, Some(&current_device))],
+            &[(current_device.as_str(), "2025-01-01_00-00-00")],
+        );
+        let remote = snapshots(
+            "TestGame",
+            vec![snapshot("2025-01-02_00-00-00", None, Some("remote-device"))],
+            &[("remote-device", "2025-01-02_00-00-00")],
+        );
+
+        let merged = merge_snapshots_metadata(&local, &remote).expect("parallel merge should work");
+
+        assert_eq!(merged.backups.len(), 2);
+        assert_eq!(
+            merged.head_for_device(&current_device).map(String::as_str),
+            Some("2025-01-01_00-00-00")
+        );
+        assert_eq!(
+            merged
+                .head_for_device(&"remote-device".to_string())
+                .map(String::as_str),
+            Some("2025-01-02_00-00-00")
+        );
+    }
+
+    #[test]
+    fn merge_snapshots_metadata_rejects_incompatible_same_device_heads() {
+        let device_id = get_current_device_id().clone();
+        let local = snapshots(
+            "TestGame",
+            vec![snapshot("2025-01-01_00-00-00", None, Some(&device_id))],
+            &[(device_id.as_str(), "2025-01-01_00-00-00")],
+        );
+        let remote = snapshots(
+            "TestGame",
+            vec![snapshot("2025-01-02_00-00-00", None, Some(&device_id))],
+            &[(device_id.as_str(), "2025-01-02_00-00-00")],
+        );
+
+        assert!(merge_snapshots_metadata(&local, &remote).is_err());
+    }
 }

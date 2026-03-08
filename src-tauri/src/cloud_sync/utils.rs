@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use log::info;
 use opendal::{ErrorKind, Operator};
+use thiserror::Error;
 use tokio::fs;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -15,16 +16,12 @@ use crate::cloud_sync::transfer::{CloudTransfer, path_to_remote_key};
 use crate::config::{Config, get_backup_path, get_config, resolve_backup_path, set_config_local};
 use crate::preclude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SyncOperationError {
+    #[error("cloud sync operation cancelled")]
     Cancelled,
-    Backend(BackendError),
-}
-
-impl From<BackendError> for SyncOperationError {
-    fn from(value: BackendError) -> Self {
-        Self::Backend(value)
-    }
+    #[error(transparent)]
+    Backend(#[from] BackendError),
 }
 
 impl From<ConfigError> for SyncOperationError {
