@@ -1,0 +1,5 @@
+pnpm exec lint-staged
+
+cargo clippy --fix --allow-staged --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+cargo fmt --manifest-path src-tauri/Cargo.toml
+git add -u -- '*.rs'
