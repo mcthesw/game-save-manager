@@ -59,6 +59,29 @@ const game: Ref<Game> = ref({
 // 当前设备信息
 const currentDevice = ref<Device | null>(null);
 
+type GameSnapshotsWithDeviceHeads = GameSnapshots & {
+  device_heads?: Record<string, string | null | undefined>;
+};
+
+interface DeviceHeadEntry {
+  deviceId: string;
+  deviceName: string;
+  label: string;
+  date: string;
+  description: string;
+  shortTime: string;
+  fullText: string;
+  isCurrentDevice: boolean;
+}
+
+interface BranchDeviceHeadMarker {
+  deviceId: string;
+  date: string;
+  label: string;
+  isCurrentDevice: boolean;
+  tooltip: string;
+}
+
 // 获取当前设备信息
 async function fetchCurrentDevice() {
   try {
@@ -188,6 +211,153 @@ async function refresh_backups_info() {
   }
 }
 
+function backupSuccessMessage() {
+  const backendEnabled = config.value?.settings.cloud_settings?.backend?.type !== 'Disabled';
+  return backendEnabled && game.value.cloud_sync_enabled !== false
+    ? $t('manage.backup_success_with_sync')
+    : $t('manage.backup_success');
+}
+
+function formatSnapshotPromptLine(date: string) {
+  const snapshot = table_data.value.find((item) => item.date === date);
+  const parsed = dayjs(date, 'YYYY-MM-DD_HH-mm-ss');
+  const formatted = parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : date;
+  const description = snapshot?.describe?.trim();
+  return description ? `${formatted} · ${description}` : formatted;
+}
+
+function findHeadEntryByInput(entries: DeviceHeadEntry[], rawInput: string) {
+  const input = rawInput.trim();
+  if (!input) return null;
+
+  const index = Number.parseInt(input, 10);
+  if (Number.isInteger(index) && index >= 1 && index <= entries.length) {
+    return entries[index - 1] ?? null;
+  }
+
+  return (
+    entries.find(
+      (entry) =>
+        entry.deviceId === input ||
+        entry.deviceId.startsWith(input) ||
+        entry.deviceName.toLowerCase().includes(input.toLowerCase())
+    ) ?? null
+  );
+}
+
+function findSnapshotByInput(rawInput: string) {
+  const input = rawInput.trim();
+  if (!input) return null;
+
+  const recentSnapshots = [...table_data.value].slice(-10).reverse();
+  const index = Number.parseInt(input, 10);
+  if (Number.isInteger(index) && index >= 1 && index <= recentSnapshots.length) {
+    return recentSnapshots[index - 1] ?? null;
+  }
+
+  return (
+    table_data.value.find(
+      (snapshot) =>
+        snapshot.date === input ||
+        snapshot.date.startsWith(input) ||
+        snapshot.describe.toLowerCase().includes(input.toLowerCase())
+    ) ?? null
+  );
+}
+
+async function resolveParentForNewSnapshot(): Promise<string | null | undefined> {
+  if (!currentDevice.value) {
+    await fetchCurrentDevice();
+  }
+
+  if (currentHead.value) {
+    return currentHead.value;
+  }
+
+  if (!currentDevice.value?.id) {
+    return null;
+  }
+
+  const otherHeads = headEntries.value.filter((entry) => !entry.isCurrentDevice);
+  if (otherHeads.length === 0) {
+    return null;
+  }
+
+  try {
+    const { value } = await feedback.prompt(
+      [
+        $t('manage.first_snapshot_prompt'),
+        '',
+        `1. ${$t('manage.first_snapshot_use_device_head')}`,
+        `2. ${$t('manage.first_snapshot_use_specific_snapshot')}`,
+        `3. ${$t('manage.first_snapshot_start_new_tree')}`,
+      ].join('\n'),
+      $t('manage.first_snapshot_title'),
+      {
+        confirmButtonText: $t('manage.confirm'),
+        cancelButtonText: $t('manage.cancel'),
+        inputPattern: /^[123]$/,
+        inputErrorMessage: $t('manage.first_snapshot_invalid_choice'),
+      }
+    );
+
+    if (value === '1') {
+      if (otherHeads.length === 1) {
+        return otherHeads[0]?.date ?? null;
+      }
+
+      const choices = otherHeads
+        .map((entry, index) => `${index + 1}. ${entry.deviceName} · ${entry.shortTime}`)
+        .join('\n');
+      const { value: headValue } = await feedback.prompt(
+        `${$t('manage.select_head_device_prompt')}
+
+${choices}`,
+        $t('manage.select_device_title'),
+        {
+          confirmButtonText: $t('manage.confirm'),
+          cancelButtonText: $t('manage.cancel'),
+        }
+      );
+
+      const matchedHead = findHeadEntryByInput(otherHeads, headValue);
+      if (!matchedHead) {
+        showError({ message: $t('manage.invalid_snapshot_or_device') });
+        return undefined;
+      }
+      return matchedHead.date;
+    }
+
+    if (value === '2') {
+      const recentSnapshots = [...table_data.value].slice(-10).reverse();
+      const items = recentSnapshots
+        .map((snapshot, index) => `${index + 1}. ${formatSnapshotPromptLine(snapshot.date)}`)
+        .join('\n');
+      const { value: snapshotValue } = await feedback.prompt(
+        `${$t('manage.select_snapshot_prompt')}
+
+${items}`,
+        $t('manage.select_snapshot_title'),
+        {
+          confirmButtonText: $t('manage.confirm'),
+          cancelButtonText: $t('manage.cancel'),
+        }
+      );
+
+      const matchedSnapshot = findSnapshotByInput(snapshotValue);
+      if (!matchedSnapshot) {
+        showError({ message: $t('manage.invalid_snapshot_or_device') });
+        return undefined;
+      }
+      return matchedSnapshot.date;
+    }
+
+    return null;
+  } catch {
+    return undefined;
+  }
+}
+
 async function send_save_to_background() {
   showInfo({ message: $t('manage.wait_for_prompt_hint') });
   if (!backup_button_time_limit) {
@@ -202,18 +372,21 @@ async function send_save_to_background() {
     showError({ message: $t('manage.last_overwrite_unfinished_error') });
     return;
   }
+
+  const parentDate = await resolveParentForNewSnapshot();
+  if (parentDate === undefined) {
+    return;
+  }
+
   backup_button_time_limit = false;
   backup_button_backup_limit = false;
 
   await withLoading(async () => {
-    const result = await commands.createSnapshot(game.value, describe.value);
+    const result = await commands.createSnapshotAt(game.value, describe.value, parentDate);
     if (result.status === 'error') {
       showError({ message: result.error });
     } else {
-      const msg = config.value.settings.cloud_settings?.always_sync
-        ? $t('manage.backup_success_with_sync')
-        : $t('manage.backup_success');
-      showSuccess({ message: msg });
+      showSuccess({ message: backupSuccessMessage() });
     }
   }, $t('manage.creating_backup'));
   backup_button_backup_limit = true;
@@ -856,10 +1029,7 @@ async function onCreateBranch(parentDate: string) {
       if (result.status === 'error') {
         showError({ message: result.error });
       } else {
-        const msg = config.value.settings.cloud_settings?.always_sync
-          ? $t('manage.backup_success_with_sync')
-          : $t('manage.backup_success');
-        showSuccess({ message: msg });
+        showSuccess({ message: backupSuccessMessage() });
         await refresh_backups_info();
       }
     }, $t('manage.creating_backup'));
@@ -868,36 +1038,79 @@ async function onCreateBranch(parentDate: string) {
   }
 }
 
-// Computed property for current HEAD
-const currentHead = computed(() => gameSnapshots.value?.head ?? null);
-
-// Format HEAD for human-readable display
-const currentHeadSnapshot = computed(() => {
-  if (!currentHead.value) return null;
-  return table_data.value.find((s) => s.date === currentHead.value) ?? null;
-});
-
-const currentHeadDescription = computed(() => {
-  const snapshot = currentHeadSnapshot.value;
-  if (!snapshot) return '';
-  return snapshot.describe?.trim() || '';
-});
-
-const currentHeadTime = computed(() => {
-  const snapshot = currentHeadSnapshot.value;
-  if (!snapshot) return '';
-  const parsed = dayjs(snapshot.date, 'YYYY-MM-DD_HH-mm-ss');
-  return parsed.isValid() ? parsed.format('MM/DD HH:mm') : snapshot.date;
-});
-
-const currentHeadFullText = computed(() => {
-  const desc = currentHeadDescription.value;
-  const time = currentHeadTime.value;
-  if (desc) {
-    return `${desc} (${time})`;
+function resolveDeviceDisplayName(deviceId: string) {
+  if (currentDevice.value?.id === deviceId && currentDevice.value.name.trim()) {
+    return currentDevice.value.name;
   }
-  return time;
+
+  const savedName = config.value?.devices?.[deviceId]?.name?.trim();
+  if (savedName) {
+    return savedName;
+  }
+
+  return deviceId.length > 8 ? `${deviceId.slice(0, 8)}...` : deviceId;
+}
+
+const deviceHeadMap = computed<Record<string, string>>(() => {
+  const snapshots = gameSnapshots.value as GameSnapshotsWithDeviceHeads | null;
+  return Object.fromEntries(
+    Object.entries(snapshots?.device_heads ?? {}).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].length > 0
+    )
+  );
 });
+
+const currentHead = computed(() => {
+  const deviceId = currentDevice.value?.id;
+  if (!deviceId) return null;
+  return deviceHeadMap.value[deviceId] ?? null;
+});
+
+const headEntries = computed<DeviceHeadEntry[]>(() => {
+  const currentDeviceId = currentDevice.value?.id;
+  return Object.entries(deviceHeadMap.value)
+    .map(([deviceId, date]) => {
+      const snapshot = table_data.value.find((item) => item.date === date) ?? null;
+      const description = snapshot?.describe?.trim() || '';
+      const parsed = dayjs(date, 'YYYY-MM-DD_HH-mm-ss');
+      const shortTime = parsed.isValid() ? parsed.format('MM/DD HH:mm') : date;
+      const fullTime = parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : date;
+      const isCurrentDevice = deviceId === currentDeviceId;
+      const label = isCurrentDevice
+        ? $t('manage.current_position')
+        : resolveDeviceDisplayName(deviceId);
+      const fullText = description
+        ? `${label} · ${description} (${fullTime})`
+        : `${label} · ${fullTime}`;
+
+      return {
+        deviceId,
+        deviceName: resolveDeviceDisplayName(deviceId),
+        label,
+        date,
+        description,
+        shortTime,
+        fullText,
+        isCurrentDevice,
+      };
+    })
+    .sort((left, right) => {
+      if (left.isCurrentDevice !== right.isCurrentDevice) {
+        return left.isCurrentDevice ? -1 : 1;
+      }
+      return left.deviceName.localeCompare(right.deviceName);
+    });
+});
+
+const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
+  headEntries.value.map((entry) => ({
+    deviceId: entry.deviceId,
+    date: entry.date,
+    label: entry.isCurrentDevice ? $t('manage.head') : entry.deviceName,
+    isCurrentDevice: entry.isCurrentDevice,
+    tooltip: entry.fullText,
+  }))
+);
 </script>
 
 <template>
@@ -1005,25 +1218,28 @@ const currentHeadFullText = computed(() => {
               {{ $t('manage.batch_delete') }}
             </el-button>
           </div>
-
-          <el-tooltip
-            v-if="currentHead"
-            :content="currentHeadFullText"
-            placement="bottom-end"
-            :show-after="300"
-            popper-class="head-tooltip"
-          >
-            <el-tag type="success" effect="plain" round class="head-tag">
-              <span class="head-label">
-                {{ $t('manage.current_position') }}
-              </span>
-              <span class="head-separator">·</span>
-              <span v-if="currentHeadDescription" class="head-desc">
-                {{ currentHeadDescription }}
-              </span>
-              <span class="head-time">{{ currentHeadTime }}</span>
-            </el-tag>
-          </el-tooltip>
+          <div v-if="headEntries.length" class="head-tags">
+            <el-tooltip
+              v-for="entry in headEntries"
+              :key="entry.deviceId"
+              :content="entry.fullText"
+              placement="bottom-end"
+              :show-after="300"
+              popper-class="head-tooltip"
+            >
+              <el-tag
+                :type="entry.isCurrentDevice ? 'success' : 'info'"
+                effect="plain"
+                round
+                :class="['head-tag', { 'head-tag--current': entry.isCurrentDevice }]"
+              >
+                <span class="head-label">{{ entry.label }}</span>
+                <span class="head-separator">·</span>
+                <span v-if="entry.description" class="head-desc">{{ entry.description }}</span>
+                <span class="head-time">{{ entry.shortTime }}</span>
+              </el-tag>
+            </el-tooltip>
+          </div>
         </div>
       </template>
 
@@ -1135,7 +1351,8 @@ const currentHeadFullText = computed(() => {
         <BranchTreeView
           v-if="viewMode === 'branch'"
           :snapshots="table_data"
-          :head="currentHead"
+          :current-head="currentHead"
+          :device-heads="branchDeviceHeads"
           @apply="apply_save"
           @delete="del_save"
           @change-description="change_describe"
@@ -1262,7 +1479,9 @@ const currentHeadFullText = computed(() => {
 .content-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .left-controls {
@@ -1323,8 +1542,16 @@ const currentHeadFullText = computed(() => {
   margin-right: 4px;
 }
 
+.head-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .head-tag {
-  max-width: 260px;
+  max-width: 280px;
   display: inline-flex;
   align-items: center;
   cursor: default;
@@ -1332,16 +1559,24 @@ const currentHeadFullText = computed(() => {
   box-sizing: border-box;
 }
 
+.head-tag--current .head-label {
+  color: var(--el-color-success-dark-2);
+}
+
+.head-tag--current .head-separator {
+  color: var(--el-color-success-light-3);
+}
+
 .head-label {
   flex-shrink: 0;
-  color: var(--el-color-success-dark-2);
+  color: var(--el-text-color-primary);
   font-weight: 500;
 }
 
 .head-separator {
   flex-shrink: 0;
   margin: 0 6px;
-  color: var(--el-color-success-light-3);
+  color: var(--el-text-color-secondary);
 }
 
 .head-desc {
