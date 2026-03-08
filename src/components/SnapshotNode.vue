@@ -4,13 +4,22 @@ import { Handle, Position } from '@vue-flow/core';
 import type { Snapshot } from '../bindings';
 import { $t } from '../i18n';
 import dayjs from 'dayjs';
-import { VideoPlay, Edit, Delete, Flag, Share, Scissor } from '@element-plus/icons-vue';
+import { Delete, Edit, Flag, Scissor, Share, VideoPlay } from '@element-plus/icons-vue';
+
+interface HeadMarker {
+  deviceId: string;
+  label: string;
+  isCurrentDevice: boolean;
+  tooltip: string;
+}
 
 interface Props {
   data: {
     snapshot: Snapshot;
     isHead: boolean;
+    isCurrentHead: boolean;
     isRoot: boolean;
+    headMarkers: HeadMarker[];
   };
   selected: boolean;
 }
@@ -28,38 +37,31 @@ const emit = defineEmits<{
 
 const formattedDate = computed(() => {
   const dateStr = props.data.snapshot.date;
-  // Parse date format: YYYY-MM-DD_HH-mm-ss
   const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
-  if (parsed.isValid()) {
-    return parsed.format('MM/DD HH:mm');
-  }
-  return dateStr;
+  return parsed.isValid() ? parsed.format('MM/DD HH:mm') : dateStr;
 });
 
 const fullDate = computed(() => {
   const dateStr = props.data.snapshot.date;
   const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
-  if (parsed.isValid()) {
-    return parsed.format('YYYY-MM-DD HH:mm:ss');
-  }
-  return dateStr;
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : dateStr;
 });
 
-const description = computed(() => {
-  return props.data.snapshot.describe || '-';
-});
+const description = computed(() => props.data.snapshot.describe || '-');
 
 const truncatedDescription = computed(() => {
   const desc = description.value;
   return desc.length > 12 ? desc.slice(0, 12) + '...' : desc;
 });
 
+const visibleHeadMarkers = computed(() => props.data.headMarkers.slice(0, 2));
+const overflowHeadCount = computed(() => Math.max(props.data.headMarkers.length - 2, 0));
+
 function formatFileSize(bytes: number): string {
   if (!bytes || bytes === 0) return '';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
-  // i is guaranteed to be within bounds due to Math.min above
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i]!;
 }
 </script>
@@ -69,19 +71,33 @@ function formatFileSize(bytes: number): string {
     class="snapshot-node"
     :class="{
       'is-head': data.isHead,
+      'is-current-head': data.isCurrentHead,
       'is-root': data.isRoot,
       'is-selected': selected,
     }"
   >
-    <!-- Handle for incoming edges (from children above) -->
     <Handle type="target" :position="Position.Top" class="handle-target" />
 
-    <el-popover placement="right" :width="200" trigger="click" popper-class="snapshot-popover">
+    <el-popover placement="right" :width="220" trigger="click" popper-class="snapshot-popover">
       <template #reference>
         <div class="node-content">
           <div class="node-header">
             <span class="node-date" :title="fullDate">{{ formattedDate }}</span>
-            <el-tag v-if="data.isHead" size="small" type="success" class="head-tag"> HEAD </el-tag>
+            <div v-if="data.headMarkers.length" class="head-tags">
+              <el-tag
+                v-for="marker in visibleHeadMarkers"
+                :key="marker.deviceId"
+                size="small"
+                :type="marker.isCurrentDevice ? 'success' : 'info'"
+                class="head-tag"
+                :title="marker.tooltip"
+              >
+                {{ marker.label }}
+              </el-tag>
+              <el-tag v-if="overflowHeadCount > 0" size="small" type="info" class="head-tag">
+                +{{ overflowHeadCount }}
+              </el-tag>
+            </div>
           </div>
           <div class="node-description" :title="description">
             {{ truncatedDescription }}
@@ -92,11 +108,21 @@ function formatFileSize(bytes: number): string {
         </div>
       </template>
 
-      <!-- Popover content with actions -->
       <div class="popover-content">
         <div class="popover-header">
           <div class="popover-title">{{ fullDate }}</div>
           <div class="popover-description">{{ description }}</div>
+          <div v-if="data.headMarkers.length" class="popover-heads">
+            <el-tag
+              v-for="marker in data.headMarkers"
+              :key="marker.deviceId"
+              size="small"
+              :type="marker.isCurrentDevice ? 'success' : 'info'"
+              :title="marker.tooltip"
+            >
+              {{ marker.label }}
+            </el-tag>
+          </div>
         </div>
         <el-divider style="margin: 8px 0" />
         <div class="popover-actions">
@@ -134,7 +160,7 @@ function formatFileSize(bytes: number): string {
           </el-button>
           <el-divider style="margin: 4px 0" />
           <el-button
-            v-if="!data.isHead"
+            v-if="!data.isCurrentHead"
             text
             bg
             size="small"
@@ -171,7 +197,6 @@ function formatFileSize(bytes: number): string {
       </div>
     </el-popover>
 
-    <!-- Handle for outgoing edges (to parent below) -->
     <Handle type="source" :position="Position.Bottom" class="handle-source" />
   </div>
 </template>
@@ -183,7 +208,7 @@ function formatFileSize(bytes: number): string {
   border-radius: 12px;
   padding: 10px 16px;
   min-width: 140px;
-  max-width: 200px;
+  max-width: 220px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--el-box-shadow-light);
@@ -196,6 +221,10 @@ function formatFileSize(bytes: number): string {
 }
 
 .snapshot-node.is-head {
+  border-color: var(--el-color-info-light-5);
+}
+
+.snapshot-node.is-current-head {
   border-color: var(--el-color-success);
   background: var(--el-color-success-light-9);
 }
@@ -217,9 +246,9 @@ function formatFileSize(bytes: number): string {
 
 .node-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
 }
 
 .node-date {
@@ -229,9 +258,16 @@ function formatFileSize(bytes: number): string {
   font-family: var(--el-font-family-monospace);
 }
 
+.head-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .head-tag {
-  transform: scale(0.9);
-  font-weight: bold;
+  transform: scale(0.92);
+  font-weight: 600;
+  margin: 0;
 }
 
 .node-description {
@@ -292,6 +328,13 @@ function formatFileSize(bytes: number): string {
   color: var(--el-text-color-secondary);
   word-break: break-word;
   line-height: 1.5;
+}
+
+.popover-heads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .popover-actions {
