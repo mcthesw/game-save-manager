@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::backup::{Game, GameSnapshots, Snapshot};
+use crate::config::Config;
 use crate::preclude::BackupError;
 
 // ── HookSource ──────────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ pub enum HookSource {
 
 /// Passed after a new snapshot archive has been written to disk.
 pub struct SnapshotCreatedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game: Game,
     pub snapshot: Snapshot,
@@ -47,6 +49,7 @@ pub struct SnapshotCreatedCtx {
 
 /// Passed after a snapshot archive has been deleted from disk.
 pub struct SnapshotDeletedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game: Game,
     pub snapshots: GameSnapshots,
@@ -57,6 +60,7 @@ pub struct SnapshotDeletedCtx {
 /// Passed after a snapshot has been restored / applied to the game folder.
 #[allow(dead_code)]
 pub struct SnapshotAppliedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game: Game,
     pub snapshot: Snapshot,
@@ -71,6 +75,7 @@ pub struct SnapshotAppliedCtx {
 /// internally and return `Ok(())`.
 #[allow(dead_code)]
 pub struct BeforeRestoreCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game: Game,
     pub snapshot: Snapshot,
@@ -81,6 +86,7 @@ pub struct BeforeRestoreCtx {
 
 /// Passed after snapshot metadata has been modified (description, HEAD, parent).
 pub struct MetadataChangedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game: Game,
     pub snapshots: GameSnapshots,
@@ -88,6 +94,7 @@ pub struct MetadataChangedCtx {
 
 /// Passed after a new game has been added to the config.
 pub struct GameAddedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game: Game,
     pub snapshots: GameSnapshots,
@@ -96,6 +103,7 @@ pub struct GameAddedCtx {
 /// Passed after an existing game has been updated in the config.
 #[allow(dead_code)]
 pub struct GameUpdatedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub previous_game: Game,
     pub game: Game,
@@ -103,6 +111,7 @@ pub struct GameUpdatedCtx {
 
 /// Passed after a game (and all its snapshots) has been deleted.
 pub struct GameDeletedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game_name: String,
     pub remote_game_dir_path: String,
@@ -111,12 +120,14 @@ pub struct GameDeletedCtx {
 /// Passed after config.json has been saved to disk.
 #[allow(dead_code)]
 pub struct ConfigSavedCtx {
+    pub config: Config,
     pub source: HookSource,
 }
 
 /// Passed after a sync operation finished (success or error).
 #[allow(dead_code)]
 pub struct SyncCompletedCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game_name: String,
     pub success: bool,
@@ -126,6 +137,7 @@ pub struct SyncCompletedCtx {
 /// Passed when a sync conflict is detected.
 #[allow(dead_code)]
 pub struct SyncConflictCtx {
+    pub config: Config,
     pub source: HookSource,
     pub game_name: String,
     pub local_head: Option<String>,
@@ -151,7 +163,7 @@ pub trait SnapshotHook: Send + Sync {
         100
     }
 
-    async fn on_snapshot_created(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
+    async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
         Ok(())
     }
     async fn on_snapshot_deleted(&self, _ctx: &SnapshotDeletedCtx) -> HookResult<()> {
@@ -248,7 +260,7 @@ macro_rules! gate {
 }
 
 impl HookPipeline {
-    pub async fn fire_snapshot_created(&self, ctx: &SnapshotCreatedCtx) {
+    pub async fn fire_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) {
         fire!(self, on_snapshot_created, ctx);
     }
     pub async fn fire_snapshot_deleted(&self, ctx: &SnapshotDeletedCtx) {
@@ -306,7 +318,7 @@ mod tests {
         fn priority(&self) -> u32 {
             self.prio
         }
-        async fn on_snapshot_created(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
+        async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
             self.log
                 .lock()
                 .unwrap()
@@ -357,7 +369,7 @@ mod tests {
         fn priority(&self) -> u32 {
             self.prio
         }
-        async fn on_snapshot_created(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
+        async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
             self.log.lock().unwrap().push("failing:created".to_string());
             anyhow::bail!("intentional test failure")
         }
@@ -374,6 +386,7 @@ mod tests {
 
     fn make_snapshot_created_ctx() -> SnapshotCreatedCtx {
         SnapshotCreatedCtx {
+            config: Config::default(),
             source: HookSource::UserManual,
             game: Game {
                 name: "TestGame".into(),
@@ -391,14 +404,7 @@ mod tests {
                 archive_hash: None,
                 device_id: None,
             },
-            snapshots: GameSnapshots {
-                name: "TestGame".into(),
-                backups: vec![],
-                head: None,
-                sync_version: 0,
-                last_sync_device: None,
-                last_sync_timestamp: None,
-            },
+            snapshots: GameSnapshots::new("TestGame"),
             local_zip_path: PathBuf::from("/tmp/test.zip"),
             remote_zip_path: "TestGame/2025-01-01T00:00:00.zip".into(),
         }
@@ -406,6 +412,7 @@ mod tests {
 
     fn make_game_added_ctx() -> GameAddedCtx {
         GameAddedCtx {
+            config: Config::default(),
             source: HookSource::UserManual,
             game: Game {
                 name: "NewGame".into(),
@@ -414,19 +421,13 @@ mod tests {
                 cloud_sync_enabled: true,
                 next_save_unit_id: 0,
             },
-            snapshots: GameSnapshots {
-                name: "NewGame".into(),
-                backups: vec![],
-                head: None,
-                sync_version: 0,
-                last_sync_device: None,
-                last_sync_timestamp: None,
-            },
+            snapshots: GameSnapshots::new("NewGame"),
         }
     }
 
     fn make_game_updated_ctx() -> GameUpdatedCtx {
         GameUpdatedCtx {
+            config: Config::default(),
             source: HookSource::UserManual,
             previous_game: Game {
                 name: "ExistingGame".into(),
@@ -466,9 +467,8 @@ mod tests {
             }),
         ]);
 
-        pipeline
-            .fire_snapshot_created(&make_snapshot_created_ctx())
-            .await;
+        let mut ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_created(&mut ctx).await;
 
         let entries = log.lock().unwrap();
         assert_eq!(*entries, vec!["A:created", "B:created", "C:created"]);
@@ -494,9 +494,8 @@ mod tests {
             }),
         ]);
 
-        pipeline
-            .fire_snapshot_created(&make_snapshot_created_ctx())
-            .await;
+        let mut ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_created(&mut ctx).await;
 
         let entries = log.lock().unwrap();
         assert_eq!(
@@ -508,9 +507,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_with_no_hooks_does_not_panic() {
         let pipeline = HookPipeline::new(vec![]);
-        pipeline
-            .fire_snapshot_created(&make_snapshot_created_ctx())
-            .await;
+        let mut ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_created(&mut ctx).await;
         pipeline.fire_game_added(&make_game_added_ctx()).await;
     }
 
@@ -523,9 +521,8 @@ mod tests {
             log: log.clone(),
         })]);
 
-        pipeline
-            .fire_snapshot_created(&make_snapshot_created_ctx())
-            .await;
+        let mut ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_created(&mut ctx).await;
         pipeline.fire_game_added(&make_game_added_ctx()).await;
         pipeline.fire_game_updated(&make_game_updated_ctx()).await;
 
@@ -546,6 +543,7 @@ mod tests {
 
     fn make_before_restore_ctx() -> BeforeRestoreCtx {
         BeforeRestoreCtx {
+            config: Config::default(),
             source: HookSource::UserManual,
             game: Game {
                 name: "TestGame".into(),
@@ -563,14 +561,7 @@ mod tests {
                 archive_hash: Some("abc123".into()),
                 device_id: None,
             },
-            snapshots: GameSnapshots {
-                name: "TestGame".into(),
-                backups: vec![],
-                head: None,
-                sync_version: 0,
-                last_sync_device: None,
-                last_sync_timestamp: None,
-            },
+            snapshots: GameSnapshots::new("TestGame"),
             archive_path: PathBuf::from("/tmp/test.zip"),
         }
     }
