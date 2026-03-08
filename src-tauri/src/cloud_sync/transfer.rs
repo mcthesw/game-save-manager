@@ -12,6 +12,7 @@ use crate::preclude::*;
 
 static TEMP_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const TEMP_FILE_CREATE_RETRY_LIMIT: usize = 16;
+const UPLOAD_STREAM_CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
 pub trait TransferHook: Send + Sync {
     fn on_upload_start(&self, _local_path: &Path, _remote_path: &str) {}
@@ -219,16 +220,22 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
     ) -> Result<(), BackendError> {
         self.hook.on_upload_start(local_path, remote_path);
 
-        let mut source = fs::File::open(local_path).await?;
-        let mut target = self
-            .op
-            .writer_with(remote_path)
-            .chunk(8 * 1024 * 1024)
-            .await?
-            .into_futures_async_write()
-            .compat_write();
-        tokio::io::copy(&mut source, &mut target).await?;
-        target.shutdown().await?;
+        if self.op.info().native_capability().write_can_multi {
+            let mut source = fs::File::open(local_path).await?;
+            let mut target = self
+                .op
+                .writer_with(remote_path)
+                .chunk(UPLOAD_STREAM_CHUNK_SIZE)
+                .await?
+                .into_futures_async_write()
+                .compat_write();
+
+            tokio::io::copy(&mut source, &mut target).await?;
+            target.shutdown().await?;
+        } else {
+            let data = fs::read(local_path).await?;
+            self.op.write(remote_path, data).await?;
+        }
 
         self.hook.on_upload_done(local_path, remote_path);
         Ok(())
@@ -308,21 +315,88 @@ pub fn path_to_remote_key(path: &Path) -> Result<String, BackendError> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::path::PathBuf;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::task::{Context, Poll};
 
-    use opendal::Operator;
+    use opendal::raw::{Access, AccessorInfo, OpWrite, RpWrite, oio};
     use opendal::services;
+    use opendal::{Buffer, Capability, Metadata, Operator, Scheme};
     use tokio::io::{AsyncRead, ReadBuf};
 
     use super::*;
+
+    type TestWriteStore = Arc<Mutex<HashMap<String, Vec<u8>>>>;
 
     fn build_memory_operator() -> Operator {
         Operator::new(services::Memory::default())
             .expect("memory backend should initialize")
             .finish()
+    }
+
+    #[derive(Debug, Clone)]
+    struct OneShotOnlyWriter {
+        path: String,
+        writes: TestWriteStore,
+    }
+
+    impl oio::OneShotWrite for OneShotOnlyWriter {
+        async fn write_once(&self, bs: Buffer) -> opendal::Result<Metadata> {
+            self.writes
+                .lock()
+                .expect("test write store lock poisoned")
+                .insert(self.path.clone(), bs.to_vec());
+            Ok(Metadata::default())
+        }
+    }
+
+    #[derive(Debug)]
+    struct OneShotOnlyService {
+        writes: TestWriteStore,
+    }
+
+    impl Access for OneShotOnlyService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let info = AccessorInfo::default();
+            info.set_scheme(Scheme::Webdav)
+                .set_native_capability(Capability {
+                    write: true,
+                    write_can_multi: false,
+                    write_can_empty: true,
+                    ..Default::default()
+                });
+            info.into()
+        }
+
+        async fn write(
+            &self,
+            path: &str,
+            _args: OpWrite,
+        ) -> opendal::Result<(RpWrite, Self::Writer)> {
+            Ok((
+                RpWrite::new(),
+                Box::new(oio::OneShotWriter::new(OneShotOnlyWriter {
+                    path: path.to_string(),
+                    writes: Arc::clone(&self.writes),
+                })),
+            ))
+        }
+    }
+
+    fn build_one_shot_only_operator() -> (Operator, TestWriteStore) {
+        let writes = Arc::new(Mutex::new(HashMap::new()));
+        let service = OneShotOnlyService {
+            writes: Arc::clone(&writes),
+        };
+        (Operator::from_inner(Arc::new(service)), writes)
     }
 
     #[test]
@@ -351,6 +425,30 @@ mod tests {
 
         let remote = op.read("save_data/demo/2026.zip").await?;
         assert_eq!(remote.to_vec(), payload);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upload_file_streaming_with_one_shot_backend() -> Result<(), BackendError> {
+        let (op, writes) = build_one_shot_only_operator();
+        let transfer = CloudTransfer::new(&op);
+
+        let temp_dir = temp_dir::TempDir::new().expect("temp dir should be created");
+        let local_path = temp_dir.path().join("snapshot.zip");
+        let payload = vec![3_u8; 8 * 1024 * 1024 + 17];
+        fs::write(&local_path, &payload).await?;
+
+        transfer
+            .upload_file_streaming(&local_path, "save_data/demo/webdav.zip")
+            .await?;
+
+        let remote = writes
+            .lock()
+            .expect("test write store lock poisoned")
+            .get("save_data/demo/webdav.zip")
+            .cloned()
+            .expect("uploaded object should exist");
+        assert_eq!(remote, payload);
         Ok(())
     }
 
