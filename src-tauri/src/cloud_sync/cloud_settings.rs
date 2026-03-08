@@ -8,8 +8,10 @@ use super::Backend;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct CloudSettings {
-    /// 是否启用跟随云同步（用户添加、删除时自动同步）
+    /// Legacy field — kept only for deserialization of old configs.
+    /// Per-game `cloud_sync_enabled` on `Game` replaces this.
     #[serde(default = "default_value::default_false")]
+    #[deprecated(note = "Use Game.cloud_sync_enabled instead")]
     pub always_sync: bool,
     /// 同步间隔，单位分钟，为0则不自动同步
     #[serde(default = "default_value::default_zero")]
@@ -25,6 +27,7 @@ pub struct CloudSettings {
     pub max_concurrency: usize,
 }
 
+#[allow(deprecated)]
 impl Default for CloudSettings {
     fn default() -> Self {
         CloudSettings {
