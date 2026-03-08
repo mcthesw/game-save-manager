@@ -6,13 +6,13 @@ use opendal::services;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use super::CloudSettings;
 use crate::config::get_config;
 use crate::preclude::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 #[serde(tag = "type")]
 pub enum Backend {
-    // TODO:增加更多后端支持
     Disabled,
     /// WebDAV 后端
     /// 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
@@ -34,6 +34,13 @@ pub enum Backend {
     },
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct CloudSyncSessionConfig {
+    pub root_path: String,
+    pub max_concurrency: usize,
+    pub backend: Backend,
+}
+
 impl Backend {
     fn retry_layer() -> RetryLayer {
         RetryLayer::new()
@@ -43,9 +50,7 @@ impl Backend {
             .with_max_times(3)
     }
 
-    /// 获取 Operator 实例
-    pub fn get_op(&self) -> Result<Operator, BackendError> {
-        let root = get_config()?.settings.cloud_settings.root_path;
+    pub fn get_op_with_root(&self, root: &str) -> Result<Operator, BackendError> {
         match self {
             Backend::Disabled => Err(BackendError::Disabled),
             Backend::WebDAV {
@@ -57,7 +62,7 @@ impl Backend {
                     .endpoint(endpoint)
                     .username(username)
                     .password(password)
-                    .root(&root);
+                    .root(root);
                 Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
             }
             Backend::S3 {
@@ -73,29 +78,38 @@ impl Backend {
                     .region(region)
                     .access_key_id(access_key_id)
                     .secret_access_key(secret_access_key)
-                    .root(&root);
+                    .root(root);
                 Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
             }
         }
     }
 
-    /// 检查后端是否可用
+    pub fn get_op(&self) -> Result<Operator, BackendError> {
+        let root = get_config()?.settings.cloud_settings.root_path;
+        self.get_op_with_root(&root)
+    }
+}
+
+impl CloudSyncSessionConfig {
+    pub fn get_op(&self) -> Result<Operator, BackendError> {
+        self.backend.get_op_with_root(&self.root_path)
+    }
+
+    pub fn normalized_max_concurrency(&self) -> usize {
+        self.max_concurrency.max(1)
+    }
+
     pub async fn check(&self) -> Result<(), BackendError> {
-        // FIXME: 某些后端不支持目录操作，因此这里注释掉目录的创建和删除检查
         const TEST_FILENAME: &str = "test.txt";
         const TEST_CONTENT: &str = "Hello from game save manager";
-        // const TEST_DIR: &str = "test_dir/";
 
         let op = self.get_op()?;
-        // Step1: 检查是否可以列出文件
         op.list(".")
             .await
             .map_err(|_| BackendError::OperatorCheck("Failed to list files.".into()))?;
-        // Step2: 检查是否可以创建文件
         op.write(TEST_FILENAME, TEST_CONTENT)
             .await
             .map_err(|_| BackendError::OperatorCheck("Failed to create test file.".into()))?;
-        // Step3: 检查是否可以读取文件
         let text = op
             .read(TEST_FILENAME)
             .await
@@ -108,19 +122,28 @@ impl Backend {
                 "Test file content does not match.".into(),
             ));
         }
-        // Step4: 检查是否可以删除文件
         op.delete(TEST_FILENAME)
             .await
             .map_err(|_| BackendError::OperatorCheck("Failed to delete test file.".into()))?;
-        // Step5: 检查是否可以创建目录
-        // op.create_dir(TEST_DIR)
-        //     .await
-        //     .map_err(|_| BackendError::OperatorCheck("Failed to create test directory.".into()))?;
-        // Step6: 检查是否可以删除目录
-        // op.delete(TEST_DIR)
-        //     .await
-        //     .map_err(|_| BackendError::OperatorCheck("Failed to delete test directory.".into()))?;
         Ok(())
+    }
+
+    pub fn fingerprint(&self) -> String {
+        format!(
+            "{}|{}",
+            self.root_path,
+            serde_json::to_string(&self.backend.clone().sanitize()).unwrap_or_default()
+        )
+    }
+}
+
+impl From<&CloudSettings> for CloudSyncSessionConfig {
+    fn from(value: &CloudSettings) -> Self {
+        Self {
+            root_path: value.root_path.clone(),
+            max_concurrency: value.max_concurrency.max(1),
+            backend: value.backend.clone(),
+        }
     }
 }
 
@@ -133,7 +156,7 @@ impl Sanitizable for Backend {
                 username: _,
                 password: _,
             } => Backend::WebDAV {
-                endpoint: endpoint.clone(),
+                endpoint,
                 username: "*username*".to_string(),
                 password: "*password*".to_string(),
             },
