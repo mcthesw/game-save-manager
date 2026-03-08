@@ -1,12 +1,52 @@
 use std::fs;
-use std::fs::File;
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::LazyLock;
+#[cfg(test)]
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::app_dirs::resolve_app_path;
 use crate::config::Config;
 use crate::preclude::*;
 use crate::updater::update_config;
 use log::info;
+use serde_json::Value;
+
+#[cfg(test)]
+static CONFIG_FILE_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+#[cfg(test)]
+pub(crate) fn lock_config_test_file() -> MutexGuard<'static, ()> {
+    CONFIG_FILE_TEST_LOCK.blocking_lock()
+}
+
+#[cfg(test)]
+pub(crate) async fn lock_config_test_file_async() -> MutexGuard<'static, ()> {
+    CONFIG_FILE_TEST_LOCK.lock().await
+}
+
+fn deserialize_config_with_legacy_cloud_sync(content: &str) -> Result<Config, ConfigError> {
+    let mut config: Config = serde_json::from_str(content)?;
+    let raw: Value = serde_json::from_str(content)?;
+    let legacy_always_sync = raw
+        .pointer("/settings/cloud_settings/always_sync")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    if let Some(raw_games) = raw.get("games").and_then(Value::as_array) {
+        for (game, raw_game) in config.games.iter_mut().zip(raw_games.iter()) {
+            let has_cloud_sync_enabled = raw_game
+                .as_object()
+                .map(|obj| obj.contains_key("cloud_sync_enabled"))
+                .unwrap_or(true);
+            if !has_cloud_sync_enabled {
+                game.cloud_sync_enabled = legacy_always_sync;
+            }
+        }
+    }
+
+    Ok(config)
+}
 
 /// Set settings to original state
 pub async fn reset_settings() -> Result<(), ConfigError> {
@@ -30,12 +70,14 @@ fn init_config() -> Result<(), ConfigError> {
 /// Get the current config file
 pub fn get_config() -> Result<Config, ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
-    let file = File::open(config_path)?;
-    Ok(serde_json::from_reader(file)?)
+    let content = fs::read_to_string(config_path)?;
+    deserialize_config_with_legacy_cloud_sync(&content)
 }
 
 /// Replace the config file with a new config struct without triggering cloud sync.
 pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
+    // Rotate backups before overwriting
+    crate::config::backup::rotate_config_backups();
     let config_path = resolve_app_path("GameSaveManager.config.json");
     let mut normalized = config.clone();
     for game in &mut normalized.games {
@@ -48,11 +90,8 @@ pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
 /// Replace the config file with a new config struct
 pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
     set_config_local(config)?;
-    // 处理云同步，上传新的配置文件
-    if config.settings.cloud_settings.always_sync {
-        let op = config.settings.cloud_settings.backend.get_op()?;
-        crate::cloud_sync::upload_config(&op).await?;
-    }
+    // Cloud sync upload is now handled by the hook pipeline (CloudSyncEnqueueHook).
+    // The old `always_sync` global check has been removed.
     Ok(())
 }
 
@@ -100,6 +139,7 @@ pub fn resolve_backup_path(backup_path: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backup::Game;
 
     #[test]
     fn test_old_config_backup_path_compatibility() {
@@ -156,6 +196,78 @@ mod tests {
             PathBuf::from(absolute_path),
             "Absolute paths should be preserved as-is"
         );
+    }
+
+    #[test]
+    fn test_deserialize_legacy_cloud_sync_inherits_true_and_preserves_explicit_false() {
+        let config = Config {
+            games: vec![
+                Game {
+                    name: "LegacyInherited".to_string(),
+                    save_paths: vec![],
+                    game_paths: Default::default(),
+                    next_save_unit_id: 0,
+                    cloud_sync_enabled: false,
+                },
+                Game {
+                    name: "ExplicitFalse".to_string(),
+                    save_paths: vec![],
+                    game_paths: Default::default(),
+                    next_save_unit_id: 0,
+                    cloud_sync_enabled: false,
+                },
+            ],
+            ..Config::default()
+        };
+
+        let mut raw = serde_json::to_value(config).unwrap();
+        *raw.pointer_mut("/settings/cloud_settings/always_sync")
+            .expect("always_sync should exist") = serde_json::Value::Bool(true);
+        let games = raw
+            .get_mut("games")
+            .and_then(serde_json::Value::as_array_mut)
+            .expect("games should be an array");
+        games[0]
+            .as_object_mut()
+            .expect("game should be an object")
+            .remove("cloud_sync_enabled");
+
+        let parsed =
+            deserialize_config_with_legacy_cloud_sync(&serde_json::to_string(&raw).unwrap())
+                .unwrap();
+
+        assert!(parsed.games[0].cloud_sync_enabled);
+        assert!(!parsed.games[1].cloud_sync_enabled);
+    }
+
+    #[test]
+    fn test_deserialize_legacy_cloud_sync_inherits_false_when_field_missing() {
+        let config = Config {
+            games: vec![Game {
+                name: "LegacyDisabled".to_string(),
+                save_paths: vec![],
+                game_paths: Default::default(),
+                next_save_unit_id: 0,
+                cloud_sync_enabled: true,
+            }],
+            ..Config::default()
+        };
+
+        let mut raw = serde_json::to_value(config).unwrap();
+        *raw.pointer_mut("/settings/cloud_settings/always_sync")
+            .expect("always_sync should exist") = serde_json::Value::Bool(false);
+        raw.get_mut("games")
+            .and_then(serde_json::Value::as_array_mut)
+            .and_then(|games| games.first_mut())
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("game should be an object")
+            .remove("cloud_sync_enabled");
+
+        let parsed =
+            deserialize_config_with_legacy_cloud_sync(&serde_json::to_string(&raw).unwrap())
+                .unwrap();
+
+        assert!(!parsed.games[0].cloud_sync_enabled);
     }
 
     #[test]

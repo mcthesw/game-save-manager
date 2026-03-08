@@ -91,6 +91,7 @@ pub enum BackupError {
     Backend(Box<BackendError>),
     #[error("Compress/Decompress error: {0:#?}")]
     Compress(#[from] CompressError),
+    #[allow(dead_code)]
     #[error("Archive integrity check failed: expected {expected}, got {actual}")]
     IntegrityCheckFailed { expected: String, actual: String },
     #[error("Deserialize error: {0:#?}")]

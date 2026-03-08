@@ -50,6 +50,9 @@ fn init_backups_json(game_name: &str, backup_root: &Path) -> TestResult {
         name: game_name.to_string(),
         backups: Vec::new(),
         head: None,
+        sync_version: 0,
+        last_sync_device: None,
+        last_sync_timestamp: None,
     };
 
     fs::write(
@@ -109,6 +112,7 @@ fn create_legacy_auto_snapshot(
         size: fs::metadata(&zip_path)?.len(),
         parent: None,
         archive_hash: None,
+        device_id: None,
     });
     snapshots.head = Some(date.to_string());
     game.set_game_snapshots_info(&snapshots)?;
@@ -145,6 +149,7 @@ fn timer_backup_skips_when_unchanged() -> TestResult {
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
+            cloud_sync_enabled: true,
         };
 
         let first = game
@@ -187,6 +192,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
+            cloud_sync_enabled: true,
         };
 
         let first = game
@@ -237,6 +243,7 @@ fn timer_backup_compares_only_latest_auto_backup() -> TestResult {
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
+            cloud_sync_enabled: true,
         };
 
         let first = game
@@ -286,6 +293,7 @@ fn legacy_auto_snapshot_creates_once_before_dedup() -> TestResult {
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
+            cloud_sync_enabled: true,
         };
 
         create_legacy_auto_snapshot(&game, &save_file, "2000-01-01_00-00-00")?;
@@ -329,6 +337,7 @@ fn fingerprint_source_and_zip_match_for_fresh_snapshot() -> TestResult {
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
+            cloud_sync_enabled: true,
         };
 
         game.create_snapshot("Manual Snapshot").await?;
@@ -372,6 +381,7 @@ fn insert_snapshot(
         size: fs::metadata(&zip_path)?.len(),
         parent: parent.map(|s| s.to_string()),
         archive_hash: None,
+        device_id: None,
     });
     snapshots.head = Some(date.to_string());
     game.set_game_snapshots_info(&snapshots)?;
@@ -385,6 +395,7 @@ fn make_test_game(game_name: &str, backup_root: &Path) -> Result<Game, Box<dyn s
         save_paths: Vec::new(),
         game_paths: HashMap::new(),
         next_save_unit_id: 0,
+        cloud_sync_enabled: true,
     })
 }
 
@@ -614,6 +625,7 @@ fn normalize_save_unit_ids_reassigns_duplicates() {
         ],
         game_paths: HashMap::new(),
         next_save_unit_id: 1,
+        cloud_sync_enabled: true,
     };
 
     game.normalize_save_unit_ids();
@@ -649,6 +661,7 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
         ],
         game_paths: HashMap::new(),
         next_save_unit_id: 0,
+        cloud_sync_enabled: true,
     };
 
     game.normalize_save_unit_ids();
@@ -656,6 +669,27 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
     let ids: Vec<u32> = game.save_paths.iter().map(|u| u.id).collect();
     assert_eq!(ids, vec![0, 1, 2]);
     assert_eq!(game.next_save_unit_id, 3);
+}
+
+#[test]
+fn game_draft_into_game_preserves_existing_cloud_sync_enabled() {
+    let existing = Game {
+        name: "DraftReuse".to_string(),
+        save_paths: vec![],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 1,
+        cloud_sync_enabled: false,
+    };
+
+    let draft = GameDraft {
+        name: "DraftReuse".to_string(),
+        save_paths: vec![],
+        game_paths: HashMap::new(),
+    };
+
+    let game = draft.into_game(Some(&existing));
+
+    assert!(!game.cloud_sync_enabled);
 }
 
 #[test]
@@ -685,6 +719,7 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
         ],
         game_paths: HashMap::new(),
         next_save_unit_id: 8,
+        cloud_sync_enabled: true,
     };
 
     let mut new_path = HashMap::new();

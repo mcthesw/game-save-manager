@@ -1,18 +1,10 @@
-use std::{
-    fs,
-    path::PathBuf,
-    sync::{Mutex, MutexGuard},
-};
+use std::{fs, path::PathBuf};
+use tokio::sync::MutexGuard;
 
 use crate::config::Config;
 
-static CONFIG_FILE_LOCK: Mutex<()> = Mutex::new(());
-
 pub(crate) fn lock_config_file() -> MutexGuard<'static, ()> {
-    match CONFIG_FILE_LOCK.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-    }
+    crate::config::lock_config_test_file()
 }
 
 pub(crate) struct ConfigFileGuard {
