@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use log::{info, warn};
 use tauri::AppHandle;
 
-use crate::config::{QuickActionSoundPreferences, get_config};
+use crate::config::QuickActionSoundPreferences;
 use crate::preclude::show_notification;
 use crate::quick_actions::{
     QuickActionCompleted, QuickActionOperation, QuickActionStatus, QuickActionType,
@@ -37,20 +37,11 @@ impl NotificationHook {
 
     fn notify_success(
         &self,
+        config: &crate::config::Config,
         qa_type: QuickActionType,
         operation: QuickActionOperation,
         game_name: &str,
     ) {
-        let config = match get_config() {
-            Ok(c) => c,
-            Err(e) => {
-                warn!(
-                    target: "rgsm::hooks::notification",
-                    "Cannot load config for notification: {e:#}"
-                );
-                return;
-            }
-        };
         let quick_settings = &config.quick_action;
         let sound_prefs = QuickActionSoundPreferences::from(quick_settings);
 
@@ -122,14 +113,19 @@ impl SnapshotHook for NotificationHook {
         90
     }
 
-    async fn on_snapshot_created(&self, ctx: &SnapshotCreatedCtx) -> Result<()> {
+    async fn on_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) -> Result<()> {
         if let Some(qa_type) = Self::to_quick_action_type(&ctx.source) {
             info!(
                 target: "rgsm::hooks::notification",
                 "Snapshot created via {:?} for {} — sending notification",
                 ctx.source, ctx.game.name
             );
-            self.notify_success(qa_type, QuickActionOperation::Backup, &ctx.game.name);
+            self.notify_success(
+                &ctx.config,
+                qa_type,
+                QuickActionOperation::Backup,
+                &ctx.game.name,
+            );
         }
         Ok(())
     }
@@ -141,7 +137,12 @@ impl SnapshotHook for NotificationHook {
                 "Snapshot applied via {:?} for {} — sending notification",
                 ctx.source, ctx.game.name
             );
-            self.notify_success(qa_type, QuickActionOperation::Apply, &ctx.game.name);
+            self.notify_success(
+                &ctx.config,
+                qa_type,
+                QuickActionOperation::Apply,
+                &ctx.game.name,
+            );
         }
         Ok(())
     }

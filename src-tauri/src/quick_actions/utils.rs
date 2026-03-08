@@ -2,8 +2,7 @@ use crate::{
     backup::{TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision},
     config::{QuickActionSoundPreferences, QuickActionsSettings, get_backup_path, get_config},
     hooks::{
-        BeforeRestoreCtx, HookPipeline, HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx,
-        SnapshotDeletedCtx,
+        BeforeRestoreCtx, HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotDeletedCtx,
     },
     preclude::*,
     sound::{QuickActionSoundEffect, play_quick_action_sound},
@@ -13,7 +12,6 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::path::PathBuf;
-use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
@@ -101,9 +99,10 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
             .join(format!("{}.zip", snapshot.date));
 
         // Gate hooks: extra backup + integrity check
-        let pipeline = app.state::<Arc<HookPipeline>>();
+        let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
         pipeline
             .fire_before_restore(&BeforeRestoreCtx {
+                config: config.clone(),
                 source: t.to_hook_source(),
                 game: game.clone(),
                 snapshot: snapshot.clone(),
@@ -131,9 +130,10 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
         Ok(snapshots) => {
             // Fire hook pipeline — NotificationHook handles sound/notification/event
             if let Some(snapshot) = snapshots.backups.last().cloned() {
-                let pipeline = app.state::<Arc<HookPipeline>>();
+                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
                 pipeline
                     .fire_snapshot_applied(&SnapshotAppliedCtx {
+                        config: config.clone(),
                         source: t.to_hook_source(),
                         game: game.clone(),
                         snapshot,
@@ -212,17 +212,21 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
                         let local_zip_path = PathBuf::from(&snapshot.path);
                         let remote_zip_path =
                             format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
-                        let pipeline = app.state::<Arc<HookPipeline>>();
-                        pipeline
-                            .fire_snapshot_created(&SnapshotCreatedCtx {
-                                source: hook_source,
-                                game: game.clone(),
-                                snapshot,
-                                snapshots,
-                                local_zip_path,
-                                remote_zip_path,
-                            })
-                            .await;
+                        let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
+                        let game_for_persist = game.clone();
+                        let mut ctx = SnapshotCreatedCtx {
+                            config: config.clone(),
+                            source: hook_source,
+                            game: game.clone(),
+                            snapshot,
+                            snapshots,
+                            local_zip_path,
+                            remote_zip_path,
+                        };
+                        pipeline.fire_snapshot_created(&mut ctx).await;
+                        if let Err(err) = game_for_persist.set_game_snapshots_info(&ctx.snapshots) {
+                            warn!(target:"rgsm::quick_action", "Failed to persist hook-updated snapshot metadata: {err:?}");
+                        }
                     }
                 }
                 Err(err) => {
@@ -238,9 +242,11 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
                 {
                     Ok(cleanup_result) => {
                         if !cleanup_result.deleted_remote_paths.is_empty() {
-                            let pipeline = app.state::<Arc<HookPipeline>>();
+                            let pipeline =
+                                app.state::<crate::hooks::HookPipelineState>().snapshot();
                             pipeline
                                 .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                                    config: config.clone(),
                                     source: HookSource::TimerAutoBackup,
                                     game: game.clone(),
                                     snapshots: cleanup_result.snapshots,

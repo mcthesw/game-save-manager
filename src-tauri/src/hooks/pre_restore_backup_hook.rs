@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use log::{info, warn};
 
 use super::pipeline::{BeforeRestoreCtx, SnapshotHook};
-use crate::config::get_config;
 use crate::preclude::BackupError;
 
 /// Creates an extra (overwrite) backup before a snapshot is restored.
@@ -26,21 +25,6 @@ impl SnapshotHook for PreRestoreBackupHook {
     }
 
     async fn on_before_restore(&self, ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
-        let config = match get_config() {
-            Ok(c) => c,
-            Err(e) => {
-                warn!(
-                    target: "rgsm::hooks::pre_restore_backup",
-                    "Could not read config, skipping extra backup: {e:#}"
-                );
-                return Ok(());
-            }
-        };
-
-        if !config.settings.extra_backup_when_apply {
-            return Ok(());
-        }
-
         info!(
             target: "rgsm::hooks::pre_restore_backup",
             "Creating extra backup before restoring {} / {}",
@@ -49,7 +33,7 @@ impl SnapshotHook for PreRestoreBackupHook {
 
         if let Err(e) = ctx
             .game
-            .create_overwrite_snapshot(config.settings.max_extra_backup_count)
+            .create_overwrite_snapshot(ctx.config.settings.max_extra_backup_count)
         {
             warn!(
                 target: "rgsm::hooks::pre_restore_backup",

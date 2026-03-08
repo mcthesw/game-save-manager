@@ -150,19 +150,10 @@ pub fn run() -> anyhow::Result<()> {
         .invoke_handler(command_builder.invoke_handler())
         .setup(move |app| {
             let cloud_sync_manager = cloud_sync::CloudSyncTaskManager::new(app.handle());
-
-            // Build the hook pipeline with built-in hooks.
-            let pipeline = hooks::HookPipeline::new(vec![
-                Box::new(hooks::pre_restore_backup_hook::PreRestoreBackupHook),
-                Box::new(hooks::checksum_hook::ChecksumHook),
-                Box::new(hooks::cloud_sync_hook::CloudSyncEnqueueHook::new(
-                    cloud_sync_manager.clone(),
-                )),
-                Box::new(hooks::notification_hook::NotificationHook::new(
-                    app.handle().clone(),
-                )),
-            ]);
-            app.manage(std::sync::Arc::new(pipeline));
+            let config = get_config().expect("Failed to load config while building hooks");
+            let pipeline =
+                hooks::build_builtin_pipeline(app.handle(), cloud_sync_manager.clone(), &config);
+            app.manage(hooks::HookPipelineState::new(pipeline));
 
             app.manage(cloud_sync_manager);
 

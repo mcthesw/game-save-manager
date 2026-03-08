@@ -9,7 +9,6 @@ use super::pipeline::{
     SnapshotCreatedCtx, SnapshotDeletedCtx, SnapshotHook,
 };
 use crate::cloud_sync::{CloudSyncJob, CloudSyncTaskManager};
-use crate::config::get_config;
 
 /// Enqueues cloud-sync jobs according to per-game `cloud_sync_enabled`.
 ///
@@ -24,38 +23,24 @@ impl CloudSyncEnqueueHook {
         Self { task_manager }
     }
 
-    fn should_sync(game_name: &str, source: &HookSource) -> bool {
+    fn should_sync(config: &crate::config::Config, game_name: &str, source: &HookSource) -> bool {
         // Never re-enqueue from CloudSync source (avoid infinite loop).
         if *source == HookSource::CloudSync {
             return false;
         }
-        match get_config() {
-            Ok(config) => {
-                // Backend must be configured (not Disabled).
-                if matches!(
-                    config.settings.cloud_settings.backend,
-                    crate::cloud_sync::Backend::Disabled
-                ) {
-                    return false;
-                }
-                // Check per-game toggle.
-                config
-                    .games
-                    .iter()
-                    .find(|g| g.name == game_name)
-                    .map(|g| g.cloud_sync_enabled)
-                    .unwrap_or(false)
-            }
-            Err(_) => false,
-        }
+        config
+            .games
+            .iter()
+            .find(|g| g.name == game_name)
+            .map(|g| g.cloud_sync_enabled)
+            .unwrap_or(false)
     }
 
-    /// Returns the configured backend, or `None` if disabled/missing.
-    fn backend() -> Option<crate::cloud_sync::Backend> {
-        get_config()
-            .ok()
-            .map(|c| c.settings.cloud_settings.backend)
-            .filter(|b| !matches!(b, crate::cloud_sync::Backend::Disabled))
+    fn backend(config: &crate::config::Config) -> Option<crate::cloud_sync::Backend> {
+        match &config.settings.cloud_settings.backend {
+            crate::cloud_sync::Backend::Disabled => None,
+            backend => Some(backend.clone()),
+        }
     }
 }
 
@@ -69,11 +54,11 @@ impl SnapshotHook for CloudSyncEnqueueHook {
         50
     }
 
-    async fn on_snapshot_created(&self, ctx: &SnapshotCreatedCtx) -> Result<()> {
-        if !Self::should_sync(&ctx.game.name, &ctx.source) {
+    async fn on_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) -> Result<()> {
+        if !Self::should_sync(&ctx.config, &ctx.game.name, &ctx.source) {
             return Ok(());
         }
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
         info!(
@@ -94,10 +79,10 @@ impl SnapshotHook for CloudSyncEnqueueHook {
     }
 
     async fn on_snapshot_deleted(&self, ctx: &SnapshotDeletedCtx) -> Result<()> {
-        if !Self::should_sync(&ctx.game.name, &ctx.source) {
+        if !Self::should_sync(&ctx.config, &ctx.game.name, &ctx.source) {
             return Ok(());
         }
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
         if ctx.deleted_remote_paths.is_empty() {
@@ -132,10 +117,10 @@ impl SnapshotHook for CloudSyncEnqueueHook {
     }
 
     async fn on_metadata_changed(&self, ctx: &MetadataChangedCtx) -> Result<()> {
-        if !Self::should_sync(&ctx.game.name, &ctx.source) {
+        if !Self::should_sync(&ctx.config, &ctx.game.name, &ctx.source) {
             return Ok(());
         }
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
         self.task_manager
@@ -149,10 +134,10 @@ impl SnapshotHook for CloudSyncEnqueueHook {
     }
 
     async fn on_game_added(&self, ctx: &GameAddedCtx) -> Result<()> {
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
-        if Self::should_sync(&ctx.game.name, &ctx.source) {
+        if Self::should_sync(&ctx.config, &ctx.game.name, &ctx.source) {
             self.task_manager
                 .enqueue(CloudSyncJob::UploadMetadata {
                     backend: backend.clone(),
@@ -174,7 +159,7 @@ impl SnapshotHook for CloudSyncEnqueueHook {
         if ctx.source == HookSource::CloudSync {
             return Ok(());
         }
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
         self.task_manager
@@ -190,7 +175,7 @@ impl SnapshotHook for CloudSyncEnqueueHook {
         if ctx.source == HookSource::CloudSync {
             return Ok(());
         }
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
         self.task_manager
@@ -207,7 +192,7 @@ impl SnapshotHook for CloudSyncEnqueueHook {
         if ctx.source == HookSource::CloudSync {
             return Ok(());
         }
-        let Some(backend) = Self::backend() else {
+        let Some(backend) = Self::backend(&ctx.config) else {
             return Ok(());
         };
         self.task_manager
