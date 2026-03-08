@@ -18,6 +18,9 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
             name: name.to_string(),
             backups: Vec::new(),
             head: None,
+            sync_version: 0,
+            last_sync_device: None,
+            last_sync_timestamp: None,
         }
     } else {
         // 如果已经存在，info从原来的文件中读取
@@ -114,6 +117,7 @@ pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
     Ok(created_snapshots)
 }
 
+#[allow(dead_code)]
 pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<Vec<GameSnapshots>, BackupError> {
     let config = get_config()?;
     let mut restored = Vec::new();

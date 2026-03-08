@@ -1,4 +1,5 @@
 mod app_config;
+pub mod backup;
 mod quick_actions_settings;
 mod settings;
 mod utils;

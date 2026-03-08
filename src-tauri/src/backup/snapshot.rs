@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::default_value;
+use crate::device::DeviceId;
 
 /// A backup is a zip file that contains
 /// all the file that the save unit has declared.
@@ -19,4 +20,7 @@ pub struct Snapshot {
     /// XXH3 hash of the archive file for integrity verification.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub archive_hash: Option<String>,
+    /// The device that created this snapshot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<DeviceId>,
 }

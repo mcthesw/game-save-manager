@@ -269,6 +269,7 @@ mod tests {
             ],
             game_paths: Default::default(),
             next_save_unit_id: 0,
+            cloud_sync_enabled: true,
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -291,6 +292,7 @@ mod tests {
             }],
             game_paths: Default::default(),
             next_save_unit_id: 6,
+            cloud_sync_enabled: true,
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -307,6 +309,7 @@ mod tests {
             save_paths: vec![],
             game_paths: Default::default(),
             next_save_unit_id: 0,
+            cloud_sync_enabled: true,
         });
 
         let migrated = migrate_save_unit_ids(config);
