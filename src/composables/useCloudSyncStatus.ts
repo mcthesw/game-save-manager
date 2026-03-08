@@ -95,7 +95,9 @@ export function useCloudSyncStatus() {
         showError({ message: result.error });
         return;
       }
-      showInfo({ message: $t('cloud_sync.cancelled') });
+      if (result.data === 'cancelled') {
+        showInfo({ message: $t('cloud_sync.cancelled') });
+      }
     } finally {
       isCancelling.value = false;
     }

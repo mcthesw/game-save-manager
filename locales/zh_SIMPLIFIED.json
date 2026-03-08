@@ -436,6 +436,36 @@
       "access_key_id": "访问密钥 ID",
       "secret_access_key": "秘密访问密钥",
       "region_hint": "如果不需要请输入test，不要留空"
+    },
+    "overview": {
+      "tab": "概览",
+      "game_name": "游戏",
+      "cloud_sync": "自动同步",
+      "status": "状态",
+      "last_sync": "上次同步",
+      "actions": "手动同步",
+      "config_row": "配置",
+      "always_synced": "始终同步",
+      "sync_all": "全部同步",
+      "syncing_all": "正在同步所有游戏...",
+      "no_games": "暂无已配置的游戏",
+      "status_synced": "已同步",
+      "status_pending": "等待中",
+      "status_failed": "失败",
+      "status_disabled": "已禁用",
+      "status_conflict": "冲突",
+      "status_unknown": "未知"
+    },
+    "backend_tab": {
+      "tab": "后端配置"
+    },
+    "operations": {
+      "tab": "操作",
+      "warning": "以下操作可能会覆盖数据，请谨慎使用。",
+      "upload_desc": "将所有本地备份上传到云端，覆盖远程数据。",
+      "download_desc": "将所有云端备份下载到本地，覆盖本地数据。",
+      "cancel_sync": "取消当前同步",
+      "cancel_sync_desc": "取消正在运行的云同步操作。"
     }
   },
   "cloud_sync": {
