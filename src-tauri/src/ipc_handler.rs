@@ -1,7 +1,14 @@
 use crate::backup::{ExtraBackupItem, Game, GameDraft, GameSnapshots};
-use crate::cloud_sync::{self, Backend, CloudSyncJob, CloudSyncTaskManager};
+use crate::cloud_sync::{
+    self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudSyncSessionConfig,
+    CloudSyncTaskManager, SyncGameOutcome,
+};
 use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use crate::device::{Device, get_current_device_id};
+use crate::hooks::{
+    BeforeRestoreCtx, ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookPipeline,
+    HookSource, MetadataChangedCtx, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotDeletedCtx,
+};
 use crate::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
 use crate::path_resolver;
 use crate::preclude::*;
@@ -51,6 +58,41 @@ impl From<BackupError> for RestoreError {
                 message: other.to_string(),
             },
         }
+    }
+}
+
+fn batch_report_failed_item(report: &BatchSyncReport) -> Option<String> {
+    let mut items = Vec::with_capacity(report.games.len() + 1);
+    items.push(&report.config.status);
+    items.extend(report.games.iter().map(|item| &item.status));
+    items.into_iter().find_map(|status| match status {
+        BatchSyncItemStatus::Failed(message) => Some(message.clone()),
+        _ => None,
+    })
+}
+
+fn summarize_batch_result(
+    result: &Result<BatchSyncReport, BackendError>,
+) -> (cloud_sync::CloudSyncJobStatus, Option<String>) {
+    match result {
+        Ok(report) => {
+            if let Some(message) = batch_report_failed_item(report) {
+                (cloud_sync::CloudSyncJobStatus::Failed, Some(message))
+            } else if matches!(report.config.status, BatchSyncItemStatus::Cancelled)
+                || report
+                    .games
+                    .iter()
+                    .any(|item| matches!(item.status, BatchSyncItemStatus::Cancelled))
+            {
+                (cloud_sync::CloudSyncJobStatus::Cancelled, None)
+            } else {
+                (cloud_sync::CloudSyncJobStatus::Completed, None)
+            }
+        }
+        Err(err) => (
+            cloud_sync::CloudSyncJobStatus::Failed,
+            Some(err.to_string()),
+        ),
     }
 }
 
@@ -147,46 +189,34 @@ pub async fn get_local_config() -> Result<Config, String> {
 #[specta::specta]
 pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Adding game draft: {:?}", game);
+    let previous_game = get_config()
+        .ok()
+        .and_then(|config| config.games.iter().find(|g| g.name == game.name).cloned());
+
     backup::create_game_backup(&game).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to add game: {:?}", e);
         e.to_string()
     })?;
 
     if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            if let Some(saved_game) = config.games.iter().find(|g| g.name == game.name) {
-                match saved_game.get_game_snapshots_info() {
-                    Ok(snapshots) => {
-                        enqueue_cloud_sync_job(
-                            &app_handle,
-                            CloudSyncJob::UploadMetadata {
-                                backend: config.settings.cloud_settings.backend.clone(),
-                                game_name: snapshots.name.clone(),
-                                snapshots,
-                            },
-                        )
-                        .await;
-
-                        enqueue_cloud_sync_job(
-                            &app_handle,
-                            CloudSyncJob::UploadConfig {
-                                backend: config.settings.cloud_settings.backend,
-                                context: "add_game".to_string(),
-                            },
-                        )
-                        .await;
-                    }
-                    Err(err) => warn!(
-                        target: "rgsm::ipc",
-                        "Failed to collect new game snapshots for cloud enqueue: {err:?}"
-                    ),
-                }
-            } else {
-                warn!(
-                    target: "rgsm::ipc",
-                    "Saved game '{}' not found in config after add_game",
-                    game.name
-                );
+        if let Some(saved_game) = config.games.iter().find(|g| g.name == game.name) {
+            let pipeline = app_handle.state::<Arc<HookPipeline>>();
+            if let Some(previous_game) = previous_game {
+                pipeline
+                    .fire_game_updated(&GameUpdatedCtx {
+                        source: HookSource::UserManual,
+                        previous_game,
+                        game: saved_game.clone(),
+                    })
+                    .await;
+            } else if let Ok(snapshots) = saved_game.get_game_snapshots_info() {
+                pipeline
+                    .fire_game_added(&GameAddedCtx {
+                        source: HookSource::UserManual,
+                        game: saved_game.clone(),
+                        snapshots,
+                    })
+                    .await;
             }
         }
     }
@@ -203,23 +233,58 @@ pub async fn restore_snapshot(
     app: AppHandle,
 ) -> Result<(), RestoreError> {
     info!(target:"rgsm::ipc", "Applying backup: {:?} for game: {:?}", date, game);
+
+    // Build gate context and run pre-restore hooks (extra backup, integrity check).
+    let pre_snapshots = game.get_game_snapshots_info().map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to read snapshots: {:?}", e);
+        RestoreError::from(e)
+    })?;
+    let snapshot = pre_snapshots
+        .backups
+        .iter()
+        .find(|s| s.date == date)
+        .cloned()
+        .ok_or_else(|| RestoreError::Other {
+            message: format!("Snapshot {date} not found"),
+        })?;
+
+    let archive_path = get_backup_path()
+        .map_err(|e| RestoreError::Other {
+            message: e.to_string(),
+        })?
+        .join(&game.name)
+        .join(format!("{date}.zip"));
+
+    {
+        let pipeline = app.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_before_restore(&BeforeRestoreCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshot: snapshot.clone(),
+                snapshots: pre_snapshots,
+                archive_path,
+            })
+            .await
+            .map_err(RestoreError::from)?;
+    }
+
+    // Core restore: decompress + update HEAD.
     let snapshots = game.restore_snapshot(&date, Some(&app)).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
         RestoreError::from(e)
     })?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            enqueue_cloud_sync_job(
-                &app,
-                CloudSyncJob::UploadMetadata {
-                    backend: config.settings.cloud_settings.backend,
-                    game_name: snapshots.name.clone(),
-                    snapshots,
-                },
-            )
+    {
+        let pipeline = app.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_snapshot_applied(&SnapshotAppliedCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshot,
+                snapshots,
+            })
             .await;
-        }
     }
 
     info!(target:"rgsm::ipc", "Successfully applied backup: {:?} for game: {:?}", date, game);
@@ -239,19 +304,16 @@ pub async fn delete_snapshot(
         e.to_string()
     })?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            enqueue_cloud_sync_job(
-                &app_handle,
-                CloudSyncJob::DeleteSnapshotAndUploadMetadata {
-                    backend: config.settings.cloud_settings.backend,
-                    game_name: deleted.snapshots.name.clone(),
-                    snapshots: deleted.snapshots,
-                    remote_zip_path: deleted.remote_zip_path,
-                },
-            )
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshots: deleted.snapshots,
+                deleted_remote_paths: vec![deleted.remote_zip_path],
+            })
             .await;
-        }
     }
 
     info!(target:"rgsm::ipc", "Successfully deleted backup: {:?} for game: {:?}", date, game);
@@ -271,19 +333,16 @@ pub async fn batch_delete_snapshots(
         e.to_string()
     })?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync && !deleted.deleted_remote_paths.is_empty() {
-            enqueue_cloud_sync_job(
-                &app_handle,
-                CloudSyncJob::DeleteFilesAndUploadMetadata {
-                    backend: config.settings.cloud_settings.backend,
-                    game_name: deleted.snapshots.name.clone(),
-                    snapshots: deleted.snapshots,
-                    remote_zip_paths: deleted.deleted_remote_paths,
-                },
-            )
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshots: deleted.snapshots,
+                deleted_remote_paths: deleted.deleted_remote_paths,
+            })
             .await;
-        }
     }
 
     info!(target:"rgsm::ipc", "Successfully batch deleted {} snapshots for game: {:?}", dates.len(), game.name);
@@ -299,18 +358,15 @@ pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String
         e.to_string()
     })?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            enqueue_cloud_sync_job(
-                &app_handle,
-                CloudSyncJob::DeleteGameAndUploadConfig {
-                    backend: config.settings.cloud_settings.backend,
-                    game_name: game.name.clone(),
-                    remote_game_dir_path: deleted.remote_game_dir_path,
-                },
-            )
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_game_deleted(&GameDeletedCtx {
+                source: HookSource::UserManual,
+                game_name: game.name.clone(),
+                remote_game_dir_path: deleted.remote_game_dir_path,
+            })
             .await;
-        }
     }
 
     info!(target:"rgsm::ipc", "Successfully deleted game: {:?}", game);
@@ -349,12 +405,19 @@ pub async fn verify_archive_integrity(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn set_config(config: Config) -> Result<(), String> {
+pub async fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
     debug!(target:"rgsm::ipc", "Setting config: {:?}", config.clone().sanitize());
     config::set_config(&config).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
         e.to_string()
-    })
+    })?;
+    let pipeline = app_handle.state::<Arc<HookPipeline>>();
+    pipeline
+        .fire_config_saved(&ConfigSavedCtx {
+            source: HookSource::UserManual,
+        })
+        .await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -378,19 +441,19 @@ pub async fn create_snapshot(
     info!(target:"rgsm::ipc", "Backing up save for game: {:?}", game);
     let created = handle_backup_err(game.create_snapshot(&describe).await, window)?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            enqueue_cloud_sync_job(
-                &app_handle,
-                CloudSyncJob::UploadSnapshot {
-                    backend: config.settings.cloud_settings.backend,
-                    game_name: created.snapshots.name.clone(),
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            pipeline
+                .fire_snapshot_created(&SnapshotCreatedCtx {
+                    source: HookSource::UserManual,
+                    game: game.clone(),
+                    snapshot,
                     snapshots: created.snapshots,
                     local_zip_path: created.local_zip_path,
                     remote_zip_path: created.remote_zip_path,
-                },
-            )
-            .await;
+                })
+                .await;
         }
     }
 
@@ -453,11 +516,11 @@ pub async fn open_extra_backup_folder(game: Game) -> Result<bool, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", backend.clone().sanitize());
-    match backend.check().await {
+pub async fn check_cloud_backend(session: CloudSyncSessionConfig) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", session.backend.clone().sanitize());
+    match session.check().await {
         Ok(_) => {
-            info!(target:"rgsm::ipc", "Successfully checked cloud backend: {:?}", backend.sanitize());
+            info!(target:"rgsm::ipc", "Successfully checked cloud backend: {:?}", session.backend.sanitize());
             Ok(())
         }
         Err(e) => {
@@ -469,40 +532,48 @@ pub async fn check_cloud_backend(backend: Backend) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cloud_upload_all(backend: Backend, app_handle: AppHandle) -> Result<(), String> {
+pub async fn cloud_upload_all(
+    session: CloudSyncSessionConfig,
+    app_handle: AppHandle,
+) -> Result<BatchSyncReport, String> {
     let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
-    Arc::clone(manager_state.inner()).cancel_all().await;
+    let manager = Arc::clone(manager_state.inner());
+    let _ = manager.cancel_all().await;
 
-    info!(target:"rgsm::ipc", "Uploading all backups to cloud backend: {:?}", backend.clone().sanitize());
-    match cloud_sync::upload_all_from_backend(&backend).await {
-        Ok(_) => {
-            info!(target:"rgsm::ipc", "Successfully uploaded all backups to cloud backend: {:?}", backend.sanitize());
-            Ok(())
-        }
-        Err(e) => {
-            error!(target:"rgsm::ipc", "Failed to upload all backups to cloud backend: {:?}", e);
-            Err(e.to_string())
-        }
-    }
+    let description = format!(
+        "Overwrite upload ({:?})",
+        session.backend.clone().sanitize()
+    );
+    let (job_id, token) = manager.begin_manual_job(description.clone()).await;
+    let result = cloud_sync::upload_all_from_session(&session, Some(token)).await;
+    let (status, error) = summarize_batch_result(&result);
+    manager
+        .finish_manual_job(job_id, &description, status, error.clone())
+        .await;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cloud_download_all(backend: Backend, app_handle: AppHandle) -> Result<(), String> {
+pub async fn cloud_download_all(
+    session: CloudSyncSessionConfig,
+    app_handle: AppHandle,
+) -> Result<BatchSyncReport, String> {
     let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
-    Arc::clone(manager_state.inner()).cancel_all().await;
+    let manager = Arc::clone(manager_state.inner());
+    let _ = manager.cancel_all().await;
 
-    info!(target:"rgsm::ipc", "Downloading all backups from cloud backend: {:?}", backend.clone().sanitize());
-    match cloud_sync::download_all_from_backend(&backend).await {
-        Ok(_) => {
-            info!(target:"rgsm::ipc", "Successfully downloaded all backups from cloud backend: {:?}", backend.sanitize());
-            Ok(())
-        }
-        Err(e) => {
-            error!(target:"rgsm::ipc", "Failed to download all backups from cloud backend: {:?}", e);
-            Err(e.to_string())
-        }
-    }
+    let description = format!(
+        "Overwrite download ({:?})",
+        session.backend.clone().sanitize()
+    );
+    let (job_id, token) = manager.begin_manual_job(description.clone()).await;
+    let result = cloud_sync::download_all_from_session(&session, Some(token)).await;
+    let (status, error) = summarize_batch_result(&result);
+    manager
+        .finish_manual_job(job_id, &description, status, error.clone())
+        .await;
+    result.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -522,18 +593,15 @@ pub async fn set_snapshot_description(
             e.to_string()
         })?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            enqueue_cloud_sync_job(
-                &app_handle,
-                CloudSyncJob::UploadMetadata {
-                    backend: config.settings.cloud_settings.backend,
-                    game_name: snapshots.name.clone(),
-                    snapshots,
-                },
-            )
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_metadata_changed(&MetadataChangedCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshots,
+            })
             .await;
-        }
     }
 
     info!(target:"rgsm::ipc", "Successfully set backup {} describe for game: {:?}", date,game);
@@ -549,20 +617,26 @@ pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
         e.to_string()
     })?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            for created in created_snapshots {
-                enqueue_cloud_sync_job(
-                    &app_handle,
-                    CloudSyncJob::UploadSnapshot {
-                        backend: config.settings.cloud_settings.backend.clone(),
-                        game_name: created.snapshots.name.clone(),
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let config = get_config().ok();
+        for created in created_snapshots {
+            let game = config
+                .as_ref()
+                .and_then(|c| c.games.iter().find(|g| g.name == created.snapshots.name))
+                .cloned();
+            if let (Some(game), Some(snapshot)) = (game, created.snapshots.backups.last().cloned())
+            {
+                pipeline
+                    .fire_snapshot_created(&SnapshotCreatedCtx {
+                        source: HookSource::BatchOperation,
+                        game,
+                        snapshot,
                         snapshots: created.snapshots,
                         local_zip_path: created.local_zip_path,
                         remote_zip_path: created.remote_zip_path,
-                    },
-                )
-                .await;
+                    })
+                    .await;
             }
         }
     }
@@ -575,25 +649,53 @@ pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
 #[specta::specta]
 pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc","Applying all backups.");
-    let restored_snapshots = backup::apply_all(Some(&app_handle)).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to apply all backups: {:?}", e);
-        e.to_string()
-    })?;
+    let config = get_config().map_err(|e| e.to_string())?;
+    let pipeline = app_handle.state::<Arc<HookPipeline>>();
+    let backup_base = get_backup_path().map_err(|e| e.to_string())?;
 
-    if let Ok(config) = get_config() {
-        if config.settings.cloud_settings.always_sync {
-            for snapshots in restored_snapshots {
-                enqueue_cloud_sync_job(
-                    &app_handle,
-                    CloudSyncJob::UploadMetadata {
-                        backend: config.settings.cloud_settings.backend.clone(),
-                        game_name: snapshots.name.clone(),
-                        snapshots,
-                    },
-                )
-                .await;
-            }
+    for game in &config.games {
+        let snapshots_info = game.get_game_snapshots_info().map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to read snapshots for {}: {e:?}", game.name);
+            e.to_string()
+        })?;
+        let Some(snapshot) = snapshots_info.backups.last().cloned() else {
+            warn!(target:"rgsm::ipc", "No backups for {}, skipping", game.name);
+            continue;
+        };
+        let archive_path = backup_base
+            .join(&game.name)
+            .join(format!("{}.zip", snapshot.date));
+
+        // Gate: pre-restore hooks
+        if let Err(e) = pipeline
+            .fire_before_restore(&BeforeRestoreCtx {
+                source: HookSource::BatchOperation,
+                game: game.clone(),
+                snapshot: snapshot.clone(),
+                snapshots: snapshots_info,
+                archive_path,
+            })
+            .await
+        {
+            error!(target:"rgsm::ipc", "Pre-restore hook failed for {}: {e:#}", game.name);
+            return Err(e.to_string());
         }
+
+        let snapshots = game
+            .restore_snapshot(&snapshot.date, Some(&app_handle))
+            .map_err(|e| {
+                error!(target:"rgsm::ipc", "Apply all failed for {}: {e:?}", game.name);
+                e.to_string()
+            })?;
+
+        pipeline
+            .fire_snapshot_applied(&SnapshotAppliedCtx {
+                source: HookSource::BatchOperation,
+                game: game.clone(),
+                snapshot,
+                snapshots,
+            })
+            .await;
     }
 
     info!(target:"rgsm::ipc","Successfully applied all backups.");
@@ -704,11 +806,6 @@ pub async fn set_snapshot_head(
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
 
-    let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
-        e.to_string()
-    })?;
-
     let mut saves = game.get_game_snapshots_info().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
         e.to_string()
@@ -725,17 +822,15 @@ pub async fn set_snapshot_head(
         e.to_string()
     })?;
 
-    // Queue cloud sync if enabled
-    if config.settings.cloud_settings.always_sync {
-        enqueue_cloud_sync_job(
-            &app_handle,
-            CloudSyncJob::UploadMetadata {
-                backend: config.settings.cloud_settings.backend,
-                game_name: saves.name.clone(),
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_metadata_changed(&MetadataChangedCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
                 snapshots: saves,
-            },
-        )
-        .await;
+            })
+            .await;
     }
 
     info!(target:"rgsm::ipc", "Successfully set HEAD to: {:?}", date);
@@ -751,11 +846,6 @@ pub async fn detach_snapshot(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
-
-    let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
-        e.to_string()
-    })?;
 
     let mut saves = game.get_game_snapshots_info().map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
@@ -779,17 +869,15 @@ pub async fn detach_snapshot(
         e.to_string()
     })?;
 
-    // Queue cloud sync if enabled
-    if config.settings.cloud_settings.always_sync {
-        enqueue_cloud_sync_job(
-            &app_handle,
-            CloudSyncJob::UploadMetadata {
-                backend: config.settings.cloud_settings.backend,
-                game_name: saves.name.clone(),
+    {
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        pipeline
+            .fire_metadata_changed(&MetadataChangedCtx {
+                source: HookSource::UserManual,
+                game: game.clone(),
                 snapshots: saves,
-            },
-        )
-        .await;
+            })
+            .await;
     }
 
     info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?}", date);
@@ -826,20 +914,18 @@ pub async fn create_snapshot_at(
     let result = handle_backup_err(game.create_snapshot(&describe).await, window);
 
     if let Ok(created) = &result {
-        if let Ok(config) = get_config() {
-            if config.settings.cloud_settings.always_sync {
-                enqueue_cloud_sync_job(
-                    &app_handle,
-                    CloudSyncJob::UploadSnapshot {
-                        backend: config.settings.cloud_settings.backend,
-                        game_name: created.snapshots.name.clone(),
-                        snapshots: created.snapshots.clone(),
-                        local_zip_path: created.local_zip_path.clone(),
-                        remote_zip_path: created.remote_zip_path.clone(),
-                    },
-                )
+        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            pipeline
+                .fire_snapshot_created(&SnapshotCreatedCtx {
+                    source: HookSource::UserManual,
+                    game: game.clone(),
+                    snapshot,
+                    snapshots: created.snapshots.clone(),
+                    local_zip_path: created.local_zip_path.clone(),
+                    remote_zip_path: created.remote_zip_path.clone(),
+                })
                 .await;
-            }
         }
     }
 
@@ -891,15 +977,9 @@ fn handle_backup_err<T>(res: Result<T, BackupError>, window: Window) -> Result<T
 
 #[tauri::command]
 #[specta::specta]
-pub async fn cancel_cloud_sync(app_handle: AppHandle) -> Result<(), String> {
+pub async fn cancel_cloud_sync(app_handle: AppHandle) -> Result<CancelCloudSyncResult, String> {
     let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
-    Arc::clone(manager_state.inner()).cancel_all().await;
-    Ok(())
-}
-
-async fn enqueue_cloud_sync_job(app_handle: &AppHandle, job: CloudSyncJob) {
-    let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
-    Arc::clone(manager_state.inner()).enqueue(job).await;
+    Ok(Arc::clone(manager_state.inner()).cancel_all().await)
 }
 
 /// Fetches the list of importable games from the ludusavi manifest
@@ -998,6 +1078,42 @@ pub async fn check_paths(
 pub fn get_system_fonts() -> Vec<String> {
     info!(target:"rgsm::ipc", "Getting system fonts");
     system_fonts::get_system_fonts()
+}
+
+/// Get the local sync state (device-specific, never uploaded).
+#[tauri::command]
+#[specta::specta]
+pub fn get_sync_state() -> Result<cloud_sync::SyncState, String> {
+    info!(target:"rgsm::ipc", "Getting sync state");
+    cloud_sync::sync_state::load_sync_state().map_err(|e| e.to_string())
+}
+
+/// List available config backup files (newest first).
+#[tauri::command]
+#[specta::specta]
+pub fn list_config_backups() -> Vec<String> {
+    config::backup::list_config_backups()
+        .into_iter()
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .collect()
+}
+
+/// Restore config from a backup by index (0 = most recent).
+#[tauri::command]
+#[specta::specta]
+pub fn restore_config_backup(index: usize) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Restoring config from backup index {}", index);
+    config::backup::restore_config_from_backup(index).map_err(|e| e.to_string())
+}
+
+/// Sync one game by comparing local and remote snapshots.
+#[tauri::command]
+#[specta::specta]
+pub async fn sync_game(game_name: String) -> Result<SyncGameOutcome, String> {
+    info!(target:"rgsm::ipc", "Syncing game: {}", game_name);
+    cloud_sync::sync_game_from_config(&game_name)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
