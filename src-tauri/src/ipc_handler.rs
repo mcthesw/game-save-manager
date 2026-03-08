@@ -7,7 +7,8 @@ use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_co
 use crate::device::{Device, get_current_device_id};
 use crate::hooks::{
     BeforeRestoreCtx, ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookPipeline,
-    HookSource, MetadataChangedCtx, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotDeletedCtx,
+    HookPipelineState, HookSource, MetadataChangedCtx, SnapshotAppliedCtx, SnapshotCreatedCtx,
+    SnapshotDeletedCtx,
 };
 use crate::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
 use crate::path_resolver;
@@ -59,6 +60,10 @@ impl From<BackupError> for RestoreError {
             },
         }
     }
+}
+
+fn hook_pipeline<R: tauri::Runtime, M: Manager<R>>(manager: &M) -> Arc<HookPipeline> {
+    manager.state::<HookPipelineState>().snapshot()
 }
 
 fn batch_report_failed_item(report: &BatchSyncReport) -> Option<String> {
@@ -200,10 +205,11 @@ pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), Stri
 
     if let Ok(config) = get_config() {
         if let Some(saved_game) = config.games.iter().find(|g| g.name == game.name) {
-            let pipeline = app_handle.state::<Arc<HookPipeline>>();
+            let pipeline = hook_pipeline(&app_handle);
             if let Some(previous_game) = previous_game {
                 pipeline
                     .fire_game_updated(&GameUpdatedCtx {
+                        config: config.clone(),
                         source: HookSource::UserManual,
                         previous_game,
                         game: saved_game.clone(),
@@ -212,6 +218,7 @@ pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), Stri
             } else if let Ok(snapshots) = saved_game.get_game_snapshots_info() {
                 pipeline
                     .fire_game_added(&GameAddedCtx {
+                        config: config.clone(),
                         source: HookSource::UserManual,
                         game: saved_game.clone(),
                         snapshots,
@@ -254,11 +261,15 @@ pub async fn restore_snapshot(
         })?
         .join(&game.name)
         .join(format!("{date}.zip"));
+    let hook_config = get_config().map_err(|e| RestoreError::Other {
+        message: e.to_string(),
+    })?;
 
     {
-        let pipeline = app.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app);
         pipeline
             .fire_before_restore(&BeforeRestoreCtx {
+                config: hook_config.clone(),
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshot: snapshot.clone(),
@@ -276,9 +287,10 @@ pub async fn restore_snapshot(
     })?;
 
     {
-        let pipeline = app.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app);
         pipeline
             .fire_snapshot_applied(&SnapshotAppliedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshot,
@@ -305,9 +317,11 @@ pub async fn delete_snapshot(
     })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         pipeline
             .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshots: deleted.snapshots,
@@ -334,9 +348,11 @@ pub async fn batch_delete_snapshots(
     })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         pipeline
             .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshots: deleted.snapshots,
@@ -359,9 +375,11 @@ pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String
     })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         pipeline
             .fire_game_deleted(&GameDeletedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game_name: game.name.clone(),
                 remote_game_dir_path: deleted.remote_game_dir_path,
@@ -411,9 +429,20 @@ pub async fn set_config(app_handle: AppHandle, config: Config) -> Result<(), Str
         error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
         e.to_string()
     })?;
-    let pipeline = app_handle.state::<Arc<HookPipeline>>();
+    let pipeline_state = app_handle.state::<HookPipelineState>();
+    let cloud_sync_manager = app_handle
+        .state::<Arc<CloudSyncTaskManager>>()
+        .inner()
+        .clone();
+    pipeline_state.replace(crate::hooks::build_builtin_pipeline(
+        &app_handle,
+        cloud_sync_manager,
+        &config,
+    ));
+    let pipeline = pipeline_state.snapshot();
     pipeline
         .fire_config_saved(&ConfigSavedCtx {
+            config,
             source: HookSource::UserManual,
         })
         .await;
@@ -442,18 +471,21 @@ pub async fn create_snapshot(
     let created = handle_backup_err(game.create_snapshot(&describe).await, window)?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-            pipeline
-                .fire_snapshot_created(&SnapshotCreatedCtx {
-                    source: HookSource::UserManual,
-                    game: game.clone(),
-                    snapshot,
-                    snapshots: created.snapshots,
-                    local_zip_path: created.local_zip_path,
-                    remote_zip_path: created.remote_zip_path,
-                })
-                .await;
+            let mut ctx = SnapshotCreatedCtx {
+                config: hook_config,
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshot,
+                snapshots: created.snapshots,
+                local_zip_path: created.local_zip_path,
+                remote_zip_path: created.remote_zip_path,
+            };
+            pipeline.fire_snapshot_created(&mut ctx).await;
+            game.set_game_snapshots_info(&ctx.snapshots)
+                .map_err(|e| e.to_string())?;
         }
     }
 
@@ -594,9 +626,11 @@ pub async fn set_snapshot_description(
         })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         pipeline
             .fire_metadata_changed(&MetadataChangedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshots,
@@ -618,7 +652,7 @@ pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
     })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
         let config = get_config().ok();
         for created in created_snapshots {
             let game = config
@@ -627,16 +661,18 @@ pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
                 .cloned();
             if let (Some(game), Some(snapshot)) = (game, created.snapshots.backups.last().cloned())
             {
-                pipeline
-                    .fire_snapshot_created(&SnapshotCreatedCtx {
-                        source: HookSource::BatchOperation,
-                        game,
-                        snapshot,
-                        snapshots: created.snapshots,
-                        local_zip_path: created.local_zip_path,
-                        remote_zip_path: created.remote_zip_path,
-                    })
-                    .await;
+                let mut ctx = SnapshotCreatedCtx {
+                    config: config.clone().expect("config present when game exists"),
+                    source: HookSource::BatchOperation,
+                    game: game.clone(),
+                    snapshot,
+                    snapshots: created.snapshots,
+                    local_zip_path: created.local_zip_path,
+                    remote_zip_path: created.remote_zip_path,
+                };
+                pipeline.fire_snapshot_created(&mut ctx).await;
+                game.set_game_snapshots_info(&ctx.snapshots)
+                    .map_err(|e| e.to_string())?;
             }
         }
     }
@@ -650,7 +686,7 @@ pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
 pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc","Applying all backups.");
     let config = get_config().map_err(|e| e.to_string())?;
-    let pipeline = app_handle.state::<Arc<HookPipeline>>();
+    let pipeline = hook_pipeline(&app_handle);
     let backup_base = get_backup_path().map_err(|e| e.to_string())?;
 
     for game in &config.games {
@@ -669,6 +705,7 @@ pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
         // Gate: pre-restore hooks
         if let Err(e) = pipeline
             .fire_before_restore(&BeforeRestoreCtx {
+                config: config.clone(),
                 source: HookSource::BatchOperation,
                 game: game.clone(),
                 snapshot: snapshot.clone(),
@@ -690,6 +727,7 @@ pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
 
         pipeline
             .fire_snapshot_applied(&SnapshotAppliedCtx {
+                config: config.clone(),
                 source: HookSource::BatchOperation,
                 game: game.clone(),
                 snapshot,
@@ -816,16 +854,18 @@ pub async fn set_snapshot_head(
         return Err("Snapshot not found".to_string());
     }
 
-    saves.head = Some(date.clone());
+    saves.set_current_device_head(Some(date.clone()));
     game.set_game_snapshots_info(&saves).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
         e.to_string()
     })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         pipeline
             .fire_metadata_changed(&MetadataChangedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshots: saves,
@@ -870,9 +910,11 @@ pub async fn detach_snapshot(
     })?;
 
     {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         pipeline
             .fire_metadata_changed(&MetadataChangedCtx {
+                config: hook_config,
                 source: HookSource::UserManual,
                 game: game.clone(),
                 snapshots: saves,
@@ -884,7 +926,7 @@ pub async fn detach_snapshot(
     Ok(())
 }
 
-/// Create a new snapshot as a child of a specific parent snapshot
+/// Create a new snapshot, optionally branching from a specific parent snapshot
 #[tauri::command]
 #[specta::specta]
 pub async fn create_snapshot_at(
@@ -896,47 +938,30 @@ pub async fn create_snapshot_at(
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
 
-    // Temporarily set HEAD to the parent
-    let mut saves = game.get_game_snapshots_info().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
-        e.to_string()
-    })?;
-
-    let original_head = saves.head.clone();
-    saves.head = parent_date;
-
-    game.set_game_snapshots_info(&saves).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
-        e.to_string()
-    })?;
-
-    // Create the snapshot
-    let result = handle_backup_err(game.create_snapshot(&describe).await, window);
+    let result = handle_backup_err(
+        game.create_snapshot_with_parent(&describe, parent_date)
+            .await,
+        window,
+    );
 
     if let Ok(created) = &result {
-        let pipeline = app_handle.state::<Arc<HookPipeline>>();
+        let pipeline = hook_pipeline(&app_handle);
+        let hook_config = get_config().map_err(|e| e.to_string())?;
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-            pipeline
-                .fire_snapshot_created(&SnapshotCreatedCtx {
-                    source: HookSource::UserManual,
-                    game: game.clone(),
-                    snapshot,
-                    snapshots: created.snapshots.clone(),
-                    local_zip_path: created.local_zip_path.clone(),
-                    remote_zip_path: created.remote_zip_path.clone(),
-                })
-                .await;
+            let mut ctx = SnapshotCreatedCtx {
+                config: hook_config,
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshot,
+                snapshots: created.snapshots.clone(),
+                local_zip_path: created.local_zip_path.clone(),
+                remote_zip_path: created.remote_zip_path.clone(),
+            };
+            pipeline.fire_snapshot_created(&mut ctx).await;
+            game.set_game_snapshots_info(&ctx.snapshots)
+                .map_err(|e| e.to_string())?;
         }
     }
-
-    // If creation failed, restore original HEAD
-    if result.is_err() {
-        if let Ok(mut saves) = game.get_game_snapshots_info() {
-            saves.head = original_head;
-            let _ = game.set_game_snapshots_info(&saves);
-        }
-    }
-
     result.map(|_| ())
 }
 
