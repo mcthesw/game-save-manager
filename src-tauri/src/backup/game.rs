@@ -1,11 +1,10 @@
 use log::{info, warn};
-use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 use crate::backup::state_fingerprint::{
     compute_file_hash, fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
@@ -15,8 +14,7 @@ use crate::backup::{
     TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
-use crate::device::DeviceId;
-use crate::ipc_handler::{IpcNotification, NotificationLevel};
+use crate::device::{DeviceId, get_current_device_id};
 use crate::preclude::*;
 
 /// A game struct contains the save units and the game's launcher
@@ -33,6 +31,10 @@ pub struct Game {
     /// keeps this counter aligned with the highest in-use ID.
     #[serde(default)]
     pub next_save_unit_id: u32,
+    /// Whether this game participates in cloud sync.
+    /// Defaults to true so existing games are automatically included.
+    #[serde(default = "crate::default_value::default_true")]
+    pub cloud_sync_enabled: bool,
 }
 
 /// Frontend/IPC input shape for creating/updating a game.
@@ -148,6 +150,7 @@ impl GameDraft {
             save_paths,
             game_paths: self.game_paths,
             next_save_unit_id,
+            cloud_sync_enabled: existing.map(|game| game.cloud_sync_enabled).unwrap_or(true),
         };
         game.normalize_save_unit_ids();
         game
@@ -249,6 +252,7 @@ impl Game {
             size: file_size,
             parent,
             archive_hash,
+            device_id: Some(get_current_device_id().clone()),
         };
         infos.backups.push(game_snapshots_info);
 
@@ -374,49 +378,18 @@ impl Game {
             deleted_remote_paths: result.deleted_remote_paths,
         })
     }
+    /// Decompress a snapshot archive and update HEAD.
+    ///
+    /// **Pre-restore checks** (extra backup, integrity verification) are
+    /// handled by the hook pipeline's `fire_before_restore` gate — callers
+    /// must invoke that *before* calling this method.
     pub fn restore_snapshot(
         &self,
         date: &str,
         app_handle: Option<&AppHandle>,
     ) -> Result<GameSnapshots, BackupError> {
-        let config = get_config()?;
         let backup_path = get_backup_path()?.join(&self.name);
-        if config.settings.extra_backup_when_apply {
-            info!(target:"rgsm::backup::game","Creating extra backup.");
-            if let Err(e) = self.create_overwrite_snapshot(config.settings.max_extra_backup_count) {
-                if let Some(app_handle) = app_handle {
-                    app_handle
-                        .emit(
-                            "Notification",
-                            IpcNotification {
-                                level: NotificationLevel::warning,
-                                title: "WARNING".to_string(),
-                                msg: t!("backend.backup.extra_backup_file_not_exist").to_string(),
-                            },
-                        )
-                        .map_err(anyhow::Error::from)?;
-                }
-                warn!(target:"rgsm::backup::game","Failed to create extra backup: {:?}", e);
-            }
-        }
         let archive_path = backup_path.join(format!("{date}.zip"));
-
-        // Verify archive integrity before applying (if enabled and hash is available)
-        if config.settings.verify_archive_before_apply {
-            let infos = self.get_game_snapshots_info()?;
-            if let Some(snapshot) = infos.backups.iter().find(|s| s.date == date) {
-                if let Some(expected_hash) = &snapshot.archive_hash {
-                    let actual_hash =
-                        compute_file_hash(&archive_path).map_err(BackupError::Compress)?;
-                    if &actual_hash != expected_hash {
-                        return Err(BackupError::IntegrityCheckFailed {
-                            expected: expected_hash.clone(),
-                            actual: actual_hash,
-                        });
-                    }
-                }
-            }
-        }
 
         ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
 
