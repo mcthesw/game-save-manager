@@ -41,6 +41,7 @@ pub fn ludusavi_manifest_yaml() -> Cow<'static, str> {
 }
 
 #[cfg(not(feature = "bundled-manifest"))]
+/// Slim builds intentionally omit the embedded manifest snapshot.
 pub fn ludusavi_manifest_yaml() -> Cow<'static, str> {
     Cow::Borrowed("")
 }
@@ -51,8 +52,9 @@ pub fn ludusavi_manifest_meta_json() -> Cow<'static, str> {
 }
 
 #[cfg(not(feature = "bundled-manifest"))]
+/// Slim builds intentionally omit bundled manifest metadata as well.
 pub fn ludusavi_manifest_meta_json() -> Cow<'static, str> {
-    Cow::Borrowed("{}")
+    Cow::Borrowed(r#"{"updated_at":null,"etag":null,"source_url":null}"#)
 }
 
 #[cfg(feature = "bundled-manifest")]
@@ -83,6 +85,9 @@ mod tests {
         assert!(!has_bundled_manifest());
         assert_eq!(ludusavi_manifest_yaml_len(), 0);
         assert_eq!(ludusavi_manifest_yaml().as_ref(), "");
-        assert_eq!(ludusavi_manifest_meta_json().as_ref(), "{}");
+        assert_eq!(
+            ludusavi_manifest_meta_json().as_ref(),
+            r#"{"updated_at":null,"etag":null,"source_url":null}"#
+        );
     }
 }

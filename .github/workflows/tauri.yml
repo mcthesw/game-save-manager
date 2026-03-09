@@ -85,8 +85,13 @@ jobs:
           args: ${{ matrix.args }}
       - name: build portable (windows only)
         if: matrix.platform == 'windows-latest'
+        shell: bash
         run: |
-          pnpm build -- ${{ matrix.pnpm_build_args }}
+          if [ -n "${{ matrix.pnpm_build_args }}" ]; then
+            pnpm build -- ${{ matrix.pnpm_build_args }}
+          else
+            pnpm build
+          fi
           pnpm portable
         env:
           RELEASE_ID: ${{ steps.get_release.outputs.id }}

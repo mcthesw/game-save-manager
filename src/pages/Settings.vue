@@ -77,7 +77,7 @@ const ludusaviManifest = ref<LudusaviManifestStatus | null>(null);
 const ludusaviManifestLoading = ref(false);
 const ludusaviManifestUpdating = ref(false);
 const ludusaviManifestResetting = ref(false);
-const hasBundledLudusaviManifest = computed(() => (ludusaviManifest.value?.bundledBytes ?? 0) > 0);
+const hasBundledManifestBytes = computed(() => (ludusaviManifest.value?.bundledBytes ?? 0) > 0);
 
 function formatManifestSource(source?: string) {
   if (source === 'local') return $t('settings.manifest_source_local');
@@ -130,7 +130,7 @@ async function updateLudusaviManifest() {
 
 async function resetLudusaviManifest() {
   const hadLocal = Boolean(ludusaviManifest.value?.hasLocal);
-  const hasBundled = hasBundledLudusaviManifest.value;
+  const hasBundled = hasBundledManifestBytes.value;
   try {
     ludusaviManifestResetting.value = true;
     const result = await commands.resetLudusaviManifestToBundled();
@@ -730,7 +730,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               {{ $t('settings.ludusavi_manifest_hint') }}
             </el-alert>
             <el-alert
-              v-if="!hasBundledLudusaviManifest"
+              v-if="!hasBundledManifestBytes"
               type="warning"
               :closable="false"
               class="manifest-hint"
@@ -769,7 +769,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
                   @click="resetLudusaviManifest"
                 >
                   {{
-                    hasBundledLudusaviManifest
+                    hasBundledManifestBytes
                       ? $t('settings.manifest_reset')
                       : $t('settings.manifest_clear_local')
                   }}

@@ -10,7 +10,7 @@ async function resolvePortable() {
   if (process.platform !== 'win32') return;
 
   const releaseDir = './src-tauri/target/release';
-  const buildVariant = process.env.RGSM_BUILD_VARIANT?.trim().toLowerCase();
+  const buildVariant = (process.env.RGSM_BUILD_VARIANT?.trim() ?? '').toLowerCase();
 
   if (!(await fs.pathExists(releaseDir))) {
     throw new Error('could not found the release dir');
