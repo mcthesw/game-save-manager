@@ -77,10 +77,12 @@ const ludusaviManifest = ref<LudusaviManifestStatus | null>(null);
 const ludusaviManifestLoading = ref(false);
 const ludusaviManifestUpdating = ref(false);
 const ludusaviManifestResetting = ref(false);
+const hasBundledLudusaviManifest = computed(() => (ludusaviManifest.value?.bundledBytes ?? 0) > 0);
 
 function formatManifestSource(source?: string) {
   if (source === 'local') return $t('settings.manifest_source_local');
   if (source === 'bundled') return $t('settings.manifest_source_bundled');
+  if (source === 'none') return $t('settings.manifest_source_none');
   return source || '-';
 }
 
@@ -128,15 +130,24 @@ async function updateLudusaviManifest() {
 
 async function resetLudusaviManifest() {
   const hadLocal = Boolean(ludusaviManifest.value?.hasLocal);
+  const hasBundled = hasBundledLudusaviManifest.value;
   try {
     ludusaviManifestResetting.value = true;
     const result = await commands.resetLudusaviManifestToBundled();
     if (result.status === 'ok') {
       ludusaviManifest.value = result.data;
       if (hadLocal) {
-        showSuccess({ message: $t('settings.manifest_reset_success') });
+        showSuccess({
+          message: hasBundled
+            ? $t('settings.manifest_reset_success')
+            : $t('settings.manifest_cache_cleared'),
+        });
       } else {
-        showInfo({ message: $t('settings.manifest_already_bundled') });
+        showInfo({
+          message: hasBundled
+            ? $t('settings.manifest_already_bundled')
+            : $t('settings.manifest_already_empty'),
+        });
       }
     } else {
       showError({ message: result.error });
@@ -718,6 +729,14 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <el-alert type="info" :closable="false" class="manifest-hint">
               {{ $t('settings.ludusavi_manifest_hint') }}
             </el-alert>
+            <el-alert
+              v-if="!hasBundledLudusaviManifest"
+              type="warning"
+              :closable="false"
+              class="manifest-hint"
+            >
+              {{ $t('settings.ludusavi_manifest_slim_hint') }}
+            </el-alert>
             <el-descriptions :column="1" size="small" border>
               <el-descriptions-item :label="$t('settings.manifest_source')">
                 {{ formatManifestSource(ludusaviManifest?.source) }}
@@ -749,7 +768,11 @@ const { linksWithGames: router_list } = useNavigationLinks();
                   :loading="ludusaviManifestResetting"
                   @click="resetLudusaviManifest"
                 >
-                  {{ $t('settings.manifest_reset') }}
+                  {{
+                    hasBundledLudusaviManifest
+                      ? $t('settings.manifest_reset')
+                      : $t('settings.manifest_clear_local')
+                  }}
                 </el-button>
               </div>
             </div>

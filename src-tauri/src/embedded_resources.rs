@@ -1,17 +1,23 @@
+use std::borrow::Cow;
+
+#[cfg(feature = "bundled-manifest")]
 use rust_embed::Embed;
 
+#[cfg(feature = "bundled-manifest")]
 #[derive(Embed)]
 #[folder = "resources/"]
 #[include = "ludusavi_manifest.yaml"]
 #[include = "ludusavi_manifest.meta.json"]
 struct BundledResources;
 
+#[cfg(feature = "bundled-manifest")]
 fn load_bytes(path: &str) -> std::borrow::Cow<'static, [u8]> {
     BundledResources::get(path)
         .unwrap_or_else(|| panic!("Missing embedded resource: {path}"))
         .data
 }
 
+#[cfg(feature = "bundled-manifest")]
 fn load_utf8(path: &str) -> std::borrow::Cow<'static, str> {
     match load_bytes(path) {
         std::borrow::Cow::Borrowed(bytes) => std::borrow::Cow::Borrowed(
@@ -25,14 +31,58 @@ fn load_utf8(path: &str) -> std::borrow::Cow<'static, str> {
     }
 }
 
-pub fn ludusavi_manifest_yaml() -> std::borrow::Cow<'static, str> {
+pub fn has_bundled_manifest() -> bool {
+    cfg!(feature = "bundled-manifest")
+}
+
+#[cfg(feature = "bundled-manifest")]
+pub fn ludusavi_manifest_yaml() -> Cow<'static, str> {
     load_utf8("ludusavi_manifest.yaml")
 }
 
-pub fn ludusavi_manifest_meta_json() -> std::borrow::Cow<'static, str> {
+#[cfg(not(feature = "bundled-manifest"))]
+pub fn ludusavi_manifest_yaml() -> Cow<'static, str> {
+    Cow::Borrowed("")
+}
+
+#[cfg(feature = "bundled-manifest")]
+pub fn ludusavi_manifest_meta_json() -> Cow<'static, str> {
     load_utf8("ludusavi_manifest.meta.json")
 }
 
+#[cfg(not(feature = "bundled-manifest"))]
+pub fn ludusavi_manifest_meta_json() -> Cow<'static, str> {
+    Cow::Borrowed("{}")
+}
+
+#[cfg(feature = "bundled-manifest")]
 pub fn ludusavi_manifest_yaml_len() -> u64 {
     load_bytes("ludusavi_manifest.yaml").len() as u64
+}
+
+#[cfg(not(feature = "bundled-manifest"))]
+pub fn ludusavi_manifest_yaml_len() -> u64 {
+    0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "bundled-manifest")]
+    fn bundled_build_embeds_manifest_snapshot() {
+        assert!(has_bundled_manifest());
+        assert!(ludusavi_manifest_yaml_len() > 0);
+        assert!(!ludusavi_manifest_yaml().is_empty());
+    }
+
+    #[test]
+    #[cfg(not(feature = "bundled-manifest"))]
+    fn slim_build_omits_embedded_manifest_snapshot() {
+        assert!(!has_bundled_manifest());
+        assert_eq!(ludusavi_manifest_yaml_len(), 0);
+        assert_eq!(ludusavi_manifest_yaml().as_ref(), "");
+        assert_eq!(ludusavi_manifest_meta_json().as_ref(), "{}");
+    }
 }

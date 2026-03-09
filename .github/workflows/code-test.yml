@@ -60,3 +60,7 @@ jobs:
       - name: Run tests
         working-directory: src-tauri
         run: cargo test --all-features
+
+      - name: Run slim build tests
+        working-directory: src-tauri
+        run: cargo test --no-default-features --lib

@@ -9,6 +9,7 @@ concurrency:
 
 jobs:
   build-tauri:
+    name: build-tauri (${{ matrix.variant }}, ${{ matrix.platform }})
     permissions:
       contents: write
     strategy:
@@ -16,13 +17,37 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            variant: 'full'
             args: '--target aarch64-apple-darwin'
+            pnpm_build_args: ''
+            build_variant: ''
+          - platform: 'macos-latest'
+            variant: 'slim'
+            args: '--target aarch64-apple-darwin --config src-tauri/tauri.slim.conf.json --no-default-features'
+            pnpm_build_args: '--config src-tauri/tauri.slim.conf.json --no-default-features'
+            build_variant: 'slim'
           # - platform: 'macos-latest' # for Intel based macs.
           #   args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-24.04' # for Tauri v1 you could replace this with ubuntu-20.04.
+            variant: 'full'
             args: ''
+            pnpm_build_args: ''
+            build_variant: ''
+          - platform: 'ubuntu-24.04'
+            variant: 'slim'
+            args: '--config src-tauri/tauri.slim.conf.json --no-default-features'
+            pnpm_build_args: '--config src-tauri/tauri.slim.conf.json --no-default-features'
+            build_variant: 'slim'
           - platform: 'windows-latest'
+            variant: 'full'
             args: ''
+            pnpm_build_args: ''
+            build_variant: ''
+          - platform: 'windows-latest'
+            variant: 'slim'
+            args: '--config src-tauri/tauri.slim.conf.json --no-default-features'
+            pnpm_build_args: '--config src-tauri/tauri.slim.conf.json --no-default-features'
+            build_variant: 'slim'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -61,9 +86,10 @@ jobs:
       - name: build portable (windows only)
         if: matrix.platform == 'windows-latest'
         run: |
-          pnpm build
+          pnpm build -- ${{ matrix.pnpm_build_args }}
           pnpm portable
         env:
           RELEASE_ID: ${{ steps.get_release.outputs.id }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RGSM_BUILD_VARIANT: ${{ matrix.build_variant }}
           VITE_WIN_PORTABLE: 1

@@ -10,6 +10,7 @@ async function resolvePortable() {
   if (process.platform !== 'win32') return;
 
   const releaseDir = './src-tauri/target/release';
+  const buildVariant = process.env.RGSM_BUILD_VARIANT?.trim().toLowerCase();
 
   if (!(await fs.pathExists(releaseDir))) {
     throw new Error('could not found the release dir');
@@ -24,7 +25,8 @@ async function resolvePortable() {
   const packageJson = require('../package.json');
   const { version } = packageJson;
 
-  const zipFile = `RGSM_${version}_x64-portable.zip`;
+  const variantSuffix = buildVariant ? `-${buildVariant}` : '';
+  const zipFile = `RGSM_${version}_x64-portable${variantSuffix}.zip`;
   zip.writeZip(zipFile);
 
   console.log('[INFO]: create portable zip successfully');
