@@ -3,7 +3,6 @@
 import fs from 'fs-extra';
 import path from 'path';
 import AdmZip from 'adm-zip';
-import { createRequire } from 'module';
 import { getOctokit, context } from '@actions/github';
 
 async function resolvePortable() {
@@ -20,9 +19,12 @@ async function resolvePortable() {
   zip.addLocalFile(path.join(releaseDir, 'rgsm.exe'));
   // zip.addLocalFolder(path.join(releaseDir, "resources"), "resources");
 
-  const require = createRequire(import.meta.url);
-  const packageJson = require('../package.json');
-  const { version } = packageJson;
+  const cargoToml = await fs.readFile(path.join('./src-tauri', 'Cargo.toml'), 'utf-8');
+  const versionMatch = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
+  if (!versionMatch) {
+    throw new Error('could not read version from src-tauri/Cargo.toml');
+  }
+  const version = versionMatch[1];
 
   const zipFile = `RGSM_${version}_x64-portable.zip`;
   zip.writeZip(zipFile);
