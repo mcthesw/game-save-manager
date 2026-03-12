@@ -695,27 +695,33 @@ async function set_quick_backup() {
 
 // 处理抽屉组件保存游戏路径的事件
 async function on_drawer_save_changes(updatedGame: Game) {
-  // 更新游戏信息（包括存档路径和启动路径）
-  game.value = updatedGame;
+  try {
+    const result = await commands.addGame({
+      name: updatedGame.name,
+      save_paths: updatedGame.save_paths,
+      game_paths: updatedGame.game_paths ?? {},
+    });
 
-  // 保存到配置
-  const index = config.value.games.findIndex((g) => g.name === game.value.name);
-  if (index !== -1) {
-    config.value.games[index] = game.value;
-    saveConfig()
-      .then(() => {
-        showSuccess({ message: $t('manage.save_paths_updated') });
-      })
-      .catch((e) => {
-        error(`Error saving config: ${e}`);
-        showError({ message: $t('error.save_config_failed') });
-      });
-  } else {
-    showError({ message: $t('error.game_not_found') });
+    if (result.status === 'error') {
+      showError({ message: result.error });
+      return;
+    }
+
+    await refreshConfig();
+    const refreshedGame = config.value.games.find((g) => g.name === updatedGame.name);
+    if (!refreshedGame) {
+      showError({ message: $t('error.game_not_found') });
+      return;
+    }
+
+    game.value = refreshedGame;
+    await checkCurrentDeviceSavePaths();
+    showSuccess({ message: $t('manage.save_paths_updated') });
+    drawer.value = false;
+  } catch (e) {
+    error(`Error saving game paths: ${e}`);
+    showError({ message: $t('error.save_config_failed') });
   }
-
-  // 关闭侧栏
-  drawer.value = false;
 }
 
 const orderedTableData = computed(() =>
@@ -849,9 +855,12 @@ async function checkCurrentDeviceSavePaths() {
   await fetchCurrentDevice();
   if (!currentDevice.value || !game.value || !game.value.save_paths) return;
 
+  const enabledSaveUnits = game.value.save_paths.filter((unit) => unit.enabled !== false);
+  if (enabledSaveUnits.length === 0) return;
+
   // 检查当前设备的存档路径是否全部为空
   const deviceId = currentDevice.value.id;
-  const allPathsEmpty = game.value.save_paths.every(
+  const allPathsEmpty = enabledSaveUnits.every(
     (unit) => !unit.paths || !unit.paths[deviceId] || unit.paths[deviceId].trim() === ''
   );
 
@@ -859,7 +868,7 @@ async function checkCurrentDeviceSavePaths() {
 
   // 收集所有有效的设备ID（有存档路径的设备）
   const devicesWithPaths = new Set<string>();
-  game.value.save_paths.forEach((unit) => {
+  enabledSaveUnits.forEach((unit) => {
     if (unit.paths) {
       Object.entries(unit.paths).forEach(([id, path]) => {
         if (id !== deviceId && path && path.trim() !== '') {
@@ -944,6 +953,9 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
   // 复制存档路径
   if (game.value.save_paths) {
     game.value.save_paths.forEach((unit) => {
+      if (unit.enabled === false) {
+        return;
+      }
       if (unit.paths?.[sourceDeviceId]?.trim()) {
         if (!unit.paths[targetDeviceId] || !unit.paths[targetDeviceId].trim()) {
           if (!unit.paths) unit.paths = {};

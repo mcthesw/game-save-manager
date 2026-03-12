@@ -10,7 +10,7 @@ use std::{
 
 use filetime::{FileTime, set_file_mtime};
 use fs_extra::{dir::move_dir, file::move_file};
-use log::warn;
+use log::{info, warn};
 use rust_i18n::t;
 use tauri::{AppHandle, Emitter};
 
@@ -159,12 +159,12 @@ fn restore_registry_unit(
     unit: &SaveUnit,
     version: ArchiveVersion,
     temp_root: &Path,
-) -> Result<(), BackupFileError> {
+) -> Result<bool, BackupFileError> {
     use crate::backup::registry;
 
     if !version.uses_index_prefix() {
         warn!(target: "rgsm::backup::archive", "Registry restore skipped: legacy archive format");
-        return Ok(());
+        return Ok(false);
     }
 
     let reg_json_path = temp_root
@@ -172,7 +172,12 @@ fn restore_registry_unit(
         .join(registry::REGISTRY_DATA_FILENAME);
 
     if !reg_json_path.exists() {
-        return Err(BackupFileError::NotExists(reg_json_path));
+        info!(
+            target: "rgsm::backup::archive",
+            "Skip restoring registry save unit {} because archive entry is missing",
+            unit.id
+        );
+        return Ok(false);
     }
 
     let json_bytes = fs::read(&reg_json_path)?;
@@ -180,13 +185,42 @@ fn restore_registry_unit(
         serde_json::from_slice(&json_bytes).map_err(|e| BackupFileError::Unexpected(e.into()))?;
 
     match registry::import_registry_data(&reg_data) {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(true),
         Err(registry::RegistryError::UnsupportedPlatform) => {
             warn!(target: "rgsm::backup::archive", "Registry restore skipped: not on Windows");
-            Ok(())
+            Ok(false)
         }
         Err(e) => Err(BackupFileError::RegistryError(e.to_string())),
     }
+}
+
+fn find_v2_restore_source(
+    temp_root: &Path,
+    save_unit_id: u32,
+    expected_name: &std::ffi::OsStr,
+) -> Result<Option<PathBuf>, BackupFileError> {
+    let save_unit_root = temp_root.join(save_unit_id.to_string());
+    if !save_unit_root.exists() {
+        return Ok(None);
+    }
+
+    let mut entries = fs::read_dir(&save_unit_root)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, std::io::Error>>()?;
+    entries.sort();
+
+    if entries.is_empty() {
+        return Ok(None);
+    }
+
+    if let Some(matched) = entries
+        .iter()
+        .find(|entry| entry.file_name().is_some_and(|name| name == expected_name))
+    {
+        return Ok(Some(matched.clone()));
+    }
+
+    Ok(entries.into_iter().next())
 }
 
 fn restore_save_unit_from_temp(
@@ -194,7 +228,7 @@ fn restore_save_unit_from_temp(
     version: ArchiveVersion,
     temp_root: &Path,
     app_handle: Option<&AppHandle>,
-) -> Result<(), BackupFileError> {
+) -> Result<bool, BackupFileError> {
     if let SaveUnitType::WinRegistry = unit.unit_type {
         return restore_registry_unit(unit, version, temp_root);
     }
@@ -208,18 +242,30 @@ fn restore_save_unit_from_temp(
     // The ID is a stable, monotonically-assigned identifier that does not change when
     // save units are added or removed.
     let original_path = if version.uses_index_prefix() {
-        temp_root.join(unit.id.to_string()).join(file_name)
+        find_v2_restore_source(temp_root, unit.id, file_name)?
     } else {
-        temp_root.join(file_name)
+        let legacy_path = temp_root.join(file_name);
+        legacy_path.exists().then_some(legacy_path)
     };
 
-    if !original_path.exists() {
-        return Err(BackupFileError::NotExists(original_path));
-    }
+    let Some(original_path) = original_path else {
+        info!(
+            target: "rgsm::backup::archive",
+            "Skip restoring save unit {} because archive entry is missing",
+            unit.id
+        );
+        return Ok(false);
+    };
 
     match unit.unit_type {
-        SaveUnitType::File => restore_file_unit(unit, original_path, unit_path, app_handle),
-        SaveUnitType::Folder => restore_folder_unit(unit, original_path, unit_path, app_handle),
+        SaveUnitType::File => {
+            restore_file_unit(unit, original_path, unit_path, app_handle)?;
+            Ok(true)
+        }
+        SaveUnitType::Folder => {
+            restore_folder_unit(unit, original_path, unit_path, app_handle)?;
+            Ok(true)
+        }
         SaveUnitType::WinRegistry => unreachable!(),
     }
 }
@@ -251,7 +297,7 @@ pub(super) fn decompress_from_archive(
     }
 
     let mut restore_errors = Vec::new();
-    for unit in save_paths {
+    for unit in save_paths.iter().filter(|unit| unit.enabled) {
         if let Err(err) = restore_save_unit_from_temp(unit, version, &temp_root, app_handle) {
             restore_errors.push(err);
         }
