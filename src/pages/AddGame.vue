@@ -137,6 +137,7 @@ function generate_save_unit(
     unit_type,
     paths: {},
     delete_before_apply,
+    enabled: true,
   };
 
   // 如果有当前设备信息，则添加路径
@@ -383,6 +384,7 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
         unit_type: determineSaveUnitType(path, isFile),
         paths: {},
         delete_before_apply: config.value?.settings.default_delete_before_apply,
+        enabled: true,
       };
 
       if (currentDevice.value) {
@@ -397,6 +399,7 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
       const saveUnit: SaveUnitDraft = {
         unit_type: 'WinRegistry',
         paths: {},
+        enabled: true,
       };
 
       if (currentDevice.value) {
@@ -484,6 +487,7 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
           const saveUnit: SaveUnitDraft = {
             unit_type: 'WinRegistry',
             paths: {},
+            enabled: true,
           };
           if (currentDevice.value) {
             saveUnit.paths![currentDevice.value.id] = sp.path;
@@ -498,6 +502,7 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
           unit_type: determineSaveUnitType(sp.path, isFile),
           paths: {},
           delete_before_apply: config.value?.settings.default_delete_before_apply,
+          enabled: true,
         };
 
         if (currentDevice.value) {

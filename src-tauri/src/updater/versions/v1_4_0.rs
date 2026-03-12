@@ -65,6 +65,7 @@ impl From<Config> for CurrentConfig {
                             unit_type: su.unit_type,
                             paths,
                             delete_before_apply: su.delete_before_apply,
+                            enabled: true,
                         }
                     })
                     .collect();

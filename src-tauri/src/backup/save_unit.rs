@@ -34,17 +34,24 @@ pub struct SaveUnit {
     pub paths: HashMap<DeviceId, String>, // 存储不同设备的路径
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
+    #[serde(default = "default_value::default_true")]
+    pub enabled: bool,
 }
 
 /// Frontend/IPC input shape for save-unit editing.
-/// ID allocation is handled by backend domain logic.
+/// Existing rows may provide `id` to preserve archive compatibility during edits;
+/// backend logic allocates IDs for new rows and normalizes duplicates.
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct SaveUnitDraft {
+    #[serde(default)]
+    pub id: Option<u32>,
     pub unit_type: SaveUnitType,
     #[serde(default)]
     pub paths: HashMap<DeviceId, String>,
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
+    #[serde(default = "default_value::default_true")]
+    pub enabled: bool,
 }
 
 impl SaveUnit {

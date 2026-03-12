@@ -40,6 +40,7 @@ mod tests {
             unit_type: SaveUnitType::File,
             paths,
             delete_before_apply: false,
+            enabled: true,
         }
     }
 
@@ -52,6 +53,7 @@ mod tests {
             unit_type: SaveUnitType::WinRegistry,
             paths,
             delete_before_apply: false,
+            enabled: true,
         }
     }
 
@@ -538,6 +540,173 @@ mod tests {
             !zip_path.exists(),
             "zip file should not be created when duplicate IDs are rejected"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_compress_skips_disabled_save_units() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let zip_path = backup_dir.join("disabled_skip.zip");
+
+        let enabled_file = temp_path.join("enabled.dat");
+        fs::write(&enabled_file, b"enabled-content")?;
+        let mut enabled_unit = build_file_save_unit_with_id(&enabled_file, 0);
+        enabled_unit.enabled = true;
+
+        let mut disabled_paths = HashMap::new();
+        disabled_paths.insert(
+            get_current_device_id().clone(),
+            temp_path
+                .join("missing-disabled.dat")
+                .to_string_lossy()
+                .to_string(),
+        );
+        let disabled_unit = SaveUnit {
+            id: 1,
+            unit_type: SaveUnitType::File,
+            paths: disabled_paths,
+            delete_before_apply: false,
+            enabled: false,
+        };
+
+        compress_to_file(
+            &[enabled_unit, disabled_unit],
+            &zip_path,
+            CompressionPreset::Standard,
+        )?;
+
+        let zip_file = File::open(&zip_path)?;
+        let mut archive = zip::ZipArchive::new(zip_file)?;
+        let entry_names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+
+        assert!(entry_names.iter().any(|n| n == "0/enabled.dat"));
+        assert!(
+            entry_names.iter().all(|n| !n.starts_with("1/")),
+            "Disabled save unit should not be archived: {entry_names:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_restore_skips_new_save_unit_missing_from_old_archive()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let date = "missing_new_unit";
+        let zip_path = backup_dir.join(format!("{date}.zip"));
+
+        let file_a = temp_path.join("slot-a.dat");
+        fs::write(&file_a, b"original-a")?;
+        let unit_a = build_file_save_unit_with_id(&file_a, 0);
+        compress_to_file(
+            std::slice::from_ref(&unit_a),
+            &zip_path,
+            CompressionPreset::Standard,
+        )?;
+
+        fs::write(&file_a, b"mutated-a")?;
+
+        let file_b = temp_path.join("slot-b.dat");
+        let unit_b = build_file_save_unit_with_id(&file_b, 1);
+        let restore_units = vec![unit_a.clone(), unit_b];
+
+        decompress_from_file(&restore_units, &backup_dir, date, None)?;
+
+        assert_eq!(fs::read(&file_a)?, b"original-a");
+        assert!(
+            !file_b.exists(),
+            "New save unit should be skipped when archive has no entry"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_restore_uses_save_unit_id_after_path_basename_changes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let date = "renamed_path";
+        let zip_path = backup_dir.join(format!("{date}.zip"));
+
+        let old_dir = temp_path.join("old");
+        fs::create_dir_all(&old_dir)?;
+        let old_path = old_dir.join("save.dat");
+        fs::write(&old_path, b"old-content")?;
+        let original_unit = build_file_save_unit_with_id(&old_path, 7);
+        compress_to_file(
+            std::slice::from_ref(&original_unit),
+            &zip_path,
+            CompressionPreset::Standard,
+        )?;
+
+        fs::write(&old_path, b"mutated-old")?;
+
+        let new_dir = temp_path.join("new");
+        let new_path = new_dir.join("renamed-save.dat");
+        let renamed_unit = build_file_save_unit_with_id(&new_path, 7);
+
+        decompress_from_file(std::slice::from_ref(&renamed_unit), &backup_dir, date, None)?;
+
+        assert_eq!(fs::read(&new_path)?, b"old-content");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_restore_skips_disabled_save_units() -> Result<(), Box<dyn std::error::Error>> {
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+
+        let temp_dir = temp_dir::TempDir::new()?;
+        let temp_path = temp_dir.path();
+        let backup_dir = temp_path.join("backup");
+        fs::create_dir_all(&backup_dir)?;
+        let date = "disabled_restore";
+        let zip_path = backup_dir.join(format!("{date}.zip"));
+
+        let file_a = temp_path.join("enabled.dat");
+        let file_b = temp_path.join("disabled.dat");
+        fs::write(&file_a, b"enabled-original")?;
+        fs::write(&file_b, b"disabled-original")?;
+
+        let unit_a = build_file_save_unit_with_id(&file_a, 0);
+        let unit_b = build_file_save_unit_with_id(&file_b, 1);
+        compress_to_file(
+            &[unit_a.clone(), unit_b.clone()],
+            &zip_path,
+            CompressionPreset::Standard,
+        )?;
+
+        fs::write(&file_a, b"enabled-mutated")?;
+        fs::write(&file_b, b"disabled-mutated")?;
+
+        let mut disabled_unit_b = unit_b;
+        disabled_unit_b.enabled = false;
+        decompress_from_file(&[unit_a, disabled_unit_b], &backup_dir, date, None)?;
+
+        assert_eq!(fs::read(&file_a)?, b"enabled-original");
+        assert_eq!(fs::read(&file_b)?, b"disabled-mutated");
 
         Ok(())
     }

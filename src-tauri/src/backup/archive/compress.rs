@@ -226,6 +226,10 @@ pub fn compress_to_file(
     preset: CompressionPreset,
 ) -> Result<u64, CompressError> {
     ensure_unique_save_unit_ids(save_paths)?;
+    let enabled_save_paths: Vec<&SaveUnit> = save_paths
+        .iter()
+        .filter(|save_unit| save_unit.enabled)
+        .collect();
 
     // Compute source fingerprint for timer dedup (stored in ZIP comment).
     let source_fp = crate::backup::state_fingerprint::fingerprint_source_state(save_paths).ok();
@@ -237,7 +241,7 @@ pub fn compress_to_file(
     zip.set_comment(meta.to_comment());
 
     let mut compress_errors = Vec::new();
-    for save_unit in save_paths {
+    for save_unit in enabled_save_paths {
         if let Err(err) = append_save_unit(&mut zip, save_unit, preset) {
             compress_errors.push(err);
         }

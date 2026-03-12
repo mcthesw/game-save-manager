@@ -129,7 +129,7 @@ fn collect_entries_from_source(
 ) -> Result<Vec<SaveEntryMeta>, BackupFileError> {
     let mut entries = Vec::new();
 
-    for save_unit in save_paths {
+    for save_unit in save_paths.iter().filter(|save_unit| save_unit.enabled) {
         if let SaveUnitType::WinRegistry = save_unit.unit_type {
             // Registry content is fingerprinted separately via extend_with_registry().
             continue;
@@ -166,7 +166,7 @@ fn collect_entries_from_source(
 #[cfg(target_os = "windows")]
 fn extend_with_registry(base: String, save_paths: &[SaveUnit]) -> Result<String, CompressError> {
     let mut registry_data = Vec::new();
-    for save_unit in save_paths {
+    for save_unit in save_paths.iter().filter(|save_unit| save_unit.enabled) {
         if let SaveUnitType::WinRegistry = save_unit.unit_type {
             let reg_path = save_unit
                 .get_path_for_device(get_current_device_id())

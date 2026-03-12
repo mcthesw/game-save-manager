@@ -39,6 +39,7 @@ fn build_file_save_unit(path: &Path) -> SaveUnit {
         unit_type: SaveUnitType::File,
         paths,
         delete_before_apply: false,
+        enabled: true,
     }
 }
 
@@ -596,24 +597,28 @@ fn normalize_save_unit_ids_reassigns_duplicates() {
                 unit_type: SaveUnitType::File,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnit {
                 id: 0,
                 unit_type: SaveUnitType::Folder,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnit {
                 id: 2,
                 unit_type: SaveUnitType::File,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnit {
                 id: 2,
                 unit_type: SaveUnitType::Folder,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
         ],
         game_paths: HashMap::new(),
@@ -638,18 +643,21 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
                 unit_type: SaveUnitType::File,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnit {
                 id: 0,
                 unit_type: SaveUnitType::Folder,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnit {
                 id: 0,
                 unit_type: SaveUnitType::File,
                 paths: HashMap::new(),
                 delete_before_apply: false,
+                enabled: true,
             },
         ],
         game_paths: HashMap::new(),
@@ -702,12 +710,14 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
                 unit_type: SaveUnitType::File,
                 paths: existing_path_a.clone(),
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnit {
                 id: 7,
                 unit_type: SaveUnitType::File,
                 paths: existing_path_b,
                 delete_before_apply: false,
+                enabled: true,
             },
         ],
         game_paths: HashMap::new(),
@@ -721,14 +731,114 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
         name: "DraftReuse".to_string(),
         save_paths: vec![
             SaveUnitDraft {
+                id: None,
                 unit_type: SaveUnitType::File,
                 paths: existing_path_a,
                 delete_before_apply: false,
+                enabled: true,
             },
             SaveUnitDraft {
+                id: None,
                 unit_type: SaveUnitType::File,
                 paths: new_path,
                 delete_before_apply: false,
+                enabled: true,
+            },
+        ],
+        game_paths: HashMap::new(),
+    };
+
+    let game = draft.into_game(Some(&existing));
+    let ids: Vec<u32> = game.save_paths.iter().map(|u| u.id).collect();
+
+    assert_eq!(ids, vec![5, 8]);
+    assert_eq!(game.next_save_unit_id, 9);
+}
+
+#[test]
+fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
+    let device_id = "device-a".to_string();
+
+    let mut existing_path = HashMap::new();
+    existing_path.insert(device_id.clone(), "C:\\A\\save.dat".to_string());
+    let existing = Game {
+        name: "DraftEdit".to_string(),
+        save_paths: vec![SaveUnit {
+            id: 5,
+            unit_type: SaveUnitType::File,
+            paths: existing_path,
+            delete_before_apply: false,
+            enabled: true,
+        }],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 6,
+        cloud_sync_enabled: true,
+    };
+
+    let mut updated_path = HashMap::new();
+    updated_path.insert(device_id, "D:\\B\\renamed.dat".to_string());
+    let draft = GameDraft {
+        name: "DraftEdit".to_string(),
+        save_paths: vec![SaveUnitDraft {
+            id: Some(5),
+            unit_type: SaveUnitType::File,
+            paths: updated_path.clone(),
+            delete_before_apply: true,
+            enabled: true,
+        }],
+        game_paths: HashMap::new(),
+    };
+
+    let game = draft.into_game(Some(&existing));
+
+    assert_eq!(game.save_paths.len(), 1);
+    assert_eq!(game.save_paths[0].id, 5);
+    assert_eq!(game.save_paths[0].paths, updated_path);
+    assert!(game.save_paths[0].delete_before_apply);
+    assert_eq!(game.next_save_unit_id, 6);
+}
+
+#[test]
+fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
+    let device_id = "device-a".to_string();
+
+    let mut existing_path = HashMap::new();
+    existing_path.insert(device_id.clone(), "C:\\A\\save.dat".to_string());
+    let existing = Game {
+        name: "DraftEditAndAdd".to_string(),
+        save_paths: vec![SaveUnit {
+            id: 5,
+            unit_type: SaveUnitType::File,
+            paths: existing_path.clone(),
+            delete_before_apply: false,
+            enabled: true,
+        }],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 8,
+        cloud_sync_enabled: true,
+    };
+
+    let mut updated_path = HashMap::new();
+    updated_path.insert(device_id.clone(), "D:\\B\\edited.dat".to_string());
+    let mut new_path = HashMap::new();
+    new_path.insert(device_id, "C:\\A\\save.dat".to_string());
+
+    let draft = GameDraft {
+        name: "DraftEditAndAdd".to_string(),
+        save_paths: vec![
+            SaveUnitDraft {
+                id: Some(5),
+                unit_type: SaveUnitType::File,
+                paths: updated_path,
+                delete_before_apply: false,
+                enabled: true,
+            },
+            SaveUnitDraft {
+                id: None,
+                unit_type: SaveUnitType::File,
+                paths: new_path,
+                delete_before_apply: false,
+                enabled: true,
             },
         ],
         game_paths: HashMap::new(),
