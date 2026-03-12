@@ -1,7 +1,7 @@
 //! ZIP archive extraction and save unit restoration.
 //!
 //! Handles all archive versions (Legacy, V1, V2) transparently.
-//! V2 archives have index-prefixed entries that are mapped back to save units by index.
+//! V2 archives have index-prefixed entries that are mapped back to save units by stable ID.
 
 use std::{
     fs::{self, File},
@@ -10,17 +10,36 @@ use std::{
 
 use filetime::{FileTime, set_file_mtime};
 use fs_extra::{dir::move_dir, file::move_file};
-use log::{info, warn};
+use log::warn;
 use rust_i18n::t;
 use tauri::{AppHandle, Emitter};
 
 use crate::{
     backup::{SaveUnit, SaveUnitType},
+    device::get_current_device_id,
     ipc_handler::{IpcNotification, NotificationLevel},
     preclude::*,
 };
 
 use super::{timestamp::zip_datetime_to_system_time, version::ArchiveVersion};
+
+/// Why a save unit was skipped during restore.
+#[derive(Debug, Clone)]
+enum SkipReason {
+    /// Archive predates the index-prefix format (registry units cannot be restored).
+    LegacyArchiveFormat,
+    /// The archive does not contain an entry for this save unit.
+    MissingArchiveEntry,
+    /// Registry operations are not supported on this platform.
+    UnsupportedPlatform,
+}
+
+/// Outcome of restoring a single save unit.
+#[derive(Debug)]
+enum RestoreOutcome {
+    Restored,
+    Skipped(SkipReason),
+}
 
 fn emit_missing_path_warning(
     path: &Path,
@@ -151,20 +170,73 @@ fn restore_folder_unit(
     Ok(())
 }
 
+/// Emit a notification to the frontend indicating that a save unit was skipped during restore.
+fn save_unit_label(unit: &SaveUnit) -> String {
+    if let Some(path) = unit.paths.get(get_current_device_id()) {
+        return path.clone();
+    }
+
+    let mut entries: Vec<_> = unit.paths.iter().collect();
+    entries.sort_by(|(left_id, left_path), (right_id, right_path)| {
+        left_id
+            .cmp(right_id)
+            .then_with(|| left_path.cmp(right_path))
+    });
+
+    entries
+        .first()
+        .map(|(_, path)| (*path).clone())
+        .unwrap_or_else(|| format!("#{}", unit.id))
+}
+
+/// Emit a notification to the frontend indicating that a save unit was skipped during restore.
+fn emit_skip_notification(unit: &SaveUnit, reason: &SkipReason, app_handle: Option<&AppHandle>) {
+    let unit_label = save_unit_label(unit);
+    let reason_text = match reason {
+        SkipReason::LegacyArchiveFormat => {
+            t!("backend.archive.skip_reason_legacy_format").to_string()
+        }
+        SkipReason::MissingArchiveEntry => {
+            t!("backend.archive.skip_reason_missing_entry").to_string()
+        }
+        SkipReason::UnsupportedPlatform => {
+            t!("backend.archive.skip_reason_unsupported_platform").to_string()
+        }
+    };
+    let msg = t!(
+        "backend.archive.restore_unit_skipped",
+        unit = unit_label.as_str(),
+        reason = reason_text
+    )
+    .to_string();
+
+    warn!(target: "rgsm::backup::archive", "{}", msg);
+
+    if let Some(app_handle) = app_handle {
+        let _ = app_handle.emit(
+            "Notification",
+            IpcNotification {
+                level: NotificationLevel::info,
+                title: t!("backend.archive.restore_skipped_title").to_string(),
+                msg,
+            },
+        );
+    }
+}
+
 /// Restore a Windows Registry save unit from the extracted temp directory.
 ///
 /// Reads `{id}/registry.json`, parses it, and imports the values back into
-/// the Windows Registry. On non-Windows platforms the import is skipped with a warning log.
+/// the Windows Registry. On non-Windows platforms the restore is skipped.
 fn restore_registry_unit(
     unit: &SaveUnit,
     version: ArchiveVersion,
     temp_root: &Path,
-) -> Result<bool, BackupFileError> {
+) -> Result<RestoreOutcome, BackupFileError> {
     use crate::backup::registry;
 
-    if !version.uses_index_prefix() {
-        warn!(target: "rgsm::backup::archive", "Registry restore skipped: legacy archive format");
-        return Ok(false);
+    if !version.uses_save_unit_prefix() {
+        return Ok(RestoreOutcome::Skipped(SkipReason::LegacyArchiveFormat));
     }
 
     let reg_json_path = temp_root
@@ -172,12 +244,7 @@ fn restore_registry_unit(
         .join(registry::REGISTRY_DATA_FILENAME);
 
     if !reg_json_path.exists() {
-        info!(
-            target: "rgsm::backup::archive",
-            "Skip restoring registry save unit {} because archive entry is missing",
-            unit.id
-        );
-        return Ok(false);
+        return Ok(RestoreOutcome::Skipped(SkipReason::MissingArchiveEntry));
     }
 
     let json_bytes = fs::read(&reg_json_path)?;
@@ -185,10 +252,9 @@ fn restore_registry_unit(
         serde_json::from_slice(&json_bytes).map_err(|e| BackupFileError::Unexpected(e.into()))?;
 
     match registry::import_registry_data(&reg_data) {
-        Ok(()) => Ok(true),
+        Ok(()) => Ok(RestoreOutcome::Restored),
         Err(registry::RegistryError::UnsupportedPlatform) => {
-            warn!(target: "rgsm::backup::archive", "Registry restore skipped: not on Windows");
-            Ok(false)
+            Ok(RestoreOutcome::Skipped(SkipReason::UnsupportedPlatform))
         }
         Err(e) => Err(BackupFileError::RegistryError(e.to_string())),
     }
@@ -228,7 +294,7 @@ fn restore_save_unit_from_temp(
     version: ArchiveVersion,
     temp_root: &Path,
     app_handle: Option<&AppHandle>,
-) -> Result<bool, BackupFileError> {
+) -> Result<RestoreOutcome, BackupFileError> {
     if let SaveUnitType::WinRegistry = unit.unit_type {
         return restore_registry_unit(unit, version, temp_root);
     }
@@ -241,7 +307,7 @@ fn restore_save_unit_from_temp(
     // V2+ archives store entries under `{save_unit_id}/{name}`, older versions use flat layout.
     // The ID is a stable, monotonically-assigned identifier that does not change when
     // save units are added or removed.
-    let original_path = if version.uses_index_prefix() {
+    let original_path = if version.uses_save_unit_prefix() {
         find_v2_restore_source(temp_root, unit.id, file_name)?
     } else {
         let legacy_path = temp_root.join(file_name);
@@ -249,22 +315,17 @@ fn restore_save_unit_from_temp(
     };
 
     let Some(original_path) = original_path else {
-        info!(
-            target: "rgsm::backup::archive",
-            "Skip restoring save unit {} because archive entry is missing",
-            unit.id
-        );
-        return Ok(false);
+        return Ok(RestoreOutcome::Skipped(SkipReason::MissingArchiveEntry));
     };
 
     match unit.unit_type {
         SaveUnitType::File => {
             restore_file_unit(unit, original_path, unit_path, app_handle)?;
-            Ok(true)
+            Ok(RestoreOutcome::Restored)
         }
         SaveUnitType::Folder => {
             restore_folder_unit(unit, original_path, unit_path, app_handle)?;
-            Ok(true)
+            Ok(RestoreOutcome::Restored)
         }
         SaveUnitType::WinRegistry => unreachable!(),
     }
@@ -298,8 +359,12 @@ pub(super) fn decompress_from_archive(
 
     let mut restore_errors = Vec::new();
     for unit in save_paths.iter().filter(|unit| unit.enabled) {
-        if let Err(err) = restore_save_unit_from_temp(unit, version, &temp_root, app_handle) {
-            restore_errors.push(err);
+        match restore_save_unit_from_temp(unit, version, &temp_root, app_handle) {
+            Ok(RestoreOutcome::Restored) => {}
+            Ok(RestoreOutcome::Skipped(reason)) => {
+                emit_skip_notification(unit, &reason, app_handle);
+            }
+            Err(err) => restore_errors.push(err),
         }
     }
 
@@ -322,4 +387,42 @@ pub fn decompress_from_file(
 ) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
     decompress_from_archive(save_paths, &zip_path, app_handle)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::save_unit_label;
+    use crate::backup::{SaveUnit, SaveUnitType};
+
+    #[test]
+    fn save_unit_label_prefers_sorted_device_fallback() {
+        let mut paths = HashMap::new();
+        paths.insert("z-device".to_string(), "Z:\\save".to_string());
+        paths.insert("a-device".to_string(), "A:\\save".to_string());
+
+        let unit = SaveUnit {
+            id: 7,
+            unit_type: SaveUnitType::Folder,
+            paths,
+            delete_before_apply: false,
+            enabled: true,
+        };
+
+        assert_eq!(save_unit_label(&unit), "A:\\save");
+    }
+
+    #[test]
+    fn save_unit_label_falls_back_to_id_when_no_paths_exist() {
+        let unit = SaveUnit {
+            id: 42,
+            unit_type: SaveUnitType::File,
+            paths: HashMap::new(),
+            delete_before_apply: false,
+            enabled: true,
+        };
+
+        assert_eq!(save_unit_label(&unit), "#42");
+    }
 }
