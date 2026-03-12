@@ -25,6 +25,7 @@ lerna-debug.log*
 .DS_Store
 .fleet
 .idea
+GameSaveManager.config.json.backup.*
 
 # Local env files
 .env
