@@ -120,21 +120,37 @@ impl GameDraft {
         let mut save_paths = Vec::with_capacity(self.save_paths.len());
         for draft in self.save_paths {
             let identity = save_unit_identity(&draft.unit_type, &draft.paths);
-            let reused_id = existing_ids_by_identity
-                .get_mut(&identity)
-                .and_then(|ids| ids.pop_front());
-
-            let id = if let Some(id) = reused_id {
+            let id = if let Some(id) = draft.id {
                 used_ids.insert(id);
+                if id >= next_save_unit_id {
+                    next_save_unit_id = id.saturating_add(1);
+                }
                 id
             } else {
-                while used_ids.contains(&next_save_unit_id) {
+                let reused_id = existing_ids_by_identity.get_mut(&identity).and_then(|ids| {
+                    while let Some(candidate) = ids.pop_front() {
+                        if !used_ids.contains(&candidate) {
+                            return Some(candidate);
+                        }
+                    }
+                    None
+                });
+
+                if let Some(id) = reused_id {
+                    used_ids.insert(id);
+                    if id >= next_save_unit_id {
+                        next_save_unit_id = id.saturating_add(1);
+                    }
+                    id
+                } else {
+                    while used_ids.contains(&next_save_unit_id) {
+                        next_save_unit_id = next_save_unit_id.saturating_add(1);
+                    }
+                    let id = next_save_unit_id;
+                    used_ids.insert(id);
                     next_save_unit_id = next_save_unit_id.saturating_add(1);
+                    id
                 }
-                let id = next_save_unit_id;
-                used_ids.insert(id);
-                next_save_unit_id = next_save_unit_id.saturating_add(1);
-                id
             };
 
             save_paths.push(SaveUnit {
@@ -142,6 +158,7 @@ impl GameDraft {
                 unit_type: draft.unit_type,
                 paths: draft.paths,
                 delete_before_apply: draft.delete_before_apply,
+                enabled: draft.enabled,
             });
         }
 
