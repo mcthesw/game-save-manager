@@ -44,8 +44,8 @@ impl ArchiveVersion {
         Self::Legacy
     }
 
-    /// V2+ archives prefix entries with `{save_unit_index}/`.
-    pub fn uses_index_prefix(self) -> bool {
+    /// V2+ archives prefix entries with `{save_unit_id}/`.
+    pub fn uses_save_unit_prefix(self) -> bool {
         matches!(self, Self::V2)
     }
 
@@ -54,12 +54,12 @@ impl ArchiveVersion {
         matches!(self, Self::V1 | Self::V2)
     }
 
-    /// Normalize an archive entry path by stripping the save-unit index prefix if present.
+    /// Normalize an archive entry path by stripping the save-unit prefix if present.
     ///
-    /// V2+ archives store entries as `{index}/{path}` (e.g., `0/save.dat`).
-    /// Returns `None` for pure index directory entries (e.g., `0/`) that should be skipped.
+    /// V2+ archives store entries as `{save_unit_id}/{path}` (e.g., `0/save.dat`).
+    /// Returns `None` for pure save-unit directory entries (e.g., `0/`) that should be skipped.
     pub fn normalize_entry_path(self, entry_name: &str) -> Option<&str> {
-        if !self.uses_index_prefix() {
+        if !self.uses_save_unit_prefix() {
             return Some(entry_name);
         }
         match entry_name.find('/') {
@@ -160,13 +160,13 @@ mod tests {
     #[test]
     fn version_properties() {
         assert!(!ArchiveVersion::Legacy.uses_local_timestamps());
-        assert!(!ArchiveVersion::Legacy.uses_index_prefix());
+        assert!(!ArchiveVersion::Legacy.uses_save_unit_prefix());
 
         assert!(ArchiveVersion::V1.uses_local_timestamps());
-        assert!(!ArchiveVersion::V1.uses_index_prefix());
+        assert!(!ArchiveVersion::V1.uses_save_unit_prefix());
 
         assert!(ArchiveVersion::V2.uses_local_timestamps());
-        assert!(ArchiveVersion::V2.uses_index_prefix());
+        assert!(ArchiveVersion::V2.uses_save_unit_prefix());
     }
 
     #[test]
