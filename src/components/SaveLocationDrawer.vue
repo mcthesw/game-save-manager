@@ -1,13 +1,16 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import { error } from '@tauri-apps/plugin-log';
 import { $t } from '../i18n';
-import type { SaveUnit, Device, Game } from '../bindings';
+import type { Device, Game, SaveUnit } from '../bindings';
 import { commands } from '../bindings';
-import { useNotification } from '../composables/useNotification';
 import { useConfig } from '../composables/useConfig';
-import { ref, watch } from 'vue';
+import { useNotification } from '../composables/useNotification';
 import PathVariableInput from './PathVariableInput.vue';
 
-const { showError } = useNotification();
+const { config } = useConfig();
+const { showError, showWarning } = useNotification();
+const feedback = useFeedback();
 
 const props = defineProps({
   game: {
@@ -21,44 +24,34 @@ const emits = defineEmits<{
   (event: 'saveChanges', game: Game): void;
 }>();
 
-// 当前设备信息
 const currentDevice = ref<Device | null>(null);
-// 所有可用设备列表
 const availableDevices = ref<Device[]>([]);
-// 当前选中的设备ID
-const selectedDeviceId = ref<string>('');
-// 临时存储修改的数据
+const selectedDeviceId = ref('');
 const tempGame = ref<Game>({ name: '', save_paths: [], game_paths: {} });
-// 是否有未保存的修改
 const hasUnsavedChanges = ref(false);
 
-// 获取当前设备信息
-async function fetchCurrentDevice() {
-  try {
-    const result = await commands.getCurrentDeviceInfo();
-    if (result.status === 'ok') {
-      currentDevice.value = result.data;
-      selectedDeviceId.value = currentDevice.value.id;
-    } else {
-      showError({ message: result.error });
-    }
-  } catch (e) {
-    console.error(`Error getting current device info:`, e);
-    showError({ message: $t('error.get_device_info_failed') });
-  }
-}
+const activeSaveUnits = computed(() =>
+  (tempGame.value.save_paths ?? []).filter((unit) => isUnitEnabled(unit))
+);
 
-// 从配置中获取所有设备信息
+const disabledSaveUnits = computed(() =>
+  (tempGame.value.save_paths ?? []).filter((unit) => !isUnitEnabled(unit))
+);
+
+const activePathsMissing = computed(
+  () =>
+    activeSaveUnits.value.length > 0 &&
+    activeSaveUnits.value.every((unit) => getDevicePath(unit, selectedDeviceId.value).trim() === '')
+);
+
+const launcherPathEmpty = computed(() => getGameLaunchPath(selectedDeviceId.value).trim() === '');
+
 function getDevicesFromConfig() {
-  // 从全局配置中获取设备信息
-  const { config } = useConfig();
-
-  // 将设备映射转换为Map以便快速查找
   const deviceMap = new Map<string, Device>();
-  if (config.value && config.value.devices) {
+
+  if (config.value?.devices) {
     Object.entries(config.value.devices).forEach(([id, device]) => {
       if (device) {
-        // 确保device不为undefined
         deviceMap.set(id, device);
       }
     });
@@ -67,111 +60,102 @@ function getDevicesFromConfig() {
   return deviceMap;
 }
 
-// 从Game中提取所有设备ID
-function extractDeviceIdsFromSaveUnits() {
-  if (!props.game) return;
-
-  // 收集所有设备ID
+function syncAvailableDevices(game: Game) {
   const deviceIds = new Set<string>();
 
-  // 添加当前设备ID
   if (currentDevice.value) {
     deviceIds.add(currentDevice.value.id);
   }
 
-  // 从所有SaveUnit的paths中提取设备ID
-  if (props.game.save_paths) {
-    props.game.save_paths.forEach((unit) => {
-      if (unit.paths) {
-        Object.keys(unit.paths).forEach((deviceId) => {
-          deviceIds.add(deviceId);
-        });
-      }
-    });
-  }
+  game.save_paths?.forEach((unit) => {
+    Object.keys(unit.paths ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
+  });
 
-  // 从game_paths中提取设备ID
-  if (props.game.game_paths) {
-    Object.keys(props.game.game_paths).forEach((deviceId) => {
-      deviceIds.add(deviceId);
-    });
-  }
+  Object.keys(game.game_paths ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
 
-  // 获取所有已知设备信息
   const deviceMap = getDevicesFromConfig();
-
-  // 转换为设备对象数组
   availableDevices.value = Array.from(deviceIds).map((id) => {
-    // 如果是当前设备，使用当前设备信息
     if (currentDevice.value && id === currentDevice.value.id) {
       return currentDevice.value;
     }
-    // 如果在设备映射中找到，使用映射中的设备信息
-    else if (deviceMap.has(id)) {
-      return deviceMap.get(id)!;
-    }
-    // 否则创建一个简单的设备对象
-    else {
-      return {
+
+    return (
+      deviceMap.get(id) ?? {
         id,
-        name: id.substring(0, 8) + '...', // 截取ID的前8位作为名称
-      };
-    }
+        name: `${id.substring(0, 8)}...`,
+      }
+    );
   });
 
-  // 如果有当前设备，默认选择当前设备
-  if (currentDevice.value) {
-    selectedDeviceId.value = currentDevice.value.id;
-  } else if (availableDevices.value.length > 0) {
-    const firstDevice = availableDevices.value[0];
-    if (firstDevice) {
-      selectedDeviceId.value = firstDevice.id;
+  if (
+    currentDevice.value &&
+    availableDevices.value.some((device) => device.id === currentDevice.value?.id)
+  ) {
+    if (
+      !selectedDeviceId.value ||
+      !availableDevices.value.some((device) => device.id === selectedDeviceId.value)
+    ) {
+      selectedDeviceId.value = currentDevice.value.id;
     }
+    return;
+  }
+
+  if (!availableDevices.value.some((device) => device.id === selectedDeviceId.value)) {
+    selectedDeviceId.value = availableDevices.value[0]?.id ?? '';
   }
 }
 
-// 监听game变化，重新提取设备ID并初始化临时数据
+function initTempGame() {
+  tempGame.value = JSON.parse(JSON.stringify(props.game));
+  hasUnsavedChanges.value = false;
+  syncAvailableDevices(tempGame.value);
+}
+
 watch(
   () => props.game,
   () => {
-    extractDeviceIdsFromSaveUnits();
     initTempGame();
   },
-  { deep: true }
+  { deep: true, immediate: true }
 );
 
-// 初始化设备信息
-fetchCurrentDevice().then(() => {
-  extractDeviceIdsFromSaveUnits();
-  initTempGame();
-});
+watch(
+  () => currentDevice.value,
+  () => {
+    syncAvailableDevices(tempGame.value);
+  }
+);
 
-// 初始化临时game数据
-function initTempGame() {
-  if (!props.game) return;
-  // 深拷贝game数据
-  tempGame.value = JSON.parse(JSON.stringify(props.game));
-  hasUnsavedChanges.value = false;
+async function fetchCurrentDevice() {
+  try {
+    const result = await commands.getCurrentDeviceInfo();
+    if (result.status === 'ok') {
+      currentDevice.value = result.data;
+      if (!selectedDeviceId.value) {
+        selectedDeviceId.value = result.data.id;
+      }
+      return;
+    }
+
+    showError({ message: result.error });
+  } catch (e) {
+    error(`Error getting current device info: ${e}`);
+    showError({ message: $t('error.get_device_info_failed') });
+  }
 }
 
-// 获取当前设备的路径
+void fetchCurrentDevice();
+
 function getDevicePath(unit: SaveUnit, deviceId: string): string {
-  if (!unit.paths) return '';
-  return unit.paths[deviceId] || '';
+  return unit.paths?.[deviceId] ?? '';
 }
 
-// 获取当前设备的游戏启动路径
 function getGameLaunchPath(deviceId: string): string {
-  if (!tempGame.value.game_paths) return '';
-  return tempGame.value.game_paths[deviceId] || '';
+  return tempGame.value.game_paths?.[deviceId] ?? '';
 }
 
-// 更新临时设备路径
-function updateDevicePath(index: number, deviceId: string, path: string) {
-  if (!tempGame.value || !tempGame.value.save_paths) return;
-
-  const unit = tempGame.value.save_paths[index];
-  if (!unit) return;
+function updateDevicePath(unit: SaveUnit, deviceId: string, path: string) {
+  if (!deviceId) return;
 
   if (!unit.paths) {
     unit.paths = {};
@@ -181,9 +165,8 @@ function updateDevicePath(index: number, deviceId: string, path: string) {
   hasUnsavedChanges.value = true;
 }
 
-// 更新临时游戏启动路径
 function updateGameLaunchPath(deviceId: string, path: string) {
-  if (!tempGame.value) return;
+  if (!deviceId) return;
 
   if (!tempGame.value.game_paths) {
     tempGame.value.game_paths = {};
@@ -193,33 +176,201 @@ function updateGameLaunchPath(deviceId: string, path: string) {
   hasUnsavedChanges.value = true;
 }
 
-async function open(url: string) {
-  const result = await commands.openFileOrFolder(url);
+async function openPath(path: string) {
+  if (!path.trim()) return;
+
+  const result = await commands.openFileOrFolder(path);
   if (result.status === 'error') {
     showError({ message: $t('error.open_url_failed') });
   }
 }
 
-// 由父组件处理具体任务，此处只传递下标
-function switch_delete_before_apply(_unit: SaveUnit) {
-  // 这里不需要特殊处理，直接修改tempGame中的值即可
-  // 因为是引用类型，所以直接修改unit的属性会反映到tempGame中
+function switchDeleteBeforeApply(_unit: SaveUnit) {
   hasUnsavedChanges.value = true;
 }
 
-// 保存修改
 function saveChanges() {
-  if (!tempGame.value) return;
-
-  // 将所有修改发送给父组件
-  emits('saveChanges', tempGame.value);
-
+  emits('saveChanges', JSON.parse(JSON.stringify(tempGame.value)));
   hasUnsavedChanges.value = false;
 }
 
-// 取消修改
 function cancelChanges() {
   initTempGame();
+}
+
+function isUnitEnabled(unit: SaveUnit) {
+  return unit.enabled !== false;
+}
+
+function hasPersistentId(unit: SaveUnit) {
+  return typeof unit.id === 'number';
+}
+
+function setUnitEnabled(unit: SaveUnit, enabled: boolean) {
+  unit.enabled = enabled;
+  hasUnsavedChanges.value = true;
+}
+
+function removeNewSaveUnit(unit: SaveUnit) {
+  const index = tempGame.value.save_paths.findIndex((candidate) => candidate === unit);
+  if (index === -1) return;
+
+  tempGame.value.save_paths.splice(index, 1);
+  hasUnsavedChanges.value = true;
+}
+
+function checkSaveUnitUnique(path: string, ignoreUnit?: SaveUnit) {
+  const duplicated = tempGame.value.save_paths.some((unit) => {
+    if (unit === ignoreUnit) return false;
+    return Object.values(unit.paths ?? {}).includes(path);
+  });
+
+  if (duplicated) {
+    showWarning({ message: $t('addgame.duplicated_path_error') });
+    return false;
+  }
+
+  return true;
+}
+
+function createSaveUnit(unitType: SaveUnit['unit_type'], path: string): SaveUnit {
+  return {
+    unit_type: unitType,
+    paths: selectedDeviceId.value ? { [selectedDeviceId.value]: path } : {},
+    delete_before_apply: config.value?.settings.default_delete_before_apply ?? false,
+    enabled: true,
+  };
+}
+
+async function addSaveDirectory() {
+  try {
+    const dir = await commands.chooseSaveDir();
+    if (dir.status === 'error' || !checkSaveUnitUnique(dir.data)) {
+      return;
+    }
+
+    tempGame.value.save_paths.push(createSaveUnit('Folder', dir.data));
+    hasUnsavedChanges.value = true;
+  } catch (e) {
+    error(`Error choosing save directory: ${e}`);
+    showError({ message: $t('error.choose_save_dir_error') });
+  }
+}
+
+async function addSaveFile() {
+  try {
+    const file = await commands.chooseSaveFile();
+    if (file.status === 'error' || !checkSaveUnitUnique(file.data)) {
+      return;
+    }
+
+    tempGame.value.save_paths.push(createSaveUnit('File', file.data));
+    hasUnsavedChanges.value = true;
+  } catch (e) {
+    error(`Error choosing save file: ${e}`);
+    showError({ message: $t('error.choose_save_file_error') });
+  }
+}
+
+async function validateRegistryPath(path: string) {
+  const checkResult = await commands.checkPaths([path]);
+  if (checkResult.status !== 'ok') {
+    return;
+  }
+
+  const [check] = checkResult.data;
+  if (check && check.status === 'registryPath' && !check.supported) {
+    showWarning({ message: $t('addgame.registry_non_windows_warning') });
+  }
+}
+
+async function promptRegistryPath(initialValue = '') {
+  try {
+    const result = await feedback.prompt(
+      $t('addgame.registry_key_prompt'),
+      $t('addgame.add_registry_key'),
+      {
+        inputPlaceholder: 'HKEY_CURRENT_USER\\SOFTWARE\\GameName',
+        inputValue: initialValue,
+      }
+    );
+
+    return result.value?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+async function addRegistryKey() {
+  const path = await promptRegistryPath();
+  if (!path || !checkSaveUnitUnique(path)) {
+    return;
+  }
+
+  await validateRegistryPath(path);
+  tempGame.value.save_paths.push(createSaveUnit('WinRegistry', path));
+  hasUnsavedChanges.value = true;
+}
+
+async function chooseLaunchPath() {
+  try {
+    const file = await commands.chooseSaveFile();
+    if (file.status === 'error') {
+      return;
+    }
+
+    updateGameLaunchPath(selectedDeviceId.value, file.data);
+  } catch (e) {
+    error(`Error choosing executable file: ${e}`);
+    showError({ message: $t('error.choose_executable_file_error') });
+  }
+}
+
+async function chooseUnitPath(unit: SaveUnit) {
+  if (unit.unit_type === 'WinRegistry') {
+    const path = await promptRegistryPath(getDevicePath(unit, selectedDeviceId.value));
+    if (!path || !checkSaveUnitUnique(path, unit)) {
+      return;
+    }
+
+    await validateRegistryPath(path);
+    updateDevicePath(unit, selectedDeviceId.value, path);
+    return;
+  }
+
+  try {
+    const result =
+      unit.unit_type === 'Folder'
+        ? await commands.chooseSaveDir()
+        : await commands.chooseSaveFile();
+
+    if (result.status === 'error' || !checkSaveUnitUnique(result.data, unit)) {
+      return;
+    }
+
+    updateDevicePath(unit, selectedDeviceId.value, result.data);
+  } catch (e) {
+    error(`Error choosing save unit path: ${e}`);
+    showError({
+      message:
+        unit.unit_type === 'Folder'
+          ? $t('error.choose_save_dir_error')
+          : $t('error.choose_save_file_error'),
+    });
+  }
+}
+
+function formatUnitType(unitType: SaveUnit['unit_type']) {
+  switch (unitType) {
+    case 'Folder':
+      return $t('save_location_drawer.type_folder');
+    case 'File':
+      return $t('save_location_drawer.type_file');
+    case 'WinRegistry':
+      return $t('save_location_drawer.type_registry');
+    default:
+      return unitType;
+  }
 }
 </script>
 
@@ -233,7 +384,6 @@ function cancelChanges() {
       }
     "
   >
-    <!-- 操作按钮 -->
     <template #header>
       <div class="drawer-header">
         <div class="drawer-header-text">
@@ -258,107 +408,211 @@ function cancelChanges() {
         </div>
       </div>
     </template>
-    <!-- 设备选择器 -->
-    <div class="device-selector">
-      <el-select v-model="selectedDeviceId" :placeholder="$t('save_location_drawer.select_device')">
-        <el-option
-          v-for="device in availableDevices"
-          :key="device.id"
-          :label="device.name"
-          :value="device.id"
-        />
-      </el-select>
-      <el-tag v-if="currentDevice && selectedDeviceId === currentDevice.id" type="success">
-        {{ $t('save_location_drawer.current_device') }}
-      </el-tag>
-    </div>
 
-    <!-- 游戏启动路径 -->
-    <div class="launch-path-section">
-      <div class="section-label">{{ $t('save_location_drawer.launch_path') }}</div>
-      <div class="path-input-container">
+    <div class="drawer-body">
+      <!-- Device selector -->
+      <div class="device-selector">
+        <el-select
+          v-model="selectedDeviceId"
+          :placeholder="$t('save_location_drawer.select_device')"
+        >
+          <el-option
+            v-for="device in availableDevices"
+            :key="device.id"
+            :label="device.name"
+            :value="device.id"
+          />
+        </el-select>
+        <el-tag v-if="currentDevice && selectedDeviceId === currentDevice.id" type="success">
+          {{ $t('save_location_drawer.current_device') }}
+        </el-tag>
+      </div>
+
+      <!-- Launch path -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-label">{{ $t('save_location_drawer.launch_path') }}</div>
+          <div class="section-actions">
+            <el-button
+              text
+              size="small"
+              :disabled="launcherPathEmpty"
+              @click="openPath(getGameLaunchPath(selectedDeviceId))"
+            >
+              {{ $t('save_location_drawer.open') }}
+            </el-button>
+            <el-button type="primary" text size="small" @click="chooseLaunchPath">
+              {{ $t('save_location_drawer.pick_path') }}
+            </el-button>
+          </div>
+        </div>
         <path-variable-input
           :model-value="getGameLaunchPath(selectedDeviceId)"
-          :show-status="true"
+          status-mode="below"
           @update:model-value="(value) => updateGameLaunchPath(selectedDeviceId, value)"
         />
       </div>
-    </div>
 
-    <!-- 存档路径表格 -->
-    <div class="section-label">{{ $t('save_location_drawer.save_locations') }}</div>
-    <el-table :data="tempGame.save_paths" style="width: 100%" :border="true">
-      <el-table-column prop="unit_type" :label="$t('save_location_drawer.type')" width="70" />
-      <el-table-column :label="$t('save_location_drawer.prompt')" min-width="300">
-        <template #default="scope">
-          <div class="path-input-container">
-            <path-variable-input
-              :model-value="getDevicePath(scope.row, selectedDeviceId)"
-              status-mode="tooltip"
-              @update:model-value="
-                (value) => updateDevicePath(scope.$index, selectedDeviceId, value)
-              "
-            />
+      <!-- Save locations toolbar -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-label">{{ $t('save_location_drawer.save_locations') }}</div>
+          <div class="section-actions">
+            <el-button type="primary" size="small" @click="addSaveDirectory">
+              {{ $t('addgame.add_save_directory') }}
+            </el-button>
+            <el-button size="small" @click="addSaveFile">
+              {{ $t('addgame.add_save_file') }}
+            </el-button>
+            <el-button size="small" @click="addRegistryKey">
+              {{ $t('addgame.add_registry_key') }}
+            </el-button>
           </div>
-        </template>
-      </el-table-column>
-      <el-table-column
-        prop="delete_before_apply"
-        :label="$t('save_location_drawer.delete_before_apply')"
-        width="100"
-      >
-        <template #default="scope">
-          <el-switch
-            v-model="scope.row.delete_before_apply"
-            @change="switch_delete_before_apply(scope.row)"
+        </div>
+
+        <el-alert
+          v-if="activePathsMissing"
+          type="info"
+          show-icon
+          :closable="false"
+          class="section-alert"
+        >
+          {{ $t('save_location_drawer.device_paths_empty') }}
+        </el-alert>
+      </div>
+
+      <!-- Active save units -->
+      <div v-if="activeSaveUnits.length > 0" class="unit-list">
+        <div
+          v-for="(unit, index) in activeSaveUnits"
+          :key="unit.id ?? `active-${index}`"
+          class="unit-card"
+        >
+          <div class="unit-card-top">
+            <div class="unit-card-tags">
+              <el-tag size="small">{{ formatUnitType(unit.unit_type) }}</el-tag>
+              <el-tag v-if="hasPersistentId(unit)" type="info" size="small">#{{ unit.id }}</el-tag>
+              <el-tag v-else type="success" size="small">{{
+                $t('save_location_drawer.new_path')
+              }}</el-tag>
+            </div>
+            <div class="unit-card-actions">
+              <el-button
+                text
+                size="small"
+                :disabled="!getDevicePath(unit, selectedDeviceId)"
+                @click="openPath(getDevicePath(unit, selectedDeviceId))"
+              >
+                {{ $t('save_location_drawer.open') }}
+              </el-button>
+              <el-button text size="small" @click="chooseUnitPath(unit)">
+                {{ $t('save_location_drawer.pick_path') }}
+              </el-button>
+              <el-button
+                v-if="!hasPersistentId(unit)"
+                text
+                size="small"
+                type="danger"
+                @click="removeNewSaveUnit(unit)"
+              >
+                {{ $t('addgame.remove') }}
+              </el-button>
+            </div>
+          </div>
+
+          <path-variable-input
+            :model-value="getDevicePath(unit, selectedDeviceId)"
+            status-mode="tooltip"
+            @update:model-value="(value) => updateDevicePath(unit, selectedDeviceId, value)"
           />
-        </template>
-      </el-table-column>
-      <el-table-column :label="$t('save_location_drawer.open_file_header')" width="100">
-        <template #default="scope">
-          <ElLink @click="open(getDevicePath(scope.row, selectedDeviceId))">
-            {{ $t('save_location_drawer.open') }}
-          </ElLink>
-        </template>
-      </el-table-column>
-    </el-table>
+
+          <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="path-hint">
+            {{ $t('save_location_drawer.path_missing_for_device') }}
+          </div>
+
+          <div class="toggle-row">
+            <label v-if="hasPersistentId(unit)" class="toggle-item">
+              <span>{{ $t('save_location_drawer.backup_enabled') }}</span>
+              <el-switch
+                :model-value="isUnitEnabled(unit)"
+                @change="(value) => setUnitEnabled(unit, Boolean(value))"
+              />
+            </label>
+            <label class="toggle-item">
+              <span>{{ $t('save_location_drawer.delete_before_apply') }}</span>
+              <el-switch
+                v-model="unit.delete_before_apply"
+                @change="switchDeleteBeforeApply(unit)"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty-state">
+        {{ $t('save_location_drawer.no_active_paths') }}
+      </div>
+
+      <!-- Disabled save units -->
+      <template v-if="disabledSaveUnits.length > 0">
+        <div class="section-label disabled-section-heading">
+          {{ $t('save_location_drawer.disabled_paths') }}
+          <el-tag type="info" size="small" class="disabled-count">{{
+            disabledSaveUnits.length
+          }}</el-tag>
+        </div>
+
+        <div class="unit-list">
+          <div
+            v-for="(unit, index) in disabledSaveUnits"
+            :key="unit.id ?? `disabled-${index}`"
+            class="unit-card unit-card--disabled"
+          >
+            <div class="unit-card-top">
+              <div class="unit-card-tags">
+                <el-tag type="info" size="small">{{ formatUnitType(unit.unit_type) }}</el-tag>
+                <el-tag v-if="hasPersistentId(unit)" type="info" size="small"
+                  >#{{ unit.id }}</el-tag
+                >
+                <el-tag type="warning" size="small">{{
+                  $t('save_location_drawer.disabled')
+                }}</el-tag>
+              </div>
+              <div class="unit-card-actions">
+                <el-button text size="small" @click="chooseUnitPath(unit)">
+                  {{ $t('save_location_drawer.pick_path') }}
+                </el-button>
+                <el-button
+                  text
+                  size="small"
+                  :disabled="!getDevicePath(unit, selectedDeviceId)"
+                  @click="openPath(getDevicePath(unit, selectedDeviceId))"
+                >
+                  {{ $t('save_location_drawer.open') }}
+                </el-button>
+                <el-button type="primary" size="small" plain @click="setUnitEnabled(unit, true)">
+                  {{ $t('save_location_drawer.restore') }}
+                </el-button>
+              </div>
+            </div>
+
+            <path-variable-input
+              :model-value="getDevicePath(unit, selectedDeviceId)"
+              status-mode="tooltip"
+              @update:model-value="(value) => updateDevicePath(unit, selectedDeviceId, value)"
+            />
+
+            <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="path-hint">
+              {{ $t('save_location_drawer.path_missing_for_device') }}
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
   </el-drawer>
 </template>
 
 <style scoped>
-.device-selector {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: var(--el-fill-color-light);
-  border-radius: var(--el-border-radius-base);
-}
-
-.launch-path-section {
-  margin-bottom: 24px;
-}
-
-.section-label {
-  color: var(--el-text-color-secondary);
-  border-left: 3px solid var(--el-color-primary-light-5);
-  padding-left: 8px;
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.path-input-container {
-  display: flex;
-  align-items: center;
-}
-
-.path-actions {
-  display: flex;
-  gap: 5px;
-}
-
 .drawer-header {
   display: flex;
   justify-content: space-between;
@@ -394,5 +648,132 @@ function cancelChanges() {
 .drawer-actions {
   display: flex;
   gap: 10px;
+}
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.device-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: var(--el-border-radius-base);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.section-label {
+  color: var(--el-text-color-secondary);
+  border-left: 3px solid var(--el-color-primary-light-5);
+  padding-left: 8px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.section-alert {
+  margin-bottom: 12px;
+}
+
+.unit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.unit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+}
+
+.unit-card--disabled {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.unit-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.unit-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.unit-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.path-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.toggle-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  border: 1px dashed var(--el-border-color-light);
+  border-radius: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.disabled-section-heading {
+  margin-top: 8px;
+}
+
+.disabled-count {
+  margin-left: 8px;
 }
 </style>
