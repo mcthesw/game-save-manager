@@ -28,7 +28,6 @@ interface CloudSyncSessionConfig {
 }
 
 interface EditableCloudSettings {
-  always_sync?: boolean;
   auto_sync_interval: number;
   root_path: string;
   backend: Backend;
@@ -82,7 +81,6 @@ function toEditableCloudSettings(
   value: Partial<EditableCloudSettings> | undefined
 ): EditableCloudSettings {
   return {
-    always_sync: value?.always_sync ?? false,
     auto_sync_interval: value?.auto_sync_interval ?? 0,
     root_path: value?.root_path ?? '/game-save-manager',
     backend: cloneValue(value?.backend ?? ({ type: 'Disabled' } as Backend)),

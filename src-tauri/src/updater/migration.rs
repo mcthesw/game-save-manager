@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use log::{error, info, warn};
 use semver::Version;
+use serde_json::Value;
 
 use crate::backup::GameSnapshots;
 use crate::config::{Config, get_backup_path};
@@ -61,6 +62,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
 
     // Migrate based on version
     let mut new_cfg = migrate_config(&content, &version)?;
+    new_cfg = migrate_legacy_cloud_sync(&content, new_cfg)?;
 
     // Migrate game snapshots if upgrading from before 1.6.0
     if version < version_1_6_0 {
@@ -89,6 +91,28 @@ fn migrate_config(content: &str, version: &Version) -> Result<Config, UpdaterErr
         new_cfg.version = CURRENT_VERSION.to_string();
         Ok(new_cfg)
     }
+}
+
+fn migrate_legacy_cloud_sync(content: &str, mut config: Config) -> Result<Config, UpdaterError> {
+    let raw: Value = serde_json::from_str(content)?;
+    let legacy_always_sync = raw
+        .pointer("/settings/cloud_settings/always_sync")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    if let Some(raw_games) = raw.get("games").and_then(Value::as_array) {
+        for (game, raw_game) in config.games.iter_mut().zip(raw_games.iter()) {
+            let has_cloud_sync_enabled = raw_game
+                .as_object()
+                .map(|obj| obj.contains_key("cloud_sync_enabled"))
+                .unwrap_or(true);
+            if !has_cloud_sync_enabled {
+                game.cloud_sync_enabled = legacy_always_sync;
+            }
+        }
+    }
+
+    Ok(config)
 }
 
 /// Create a backup of the config file
@@ -249,6 +273,83 @@ fn migrate_save_unit_ids(mut config: Config) -> Config {
 mod tests {
     use super::*;
     use crate::backup::{SaveUnit, SaveUnitType};
+
+    #[test]
+    fn migrate_legacy_cloud_sync_inherits_true_and_preserves_explicit_false() {
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "LegacyInherited".to_string(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: false,
+        });
+        config.games.push(crate::backup::Game {
+            name: "ExplicitFalse".to_string(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: false,
+        });
+
+        let mut raw = serde_json::to_value(&config).unwrap();
+        raw.pointer_mut("/settings/cloud_settings")
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("cloud_settings should be an object")
+            .insert("always_sync".to_string(), serde_json::Value::Bool(true));
+        let games = raw
+            .get_mut("games")
+            .and_then(serde_json::Value::as_array_mut)
+            .expect("games should be an array");
+        games[0]
+            .as_object_mut()
+            .expect("game should be an object")
+            .remove("cloud_sync_enabled");
+
+        let migrated =
+            migrate_legacy_cloud_sync(&serde_json::to_string(&raw).unwrap(), config).unwrap();
+
+        assert!(migrated.games[0].cloud_sync_enabled);
+        assert!(!migrated.games[1].cloud_sync_enabled);
+    }
+
+    #[test]
+    fn migrate_legacy_cloud_sync_inherits_false_when_field_missing() {
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "LegacyDisabled".to_string(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+        });
+
+        let mut raw = serde_json::to_value(&config).unwrap();
+        raw.pointer_mut("/settings/cloud_settings")
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("cloud_settings should be an object")
+            .insert("always_sync".to_string(), serde_json::Value::Bool(false));
+        raw.get_mut("games")
+            .and_then(serde_json::Value::as_array_mut)
+            .and_then(|games| games.first_mut())
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("game should be an object")
+            .remove("cloud_sync_enabled");
+
+        let migrated =
+            migrate_legacy_cloud_sync(&serde_json::to_string(&raw).unwrap(), config).unwrap();
+
+        assert!(!migrated.games[0].cloud_sync_enabled);
+    }
+
+    #[test]
+    fn current_config_serialization_omits_legacy_always_sync() {
+        let raw = serde_json::to_value(Config::default()).unwrap();
+        assert!(
+            raw.pointer("/settings/cloud_settings/always_sync")
+                .is_none()
+        );
+    }
 
     #[test]
     fn migrate_save_unit_ids_assigns_sequential_ids() {
