@@ -2,7 +2,7 @@ use super::utils::{ConfigFileGuard, lock_config_file};
 use crate::backup::archive::system_time_to_zip_datetime;
 use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
 use crate::backup::{
-    Game, GameDraft, GameSnapshots, SaveUnit, SaveUnitDraft, SaveUnitType, Snapshot,
+    CreatedBy, Game, GameDraft, GameSnapshots, SaveUnit, SaveUnitDraft, SaveUnitType, Snapshot,
     TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision,
 };
 use crate::config::Config;
@@ -67,7 +67,7 @@ fn auto_backup_count(game: &Game) -> Result<usize, Box<dyn std::error::Error>> {
     Ok(snapshots
         .backups
         .iter()
-        .filter(|snapshot| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
+        .filter(|snapshot| snapshot.created_by == CreatedBy::Timer)
         .count())
 }
 
@@ -107,6 +107,7 @@ fn create_legacy_auto_snapshot(
         parent: None,
         archive_hash: None,
         device_id: None,
+        created_by: CreatedBy::Timer,
     });
     snapshots.set_current_device_head(Some(date.to_string()));
     game.set_game_snapshots_info(&snapshots)?;
@@ -144,6 +145,7 @@ fn timer_backup_skips_when_unchanged() -> TestResult {
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
+            auto_backup: None,
         };
 
         let first = game
@@ -187,6 +189,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
+            auto_backup: None,
         };
 
         let first = game
@@ -238,6 +241,7 @@ fn timer_backup_compares_only_latest_auto_backup() -> TestResult {
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
+            auto_backup: None,
         };
 
         let first = game
@@ -288,6 +292,7 @@ fn legacy_auto_snapshot_creates_once_before_dedup() -> TestResult {
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
+            auto_backup: None,
         };
 
         create_legacy_auto_snapshot(&game, &save_file, "2000-01-01_00-00-00")?;
@@ -332,6 +337,7 @@ fn fingerprint_source_and_zip_match_for_fresh_snapshot() -> TestResult {
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
+            auto_backup: None,
         };
 
         game.create_snapshot("Manual Snapshot").await?;
@@ -376,6 +382,7 @@ fn insert_snapshot(
         parent: parent.map(|s| s.to_string()),
         archive_hash: None,
         device_id: None,
+        created_by: Default::default(),
     });
     snapshots.set_current_device_head(Some(date.to_string()));
     game.set_game_snapshots_info(&snapshots)?;
@@ -390,6 +397,7 @@ fn make_test_game(game_name: &str, backup_root: &Path) -> Result<Game, Box<dyn s
         game_paths: HashMap::new(),
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
+        auto_backup: None,
     })
 }
 
@@ -624,6 +632,7 @@ fn normalize_save_unit_ids_reassigns_duplicates() {
         game_paths: HashMap::new(),
         next_save_unit_id: 1,
         cloud_sync_enabled: true,
+        auto_backup: None,
     };
 
     game.normalize_save_unit_ids();
@@ -663,6 +672,7 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
         game_paths: HashMap::new(),
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
+        auto_backup: None,
     };
 
     game.normalize_save_unit_ids();
@@ -680,6 +690,7 @@ fn game_draft_into_game_preserves_existing_cloud_sync_enabled() {
         game_paths: HashMap::new(),
         next_save_unit_id: 1,
         cloud_sync_enabled: false,
+        auto_backup: None,
     };
 
     let draft = GameDraft {
@@ -723,6 +734,7 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
         game_paths: HashMap::new(),
         next_save_unit_id: 8,
         cloud_sync_enabled: true,
+        auto_backup: None,
     };
 
     let mut new_path = HashMap::new();
@@ -773,6 +785,7 @@ fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
         game_paths: HashMap::new(),
         next_save_unit_id: 6,
         cloud_sync_enabled: true,
+        auto_backup: None,
     };
 
     let mut updated_path = HashMap::new();
@@ -816,6 +829,7 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
         game_paths: HashMap::new(),
         next_save_unit_id: 8,
         cloud_sync_enabled: true,
+        auto_backup: None,
     };
 
     let mut updated_path = HashMap::new();

@@ -1,4 +1,4 @@
-use crate::backup::{ExtraBackupItem, Game, GameDraft, GameSnapshots};
+use crate::backup::{CreatedBy, ExtraBackupItem, Game, GameDraft, GameSnapshots};
 use crate::cloud_sync::{
     self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudSyncSessionConfig,
     CloudSyncTaskManager, SyncGameOutcome,
@@ -939,7 +939,7 @@ pub async fn create_snapshot_at(
     info!(target:"rgsm::ipc", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
 
     let result = handle_backup_err(
-        game.create_snapshot_with_parent(&describe, parent_date)
+        game.create_snapshot_with_parent(&describe, parent_date, CreatedBy::Manual)
             .await,
         window,
     );
