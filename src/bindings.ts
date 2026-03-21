@@ -575,6 +575,14 @@ export type CreatedBy =
  */
 "Timer" | 
 /**
+ * Created via the system tray quick action.
+ */
+"Tray" | 
+/**
+ * Created via a global hotkey quick action.
+ */
+"Hotkey" | 
+/**
  * Forward-compat catch-all for variants added in future versions.
  */
 "Unknown"
