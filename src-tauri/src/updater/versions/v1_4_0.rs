@@ -75,6 +75,7 @@ impl From<Config> for CurrentConfig {
                     game_paths,
                     next_save_unit_id: 0,
                     cloud_sync_enabled: true,
+                    auto_backup: None,
                 }
             })
             .collect();

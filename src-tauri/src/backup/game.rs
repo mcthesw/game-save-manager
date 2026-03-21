@@ -10,12 +10,22 @@ use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
 use crate::backup::{
-    ArchiveBackend, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
-    TIMER_AUTO_BACKUP_DESCRIPTION, ZipBackend,
+    ArchiveBackend, CreatedBy, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot, ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::{DeviceId, get_current_device_id};
 use crate::preclude::*;
+
+/// Per-game auto-backup configuration.
+/// Presence (`Some`) enables the timer; absence (`None`) disables it.
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct AutoBackupConfig {
+    /// Interval between auto-backups in seconds.
+    pub interval_secs: u32,
+    /// Maximum number of auto-backups to keep. `None` = use global setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_backup_count: Option<u32>,
+}
 
 /// A game struct contains the save units and the game's launcher
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -35,6 +45,9 @@ pub struct Game {
     /// Defaults to true so existing games are automatically included.
     #[serde(default = "crate::default_value::default_true")]
     pub cloud_sync_enabled: bool,
+    /// Per-game auto-backup configuration. `None` = disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_backup: Option<AutoBackupConfig>,
 }
 
 /// Frontend/IPC input shape for creating/updating a game.
@@ -168,6 +181,7 @@ impl GameDraft {
             game_paths: self.game_paths,
             next_save_unit_id,
             cloud_sync_enabled: existing.map(|game| game.cloud_sync_enabled).unwrap_or(true),
+            auto_backup: existing.and_then(|game| game.auto_backup.clone()),
         };
         game.normalize_save_unit_ids();
         game
@@ -226,13 +240,15 @@ impl Game {
         Ok(())
     }
     pub async fn create_snapshot(&self, describe: &str) -> Result<SnapshotCreated, BackupError> {
-        self.create_snapshot_with_parent(describe, None).await
+        self.create_snapshot_with_parent(describe, None, CreatedBy::Manual)
+            .await
     }
 
     pub async fn create_snapshot_with_parent(
         &self,
         describe: &str,
         parent_date: Option<String>,
+        created_by: CreatedBy,
     ) -> Result<SnapshotCreated, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name); // the backup zip file should be placed here
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
@@ -266,6 +282,7 @@ impl Game {
             parent,
             archive_hash: None,
             device_id: Some(get_current_device_id().clone()),
+            created_by,
         };
         infos.backups.push(game_snapshots_info);
 
@@ -289,11 +306,12 @@ impl Game {
         let latest_auto_snapshot = infos
             .backups
             .iter()
-            .filter(|snapshot| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
+            .filter(|snapshot| snapshot.created_by == CreatedBy::Timer)
             .max_by_key(|snapshot| &snapshot.date);
 
         let Some(latest_auto_snapshot) = latest_auto_snapshot else {
-            self.create_snapshot(describe).await?;
+            self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                .await?;
             return Ok(TimerSnapshotDecision::Created);
         };
 
@@ -304,7 +322,8 @@ impl Game {
                     target: "rgsm::backup::game",
                     "Failed to fingerprint current save state, fallback to creating snapshot: {err:?}"
                 );
-                self.create_snapshot(describe).await?;
+                self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                    .await?;
                 return Ok(TimerSnapshotDecision::Created);
             }
         };
@@ -325,7 +344,8 @@ impl Game {
                 Ok(TimerSnapshotDecision::SkippedUnchanged)
             }
             Some(_) => {
-                self.create_snapshot(describe).await?;
+                self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                    .await?;
                 Ok(TimerSnapshotDecision::Created)
             }
             None => {
@@ -333,7 +353,8 @@ impl Game {
                     target: "rgsm::backup::game",
                     "Latest timer backup is legacy format; create one new timer backup before dedup"
                 );
-                self.create_snapshot(describe).await?;
+                self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                    .await?;
                 Ok(TimerSnapshotDecision::Created)
             }
         }
@@ -353,11 +374,11 @@ impl Game {
 
         let infos = self.get_game_snapshots_info()?;
 
-        // Filter auto backups (Timer backups only)
+        // Filter auto backups by created_by (not describe string)
         let mut auto_backups: Vec<_> = infos
             .backups
             .iter()
-            .filter(|snapshot| snapshot.describe == TIMER_AUTO_BACKUP_DESCRIPTION)
+            .filter(|snapshot| snapshot.created_by == CreatedBy::Timer)
             .collect();
 
         // If we're within the limit, no cleanup needed

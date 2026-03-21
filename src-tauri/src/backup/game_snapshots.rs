@@ -118,6 +118,7 @@ mod tests {
             parent: None,
             archive_hash: None,
             device_id: device_id.map(str::to_string),
+            created_by: Default::default(),
         }
     }
 
