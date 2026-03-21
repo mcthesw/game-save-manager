@@ -795,6 +795,123 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
 
 #[tauri::command]
 #[specta::specta]
+pub async fn set_game_auto_backup(
+    app_handle: AppHandle,
+    game_name: String,
+    auto_backup: Option<backup::AutoBackupConfig>,
+) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Setting auto-backup for '{}': {:?}", game_name, auto_backup);
+    let mut config = get_config().map_err(|e| e.to_string())?;
+    let game = config
+        .games
+        .iter_mut()
+        .find(|g| g.name == game_name)
+        .ok_or_else(|| format!("Game '{}' not found", game_name))?;
+
+    if let Some(ref cfg) = auto_backup {
+        if cfg.interval_secs == 0 {
+            return Err("Auto-backup interval_secs must be greater than 0".to_string());
+        }
+    }
+
+    let previous_game = game.clone();
+    game.auto_backup = auto_backup;
+    let updated_game = game.clone();
+
+    config::set_config(&config).await.map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to save config for auto-backup: {:?}", e);
+        e.to_string()
+    })?;
+
+    {
+        let pipeline_state = app_handle.state::<HookPipelineState>();
+        let cloud_sync_manager = app_handle
+            .state::<Arc<CloudSyncTaskManager>>()
+            .inner()
+            .clone();
+        pipeline_state.replace(crate::hooks::build_builtin_pipeline(
+            &app_handle,
+            cloud_sync_manager,
+            &config,
+        ));
+        let pipeline = pipeline_state.snapshot();
+        pipeline
+            .fire_game_updated(&GameUpdatedCtx {
+                config: config.clone(),
+                source: HookSource::UserManual,
+                previous_game,
+                game: updated_game,
+            })
+            .await;
+    }
+
+    info!(target:"rgsm::ipc", "Successfully set auto-backup for '{}'", game_name);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_snapshot_created_by(
+    app_handle: AppHandle,
+    game_name: String,
+    snapshot_date: String,
+    created_by: CreatedBy,
+) -> Result<GameSnapshots, String> {
+    info!(
+        target:"rgsm::ipc",
+        "Setting created_by for '{game_name}' snapshot '{snapshot_date}' to {created_by:?}"
+    );
+    let config = get_config().map_err(|e| e.to_string())?;
+    let game = config
+        .games
+        .iter()
+        .find(|g| g.name == game_name)
+        .cloned()
+        .ok_or_else(|| format!("Game '{}' not found", game_name))?;
+
+    let mut snapshots = game.get_game_snapshots_info().map_err(|e| e.to_string())?;
+    let snapshot = snapshots
+        .backups
+        .iter_mut()
+        .find(|s| s.date == snapshot_date)
+        .ok_or_else(|| format!("Snapshot '{}' not found", snapshot_date))?;
+    snapshot.created_by = created_by;
+
+    game.set_game_snapshots_info(&snapshots).map_err(|e| {
+        error!(target:"rgsm::ipc", "Failed to save snapshots after setting created_by: {:?}", e);
+        e.to_string()
+    })?;
+
+    {
+        let pipeline = hook_pipeline(&app_handle);
+        pipeline
+            .fire_metadata_changed(&MetadataChangedCtx {
+                config,
+                source: HookSource::UserManual,
+                game: game.clone(),
+                snapshots: snapshots.clone(),
+            })
+            .await;
+    }
+
+    info!(
+        target:"rgsm::ipc",
+        "Successfully set created_by for '{game_name}' snapshot '{snapshot_date}'"
+    );
+    Ok(snapshots)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_auto_backup_status(
+    app_handle: AppHandle,
+) -> Result<Vec<quick_actions::AutoBackupGameStatus>, String> {
+    let scheduler = app_handle.state::<quick_actions::AutoBackupScheduler>();
+    Ok(scheduler.get_status().await)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn toggle_quick_action_sound_preview(
     app: AppHandle,
     preferences: QuickActionSoundPreferences,

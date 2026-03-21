@@ -782,6 +782,9 @@ const { linksWithGames: router_list } = useNavigationLinks();
             />
             <span class="setting-label">{{ $t('settings.max_auto_backup_count') }}</span>
           </div>
+          <div class="setting-hint">
+            <span>{{ $t('settings.max_auto_backup_count_hint') }}</span>
+          </div>
           <div class="setting-box">
             <ElSwitch v-model="config.settings.extra_backup_when_apply" />
             <span class="setting-label">{{ $t('settings.extra_backup_when_apply') }}</span>
@@ -1088,6 +1091,13 @@ const { linksWithGames: router_list } = useNavigationLinks();
 
 .setting-box:hover {
   background-color: var(--el-fill-color-light);
+}
+
+.setting-hint {
+  margin-left: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .manifest-box {
