@@ -601,6 +601,42 @@ pub async fn cloud_download_all(
     );
     let (job_id, token) = manager.begin_manual_job(description.clone()).await;
     let result = cloud_sync::download_all_from_session(&session, Some(token)).await;
+
+    // After a successful download, the config may contain new games or updated
+    // auto-backup settings. Rebuild the hook pipeline so the scheduler syncs.
+    if matches!(
+        summarize_batch_result(&result).0,
+        cloud_sync::CloudSyncJobStatus::Completed
+    ) {
+        match get_config() {
+            Ok(config) => {
+                let pipeline_state = app_handle.state::<HookPipelineState>();
+                let cloud_sync_manager = app_handle
+                    .state::<Arc<CloudSyncTaskManager>>()
+                    .inner()
+                    .clone();
+                pipeline_state.replace(crate::hooks::build_builtin_pipeline(
+                    &app_handle,
+                    cloud_sync_manager,
+                    &config,
+                ));
+                let pipeline = pipeline_state.snapshot();
+                pipeline
+                    .fire_config_saved(&ConfigSavedCtx {
+                        config,
+                        source: HookSource::CloudSync,
+                    })
+                    .await;
+            }
+            Err(err) => {
+                warn!(
+                    target: "rgsm::ipc",
+                    "Failed to reload config after cloud download: {err:?}"
+                );
+            }
+        }
+    }
+
     let (status, error) = summarize_batch_result(&result);
     manager
         .finish_manual_job(job_id, &description, status, error.clone())

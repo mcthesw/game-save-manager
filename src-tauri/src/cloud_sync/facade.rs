@@ -165,6 +165,16 @@ fn merge_snapshot(
         existing.path = incoming.path.clone();
     }
 
+    // If either side promoted the snapshot to non-Timer (e.g. user "Keep"),
+    // preserve that across sync so cleanup won't delete it on the other device.
+    if existing.created_by != incoming.created_by {
+        use crate::backup::CreatedBy;
+        // Timer is the only auto-deletable variant; any non-Timer wins.
+        if existing.created_by == CreatedBy::Timer {
+            existing.created_by = incoming.created_by.clone();
+        }
+    }
+
     Ok(())
 }
 

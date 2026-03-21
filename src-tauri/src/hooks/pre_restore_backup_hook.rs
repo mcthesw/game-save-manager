@@ -1,3 +1,8 @@
+//! Built-in gate hook that creates a safety backup before restore.
+//!
+//! Because it participates in `before_restore`, failures here can abort the
+//! apply operation instead of silently proceeding.
+
 use async_trait::async_trait;
 use log::{info, warn};
 

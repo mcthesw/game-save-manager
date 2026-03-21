@@ -1,9 +1,7 @@
 use crate::{
-    backup::{TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision},
+    backup::{CreatedBy, TIMER_AUTO_BACKUP_DESCRIPTION},
     config::{QuickActionSoundPreferences, QuickActionsSettings, get_backup_path, get_config},
-    hooks::{
-        BeforeRestoreCtx, HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotDeletedCtx,
-    },
+    hooks::{BeforeRestoreCtx, HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx},
     preclude::*,
     sound::{QuickActionSoundEffect, play_quick_action_sound},
 };
@@ -11,7 +9,6 @@ use log::{error, info, warn};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
@@ -23,7 +20,7 @@ pub enum QuickActionType {
 }
 
 impl QuickActionType {
-    fn generate_describe(self) -> String {
+    pub(super) fn generate_describe(self) -> String {
         match self {
             QuickActionType::Timer => String::from(TIMER_AUTO_BACKUP_DESCRIPTION),
             QuickActionType::Tray => String::from("Quick Backup (Tray)"),
@@ -37,6 +34,15 @@ impl QuickActionType {
             QuickActionType::Timer => HookSource::TimerAutoBackup,
             QuickActionType::Tray => HookSource::QuickActionTray,
             QuickActionType::Hotkey => HookSource::QuickActionHotkey,
+        }
+    }
+
+    /// Convert to the corresponding CreatedBy variant for snapshot metadata.
+    pub fn to_created_by(self) -> CreatedBy {
+        match self {
+            QuickActionType::Timer => CreatedBy::Timer,
+            QuickActionType::Tray => CreatedBy::Tray,
+            QuickActionType::Hotkey => CreatedBy::Hotkey,
         }
     }
 }
@@ -169,33 +175,13 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     };
 
     // 执行备份操作
-    let result = if t == QuickActionType::Timer {
-        match game
-            .create_timer_snapshot_if_changed(&t.generate_describe())
-            .await
-        {
-            Ok(TimerSnapshotDecision::Created) => Ok(()),
-            Ok(TimerSnapshotDecision::SkippedUnchanged) => {
-                info!(
-                    target: "rgsm::quick_action",
-                    "Skipped timer backup for game {} because state is unchanged",
-                    game.name
-                );
-                return;
-            }
-            Err(e) => Err(e),
-        }
-    } else {
-        game.create_snapshot(&t.generate_describe())
-            .await
-            .map(|_| ())
-    };
+    let result = game
+        .create_snapshot_with_parent(&t.generate_describe(), None, t.to_created_by())
+        .await;
 
-    // 处理结果
     match result {
         Err(e) => {
             error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
-            // Failure notifications stay inline — no hook event for failures
             maybe_show_notification(
                 &quick_settings,
                 t!("backend.tray.error"),
@@ -203,61 +189,25 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
             );
             play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
         }
-        Ok(_) => {
+        Ok(created) => {
             // Fire hook pipeline — NotificationHook handles sound/notification/event
-            let hook_source = t.to_hook_source();
-            match game.get_game_snapshots_info() {
-                Ok(snapshots) => {
-                    if let Some(snapshot) = snapshots.backups.last().cloned() {
-                        let local_zip_path = PathBuf::from(&snapshot.path);
-                        let remote_zip_path =
-                            format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
-                        let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                        let game_for_persist = game.clone();
-                        let mut ctx = SnapshotCreatedCtx {
-                            config: config.clone(),
-                            source: hook_source,
-                            game: game.clone(),
-                            snapshot,
-                            snapshots,
-                            local_zip_path,
-                            remote_zip_path,
-                        };
-                        pipeline.fire_snapshot_created(&mut ctx).await;
-                        if let Err(err) = game_for_persist.set_game_snapshots_info(&ctx.snapshots) {
-                            warn!(target:"rgsm::quick_action", "Failed to persist hook-updated snapshot metadata: {err:?}");
-                        }
-                    }
-                }
-                Err(err) => {
-                    warn!(target:"rgsm::quick_action", "Failed to get snapshots for hook pipeline: {err:?}");
-                }
-            }
-
-            // Cleanup old auto backups if this is a timer backup and limit is set
-            if t == QuickActionType::Timer && config.settings.max_auto_backup_count > 0 {
-                match game
-                    .cleanup_old_auto_backups(config.settings.max_auto_backup_count)
-                    .await
-                {
-                    Ok(cleanup_result) => {
-                        if !cleanup_result.deleted_remote_paths.is_empty() {
-                            let pipeline =
-                                app.state::<crate::hooks::HookPipelineState>().snapshot();
-                            pipeline
-                                .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                                    config: config.clone(),
-                                    source: HookSource::TimerAutoBackup,
-                                    game: game.clone(),
-                                    snapshots: cleanup_result.snapshots,
-                                    deleted_remote_paths: cleanup_result.deleted_remote_paths,
-                                })
-                                .await;
-                        }
-                    }
-                    Err(e) => {
-                        warn!(target:"rgsm::quick_action", "Failed to cleanup old auto backups: {:#?}", e);
-                    }
+            if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
+                let mut ctx = SnapshotCreatedCtx {
+                    config: config.clone(),
+                    source: t.to_hook_source(),
+                    game: game.clone(),
+                    snapshot,
+                    snapshots: created.snapshots,
+                    local_zip_path: created.local_zip_path,
+                    remote_zip_path: created.remote_zip_path,
+                };
+                pipeline.fire_snapshot_created(&mut ctx).await;
+                if let Err(err) = game.set_game_snapshots_info(&ctx.snapshots) {
+                    warn!(
+                        target:"rgsm::quick_action",
+                        "Failed to persist hook-updated snapshot metadata: {err:?}"
+                    );
                 }
             }
         }

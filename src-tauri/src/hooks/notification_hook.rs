@@ -1,3 +1,8 @@
+//! Built-in hook for user-facing notifications, sounds, and frontend events.
+//!
+//! It runs late in the pipeline so visible feedback reflects already-committed
+//! lifecycle changes.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use log::{info, warn};

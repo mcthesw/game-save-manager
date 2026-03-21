@@ -1,3 +1,8 @@
+//! Built-in hooks for archive hash generation and verification.
+//!
+//! These hooks run early so later side effects, such as uploads, can reuse the
+//! finalized integrity metadata.
+
 use anyhow::Result as HookResult;
 use async_trait::async_trait;
 use log::info;
@@ -94,6 +99,7 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
+            auto_backup: None,
         }
     }
 
@@ -113,6 +119,7 @@ mod tests {
             parent: None,
             archive_hash: None,
             device_id: None,
+            created_by: Default::default(),
         };
         let mut snapshots = GameSnapshots::new("ChecksumGame");
         snapshots.backups.push(snapshot.clone());
@@ -159,6 +166,7 @@ mod tests {
                 parent: None,
                 archive_hash: Some("expected-hash".into()),
                 device_id: None,
+                created_by: Default::default(),
             },
             snapshots: GameSnapshots::new("ChecksumGame"),
             archive_path: archive_path.clone(),

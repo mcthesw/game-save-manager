@@ -1,4 +1,10 @@
+//! Hook pipeline composition and built-in side-effect registration.
+//!
+//! This module owns hook infrastructure and built-in hook selection. Higher
+//! level "persist then re-enter hooks" orchestration lives in `lifecycle/`.
+
 mod pipeline;
+mod scheduler_sync_hook;
 
 pub mod checksum_hook;
 pub mod cloud_sync_hook;
@@ -53,6 +59,9 @@ pub fn build_builtin_pipeline(
     if config.settings.verify_archive_before_apply {
         hooks.push(Box::new(checksum_hook::ArchiveVerifyHook));
     }
+    hooks.push(Box::new(scheduler_sync_hook::SchedulerSyncHook::new(
+        app.clone(),
+    )));
     if !matches!(config.settings.cloud_settings.backend, Backend::Disabled) {
         hooks.push(Box::new(cloud_sync_hook::CloudSyncEnqueueHook::new(
             task_manager,
