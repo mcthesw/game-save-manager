@@ -1,3 +1,8 @@
+//! Hook context types, extension traits, and ordered dispatch.
+//!
+//! Hooks observe persisted lifecycle events; the pipeline guarantees a stable
+//! priority order so side effects run deterministically.
+
 use std::path::PathBuf;
 
 use anyhow::Result as HookResult;
@@ -393,6 +398,7 @@ mod tests {
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
+                auto_backup: None,
                 next_save_unit_id: 0,
             },
             snapshot: Snapshot {
@@ -403,6 +409,7 @@ mod tests {
                 parent: None,
                 archive_hash: None,
                 device_id: None,
+                created_by: Default::default(),
             },
             snapshots: GameSnapshots::new("TestGame"),
             local_zip_path: PathBuf::from("/tmp/test.zip"),
@@ -419,6 +426,7 @@ mod tests {
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
+                auto_backup: None,
                 next_save_unit_id: 0,
             },
             snapshots: GameSnapshots::new("NewGame"),
@@ -434,6 +442,7 @@ mod tests {
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: false,
+                auto_backup: None,
                 next_save_unit_id: 0,
             },
             game: Game {
@@ -441,6 +450,7 @@ mod tests {
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
+                auto_backup: None,
                 next_save_unit_id: 0,
             },
         }
@@ -550,6 +560,7 @@ mod tests {
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
+                auto_backup: None,
                 next_save_unit_id: 0,
             },
             snapshot: Snapshot {
@@ -560,6 +571,7 @@ mod tests {
                 parent: None,
                 archive_hash: Some("abc123".into()),
                 device_id: None,
+                created_by: Default::default(),
             },
             snapshots: GameSnapshots::new("TestGame"),
             archive_path: PathBuf::from("/tmp/test.zip"),
