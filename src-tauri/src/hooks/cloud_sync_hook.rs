@@ -1,3 +1,8 @@
+//! Built-in hook that translates lifecycle events into cloud-sync jobs.
+//!
+//! It runs after checksum-related hooks so uploaded metadata already contains
+//! any archive hash updates produced earlier in the pipeline.
+
 use std::sync::Arc;
 
 use anyhow::Result;
