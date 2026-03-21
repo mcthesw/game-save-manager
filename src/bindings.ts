@@ -241,6 +241,30 @@ async setQuickBackupGame(game: Game) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async setGameAutoBackup(gameName: string, autoBackup: AutoBackupConfig | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_game_auto_backup", { gameName, autoBackup }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setSnapshotCreatedBy(gameName: string, snapshotDate: string, createdBy: CreatedBy) : Promise<Result<GameSnapshots, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_snapshot_created_by", { gameName, snapshotDate, createdBy }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getAutoBackupStatus() : Promise<Result<AutoBackupGameStatus[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_auto_backup_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Resolves a path string containing variables to an actual filesystem path
  * 
@@ -441,11 +465,28 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false},"version":"1.8.0"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false},"version":"1.8.1"} as const;
 
 /** user-defined types **/
 
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
+/**
+ * Per-game auto-backup configuration.
+ * Presence (`Some`) enables the timer; absence (`None`) disables it.
+ */
+export type AutoBackupConfig = { 
+/**
+ * Interval between auto-backups in seconds.
+ */
+interval_secs: number; 
+/**
+ * Maximum number of auto-backups to keep. `None` = use global setting.
+ */
+max_backup_count?: number | null }
+/**
+ * Status of one game's auto-backup timer, returned by `GetStatus`.
+ */
+export type AutoBackupGameStatus = { game_name: string; interval_secs: number }
 export type Backend = { type: "Disabled" } | 
 /**
  * WebDAV 后端
@@ -518,6 +559,25 @@ export type Config = { version: string; backup_path: string; games: Game[]; sett
  * 设备ID到设备名称的映射
  */
 devices?: Partial<{ [key in string]: Device }> }
+/**
+ * Tracks how a snapshot was created.
+ * 
+ * Forward-compatible: unknown variants from future versions deserialize
+ * as `Unknown` — these are never auto-deleted by cleanup logic.
+ */
+export type CreatedBy = 
+/**
+ * User-created snapshot (manual backup, IPC call, etc.)
+ */
+"Manual" | 
+/**
+ * Created by the auto-backup timer, subject to retention policy cleanup.
+ */
+"Timer" | 
+/**
+ * Forward-compat catch-all for variants added in future versions.
+ */
+"Unknown"
 export type Device = { id: string; name: string }
 export type ExtraBackupItem = { 
 /**
@@ -543,7 +603,11 @@ next_save_unit_id?: number;
  * Whether this game participates in cloud sync.
  * Defaults to true so existing games are automatically included.
  */
-cloud_sync_enabled?: boolean }
+cloud_sync_enabled?: boolean; 
+/**
+ * Per-game auto-backup configuration. `None` = disabled.
+ */
+auto_backup?: AutoBackupConfig | null }
 /**
  * Frontend/IPC input shape for creating/updating a game.
  * Save-unit IDs are assigned and normalized in backend domain logic.
@@ -736,7 +800,11 @@ archive_hash?: string | null;
 /**
  * The device that created this snapshot.
  */
-device_id?: string | null }
+device_id?: string | null; 
+/**
+ * How this snapshot was created.
+ */
+created_by?: CreatedBy }
 export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "merged" | "conflict"
 export type SyncResult = "success" | { error: string } | "conflict" | "cancelled"
 export type SyncState = { schema_version: number; backend_fingerprint?: string; current_device_id?: string; config_state?: GameSyncState; games?: Partial<{ [key in string]: GameSyncState }> }

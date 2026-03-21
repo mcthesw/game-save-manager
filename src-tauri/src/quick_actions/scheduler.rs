@@ -238,8 +238,7 @@ async fn perform_timer_backup(app: &AppHandle, game: &Game, backup_config: &Auto
         Ok(snapshots) => {
             if let Some(snapshot) = snapshots.backups.last().cloned() {
                 let local_zip_path = PathBuf::from(&snapshot.path);
-                let remote_zip_path =
-                    format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
+                let remote_zip_path = format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
                 let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
                 let mut ctx = SnapshotCreatedCtx {
                     config: config.clone(),

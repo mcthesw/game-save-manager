@@ -316,12 +316,6 @@
     },
     "tray": {
       "no_game_selected": "놀이의 선택 없음",
-      "auto_backup_interval": "자동 백업 간격",
-      "turn_off_auto_backup": "자동 백업의 마감",
-      "5_minute": "5 분",
-      "10_minute": "10 분",
-      "30_minute": "30 분",
-      "60_minute": "60 분",
       "quick_backup": "빠른 백업",
       "quick_apply": "빠른 독서",
       "exit": "출금",

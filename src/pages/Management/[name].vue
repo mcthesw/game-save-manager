@@ -6,7 +6,7 @@ import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
 import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
-import type { Game, Snapshot, Device, GameSnapshots } from '../../bindings';
+import type { Game, Snapshot, Device, GameSnapshots, AutoBackupConfig } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
 import {
@@ -19,9 +19,11 @@ import {
   Delete,
   Back,
   Plus,
-  Timer,
+  Lightning,
+  AlarmClock,
   Edit,
   CircleCheck,
+  Lock,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 
@@ -156,6 +158,13 @@ function formatFileSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+function snapshotSourceTag(snapshot: Snapshot): string | null {
+  if (snapshot.created_by === 'Timer') return $t('manage.snapshot_source_timer');
+  if (snapshot.created_by === 'Tray') return $t('manage.snapshot_source_tray');
+  if (snapshot.created_by === 'Hotkey') return $t('manage.snapshot_source_hotkey');
+  return null;
+}
 async function batch_delete() {
   try {
     const promptResult = await feedback.prompt($t('manage.batch_delete_prompt'), $t('home.hint'), {
@@ -182,6 +191,39 @@ async function batch_delete() {
   }
 }
 
+// Auto-backup settings
+const autoBackupEnabled = ref(false);
+const autoBackupIntervalSecs = ref(300);
+const autoBackupMaxCount = ref<number | undefined>(undefined);
+const autoBackupPreset = ref<string>('300');
+
+const intervalPresets = [
+  { label: () => $t('manage.preset_15s'), value: 15 },
+  { label: () => $t('manage.preset_30s'), value: 30 },
+  { label: () => $t('manage.preset_1m'), value: 60 },
+  { label: () => $t('manage.preset_2m'), value: 120 },
+  { label: () => $t('manage.preset_5m'), value: 300 },
+  { label: () => $t('manage.preset_10m'), value: 600 },
+  { label: () => $t('manage.preset_30m'), value: 1800 },
+  { label: () => $t('manage.preset_1h'), value: 3600 },
+];
+
+function syncAutoBackupFromGame() {
+  const cfg = game.value.auto_backup;
+  if (cfg) {
+    autoBackupEnabled.value = true;
+    autoBackupIntervalSecs.value = cfg.interval_secs;
+    autoBackupMaxCount.value = cfg.max_backup_count ?? undefined;
+    const matchedPreset = intervalPresets.find((p) => p.value === cfg.interval_secs);
+    autoBackupPreset.value = matchedPreset ? String(cfg.interval_secs) : 'custom';
+  } else {
+    autoBackupEnabled.value = false;
+    autoBackupIntervalSecs.value = 300;
+    autoBackupMaxCount.value = undefined;
+    autoBackupPreset.value = '300';
+  }
+}
+
 // Init game info
 watch(
   () => route.params.name,
@@ -192,6 +234,7 @@ watch(
     const name = newValue;
     game.value = config.value.games.find((x) => x.name == name) as Game;
     undoInfo.value = null;
+    syncAutoBackupFromGame();
     refresh_backups_info();
     // 检查当前设备的存档路径是否为空
     checkCurrentDeviceSavePaths();
@@ -569,19 +612,24 @@ async function undo_last_apply() {
 
 async function change_describe(date: string) {
   try {
+    const snapshot = table_data.value.find((x) => x.date == date);
     const { value } = await feedback.prompt(
       $t('manage.input_description_prompt'),
       $t('manage.change_description'),
       {
         confirmButtonText: $t('manage.confirm'),
         cancelButtonText: $t('manage.cancel'),
-        inputValue: table_data.value.find((x) => x.date == date)?.describe,
+        inputValue: snapshot?.describe,
       }
     );
     const result = await commands.setSnapshotDescription(game.value, date, value);
     if (result.status === 'error') {
-      // TODO: 增加文本
       showError({ message: $t('manage.change_description_failed') });
+      return;
+    }
+    // Editing a timer snapshot's description promotes it to permanent
+    if (snapshot?.created_by === 'Timer') {
+      await commands.setSnapshotCreatedBy(game.value.name, date, 'Manual');
     }
     refresh_backups_info();
     showSuccess({ message: $t('manage.change_description_success') });
@@ -791,7 +839,7 @@ const tableColumns = computed(() => [
     key: 'actions',
     dataKey: 'actions',
     title: $t('manage.actions'),
-    width: 150,
+    width: 180,
     align: 'center' as const,
     fixed: TableV2FixedDir.RIGHT,
   },
@@ -1147,8 +1195,79 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
           <el-button circle :icon="Setting" @click="drawer = true" />
         </el-tooltip>
         <el-tooltip :content="$t('manage.set_quick_backup')" placement="bottom">
-          <el-button circle :icon="Timer" type="warning" @click="set_quick_backup" />
+          <el-button circle :icon="Lightning" type="warning" @click="set_quick_backup" />
         </el-tooltip>
+        <el-popover
+          placement="bottom"
+          :width="300"
+          trigger="click"
+        >
+          <template #reference>
+            <el-button circle :icon="AlarmClock" :type="autoBackupEnabled ? 'success' : ''" />
+          </template>
+          <div class="auto-backup-popover">
+            <div class="auto-backup-popover-row">
+              <span>{{ $t('manage.auto_backup') }}</span>
+              <el-switch
+                v-model="autoBackupEnabled"
+                @change="saveAutoBackupSettings"
+              />
+            </div>
+            <template v-if="autoBackupEnabled">
+              <el-divider style="margin: 8px 0" />
+              <div class="auto-backup-popover-row">
+                <span class="auto-backup-popover-label">{{ $t('manage.auto_backup_interval') }}</span>
+                <el-select
+                  v-model="autoBackupPreset"
+                  size="small"
+                  style="width: 120px"
+                  @change="onPresetChange"
+                >
+                  <el-option
+                    v-for="preset in intervalPresets"
+                    :key="preset.value"
+                    :label="preset.label()"
+                    :value="String(preset.value)"
+                  />
+                  <el-option
+                    :label="$t('manage.auto_backup_custom_interval')"
+                    value="custom"
+                  />
+                </el-select>
+              </div>
+              <div v-if="autoBackupPreset === 'custom'" class="auto-backup-popover-row">
+                <el-input-number
+                  v-model="autoBackupIntervalSecs"
+                  :min="1"
+                  :max="86400"
+                  :step="1"
+                  size="small"
+                  style="flex: 1"
+                />
+                <el-button
+                  size="small"
+                  type="primary"
+                  @click="saveAutoBackupSettings"
+                >
+                  {{ $t('manage.confirm') }}
+                </el-button>
+              </div>
+              <div class="auto-backup-popover-row">
+                <span class="auto-backup-popover-label">{{ $t('manage.auto_backup_max_count') }}</span>
+                <el-input-number
+                  v-model="autoBackupMaxCount"
+                  :min="0"
+                  :max="9999"
+                  :step="1"
+                  size="small"
+                  :placeholder="$t('manage.auto_backup_max_count_hint')"
+                  style="width: 120px"
+                  @change="saveAutoBackupSettings"
+                />
+              </div>
+            </template>
+          </div>
+        </el-popover>
         <el-tooltip :content="$t('manage.delete_save_manage')" placement="bottom">
           <el-button circle :icon="Delete" type="danger" @click="del_cur" />
         </el-tooltip>
@@ -1298,12 +1417,36 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                   :show-after="300"
                   popper-class="action-tooltip"
                 >
-                  <span class="table-cell-ellipsis">{{ rowData.describe }}</span>
+                  <span class="table-cell-describe">
+                    <el-tag
+                      v-if="snapshotSourceTag(rowData)"
+                      type="info"
+                      size="small"
+                      effect="plain"
+                      round
+                      class="source-tag"
+                    >{{ snapshotSourceTag(rowData) }}</el-tag>
+                    <span class="table-cell-ellipsis">{{ rowData.describe }}</span>
+                  </span>
                 </el-tooltip>
                 <span v-else-if="column.key === 'size'" class="text-gray-500 text-xs">
                   {{ rowData.size ? formatFileSize(rowData.size) : '-' }}
                 </span>
                 <div v-else-if="column.key === 'actions'" class="action-buttons">
+                  <el-tooltip
+                    v-if="rowData.created_by === 'Timer'"
+                    :content="$t('manage.convert_to_permanent')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <el-button
+                      link
+                      type="primary"
+                      :icon="Lock"
+                      @click="convertToPermanent(rowData.date)"
+                    />
+                  </el-tooltip>
                   <el-tooltip
                     :content="$t('manage.apply')"
                     placement="top"
@@ -1431,6 +1574,37 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
   flex-shrink: 0;
   border-radius: 8px;
   overflow: visible;
+}
+
+.auto-backup-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auto-backup-popover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.auto-backup-popover-label {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.table-cell-describe {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.source-tag {
+  flex-shrink: 0;
 }
 
 .quick-actions-content {
