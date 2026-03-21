@@ -6,14 +6,14 @@ use log::{error, info, warn};
 use semver::Version;
 use serde_json::Value;
 
-use crate::backup::GameSnapshots;
-use crate::config::{Config, get_backup_path};
+use crate::backup::{GameSnapshots, TIMER_AUTO_BACKUP_DESCRIPTION};
+use crate::config::{Config, resolve_backup_path};
 use crate::preclude::*;
 use crate::updater::{
     probe::probe_config_version,
     versions::{
         CURRENT_VERSION, Config1_4_0, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0,
-        VERSION_1_7_5,
+        VERSION_1_7_5, VERSION_1_8_1,
     },
 };
 
@@ -39,6 +39,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     let min_supported = Version::parse(MIN_SUPPORTED_VERSION)?;
     let version_1_6_0 = Version::parse(VERSION_1_6_0)?;
     let version_1_7_5 = Version::parse(VERSION_1_7_5)?;
+    let version_1_8_1 = Version::parse(VERSION_1_8_1)?;
 
     // Version compatibility check
     if version > current {
@@ -64,9 +65,17 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     let mut new_cfg = migrate_config(&content, &version)?;
     new_cfg = migrate_legacy_cloud_sync(&content, new_cfg)?;
 
+    let backup_path = resolve_backup_path(&new_cfg.backup_path);
+
+    // Migrate snapshot source metadata before any snapshot-file rewrites that
+    // would otherwise serialize legacy timer snapshots as Manual.
+    if version < version_1_8_1 {
+        migrate_snapshot_created_by_metadata(&backup_path)?;
+    }
+
     // Migrate game snapshots if upgrading from before 1.6.0
     if version < version_1_6_0 {
-        migrate_game_snapshots_to_chain()?;
+        migrate_game_snapshots_to_chain(&backup_path)?;
     }
 
     // Assign stable IDs to save units if upgrading from before 1.7.5
@@ -115,6 +124,114 @@ fn migrate_legacy_cloud_sync(content: &str, mut config: Config) -> Result<Config
     Ok(config)
 }
 
+fn migrate_snapshot_created_by_metadata(backup_path: &Path) -> Result<(), UpdaterError> {
+    migrate_snapshot_created_by_in_backup_root(backup_path)
+}
+
+fn migrate_snapshot_created_by_in_backup_root(backup_path: &Path) -> Result<(), UpdaterError> {
+    if !backup_path.exists() {
+        info!(
+            target: "rgsm::updater",
+            "Backup path does not exist, skipping snapshot source migration"
+        );
+        return Ok(());
+    }
+
+    let entries = fs::read_dir(backup_path)?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let backups_json_path = path.join("Backups.json");
+        if !backups_json_path.exists() {
+            continue;
+        }
+
+        let content = match fs::read_to_string(&backups_json_path) {
+            Ok(content) => content,
+            Err(err) => {
+                warn!(
+                    target: "rgsm::updater",
+                    "Failed to read {:?}: {}",
+                    backups_json_path,
+                    err
+                );
+                continue;
+            }
+        };
+
+        let mut raw: Value = match serde_json::from_str(&content) {
+            Ok(raw) => raw,
+            Err(err) => {
+                warn!(
+                    target: "rgsm::updater",
+                    "Failed to parse {:?}: {}",
+                    backups_json_path,
+                    err
+                );
+                continue;
+            }
+        };
+
+        let migrated_count = migrate_snapshot_created_by_fields(&mut raw);
+        if migrated_count == 0 {
+            continue;
+        }
+
+        match fs::write(&backups_json_path, serde_json::to_string_pretty(&raw)?) {
+            Ok(_) => {
+                info!(
+                    target: "rgsm::updater",
+                    "Migrated {} snapshot source entries in {:?}",
+                    migrated_count,
+                    backups_json_path
+                );
+            }
+            Err(err) => {
+                error!(
+                    target: "rgsm::updater",
+                    "Failed to write {:?}: {}",
+                    backups_json_path,
+                    err
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn migrate_snapshot_created_by_fields(raw: &mut Value) -> usize {
+    let Some(backups) = raw.get_mut("backups").and_then(Value::as_array_mut) else {
+        return 0;
+    };
+
+    let mut migrated = 0;
+    for snapshot in backups {
+        let Some(snapshot) = snapshot.as_object_mut() else {
+            continue;
+        };
+
+        if snapshot.contains_key("created_by") {
+            continue;
+        }
+
+        let created_by = match snapshot.get("describe").and_then(Value::as_str) {
+            Some(TIMER_AUTO_BACKUP_DESCRIPTION) => "Timer",
+            _ => "Manual",
+        };
+        snapshot.insert(
+            "created_by".to_string(),
+            Value::String(created_by.to_string()),
+        );
+        migrated += 1;
+    }
+
+    migrated
+}
+
 /// Create a backup of the config file
 fn backup_config<P: AsRef<Path>>(path: P) -> Result<PathBuf, UpdaterError> {
     let path = path.as_ref();
@@ -140,22 +257,14 @@ fn backup_config<P: AsRef<Path>>(path: P) -> Result<PathBuf, UpdaterError> {
 /// 2. For each Backups.json, sorts snapshots by date (ascending)
 /// 3. Creates a parent chain from oldest to newest
 /// 4. Sets head to the newest snapshot
-fn migrate_game_snapshots_to_chain() -> Result<(), UpdaterError> {
-    let backup_path = match get_backup_path() {
-        Ok(p) => p,
-        Err(e) => {
-            warn!(target: "rgsm::updater", "Failed to get backup path, skipping snapshot migration: {}", e);
-            return Ok(());
-        }
-    };
-
+fn migrate_game_snapshots_to_chain(backup_path: &Path) -> Result<(), UpdaterError> {
     if !backup_path.exists() {
         info!(target: "rgsm::updater", "Backup path does not exist, skipping snapshot migration");
         return Ok(());
     }
 
     // Iterate through all directories in backup path
-    let entries = fs::read_dir(&backup_path)?;
+    let entries = fs::read_dir(backup_path)?;
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_dir() {
@@ -272,7 +381,7 @@ fn migrate_save_unit_ids(mut config: Config) -> Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backup::{SaveUnit, SaveUnitType};
+    use crate::backup::{SaveUnit, SaveUnitType, TIMER_AUTO_BACKUP_DESCRIPTION};
 
     #[test]
     fn migrate_legacy_cloud_sync_inherits_true_and_preserves_explicit_false() {
@@ -283,6 +392,7 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 0,
             cloud_sync_enabled: false,
+            auto_backup: None,
         });
         config.games.push(crate::backup::Game {
             name: "ExplicitFalse".to_string(),
@@ -290,6 +400,7 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 0,
             cloud_sync_enabled: false,
+            auto_backup: None,
         });
 
         let mut raw = serde_json::to_value(&config).unwrap();
@@ -322,6 +433,7 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
+            auto_backup: None,
         });
 
         let mut raw = serde_json::to_value(&config).unwrap();
@@ -375,6 +487,7 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
+            auto_backup: None,
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -399,6 +512,7 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 6,
             cloud_sync_enabled: true,
+            auto_backup: None,
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -416,9 +530,106 @@ mod tests {
             game_paths: Default::default(),
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
+            auto_backup: None,
         });
 
         let migrated = migrate_save_unit_ids(config);
         assert_eq!(migrated.games[0].next_save_unit_id, 0);
+    }
+
+    #[test]
+    fn migrate_snapshot_created_by_fields_sets_missing_values_and_preserves_explicit_ones() {
+        let mut raw = serde_json::json!({
+            "name": "test-game",
+            "backups": [
+                {
+                    "date": "2025-01-01_00-00-00",
+                    "describe": TIMER_AUTO_BACKUP_DESCRIPTION,
+                    "path": "timer.zip",
+                    "size": 100
+                },
+                {
+                    "date": "2025-01-02_00-00-00",
+                    "describe": "Manual Save",
+                    "path": "manual.zip",
+                    "size": 100
+                },
+                {
+                    "date": "2025-01-03_00-00-00",
+                    "describe": TIMER_AUTO_BACKUP_DESCRIPTION,
+                    "path": "kept.zip",
+                    "size": 100,
+                    "created_by": "Manual"
+                }
+            ]
+        });
+
+        let migrated = migrate_snapshot_created_by_fields(&mut raw);
+
+        assert_eq!(migrated, 2);
+        assert_eq!(
+            raw.pointer("/backups/0/created_by").and_then(Value::as_str),
+            Some("Timer")
+        );
+        assert_eq!(
+            raw.pointer("/backups/1/created_by").and_then(Value::as_str),
+            Some("Manual")
+        );
+        assert_eq!(
+            raw.pointer("/backups/2/created_by").and_then(Value::as_str),
+            Some("Manual")
+        );
+    }
+
+    #[test]
+    fn migrate_snapshot_created_by_in_backup_root_updates_backups_json()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let backup_root = temp_dir.path().join("backup");
+        let game_dir = backup_root.join("migration-test");
+        fs::create_dir_all(&game_dir)?;
+
+        let raw = serde_json::json!({
+            "name": "migration-test",
+            "backups": [
+                {
+                    "date": "2025-01-01_00-00-00",
+                    "describe": TIMER_AUTO_BACKUP_DESCRIPTION,
+                    "path": "timer.zip",
+                    "size": 100
+                },
+                {
+                    "date": "2025-01-02_00-00-00",
+                    "describe": TIMER_AUTO_BACKUP_DESCRIPTION,
+                    "path": "kept.zip",
+                    "size": 100,
+                    "created_by": "Manual"
+                }
+            ],
+            "device_heads": {}
+        });
+        fs::write(
+            game_dir.join("Backups.json"),
+            serde_json::to_string_pretty(&raw)?,
+        )?;
+
+        migrate_snapshot_created_by_in_backup_root(&backup_root)?;
+
+        let migrated: Value =
+            serde_json::from_str(&fs::read_to_string(game_dir.join("Backups.json"))?)?;
+        assert_eq!(
+            migrated
+                .pointer("/backups/0/created_by")
+                .and_then(Value::as_str),
+            Some("Timer")
+        );
+        assert_eq!(
+            migrated
+                .pointer("/backups/1/created_by")
+                .and_then(Value::as_str),
+            Some("Manual")
+        );
+
+        Ok(())
     }
 }
