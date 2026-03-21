@@ -224,6 +224,62 @@ function syncAutoBackupFromGame() {
   }
 }
 
+function onPresetChange(val: string) {
+  if (val !== 'custom') {
+    autoBackupIntervalSecs.value = Number(val);
+    saveAutoBackupSettings();
+  }
+}
+
+async function saveAutoBackupSettings() {
+  const newConfig: AutoBackupConfig | null = autoBackupEnabled.value
+    ? {
+        interval_secs: autoBackupIntervalSecs.value,
+        max_backup_count: autoBackupMaxCount.value ?? null,
+      }
+    : null;
+
+  const result = await commands.setGameAutoBackup(game.value.name, newConfig);
+  if (result.status === 'error') {
+    showError({ message: $t('manage.auto_backup_save_failed') });
+    return;
+  }
+  game.value.auto_backup = newConfig ?? undefined;
+  await refreshConfig();
+  showSuccess({ message: $t('manage.auto_backup_save_success') });
+}
+
+async function convertToPermanent(snapshotDate: string) {
+  try {
+    const snapshot = table_data.value.find((x) => x.date === snapshotDate);
+    const { value } = await feedback.prompt(
+      $t('manage.input_description_prompt'),
+      $t('manage.convert_to_permanent'),
+      {
+        confirmButtonText: $t('manage.confirm'),
+        cancelButtonText: $t('manage.cancel'),
+        inputValue: snapshot?.describe,
+      }
+    );
+    if (value !== snapshot?.describe) {
+      const descResult = await commands.setSnapshotDescription(game.value, snapshotDate, value);
+      if (descResult.status === 'error') {
+        showError({ message: $t('manage.change_description_failed') });
+        return;
+      }
+    }
+    const result = await commands.setSnapshotCreatedBy(game.value.name, snapshotDate, 'Manual');
+    if (result.status === 'error') {
+      showError({ message: $t('manage.convert_to_permanent_failed') });
+      return;
+    }
+    showSuccess({ message: $t('manage.convert_to_permanent_success') });
+    await refresh_backups_info();
+  } catch {
+    showInfo({ message: $t('manage.operation_canceled') });
+  }
+}
+
 // Init game info
 watch(
   () => route.params.name,
@@ -627,10 +683,6 @@ async function change_describe(date: string) {
       showError({ message: $t('manage.change_description_failed') });
       return;
     }
-    // Editing a timer snapshot's description promotes it to permanent
-    if (snapshot?.created_by === 'Timer') {
-      await commands.setSnapshotCreatedBy(game.value.name, date, 'Manual');
-    }
     refresh_backups_info();
     showSuccess({ message: $t('manage.change_description_success') });
   } catch {
@@ -732,12 +784,17 @@ async function verify_archive_hashes() {
 }
 
 // 设置快速备份，由快捷键和tray触发备份和恢复
+const isQuickBackupGame = computed(() => {
+  return config.value.quick_action?.quick_action_game?.name === game.value.name;
+});
+
 async function set_quick_backup() {
   const result = await commands.setQuickBackupGame(game.value);
   if (result.status === 'error') {
     showError({ message: $t('manage.set_quick_backup_failed') });
     return;
   }
+  await refreshConfig();
   showSuccess({ message: $t('manage.set_quick_backup_success') });
 }
 
@@ -1195,28 +1252,28 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
           <el-button circle :icon="Setting" @click="drawer = true" />
         </el-tooltip>
         <el-tooltip :content="$t('manage.set_quick_backup')" placement="bottom">
-          <el-button circle :icon="Lightning" type="warning" @click="set_quick_backup" />
+          <el-button
+            circle
+            :icon="Lightning"
+            :type="isQuickBackupGame ? 'success' : ''"
+            @click="set_quick_backup"
+          />
         </el-tooltip>
-        <el-popover
-          placement="bottom"
-          :width="300"
-          trigger="click"
-        >
+        <el-popover placement="bottom" :width="300" trigger="click">
           <template #reference>
             <el-button circle :icon="AlarmClock" :type="autoBackupEnabled ? 'success' : ''" />
           </template>
           <div class="auto-backup-popover">
             <div class="auto-backup-popover-row">
               <span>{{ $t('manage.auto_backup') }}</span>
-              <el-switch
-                v-model="autoBackupEnabled"
-                @change="saveAutoBackupSettings"
-              />
+              <el-switch v-model="autoBackupEnabled" @change="saveAutoBackupSettings" />
             </div>
             <template v-if="autoBackupEnabled">
               <el-divider style="margin: 8px 0" />
               <div class="auto-backup-popover-row">
-                <span class="auto-backup-popover-label">{{ $t('manage.auto_backup_interval') }}</span>
+                <span class="auto-backup-popover-label">{{
+                  $t('manage.auto_backup_interval')
+                }}</span>
                 <el-select
                   v-model="autoBackupPreset"
                   size="small"
@@ -1229,10 +1286,7 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                     :label="preset.label()"
                     :value="String(preset.value)"
                   />
-                  <el-option
-                    :label="$t('manage.auto_backup_custom_interval')"
-                    value="custom"
-                  />
+                  <el-option :label="$t('manage.auto_backup_custom_interval')" value="custom" />
                 </el-select>
               </div>
               <div v-if="autoBackupPreset === 'custom'" class="auto-backup-popover-row">
@@ -1244,16 +1298,14 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                   size="small"
                   style="flex: 1"
                 />
-                <el-button
-                  size="small"
-                  type="primary"
-                  @click="saveAutoBackupSettings"
-                >
+                <el-button size="small" type="primary" @click="saveAutoBackupSettings">
                   {{ $t('manage.confirm') }}
                 </el-button>
               </div>
               <div class="auto-backup-popover-row">
-                <span class="auto-backup-popover-label">{{ $t('manage.auto_backup_max_count') }}</span>
+                <span class="auto-backup-popover-label">{{
+                  $t('manage.auto_backup_max_count')
+                }}</span>
                 <el-input-number
                   v-model="autoBackupMaxCount"
                   :min="0"
@@ -1425,7 +1477,8 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                       effect="plain"
                       round
                       class="source-tag"
-                    >{{ snapshotSourceTag(rowData) }}</el-tag>
+                      >{{ snapshotSourceTag(rowData) }}</el-tag
+                    >
                     <span class="table-cell-ellipsis">{{ rowData.describe }}</span>
                   </span>
                 </el-tooltip>
@@ -1433,20 +1486,6 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                   {{ rowData.size ? formatFileSize(rowData.size) : '-' }}
                 </span>
                 <div v-else-if="column.key === 'actions'" class="action-buttons">
-                  <el-tooltip
-                    v-if="rowData.created_by === 'Timer'"
-                    :content="$t('manage.convert_to_permanent')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="primary"
-                      :icon="Lock"
-                      @click="convertToPermanent(rowData.date)"
-                    />
-                  </el-tooltip>
                   <el-tooltip
                     :content="$t('manage.apply')"
                     placement="top"
@@ -1465,6 +1504,21 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                     </span>
                   </el-tooltip>
                   <el-tooltip
+                    v-if="rowData.created_by === 'Timer'"
+                    :content="$t('manage.convert_to_permanent')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <el-button
+                      link
+                      type="primary"
+                      :icon="Lock"
+                      @click="convertToPermanent(rowData.date)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip
+                    v-else
                     :content="$t('manage.change_describe')"
                     placement="top"
                     :show-after="300"
