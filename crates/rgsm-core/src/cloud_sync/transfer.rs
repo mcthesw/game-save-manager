@@ -366,7 +366,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
-            info.set_scheme(Scheme::Webdav)
+            info.set_scheme(Scheme::Webdav.into())
                 .set_native_capability(Capability {
                     write: true,
                     write_can_multi: false,

@@ -17,24 +17,24 @@ log.workspace = true
 anyhow.workspace = true
 semver = "1.0.26"
 thiserror.workspace = true
-chrono = "0.4.40"
+chrono = "0.4.44"
 tokio.workspace = true
 tokio-util.workspace = true
-opendal = { version = "0.54.0", features = ["services-webdav", "services-s3"] }
+opendal = { version = "0.54.1", features = ["services-webdav", "services-s3"] }
 zip.workspace = true
 fs_extra = "1.3.0"
 filetime = "0.2"
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 open.workspace = true
 temp-dir.workspace = true
-notify-rust = "4.11.5"
-hostname = "0.4.0"
+notify-rust = "4.12.0"
+hostname = "0.4.2"
 dirs = "6.0.0"
-whoami = "1.6.0"
-machine-uid = "0.5.3"
+whoami = "1.6.1"
+machine-uid = "0.5.4"
 reqwest = "0.12"
 lazy_static = "1.5"
-rust-embed = { version = "8.9.0", features = ["compression", "debug-embed", "include-exclude"] }
+rust-embed = { version = "8.11.0", features = ["compression", "debug-embed", "include-exclude"] }
 font-kit = "0.14"
 base64 = "0.22.1"
 async-trait.workspace = true

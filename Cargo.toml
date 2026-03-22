@@ -14,19 +14,19 @@ rust-version = "1.85.1"
 license = "MIT"
 
 [workspace.dependencies]
-anyhow = "1.0.97"
+anyhow = "1.0.102"
 async-trait = "0.1"
 criterion = "0.8.2"
-log = "0.4.28"
-open = "5.3.2"
+log = "0.4.29"
+open = "5.3.3"
 rgsm-core = { path = "crates/rgsm-core" }
 rust-i18n = "3.1.5"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.149"
 specta = { version = "=2.0.0-rc.22", features = ["derive"] }
-temp-dir = "0.1.14"
-thiserror = "2.0.12"
-tokio = { version = "1.44.2", features = ["full"] }
-tokio-util = { version = "0.7.13", features = ["full"] }
+temp-dir = "0.1.16"
+thiserror = "2.0.18"
+tokio = { version = "1.50.0", features = ["full"] }
+tokio-util = { version = "0.7.18", features = ["full"] }
 winreg = "0.55"
 zip = { version = "5.1.1", features = ["deflate", "bzip2", "zstd"] }
