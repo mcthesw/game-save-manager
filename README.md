@@ -68,6 +68,11 @@
 
 你可以通过[爱发电](https://afdian.net/a/Sworld)和微信支持这个项目，可以参考[这个网页](https://help.sworld.club/docs/about)
 
+## 致谢
+
+- [Linux DO](https://linux.do) 真诚、友善、团结、专业，共建你我引以为荣之社区。
+- [Weblate](https://weblate.org) 专业的翻译网站，为本项目提供了翻译社区支持。 
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mcthesw/game-save-manager&type=Date)](https://star-history.com/#mcthesw/game-save-manager&Date)
