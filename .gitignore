@@ -21,6 +21,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Rust
+target/
+
 # Misc
 .DS_Store
 .fleet
