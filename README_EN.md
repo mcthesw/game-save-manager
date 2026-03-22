@@ -68,6 +68,11 @@ The technologies used in this project:
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M2XD2WO)
 
+## Acknowledgments
+
+- [Linux DO](https://linux.do) Sincere, friendly, united, and professional — building a community we can all be proud of.
+- [Weblate](https://weblate.org) A professional translation platform that provides community translation support for this project.
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=mcthesw/game-save-manager&type=Date)](https://star-history.com/#mcthesw/game-save-manager&Date)
