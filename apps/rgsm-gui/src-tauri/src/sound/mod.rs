@@ -17,7 +17,9 @@ use tokio::sync::{
     oneshot,
 };
 
-use crate::config::{QuickActionSoundPreferences, QuickActionSoundSlots, QuickActionSoundSource};
+use rgsm_core::config::{
+    QuickActionSoundPreferences, QuickActionSoundSlots, QuickActionSoundSource,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum QuickActionSoundEffect {

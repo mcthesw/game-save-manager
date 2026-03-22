@@ -15,7 +15,7 @@ use hotkeys::setup_hotkeys;
 use tauri::Manager;
 use tray::setup_tray;
 
-use crate::config::get_config;
+use rgsm_core::config::get_config;
 
 pub fn setup(app: &mut tauri::App) -> anyhow::Result<()> {
     let manager = QuickActionManager::new(app.handle());

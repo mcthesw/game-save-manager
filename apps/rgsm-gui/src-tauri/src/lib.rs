@@ -4,32 +4,60 @@
 )]
 
 use rust_i18n::{i18n, t};
-i18n!("../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
+i18n!("../../../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
-use config::get_config;
+use rgsm_core::cloud_sync::SyncEventEmitter;
+use rgsm_core::config::get_config;
 use tauri::Manager;
 
-use log::{error, info};
+use log::{error, info, warn};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
-use crate::config::config_check;
+use rgsm_core::config::config_check;
 
-mod app_dirs;
-mod backup;
-mod cloud_sync;
-mod config;
-mod default_value;
-mod device;
-mod embedded_resources;
+// GUI-specific modules
 mod hooks;
 mod ipc_handler;
-mod ludusavi_manifest;
-mod path_resolver;
-mod preclude;
 mod quick_actions;
 mod sound;
-mod system_fonts;
-mod updater;
+
+/// Tauri adapter for SyncEventEmitter — bridges core events to Tauri's event system.
+struct TauriSyncEmitter {
+    app: tauri::AppHandle,
+}
+
+impl SyncEventEmitter for TauriSyncEmitter {
+    fn emit_status(&self, status: &rgsm_core::cloud_sync::CloudSyncStatus) {
+        use tauri_specta::Event;
+        if let Err(err) = (ipc_handler::CloudSyncStatusEvent {
+            active_jobs: status.active_jobs,
+            current_description: status.current_description.clone(),
+            jobs: status.jobs.clone(),
+        })
+        .emit(&self.app)
+        {
+            warn!(
+                target: "rgsm::cloud::emitter",
+                "Failed to emit cloud sync status: {err:?}"
+            );
+        }
+    }
+
+    fn emit_error(&self, error: &rgsm_core::cloud_sync::CloudSyncError) {
+        use tauri_specta::Event;
+        if let Err(err) = (ipc_handler::CloudSyncErrorEvent {
+            game_name: error.game_name.clone(),
+            error: error.error.clone(),
+        })
+        .emit(&self.app)
+        {
+            warn!(
+                target: "rgsm::cloud::emitter",
+                "Failed to emit cloud sync error: {err:?}"
+            );
+        }
+    }
+}
 
 pub fn run() -> anyhow::Result<()> {
     info!("{}", t!("home.hello_world"));
@@ -116,10 +144,10 @@ pub fn run() -> anyhow::Result<()> {
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,
             quick_actions::QuickActionCompleted,
-            cloud_sync::CloudSyncStatus,
-            cloud_sync::CloudSyncError
+            ipc_handler::CloudSyncStatusEvent,
+            ipc_handler::CloudSyncErrorEvent
         ])
-        .constant("DEFAULT_CONFIG", config::Config::default());
+        .constant("DEFAULT_CONFIG", rgsm_core::config::Config::default());
 
     #[cfg(debug_assertions)]
     command_builder.export(
@@ -152,7 +180,14 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(command_builder.invoke_handler())
         .setup(move |app| {
-            let cloud_sync_manager = cloud_sync::CloudSyncTaskManager::new(app.handle());
+            let emitter = std::sync::Arc::new(TauriSyncEmitter {
+                app: app.handle().clone(),
+            });
+            let cloud_sync_manager = rgsm_core::cloud_sync::CloudSyncTaskManager::new(emitter);
+            let cloud_sync_worker = cloud_sync_manager.clone();
+            tauri::async_runtime::spawn(async move {
+                cloud_sync_worker.run().await;
+            });
             let config = get_config().expect("Failed to load config while building hooks");
             let pipeline =
                 hooks::build_builtin_pipeline(app.handle(), cloud_sync_manager.clone(), &config);
