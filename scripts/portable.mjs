@@ -8,7 +8,7 @@ import { getOctokit, context } from '@actions/github';
 async function resolvePortable() {
   if (process.platform !== 'win32') return;
 
-  const releaseDir = './src-tauri/target/release';
+  const releaseDir = './target/release';
 
   if (!(await fs.pathExists(releaseDir))) {
     throw new Error('could not found the release dir');
@@ -19,10 +19,13 @@ async function resolvePortable() {
   zip.addLocalFile(path.join(releaseDir, 'rgsm.exe'));
   // zip.addLocalFolder(path.join(releaseDir, "resources"), "resources");
 
-  const cargoToml = await fs.readFile(path.join('./src-tauri', 'Cargo.toml'), 'utf-8');
+  const cargoToml = await fs.readFile(
+    path.join('./apps/rgsm-gui/src-tauri', 'Cargo.toml'),
+    'utf-8',
+  );
   const versionMatch = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
   if (!versionMatch) {
-    throw new Error('could not read version from src-tauri/Cargo.toml');
+    throw new Error('could not read version from apps/rgsm-gui/src-tauri/Cargo.toml');
   }
   const version = versionMatch[1];
 
