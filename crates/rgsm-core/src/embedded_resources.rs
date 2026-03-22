@@ -36,3 +36,24 @@ pub fn ludusavi_manifest_meta_json() -> std::borrow::Cow<'static, str> {
 pub fn ludusavi_manifest_yaml_len() -> u64 {
     load_bytes("ludusavi_manifest.yaml").len() as u64
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{ludusavi_manifest_meta_json, ludusavi_manifest_yaml, ludusavi_manifest_yaml_len};
+
+    #[test]
+    fn bundled_ludusavi_manifest_files_are_embedded() {
+        assert!(ludusavi_manifest_yaml_len() > 0);
+
+        let manifest_yaml = ludusavi_manifest_yaml();
+        let manifest_meta = ludusavi_manifest_meta_json();
+
+        let parsed_yaml: serde_yaml::Value = serde_yaml::from_str(manifest_yaml.as_ref())
+            .expect("bundled manifest should be valid YAML");
+        let parsed_meta: serde_json::Value = serde_json::from_str(manifest_meta.as_ref())
+            .expect("bundled manifest metadata should be valid JSON");
+
+        assert!(matches!(parsed_yaml, serde_yaml::Value::Mapping(_)));
+        assert!(parsed_meta.is_object());
+    }
+}
