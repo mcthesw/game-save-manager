@@ -54,9 +54,8 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
-      - name: Run tests
-        working-directory: src-tauri
-        run: cargo test --all-features
+      - name: Run workspace checks
+        run: |
+          cargo check --workspace
+          cargo test -p rgsm-core --lib

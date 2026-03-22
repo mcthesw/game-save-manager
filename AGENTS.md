@@ -30,40 +30,39 @@ sudo apt install libwebkit2gtk-4.1-dev \
 
 ## Development Commands
 
-- `pnpm install`: Install all dependencies and run `nuxt prepare`.
-- `pnpm dev`: Run the full application in development mode with hot-reloading.
-- `pnpm build`: Build the application for production.
-- `pnpm web:dev`: Run the frontend only for UI-focused work.
-- `pnpm portable`: Create a portable build.
+- `pnpm install`: Install workspace dependencies and run `nuxt prepare` for `apps/rgsm-gui`.
+- `pnpm dev`: Run the Tauri GUI app in development mode.
+- `pnpm build`: Build the Tauri GUI app for production.
+- `pnpm web:dev`: Run the Nuxt frontend only.
+- `pnpm web:lint`: Run the frontend ESLint checks.
+- `pnpm web:typecheck`: Run the frontend typecheck.
+- `pnpm portable`: Create a Windows portable build from the workspace root.
 
 ## Project Structure & Module Organization
 
-The application is divided into a frontend and a backend.
+The repository is split into workspace apps and crates.
 
-- **Frontend (`src/`)**: A Nuxt 3 application.
-  - `pages/`: Routed Vue components.
-  - `components/`: Reusable Vue components.
-  - `composables/`: Shared state and logic using Vue Composition API.
-  - `assets/`: Static assets like CSS and images.
-  - `locales/`: i18n translation files (JSON).
+- **GUI app (`apps/rgsm-gui/`)**: Nuxt 3 frontend plus the Tauri host.
+  - `src/`: Routed Vue UI (`pages/`, `components/`, `composables/`, `assets/`).
+  - `src/bindings.ts`: Auto-generated TypeScript bindings for Rust `#[tauri::command]` APIs. **Never edit it manually.**
+  - `src-tauri/src/lib.rs`: Tauri bootstrap and state wiring.
+  - `src-tauri/src/ipc_handler.rs`: **Thin export layer only.** Commands should stay 1-3 lines and delegate to services/domain modules.
+  - `src-tauri/src/hooks/`: GUI-only hooks such as notifications and scheduler sync.
+  - `src-tauri/src/quick_actions/`: GUI-only tray, hotkey, and timer integrations.
 
-- **Backend (`src-tauri/`)**: A Rust-based Tauri application.
-  - `src/main.rs`: Application entry point.
-  - `src/lib.rs`: Main library, defines Tauri commands.
-  - `src/ipc_handler.rs`: **Thin export layer only.** This file should only contain `#[tauri::command]` function signatures that delegate to other modules. Do not put business logic here - keep commands simple (1-3 lines) that just call functions from domain modules and handle error conversion. Complex logic belongs in dedicated modules like `backup/`, `config/`, `path_resolver.rs`, etc.
-    - For cloud sync commands, IPC should call the cloud-sync facade and must not construct/use OpenDAL `Operator` directly.
-  - `src/backup/`: Logic for creating and restoring game save backups.
-  - `src/cloud_sync/`: Logic for WebDAV and S3 synchronization.
-    - `backend.rs`: Backend config and OpenDAL operator creation (with retry policy).
-    - `transfer.rs`: Unified streaming transfer abstraction and hook extension points.
-    - `utils.rs`: Cloud sync workflows (full upload/download, metadata sync).
-    - `facade.rs`: Domain entry points used by IPC layer.
-  - `src/config/`: Manages `GameSaveManager.config.json`.
-  - `src/quick_actions/`: Implements hotkeys, tray menu, and timers.
-  - `src/path_resolver.rs`: Path variable resolution and filesystem checks.
-  - Any IPC commands should be placed in `ipc_handler.rs`, but their implementation should be in domain modules.
+- **Core library (`crates/rgsm-core/`)**: Pure Rust business logic with no Tauri dependency.
+  - `backup/`, `config/`, `cloud_sync/`: Domain modules.
+  - `services/`: Orchestration entry points used by IPC/CLI/FFI layers.
+  - `hooks/`: `LifecycleHook`, contexts, DI traits, and `HookPipeline`.
+  - `path_resolver.rs`, `app_dirs.rs`, `device.rs`, etc.: Shared infrastructure.
 
-- **Contracts (`src/bindings.ts`)**: This auto-generated file contains TypeScript definitions for all Rust `#[tauri::command]` functions. It is the primary contract between the frontend and backend. **Never edit it manually.**
+- **Future integration crates**
+  - `apps/rgsm-cli/`: CLI app placeholder.
+  - `crates/rgsm-ffi/`: FFI crate placeholder.
+
+- **Shared assets**
+  - `locales/`: Shared i18n files. Tier 1 locales are `en_US` and `zh_SIMPLIFIED`.
+  - `scripts/`: Repo-level helper scripts such as portable packaging.
 
 ## Coding Style & Naming Conventions
 
@@ -93,10 +92,15 @@ Run all of the following before each commit to catch issues early. They can be r
 
 ```bash
 # Rust: format, lint, and test
-cargo fmt && cargo clippy --all-targets --all-features && cargo test --lib
+cargo fmt --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo check --workspace
+cargo test -p rgsm-core --lib
 
 # Frontend: lint and typecheck
-npx eslint src/ && npx nuxt typecheck
+pnpm web:format
+pnpm web:lint
+pnpm web:typecheck
 ```
 
 CI will verify these checks. Fix any issues before committing.
@@ -127,9 +131,10 @@ The project has both automated tests and manual verification. Before submitting 
   - If TDD-first is not practical (e.g. third-party outage, platform-only behavior that cannot be reliably reproduced in CI, or urgent hotfix constraints), clearly document the reason and provide the closest possible automated regression coverage.
 
 - Run automated checks:
-  - `cargo check`
-  - `cargo test --lib` (or `cargo test` when related)
-  - `cargo clippy --all-targets --all-features`
+  - `cargo check --workspace`
+  - `cargo test -p rgsm-core --lib` (or broader `cargo test` when related)
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+  - `pnpm web:typecheck`
 - Ensure all checks pass without warnings.
 - Then verify core features manually:
 

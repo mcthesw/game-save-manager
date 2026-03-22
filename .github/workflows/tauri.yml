@@ -50,12 +50,11 @@ jobs:
         run: pnpm install
       - name: restore rust cache
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: apps/rgsm-gui
           releaseId: ${{ steps.get_release.outputs.id }}
           args: ${{ matrix.args }}
       - name: build portable (windows only)

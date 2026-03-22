@@ -4,10 +4,15 @@ on:
     branches:
       - dev
     paths:
-      - src
-      - src-tauri
-      - scripts
-      - locales
+      - apps/rgsm-gui/**
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - scripts/**
+      - locales/**
   workflow_dispatch:
 jobs:
   create-release:

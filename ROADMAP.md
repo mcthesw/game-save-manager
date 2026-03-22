@@ -39,7 +39,7 @@
 
 ### 工程优化
 
-- [ ] **Workspace 拆分**：将 `src-tauri/` 拆分为多个 crate，为 CLI 工具和 FFI 集成提供基础
+- [x] **Workspace 拆分**：将项目整理为 workspace 结构（`apps/rgsm-gui`、`apps/rgsm-cli`、`crates/rgsm-core`、`crates/rgsm-ffi`），为 CLI 工具和 FFI 集成提供基础
 
 ## V3.0（远期展望）
 
