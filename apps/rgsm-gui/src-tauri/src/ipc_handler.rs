@@ -1,22 +1,21 @@
-use crate::backup::{CreatedBy, ExtraBackupItem, Game, GameDraft, GameSnapshots};
-use crate::cloud_sync::{
+use crate::{quick_actions, sound};
+use rgsm_core::backup::{CreatedBy, ExtraBackupItem, Game, GameDraft, GameSnapshots};
+use rgsm_core::cloud_sync::{
     self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudSyncSessionConfig,
     CloudSyncTaskManager, SyncGameOutcome,
 };
-use crate::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
-use crate::device::{Device, get_current_device_id};
-use crate::hooks::{
-    BeforeRestoreCtx, ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookPipeline,
-    HookPipelineState, HookSource, MetadataChangedCtx, SnapshotAppliedCtx, SnapshotCreatedCtx,
-    SnapshotDeletedCtx,
-};
-use crate::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
-use crate::path_resolver;
-use crate::preclude::*;
-use crate::{backup, config, quick_actions, sound, system_fonts};
+use rgsm_core::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
+use rgsm_core::device::{Device, get_current_device_id};
+use rgsm_core::hooks::{HookPipeline, HookSource};
+use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
+use rgsm_core::path_resolver;
+use rgsm_core::preclude::*;
+use rgsm_core::services::ServiceContext;
+use rgsm_core::{backup, config, system_fonts};
 
 use anyhow::Result;
 use log::{debug, error, info, warn};
+use rgsm_core::backup::{RestoreNotificationLevel, RestoreNotifier};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -24,6 +23,36 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, Window};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
+
+use crate::hooks::HookPipelineState;
+
+/// Adapter: emits restore progress as IpcNotification events via Tauri.
+struct TauriRestoreNotifier {
+    app: AppHandle,
+}
+
+impl RestoreNotifier for TauriRestoreNotifier {
+    fn notify(&self, level: RestoreNotificationLevel, title: &str, msg: &str) {
+        let notification_level = match level {
+            RestoreNotificationLevel::Info => NotificationLevel::info,
+            RestoreNotificationLevel::Warning => NotificationLevel::warning,
+        };
+        if let Err(err) = (IpcNotification {
+            level: notification_level,
+            title: title.to_string(),
+            msg: msg.to_string(),
+        })
+        .emit(&self.app)
+        {
+            warn!(target: "rgsm::ipc", "Failed to emit restore notification: {err:?}");
+        }
+    }
+}
+
+/// Helper to create a notifier from an AppHandle
+fn notifier(app: &AppHandle) -> TauriRestoreNotifier {
+    TauriRestoreNotifier { app: app.clone() }
+}
 
 /// Typed error for restore operations, allowing the frontend to
 /// pattern-match on specific failure modes without string parsing.
@@ -64,6 +93,21 @@ impl From<BackupError> for RestoreError {
 
 fn hook_pipeline<R: tauri::Runtime, M: Manager<R>>(manager: &M) -> Arc<HookPipeline> {
     manager.state::<HookPipelineState>().snapshot()
+}
+
+fn svc<R: tauri::Runtime, M: Manager<R>>(manager: &M) -> ServiceContext {
+    ServiceContext::new(hook_pipeline(manager))
+}
+
+async fn rebuild_pipeline_and_fire_config_saved(
+    app_handle: &AppHandle,
+    config: Config,
+    source: HookSource,
+) {
+    let pipeline = crate::hooks::rebuild_pipeline(app_handle, &config);
+    ServiceContext::new(pipeline)
+        .fire_config_saved(config, source)
+        .await;
 }
 
 fn batch_report_failed_item(report: &BatchSyncReport) -> Option<String> {
@@ -113,6 +157,21 @@ pub struct IpcNotification {
     pub level: NotificationLevel,
     pub title: String,
     pub msg: String,
+}
+
+/// Tauri Event wrapper for CloudSyncStatus (core type has no Event derive)
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct CloudSyncStatusEvent {
+    pub active_jobs: usize,
+    pub current_description: Option<String>,
+    pub jobs: Vec<cloud_sync::CloudSyncJobInfo>,
+}
+
+/// Tauri Event wrapper for CloudSyncError (core type has no Event derive)
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct CloudSyncErrorEvent {
+    pub game_name: Option<String>,
+    pub error: String,
 }
 
 #[tauri::command]
@@ -194,39 +253,13 @@ pub async fn get_local_config() -> Result<Config, String> {
 #[specta::specta]
 pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Adding game draft: {:?}", game);
-    let previous_game = get_config()
-        .ok()
-        .and_then(|config| config.games.iter().find(|g| g.name == game.name).cloned());
-
-    backup::create_game_backup(&game).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to add game: {:?}", e);
-        e.to_string()
-    })?;
-
-    if let Ok(config) = get_config() {
-        if let Some(saved_game) = config.games.iter().find(|g| g.name == game.name) {
-            let pipeline = hook_pipeline(&app_handle);
-            if let Some(previous_game) = previous_game {
-                pipeline
-                    .fire_game_updated(&GameUpdatedCtx {
-                        config: config.clone(),
-                        source: HookSource::UserManual,
-                        previous_game,
-                        game: saved_game.clone(),
-                    })
-                    .await;
-            } else if let Ok(snapshots) = saved_game.get_game_snapshots_info() {
-                pipeline
-                    .fire_game_added(&GameAddedCtx {
-                        config: config.clone(),
-                        source: HookSource::UserManual,
-                        game: saved_game.clone(),
-                        snapshots,
-                    })
-                    .await;
-            }
-        }
-    }
+    svc(&app_handle)
+        .add_game(&game, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to add game: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc", "Successfully added game draft: {:?}", game.name);
     Ok(())
@@ -240,64 +273,14 @@ pub async fn restore_snapshot(
     app: AppHandle,
 ) -> Result<(), RestoreError> {
     info!(target:"rgsm::ipc", "Applying backup: {:?} for game: {:?}", date, game);
-
-    // Build gate context and run pre-restore hooks (extra backup, integrity check).
-    let pre_snapshots = game.get_game_snapshots_info().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to read snapshots: {:?}", e);
-        RestoreError::from(e)
-    })?;
-    let snapshot = pre_snapshots
-        .backups
-        .iter()
-        .find(|s| s.date == date)
-        .cloned()
-        .ok_or_else(|| RestoreError::Other {
-            message: format!("Snapshot {date} not found"),
+    let n = notifier(&app);
+    svc(&app)
+        .restore_snapshot(&game, &date, HookSource::UserManual, Some(&n))
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
+            RestoreError::from(e)
         })?;
-
-    let archive_path = get_backup_path()
-        .map_err(|e| RestoreError::Other {
-            message: e.to_string(),
-        })?
-        .join(&game.name)
-        .join(format!("{date}.zip"));
-    let hook_config = get_config().map_err(|e| RestoreError::Other {
-        message: e.to_string(),
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app);
-        pipeline
-            .fire_before_restore(&BeforeRestoreCtx {
-                config: hook_config.clone(),
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshot: snapshot.clone(),
-                snapshots: pre_snapshots,
-                archive_path,
-            })
-            .await
-            .map_err(RestoreError::from)?;
-    }
-
-    // Core restore: decompress + update HEAD.
-    let snapshots = game.restore_snapshot(&date, Some(&app)).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
-        RestoreError::from(e)
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app);
-        pipeline
-            .fire_snapshot_applied(&SnapshotAppliedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshot,
-                snapshots,
-            })
-            .await;
-    }
 
     info!(target:"rgsm::ipc", "Successfully applied backup: {:?} for game: {:?}", date, game);
     Ok(())
@@ -311,24 +294,13 @@ pub async fn delete_snapshot(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Deleting backup: {:?} for game: {:?}", date, game);
-    let deleted = game.delete_snapshot(&date).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to delete backup: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        pipeline
-            .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshots: deleted.snapshots,
-                deleted_remote_paths: vec![deleted.remote_zip_path],
-            })
-            .await;
-    }
+    svc(&app_handle)
+        .delete_snapshot(&game, &date, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to delete backup: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc", "Successfully deleted backup: {:?} for game: {:?}", date, game);
     Ok(())
@@ -342,24 +314,13 @@ pub async fn batch_delete_snapshots(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Batch deleting {} snapshots for game: {:?}", dates.len(), game.name);
-    let deleted = game.batch_delete_snapshots(&dates).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to batch delete snapshots: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        pipeline
-            .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshots: deleted.snapshots,
-                deleted_remote_paths: deleted.deleted_remote_paths,
-            })
-            .await;
-    }
+    svc(&app_handle)
+        .batch_delete_snapshots(&game, &dates, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to batch delete snapshots: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc", "Successfully batch deleted {} snapshots for game: {:?}", dates.len(), game.name);
     Ok(())
@@ -369,23 +330,13 @@ pub async fn batch_delete_snapshots(
 #[specta::specta]
 pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Deleting game: {:?}", game);
-    let deleted = game.delete_game().await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to delete game: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        pipeline
-            .fire_game_deleted(&GameDeletedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game_name: game.name.clone(),
-                remote_game_dir_path: deleted.remote_game_dir_path,
-            })
-            .await;
-    }
+    svc(&app_handle)
+        .delete_game(&game, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to delete game: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc", "Successfully deleted game: {:?}", game);
     Ok(())
@@ -409,7 +360,7 @@ pub async fn verify_archive_integrity(
     archive_path: String,
     expected_hash: Option<String>,
 ) -> Result<bool, String> {
-    use crate::backup::compute_file_hash;
+    use rgsm_core::backup::compute_file_hash;
 
     let Some(expected) = expected_hash else {
         return Ok(true);
@@ -425,38 +376,24 @@ pub async fn verify_archive_integrity(
 #[specta::specta]
 pub async fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
     debug!(target:"rgsm::ipc", "Setting config: {:?}", config.clone().sanitize());
-    config::set_config(&config).await.map_err(|e| {
+    svc(&app_handle).save_config(&config).await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
         e.to_string()
     })?;
-    let pipeline_state = app_handle.state::<HookPipelineState>();
-    let cloud_sync_manager = app_handle
-        .state::<Arc<CloudSyncTaskManager>>()
-        .inner()
-        .clone();
-    pipeline_state.replace(crate::hooks::build_builtin_pipeline(
-        &app_handle,
-        cloud_sync_manager,
-        &config,
-    ));
-    let pipeline = pipeline_state.snapshot();
-    pipeline
-        .fire_config_saved(&ConfigSavedCtx {
-            config,
-            source: HookSource::UserManual,
-        })
-        .await;
+    rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn reset_settings() -> Result<(), String> {
+pub async fn reset_settings(app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Resetting settings.");
-    config::reset_settings().await.map_err(|e| {
+    let config = svc(&app_handle).reset_settings().await.map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to reset settings: {:?}", e);
         e.to_string()
-    })
+    })?;
+    rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -468,26 +405,12 @@ pub async fn create_snapshot(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Backing up save for game: {:?}", game);
-    let created = handle_backup_err(game.create_snapshot(&describe).await, window)?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-            let mut ctx = SnapshotCreatedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshot,
-                snapshots: created.snapshots,
-                local_zip_path: created.local_zip_path,
-                remote_zip_path: created.remote_zip_path,
-            };
-            pipeline.fire_snapshot_created(&mut ctx).await;
-            game.set_game_snapshots_info(&ctx.snapshots)
-                .map_err(|e| e.to_string())?;
-        }
-    }
+    handle_backup_err(
+        svc(&app_handle)
+            .create_snapshot(&game, &describe, HookSource::UserManual)
+            .await,
+        window,
+    )?;
 
     info!(target:"rgsm::ipc", "Successfully backed up save for game: {:?}", game);
     Ok(())
@@ -529,7 +452,8 @@ pub async fn delete_extra_backup(game: Game, date: String) -> Result<(), String>
 #[specta::specta]
 pub async fn restore_extra_backup(game: Game, date: String, app: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Restoring extra backup: {:?} for game: {:?}", date, game);
-    backup::restore_extra_backup(&game, &date, Some(&app)).map_err(|e| {
+    let n = notifier(&app);
+    backup::restore_extra_backup(&game, &date, Some(&n)).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to restore extra backup: {:?}", e);
         e.to_string()
     })
@@ -548,9 +472,12 @@ pub async fn open_extra_backup_folder(game: Game) -> Result<bool, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn check_cloud_backend(session: CloudSyncSessionConfig) -> Result<(), String> {
+pub async fn check_cloud_backend(
+    session: CloudSyncSessionConfig,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", session.backend.clone().sanitize());
-    match session.check().await {
+    match svc(&app_handle).check_cloud_backend(&session).await {
         Ok(_) => {
             info!(target:"rgsm::ipc", "Successfully checked cloud backend: {:?}", session.backend.sanitize());
             Ok(())
@@ -577,7 +504,9 @@ pub async fn cloud_upload_all(
         session.backend.clone().sanitize()
     );
     let (job_id, token) = manager.begin_manual_job(description.clone()).await;
-    let result = cloud_sync::upload_all_from_session(&session, Some(token)).await;
+    let result = svc(&app_handle)
+        .upload_all_from_session(&session, Some(token))
+        .await;
     let (status, error) = summarize_batch_result(&result);
     manager
         .finish_manual_job(job_id, &description, status, error.clone())
@@ -600,7 +529,9 @@ pub async fn cloud_download_all(
         session.backend.clone().sanitize()
     );
     let (job_id, token) = manager.begin_manual_job(description.clone()).await;
-    let result = cloud_sync::download_all_from_session(&session, Some(token)).await;
+    let result = svc(&app_handle)
+        .download_all_from_session(&session, Some(token))
+        .await;
 
     // After a successful download, the config may contain new games or updated
     // auto-backup settings. Rebuild the hook pipeline so the scheduler syncs.
@@ -610,22 +541,7 @@ pub async fn cloud_download_all(
     ) {
         match get_config() {
             Ok(config) => {
-                let pipeline_state = app_handle.state::<HookPipelineState>();
-                let cloud_sync_manager = app_handle
-                    .state::<Arc<CloudSyncTaskManager>>()
-                    .inner()
-                    .clone();
-                pipeline_state.replace(crate::hooks::build_builtin_pipeline(
-                    &app_handle,
-                    cloud_sync_manager,
-                    &config,
-                ));
-                let pipeline = pipeline_state.snapshot();
-                pipeline
-                    .fire_config_saved(&ConfigSavedCtx {
-                        config,
-                        source: HookSource::CloudSync,
-                    })
+                rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::CloudSync)
                     .await;
             }
             Err(err) => {
@@ -653,26 +569,13 @@ pub async fn set_snapshot_description(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting backup describe for game: {:?}", game);
-    let snapshots = game
-        .set_snapshot_description(&date, &describe)
+    svc(&app_handle)
+        .set_snapshot_description(&game, &date, &describe, HookSource::UserManual)
         .await
         .map_err(|e| {
             error!(target:"rgsm::ipc", "Failed to set backup describe: {:?}", e);
             e.to_string()
         })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        pipeline
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshots,
-            })
-            .await;
-    }
 
     info!(target:"rgsm::ipc", "Successfully set backup {} describe for game: {:?}", date,game);
     Ok(())
@@ -682,36 +585,13 @@ pub async fn set_snapshot_description(
 #[specta::specta]
 pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc","Backing up all games.");
-    let created_snapshots = backup::backup_all().await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to backup all games: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let config = get_config().ok();
-        for created in created_snapshots {
-            let game = config
-                .as_ref()
-                .and_then(|c| c.games.iter().find(|g| g.name == created.snapshots.name))
-                .cloned();
-            if let (Some(game), Some(snapshot)) = (game, created.snapshots.backups.last().cloned())
-            {
-                let mut ctx = SnapshotCreatedCtx {
-                    config: config.clone().expect("config present when game exists"),
-                    source: HookSource::BatchOperation,
-                    game: game.clone(),
-                    snapshot,
-                    snapshots: created.snapshots,
-                    local_zip_path: created.local_zip_path,
-                    remote_zip_path: created.remote_zip_path,
-                };
-                pipeline.fire_snapshot_created(&mut ctx).await;
-                game.set_game_snapshots_info(&ctx.snapshots)
-                    .map_err(|e| e.to_string())?;
-            }
-        }
-    }
+    svc(&app_handle)
+        .backup_all(HookSource::BatchOperation)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to backup all games: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc","Successfully backed up all games.");
     Ok(())
@@ -721,56 +601,14 @@ pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
 #[specta::specta]
 pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc","Applying all backups.");
-    let config = get_config().map_err(|e| e.to_string())?;
-    let pipeline = hook_pipeline(&app_handle);
-    let backup_base = get_backup_path().map_err(|e| e.to_string())?;
-
-    for game in &config.games {
-        let snapshots_info = game.get_game_snapshots_info().map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to read snapshots for {}: {e:?}", game.name);
+    let n = notifier(&app_handle);
+    svc(&app_handle)
+        .apply_all(HookSource::BatchOperation, Some(&n))
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to apply all backups: {:?}", e);
             e.to_string()
         })?;
-        let Some(snapshot) = snapshots_info.backups.last().cloned() else {
-            warn!(target:"rgsm::ipc", "No backups for {}, skipping", game.name);
-            continue;
-        };
-        let archive_path = backup_base
-            .join(&game.name)
-            .join(format!("{}.zip", snapshot.date));
-
-        // Gate: pre-restore hooks
-        if let Err(e) = pipeline
-            .fire_before_restore(&BeforeRestoreCtx {
-                config: config.clone(),
-                source: HookSource::BatchOperation,
-                game: game.clone(),
-                snapshot: snapshot.clone(),
-                snapshots: snapshots_info,
-                archive_path,
-            })
-            .await
-        {
-            error!(target:"rgsm::ipc", "Pre-restore hook failed for {}: {e:#}", game.name);
-            return Err(e.to_string());
-        }
-
-        let snapshots = game
-            .restore_snapshot(&snapshot.date, Some(&app_handle))
-            .map_err(|e| {
-                error!(target:"rgsm::ipc", "Apply all failed for {}: {e:?}", game.name);
-                e.to_string()
-            })?;
-
-        pipeline
-            .fire_snapshot_applied(&SnapshotAppliedCtx {
-                config: config.clone(),
-                source: HookSource::BatchOperation,
-                game: game.clone(),
-                snapshot,
-                snapshots,
-            })
-            .await;
-    }
 
     info!(target:"rgsm::ipc","Successfully applied all backups.");
     Ok(())
@@ -801,49 +639,13 @@ pub async fn set_game_auto_backup(
     auto_backup: Option<backup::AutoBackupConfig>,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting auto-backup for '{}': {:?}", game_name, auto_backup);
-    let mut config = get_config().map_err(|e| e.to_string())?;
-    let game = config
-        .games
-        .iter_mut()
-        .find(|g| g.name == game_name)
-        .ok_or_else(|| format!("Game '{}' not found", game_name))?;
-
-    if let Some(ref cfg) = auto_backup {
-        if cfg.interval_secs == 0 {
-            return Err("Auto-backup interval_secs must be greater than 0".to_string());
-        }
-    }
-
-    let previous_game = game.clone();
-    game.auto_backup = auto_backup;
-    let updated_game = game.clone();
-
-    config::set_config(&config).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to save config for auto-backup: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline_state = app_handle.state::<HookPipelineState>();
-        let cloud_sync_manager = app_handle
-            .state::<Arc<CloudSyncTaskManager>>()
-            .inner()
-            .clone();
-        pipeline_state.replace(crate::hooks::build_builtin_pipeline(
-            &app_handle,
-            cloud_sync_manager,
-            &config,
-        ));
-        let pipeline = pipeline_state.snapshot();
-        pipeline
-            .fire_game_updated(&GameUpdatedCtx {
-                config: config.clone(),
-                source: HookSource::UserManual,
-                previous_game,
-                game: updated_game,
-            })
-            .await;
-    }
+    svc(&app_handle)
+        .set_game_auto_backup(&game_name, auto_backup, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to save config for auto-backup: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc", "Successfully set auto-backup for '{}'", game_name);
     Ok(())
@@ -861,44 +663,24 @@ pub async fn set_snapshot_created_by(
         target:"rgsm::ipc",
         "Setting created_by for '{game_name}' snapshot '{snapshot_date}' to {created_by:?}"
     );
-    let config = get_config().map_err(|e| e.to_string())?;
-    let game = config
-        .games
-        .iter()
-        .find(|g| g.name == game_name)
-        .cloned()
-        .ok_or_else(|| format!("Game '{}' not found", game_name))?;
-
-    let mut snapshots = game.get_game_snapshots_info().map_err(|e| e.to_string())?;
-    let snapshot = snapshots
-        .backups
-        .iter_mut()
-        .find(|s| s.date == snapshot_date)
-        .ok_or_else(|| format!("Snapshot '{}' not found", snapshot_date))?;
-    snapshot.created_by = created_by;
-
-    game.set_game_snapshots_info(&snapshots).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to save snapshots after setting created_by: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        pipeline
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshots: snapshots.clone(),
-            })
-            .await;
-    }
-
-    info!(
-        target:"rgsm::ipc",
-        "Successfully set created_by for '{game_name}' snapshot '{snapshot_date}'"
-    );
-    Ok(snapshots)
+    svc(&app_handle)
+        .set_snapshot_created_by(
+            &game_name,
+            &snapshot_date,
+            created_by,
+            HookSource::UserManual,
+        )
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to save snapshots after setting created_by: {:?}", e);
+            e.to_string()
+        })
+        .inspect(|_| {
+            info!(
+                target:"rgsm::ipc",
+                "Successfully set created_by for '{game_name}' snapshot '{snapshot_date}'"
+            );
+        })
 }
 
 #[tauri::command]
@@ -996,35 +778,13 @@ pub async fn set_snapshot_head(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
-
-    let mut saves = game.get_game_snapshots_info().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
-        e.to_string()
-    })?;
-
-    // Verify the snapshot exists
-    if !saves.backups.iter().any(|s| s.date == date) {
-        return Err("Snapshot not found".to_string());
-    }
-
-    saves.set_current_device_head(Some(date.clone()));
-    game.set_game_snapshots_info(&saves).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        pipeline
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshots: saves,
-            })
-            .await;
-    }
+    svc(&app_handle)
+        .set_snapshot_head(&game, &date, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+            e.to_string()
+        })?;
 
     info!(target:"rgsm::ipc", "Successfully set HEAD to: {:?}", date);
     Ok(())
@@ -1039,41 +799,13 @@ pub async fn detach_snapshot(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
-
-    let mut saves = game.get_game_snapshots_info().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get game snapshots info: {:?}", e);
-        e.to_string()
-    })?;
-
-    // Find and update the snapshot
-    let snapshot = saves
-        .backups
-        .iter_mut()
-        .find(|s| s.date == date)
-        .ok_or_else(|| {
-            error!(target:"rgsm::ipc", "Snapshot not found: {:?}", date);
-            "Snapshot not found".to_string()
+    svc(&app_handle)
+        .detach_snapshot(&game, &date, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to detach snapshot: {:?}", e);
+            e.to_string()
         })?;
-
-    snapshot.parent = None;
-
-    game.set_game_snapshots_info(&saves).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
-        e.to_string()
-    })?;
-
-    {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        pipeline
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshots: saves,
-            })
-            .await;
-    }
 
     info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?}", date);
     Ok(())
@@ -1090,32 +822,19 @@ pub async fn create_snapshot_at(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
-
-    let result = handle_backup_err(
-        game.create_snapshot_with_parent(&describe, parent_date, CreatedBy::Manual)
+    handle_backup_err(
+        svc(&app_handle)
+            .create_snapshot_at(
+                &game,
+                &describe,
+                parent_date,
+                CreatedBy::Manual,
+                HookSource::UserManual,
+            )
             .await,
         window,
-    );
-
-    if let Ok(created) = &result {
-        let pipeline = hook_pipeline(&app_handle);
-        let hook_config = get_config().map_err(|e| e.to_string())?;
-        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-            let mut ctx = SnapshotCreatedCtx {
-                config: hook_config,
-                source: HookSource::UserManual,
-                game: game.clone(),
-                snapshot,
-                snapshots: created.snapshots.clone(),
-                local_zip_path: created.local_zip_path.clone(),
-                remote_zip_path: created.remote_zip_path.clone(),
-            };
-            pipeline.fire_snapshot_created(&mut ctx).await;
-            game.set_game_snapshots_info(&ctx.snapshots)
-                .map_err(|e| e.to_string())?;
-        }
-    }
-    result.map(|_| ())
+    )?;
+    Ok(())
 }
 
 fn handle_backup_err<T>(res: Result<T, BackupError>, window: Window) -> Result<T, String> {
@@ -1279,17 +998,25 @@ pub fn list_config_backups() -> Vec<String> {
 /// Restore config from a backup by index (0 = most recent).
 #[tauri::command]
 #[specta::specta]
-pub fn restore_config_backup(index: usize) -> Result<(), String> {
+pub async fn restore_config_backup(index: usize, app_handle: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Restoring config from backup index {}", index);
-    config::backup::restore_config_from_backup(index).map_err(|e| e.to_string())
+    let config = svc(&app_handle)
+        .restore_config_backup(index)
+        .map_err(|e| e.to_string())?;
+    rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
+    Ok(())
 }
 
 /// Sync one game by comparing local and remote snapshots.
 #[tauri::command]
 #[specta::specta]
-pub async fn sync_game(game_name: String) -> Result<SyncGameOutcome, String> {
+pub async fn sync_game(
+    game_name: String,
+    app_handle: AppHandle,
+) -> Result<SyncGameOutcome, String> {
     info!(target:"rgsm::ipc", "Syncing game: {}", game_name);
-    cloud_sync::sync_game_from_config(&game_name)
+    svc(&app_handle)
+        .sync_game(&game_name)
         .await
         .map_err(|e| e.to_string())
 }

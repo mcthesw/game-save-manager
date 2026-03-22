@@ -1,11 +1,12 @@
-use crate::{
-    backup::{CreatedBy, TIMER_AUTO_BACKUP_DESCRIPTION},
-    config::{QuickActionSoundPreferences, QuickActionsSettings, get_backup_path, get_config},
-    hooks::{BeforeRestoreCtx, HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx},
-    preclude::*,
-    sound::{QuickActionSoundEffect, play_quick_action_sound},
-};
+use crate::sound::{QuickActionSoundEffect, play_quick_action_sound};
 use log::{error, info, warn};
+use rgsm_core::{
+    backup::{CreatedBy, TIMER_AUTO_BACKUP_DESCRIPTION},
+    config::{QuickActionSoundPreferences, QuickActionsSettings, get_config},
+    hooks::HookSource,
+    preclude::*,
+    services::ServiceContext,
+};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -93,61 +94,20 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
     info!(target:"rgsm::quick_action", "Quick apply game: {:#?}", game);
 
     // 执行恢复操作
-    let result = async {
-        let snapshots_info = game.get_game_snapshots_info()?;
-        let snapshot = snapshots_info
-            .backups
-            .last()
-            .ok_or(BackupError::NoBackupAvailable)?
-            .clone();
-        let archive_path = get_backup_path()?
-            .join(&game.name)
-            .join(format!("{}.zip", snapshot.date));
-
-        // Gate hooks: extra backup + integrity check
-        let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-        pipeline
-            .fire_before_restore(&BeforeRestoreCtx {
-                config: config.clone(),
-                source: t.to_hook_source(),
-                game: game.clone(),
-                snapshot: snapshot.clone(),
-                snapshots: snapshots_info,
-                archive_path,
-            })
-            .await?;
-
-        game.restore_snapshot(&snapshot.date, None)
-    }
-    .await;
+    let result = ServiceContext::new(app.state::<crate::hooks::HookPipelineState>().snapshot())
+        .quick_apply(&game, t.to_hook_source(), None)
+        .await;
 
     // 处理结果
-    match result {
-        Err(e) => {
-            error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", &e);
-            // Failure notifications stay inline — no hook event for failures
-            maybe_show_notification(
-                &quick_settings,
-                t!("backend.tray.error"),
-                format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
-            );
-            play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
-        }
-        Ok(snapshots) => {
-            // Fire hook pipeline — NotificationHook handles sound/notification/event
-            if let Some(snapshot) = snapshots.backups.last().cloned() {
-                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                pipeline
-                    .fire_snapshot_applied(&SnapshotAppliedCtx {
-                        config: config.clone(),
-                        source: t.to_hook_source(),
-                        game: game.clone(),
-                        snapshot,
-                        snapshots,
-                    })
-                    .await;
-            }
-        }
+    if let Err(e) = result {
+        error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", &e);
+        // Failure notifications stay inline — no hook event for failures
+        maybe_show_notification(
+            &quick_settings,
+            t!("backend.tray.error"),
+            format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+        );
+        play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
     }
 }
 
@@ -175,42 +135,23 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     };
 
     // 执行备份操作
-    let result = game
-        .create_snapshot_with_parent(&t.generate_describe(), None, t.to_created_by())
+    let result = ServiceContext::new(app.state::<crate::hooks::HookPipelineState>().snapshot())
+        .quick_backup(
+            &game,
+            &t.generate_describe(),
+            t.to_created_by(),
+            t.to_hook_source(),
+        )
         .await;
 
-    match result {
-        Err(e) => {
-            error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
-            maybe_show_notification(
-                &quick_settings,
-                t!("backend.tray.error"),
-                format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
-            );
-            play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
-        }
-        Ok(created) => {
-            // Fire hook pipeline — NotificationHook handles sound/notification/event
-            if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                let mut ctx = SnapshotCreatedCtx {
-                    config: config.clone(),
-                    source: t.to_hook_source(),
-                    game: game.clone(),
-                    snapshot,
-                    snapshots: created.snapshots,
-                    local_zip_path: created.local_zip_path,
-                    remote_zip_path: created.remote_zip_path,
-                };
-                pipeline.fire_snapshot_created(&mut ctx).await;
-                if let Err(err) = game.set_game_snapshots_info(&ctx.snapshots) {
-                    warn!(
-                        target:"rgsm::quick_action",
-                        "Failed to persist hook-updated snapshot metadata: {err:?}"
-                    );
-                }
-            }
-        }
+    if let Err(e) = result {
+        error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
+        maybe_show_notification(
+            &quick_settings,
+            t!("backend.tray.error"),
+            format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+        );
+        play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
     }
 }
 

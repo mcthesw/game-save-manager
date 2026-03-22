@@ -4,10 +4,8 @@ use log::info;
 use tauri::{App, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::{
-    config::Config,
-    quick_actions::{QuickActionManager, QuickActionType},
-};
+use crate::quick_actions::{QuickActionManager, QuickActionType};
+use rgsm_core::config::Config;
 
 pub fn setup_hotkeys(config: &Config, app: &mut App) -> anyhow::Result<()> {
     info!(target:"rgsm::quick_action::hotkeys", "Setting up hotkeys");

@@ -1,0 +1,23 @@
+mod config;
+mod game;
+mod snapshot;
+mod sync;
+
+use std::sync::Arc;
+
+use crate::hooks::HookPipeline;
+
+#[derive(Clone)]
+pub struct ServiceContext {
+    pipeline: Arc<HookPipeline>,
+}
+
+impl ServiceContext {
+    pub fn new(pipeline: Arc<HookPipeline>) -> Self {
+        Self { pipeline }
+    }
+
+    pub fn pipeline(&self) -> &HookPipeline {
+        self.pipeline.as_ref()
+    }
+}

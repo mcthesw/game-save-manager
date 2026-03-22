@@ -7,7 +7,7 @@ use anyhow::Result as HookResult;
 use async_trait::async_trait;
 use log::info;
 
-use super::pipeline::{BeforeRestoreCtx, SnapshotCreatedCtx, SnapshotHook};
+use super::pipeline::{BeforeRestoreCtx, LifecycleHook, SnapshotCreatedCtx};
 use crate::backup::compute_file_hash;
 use crate::preclude::BackupError;
 
@@ -15,7 +15,7 @@ use crate::preclude::BackupError;
 pub struct ArchiveHashHook;
 
 #[async_trait]
-impl SnapshotHook for ArchiveHashHook {
+impl LifecycleHook for ArchiveHashHook {
     fn name(&self) -> &str {
         "ArchiveHashHook"
     }
@@ -48,7 +48,7 @@ impl SnapshotHook for ArchiveHashHook {
 pub struct ArchiveVerifyHook;
 
 #[async_trait]
-impl SnapshotHook for ArchiveVerifyHook {
+impl LifecycleHook for ArchiveVerifyHook {
     fn name(&self) -> &str {
         "ArchiveVerifyHook"
     }

@@ -5,30 +5,45 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-use super::pipeline::{ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, SnapshotHook};
 use crate::quick_actions::AutoBackupScheduler;
+use rgsm_core::hooks::{
+    ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, LifecycleHook, SchedulerSync,
+};
 
-/// Keeps the live auto-backup scheduler synchronized with persisted config changes.
-pub struct SchedulerSyncHook {
+pub struct TauriSchedulerSync {
     app: AppHandle,
 }
 
-impl SchedulerSyncHook {
+impl TauriSchedulerSync {
     pub fn new(app: AppHandle) -> Self {
         Self { app }
     }
+}
 
-    fn sync_scheduler(&self) {
+impl SchedulerSync for TauriSchedulerSync {
+    fn sync_from_config(&self) {
         if let Some(scheduler) = self.app.try_state::<AutoBackupScheduler>() {
             scheduler.sync_from_config();
         }
     }
 }
 
+/// Keeps the live auto-backup scheduler synchronized with persisted config changes.
+pub struct SchedulerSyncHook {
+    scheduler: Arc<dyn SchedulerSync>,
+}
+
+impl SchedulerSyncHook {
+    pub fn new(scheduler: Arc<dyn SchedulerSync>) -> Self {
+        Self { scheduler }
+    }
+}
+
 #[async_trait]
-impl SnapshotHook for SchedulerSyncHook {
+impl LifecycleHook for SchedulerSyncHook {
     fn name(&self) -> &str {
         "SchedulerSyncHook"
     }
@@ -38,22 +53,22 @@ impl SnapshotHook for SchedulerSyncHook {
     }
 
     async fn on_game_added(&self, _ctx: &GameAddedCtx) -> Result<()> {
-        self.sync_scheduler();
+        self.scheduler.sync_from_config();
         Ok(())
     }
 
     async fn on_game_updated(&self, _ctx: &GameUpdatedCtx) -> Result<()> {
-        self.sync_scheduler();
+        self.scheduler.sync_from_config();
         Ok(())
     }
 
     async fn on_game_deleted(&self, _ctx: &GameDeletedCtx) -> Result<()> {
-        self.sync_scheduler();
+        self.scheduler.sync_from_config();
         Ok(())
     }
 
     async fn on_config_saved(&self, _ctx: &ConfigSavedCtx) -> Result<()> {
-        self.sync_scheduler();
+        self.scheduler.sync_from_config();
         Ok(())
     }
 }

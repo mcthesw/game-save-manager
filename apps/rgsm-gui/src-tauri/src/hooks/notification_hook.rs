@@ -8,14 +8,14 @@ use async_trait::async_trait;
 use log::{info, warn};
 use tauri::AppHandle;
 
-use crate::config::QuickActionSoundPreferences;
-use crate::preclude::show_notification;
 use crate::quick_actions::{
     QuickActionCompleted, QuickActionOperation, QuickActionStatus, QuickActionType,
 };
 use crate::sound::{QuickActionSoundEffect, play_quick_action_sound};
+use rgsm_core::config::QuickActionSoundPreferences;
+use rgsm_core::preclude::show_notification;
 
-use super::pipeline::{HookSource, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotHook};
+use rgsm_core::hooks::{HookSource, LifecycleHook, SnapshotAppliedCtx, SnapshotCreatedCtx};
 
 /// Plays sounds, shows system notifications, and emits frontend events
 /// for quick-action / timer sources.
@@ -42,7 +42,7 @@ impl NotificationHook {
 
     fn notify_success(
         &self,
-        config: &crate::config::Config,
+        config: &rgsm_core::config::Config,
         qa_type: QuickActionType,
         operation: QuickActionOperation,
         game_name: &str,
@@ -109,7 +109,7 @@ fn emit_quick_action_event(
 }
 
 #[async_trait]
-impl SnapshotHook for NotificationHook {
+impl LifecycleHook for NotificationHook {
     fn name(&self) -> &str {
         "NotificationHook"
     }

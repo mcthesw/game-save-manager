@@ -1,220 +1,22 @@
-//! Hook context types, extension traits, and ordered dispatch.
+//! Ordered dispatch for lifecycle hooks.
 //!
-//! Hooks observe persisted lifecycle events; the pipeline guarantees a stable
-//! priority order so side effects run deterministically.
+//! Contexts and traits live in sibling modules; this file owns the
+//! priority-sorted dispatcher.
 
-use std::path::PathBuf;
-
-use anyhow::Result as HookResult;
-use async_trait::async_trait;
-use log::{error, info};
-use serde::{Deserialize, Serialize};
-use specta::Type;
-
-use crate::backup::{Game, GameSnapshots, Snapshot};
-use crate::config::Config;
+pub use super::contexts::*;
+pub use super::traits::{HookResult, LifecycleHook, SnapshotHook};
 use crate::preclude::BackupError;
-
-// ── HookSource ──────────────────────────────────────────────────────────────
-
-/// Describes *why* the snapshot lifecycle event was triggered,
-/// allowing downstream hooks to adjust behaviour (e.g. play sounds
-/// only for quick-action / timer sources).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "snake_case")]
-pub enum HookSource {
-    /// User clicked a button or menu item.
-    UserManual,
-    /// Periodic timer-based auto-backup.
-    TimerAutoBackup,
-    /// Batch backup/apply-all operation.
-    BatchOperation,
-    /// Global hotkey shortcut.
-    QuickActionHotkey,
-    /// Tray-menu shortcut.
-    QuickActionTray,
-    /// Cloud-sync subsystem itself (e.g. download-then-apply).
-    CloudSync,
-    /// System-internal operations (migration, cleanup, etc.).
-    Internal,
-}
-
-// ── Context structs ─────────────────────────────────────────────────────────
-
-/// Passed after a new snapshot archive has been written to disk.
-pub struct SnapshotCreatedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshot: Snapshot,
-    pub snapshots: GameSnapshots,
-    pub local_zip_path: PathBuf,
-    pub remote_zip_path: String,
-}
-
-/// Passed after a snapshot archive has been deleted from disk.
-pub struct SnapshotDeletedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshots: GameSnapshots,
-    /// Remote paths that were deleted (may be empty).
-    pub deleted_remote_paths: Vec<String>,
-}
-
-/// Passed after a snapshot has been restored / applied to the game folder.
-#[allow(dead_code)]
-pub struct SnapshotAppliedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshot: Snapshot,
-    pub snapshots: GameSnapshots,
-}
-
-/// Passed **before** a snapshot is about to be restored.
-///
-/// This is a **gate event**: if any hook returns `Err`, the restore is
-/// aborted and the error propagated to the caller.  Hooks that perform
-/// non-critical work (e.g. extra backup) should handle their own errors
-/// internally and return `Ok(())`.
-#[allow(dead_code)]
-pub struct BeforeRestoreCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshot: Snapshot,
-    pub snapshots: GameSnapshots,
-    /// Path to the archive that is about to be decompressed.
-    pub archive_path: PathBuf,
-}
-
-/// Passed after snapshot metadata has been modified (description, HEAD, parent).
-pub struct MetadataChangedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshots: GameSnapshots,
-}
-
-/// Passed after a new game has been added to the config.
-pub struct GameAddedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshots: GameSnapshots,
-}
-
-/// Passed after an existing game has been updated in the config.
-#[allow(dead_code)]
-pub struct GameUpdatedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub previous_game: Game,
-    pub game: Game,
-}
-
-/// Passed after a game (and all its snapshots) has been deleted.
-pub struct GameDeletedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game_name: String,
-    pub remote_game_dir_path: String,
-}
-
-/// Passed after config.json has been saved to disk.
-#[allow(dead_code)]
-pub struct ConfigSavedCtx {
-    pub config: Config,
-    pub source: HookSource,
-}
-
-/// Passed after a sync operation finished (success or error).
-#[allow(dead_code)]
-pub struct SyncCompletedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game_name: String,
-    pub success: bool,
-    pub message: Option<String>,
-}
-
-/// Passed when a sync conflict is detected.
-#[allow(dead_code)]
-pub struct SyncConflictCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game_name: String,
-    pub local_head: Option<String>,
-    pub remote_head: Option<String>,
-}
-
-// ── SnapshotHook trait ──────────────────────────────────────────────────────
-
-/// Extension point for snapshot-lifecycle side effects.
-///
-/// All methods have default no-op implementations so concrete hooks
-/// only need to override the events they care about.
-///
-/// **Ordering**: hooks are executed in ascending `priority()` order.
-/// Lower numbers run first (e.g. Checksum=10 → CloudSync=50 → Notification=90).
-#[async_trait]
-pub trait SnapshotHook: Send + Sync {
-    /// Human-readable name shown in logs.
-    fn name(&self) -> &str;
-
-    /// Lower runs first.  Avoid collisions with the built-in range 0..100.
-    fn priority(&self) -> u32 {
-        100
-    }
-
-    async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_snapshot_deleted(&self, _ctx: &SnapshotDeletedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    /// **Gate hook** — returning `Err` aborts the restore operation.
-    async fn on_before_restore(&self, _ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
-        Ok(())
-    }
-    async fn on_snapshot_applied(&self, _ctx: &SnapshotAppliedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_metadata_changed(&self, _ctx: &MetadataChangedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_game_added(&self, _ctx: &GameAddedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_game_updated(&self, _ctx: &GameUpdatedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_game_deleted(&self, _ctx: &GameDeletedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_config_saved(&self, _ctx: &ConfigSavedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_sync_completed(&self, _ctx: &SyncCompletedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_sync_conflict(&self, _ctx: &SyncConflictCtx) -> HookResult<()> {
-        Ok(())
-    }
-}
-
-// ── HookPipeline ────────────────────────────────────────────────────────────
+use log::{error, info};
 
 /// Owns a priority-sorted list of hooks and fans out every event to each
 /// hook in order.  Individual hook errors are **logged but never abort**
 /// subsequent hooks.
 pub struct HookPipeline {
-    hooks: Vec<Box<dyn SnapshotHook>>,
+    hooks: Vec<Box<dyn LifecycleHook>>,
 }
 
 impl HookPipeline {
-    pub fn new(mut hooks: Vec<Box<dyn SnapshotHook>>) -> Self {
+    pub fn new(mut hooks: Vec<Box<dyn LifecycleHook>>) -> Self {
         hooks.sort_by_key(|h| h.priority());
         info!(
             target: "rgsm::hooks",
@@ -306,7 +108,12 @@ impl HookPipeline {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
+    use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+
+    use crate::backup::{Game, GameSnapshots, Snapshot};
+    use crate::config::Config;
 
     /// A test hook that records which events were fired and in what order.
     struct RecorderHook {

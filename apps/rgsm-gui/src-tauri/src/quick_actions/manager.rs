@@ -10,7 +10,7 @@ use tokio::sync::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{
+use rgsm_core::{
     backup::Game,
     config::{get_config, set_config},
 };
