@@ -174,6 +174,12 @@ pub struct CloudSyncErrorEvent {
     pub error: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct BuildInfo {
+    pub version: String,
+    pub git_hash: String,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_url(url: String) -> Result<(), String> {
@@ -182,6 +188,15 @@ pub async fn open_url(url: String) -> Result<(), String> {
         error!(target:"rgsm::ipc", "Failed to open url: {:?}", e);
         e.to_string()
     })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_build_info() -> BuildInfo {
+    BuildInfo {
+        version: rgsm_core::version().to_string(),
+        git_hash: rgsm_core::git_hash().to_string(),
+    }
 }
 
 #[tauri::command]

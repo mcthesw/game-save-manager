@@ -27,3 +27,12 @@ pub mod updater;
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
+
+pub fn git_hash() -> &'static str {
+    env!("RGSM_GIT_HASH")
+}
+
+/// Combined build identifier: `version (hash)`, e.g. `1.8.1 (a3b4c5d)`.
+pub fn build_id() -> String {
+    format!("{} ({})", version(), git_hash())
+}
