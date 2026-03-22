@@ -71,7 +71,7 @@
 ## 致谢
 
 - [Linux DO](https://linux.do) 真诚、友善、团结、专业，共建你我引以为荣之社区。
-- [Weblate](https://weblate.org) 专业的翻译网站，为本项目提供了翻译社区支持。 
+- [Weblate](https://weblate.org) 专业的翻译网站，为本项目提供了翻译社区支持。
 
 ## Star History
 
