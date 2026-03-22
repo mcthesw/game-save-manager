@@ -1,16 +1,18 @@
-name: release
+name: Publish Stable
+
 on:
   push:
     tags:
-      - 'v1*'
+      - 'v*'
+
 jobs:
   create-release:
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Github release
+      - uses: actions/checkout@v4
+      - name: Create GitHub release
         uses: 'marvinpinto/action-automatic-releases@latest'
         with:
           repo_token: '${{ secrets.RELEASE_TOKEN }}'
