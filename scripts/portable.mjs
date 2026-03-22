@@ -20,12 +20,12 @@ async function resolvePortable() {
   // zip.addLocalFolder(path.join(releaseDir, "resources"), "resources");
 
   const cargoToml = await fs.readFile(
-    path.join('./apps/rgsm-gui/src-tauri', 'Cargo.toml'),
+    path.join('.', 'Cargo.toml'),
     'utf-8',
   );
   const versionMatch = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
   if (!versionMatch) {
-    throw new Error('could not read version from apps/rgsm-gui/src-tauri/Cargo.toml');
+    throw new Error('could not read version from workspace Cargo.toml');
   }
   const version = versionMatch[1];
 

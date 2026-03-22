@@ -2,9 +2,9 @@ name: Code Style
 
 on:
   pull_request:
-    branches: ['v1-tauri', 'v0-electron', 'dev']
+    branches: ['dev']
   push:
-    branches: ['v1-tauri', 'dev']
+    branches: ['dev']
 
 concurrency:
   group: code-style-${{ github.event.pull_request.number || github.ref }}
