@@ -1,12 +1,12 @@
 import { createI18n } from 'vue-i18n';
 
-import en_US from '../locales/en_US.json';
-import fr from '../locales/fr.json';
-import ko from '../locales/ko.json';
-import nb_NO from '../locales/nb_NO.json';
-import ta from '../locales/ta.json';
-import uk from '../locales/uk.json';
-import zh_SIMPLIFIED from '../locales/zh_SIMPLIFIED.json';
+import en_US from '../../../locales/en_US.json';
+import fr from '../../../locales/fr.json';
+import ko from '../../../locales/ko.json';
+import nb_NO from '../../../locales/nb_NO.json';
+import ta from '../../../locales/ta.json';
+import uk from '../../../locales/uk.json';
+import zh_SIMPLIFIED from '../../../locales/zh_SIMPLIFIED.json';
 
 // 导出 i18n 实例
 export const i18n = createI18n({

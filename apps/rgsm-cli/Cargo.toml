@@ -1,0 +1,14 @@
+[package]
+name = "rgsm-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Command-line interface for Game Save Manager"
+license.workspace = true
+
+[[bin]]
+name = "rgsm"
+path = "src/main.rs"
+
+[dependencies]
+rgsm-core.workspace = true

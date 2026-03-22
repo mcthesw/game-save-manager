@@ -1,0 +1,32 @@
+[workspace]
+members = [
+    "apps/rgsm-gui/src-tauri",
+    "apps/rgsm-cli",
+    "crates/rgsm-core",
+    "crates/rgsm-ffi",
+]
+resolver = "2"
+
+[workspace.package]
+version = "1.8.1"
+edition = "2024"
+rust-version = "1.85.1"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1.0.97"
+async-trait = "0.1"
+criterion = "0.8.2"
+log = "0.4.28"
+open = "5.3.2"
+rgsm-core = { path = "crates/rgsm-core" }
+rust-i18n = "3.1.5"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+temp-dir = "0.1.14"
+thiserror = "2.0.12"
+tokio = { version = "1.44.2", features = ["full"] }
+tokio-util = { version = "0.7.13", features = ["full"] }
+winreg = "0.55"
+zip = { version = "5.1.1", features = ["deflate", "bzip2", "zstd"] }
