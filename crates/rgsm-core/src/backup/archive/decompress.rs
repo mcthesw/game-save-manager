@@ -12,14 +12,27 @@ use filetime::{FileTime, set_file_mtime};
 use fs_extra::{dir::move_dir, file::move_file};
 use log::warn;
 use rust_i18n::t;
-use tauri::{AppHandle, Emitter};
 
 use crate::{
     backup::{SaveUnit, SaveUnitType},
     device::get_current_device_id,
-    ipc_handler::{IpcNotification, NotificationLevel},
     preclude::*,
 };
+
+/// Notification level for restore progress messages.
+#[derive(Debug, Clone, Copy)]
+pub enum RestoreNotificationLevel {
+    Info,
+    Warning,
+}
+
+/// Trait for receiving notifications during archive restoration.
+///
+/// GUI implements this to emit IPC events; CLI might log to stdout.
+/// Passed as `Option<&dyn RestoreNotifier>` so callers without UI can pass `None`.
+pub trait RestoreNotifier: Send + Sync {
+    fn notify(&self, level: RestoreNotificationLevel, title: &str, msg: &str);
+}
 
 use super::{timestamp::zip_datetime_to_system_time, version::ArchiveVersion};
 
@@ -43,7 +56,7 @@ enum RestoreOutcome {
 
 fn emit_missing_path_warning(
     path: &Path,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), BackupFileError> {
     warn!(
         target:"rgsm::backup::archive",
@@ -51,18 +64,13 @@ fn emit_missing_path_warning(
         path.to_str().unwrap_or("path.to_str error")
     );
 
-    if let Some(app_handle) = app_handle {
+    if let Some(notifier) = notifier {
         let msg_path = path.to_str().unwrap_or("path.to_str error");
-        app_handle
-            .emit(
-                "Notification",
-                IpcNotification {
-                    level: NotificationLevel::warning,
-                    title: "WARNING".to_string(),
-                    msg: t!("backend.archive.file_not_exist", path = msg_path).to_string(),
-                },
-            )
-            .map_err(anyhow::Error::from)?;
+        notifier.notify(
+            RestoreNotificationLevel::Warning,
+            "WARNING",
+            t!("backend.archive.file_not_exist", path = msg_path).as_ref(),
+        );
     }
 
     Ok(())
@@ -120,7 +128,7 @@ fn restore_file_unit(
     unit: &SaveUnit,
     original_path: PathBuf,
     target_path: PathBuf,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), BackupFileError> {
     let parent = target_path.parent().ok_or(BackupFileError::NonePathError)?;
     let restored_file_mtime = fs::metadata(&original_path)
@@ -129,7 +137,7 @@ fn restore_file_unit(
         .map(FileTime::from_system_time);
 
     if !parent.exists() {
-        emit_missing_path_warning(parent, app_handle)?;
+        emit_missing_path_warning(parent, notifier)?;
         fs::create_dir_all(parent)?;
     }
 
@@ -151,12 +159,12 @@ fn restore_folder_unit(
     unit: &SaveUnit,
     original_path: PathBuf,
     target_path: PathBuf,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), BackupFileError> {
     let parent = target_path.parent().ok_or(BackupFileError::NonePathError)?;
 
     if !parent.exists() {
-        emit_missing_path_warning(parent, app_handle)?;
+        emit_missing_path_warning(parent, notifier)?;
         fs::create_dir_all(parent)?;
     }
 
@@ -190,7 +198,11 @@ fn save_unit_label(unit: &SaveUnit) -> String {
 }
 
 /// Emit a notification to the frontend indicating that a save unit was skipped during restore.
-fn emit_skip_notification(unit: &SaveUnit, reason: &SkipReason, app_handle: Option<&AppHandle>) {
+fn emit_skip_notification(
+    unit: &SaveUnit,
+    reason: &SkipReason,
+    notifier: Option<&dyn RestoreNotifier>,
+) {
     let unit_label = save_unit_label(unit);
     let reason_text = match reason {
         SkipReason::LegacyArchiveFormat => {
@@ -212,14 +224,11 @@ fn emit_skip_notification(unit: &SaveUnit, reason: &SkipReason, app_handle: Opti
 
     warn!(target: "rgsm::backup::archive", "{}", msg);
 
-    if let Some(app_handle) = app_handle {
-        let _ = app_handle.emit(
-            "Notification",
-            IpcNotification {
-                level: NotificationLevel::info,
-                title: t!("backend.archive.restore_skipped_title").to_string(),
-                msg,
-            },
+    if let Some(notifier) = notifier {
+        notifier.notify(
+            RestoreNotificationLevel::Info,
+            t!("backend.archive.restore_skipped_title").as_ref(),
+            &msg,
         );
     }
 }
@@ -293,7 +302,7 @@ fn restore_save_unit_from_temp(
     unit: &SaveUnit,
     version: ArchiveVersion,
     temp_root: &Path,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<RestoreOutcome, BackupFileError> {
     if let SaveUnitType::WinRegistry = unit.unit_type {
         return restore_registry_unit(unit, version, temp_root);
@@ -320,11 +329,11 @@ fn restore_save_unit_from_temp(
 
     match unit.unit_type {
         SaveUnitType::File => {
-            restore_file_unit(unit, original_path, unit_path, app_handle)?;
+            restore_file_unit(unit, original_path, unit_path, notifier)?;
             Ok(RestoreOutcome::Restored)
         }
         SaveUnitType::Folder => {
-            restore_folder_unit(unit, original_path, unit_path, app_handle)?;
+            restore_folder_unit(unit, original_path, unit_path, notifier)?;
             Ok(RestoreOutcome::Restored)
         }
         SaveUnitType::WinRegistry => unreachable!(),
@@ -335,7 +344,7 @@ fn restore_save_unit_from_temp(
 pub(super) fn decompress_from_archive(
     save_paths: &[SaveUnit],
     archive_path: &Path,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), CompressError> {
     let file = File::open(archive_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
@@ -359,10 +368,10 @@ pub(super) fn decompress_from_archive(
 
     let mut restore_errors = Vec::new();
     for unit in save_paths.iter().filter(|unit| unit.enabled) {
-        match restore_save_unit_from_temp(unit, version, &temp_root, app_handle) {
+        match restore_save_unit_from_temp(unit, version, &temp_root, notifier) {
             Ok(RestoreOutcome::Restored) => {}
             Ok(RestoreOutcome::Skipped(reason)) => {
-                emit_skip_notification(unit, &reason, app_handle);
+                emit_skip_notification(unit, &reason, notifier);
             }
             Err(err) => restore_errors.push(err),
         }
@@ -383,10 +392,10 @@ pub fn decompress_from_file(
     save_paths: &[SaveUnit],
     backup_path: &Path,
     date: &str,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
-    decompress_from_archive(save_paths, &zip_path, app_handle)
+    decompress_from_archive(save_paths, &zip_path, notifier)
 }
 
 #[cfg(test)]

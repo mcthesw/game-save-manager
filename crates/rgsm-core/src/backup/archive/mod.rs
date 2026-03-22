@@ -21,6 +21,7 @@ mod version;
 
 pub use backend::{ArchiveBackend, ZipBackend};
 pub use compression_preset::CompressionPreset;
+pub use decompress::{RestoreNotificationLevel, RestoreNotifier};
 pub(crate) use version::ArchiveMeta;
 pub use version::ArchiveVersion;
 

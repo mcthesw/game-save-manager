@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::{ffi::OsStr, fs, path::PathBuf, time::SystemTime};
-use tauri::AppHandle;
 
+use crate::backup::archive::RestoreNotifier;
 use crate::config::get_backup_path;
 use crate::preclude::*;
 
@@ -76,11 +76,11 @@ pub fn delete_extra_backup(game: &Game, date: &str) -> Result<(), BackupError> {
 pub fn restore_extra_backup(
     game: &Game,
     date: &str,
-    app_handle: Option<&AppHandle>,
+    notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), BackupError> {
     let dir = extra_backup_folder_path(game)?;
     let archive_path = dir.join(format!("{date}.zip"));
-    ZipBackend.decompress(&game.save_paths, &archive_path, app_handle)?;
+    ZipBackend.decompress(&game.save_paths, &archive_path, notifier)?;
     Ok(())
 }
 

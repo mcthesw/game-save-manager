@@ -4,8 +4,8 @@ use specta::Type;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
 
+use crate::backup::archive::RestoreNotifier;
 use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
@@ -75,7 +75,7 @@ fn save_unit_identity(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TimerSnapshotDecision {
+pub enum TimerSnapshotDecision {
     Created,
     SkippedUnchanged,
 }
@@ -419,12 +419,12 @@ impl Game {
     pub fn restore_snapshot(
         &self,
         date: &str,
-        app_handle: Option<&AppHandle>,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<GameSnapshots, BackupError> {
         let backup_path = get_backup_path()?.join(&self.name);
         let archive_path = backup_path.join(format!("{date}.zip"));
 
-        ZipBackend.decompress(&self.save_paths, &archive_path, app_handle)?;
+        ZipBackend.decompress(&self.save_paths, &archive_path, notifier)?;
 
         let mut infos = self.get_game_snapshots_info()?;
         infos.set_current_device_head(Some(date.to_string()));
