@@ -1,10 +1,10 @@
+use crate::backup::archive::RestoreNotifier;
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::preclude::*;
 
 use log::{error, info};
 use std::fs;
 use std::sync::Arc;
-use tauri::AppHandle;
 use tokio::sync::Semaphore;
 
 use super::game::SnapshotCreated;
@@ -111,7 +111,9 @@ pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
 }
 
 #[allow(dead_code)]
-pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<Vec<GameSnapshots>, BackupError> {
+pub async fn apply_all(
+    notifier: Option<&dyn RestoreNotifier>,
+) -> Result<Vec<GameSnapshots>, BackupError> {
     let config = get_config()?;
     let mut restored = Vec::new();
     for game in &config.games {
@@ -122,7 +124,7 @@ pub async fn apply_all(app_handle: Option<&AppHandle>) -> Result<Vec<GameSnapsho
             .ok_or(BackupError::NoBackupAvailable)?
             .date
             .clone();
-        match game.restore_snapshot(&date, app_handle) {
+        match game.restore_snapshot(&date, notifier) {
             Ok(snapshots) => {
                 info!(target: "rgsm::backup", "Apply all succeeded for game {:#?} with date {}", game.name, date);
                 restored.push(snapshots);
