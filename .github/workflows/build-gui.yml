@@ -49,21 +49,15 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: latest
-      - name: Get release ID
-        if: github.event_name == 'release'
-        id: get_release
-        uses: bruceadams/get-release@v1.3.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
       - name: Install system dependencies (Ubuntu)
@@ -80,8 +74,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
-          releaseId: ${{ github.event_name == 'release' && steps.get_release.outputs.id || '' }}
+          releaseId: ${{ github.event_name == 'release' && github.event.release.id || '' }}
           args: ${{ matrix.args }}
       - name: Build portable (Windows only)
         if: matrix.platform == 'windows-latest' && github.event_name == 'release'
@@ -89,6 +84,6 @@ jobs:
           pnpm build
           pnpm portable
         env:
-          RELEASE_ID: ${{ steps.get_release.outputs.id }}
+          RELEASE_ID: ${{ github.event.release.id }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_WIN_PORTABLE: 1
