@@ -452,13 +452,13 @@ async syncGame(gameName: string) : Promise<Result<SyncGameOutcome, string>> {
 
 
 export const events = __makeEvents__<{
-cloudSyncError: CloudSyncError,
-cloudSyncStatus: CloudSyncStatus,
+cloudSyncErrorEvent: CloudSyncErrorEvent,
+cloudSyncStatusEvent: CloudSyncStatusEvent,
 ipcNotification: IpcNotification,
 quickActionCompleted: QuickActionCompleted
 }>({
-cloudSyncError: "cloud-sync-error",
-cloudSyncStatus: "cloud-sync-status",
+cloudSyncErrorEvent: "cloud-sync-error-event",
+cloudSyncStatusEvent: "cloud-sync-status-event",
 ipcNotification: "ipc-notification",
 quickActionCompleted: "quick-action-completed"
 })
@@ -521,11 +521,17 @@ backend?: Backend;
  * 最大并发数
  */
 max_concurrency?: number }
-export type CloudSyncError = { game_name: string | null; error: string }
+/**
+ * Tauri Event wrapper for CloudSyncError (core type has no Event derive)
+ */
+export type CloudSyncErrorEvent = { game_name: string | null; error: string }
 export type CloudSyncJobInfo = { id: number; description: string; status: CloudSyncJobStatus; error: string | null }
 export type CloudSyncJobStatus = "Queued" | "Running" | "Completed" | "Failed" | "Cancelled"
 export type CloudSyncSessionConfig = { root_path: string; max_concurrency: number; backend: Backend }
-export type CloudSyncStatus = { active_jobs: number; current_description: string | null; jobs: CloudSyncJobInfo[] }
+/**
+ * Tauri Event wrapper for CloudSyncStatus (core type has no Event derive)
+ */
+export type CloudSyncStatusEvent = { active_jobs: number; current_description: string | null; jobs: CloudSyncJobInfo[] }
 /**
  * User-facing compression presets for backup archives.
  * 

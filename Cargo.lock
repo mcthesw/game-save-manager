@@ -4793,28 +4793,14 @@ version = "1.8.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.22.1",
- "chrono",
  "criterion",
- "dirs",
- "filetime",
- "font-kit",
- "fs_extra",
- "hostname",
- "lazy_static",
  "log",
- "machine-uid",
- "notify-rust",
  "open",
- "opendal",
- "reqwest",
+ "rgsm-core",
  "rodio",
- "rust-embed",
  "rust-i18n",
- "semver",
  "serde",
  "serde_json",
- "serde_yaml",
  "specta",
  "specta-typescript",
  "tauri",
@@ -4829,10 +4815,59 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tokio-util",
+ "winreg 0.55.0",
+ "zip",
+]
+
+[[package]]
+name = "rgsm-cli"
+version = "1.8.1"
+dependencies = [
+ "rgsm-core",
+]
+
+[[package]]
+name = "rgsm-core"
+version = "1.8.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "dirs",
+ "filetime",
+ "font-kit",
+ "fs_extra",
+ "hostname",
+ "lazy_static",
+ "log",
+ "machine-uid",
+ "notify-rust",
+ "open",
+ "opendal",
+ "reqwest",
+ "rust-embed",
+ "rust-i18n",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "specta",
+ "temp-dir",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
  "whoami",
  "winreg 0.55.0",
  "xxhash-rust",
  "zip",
+]
+
+[[package]]
+name = "rgsm-ffi"
+version = "1.8.1"
+dependencies = [
+ "rgsm-core",
 ]
 
 [[package]]

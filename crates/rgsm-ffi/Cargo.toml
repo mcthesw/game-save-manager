@@ -1,0 +1,14 @@
+[package]
+name = "rgsm-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "FFI bindings for Game Save Manager core library"
+license.workspace = true
+
+[lib]
+name = "rgsm_ffi"
+crate-type = ["cdylib"]
+
+[dependencies]
+rgsm-core.workspace = true
