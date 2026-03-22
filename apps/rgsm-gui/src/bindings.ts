@@ -13,6 +13,9 @@ async openUrl(url: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getBuildInfo() : Promise<BuildInfo> {
+    return await TAURI_INVOKE("get_build_info");
+},
 async openFileOrFolder(path: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_file_or_folder", { path }) };
@@ -469,6 +472,7 @@ export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites
 
 /** user-defined types **/
 
+export type BuildInfo = { version: string; git_hash: string }
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
 /**
  * Per-game auto-backup configuration.

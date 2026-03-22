@@ -90,6 +90,7 @@ pub fn run() -> anyhow::Result<()> {
     let command_builder = tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             ipc_handler::open_url,
+            ipc_handler::get_build_info,
             ipc_handler::open_file_or_folder,
             ipc_handler::get_app_log_dir,
             ipc_handler::choose_save_file,
