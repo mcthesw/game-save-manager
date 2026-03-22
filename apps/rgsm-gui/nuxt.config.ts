@@ -20,6 +20,21 @@ export default defineNuxtConfig({
       // Tauri requires a consistent port
       strictPort: true,
     },
+    optimizeDeps: {
+      include: [
+        'dayjs',
+        'uuid',
+        '@tauri-apps/plugin-log',
+        '@tauri-apps/api/event',
+        '@tauri-apps/api/core',
+        '@tauri-apps/api/webviewWindow',
+        '@element-plus/icons-vue',
+        'vue-i18n',
+        'dayjs/plugin/*.js',
+        'lodash-unified',
+        'vuedraggable', // CJS
+      ],
+    },
   },
   app: {
     pageTransition: { name: 'page', mode: 'out-in' },
