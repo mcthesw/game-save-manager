@@ -43,12 +43,32 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
 
     // Version compatibility check
     if version > current {
-        error!(target: "rgsm::updater", "Config version too new: {} > {}", version, current);
-        return Err(UpdaterError::ConfigVersionTooNew);
+        error!(
+            target: "rgsm::updater",
+            "Config version too new in {}: {} > {}",
+            path.display(),
+            version,
+            current
+        );
+        return Err(UpdaterError::ConfigVersionTooNew {
+            path: path.to_path_buf(),
+            found: version,
+            current,
+        });
     }
     if version < min_supported {
-        error!(target: "rgsm::updater", "Config version too old: {} < {}", version, min_supported);
-        return Err(UpdaterError::ConfigVersionTooOld);
+        error!(
+            target: "rgsm::updater",
+            "Config version too old in {}: {} < {}",
+            path.display(),
+            version,
+            min_supported
+        );
+        return Err(UpdaterError::ConfigVersionTooOld {
+            path: path.to_path_buf(),
+            found: version,
+            min_supported,
+        });
     }
     if version == current {
         return Ok(());
@@ -629,6 +649,38 @@ mod tests {
                 .and_then(Value::as_str),
             Some("Manual")
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn update_config_too_new_error_includes_path_and_versions()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let config_path = temp_dir.path().join("GameSaveManager.config.json");
+        fs::write(
+            &config_path,
+            serde_json::json!({ "version": "999.0.0" }).to_string(),
+        )?;
+
+        let err = update_config(&config_path).expect_err("version-too-new config should fail");
+        match &err {
+            UpdaterError::ConfigVersionTooNew {
+                path,
+                found,
+                current,
+            } => {
+                assert_eq!(path, &config_path);
+                assert_eq!(found, &Version::parse("999.0.0")?);
+                assert_eq!(current, &Version::parse(CURRENT_VERSION)?);
+            }
+            other => panic!("expected ConfigVersionTooNew, got {other:?}"),
+        }
+
+        let message = err.to_string();
+        assert!(message.contains(config_path.to_string_lossy().as_ref()));
+        assert!(message.contains("999.0.0"));
+        assert!(message.contains(CURRENT_VERSION));
 
         Ok(())
     }

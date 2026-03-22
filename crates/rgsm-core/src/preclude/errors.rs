@@ -1,3 +1,4 @@
+use semver::Version;
 use std::{io, path::PathBuf, string::FromUtf8Error};
 use thiserror::Error;
 
@@ -137,8 +138,6 @@ pub enum ConfigError {
     Io(#[from] io::Error),
     #[error("Backend error: {0:#?}")]
     Backend(Box<BackendError>),
-    #[error("Tauri error: {0:#?}")]
-    Tauri(#[from] tauri::Error),
     #[error(transparent)]
     Updater(#[from] UpdaterError),
 }
@@ -151,12 +150,26 @@ pub enum UpdaterError {
     Io(#[from] io::Error),
     #[error("Semver error: {0:#?}")]
     Semver(#[from] semver::Error),
-    #[error("Missing version field")]
-    MissingVersion,
-    #[error("Config version too old")]
-    ConfigVersionTooOld,
-    #[error("Config version higher than software")]
-    ConfigVersionTooNew,
+    #[error("Missing version field in config file: {}", .path.display())]
+    MissingVersion { path: PathBuf },
+    #[error(
+        "Config version too old in {}: found {found}, minimum supported is {min_supported}",
+        .path.display()
+    )]
+    ConfigVersionTooOld {
+        path: PathBuf,
+        found: Version,
+        min_supported: Version,
+    },
+    #[error(
+        "Config version higher than software in {}: found {found}, current software version is {current}",
+        .path.display()
+    )]
+    ConfigVersionTooNew {
+        path: PathBuf,
+        found: Version,
+        current: Version,
+    },
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
