@@ -8,8 +8,6 @@ use std::time::Duration;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::AppHandle;
-use tauri_specta::Event;
 use tokio::sync::{Mutex, Notify, Semaphore};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
@@ -22,7 +20,16 @@ use crate::backup::GameSnapshots;
 use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::{Backend, session_from_backend, upload_config, upload_game_snapshots};
 use crate::config::get_config;
+use crate::hooks::SyncJobQueue;
 use crate::preclude::*;
+
+/// Trait for emitting cloud sync events to the frontend.
+///
+/// GUI implements this using Tauri's event system; CLI might log to stdout.
+pub trait SyncEventEmitter: Send + Sync {
+    fn emit_status(&self, status: &CloudSyncStatus);
+    fn emit_error(&self, error: &CloudSyncError);
+}
 
 const TASK_LEVEL_MAX_RETRIES: u8 = 2;
 const MAX_HISTORY_SIZE: usize = 20;
@@ -128,14 +135,14 @@ pub struct CloudSyncJobInfo {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct CloudSyncStatus {
     pub active_jobs: usize,
     pub current_description: Option<String>,
     pub jobs: Vec<CloudSyncJobInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct CloudSyncError {
     pub game_name: Option<String>,
     pub error: String,
@@ -180,27 +187,24 @@ impl Default for CloudSyncState {
 }
 
 pub struct CloudSyncTaskManager {
-    app: AppHandle,
+    emitter: Arc<dyn SyncEventEmitter>,
     state: Mutex<CloudSyncState>,
     running_count: AtomicUsize,
     notify: Notify,
 }
 
 impl CloudSyncTaskManager {
-    pub fn new(app: &AppHandle) -> Arc<Self> {
-        let manager = Arc::new(Self {
-            app: app.clone(),
+    pub fn new(emitter: Arc<dyn SyncEventEmitter>) -> Arc<Self> {
+        Arc::new(Self {
+            emitter,
             state: Mutex::new(CloudSyncState::default()),
             running_count: AtomicUsize::new(0),
             notify: Notify::new(),
-        });
+        })
+    }
 
-        let worker = Arc::clone(&manager);
-        tauri::async_runtime::spawn(async move {
-            worker.run_worker().await;
-        });
-
-        manager
+    pub async fn run(self: Arc<Self>) {
+        self.run_worker().await;
     }
 
     pub async fn enqueue(&self, job: CloudSyncJob) {
@@ -297,13 +301,13 @@ impl CloudSyncTaskManager {
             (active, jobs)
         };
 
-        if let Err(err) = (CloudSyncStatus {
-            active_jobs,
-            current_description,
-            jobs,
-        })
-        .emit(&self.app)
-        {
+        if let Err(err) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.emitter.emit_status(&CloudSyncStatus {
+                active_jobs,
+                current_description,
+                jobs,
+            });
+        })) {
             warn!(
                 target: "rgsm::cloud::task_manager",
                 "Failed to emit cloud sync status: {err:?}"
@@ -312,17 +316,10 @@ impl CloudSyncTaskManager {
     }
 
     fn emit_error(&self, game_name: Option<String>, error_message: String) {
-        if let Err(err) = (CloudSyncError {
+        self.emitter.emit_error(&CloudSyncError {
             game_name,
             error: error_message,
-        })
-        .emit(&self.app)
-        {
-            warn!(
-                target: "rgsm::cloud::task_manager",
-                "Failed to emit cloud sync error: {err:?}"
-            );
-        }
+        });
     }
 
     async fn mark_running(&self, id: u64, description: &str) {
@@ -402,7 +399,7 @@ impl CloudSyncTaskManager {
             );
 
             let me = Arc::clone(&self);
-            tauri::async_runtime::spawn(async move {
+            tokio::spawn(async move {
                 let result = execute_job_with_retry(&job, &cancel_token).await;
 
                 me.running_count.fetch_sub(1, Ordering::Relaxed);
@@ -446,6 +443,13 @@ impl CloudSyncTaskManager {
                 me.emit_full_status(None).await;
             });
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl SyncJobQueue for CloudSyncTaskManager {
+    async fn enqueue(&self, job: CloudSyncJob) {
+        CloudSyncTaskManager::enqueue(self, job).await;
     }
 }
 
