@@ -6,7 +6,7 @@
 use async_trait::async_trait;
 use log::{info, warn};
 
-use super::pipeline::{BeforeRestoreCtx, SnapshotHook};
+use super::pipeline::{BeforeRestoreCtx, LifecycleHook};
 use crate::preclude::BackupError;
 
 /// Creates an extra (overwrite) backup before a snapshot is restored.
@@ -20,7 +20,7 @@ use crate::preclude::BackupError;
 pub struct PreRestoreBackupHook;
 
 #[async_trait]
-impl SnapshotHook for PreRestoreBackupHook {
+impl LifecycleHook for PreRestoreBackupHook {
     fn name(&self) -> &str {
         "PreRestoreBackupHook"
     }

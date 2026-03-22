@@ -11,9 +11,9 @@ use tokio::time::Instant;
 
 use std::path::PathBuf;
 
-use crate::backup::{AutoBackupConfig, Game, TimerSnapshotDecision};
-use crate::config::get_config;
-use crate::hooks::{HookSource, SnapshotCreatedCtx, SnapshotDeletedCtx};
+use rgsm_core::backup::{AutoBackupConfig, Game, TimerSnapshotDecision};
+use rgsm_core::config::get_config;
+use rgsm_core::hooks::{HookSource, SnapshotCreatedCtx, SnapshotDeletedCtx};
 
 use super::QuickActionType;
 
