@@ -6,6 +6,17 @@ import { debug } from '@tauri-apps/plugin-log';
 const { showError } = useNotification();
 const { config } = useConfig();
 
+const gitHash = ref('');
+
+onMounted(async () => {
+  try {
+    const info = await commands.getBuildInfo();
+    gitHash.value = info.git_hash;
+  } catch {
+    gitHash.value = '';
+  }
+});
+
 async function openUrl(url: string) {
   debug(`Opening URL: ${url}`);
   try {
@@ -64,7 +75,10 @@ const backendDeps = [
           <header class="app-header">
             <img src="/orange.png" alt="App Logo" class="app-logo" />
             <h1 class="app-title">{{ $t('home.name') }}</h1>
-            <div v-if="config && config.version" class="version-badge">v{{ config.version }}</div>
+            <div v-if="config && config.version" class="version-badge">
+              v{{ config.version }}
+              <span v-if="gitHash" class="git-hash">({{ gitHash }})</span>
+            </div>
             <p class="app-description">{{ $t('about.content_1') }}</p>
 
             <div class="header-links">
@@ -198,6 +212,11 @@ const backendDeps = [
   border-radius: 10px;
   margin-bottom: 1rem;
   font-family: var(--el-font-family-monospace);
+}
+
+.git-hash {
+  font-size: 0.8rem;
+  opacity: 0.7;
 }
 
 .app-description {
