@@ -11,17 +11,18 @@ mod state_fingerprint;
 mod tests;
 mod utils;
 
-pub use archive::{ArchiveBackend, CompressionPreset, ZipBackend};
+pub use archive::{
+    ArchiveBackend, CompressionPreset, RestoreNotificationLevel, RestoreNotifier, ZipBackend,
+};
 pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{
     delete_extra_backup, extra_backup_folder_path, list_extra_backups, restore_extra_backup,
 };
-pub(crate) use game::TimerSnapshotDecision;
-pub use game::{AutoBackupConfig, Game, GameDraft};
+pub use game::{AutoBackupConfig, Game, GameDraft, TimerSnapshotDecision};
 pub use game_snapshots::GameSnapshots;
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitType};
 pub use snapshot::{CreatedBy, Snapshot};
-pub(crate) use state_fingerprint::compute_file_hash;
+pub use state_fingerprint::compute_file_hash;
 pub use utils::*;
 
-pub(crate) const TIMER_AUTO_BACKUP_DESCRIPTION: &str = "Auto Backup (Timer)";
+pub const TIMER_AUTO_BACKUP_DESCRIPTION: &str = "Auto Backup (Timer)";

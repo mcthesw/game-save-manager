@@ -1,16 +1,11 @@
-//! Backend trait and implementations for archive operations.
-//!
-//! [`ArchiveBackend`] abstracts compress/decompress operations so that future backends
-//! (e.g., TAR with Unix permission preservation) can be added without changing callers.
-
 use std::path::Path;
-
-use tauri::AppHandle;
 
 use crate::{
     backup::{CompressionPreset, SaveUnit},
     preclude::*,
 };
+
+use super::decompress::RestoreNotifier;
 
 /// Abstraction over archive backends (ZIP, future TAR, etc.).
 ///
@@ -31,7 +26,7 @@ pub trait ArchiveBackend {
         &self,
         save_units: &[SaveUnit],
         archive_path: &Path,
-        app_handle: Option<&AppHandle>,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), CompressError>;
 
     /// File extension for archives created by this backend (without dot).
@@ -56,9 +51,9 @@ impl ArchiveBackend for ZipBackend {
         &self,
         save_units: &[SaveUnit],
         archive_path: &Path,
-        app_handle: Option<&AppHandle>,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), CompressError> {
-        super::decompress::decompress_from_archive(save_units, archive_path, app_handle)
+        super::decompress::decompress_from_archive(save_units, archive_path, notifier)
     }
 
     fn extension(&self) -> &str {

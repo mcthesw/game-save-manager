@@ -19,7 +19,7 @@ pub use facade::{
 #[allow(unused_imports)]
 pub use sync_state::{GameSyncState, PendingAction, SyncResult, SyncState};
 pub use task_manager::{
-    CancelCloudSyncResult, CloudSyncError, CloudSyncJob, CloudSyncJobStatus, CloudSyncStatus,
-    CloudSyncTaskManager,
+    CancelCloudSyncResult, CloudSyncError, CloudSyncJob, CloudSyncJobInfo, CloudSyncJobStatus,
+    CloudSyncStatus, CloudSyncTaskManager, SyncEventEmitter,
 };
 pub use utils::*;
