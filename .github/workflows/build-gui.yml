@@ -1,0 +1,94 @@
+name: Build GUI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform'
+        required: true
+        type: choice
+        options:
+          - all
+          - windows-latest
+          - ubuntu-24.04
+          - macos-latest
+        default: 'ubuntu-24.04'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.platform }}" != "all" ]; then
+            PLATFORM="${{ inputs.platform }}"
+            if [ "$PLATFORM" = "macos-latest" ]; then
+              ARGS="--target aarch64-apple-darwin"
+            else
+              ARGS=""
+            fi
+            echo "matrix={\"include\":[{\"platform\":\"$PLATFORM\",\"args\":\"$ARGS\"}]}" >> $GITHUB_OUTPUT
+          else
+            echo 'matrix={"include":[{"platform":"macos-latest","args":"--target aarch64-apple-darwin"},{"platform":"ubuntu-24.04","args":""},{"platform":"windows-latest","args":""}]}' >> $GITHUB_OUTPUT
+          fi
+
+  build-gui:
+    needs: prepare-matrix
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare-matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - name: Get release ID
+        if: github.event_name == 'release'
+        id: get_release
+        uses: bruceadams/get-release@v1.3.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev
+      - name: Install frontend dependencies
+        run: pnpm install
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Build with Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/rgsm-gui
+          releaseId: ${{ github.event_name == 'release' && steps.get_release.outputs.id || '' }}
+          args: ${{ matrix.args }}
+      - name: Build portable (Windows only)
+        if: matrix.platform == 'windows-latest' && github.event_name == 'release'
+        run: |
+          pnpm build
+          pnpm portable
+        env:
+          RELEASE_ID: ${{ steps.get_release.outputs.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_WIN_PORTABLE: 1
