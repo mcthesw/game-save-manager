@@ -212,7 +212,7 @@ function focusOnHead() {
     return;
   }
 
-  const headNode = flowNodes.value.find((node) => node.id === props.currentHead);
+  const headNode = flowNodes.value.find((node: { id: string }) => node.id === props.currentHead);
   if (!headNode) {
     fitViewAll();
     return;

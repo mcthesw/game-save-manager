@@ -1,10 +1,10 @@
 <script lang="ts" setup>
-import type Node from 'element-plus/es/components/tree/src/model/node';
+import type { Node } from 'element-plus/es/components/tree/src/model/node';
 import type { MessageBoxInputData } from 'element-plus';
 import { computed, ref, toRaw } from 'vue';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
-import type { AllowDropType } from 'element-plus/es/components/tree/src/tree.type';
+import type { AllowDropType, NodeDropType } from 'element-plus/es/components/tree/src/tree.type';
 import type { FavoriteTreeNode, Game } from '~/bindings';
 import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 
@@ -141,7 +141,12 @@ async function add_folder() {
   add_node(name.value, false, []);
 }
 
-function node_drag_end_handler(start: Node, end: Node | null, end_type: string, event: DragEvent) {
+function node_drag_end_handler(
+  start: Node,
+  end: Node | null,
+  end_type: NodeDropType,
+  event: DragEvent
+) {
   console.log(start, end, end_type, event);
   if (end_type !== 'none') {
     // 如果成功，那么需要保存
