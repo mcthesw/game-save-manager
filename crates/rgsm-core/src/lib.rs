@@ -23,6 +23,7 @@ pub mod preclude;
 pub mod services;
 pub mod system_fonts;
 pub mod updater;
+pub mod vn_scanner;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

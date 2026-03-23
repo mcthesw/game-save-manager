@@ -4,7 +4,6 @@ mod game;
 mod game_snapshots;
 mod path_format;
 pub(crate) mod registry;
-mod scanner;
 mod save_unit;
 mod snapshot;
 mod state_fingerprint;
@@ -22,7 +21,6 @@ pub use extra_backups::{
 pub use game::{AutoBackupConfig, Game, GameDraft, TimerSnapshotDecision};
 pub use game_snapshots::GameSnapshots;
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitType};
-pub use scanner::scan_directories;
 pub use snapshot::{CreatedBy, Snapshot};
 pub use state_fingerprint::compute_file_hash;
 pub use utils::*;

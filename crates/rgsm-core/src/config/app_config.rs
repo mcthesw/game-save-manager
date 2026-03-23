@@ -56,7 +56,7 @@ impl Default for Config {
                 home_page: default_value::default_home_page(),
                 log_to_file: true,
                 add_new_to_favorites: false,
-                galgame_scan_dirs: default_value::empty_vec(),
+                vn_scan_dirs: default_value::empty_vec(),
                 save_list_expand_behavior: SaveListExpandBehavior::default(),
                 save_list_last_expanded: false,
                 max_auto_backup_count: 0,
