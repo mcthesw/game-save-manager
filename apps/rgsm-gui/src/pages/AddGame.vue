@@ -38,10 +38,10 @@ const buttons = [
     method: search_local,
   },
   {
-    text: $t('addgame.scan_galgames'),
+    text: $t('addgame.scan_vns'),
     type: 'primary',
     icon: Search,
-    method: scan_galgames,
+    method: scan_vns,
   },
   {
     text: $t('addgame.save_current_profile'),
@@ -255,37 +255,37 @@ async function search_local() {
   }
 }
 
-async function scan_galgames() {
-  const dirs = config.value?.settings.galgame_scan_dirs;
+async function scan_vns() {
+  const dirs = config.value?.settings.vn_scan_dirs;
   if (!dirs || dirs.length === 0) {
-    showWarning({ message: $t('addgame.scan_galgames_no_dirs') });
+    showWarning({ message: $t('addgame.scan_vns_no_dirs') });
     return;
   }
 
   try {
     importDialogLoading.value = true;
-    showInfo({ message: $t('addgame.scan_galgames_scanning') });
+    showInfo({ message: $t('addgame.scan_vns_scanning') });
 
-    const result = await commands.scanGalgames(dirs);
+    const result = await commands.scanVns(dirs);
     if (result.status === 'ok') {
       const drafts = result.data;
       if (drafts.length === 0) {
-        showInfo({ message: $t('addgame.scan_galgames_no_result') });
+        showInfo({ message: $t('addgame.scan_vns_no_result') });
         return;
       }
-      await openGalgameBatchImportDialog(drafts);
+      await openVnBatchImportDialog(drafts);
     } else {
       showError({ message: result.error });
     }
   } catch (e) {
-    error(`Error scanning galgames: ${e}`);
+    error(`Error scanning visual novels: ${e}`);
     showError({ message: $t('game_import.fetch_error') });
   } finally {
     importDialogLoading.value = false;
   }
 }
 
-async function openGalgameBatchImportDialog(drafts: GameDraft[]) {
+async function openVnBatchImportDialog(drafts: GameDraft[]) {
   const existingNames = new Set((config.value?.games ?? []).map((game) => game.name.toLowerCase()));
 
   const games: ImportableGame[] = [];

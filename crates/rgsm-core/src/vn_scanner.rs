@@ -7,6 +7,26 @@ use log::{info, warn};
 use crate::backup::{GameDraft, SaveUnitDraft, SaveUnitType};
 use crate::device::get_current_device_id;
 
+const COMMON_SAVE_DIRS: &[&str] = &["savedata", "SaveData", "save", "Save"];
+const GENERIC_EXECUTABLE_NAMES: &[&str] = &[
+    "game",
+    "start",
+    "play",
+    "setup",
+    "config",
+    "uninstall",
+    "uninst",
+    "bgi",
+    "siglusengine",
+    "nekomikopack",
+    "advhd",
+    "krkr",
+    "boot",
+    "launcher",
+    "engine",
+    "system",
+];
+
 #[cfg(windows)]
 fn is_offline(metadata: &std::fs::Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
@@ -23,52 +43,45 @@ fn is_offline(_metadata: &std::fs::Metadata) -> bool {
     false
 }
 
-/// Scan provided directories (1-level deep) for supported Galgames
+/// Scan provided directories (1-level deep) for supported visual novels
 /// and return them as `GameDraft`s.
-pub fn scan_directories(dirs: &[String]) -> Vec<GameDraft> {
+pub fn scan_games(scan_roots: &[String]) -> Vec<GameDraft> {
     let mut results = Vec::new();
     let current_device_id = get_current_device_id().to_string();
 
-    for dir_path in dirs {
-        let path = Path::new(dir_path);
-        if !path.is_dir() {
+    for root in scan_roots {
+        let root_path = Path::new(root);
+        if !root_path.is_dir() {
             warn!(
-                target: "rgsm::backup::scanner",
-                "Skipping non-directory scan target: {}",
-                dir_path
+                target: "rgsm::vn_scanner",
+                "Skipping non-directory scan root: {}",
+                root
             );
             continue;
         }
 
-        let entries = match fs::read_dir(path) {
+        let entries = match visible_child_paths(root_path) {
             Ok(entries) => entries,
             Err(err) => {
                 warn!(
-                    target: "rgsm::backup::scanner",
-                    "Failed to read scan root {}: {}",
-                    dir_path,
+                    target: "rgsm::vn_scanner",
+                    "Failed to read VN scan root {}: {}",
+                    root,
                     err
                 );
                 continue;
             }
         };
 
-        for entry in entries.filter_map(Result::ok) {
-            if let Ok(metadata) = entry.metadata() {
-                if is_offline(&metadata) {
-                    continue;
-                }
-            }
-
-            let subdir = entry.path();
-            if !subdir.is_dir() {
+        for candidate in entries {
+            if !candidate.is_dir() {
                 continue;
             }
 
-            if let Some(game_draft) = check_all_engines(&subdir, &current_device_id) {
+            if let Some(game_draft) = detect_vn(&candidate, &current_device_id) {
                 info!(
-                    target: "rgsm::backup::scanner",
-                    "Detected Galgame candidate: {}",
+                    target: "rgsm::vn_scanner",
+                    "Detected VN candidate: {}",
                     game_draft.name
                 );
                 results.push(game_draft);
@@ -79,16 +92,67 @@ pub fn scan_directories(dirs: &[String]) -> Vec<GameDraft> {
     results
 }
 
-fn check_all_engines(path: &Path, device_id: &str) -> Option<GameDraft> {
-    check_kirikiri(path, device_id)
-        .or_else(|| check_renpy(path, device_id))
-        .or_else(|| check_rpg_maker_mv_mz(path, device_id))
-        .or_else(|| check_rpg_maker_vx(path, device_id))
-        .or_else(|| check_wolf_rpg(path, device_id))
-        .or_else(|| check_generic_savedata(path, device_id))
+fn visible_child_paths(path: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let entries = fs::read_dir(path)?
+        .filter_map(Result::ok)
+        .filter_map(|entry| match entry.metadata() {
+            Ok(metadata) if !is_offline(&metadata) => Some(entry.path()),
+            Ok(_) => None,
+            Err(_) => None,
+        })
+        .collect();
+
+    Ok(entries)
 }
 
-fn get_candidate_names(path: &Path) -> Vec<String> {
+fn directory_contains_extension(path: &Path, extensions: &[&str]) -> bool {
+    visible_child_paths(path)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.is_file())
+        .filter_map(|entry| {
+            entry
+                .extension()
+                .map(|ext| ext.to_string_lossy().to_lowercase())
+        })
+        .any(|ext| extensions.iter().any(|expected| ext == *expected))
+}
+
+fn directory_contains_file(path: &Path, file_names: &[&str]) -> bool {
+    visible_child_paths(path)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            entry
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+        })
+        .any(|name| {
+            file_names
+                .iter()
+                .any(|expected| name.eq_ignore_ascii_case(expected))
+        })
+}
+
+fn first_existing_save_dir(path: &Path) -> Option<&'static str> {
+    COMMON_SAVE_DIRS
+        .iter()
+        .copied()
+        .find(|save_dir| path.join(save_dir).is_dir())
+}
+
+fn detect_vn(path: &Path, device_id: &str) -> Option<GameDraft> {
+    detect_kirikiri(path, device_id)
+        .or_else(|| detect_renpy(path, device_id))
+        .or_else(|| detect_rpg_maker_mv_mz(path, device_id))
+        .or_else(|| detect_rpg_maker_vx_like(path, device_id))
+        .or_else(|| detect_wolf_rpg(path, device_id))
+        .or_else(|| detect_generic_savedata(path, device_id))
+}
+
+fn collect_candidate_names(path: &Path) -> Vec<String> {
     let mut names = Vec::new();
 
     if let Some(dir_name) = path.file_name() {
@@ -119,38 +183,20 @@ fn get_candidate_names(path: &Path) -> Vec<String> {
         }
     }
 
-    let generic_exes = [
-        "game",
-        "start",
-        "play",
-        "setup",
-        "config",
-        "uninstall",
-        "uninst",
-        "bgi",
-        "siglusengine",
-        "nekomikopack",
-        "advhd",
-        "krkr",
-        "boot",
-        "launcher",
-        "engine",
-        "system",
-    ];
-
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.filter_map(Result::ok) {
-            let candidate = entry.path();
-            if !candidate.is_file() {
+    if let Ok(entries) = visible_child_paths(path) {
+        for entry in entries {
+            if !entry.is_file() {
                 continue;
             }
 
-            if let Some(ext) = candidate.extension() {
+            if let Some(ext) = entry.extension() {
                 if ext.to_string_lossy().eq_ignore_ascii_case("exe") {
-                    if let Some(stem) = candidate.file_stem() {
+                    if let Some(stem) = entry.file_stem() {
                         let stem_str = stem.to_string_lossy().to_string();
                         let stem_lower = stem_str.to_lowercase();
-                        let is_generic = generic_exes.iter().any(|generic| stem_lower.starts_with(generic));
+                        let is_generic = GENERIC_EXECUTABLE_NAMES
+                            .iter()
+                            .any(|generic| stem_lower.starts_with(generic));
                         if !is_generic && stem_str.len() > 2 {
                             names.push(stem_str);
                         }
@@ -175,11 +221,8 @@ fn check_target(base: &Path, name: &str) -> Option<PathBuf> {
         return None;
     }
 
-    for save_dir in ["savedata", "SaveData", "save", "Save"] {
-        let candidate = direct.join(save_dir);
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
+    if let Some(save_dir) = first_existing_save_dir(&direct) {
+        return Some(direct.join(save_dir));
     }
 
     Some(direct)
@@ -201,9 +244,8 @@ fn search_in_base(base: Option<PathBuf>, names: &[String], depth: u8) -> Option<
         return None;
     }
 
-    if let Ok(entries) = fs::read_dir(&base) {
-        for entry in entries.filter_map(Result::ok) {
-            let sub_path = entry.path();
+    if let Ok(entries) = visible_child_paths(&base) {
+        for sub_path in entries {
             if !sub_path.is_dir() {
                 continue;
             }
@@ -241,9 +283,9 @@ fn find_external_save_path(names: &[String]) -> Option<PathBuf> {
     None
 }
 
-fn create_draft(path: &Path, device_id: &str, save_subpath: &str) -> Option<GameDraft> {
+fn create_vn_draft(path: &Path, device_id: &str, save_subpath: &str) -> Option<GameDraft> {
     let name = path.file_name()?.to_string_lossy().to_string();
-    let candidates = get_candidate_names(path);
+    let candidates = collect_candidate_names(path);
 
     let save_path = if let Some(external_path) = find_external_save_path(&candidates) {
         external_path
@@ -254,7 +296,10 @@ fn create_draft(path: &Path, device_id: &str, save_subpath: &str) -> Option<Game
     };
 
     let mut paths = HashMap::new();
-    paths.insert(device_id.to_string(), save_path.to_string_lossy().to_string());
+    paths.insert(
+        device_id.to_string(),
+        save_path.to_string_lossy().to_string(),
+    );
 
     let mut game_paths = HashMap::new();
     game_paths.insert(device_id.to_string(), path.to_string_lossy().to_string());
@@ -274,71 +319,24 @@ fn create_draft(path: &Path, device_id: &str, save_subpath: &str) -> Option<Game
     })
 }
 
-fn check_kirikiri(path: &Path, device_id: &str) -> Option<GameDraft> {
-    let mut has_xp3 = false;
-
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.filter_map(Result::ok) {
-            if let Ok(metadata) = entry.metadata() {
-                if is_offline(&metadata) {
-                    continue;
-                }
-            }
-
-            let candidate = entry.path();
-            if candidate.is_file() {
-                if let Some(ext) = candidate.extension() {
-                    if ext.to_string_lossy().eq_ignore_ascii_case("xp3") {
-                        has_xp3 = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if !has_xp3 {
+fn detect_kirikiri(path: &Path, device_id: &str) -> Option<GameDraft> {
+    if !directory_contains_extension(path, &["xp3"]) {
         return None;
     }
 
-    create_draft(path, device_id, "savedata")
+    create_vn_draft(path, device_id, "savedata")
 }
 
-fn check_renpy(path: &Path, device_id: &str) -> Option<GameDraft> {
+fn detect_renpy(path: &Path, device_id: &str) -> Option<GameDraft> {
     let game_dir = path.join("game");
-    if !game_dir.is_dir() {
+    if !game_dir.is_dir() || !directory_contains_extension(&game_dir, &["rpa"]) {
         return None;
     }
 
-    let mut has_rpa = false;
-    if let Ok(entries) = fs::read_dir(&game_dir) {
-        for entry in entries.filter_map(Result::ok) {
-            if let Ok(metadata) = entry.metadata() {
-                if is_offline(&metadata) {
-                    continue;
-                }
-            }
-
-            let candidate = entry.path();
-            if candidate.is_file() {
-                if let Some(ext) = candidate.extension() {
-                    if ext.to_string_lossy().eq_ignore_ascii_case("rpa") {
-                        has_rpa = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if !has_rpa {
-        return None;
-    }
-
-    create_draft(path, device_id, "game/saves")
+    create_vn_draft(path, device_id, "game/saves")
 }
 
-fn check_rpg_maker_mv_mz(path: &Path, device_id: &str) -> Option<GameDraft> {
+fn detect_rpg_maker_mv_mz(path: &Path, device_id: &str) -> Option<GameDraft> {
     let has_www = path.join("www").is_dir();
     let has_package = path.join("package.json").is_file();
 
@@ -347,89 +345,37 @@ fn check_rpg_maker_mv_mz(path: &Path, device_id: &str) -> Option<GameDraft> {
     }
 
     if has_www {
-        create_draft(path, device_id, "www/save")
+        create_vn_draft(path, device_id, "www/save")
     } else {
-        create_draft(path, device_id, "save")
+        create_vn_draft(path, device_id, "save")
     }
 }
 
-fn check_rpg_maker_vx(path: &Path, device_id: &str) -> Option<GameDraft> {
-    let mut has_rgss = false;
-
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.filter_map(Result::ok) {
-            if let Ok(metadata) = entry.metadata() {
-                if is_offline(&metadata) {
-                    continue;
-                }
-            }
-
-            let candidate = entry.path();
-            if candidate.is_file() {
-                if let Some(ext) = candidate.extension() {
-                    let ext = ext.to_string_lossy().to_lowercase();
-                    if matches!(ext.as_str(), "rgss3a" | "rgss2a" | "rvdata2" | "rvdata") {
-                        has_rgss = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if !has_rgss {
+fn detect_rpg_maker_vx_like(path: &Path, device_id: &str) -> Option<GameDraft> {
+    if !directory_contains_extension(path, &["rgss3a", "rgss2a", "rvdata2", "rvdata"]) {
         return None;
     }
 
-    create_draft(path, device_id, "")
+    create_vn_draft(path, device_id, "")
 }
 
-fn check_wolf_rpg(path: &Path, device_id: &str) -> Option<GameDraft> {
+fn detect_wolf_rpg(path: &Path, device_id: &str) -> Option<GameDraft> {
     let has_data = path.join("Data").is_dir();
-    let has_game_exe = path.join("Game.exe").is_file();
-    let has_game_dat = path.join("Game.dat").is_file();
-
-    if !has_data || (!has_game_exe && !has_game_dat) {
+    let has_game_files = directory_contains_file(path, &["Game.exe", "Game.dat"]);
+    if !has_data || !has_game_files {
         return None;
     }
 
-    create_draft(path, device_id, "Save")
+    create_vn_draft(path, device_id, "Save")
 }
 
-fn check_generic_savedata(path: &Path, device_id: &str) -> Option<GameDraft> {
-    let mut has_exe = false;
-
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.filter_map(Result::ok) {
-            if let Ok(metadata) = entry.metadata() {
-                if is_offline(&metadata) {
-                    continue;
-                }
-            }
-
-            let candidate = entry.path();
-            if candidate.is_file() {
-                if let Some(ext) = candidate.extension() {
-                    if ext.to_string_lossy().eq_ignore_ascii_case("exe") {
-                        has_exe = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if !has_exe {
+fn detect_generic_savedata(path: &Path, device_id: &str) -> Option<GameDraft> {
+    if !directory_contains_extension(path, &["exe"]) {
         return None;
     }
 
-    for save_dir in ["savedata", "SaveData", "save", "Save"] {
-        if path.join(save_dir).is_dir() {
-            return create_draft(path, device_id, save_dir);
-        }
-    }
-
-    None
+    let save_dir = first_existing_save_dir(path)?;
+    create_vn_draft(path, device_id, save_dir)
 }
 
 #[cfg(test)]
@@ -438,18 +384,19 @@ mod tests {
 
     use temp_dir::TempDir;
 
-    use super::{check_kirikiri, check_renpy, scan_directories};
+    use super::{detect_kirikiri, detect_renpy, scan_games};
 
     #[test]
-    fn check_kirikiri_requires_xp3_and_maps_savedata() {
+    fn detect_kirikiri_requires_xp3_and_maps_savedata() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let game_dir = temp_dir.path().join("MyGame");
         fs::create_dir(&game_dir).expect("game dir should be created");
 
-        assert!(check_kirikiri(&game_dir, "test-device").is_none());
+        assert!(detect_kirikiri(&game_dir, "test-device").is_none());
 
         fs::File::create(game_dir.join("data.xp3")).expect("xp3 should be created");
-        let draft = check_kirikiri(&game_dir, "test-device").expect("kirikiri game should be detected");
+        let draft =
+            detect_kirikiri(&game_dir, "test-device").expect("kirikiri game should be detected");
 
         assert_eq!(draft.name, "MyGame");
         assert_eq!(draft.save_paths.len(), 1);
@@ -461,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn check_renpy_maps_game_saves() {
+    fn detect_renpy_maps_game_saves() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let game_dir = temp_dir.path().join("RenpyGame");
         fs::create_dir(&game_dir).expect("game dir should be created");
@@ -470,7 +417,7 @@ mod tests {
         fs::create_dir(&sub_game).expect("renpy game dir should be created");
         fs::File::create(sub_game.join("archive.rpa")).expect("rpa should be created");
 
-        let draft = check_renpy(&game_dir, "test-device").expect("renpy game should be detected");
+        let draft = detect_renpy(&game_dir, "test-device").expect("renpy game should be detected");
         let save_path = draft.save_paths[0]
             .paths
             .get("test-device")
@@ -481,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_directories_only_checks_first_level_subdirs() {
+    fn scan_games_only_checks_first_level_subdirs() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path().join("root");
         fs::create_dir(&root).expect("root should be created");
@@ -496,7 +443,7 @@ mod tests {
         fs::create_dir(&nested_game).expect("nested game dir should be created");
         fs::File::create(nested_game.join("data.xp3")).expect("nested xp3 should be created");
 
-        let results = scan_directories(&[root.to_string_lossy().to_string()]);
+        let results = scan_games(&[root.to_string_lossy().to_string()]);
         let names: Vec<_> = results.iter().map(|game| game.name.as_str()).collect();
 
         assert!(names.contains(&"DetectedGame"));
