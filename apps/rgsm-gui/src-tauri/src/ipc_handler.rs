@@ -1000,6 +1000,14 @@ pub fn get_sync_state() -> Result<cloud_sync::SyncState, String> {
     cloud_sync::sync_state::load_sync_state().map_err(|e| e.to_string())
 }
 
+/// Scan given directories for Galgames (e.g. Kirikiri2) and return them as GameDrafts.
+#[tauri::command]
+#[specta::specta]
+pub fn scan_galgames(dirs: Vec<String>) -> Result<Vec<GameDraft>, String> {
+    info!(target:"rgsm::ipc", "Scanning directories for Galgames: {:?}", dirs);
+    Ok(backup::scan_directories(&dirs))
+}
+
 /// List available config backup files (newest first).
 #[tauri::command]
 #[specta::specta]

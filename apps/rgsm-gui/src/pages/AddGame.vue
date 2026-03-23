@@ -1,5 +1,12 @@
 <script lang="ts" setup>
-import { DocumentAdd, Check, RefreshRight, Download, InfoFilled } from '@element-plus/icons-vue';
+import {
+  DocumentAdd,
+  Check,
+  RefreshRight,
+  Download,
+  InfoFilled,
+  Search,
+} from '@element-plus/icons-vue';
 import { reactive, ref, watchEffect } from 'vue';
 import {
   commands,
@@ -20,7 +27,7 @@ import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
-const { showError, showWarning, showSuccess } = useNotification();
+const { showError, showWarning, showSuccess, showInfo } = useNotification();
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const buttons = [
@@ -29,6 +36,12 @@ const buttons = [
     type: 'primary',
     icon: Download,
     method: search_local,
+  },
+  {
+    text: $t('addgame.scan_galgames'),
+    type: 'primary',
+    icon: Search,
+    method: scan_galgames,
   },
   {
     text: $t('addgame.save_current_profile'),
@@ -240,6 +253,74 @@ async function search_local() {
   } finally {
     importDialogLoading.value = false;
   }
+}
+
+async function scan_galgames() {
+  const dirs = config.value?.settings.galgame_scan_dirs;
+  if (!dirs || dirs.length === 0) {
+    showWarning({ message: $t('addgame.scan_galgames_no_dirs') });
+    return;
+  }
+
+  try {
+    importDialogLoading.value = true;
+    showInfo({ message: $t('addgame.scan_galgames_scanning') });
+
+    const result = await commands.scanGalgames(dirs);
+    if (result.status === 'ok') {
+      const drafts = result.data;
+      if (drafts.length === 0) {
+        showInfo({ message: $t('addgame.scan_galgames_no_result') });
+        return;
+      }
+      await openGalgameBatchImportDialog(drafts);
+    } else {
+      showError({ message: result.error });
+    }
+  } catch (e) {
+    error(`Error scanning galgames: ${e}`);
+    showError({ message: $t('game_import.fetch_error') });
+  } finally {
+    importDialogLoading.value = false;
+  }
+}
+
+async function openGalgameBatchImportDialog(drafts: GameDraft[]) {
+  const existingNames = new Set((config.value?.games ?? []).map((game) => game.name.toLowerCase()));
+
+  const games: ImportableGame[] = [];
+  const paths: Record<string, SavePath[]> = {};
+  const deviceId = currentDevice.value?.id;
+
+  for (const draft of drafts) {
+    const savePaths: SavePath[] = [];
+
+    for (const saveUnit of draft.save_paths) {
+      const currentPath =
+        (deviceId && saveUnit.paths?.[deviceId]) || Object.values(saveUnit.paths ?? {})[0] || '';
+      if (!currentPath) {
+        continue;
+      }
+
+      savePaths.push({
+        path: currentPath,
+        tags: [saveUnit.unit_type],
+      });
+    }
+
+    games.push({
+      name: draft.name,
+      steamId: null,
+      isManaged: existingNames.has(draft.name.toLowerCase()),
+      savePathsCount: savePaths.length,
+    });
+    paths[draft.name] = savePaths;
+  }
+
+  batchImportLoading.value = false;
+  batchImportGames.value = games;
+  batchGamePaths.value = paths;
+  showBatchImportDialog.value = true;
 }
 
 async function handleLocalToggle(enabled: boolean) {
