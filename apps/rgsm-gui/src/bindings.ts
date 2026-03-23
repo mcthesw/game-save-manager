@@ -422,6 +422,17 @@ async getSyncState() : Promise<Result<SyncState, string>> {
 }
 },
 /**
+ * Scan given directories for Galgames (e.g. Kirikiri2) and return them as GameDrafts.
+ */
+async scanGalgames(dirs: string[]) : Promise<Result<GameDraft[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("scan_galgames", { dirs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * List available config backup files (newest first).
  */
 async listConfigBackups() : Promise<string[]> {
@@ -468,11 +479,10 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false},"version":"1.8.1"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"galgame_scan_dirs":[],"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false},"version":"1.8.1"} as const;
 
 /** user-defined types **/
 
-export type BuildInfo = { version: string; git_hash: string }
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
 /**
  * Per-game auto-backup configuration.
@@ -507,6 +517,7 @@ export type Backend = { type: "Disabled" } |
 export type BatchSyncItemReport = { name: string; status: BatchSyncItemStatus }
 export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
 export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
+export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CloudSettings = { 
 /**
@@ -787,7 +798,7 @@ export type SaveUnitType = "File" | "Folder" |
  * Windows Registry key tree (stored as `registry.json` inside the archive).
  */
 "WinRegistry"
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; 
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; galgame_scan_dirs?: string[]; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; 
 /**
  * Maximum number of extra overwrite backups to keep per game.
  * Keep the newest N backups; 0 means unlimited.
