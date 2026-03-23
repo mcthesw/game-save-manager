@@ -138,6 +138,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::check_paths,
             ipc_handler::get_system_fonts,
             ipc_handler::get_sync_state,
+            ipc_handler::scan_galgames,
             ipc_handler::list_config_backups,
             ipc_handler::restore_config_backup,
             ipc_handler::sync_game,
