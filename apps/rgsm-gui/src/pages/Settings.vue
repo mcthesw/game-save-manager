@@ -4,7 +4,7 @@ import { computed, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
 import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
-import { Setting, Document, Unlock, Moon, Tools } from '@element-plus/icons-vue';
+import { Setting, Document, Unlock, Moon, Tools, Search } from '@element-plus/icons-vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -584,6 +584,33 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
   }
 }
 
+async function addGalgameScanDir() {
+  try {
+    const dir = await commands.chooseSaveDir();
+    if (dir.status !== 'ok') {
+      return;
+    }
+
+    if (!config.value.settings.galgame_scan_dirs) {
+      config.value.settings.galgame_scan_dirs = [];
+    }
+
+    if (!config.value.settings.galgame_scan_dirs.includes(dir.data)) {
+      config.value.settings.galgame_scan_dirs.push(dir.data);
+    }
+  } catch (e) {
+    error(`choose scan dir error: ${e}`);
+    showError({ message: $t('error.choose_save_dir_error') });
+  }
+}
+
+function removeGalgameScanDir(dir: string) {
+  const galgameScanDirs = config.value.settings.galgame_scan_dirs ?? [];
+  config.value.settings.galgame_scan_dirs = galgameScanDirs.filter(
+    (currentDir) => currentDir !== dir
+  );
+}
+
 // 监听快捷操作相关设置变更
 watch(
   () => config.value.quick_action,
@@ -826,6 +853,34 @@ const { linksWithGames: router_list } = useNavigationLinks();
               :disabled="!config.settings.compute_archive_hash"
             />
             <span class="setting-label">{{ $t('settings.verify_archive_before_apply') }}</span>
+          </div>
+
+          <el-divider content-position="left">
+            <el-icon>
+              <Search />
+            </el-icon>
+            <span class="tab-title">{{ $t('settings.galgame_scanner') }}</span>
+          </el-divider>
+
+          <div class="setting-box">
+            <span class="setting-label">{{ $t('settings.galgame_scan_dirs') }}</span>
+            <el-button size="small" type="primary" @click="addGalgameScanDir">
+              {{ $t('settings.add_scan_dir') }}
+            </el-button>
+          </div>
+          <div class="setting-box">
+            <template v-if="(config.settings.galgame_scan_dirs ?? []).length > 0">
+              <el-tag
+                v-for="dir in config.settings.galgame_scan_dirs ?? []"
+                :key="dir"
+                closable
+                class="scan-dir-tag"
+                @close="removeGalgameScanDir(dir)"
+              >
+                {{ dir }}
+              </el-tag>
+            </template>
+            <span v-else class="setting-hint">{{ $t('settings.no_scan_dirs') }}</span>
           </div>
         </el-tab-pane>
 
