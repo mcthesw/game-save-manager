@@ -60,7 +60,7 @@ pub struct Settings {
     #[serde(default = "default_value::default_false")]
     pub add_new_to_favorites: bool,
     #[serde(default = "default_value::empty_vec")]
-    pub galgame_scan_dirs: Vec<String>,
+    pub vn_scan_dirs: Vec<String>,
     #[serde(default)]
     pub save_list_expand_behavior: SaveListExpandBehavior,
     #[serde(default = "default_value::default_false")]
@@ -98,7 +98,7 @@ impl Default for Settings {
             home_page: default_value::default_home_page(),
             log_to_file: default_value::default_true(),
             add_new_to_favorites: default_value::default_false(),
-            galgame_scan_dirs: default_value::empty_vec(),
+            vn_scan_dirs: default_value::empty_vec(),
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
             max_auto_backup_count: default_value::default_zero_u32(),

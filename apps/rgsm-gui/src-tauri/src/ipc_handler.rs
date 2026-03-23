@@ -11,6 +11,7 @@ use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus,
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::ServiceContext;
+use rgsm_core::vn_scanner;
 use rgsm_core::{backup, config, system_fonts};
 
 use anyhow::Result;
@@ -1000,12 +1001,12 @@ pub fn get_sync_state() -> Result<cloud_sync::SyncState, String> {
     cloud_sync::sync_state::load_sync_state().map_err(|e| e.to_string())
 }
 
-/// Scan given directories for Galgames (e.g. Kirikiri2) and return them as GameDrafts.
+/// Scan given directories for visual novels (e.g. Kirikiri2) and return them as GameDrafts.
 #[tauri::command]
 #[specta::specta]
-pub fn scan_galgames(dirs: Vec<String>) -> Result<Vec<GameDraft>, String> {
-    info!(target:"rgsm::ipc", "Scanning directories for Galgames: {:?}", dirs);
-    Ok(backup::scan_directories(&dirs))
+pub fn scan_vns(dirs: Vec<String>) -> Result<Vec<GameDraft>, String> {
+    info!(target:"rgsm::ipc", "Scanning directories for visual novels: {:?}", dirs);
+    Ok(vn_scanner::scan_games(&dirs))
 }
 
 /// List available config backup files (newest first).
