@@ -9,6 +9,10 @@ license.workspace = true
 [lib]
 name = "rgsm_core"
 
+[features]
+default = ["bundled-manifest"]
+bundled-manifest = ["dep:rust-embed"]
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
@@ -34,7 +38,7 @@ whoami = "1.6.1"
 machine-uid = "0.5.4"
 reqwest = "0.12"
 lazy_static = "1.5"
-rust-embed = { version = "8.11.0", features = ["compression", "debug-embed", "include-exclude"] }
+rust-embed = { version = "8.11.0", optional = true, features = ["compression", "debug-embed", "include-exclude"] }
 font-kit = "0.14"
 base64 = "0.22.1"
 async-trait.workspace = true

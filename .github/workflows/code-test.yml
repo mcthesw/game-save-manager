@@ -59,3 +59,8 @@ jobs:
         run: |
           cargo check --workspace
           cargo test -p rgsm-core --lib
+
+      - name: Run slim build checks
+        run: |
+          cargo check -p rgsm-core --no-default-features
+          cargo test -p rgsm-core --no-default-features --lib

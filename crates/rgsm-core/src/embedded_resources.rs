@@ -1,48 +1,79 @@
+use std::borrow::Cow;
+
+#[cfg(feature = "bundled-manifest")]
 use rust_embed::Embed;
 
+#[cfg(feature = "bundled-manifest")]
 #[derive(Embed)]
 #[folder = "resources/"]
 #[include = "ludusavi_manifest.yaml"]
 #[include = "ludusavi_manifest.meta.json"]
 struct BundledResources;
 
-fn load_bytes(path: &str) -> std::borrow::Cow<'static, [u8]> {
+#[cfg(feature = "bundled-manifest")]
+fn load_bytes(path: &str) -> Cow<'static, [u8]> {
     BundledResources::get(path)
         .unwrap_or_else(|| panic!("Missing embedded resource: {path}"))
         .data
 }
 
-fn load_utf8(path: &str) -> std::borrow::Cow<'static, str> {
+#[cfg(feature = "bundled-manifest")]
+fn load_utf8(path: &str) -> Cow<'static, str> {
     match load_bytes(path) {
-        std::borrow::Cow::Borrowed(bytes) => std::borrow::Cow::Borrowed(
+        Cow::Borrowed(bytes) => Cow::Borrowed(
             std::str::from_utf8(bytes)
                 .unwrap_or_else(|e| panic!("Embedded resource {path} is not valid UTF-8: {e}")),
         ),
-        std::borrow::Cow::Owned(bytes) => std::borrow::Cow::Owned(
+        Cow::Owned(bytes) => Cow::Owned(
             String::from_utf8(bytes)
                 .unwrap_or_else(|e| panic!("Embedded resource {path} is not valid UTF-8: {e}")),
         ),
     }
 }
 
-pub fn ludusavi_manifest_yaml() -> std::borrow::Cow<'static, str> {
+/// Whether this build includes the bundled Ludusavi manifest snapshot.
+pub fn has_bundled_manifest() -> bool {
+    cfg!(feature = "bundled-manifest")
+}
+
+#[cfg(feature = "bundled-manifest")]
+pub fn ludusavi_manifest_yaml() -> Cow<'static, str> {
     load_utf8("ludusavi_manifest.yaml")
 }
 
-pub fn ludusavi_manifest_meta_json() -> std::borrow::Cow<'static, str> {
+#[cfg(not(feature = "bundled-manifest"))]
+pub fn ludusavi_manifest_yaml() -> Cow<'static, str> {
+    Cow::Borrowed("")
+}
+
+#[cfg(feature = "bundled-manifest")]
+pub fn ludusavi_manifest_meta_json() -> Cow<'static, str> {
     load_utf8("ludusavi_manifest.meta.json")
 }
 
+#[cfg(not(feature = "bundled-manifest"))]
+pub fn ludusavi_manifest_meta_json() -> Cow<'static, str> {
+    Cow::Borrowed("")
+}
+
+#[cfg(feature = "bundled-manifest")]
 pub fn ludusavi_manifest_yaml_len() -> u64 {
     load_bytes("ludusavi_manifest.yaml").len() as u64
 }
 
+#[cfg(not(feature = "bundled-manifest"))]
+pub fn ludusavi_manifest_yaml_len() -> u64 {
+    0
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ludusavi_manifest_meta_json, ludusavi_manifest_yaml, ludusavi_manifest_yaml_len};
+    use super::*;
 
     #[test]
-    fn bundled_ludusavi_manifest_files_are_embedded() {
+    #[cfg(feature = "bundled-manifest")]
+    fn bundled_build_embeds_manifest_snapshot() {
+        assert!(has_bundled_manifest());
         assert!(ludusavi_manifest_yaml_len() > 0);
 
         let manifest_yaml = ludusavi_manifest_yaml();
@@ -55,5 +86,14 @@ mod tests {
 
         assert!(matches!(parsed_yaml, serde_yaml::Value::Mapping(_)));
         assert!(parsed_meta.is_object());
+    }
+
+    #[test]
+    #[cfg(not(feature = "bundled-manifest"))]
+    fn slim_build_omits_embedded_manifest() {
+        assert!(!has_bundled_manifest());
+        assert_eq!(ludusavi_manifest_yaml_len(), 0);
+        assert!(ludusavi_manifest_yaml().is_empty());
+        assert!(ludusavi_manifest_meta_json().is_empty());
     }
 }

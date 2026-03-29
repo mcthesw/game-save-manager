@@ -35,7 +35,7 @@ lazy_static::lazy_static! {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LudusaviManifestStatus {
-    /// Current manifest source: `local` or `bundled`.
+    /// Current manifest source: `local`, `bundled`, or `none`.
     pub source: String,
     /// Last update time (RFC3339, best-effort).
     pub updated_at: Option<String>,
@@ -137,6 +137,7 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
     let local_path = app_dirs::resolve_app_path(LOCAL_MANIFEST_FILENAME);
     let meta_path = app_dirs::resolve_app_path(LOCAL_MANIFEST_META_FILENAME);
     let has_local = local_path.exists();
+    let has_bundled = embedded_resources::has_bundled_manifest();
     let local_bytes = if has_local {
         fs::metadata(&local_path).ok().map(|m| m.len())
     } else {
@@ -159,7 +160,7 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
             });
         let etag = meta.and_then(|m| m.etag);
         (updated_at, etag)
-    } else {
+    } else if has_bundled {
         let meta = serde_json::from_str::<ManifestMeta>(
             embedded_resources::ludusavi_manifest_meta_json().as_ref(),
         )
@@ -167,13 +168,17 @@ pub fn get_manifest_status() -> LudusaviManifestStatus {
         let updated_at = meta.as_ref().and_then(|m| m.updated_at.clone());
         let etag = meta.and_then(|m| m.etag);
         (updated_at, etag)
+    } else {
+        (None, None)
     };
 
     LudusaviManifestStatus {
         source: if has_local {
             "local".to_string()
-        } else {
+        } else if has_bundled {
             "bundled".to_string()
+        } else {
+            "none".to_string()
         },
         updated_at,
         etag,
@@ -295,12 +300,19 @@ fn load_manifest_yaml() -> Result<Cow<'static, str>> {
         return Ok(Cow::Owned(text));
     }
 
-    info!(
-        target: "rgsm::ludusavi",
-        "Using bundled Ludusavi manifest snapshot ({} bytes)",
-        embedded_resources::ludusavi_manifest_yaml_len()
-    );
-    Ok(embedded_resources::ludusavi_manifest_yaml())
+    if embedded_resources::has_bundled_manifest() {
+        info!(
+            target: "rgsm::ludusavi",
+            "Using bundled Ludusavi manifest snapshot ({} bytes)",
+            embedded_resources::ludusavi_manifest_yaml_len()
+        );
+        return Ok(embedded_resources::ludusavi_manifest_yaml());
+    }
+
+    Err(anyhow::anyhow!(
+        "No local Ludusavi manifest cache found. This slim build does not include a bundled snapshot — please update the manifest once while online."
+    ))
+
 }
 
 /// Checks if a path's `when` conditions match the current system
