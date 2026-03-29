@@ -312,7 +312,6 @@ fn load_manifest_yaml() -> Result<Cow<'static, str>> {
     Err(anyhow::anyhow!(
         "No local Ludusavi manifest cache found. This slim build does not include a bundled snapshot — please update the manifest once while online."
     ))
-
 }
 
 /// Checks if a path's `when` conditions match the current system
