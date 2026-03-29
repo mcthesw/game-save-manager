@@ -104,7 +104,9 @@ export async function resolvePortable() {
 
   const cargoToml = await readFile(cargoTomlPath, "utf-8");
   const version = parseWorkspaceVersion(cargoToml);
-  const zipFile = path.join(root, `RGSM_${version}_x64-portable.zip`);
+  const buildVariant = (process.env.RGSM_BUILD_VARIANT?.trim() ?? "").toLowerCase();
+  const variantSuffix = buildVariant ? `-${buildVariant}` : "";
+  const zipFile = path.join(root, `RGSM_${version}_x64-portable${variantSuffix}.zip`);
 
   zip.writeZip(zipFile);
 
