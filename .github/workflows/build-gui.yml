@@ -78,6 +78,24 @@ jobs:
           projectPath: apps/rgsm-gui
           releaseId: ${{ github.event_name == 'release' && github.event.release.id || '' }}
           args: ${{ matrix.args }}
+      - name: Fix macOS updater artifact name
+        if: matrix.platform == 'macos-latest' && github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          RELEASE_ID="${{ github.event.release.id }}"
+          gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
+            --jq '.[] | select(.name | test("\\.app\\.tar\\.gz")) | "\(.id)\t\(.name)"' |
+          while IFS=$'\t' read -r ASSET_ID OLD_NAME; do
+            if [[ "$OLD_NAME" != *"${VERSION}"* ]]; then
+              NEW_NAME="${OLD_NAME/RGSM_/RGSM_${VERSION}_}"
+              gh api -X PATCH "repos/${{ github.repository }}/releases/assets/${ASSET_ID}" \
+                -f name="${NEW_NAME}"
+              echo "Renamed: ${OLD_NAME} -> ${NEW_NAME}"
+            fi
+          done
       - name: Build portable (Windows only)
         if: matrix.platform == 'windows-latest' && github.event_name == 'release'
         run: |
@@ -86,4 +104,36 @@ jobs:
         env:
           RELEASE_ID: ${{ github.event.release.id }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_WIN_PORTABLE: 1
+
+  build-slim-portable:
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'windows-latest'))
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install frontend dependencies
+        run: pnpm install
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Build slim portable
+        run: |
+          pnpm build -- --config src-tauri/tauri.slim.conf.json --no-default-features
+          pnpm portable
+        working-directory: apps/rgsm-gui
+        env:
+          RELEASE_ID: ${{ github.event.release.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RGSM_BUILD_VARIANT: slim
           VITE_WIN_PORTABLE: 1
