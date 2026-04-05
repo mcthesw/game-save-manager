@@ -17,6 +17,7 @@ pub mod default_value;
 pub mod device;
 pub mod embedded_resources;
 pub mod hooks;
+pub mod launcher;
 pub mod ludusavi_manifest;
 pub mod path_resolver;
 pub mod preclude;
