@@ -212,7 +212,7 @@ pub async fn open_file_or_folder(path: String) -> Result<(), String> {
     })?;
 
     debug!(target:"rgsm::ipc", "Resolved url: {}", path.display());
-    rgsm_core::launcher::open_path(&path).map_err(|e| {
+    rgsm_core::path_launcher::open_path(&path).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to open file or folder: {:?}", e);
         e.to_string()
     })

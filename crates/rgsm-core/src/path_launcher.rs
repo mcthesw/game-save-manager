@@ -5,7 +5,7 @@ use std::process::Command;
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LaunchStrategy {
     OpenWithSystem,
-    RunExecutable { working_dir: PathBuf },
+    RunDirectly { working_dir: PathBuf },
 }
 
 pub fn open_path(path: &Path) -> Result<()> {
@@ -13,13 +13,13 @@ pub fn open_path(path: &Path) -> Result<()> {
         LaunchStrategy::OpenWithSystem => {
             open::that(path).with_context(|| format!("Failed to open path '{}'", path.display()))?
         }
-        LaunchStrategy::RunExecutable { working_dir } => {
+        LaunchStrategy::RunDirectly { working_dir } => {
             Command::new(path)
                 .current_dir(&working_dir)
                 .spawn()
                 .with_context(|| {
                     format!(
-                        "Failed to launch executable '{}' with working directory '{}'",
+                        "Failed to launch '{}' with working directory '{}'",
                         path.display(),
                         working_dir.display()
                     )
@@ -31,24 +31,39 @@ pub fn open_path(path: &Path) -> Result<()> {
 }
 
 fn launch_strategy(path: &Path) -> LaunchStrategy {
-    if should_launch_executable_in_place(path) {
+    if should_run_directly(path) {
         let working_dir = path
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
-        LaunchStrategy::RunExecutable { working_dir }
+        LaunchStrategy::RunDirectly { working_dir }
     } else {
         LaunchStrategy::OpenWithSystem
     }
 }
 
-fn should_launch_executable_in_place(path: &Path) -> bool {
+#[cfg(target_os = "windows")]
+fn should_run_directly(path: &Path) -> bool {
     path.is_file()
         && path
             .extension()
             .and_then(|ext| ext.to_str())
-            .map(|ext| ext.eq_ignore_ascii_case("exe"))
+            .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "exe" | "com"))
             .unwrap_or(false)
+}
+
+#[cfg(unix)]
+fn should_run_directly(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    path.metadata()
+        .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(not(any(target_os = "windows", unix)))]
+fn should_run_directly(path: &Path) -> bool {
+    path.is_file()
 }
 
 #[cfg(test)]
@@ -66,8 +81,9 @@ mod tests {
         assert_eq!(launch_strategy(&game_dir), LaunchStrategy::OpenWithSystem);
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
-    fn launches_exe_from_its_parent_directory() {
+    fn launches_windows_executables_from_their_parent_directory() {
         let temp_dir = TempDir::new().unwrap();
         let game_dir = temp_dir.path().join("game");
         fs::create_dir(&game_dir).unwrap();
@@ -76,8 +92,31 @@ mod tests {
 
         assert_eq!(
             launch_strategy(&exe_path),
-            LaunchStrategy::RunExecutable {
-                working_dir: game_dir,
+            LaunchStrategy::RunDirectly {
+                working_dir: game_dir
+            }
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn launches_unix_executables_from_their_parent_directory() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = TempDir::new().unwrap();
+        let game_dir = temp_dir.path().join("game");
+        fs::create_dir(&game_dir).unwrap();
+        let binary_path = game_dir.join("game.sh");
+        fs::write(&binary_path, []).unwrap();
+
+        let mut permissions = fs::metadata(&binary_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&binary_path, permissions).unwrap();
+
+        assert_eq!(
+            launch_strategy(&binary_path),
+            LaunchStrategy::RunDirectly {
+                working_dir: game_dir
             }
         );
     }
