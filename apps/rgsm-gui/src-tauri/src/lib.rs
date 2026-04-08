@@ -97,6 +97,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::choose_save_dir,
             ipc_handler::get_local_config,
             ipc_handler::add_game,
+            ipc_handler::update_game,
             ipc_handler::restore_snapshot,
             ipc_handler::delete_snapshot,
             ipc_handler::batch_delete_snapshots,
