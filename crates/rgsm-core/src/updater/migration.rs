@@ -6,6 +6,7 @@ use log::{error, info, warn};
 use semver::Version;
 use serde_json::Value;
 
+use crate::backup::storage_key::generate_unique_storage_key;
 use crate::backup::{GameSnapshots, TIMER_AUTO_BACKUP_DESCRIPTION};
 use crate::config::{Config, resolve_backup_path};
 use crate::preclude::*;
@@ -13,7 +14,7 @@ use crate::updater::{
     probe::probe_config_version,
     versions::{
         CURRENT_VERSION, Config1_4_0, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0,
-        VERSION_1_7_5, VERSION_1_8_1,
+        VERSION_1_7_5, VERSION_1_8_1, VERSION_1_9_0,
     },
 };
 
@@ -40,6 +41,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     let version_1_6_0 = Version::parse(VERSION_1_6_0)?;
     let version_1_7_5 = Version::parse(VERSION_1_7_5)?;
     let version_1_8_1 = Version::parse(VERSION_1_8_1)?;
+    let version_1_9_0 = Version::parse(VERSION_1_9_0)?;
 
     // Version compatibility check
     if version > current {
@@ -101,6 +103,11 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     // Assign stable IDs to save units if upgrading from before 1.7.5
     if version < version_1_7_5 {
         new_cfg = migrate_save_unit_ids(new_cfg);
+    }
+
+    // Backfill storage_key for all games if upgrading from before 1.9.0
+    if version < version_1_9_0 {
+        new_cfg = migrate_storage_keys(new_cfg, &backup_path);
     }
 
     // Write new config
@@ -398,6 +405,63 @@ fn migrate_save_unit_ids(mut config: Config) -> Config {
     config
 }
 
+/// Backfill `storage_key` for games that were created before v1.9.0.
+///
+/// Strategy: for each legacy game (empty `storage_key`), if a backup directory
+/// already exists with the game's display name, adopt that name as the storage
+/// key to avoid renaming any directories. If the directory name would collide
+/// (case-insensitive) with another game's key, generate a unique suffix.
+///
+/// Also backfills `quick_action.quick_action_game` if it references a game
+/// that just received a storage key.
+fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
+    let mut assigned: std::collections::HashSet<String> = config
+        .games
+        .iter()
+        .filter(|g| !g.storage_key.is_empty())
+        .map(|g| g.storage_key.clone())
+        .collect();
+
+    for game in &mut config.games {
+        if !game.storage_key.is_empty() {
+            continue;
+        }
+
+        // Prefer the existing directory name (which equals game.name for legacy data).
+        // If a directory exists under that name, adopt it as-is to avoid renames.
+        let candidate = if backup_path.join(&game.name).exists() {
+            game.name.clone()
+        } else {
+            crate::backup::storage_key::generate_storage_key(&game.name)
+        };
+
+        let key = if assigned.iter().any(|k| k.eq_ignore_ascii_case(&candidate)) {
+            generate_unique_storage_key(&game.name, &assigned)
+        } else {
+            candidate
+        };
+
+        info!(
+            target: "rgsm::updater",
+            "Assigned storage_key '{}' to game '{}'",
+            key, game.name
+        );
+        game.storage_key = key.clone();
+        assigned.insert(key);
+    }
+
+    // Backfill quick_action_game if present
+    if let Some(ref mut qa_game) = config.quick_action.quick_action_game {
+        if qa_game.storage_key.is_empty() {
+            if let Some(matched) = config.games.iter().find(|g| g.name == qa_game.name) {
+                qa_game.storage_key = matched.storage_key.clone();
+            }
+        }
+    }
+
+    config
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +472,7 @@ mod tests {
         let mut config = Config::default();
         config.games.push(crate::backup::Game {
             name: "LegacyInherited".to_string(),
+            storage_key: String::new(),
             save_paths: vec![],
             game_paths: Default::default(),
             next_save_unit_id: 0,
@@ -416,6 +481,7 @@ mod tests {
         });
         config.games.push(crate::backup::Game {
             name: "ExplicitFalse".to_string(),
+            storage_key: String::new(),
             save_paths: vec![],
             game_paths: Default::default(),
             next_save_unit_id: 0,
@@ -449,6 +515,7 @@ mod tests {
         let mut config = Config::default();
         config.games.push(crate::backup::Game {
             name: "LegacyDisabled".to_string(),
+            storage_key: String::new(),
             save_paths: vec![],
             game_paths: Default::default(),
             next_save_unit_id: 0,
@@ -488,6 +555,7 @@ mod tests {
         let mut config = Config::default();
         config.games.push(crate::backup::Game {
             name: "TestGame".to_string(),
+            storage_key: String::new(),
             save_paths: vec![
                 SaveUnit {
                     id: 0,
@@ -522,6 +590,7 @@ mod tests {
         let mut config = Config::default();
         config.games.push(crate::backup::Game {
             name: "AlreadyMigrated".to_string(),
+            storage_key: String::new(),
             save_paths: vec![SaveUnit {
                 id: 5,
                 unit_type: SaveUnitType::File,
@@ -546,6 +615,7 @@ mod tests {
         let mut config = Config::default();
         config.games.push(crate::backup::Game {
             name: "EmptyGame".to_string(),
+            storage_key: String::new(),
             save_paths: vec![],
             game_paths: Default::default(),
             next_save_unit_id: 0,
@@ -683,5 +753,139 @@ mod tests {
         assert!(message.contains(CURRENT_VERSION));
 
         Ok(())
+    }
+
+    #[test]
+    fn migrate_storage_keys_backfills_empty_keys() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().to_path_buf();
+
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "Normal Game".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+        config.games.push(crate::backup::Game {
+            name: "Game: With Colon".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+        assert!(!migrated.games[0].storage_key.is_empty());
+        assert!(!migrated.games[1].storage_key.is_empty());
+    }
+
+    #[test]
+    fn migrate_storage_keys_adopts_existing_dir_name() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().to_path_buf();
+        fs::create_dir(backup_path.join("My Game")).unwrap();
+
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "My Game".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+        assert_eq!(migrated.games[0].storage_key, "My Game");
+    }
+
+    #[test]
+    fn migrate_storage_keys_skips_already_populated() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().to_path_buf();
+
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "Some Game".to_string(),
+            storage_key: "existing_key".to_string(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+        assert_eq!(migrated.games[0].storage_key, "existing_key");
+    }
+
+    #[test]
+    fn migrate_storage_keys_handles_collision() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().to_path_buf();
+
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "CON".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+        config.games.push(crate::backup::Game {
+            name: "CON".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+        let k0 = &migrated.games[0].storage_key;
+        let k1 = &migrated.games[1].storage_key;
+        assert_ne!(k0, k1);
+        assert!(!k0.is_empty());
+        assert!(!k1.is_empty());
+    }
+
+    #[test]
+    fn migrate_storage_keys_backfills_quick_action_game() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().to_path_buf();
+
+        let mut config = Config::default();
+        config.games.push(crate::backup::Game {
+            name: "QA Game".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+        config.quick_action.quick_action_game = Some(crate::backup::Game {
+            name: "QA Game".to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        });
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+        let qa = migrated.quick_action.quick_action_game.unwrap();
+        assert_eq!(qa.storage_key, migrated.games[0].storage_key);
     }
 }

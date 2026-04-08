@@ -7,6 +7,7 @@ pub(crate) mod registry;
 mod save_unit;
 mod snapshot;
 mod state_fingerprint;
+pub mod storage_key;
 #[cfg(test)]
 mod tests;
 mod utils;

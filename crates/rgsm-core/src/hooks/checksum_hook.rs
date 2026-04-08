@@ -95,6 +95,7 @@ mod tests {
     fn test_game() -> Game {
         Game {
             name: "ChecksumGame".into(),
+            storage_key: String::new(),
             save_paths: vec![],
             game_paths: Default::default(),
             next_save_unit_id: 0,

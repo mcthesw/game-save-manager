@@ -1,22 +1,21 @@
 use anyhow::{Result, anyhow, bail};
 
-use crate::backup::{self, AutoBackupConfig, Game};
+use crate::backup::{self, AutoBackupConfig, Game, GameDraft};
 use crate::config::{get_config, set_config};
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
 use super::ServiceContext;
 
 impl ServiceContext {
-    pub async fn add_game(
-        &self,
-        game: &crate::backup::GameDraft,
-        source: HookSource,
-    ) -> Result<()> {
-        let previous_game = get_config()?
+    pub async fn add_game(&self, game: &GameDraft, source: HookSource) -> Result<()> {
+        let config = get_config()?;
+        if config
             .games
             .iter()
-            .find(|existing| existing.name == game.name)
-            .cloned();
+            .any(|g| g.name.eq_ignore_ascii_case(&game.name))
+        {
+            bail!("Game '{}' already exists", game.name);
+        }
 
         backup::create_game_backup(game).await?;
 
@@ -24,30 +23,72 @@ impl ServiceContext {
         let saved_game = config
             .games
             .iter()
-            .find(|existing| existing.name == game.name)
+            .find(|existing| existing.name.eq_ignore_ascii_case(&game.name))
             .cloned()
             .ok_or_else(|| anyhow!("Game '{}' was not found after save", game.name))?;
 
-        if let Some(previous_game) = previous_game {
-            self.pipeline()
-                .fire_game_updated(&GameUpdatedCtx {
-                    config,
-                    source,
-                    previous_game,
-                    game: saved_game,
-                })
-                .await;
-        } else {
-            let snapshots = saved_game.get_game_snapshots_info()?;
-            self.pipeline()
-                .fire_game_added(&GameAddedCtx {
-                    config,
-                    source,
-                    game: saved_game,
-                    snapshots,
-                })
-                .await;
+        let snapshots = saved_game.get_game_snapshots_info()?;
+        self.pipeline()
+            .fire_game_added(&GameAddedCtx {
+                config,
+                source,
+                game: saved_game,
+                snapshots,
+            })
+            .await;
+
+        Ok(())
+    }
+
+    /// Update an existing game identified by `storage_key`.
+    ///
+    /// The `storage_key` is used to locate the game in the config. The `draft`
+    /// carries the (possibly renamed) display name, save paths, and game paths.
+    /// The game's storage identity (backup dirs, cloud paths) is preserved.
+    pub async fn update_game(
+        &self,
+        storage_key: &str,
+        draft: &GameDraft,
+        source: HookSource,
+    ) -> Result<()> {
+        let mut config = get_config()?;
+        let index = config
+            .games
+            .iter()
+            .position(|g| g.storage_key == storage_key)
+            .ok_or_else(|| anyhow!("Game with storage_key '{}' not found", storage_key))?;
+
+        let previous_game = config.games[index].clone();
+
+        // Check for name collision with a *different* game
+        if config
+            .games
+            .iter()
+            .any(|g| g.storage_key != storage_key && g.name.eq_ignore_ascii_case(&draft.name))
+        {
+            bail!("Another game with name '{}' already exists", draft.name);
         }
+
+        config.games[index] = draft.clone().into_game(Some(&previous_game));
+
+        // Also update quick_action_game reference if it points to this game
+        if let Some(ref mut qa_game) = config.quick_action.quick_action_game {
+            if qa_game.storage_key == storage_key {
+                qa_game.name = draft.name.clone();
+            }
+        }
+
+        let updated_game = config.games[index].clone();
+        set_config(&config).await?;
+
+        self.pipeline()
+            .fire_game_updated(&GameUpdatedCtx {
+                config,
+                source,
+                previous_game,
+                game: updated_game,
+            })
+            .await;
 
         Ok(())
     }

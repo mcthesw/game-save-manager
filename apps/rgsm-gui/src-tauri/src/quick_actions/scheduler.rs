@@ -317,6 +317,7 @@ mod tests {
         game_paths.insert("device-1".to_string(), launch_path.to_string());
         Game {
             name: name.to_string(),
+            storage_key: String::new(),
             save_paths: vec![],
             game_paths,
             next_save_unit_id: 0,

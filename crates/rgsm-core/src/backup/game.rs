@@ -31,6 +31,12 @@ pub struct AutoBackupConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Game {
     pub name: String,
+    /// Filesystem-safe identifier used for local backup directories and remote
+    /// cloud paths. Derived from `name` via [`super::storage_key::generate_storage_key`]
+    /// when the game is first created. Once set it never changes, even if the
+    /// display `name` is later renamed.
+    #[serde(default)]
+    pub storage_key: String,
     pub save_paths: Vec<SaveUnit>,
     // 使用 HashMap 存储不同设备的启动路径
     // Key: DeviceId (String), Value: Path (String)
@@ -177,6 +183,15 @@ impl GameDraft {
 
         let mut game = Game {
             name: self.name,
+            storage_key: existing
+                .and_then(|g| {
+                    if g.storage_key.is_empty() {
+                        None
+                    } else {
+                        Some(g.storage_key.clone())
+                    }
+                })
+                .unwrap_or_default(),
             save_paths,
             game_paths: self.game_paths,
             next_save_unit_id,
@@ -189,6 +204,23 @@ impl GameDraft {
 }
 
 impl Game {
+    /// The directory/path component used for local backup storage and remote
+    /// cloud paths. Returns `storage_key` when populated; otherwise computes
+    /// a sanitized key from the display name as a safe fallback (this path
+    /// should only be hit for un-migrated legacy data).
+    pub fn backup_dir_name(&self) -> std::borrow::Cow<'_, str> {
+        if self.storage_key.is_empty() {
+            std::borrow::Cow::Owned(super::storage_key::generate_storage_key(&self.name))
+        } else {
+            std::borrow::Cow::Borrowed(&self.storage_key)
+        }
+    }
+
+    /// Remote cloud path prefix for this game, e.g. `save_data/Game Name`.
+    pub fn remote_path_prefix(&self) -> String {
+        format!("save_data/{}", self.backup_dir_name())
+    }
+
     /// Normalize save-unit IDs to keep them unique and stable inside this game.
     ///
     /// This is the backend safety net for all callers (frontend/CLI/FFI):
@@ -222,13 +254,17 @@ impl Game {
     }
 
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
-        let backup_path = get_backup_path()?.join(&self.name).join("Backups.json");
+        let backup_path = get_backup_path()?
+            .join(self.backup_dir_name().as_ref())
+            .join("Backups.json");
         let mut backup_info: GameSnapshots = serde_json::from_slice(&fs::read(backup_path)?)?;
         backup_info.normalize_heads();
         Ok(backup_info)
     }
     pub fn set_game_snapshots_info(&self, new_info: &GameSnapshots) -> Result<(), BackupError> {
-        let saves_path = get_backup_path()?.join(&self.name).join("Backups.json");
+        let saves_path = get_backup_path()?
+            .join(self.backup_dir_name().as_ref())
+            .join("Backups.json");
         // 处理文件夹不存在的情况，一般发生在初次下载云存档时
         let prefix_root = saves_path.parent().ok_or(BackupError::NonePathError)?;
         if !prefix_root.exists() {
@@ -250,7 +286,7 @@ impl Game {
         parent_date: Option<String>,
         created_by: CreatedBy,
     ) -> Result<SnapshotCreated, BackupError> {
-        let backup_path = get_backup_path()?.join(&self.name); // the backup zip file should be placed here
+        let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let save_paths = &self.save_paths; // everything you should copy
@@ -292,7 +328,7 @@ impl Game {
 
         Ok(SnapshotCreated {
             snapshots: infos,
-            remote_zip_path: format!("save_data/{}/{date}.zip", self.name),
+            remote_zip_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
             local_zip_path: zip_path,
         })
     }
@@ -421,7 +457,7 @@ impl Game {
         date: &str,
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<GameSnapshots, BackupError> {
-        let backup_path = get_backup_path()?.join(&self.name);
+        let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
         let archive_path = backup_path.join(format!("{date}.zip"));
 
         ZipBackend.decompress(&self.save_paths, &archive_path, notifier)?;
@@ -436,7 +472,9 @@ impl Game {
         &self,
         max_extra_backup_count: u32,
     ) -> Result<(), BackupError> {
-        let extra_backup_path = get_backup_path()?.join(&self.name).join("extra_backup");
+        let extra_backup_path = get_backup_path()?
+            .join(self.backup_dir_name().as_ref())
+            .join("extra_backup");
 
         // Create extra backup
         if !extra_backup_path.exists() {
@@ -463,7 +501,7 @@ impl Game {
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
         let save_path = get_backup_path()?
-            .join(&self.name)
+            .join(self.backup_dir_name().as_ref())
             .join(date.to_string() + ".zip");
         fs::remove_file(&save_path)?;
 
@@ -517,7 +555,7 @@ impl Game {
 
         Ok(SnapshotDeleted {
             snapshots: saves,
-            remote_zip_path: format!("save_data/{}/{date}.zip", self.name),
+            remote_zip_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
         })
     }
 
@@ -532,7 +570,7 @@ impl Game {
             });
         }
 
-        let backup_dir = get_backup_path()?.join(&self.name);
+        let backup_dir = get_backup_path()?.join(self.backup_dir_name().as_ref());
         let to_delete: HashSet<&str> = dates.iter().map(|d| d.as_str()).collect();
 
         // Delete zip files
@@ -542,7 +580,7 @@ impl Game {
             if zip_path.exists() {
                 fs::remove_file(&zip_path)?;
             }
-            deleted_remote_paths.push(format!("save_data/{}/{date}.zip", self.name));
+            deleted_remote_paths.push(format!("save_data/{}/{date}.zip", self.backup_dir_name()));
         }
 
         let mut saves = self.get_game_snapshots_info()?;
@@ -616,10 +654,12 @@ impl Game {
 
     pub async fn delete_game(&self) -> Result<GameDeleted, BackupError> {
         let mut config = get_config()?;
-        let backup_path = get_backup_path()?.join(&self.name);
+        let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
         fs::remove_dir_all(&backup_path)?;
 
-        config.games.retain(|x| x.name != self.name);
+        config
+            .games
+            .retain(|x| x.backup_dir_name() != self.backup_dir_name());
         set_config_local(&config)?;
 
         info!(target:"rgsm::backup::game",
@@ -628,7 +668,7 @@ impl Game {
         );
 
         Ok(GameDeleted {
-            remote_game_dir_path: format!("save_data/{}", self.name),
+            remote_game_dir_path: self.remote_path_prefix(),
         })
     }
     pub async fn set_snapshot_description(

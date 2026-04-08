@@ -8,13 +8,14 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 use super::game::SnapshotCreated;
+use super::storage_key::generate_unique_storage_key;
 use super::{GameDraft, GameSnapshots};
 
-async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
-    let backup_path = get_backup_path()?.join(name);
+async fn create_backup_folder(dir_name: &str) -> Result<(), BackupError> {
+    let backup_path = get_backup_path()?.join(dir_name);
     let info: GameSnapshots = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
-        GameSnapshots::new(name)
+        GameSnapshots::new(dir_name)
     } else {
         // 如果已经存在，info从原来的文件中读取
         let bytes = fs::read(backup_path.join("Backups.json"));
@@ -30,21 +31,30 @@ async fn create_backup_folder(name: &str) -> Result<(), BackupError> {
 
 pub async fn create_game_backup(game: &GameDraft) -> Result<(), BackupError> {
     let mut config = get_config()?;
-    create_backup_folder(&game.name).await?;
 
-    // 查找是否存在与新游戏中的 `name` 字段相同的游戏
-    let pos = config.games.iter().position(|g| g.name == game.name);
-    match pos {
-        Some(index) => {
-            // 如果找到了，就用新的游戏覆盖它
-            let existing = &config.games[index];
-            config.games[index] = game.clone().into_game(Some(existing));
-        }
-        None => {
-            // 如果没有找到，就将新的游戏添加到 `games` 数组中
-            config.games.push(game.clone().into_game(None));
-        }
+    if config
+        .games
+        .iter()
+        .any(|g| g.name.eq_ignore_ascii_case(&game.name))
+    {
+        return Err(BackupError::Unexpected(anyhow::anyhow!(
+            "Game '{}' already exists; use update instead",
+            game.name
+        )));
     }
+
+    let existing_keys: std::collections::HashSet<String> = config
+        .games
+        .iter()
+        .filter(|g| !g.storage_key.is_empty())
+        .map(|g| g.storage_key.clone())
+        .collect();
+    let storage_key = generate_unique_storage_key(&game.name, &existing_keys);
+    create_backup_folder(&storage_key).await?;
+    let mut new_game = game.clone().into_game(None);
+    new_game.storage_key = storage_key;
+    config.games.push(new_game);
+
     set_config_local(&config)?;
     Ok(())
 }

@@ -251,9 +251,10 @@ fn merge_snapshots_metadata(
 
 async fn copy_remote_snapshots_into_local(
     backup_root: &std::path::Path,
+    dir_name: &str,
     info: &mut GameSnapshots,
 ) -> Result<(), BackendError> {
-    let local_game_dir = backup_root.join(&info.name);
+    let local_game_dir = backup_root.join(dir_name);
     fs::create_dir_all(&local_game_dir).await?;
 
     for snapshot in &mut info.backups {
@@ -283,7 +284,7 @@ async fn coexist_game_from_remote(
     let result = async {
         let mut downloaded = stage_remote_game_download(
             op,
-            &game.name,
+            &game.backup_dir_name(),
             &stage_root,
             session.normalized_max_concurrency(),
             None,
@@ -296,7 +297,8 @@ async fn coexist_game_from_remote(
             SyncOperationError::Backend(inner) => inner,
         })?;
 
-        copy_remote_snapshots_into_local(&backup_root, &mut downloaded).await?;
+        copy_remote_snapshots_into_local(&backup_root, &game.backup_dir_name(), &mut downloaded)
+            .await?;
 
         let local = game.get_game_snapshots_info()?;
         let merged = merge_snapshots_metadata(&local, &downloaded)?;
@@ -450,7 +452,7 @@ pub async fn download_all_from_session(
     for game in &remote_config.games {
         match stage_remote_game_download(
             &op,
-            &game.name,
+            &game.backup_dir_name(),
             &stage_root,
             session.normalized_max_concurrency(),
             token.clone(),
@@ -534,8 +536,9 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             BackendError::Unexpected(anyhow::anyhow!("Game '{}' not found", game_name))
         })?;
 
+    let dir_name = game.backup_dir_name().into_owned();
     let local = game.get_game_snapshots_info()?;
-    let remote = load_remote_game_snapshots(&op, game_name, None)
+    let remote = load_remote_game_snapshots(&op, &dir_name, None)
         .await
         .map_err(|err| match err {
             SyncOperationError::Cancelled => {
@@ -586,7 +589,7 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             fs::create_dir_all(&stage_root).await?;
             let downloaded = stage_remote_game_download(
                 &op,
-                game_name,
+                &dir_name,
                 &stage_root,
                 session.normalized_max_concurrency(),
                 None,
@@ -598,7 +601,7 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
                 }
                 SyncOperationError::Backend(inner) => inner,
             })?;
-            replace_local_game_from_stage(&stage_root, &backup_root, game_name).await?;
+            replace_local_game_from_stage(&stage_root, &backup_root, &dir_name).await?;
             if stage_root.exists() {
                 let _ = fs::remove_dir_all(&stage_root).await;
             }
