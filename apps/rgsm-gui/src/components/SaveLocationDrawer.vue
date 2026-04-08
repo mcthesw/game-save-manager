@@ -27,7 +27,7 @@ const emits = defineEmits<{
 const currentDevice = ref<Device | null>(null);
 const availableDevices = ref<Device[]>([]);
 const selectedDeviceId = ref('');
-const tempGame = ref<Game>({ name: '', save_paths: [], game_paths: {} });
+const tempGame = ref<Game>({ name: '', storage_key: '', save_paths: [], game_paths: {} });
 const hasUnsavedChanges = ref(false);
 
 const activeSaveUnits = computed(() =>
@@ -190,6 +190,22 @@ function switchDeleteBeforeApply(_unit: SaveUnit) {
 }
 
 function saveChanges() {
+  const trimmedName = tempGame.value.name.trim();
+  if (!trimmedName) {
+    showError({ message: $t('addgame.no_name_error') });
+    return;
+  }
+
+  const isDuplicate = config.value?.games.some(
+    (g) =>
+      g.storage_key !== props.game.storage_key && g.name.toLowerCase() === trimmedName.toLowerCase()
+  );
+  if (isDuplicate) {
+    showError({ message: $t('addgame.duplicated_name_error') });
+    return;
+  }
+
+  tempGame.value.name = trimmedName;
   emits('saveChanges', JSON.parse(JSON.stringify(tempGame.value)));
   hasUnsavedChanges.value = false;
 }
@@ -386,13 +402,10 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
   >
     <template #header>
       <div class="drawer-header">
-        <div class="drawer-header-text">
-          <span class="drawer-title">
-            {{ $t('save_location_drawer.drawer_title') }}
-            <span v-if="hasUnsavedChanges" class="unsaved-indicator">●</span>
-          </span>
-          <span class="drawer-subtitle">{{ game.name }}</span>
-        </div>
+        <span class="drawer-title">
+          {{ $t('save_location_drawer.drawer_title') }}
+          <span v-if="hasUnsavedChanges" class="unsaved-indicator">●</span>
+        </span>
         <div class="drawer-actions">
           <el-button
             type="primary"
@@ -410,22 +423,44 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
     </template>
 
     <div class="drawer-body">
-      <!-- Device selector -->
-      <div class="device-selector">
-        <el-select
-          v-model="selectedDeviceId"
-          :placeholder="$t('save_location_drawer.select_device')"
-        >
-          <el-option
-            v-for="device in availableDevices"
-            :key="device.id"
-            :label="device.name"
-            :value="device.id"
-          />
-        </el-select>
-        <el-tag v-if="currentDevice && selectedDeviceId === currentDevice.id" type="success">
-          {{ $t('save_location_drawer.current_device') }}
-        </el-tag>
+      <!-- Game name section -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-label">{{ $t('addgame.game_name') }}</div>
+        </div>
+        <el-input
+          v-model="tempGame.name"
+          :placeholder="$t('addgame.game_name')"
+          @input="hasUnsavedChanges = true"
+        />
+      </div>
+
+      <!-- Device selector section -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-label">{{ $t('save_location_drawer.select_device') }}</div>
+        </div>
+        <div class="device-selector-row">
+          <el-select
+            v-model="selectedDeviceId"
+            :placeholder="$t('save_location_drawer.select_device')"
+            style="flex: 1; min-width: 220px"
+          >
+            <el-option
+              v-for="device in availableDevices"
+              :key="device.id"
+              :label="device.name"
+              :value="device.id"
+            />
+          </el-select>
+          <el-tag
+            v-if="currentDevice && selectedDeviceId === currentDevice.id"
+            type="success"
+            style="flex-shrink: 0"
+          >
+            {{ $t('save_location_drawer.current_device') }}
+          </el-tag>
+        </div>
       </div>
 
       <!-- Launch path -->
@@ -617,32 +652,26 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   width: 100%;
 }
 
-.drawer-header-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .drawer-title {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 20px;
+  font-weight: 600;
   color: var(--el-text-color-primary);
   display: flex;
   align-items: center;
-}
-
-.drawer-subtitle {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  line-height: 1.3;
+  min-width: 0;
 }
 
 .unsaved-indicator {
   color: var(--el-color-warning);
-  font-size: 10px;
-  margin-left: 4px;
+  font-size: 11px;
+  margin-left: 6px;
+  line-height: 1;
 }
 
 .drawer-actions {
@@ -656,14 +685,11 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
   gap: 16px;
 }
 
-.device-selector {
+.device-selector-row {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 8px 12px;
-  background: var(--el-fill-color-light);
-  border-radius: var(--el-border-radius-base);
 }
 
 .section {

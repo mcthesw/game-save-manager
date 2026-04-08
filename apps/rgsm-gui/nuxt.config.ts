@@ -22,7 +22,7 @@ export default defineNuxtConfig({
     },
     optimizeDeps: {
       include: [
-        'dayjs',
+        'dayjs', // CJS
         'uuid',
         '@tauri-apps/plugin-log',
         '@tauri-apps/api/event',
@@ -33,6 +33,8 @@ export default defineNuxtConfig({
         'dayjs/plugin/*.js',
         'lodash-unified',
         'vuedraggable', // CJS
+        '@vue-flow/core',
+        '@vue-flow/background',
       ],
     },
   },

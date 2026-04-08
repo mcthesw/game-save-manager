@@ -283,6 +283,26 @@ pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), Stri
 
 #[tauri::command]
 #[specta::specta]
+pub async fn update_game(
+    storage_key: String,
+    game: GameDraft,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Updating game (storage_key={}): {:?}", storage_key, game);
+    svc(&app_handle)
+        .update_game(&storage_key, &game, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to update game: {:?}", e);
+            e.to_string()
+        })?;
+
+    info!(target:"rgsm::ipc", "Successfully updated game: {:?}", game.name);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn restore_snapshot(
     game: Game,
     date: String,

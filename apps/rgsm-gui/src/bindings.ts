@@ -64,6 +64,14 @@ async addGame(game: GameDraft) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async updateGame(storageKey: string, game: GameDraft) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_game", { storageKey, game }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async restoreSnapshot(game: Game, date: string) : Promise<Result<null, RestoreError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("restore_snapshot", { game, date }) };
@@ -479,7 +487,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false,"vn_scan_dirs":[]},"version":"1.8.1"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false,"vn_scan_dirs":[]},"version":"1.9.0"} as const;
 
 /** user-defined types **/
 
@@ -621,7 +629,14 @@ export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolea
 /**
  * A game struct contains the save units and the game's launcher
  */
-export type Game = { name: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>; 
+export type Game = { name: string; 
+/**
+ * Filesystem-safe identifier used for local backup directories and remote
+ * cloud paths. Derived from `name` via [`super::storage_key::generate_storage_key`]
+ * when the game is first created. Once set it never changes, even if the
+ * display `name` is later renamed.
+ */
+storage_key?: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>; 
 /**
  * Monotonically increasing counter for assigning unique save-unit IDs.
  * IDs can be provided by callers (frontend/CLI/FFI), and backend normalization
@@ -689,7 +704,7 @@ savePathsCount: number }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type LudusaviManifestStatus = { 
 /**
- * Current manifest source: `local` or `bundled`.
+ * Current manifest source: `local`, `bundled`, or `none`.
  */
 source: string; 
 /**

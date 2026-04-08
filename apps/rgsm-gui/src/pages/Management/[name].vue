@@ -54,6 +54,7 @@ const gameSnapshots = ref<GameSnapshots | null>(null);
 
 const game: Ref<Game> = ref({
   name: '',
+  storage_key: '',
   save_paths: [],
   game_paths: {},
 });
@@ -801,7 +802,7 @@ async function set_quick_backup() {
 // 处理抽屉组件保存游戏路径的事件
 async function on_drawer_save_changes(updatedGame: Game) {
   try {
-    const result = await commands.addGame({
+    const result = await commands.updateGame(game.value.storage_key ?? game.value.name, {
       name: updatedGame.name,
       save_paths: updatedGame.save_paths,
       game_paths: updatedGame.game_paths ?? {},
@@ -813,16 +814,18 @@ async function on_drawer_save_changes(updatedGame: Game) {
     }
 
     await refreshConfig();
-    const refreshedGame = config.value.games.find((g) => g.name === updatedGame.name);
-    if (!refreshedGame) {
-      showError({ message: $t('error.game_not_found') });
-      return;
-    }
-
-    game.value = refreshedGame;
-    await checkCurrentDeviceSavePaths();
     showSuccess({ message: $t('manage.save_paths_updated') });
     drawer.value = false;
+
+    if (updatedGame.name !== route.params.name) {
+      await router.replace('/Management/' + updatedGame.name);
+    } else {
+      const refreshedGame = config.value.games.find((g) => g.name === updatedGame.name);
+      if (refreshedGame) {
+        game.value = refreshedGame;
+        await checkCurrentDeviceSavePaths();
+      }
+    }
   } catch (e) {
     error(`Error saving game paths: ${e}`);
     showError({ message: $t('error.save_config_failed') });
