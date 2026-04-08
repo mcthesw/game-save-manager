@@ -10,6 +10,8 @@ pub const VERSION_1_6_0: &str = "1.6.0";
 pub const VERSION_1_7_5: &str = "1.7.5";
 /// Version 1.8.1 - introduced explicit snapshot `created_by` metadata migration
 pub const VERSION_1_8_1: &str = "1.8.1";
+/// Version 1.9.0 - introduced `storage_key` for filesystem-safe game directory names
+pub const VERSION_1_9_0: &str = "1.9.0";
 
 // 1.4.X
 mod v1_4_0;

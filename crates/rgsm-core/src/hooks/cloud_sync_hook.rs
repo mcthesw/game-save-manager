@@ -75,7 +75,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
         self.sync_jobs
             .enqueue(CloudSyncJob::UploadSnapshot {
                 backend,
-                game_name: ctx.snapshots.name.clone(),
+                game_name: ctx.game.name.clone(),
+                storage_key: ctx.game.backup_dir_name().into_owned(),
                 snapshots: ctx.snapshots.clone(),
                 local_zip_path: ctx.local_zip_path.clone(),
                 remote_zip_path: ctx.remote_zip_path.clone(),
@@ -96,7 +97,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
             self.sync_jobs
                 .enqueue(CloudSyncJob::UploadMetadata {
                     backend,
-                    game_name: ctx.snapshots.name.clone(),
+                    game_name: ctx.game.name.clone(),
+                    storage_key: ctx.game.backup_dir_name().into_owned(),
                     snapshots: ctx.snapshots.clone(),
                 })
                 .await;
@@ -104,7 +106,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
             self.sync_jobs
                 .enqueue(CloudSyncJob::DeleteSnapshotAndUploadMetadata {
                     backend,
-                    game_name: ctx.snapshots.name.clone(),
+                    game_name: ctx.game.name.clone(),
+                    storage_key: ctx.game.backup_dir_name().into_owned(),
                     snapshots: ctx.snapshots.clone(),
                     remote_zip_path: ctx.deleted_remote_paths[0].clone(),
                 })
@@ -113,7 +116,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
             self.sync_jobs
                 .enqueue(CloudSyncJob::DeleteFilesAndUploadMetadata {
                     backend,
-                    game_name: ctx.snapshots.name.clone(),
+                    game_name: ctx.game.name.clone(),
+                    storage_key: ctx.game.backup_dir_name().into_owned(),
                     snapshots: ctx.snapshots.clone(),
                     remote_zip_paths: ctx.deleted_remote_paths.clone(),
                 })
@@ -132,7 +136,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
         self.sync_jobs
             .enqueue(CloudSyncJob::UploadMetadata {
                 backend,
-                game_name: ctx.snapshots.name.clone(),
+                game_name: ctx.game.name.clone(),
+                storage_key: ctx.game.backup_dir_name().into_owned(),
                 snapshots: ctx.snapshots.clone(),
             })
             .await;
@@ -147,7 +152,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
             self.sync_jobs
                 .enqueue(CloudSyncJob::UploadMetadata {
                     backend: backend.clone(),
-                    game_name: ctx.snapshots.name.clone(),
+                    game_name: ctx.game.name.clone(),
+                    storage_key: ctx.game.backup_dir_name().into_owned(),
                     snapshots: ctx.snapshots.clone(),
                 })
                 .await;

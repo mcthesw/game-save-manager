@@ -39,6 +39,7 @@ pub enum CloudSyncJob {
     UploadSnapshot {
         backend: Backend,
         game_name: String,
+        storage_key: String,
         snapshots: GameSnapshots,
         local_zip_path: PathBuf,
         remote_zip_path: String,
@@ -46,17 +47,20 @@ pub enum CloudSyncJob {
     UploadMetadata {
         backend: Backend,
         game_name: String,
+        storage_key: String,
         snapshots: GameSnapshots,
     },
     DeleteSnapshotAndUploadMetadata {
         backend: Backend,
         game_name: String,
+        storage_key: String,
         snapshots: GameSnapshots,
         remote_zip_path: String,
     },
     DeleteFilesAndUploadMetadata {
         backend: Backend,
         game_name: String,
+        storage_key: String,
         snapshots: GameSnapshots,
         remote_zip_paths: Vec<String>,
     },
@@ -607,12 +611,13 @@ async fn execute_job_once(
         CloudSyncJob::UploadSnapshot {
             backend,
             snapshots,
+            storage_key,
             local_zip_path,
             remote_zip_path,
             ..
         } => {
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, upload_game_snapshots(&op, snapshots.clone())).await?;
+            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
             let transfer = CloudTransfer::new(&op);
             run_cancellable(
                 token,
@@ -622,15 +627,19 @@ async fn execute_job_once(
             Ok(())
         }
         CloudSyncJob::UploadMetadata {
-            backend, snapshots, ..
+            backend,
+            snapshots,
+            storage_key,
+            ..
         } => {
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, upload_game_snapshots(&op, snapshots.clone())).await?;
+            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
             Ok(())
         }
         CloudSyncJob::DeleteSnapshotAndUploadMetadata {
             backend,
             snapshots,
+            storage_key,
             remote_zip_path,
             ..
         } => {
@@ -639,12 +648,13 @@ async fn execute_job_once(
                 op.delete(remote_zip_path).await.map_err(BackendError::from)
             })
             .await?;
-            run_cancellable(token, upload_game_snapshots(&op, snapshots.clone())).await?;
+            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
             Ok(())
         }
         CloudSyncJob::DeleteFilesAndUploadMetadata {
             backend,
             snapshots,
+            storage_key,
             remote_zip_paths,
             ..
         } => {
@@ -655,7 +665,7 @@ async fn execute_job_once(
                 })
                 .await?;
             }
-            run_cancellable(token, upload_game_snapshots(&op, snapshots.clone())).await?;
+            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
             Ok(())
         }
         CloudSyncJob::DeleteGameAndUploadConfig {
