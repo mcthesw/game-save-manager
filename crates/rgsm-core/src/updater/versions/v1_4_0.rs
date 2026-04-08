@@ -71,6 +71,7 @@ impl From<Config> for CurrentConfig {
                     .collect();
                 CurrentGame {
                     name: g.name,
+                    storage_key: String::new(),
                     save_paths,
                     game_paths,
                     next_save_unit_id: 0,

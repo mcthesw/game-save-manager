@@ -18,7 +18,9 @@ pub struct ExtraBackupItem {
 }
 
 pub fn extra_backup_folder_path(game: &Game) -> Result<PathBuf, BackupError> {
-    Ok(get_backup_path()?.join(&game.name).join("extra_backup"))
+    Ok(get_backup_path()?
+        .join(game.backup_dir_name().as_ref())
+        .join("extra_backup"))
 }
 
 pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupError> {

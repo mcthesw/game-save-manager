@@ -94,7 +94,7 @@ impl ServiceContext {
             })?;
 
         let archive_path = get_backup_path()?
-            .join(&game.name)
+            .join(game.backup_dir_name().as_ref())
             .join(format!("{date}.zip"));
         let config = get_config()?;
 
@@ -132,7 +132,7 @@ impl ServiceContext {
             let game = config
                 .games
                 .iter()
-                .find(|game| game.name == created.snapshots.name)
+                .find(|game| game.backup_dir_name() == created.snapshots.name)
                 .cloned()
                 .ok_or_else(|| {
                     BackupError::Unexpected(anyhow::anyhow!(
@@ -173,7 +173,7 @@ impl ServiceContext {
                 continue;
             };
             let archive_path = backup_base
-                .join(&game.name)
+                .join(game.backup_dir_name().as_ref())
                 .join(format!("{}.zip", snapshot.date));
 
             self.pipeline()

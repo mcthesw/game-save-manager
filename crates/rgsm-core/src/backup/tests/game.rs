@@ -141,6 +141,7 @@ fn timer_backup_skips_when_unchanged() -> TestResult {
         init_backups_json(game_name, &backup_root)?;
         let game = Game {
             name: game_name.to_string(),
+            storage_key: String::new(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
@@ -185,6 +186,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
         init_backups_json(game_name, &backup_root)?;
         let game = Game {
             name: game_name.to_string(),
+            storage_key: String::new(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
@@ -237,6 +239,7 @@ fn timer_backup_compares_only_latest_auto_backup() -> TestResult {
         init_backups_json(game_name, &backup_root)?;
         let game = Game {
             name: game_name.to_string(),
+            storage_key: String::new(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
@@ -288,6 +291,7 @@ fn legacy_auto_snapshot_creates_once_before_dedup() -> TestResult {
         init_backups_json(game_name, &backup_root)?;
         let game = Game {
             name: game_name.to_string(),
+            storage_key: String::new(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
@@ -333,6 +337,7 @@ fn fingerprint_source_and_zip_match_for_fresh_snapshot() -> TestResult {
         init_backups_json(game_name, &backup_root)?;
         let game = Game {
             name: game_name.to_string(),
+            storage_key: String::new(),
             save_paths: vec![build_file_save_unit(&save_file)],
             game_paths: HashMap::new(),
             next_save_unit_id: 1,
@@ -393,6 +398,7 @@ fn make_test_game(game_name: &str, backup_root: &Path) -> Result<Game, Box<dyn s
     init_backups_json(game_name, backup_root)?;
     Ok(Game {
         name: game_name.to_string(),
+        storage_key: String::new(),
         save_paths: Vec::new(),
         game_paths: HashMap::new(),
         next_save_unit_id: 0,
@@ -599,6 +605,7 @@ fn batch_delete_empty_dates_is_noop() -> TestResult {
 fn normalize_save_unit_ids_reassigns_duplicates() {
     let mut game = Game {
         name: "normalize-dup".to_string(),
+        storage_key: String::new(),
         save_paths: vec![
             SaveUnit {
                 id: 0,
@@ -646,6 +653,7 @@ fn normalize_save_unit_ids_reassigns_duplicates() {
 fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
     let mut game = Game {
         name: "normalize-legacy".to_string(),
+        storage_key: String::new(),
         save_paths: vec![
             SaveUnit {
                 id: 0,
@@ -686,6 +694,7 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
 fn game_draft_into_game_preserves_existing_cloud_sync_enabled() {
     let existing = Game {
         name: "DraftReuse".to_string(),
+        storage_key: String::new(),
         save_paths: vec![],
         game_paths: HashMap::new(),
         next_save_unit_id: 1,
@@ -715,6 +724,7 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
 
     let existing = Game {
         name: "DraftReuse".to_string(),
+        storage_key: String::new(),
         save_paths: vec![
             SaveUnit {
                 id: 5,
@@ -775,6 +785,7 @@ fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
     existing_path.insert(device_id.clone(), "C:\\A\\save.dat".to_string());
     let existing = Game {
         name: "DraftEdit".to_string(),
+        storage_key: String::new(),
         save_paths: vec![SaveUnit {
             id: 5,
             unit_type: SaveUnitType::File,
@@ -819,6 +830,7 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
     existing_path.insert(device_id.clone(), "C:\\A\\save.dat".to_string());
     let existing = Game {
         name: "DraftEditAndAdd".to_string(),
+        storage_key: String::new(),
         save_paths: vec![SaveUnit {
             id: 5,
             unit_type: SaveUnitType::File,
@@ -863,4 +875,79 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
 
     assert_eq!(ids, vec![5, 8]);
     assert_eq!(game.next_save_unit_id, 9);
+}
+
+#[test]
+fn game_with_colon_in_name_can_create_snapshot() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let backup_root = temp_dir.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+
+        let config = Config {
+            backup_path: backup_root.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+
+        let save_file = temp_dir.path().join("profile.sav");
+        fs::write(&save_file, b"test-content")?;
+
+        let game_name = "Game: The Sequel";
+        let storage_key = crate::backup::storage_key::generate_storage_key(game_name);
+        init_backups_json(&storage_key, &backup_root)?;
+
+        let game = Game {
+            name: game_name.to_string(),
+            storage_key,
+            save_paths: vec![build_file_save_unit(&save_file)],
+            game_paths: HashMap::new(),
+            next_save_unit_id: 1,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+        };
+
+        let result = game.create_snapshot("test backup").await;
+        assert!(
+            result.is_ok(),
+            "Should create snapshot for game with colon in name"
+        );
+
+        let snapshots = game.get_game_snapshots_info()?;
+        assert_eq!(snapshots.backups.len(), 1);
+        Ok(())
+    })
+}
+
+#[test]
+fn backup_dir_name_uses_storage_key_over_raw_name() {
+    let game = Game {
+        name: "Game: Special <Edition>".to_string(),
+        storage_key: "Game_ Special _Edition_".to_string(),
+        save_paths: vec![],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 0,
+        cloud_sync_enabled: true,
+        auto_backup: None,
+    };
+    assert_eq!(game.backup_dir_name().as_ref(), "Game_ Special _Edition_");
+}
+
+#[test]
+fn backup_dir_name_fallback_sanitizes_when_storage_key_empty() {
+    let game = Game {
+        name: "Game: Special <Edition>".to_string(),
+        storage_key: String::new(),
+        save_paths: vec![],
+        game_paths: HashMap::new(),
+        next_save_unit_id: 0,
+        cloud_sync_enabled: true,
+        auto_backup: None,
+    };
+    let dir_name = game.backup_dir_name();
+    assert!(!dir_name.contains(':'));
+    assert!(!dir_name.contains('<'));
+    assert!(!dir_name.contains('>'));
+    assert!(!dir_name.is_empty());
 }

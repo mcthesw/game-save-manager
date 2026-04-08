@@ -202,6 +202,7 @@ mod tests {
             source: HookSource::UserManual,
             game: Game {
                 name: "TestGame".into(),
+                storage_key: String::new(),
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
@@ -230,6 +231,7 @@ mod tests {
             source: HookSource::UserManual,
             game: Game {
                 name: "NewGame".into(),
+                storage_key: String::new(),
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
@@ -246,6 +248,7 @@ mod tests {
             source: HookSource::UserManual,
             previous_game: Game {
                 name: "ExistingGame".into(),
+                storage_key: String::new(),
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: false,
@@ -254,6 +257,7 @@ mod tests {
             },
             game: Game {
                 name: "ExistingGame".into(),
+                storage_key: String::new(),
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,
@@ -364,6 +368,7 @@ mod tests {
             source: HookSource::UserManual,
             game: Game {
                 name: "TestGame".into(),
+                storage_key: String::new(),
                 save_paths: vec![],
                 game_paths: Default::default(),
                 cloud_sync_enabled: true,

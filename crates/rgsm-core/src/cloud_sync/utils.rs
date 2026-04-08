@@ -73,16 +73,16 @@ pub fn is_not_found(err: &BackendError) -> bool {
     matches!(err, BackendError::Cloud(inner) if inner.kind() == ErrorKind::NotFound)
 }
 
-pub fn game_cloud_metadata_path(game_name: &str) -> Result<String, BackendError> {
+pub fn game_cloud_metadata_path(storage_key: &str) -> Result<String, BackendError> {
     let backups_json = PathBuf::from("save_data")
-        .join(game_name)
+        .join(storage_key)
         .join("Backups.json");
     path_to_remote_key(&backups_json)
 }
 
-pub fn game_cloud_zip_path(game_name: &str, backup_date: &str) -> Result<String, BackendError> {
+pub fn game_cloud_zip_path(storage_key: &str, backup_date: &str) -> Result<String, BackendError> {
     let zip_path = PathBuf::from("save_data")
-        .join(game_name)
+        .join(storage_key)
         .join(format!("{backup_date}.zip"));
     path_to_remote_key(&zip_path)
 }
@@ -104,11 +104,12 @@ pub async fn load_remote_config(
 
 pub async fn load_remote_game_snapshots(
     op: &Operator,
-    game_name: &str,
+    storage_key: &str,
     token: Option<&CancellationToken>,
 ) -> Result<Option<GameSnapshots>, SyncOperationError> {
     let transfer = CloudTransfer::new(op);
-    let metadata_path = game_cloud_metadata_path(game_name).map_err(SyncOperationError::Backend)?;
+    let metadata_path =
+        game_cloud_metadata_path(storage_key).map_err(SyncOperationError::Backend)?;
     match run_with_optional_cancel(token, transfer.download_bytes_streaming(&metadata_path)).await {
         Ok(bytes) => serde_json::from_slice(&bytes)
             .map(Some)
@@ -119,11 +120,15 @@ pub async fn load_remote_game_snapshots(
     }
 }
 
-pub async fn upload_game_snapshots(op: &Operator, info: GameSnapshots) -> Result<(), BackendError> {
+pub async fn upload_game_snapshots(
+    op: &Operator,
+    storage_key: &str,
+    info: &GameSnapshots,
+) -> Result<(), BackendError> {
     let transfer = CloudTransfer::new(op);
-    let metadata_path = game_cloud_metadata_path(&info.name)?;
+    let metadata_path = game_cloud_metadata_path(storage_key)?;
     transfer
-        .upload_bytes_streaming(&serde_json::to_vec_pretty(&info)?, &metadata_path)
+        .upload_bytes_streaming(&serde_json::to_vec_pretty(info)?, &metadata_path)
         .await?;
     Ok(())
 }
@@ -154,12 +159,13 @@ pub async fn upload_game_data(
         .ok_or_else(|| BackendError::Unexpected(anyhow::anyhow!("Game '{}' not found", game_name)))
         .map_err(SyncOperationError::Backend)?;
 
+    let dir_name = game.backup_dir_name().into_owned();
     let backup_info = game
         .get_game_snapshots_info()
         .map_err(SyncOperationError::from)?;
     let backup_root = get_backup_path().map_err(SyncOperationError::from)?;
 
-    let metadata_path = game_cloud_metadata_path(game_name).map_err(SyncOperationError::Backend)?;
+    let metadata_path = game_cloud_metadata_path(&dir_name).map_err(SyncOperationError::Backend)?;
     let transfer = CloudTransfer::new(op);
     run_with_optional_cancel(
         token.as_ref(),
@@ -175,10 +181,10 @@ pub async fn upload_game_data(
 
     for backup in &backup_info.backups {
         let cloud_zip_path =
-            game_cloud_zip_path(game_name, &backup.date).map_err(SyncOperationError::Backend)?;
+            game_cloud_zip_path(&dir_name, &backup.date).map_err(SyncOperationError::Backend)?;
         let local_zip_path = if backup.path.is_empty() {
             backup_root
-                .join(game_name)
+                .join(&dir_name)
                 .join(format!("{}.zip", backup.date))
         } else {
             PathBuf::from(&backup.path)
@@ -221,22 +227,22 @@ pub async fn upload_game_data(
 
 pub async fn stage_remote_game_download(
     op: &Operator,
-    game_name: &str,
+    storage_key: &str,
     stage_root: &Path,
     max_concurrency: usize,
     token: Option<CancellationToken>,
 ) -> Result<GameSnapshots, SyncOperationError> {
-    let backup_info = load_remote_game_snapshots(op, game_name, token.as_ref())
+    let backup_info = load_remote_game_snapshots(op, storage_key, token.as_ref())
         .await?
         .ok_or_else(|| {
             BackendError::Unexpected(anyhow::anyhow!(
                 "Remote metadata for '{}' not found",
-                game_name
+                storage_key
             ))
         })
         .map_err(SyncOperationError::Backend)?;
 
-    let stage_game_dir = stage_root.join(game_name);
+    let stage_game_dir = stage_root.join(storage_key);
     fs::create_dir_all(&stage_game_dir)
         .await
         .map_err(BackendError::from)
@@ -247,7 +253,7 @@ pub async fn stage_remote_game_download(
 
     for backup in &backup_info.backups {
         let cloud_zip_path =
-            game_cloud_zip_path(game_name, &backup.date).map_err(SyncOperationError::Backend)?;
+            game_cloud_zip_path(storage_key, &backup.date).map_err(SyncOperationError::Backend)?;
         let local_zip_path = stage_game_dir.join(format!("{}.zip", backup.date));
         let permit = semaphore
             .clone()
@@ -315,10 +321,10 @@ async fn replace_directory(stage_dir: &Path, final_dir: &Path) -> Result<(), Bac
 pub async fn replace_local_game_from_stage(
     stage_root: &Path,
     backup_root: &Path,
-    game_name: &str,
+    storage_key: &str,
 ) -> Result<(), BackendError> {
-    let stage_game_dir = stage_root.join(game_name);
-    let local_game_dir = backup_root.join(game_name);
+    let stage_game_dir = stage_root.join(storage_key);
+    let local_game_dir = backup_root.join(storage_key);
     replace_directory(&stage_game_dir, &local_game_dir).await
 }
 
