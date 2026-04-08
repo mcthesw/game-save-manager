@@ -62,6 +62,7 @@ const save_paths = reactive<SaveUnitDraft[]>([]); // 选择游戏存档目录
 const game_path = ref(''); // 选择游戏启动程序
 const game_icon_src = ref('/orange.png');
 const is_editing = ref(false); // 是否正在编辑已有的游戏
+const editing_storage_key = ref(''); // storage_key of the game being edited
 const currentDevice = ref<Device | null>(null); // 当前设备信息
 
 // Import dialog state
@@ -105,6 +106,7 @@ watchEffect(() => {
     const gameConfig = config.value?.games.find((game) => game.name === gameName);
     if (gameConfig) {
       is_editing.value = true;
+      editing_storage_key.value = gameConfig.storage_key ?? '';
       game_name.value = gameConfig.name;
       save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
 
@@ -136,8 +138,7 @@ function check_save_unit_unique(p: string) {
   return true;
 }
 function check_name_valid(name: string) {
-  const invalid_reg = /[<>:"/\\|?*]/;
-  return !invalid_reg.test(name);
+  return name.trim().length > 0;
 }
 function generate_save_unit(
   unit_type: 'Folder' | 'File' | 'WinRegistry',
@@ -667,7 +668,6 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
   }
 }
 async function save() {
-  // 去除头尾空字符，防止触发Windows文件命名规则问题
   game_name.value = game_name.value.trim();
   if (game_name.value == '' || save_paths.length == 0) {
     showError({ message: $t('addgame.no_name_error') });
@@ -677,30 +677,36 @@ async function save() {
     showError({ message: $t('addgame.invalid_name_error') });
     return;
   }
-  if (config.value?.games.find((x) => x.name.toLowerCase() == game_name.value.toLowerCase())) {
-    showError({ message: $t('addgame.duplicated_name_error') });
-    return;
+
+  // Duplicate name check: when editing, allow keeping the same name
+  const duplicate = config.value?.games.find(
+    (x) => x.name.toLowerCase() == game_name.value.toLowerCase()
+  );
+  if (duplicate) {
+    if (!is_editing.value || duplicate.storage_key !== editing_storage_key.value) {
+      showError({ message: $t('addgame.duplicated_name_error') });
+      return;
+    }
   }
+
   const game: GameDraft = {
     name: game_name.value,
     save_paths: save_paths,
   };
 
-  // 如果有游戏路径和当前设备信息，则添加游戏路径
   if (game_path.value && currentDevice.value) {
     game.game_paths = {};
     game.game_paths[currentDevice.value.id] = game_path.value;
   }
   try {
-    await commands.addGame(game);
-
     if (is_editing.value) {
+      await commands.updateGame(editing_storage_key.value, game);
       is_editing.value = false;
       showSuccess({ message: $t('addgame.add_game_success') });
       router.back();
     } else {
+      await commands.addGame(game);
       if (config.value?.settings.add_new_to_favorites) {
-        // TODO:以下内容是否需要抽离成单独的工具库？还是说应该后端处理？
         await refreshConfig();
         config.value?.favorites?.push({
           label: game.name,
@@ -715,7 +721,7 @@ async function save() {
     reset_info(false);
     await refreshConfig();
   } catch (e) {
-    error(`Error adding game: ${e}`);
+    error(`Error saving game: ${e}`);
     showError({ message: $t('error.add_game_failed') });
   }
 }
