@@ -26,6 +26,10 @@ import {
   Lock,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
+import {
+  getGameManagementPath,
+  getGameNameFromRouteParam,
+} from '../../composables/useGameManagementRoute';
 
 const { showInfo, showError, showSuccess } = useNotification();
 const feedback = useFeedback();
@@ -57,6 +61,7 @@ const game: Ref<Game> = ref({
   storage_key: '',
   save_paths: [],
   game_paths: {},
+  store_user_ids: {},
 });
 
 // 当前设备信息
@@ -288,7 +293,7 @@ watch(
     if (!newValue) {
       return;
     }
-    const name = newValue;
+    const name = getGameNameFromRouteParam(newValue);
     game.value = config.value.games.find((x) => x.name == name) as Game;
     undoInfo.value = null;
     syncAutoBackupFromGame();
@@ -806,6 +811,8 @@ async function on_drawer_save_changes(updatedGame: Game) {
       name: updatedGame.name,
       save_paths: updatedGame.save_paths,
       game_paths: updatedGame.game_paths ?? {},
+      ludusavi_meta: updatedGame.ludusavi_meta ?? null,
+      store_user_ids: updatedGame.store_user_ids ?? {},
     });
 
     if (result.status === 'error') {
@@ -817,8 +824,9 @@ async function on_drawer_save_changes(updatedGame: Game) {
     showSuccess({ message: $t('manage.save_paths_updated') });
     drawer.value = false;
 
-    if (updatedGame.name !== route.params.name) {
-      await router.replace('/Management/' + updatedGame.name);
+    const currentRouteGameName = getGameNameFromRouteParam(route.params.name);
+    if (updatedGame.name !== currentRouteGameName) {
+      await router.replace(getGameManagementPath(updatedGame.name));
     } else {
       const refreshedGame = config.value.games.find((g) => g.name === updatedGame.name);
       if (refreshedGame) {

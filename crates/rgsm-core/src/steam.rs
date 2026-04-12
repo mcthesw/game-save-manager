@@ -124,18 +124,14 @@ pub fn get_steam_library_paths() -> Result<Vec<PathBuf>, SteamError> {
             reason: e.to_string(),
         })?;
 
-    let mut libraries: Vec<PathBuf> = library_folders
-        .into_values()
-        .map(|folder| {
-            let p = folder.path.replace('\\', "/");
-            PathBuf::from(p)
-        })
-        .filter(|p| p.exists())
-        .collect();
-
-    if libraries.is_empty() {
-        // Ensure at least the steam root itself is present
-        libraries.push(steam_root);
+    let mut libraries = vec![steam_root.clone()];
+    for library in library_folders.into_values().map(|folder| {
+        let p = folder.path.replace('\\', "/");
+        PathBuf::from(p)
+    }) {
+        if library.exists() && !libraries.contains(&library) {
+            libraries.push(library);
+        }
     }
 
     debug!(target: "rgsm::steam", "Found {} Steam libraries", libraries.len());
@@ -311,7 +307,7 @@ pub fn find_game_install_path(
 #[serde(rename_all = "camelCase")]
 pub struct StoreUserIdCandidate {
     pub user_id: String,
-    /// Seconds since UNIX epoch of the most recently modified file in the userdata dir.
+    /// Seconds since UNIX epoch of the `userdata/<id>` directory mtime.
     pub last_modified_epoch_secs: Option<i64>,
 }
 
@@ -432,7 +428,7 @@ mod tests {
         let acf_content = r#"
 "AppState"
 {
-    "appid"     "730"
+    "appid"     730
     "installdir"    "Counter-Strike Global Offensive"
     "name"      "Counter-Strike 2"
 }

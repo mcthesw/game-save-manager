@@ -404,7 +404,7 @@ async resetLudusaviManifestToBundled() : Promise<Result<LudusaviManifestStatus, 
     else return { status: "error", error: e  as any };
 }
 },
-async checkPaths(paths: string[], storeUserId: string | null, installDirs: string[] | null = null, steamId: number | null = null) : Promise<Result<PathCheckResult[], string>> {
+async checkPaths(paths: string[], storeUserId: string | null, installDirs: string[] | null, steamId: number | null) : Promise<Result<PathCheckResult[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("check_paths", { paths, storeUserId, installDirs, steamId }) };
 } catch (e) {
@@ -631,7 +631,12 @@ export type CreatedBy =
  * Forward-compat catch-all for variants added in future versions.
  */
 "Unknown"
-export type Device = { id: string; name: string; game_roots: string[] }
+export type Device = { id: string; name: string; 
+/**
+ * User-configured root directories for `<root>` path variable resolution.
+ * First entry is used as `<root>`; empty = auto-detect Steam root.
+ */
+game_roots?: string[] }
 export type ExtraBackupItem = { 
 /**
  * Filename without extension, e.g. `Overwrite_2025-12-22_12-34-56`.
@@ -671,7 +676,12 @@ auto_backup?: AutoBackupConfig | null;
 /**
  * Metadata from Ludusavi manifest import. `None` for manually added games.
  */
-ludusavi_meta?: LudusaviMeta | null; store_user_ids?: Partial<{ [key in string]: string }> }
+ludusavi_meta?: LudusaviMeta | null; 
+/**
+ * Per-device store user ID for `<storeUserId>` resolution.
+ * Key: DeviceId, Value: store-specific user ID (e.g. Steam user ID).
+ */
+store_user_ids: Partial<{ [key in string]: string }> }
 /**
  * Frontend/IPC input shape for creating/updating a game.
  * Save-unit IDs are assigned and normalized in backend domain logic.
@@ -680,7 +690,11 @@ export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?
 /**
  * Metadata from Ludusavi manifest import (optional for manually added games).
  */
-ludusavi_meta?: LudusaviMeta | null; store_user_ids?: Partial<{ [key in string]: string }> }
+ludusavi_meta?: LudusaviMeta | null; 
+/**
+ * Per-device store user ID for `<storeUserId>` resolution.
+ */
+store_user_ids: Partial<{ [key in string]: string }> }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -849,7 +863,6 @@ id?: number; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string 
  * backend logic allocates IDs for new rows and normalizes duplicates.
  */
 export type SaveUnitDraft = { id?: number | null; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean; enabled?: boolean }
-export type StoreUserIdCandidate = { userId: string; lastModifiedEpochSecs: number | null }
 /**
  * The kind of data a save unit backs up.
  */
@@ -894,6 +907,14 @@ device_id?: string | null;
  * How this snapshot was created.
  */
 created_by?: CreatedBy }
+/**
+ * A candidate Steam user ID with metadata for UI display.
+ */
+export type StoreUserIdCandidate = { userId: string; 
+/**
+ * Seconds since UNIX epoch of the most recently modified file in the userdata dir.
+ */
+lastModifiedEpochSecs: number | null }
 export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "merged" | "conflict"
 export type SyncResult = "success" | { error: string } | "conflict" | "cancelled"
 export type SyncState = { schema_version: number; backend_fingerprint?: string; current_device_id?: string; config_state?: GameSyncState; games?: Partial<{ [key in string]: GameSyncState }> }

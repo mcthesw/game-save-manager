@@ -398,7 +398,17 @@ pub fn detect_local_games(
     info!(target: "rgsm::ludusavi", "Scanning for locally installed games on current OS...");
 
     // Pre-scan all installed Steam games for O(1) per-game lookup
-    let steam_cache = Arc::new(steam::scan_all_installed_games().unwrap_or_default());
+    let steam_cache = Arc::new(match steam::scan_all_installed_games() {
+        Ok(cache) => cache,
+        Err(e) => {
+            warn!(
+                target: "rgsm::ludusavi",
+                "Failed to scan installed Steam games during local detection: {}",
+                e
+            );
+            HashMap::new()
+        }
+    });
 
     for (name, value) in manifest {
         let install_dirs = extract_install_dirs(value);

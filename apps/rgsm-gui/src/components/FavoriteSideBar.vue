@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { AllowDropType, NodeDropType } from 'element-plus/es/components/tree/src/tree.type';
 import type { FavoriteTreeNode, Game } from '~/bindings';
 import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
+import { getGameManagementPath } from '../composables/useGameManagementRoute';
 
 const { config, saveConfig } = useConfig();
 const { showWarning, showSuccess, showError } = useNotification();
@@ -63,7 +64,7 @@ function favorite_click_handler(node: FavoriteTreeNode) {
     showWarning({ message: $t('favorite.game_not_found') + ': ' + node.label });
     return;
   }
-  navigateTo('/Management/' + node.label);
+  navigateTo(getGameManagementPath(node.label));
 }
 
 function remove_node(node: Node, data: FavoriteTreeNode) {

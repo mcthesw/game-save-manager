@@ -24,6 +24,7 @@
           :placeholder="$t('game_batch_import.store_user_id_placeholder')"
           class="store-user-id-select"
           :loading="loadingUserIds"
+          @change="handleStoreUserIdChange"
         >
           <el-option
             v-for="c in userIdCandidates"
@@ -172,6 +173,8 @@ function isRegistryPath(path: string): boolean {
 interface GameConfig {
   name: string;
   customName: string;
+  installDirs: string[];
+  steamId: number | null;
   selected: boolean;
   paths: Array<{
     path: string;
@@ -248,7 +251,7 @@ function formatUserIdLabel(c: StoreUserIdCandidate): string {
 }
 
 function formatTimeAgo(epochSecs: number): string {
-  const diffMs = Date.now() - epochSecs * 1000;
+  const diffMs = Math.max(0, Date.now() - epochSecs * 1000);
   const mins = Math.floor(diffMs / 60000);
   if (mins < 60) return $t('common.minutes_ago', { n: mins });
   const hours = Math.floor(mins / 60);
@@ -266,6 +269,8 @@ watch(
       return {
         name: game.name,
         customName: game.name,
+        installDirs: game.installDirs ?? [],
+        steamId: game.steamId ?? null,
         selected: true,
         paths: paths.map((p) => ({
           path: p.path,
@@ -282,19 +287,19 @@ watch(
 
 watch(
   () => dialogVisible.value,
-  (open) => {
+  async (open) => {
     if (!open) return;
     autoCheckedOnce.value = false;
     selectedStoreUserId.value = null;
-    loadUserIdCandidates();
+    await loadUserIdCandidates();
   }
 );
 
 // Auto-check paths and use results to set default selection after paths finish loading
 watch(
-  () => [dialogVisible.value, props.loading],
-  async ([open, loading]) => {
-    if (!open || loading) return;
+  () => [dialogVisible.value, props.loading, loadingUserIds.value],
+  async ([open, loading, loadingUserIds]) => {
+    if (!open || loading || loadingUserIds) return;
     if (autoCheckedOnce.value) return;
     autoCheckedOnce.value = true;
     await checkAllPaths(true);
@@ -349,53 +354,56 @@ function handleConfirm() {
   emit('update:modelValue', false);
 }
 
+async function handleStoreUserIdChange() {
+  if (!dialogVisible.value || gameConfigs.value.length === 0) {
+    return;
+  }
+  await checkAllPaths();
+}
+
 async function checkAllPaths(applySelection: boolean = false) {
-  const indexMap: Array<{ gameIndex: number; pathIndex: number }> = [];
-  const paths: string[] = [];
-
-  gameConfigs.value.forEach((game, gameIndex) => {
-    game.paths.forEach((_path, pathIndex) => {
-      indexMap.push({ gameIndex, pathIndex });
-      paths.push(game.paths[pathIndex]?.path ?? '');
-    });
-  });
-
-  if (!paths.length) return;
+  if (gameConfigs.value.length === 0) return;
 
   isChecking.value = true;
   try {
-    const result = await commands.checkPaths(paths, selectedStoreUserId.value || null);    if (result.status === 'ok') {
-      const checks = result.data as PathCheckResult[];
-      checks.forEach((c, i) => {
-        const idx = indexMap[i];
-        if (!idx) return;
-        const pathItem = gameConfigs.value[idx.gameIndex]?.paths[idx.pathIndex];
-        if (!pathItem) return;
-        // Map enum variants to the check object format
-        if (c.status === 'ok') {
-          pathItem.check = { resolvedPath: c.resolvedPath, exists: true };
-        } else if (c.status === 'notFound') {
-          pathItem.check = { resolvedPath: c.resolvedPath, exists: false };
-        } else if (c.status === 'registryPath') {
-          pathItem.check = c.supported
-            ? { resolvedPath: c.rawPath, exists: c.exists }
-            : { error: $t('game_batch_import.registry_not_supported_platform') };
-        } else if (c.status === 'resolveFailed') {
-          pathItem.check = { error: c.error };
-        }
-      });
-      if (applySelection) {
-        applySelectionByCheck();
-      }
-    } else {
-      gameConfigs.value.forEach((game) => {
-        game.paths.forEach((p) => {
-          p.check = { error: result.error };
+    for (const game of gameConfigs.value) {
+      const paths = game.paths.map((pathItem) => pathItem.path);
+      if (paths.length === 0) continue;
+
+      const result = await commands.checkPaths(
+        paths,
+        selectedStoreUserId.value || null,
+        game.installDirs.length > 0 ? game.installDirs : null,
+        game.steamId
+      );
+
+      if (result.status === 'ok') {
+        const checks = result.data as PathCheckResult[];
+        checks.forEach((c, pathIndex) => {
+          const pathItem = game.paths[pathIndex];
+          if (!pathItem) return;
+
+          if (c.status === 'ok') {
+            pathItem.check = { resolvedPath: c.resolvedPath, exists: true };
+          } else if (c.status === 'notFound') {
+            pathItem.check = { resolvedPath: c.resolvedPath, exists: false };
+          } else if (c.status === 'registryPath') {
+            pathItem.check = c.supported
+              ? { resolvedPath: c.rawPath, exists: c.exists }
+              : { error: $t('game_batch_import.registry_not_supported_platform') };
+          } else if (c.status === 'resolveFailed') {
+            pathItem.check = { error: c.error };
+          }
         });
-      });
-      if (applySelection) {
-        selectAllSupported();
+      } else {
+        game.paths.forEach((pathItem) => {
+          pathItem.check = { error: result.error };
+        });
       }
+    }
+
+    if (applySelection) {
+      applySelectionByCheck();
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

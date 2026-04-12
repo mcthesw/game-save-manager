@@ -4,7 +4,16 @@ import { computed, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
 import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
-import { Setting, Document, Unlock, Moon, Tools, Search, FolderOpened, Close } from '@element-plus/icons-vue';
+import {
+  Setting,
+  Document,
+  Unlock,
+  Moon,
+  Tools,
+  Search,
+  FolderOpened,
+  Close,
+} from '@element-plus/icons-vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -301,15 +310,28 @@ async function fetchDeviceInfo() {
     // 获取当前设备信息
     const result = await commands.getCurrentDeviceInfo();
     if (result.status === 'ok') {
-      currentDevice.value = result.data;
+      currentDevice.value = {
+        ...result.data,
+        game_roots: result.data.game_roots ?? [],
+      };
 
       // 从配置中获取所有设备
       if (config.value && config.value.devices) {
-        // 过滤掉当前设备，只显示其他设备
-        otherDevices.value = Object.values(config.value.devices)
-          .filter((device) => device && device.id !== currentDevice.value.id)
-          // 确保过滤后的数组不包含undefined
-          .filter((device): device is Device => device !== undefined);
+        otherDevices.value = Object.values(config.value.devices).reduce<Device[]>(
+          (list, device) => {
+            if (!device || !device.id || device.id === currentDevice.value.id) {
+              return list;
+            }
+
+            list.push({
+              id: device.id,
+              name: device.name,
+              game_roots: device.game_roots ?? [],
+            });
+            return list;
+          },
+          []
+        );
       }
     } else {
       showError({ message: result.error });
@@ -321,7 +343,7 @@ async function fetchDeviceInfo() {
 }
 
 // 更新设备信息
-async function updateDeviceInfo() {
+async function persistDeviceInfo(showSuccessMessage: boolean = true) {
   try {
     if (!config.value || !currentDevice.value) return;
 
@@ -334,7 +356,9 @@ async function updateDeviceInfo() {
 
     // 保存配置
     await saveConfig();
-    showSuccess({ message: $t('settings.device_updated') });
+    if (showSuccessMessage) {
+      showSuccess({ message: $t('settings.device_updated') });
+    }
     await fetchDeviceInfo(); // 刷新设备列表
   } catch (e) {
     error(`Error updating device info: ${e}`);
@@ -342,29 +366,46 @@ async function updateDeviceInfo() {
   }
 }
 
+async function updateDeviceInfo() {
+  await persistDeviceInfo(true);
+}
+
 // 游戏根目录管理
 const detectingGameRoots = ref(false);
 
-function addGameRoot() {
-  currentDevice.value.game_roots.push('');
+function getCurrentGameRoots(): string[] {
+  if (!currentDevice.value.game_roots) {
+    currentDevice.value.game_roots = [];
+  }
+  return currentDevice.value.game_roots;
 }
 
-function removeGameRoot(index: number) {
-  currentDevice.value.game_roots.splice(index, 1);
-  updateDeviceInfo();
+function addGameRoot() {
+  getCurrentGameRoots().push('');
+}
+
+let gameRootsSaveQueue = Promise.resolve();
+
+function saveGameRoots() {
+  gameRootsSaveQueue = gameRootsSaveQueue.then(() => persistDeviceInfo(false));
+  return gameRootsSaveQueue;
+}
+
+async function removeGameRoot(index: number) {
+  getCurrentGameRoots().splice(index, 1);
+  await saveGameRoots();
 }
 
 function updateGameRoot(index: number, value: string) {
-  currentDevice.value.game_roots[index] = value;
-  updateDeviceInfo();
+  getCurrentGameRoots()[index] = value;
 }
 
 async function pickGameRoot(index: number) {
   try {
     const result = await commands.chooseSaveDir();
     if (result.status === 'ok' && result.data) {
-      currentDevice.value.game_roots[index] = result.data;
-      await updateDeviceInfo();
+      getCurrentGameRoots()[index] = result.data;
+      await saveGameRoots();
     }
   } catch (e) {
     error(`Error picking game root: ${e}`);
@@ -376,14 +417,14 @@ async function autoDetectGameRoots() {
   try {
     const result = await commands.detectGameRoots();
     if (result.status === 'ok') {
-      const existing = new Set(currentDevice.value.game_roots);
+      const existing = new Set(getCurrentGameRoots());
       const newRoots = result.data.filter((r) => !existing.has(r));
       if (newRoots.length === 0) {
         showInfo({ message: $t('settings.game_roots_no_new') });
         return;
       }
-      currentDevice.value.game_roots.push(...newRoots);
-      await updateDeviceInfo();
+      getCurrentGameRoots().push(...newRoots);
+      await saveGameRoots();
       showSuccess({ message: $t('settings.game_roots_detected', { count: newRoots.length }) });
     } else {
       showError({ message: result.error });
@@ -1067,6 +1108,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
                   :model-value="root"
                   :placeholder="$t('settings.game_roots_path_placeholder')"
                   @update:model-value="(val: string) => updateGameRoot(index, val)"
+                  @change="saveGameRoots"
                 />
                 <el-button text @click="pickGameRoot(index)">
                   <el-icon><FolderOpened /></el-icon>

@@ -25,6 +25,18 @@ const props = defineProps({
     type: String as () => 'below' | 'tooltip' | 'none',
     default: undefined,
   },
+  installDirs: {
+    type: Array as () => string[],
+    default: () => [],
+  },
+  steamId: {
+    type: Number as () => number | null,
+    default: null,
+  },
+  storeUserId: {
+    type: String as () => string | null,
+    default: null,
+  },
 });
 
 const emit = defineEmits<{
@@ -446,7 +458,12 @@ function scheduleResolve(path: string) {
   resolvedPathText.value = '';
   resolveTimer = setTimeout(async () => {
     try {
-      const result = await commands.checkPaths([path], null);
+      const result = await commands.checkPaths(
+        [path],
+        props.storeUserId ?? null,
+        props.installDirs.length > 0 ? props.installDirs : null,
+        props.steamId
+      );
       // Guard against stale responses
       if (path !== props.modelValue) return;
       if (result.status === 'error') {
@@ -518,6 +535,13 @@ watch(
       renderContent(newVal);
     }
     scheduleResolve(newVal);
+  }
+);
+
+watch(
+  () => [props.storeUserId, props.steamId, props.installDirs.join('\u0000')],
+  () => {
+    scheduleResolve(props.modelValue);
   }
 );
 </script>
