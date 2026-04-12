@@ -122,7 +122,15 @@
     "delete_device_confirm_title": "Delete Device Confirmation",
     "delete_device_confirm_message": "Deleting this device will remove all save path mappings and game-specific overrides associated with it. This action cannot be undone. Continue?",
     "delete_device_success": "Device removed successfully",
-    "delete_device_failed": "Failed to remove device"
+    "delete_device_failed": "Failed to remove device",
+    "game_roots_title": "Game Root Directories",
+    "game_roots_hint": "Directories where games are installed. Used to resolve the <root> path variable. When empty, auto-detected Steam library paths are used as fallback.",
+    "game_roots_path_placeholder": "e.g. D:\\Steam",
+    "game_roots_add": "Add Root",
+    "game_roots_auto_detect": "Auto-detect",
+    "game_roots_no_new": "No new game roots detected",
+    "game_roots_detected": "Detected {count} new game root(s)",
+    "game_roots_detect_failed": "Failed to detect game roots"
   },
   "home": {
     "hello_world": "Hello world",
@@ -371,7 +379,10 @@
     "status_unchecked": "Unchecked",
     "status_exists": "Exists",
     "status_missing": "Missing",
-    "status_error": "Error"
+    "status_error": "Error",
+    "store_user_id": "Steam User ID",
+    "store_user_id_placeholder": "Select or enter a Steam User ID",
+    "store_user_id_hint": "Used to resolve <storeUserId> in save paths"
   },
   "app": {
     "early_access_warning": "This is an early test version. Stability cannot be guaranteed. Please use with caution"
@@ -637,6 +648,11 @@
     "win_dir": "Windows directory",
     "xdg_data": "XDG data directory",
     "xdg_config": "XDG config directory",
+    "root": "Game install root directory (configured in backup tool)",
+    "store_user_id": "Current user's ID in the game store",
+    "base": "Shorthand for <root>/<game>",
+    "game": "Install directory name, or the game's canonical name in the manifest",
+    "store_game_id": "Store-specific game ID from the manifest",
     "test_resolution": "Test path resolution",
     "test_path_placeholder": "Enter a path with variables",
     "resolve": "Resolve",
@@ -655,7 +671,10 @@
     "save_failed": "save failed",
     "confirm": "confirm",
     "refresh": "Refresh",
-    "operation_in_progress": "Working on it..."
+    "operation_in_progress": "Working on it...",
+    "minutes_ago": "{n} min ago",
+    "hours_ago": "{n} hr ago",
+    "days_ago": "{n} d ago"
   },
   "device_setup": {
     "title": "Device Setup",
