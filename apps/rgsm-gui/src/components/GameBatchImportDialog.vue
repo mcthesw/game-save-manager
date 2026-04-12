@@ -12,6 +12,29 @@
         {{ $t('game_batch_import.hint') }}
       </el-alert>
 
+      <!-- Steam User ID selector -->
+      <div class="store-user-id-row">
+        <span class="store-user-id-label">{{ $t('game_batch_import.store_user_id') }}</span>
+        <el-select
+          v-model="selectedStoreUserId"
+          size="small"
+          filterable
+          allow-create
+          clearable
+          :placeholder="$t('game_batch_import.store_user_id_placeholder')"
+          class="store-user-id-select"
+          :loading="loadingUserIds"
+        >
+          <el-option
+            v-for="c in userIdCandidates"
+            :key="c.userId"
+            :label="formatUserIdLabel(c)"
+            :value="c.userId"
+          />
+        </el-select>
+        <span class="store-user-id-hint">{{ $t('game_batch_import.store_user_id_hint') }}</span>
+      </div>
+
       <div class="toolbar">
         <el-input
           v-model="searchText"
@@ -132,7 +155,14 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { $t } from '../i18n';
-import { commands, type ImportableGame, type SavePath, type PathCheckResult } from '../bindings';
+import {
+  commands,
+  type ImportableGame,
+  type SavePath,
+  type PathCheckResult,
+  type StoreUserIdCandidate,
+} from '../bindings';
+import { error } from '@tauri-apps/plugin-log';
 
 /** Check if a path is a Windows registry path (not supported for backup) */
 function isRegistryPath(path: string): boolean {
@@ -173,7 +203,7 @@ const props = defineProps({
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
-  (event: 'confirm', configs: GameConfig[]): void;
+  (event: 'confirm', configs: GameConfig[], storeUserId: string | null): void;
 }>();
 
 const dialogVisible = computed({
@@ -188,6 +218,44 @@ const isChecking = ref(false);
 const searchText = ref('');
 const onlySelected = ref(false);
 const autoCheckedOnce = ref(false);
+
+// Store user ID selection
+const selectedStoreUserId = ref<string | null>(null);
+const userIdCandidates = ref<StoreUserIdCandidate[]>([]);
+const loadingUserIds = ref(false);
+
+async function loadUserIdCandidates() {
+  loadingUserIds.value = true;
+  try {
+    const result = await commands.detectStoreUserIds();
+    if (result.status === 'ok') {
+      userIdCandidates.value = result.data;
+      if (result.data.length > 0 && !selectedStoreUserId.value) {
+        selectedStoreUserId.value = result.data[0]!.userId;
+      }
+    }
+  } catch (e) {
+    error(`Error detecting store user IDs: ${e}`);
+  } finally {
+    loadingUserIds.value = false;
+  }
+}
+
+function formatUserIdLabel(c: StoreUserIdCandidate): string {
+  if (c.lastModifiedEpochSecs == null) return c.userId;
+  const ago = formatTimeAgo(c.lastModifiedEpochSecs);
+  return `${c.userId} (${ago})`;
+}
+
+function formatTimeAgo(epochSecs: number): string {
+  const diffMs = Date.now() - epochSecs * 1000;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return $t('common.minutes_ago', { n: mins });
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return $t('common.hours_ago', { n: hours });
+  const days = Math.floor(hours / 24);
+  return $t('common.days_ago', { n: days });
+}
 
 // Initialize game configs when games or paths change
 watch(
@@ -217,6 +285,8 @@ watch(
   (open) => {
     if (!open) return;
     autoCheckedOnce.value = false;
+    selectedStoreUserId.value = null;
+    loadUserIdCandidates();
   }
 );
 
@@ -275,7 +345,7 @@ function handleCancel() {
 
 function handleConfirm() {
   const selected = gameConfigs.value.filter((g) => g.selected);
-  emit('confirm', selected);
+  emit('confirm', selected, selectedStoreUserId.value || null);
   emit('update:modelValue', false);
 }
 
@@ -294,8 +364,7 @@ async function checkAllPaths(applySelection: boolean = false) {
 
   isChecking.value = true;
   try {
-    const result = await commands.checkPaths(paths);
-    if (result.status === 'ok') {
+    const result = await commands.checkPaths(paths, selectedStoreUserId.value || null);    if (result.status === 'ok') {
       const checks = result.data as PathCheckResult[];
       checks.forEach((c, i) => {
         const idx = indexMap[i];
@@ -385,6 +454,28 @@ async function selectByCheck() {
 
 .info-alert {
   margin-bottom: 16px;
+}
+
+.store-user-id-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.store-user-id-label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.store-user-id-select {
+  width: 280px;
+}
+
+.store-user-id-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .toolbar {
