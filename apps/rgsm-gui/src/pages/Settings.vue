@@ -4,7 +4,7 @@ import { computed, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
 import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
-import { Setting, Document, Unlock, Moon, Tools, Search } from '@element-plus/icons-vue';
+import { Setting, Document, Unlock, Moon, Tools, Search, FolderOpened, Close } from '@element-plus/icons-vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -69,7 +69,7 @@ async function fetchSystemFonts() {
 }
 
 // 设备管理相关
-const currentDevice = ref<Device>({ id: '', name: '' });
+const currentDevice = ref<Device>({ id: '', name: '', game_roots: [] });
 const otherDevices = ref<Device[]>([]);
 
 // Ludusavi manifest management
@@ -339,6 +339,60 @@ async function updateDeviceInfo() {
   } catch (e) {
     error(`Error updating device info: ${e}`);
     showError({ message: $t('error.update_device_failed') });
+  }
+}
+
+// 游戏根目录管理
+const detectingGameRoots = ref(false);
+
+function addGameRoot() {
+  currentDevice.value.game_roots.push('');
+}
+
+function removeGameRoot(index: number) {
+  currentDevice.value.game_roots.splice(index, 1);
+  updateDeviceInfo();
+}
+
+function updateGameRoot(index: number, value: string) {
+  currentDevice.value.game_roots[index] = value;
+  updateDeviceInfo();
+}
+
+async function pickGameRoot(index: number) {
+  try {
+    const result = await commands.chooseSaveDir();
+    if (result.status === 'ok' && result.data) {
+      currentDevice.value.game_roots[index] = result.data;
+      await updateDeviceInfo();
+    }
+  } catch (e) {
+    error(`Error picking game root: ${e}`);
+  }
+}
+
+async function autoDetectGameRoots() {
+  detectingGameRoots.value = true;
+  try {
+    const result = await commands.detectGameRoots();
+    if (result.status === 'ok') {
+      const existing = new Set(currentDevice.value.game_roots);
+      const newRoots = result.data.filter((r) => !existing.has(r));
+      if (newRoots.length === 0) {
+        showInfo({ message: $t('settings.game_roots_no_new') });
+        return;
+      }
+      currentDevice.value.game_roots.push(...newRoots);
+      await updateDeviceInfo();
+      showSuccess({ message: $t('settings.game_roots_detected', { count: newRoots.length }) });
+    } else {
+      showError({ message: result.error });
+    }
+  } catch (e) {
+    error(`Error detecting game roots: ${e}`);
+    showError({ message: $t('settings.game_roots_detect_failed') });
+  } finally {
+    detectingGameRoots.value = false;
   }
 }
 
@@ -999,6 +1053,45 @@ const { linksWithGames: router_list } = useNavigationLinks();
             </div>
           </div>
 
+          <!-- 游戏根目录 -->
+          <div class="setting-box">
+            <h3>{{ $t('settings.game_roots_title') }}</h3>
+            <p class="setting-hint">{{ $t('settings.game_roots_hint') }}</p>
+            <div class="game-roots-list">
+              <div
+                v-for="(root, index) in currentDevice.game_roots"
+                :key="index"
+                class="game-root-item"
+              >
+                <el-input
+                  :model-value="root"
+                  :placeholder="$t('settings.game_roots_path_placeholder')"
+                  @update:model-value="(val: string) => updateGameRoot(index, val)"
+                />
+                <el-button text @click="pickGameRoot(index)">
+                  <el-icon><FolderOpened /></el-icon>
+                </el-button>
+                <el-button text type="danger" @click="removeGameRoot(index)">
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </div>
+            </div>
+            <div class="game-roots-actions">
+              <el-button size="small" @click="addGameRoot">
+                {{ $t('settings.game_roots_add') }}
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                :loading="detectingGameRoots"
+                @click="autoDetectGameRoots"
+              >
+                <el-icon><Search /></el-icon>
+                {{ $t('settings.game_roots_auto_detect') }}
+              </el-button>
+            </div>
+          </div>
+
           <!-- 其他设备列表 -->
           <div class="setting-box">
             <h3>{{ $t('settings.other_devices') }}</h3>
@@ -1217,6 +1310,25 @@ const { linksWithGames: router_list } = useNavigationLinks();
 .manifest-box :deep(.el-descriptions__label) {
   width: 1%;
   white-space: nowrap;
+}
+
+.game-roots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.game-root-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.game-roots-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .setting-label {
