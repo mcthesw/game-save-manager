@@ -404,9 +404,25 @@ async resetLudusaviManifestToBundled() : Promise<Result<LudusaviManifestStatus, 
     else return { status: "error", error: e  as any };
 }
 },
-async checkPaths(paths: string[]) : Promise<Result<PathCheckResult[], string>> {
+async checkPaths(paths: string[], storeUserId: string | null, installDirs: string[] | null = null, steamId: number | null = null) : Promise<Result<PathCheckResult[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("check_paths", { paths }) };
+    return { status: "ok", data: await TAURI_INVOKE("check_paths", { paths, storeUserId, installDirs, steamId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async detectGameRoots() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("detect_game_roots") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async detectStoreUserIds() : Promise<Result<StoreUserIdCandidate[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("detect_store_user_ids") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -615,7 +631,7 @@ export type CreatedBy =
  * Forward-compat catch-all for variants added in future versions.
  */
 "Unknown"
-export type Device = { id: string; name: string }
+export type Device = { id: string; name: string; game_roots: string[] }
 export type ExtraBackupItem = { 
 /**
  * Filename without extension, e.g. `Overwrite_2025-12-22_12-34-56`.
@@ -651,12 +667,20 @@ cloud_sync_enabled?: boolean;
 /**
  * Per-game auto-backup configuration. `None` = disabled.
  */
-auto_backup?: AutoBackupConfig | null }
+auto_backup?: AutoBackupConfig | null; 
+/**
+ * Metadata from Ludusavi manifest import. `None` for manually added games.
+ */
+ludusavi_meta?: LudusaviMeta | null; store_user_ids?: Partial<{ [key in string]: string }> }
 /**
  * Frontend/IPC input shape for creating/updating a game.
  * Save-unit IDs are assigned and normalized in backend domain logic.
  */
-export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?: Partial<{ [key in string]: string }> }
+export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?: Partial<{ [key in string]: string }>; 
+/**
+ * Metadata from Ludusavi manifest import (optional for manually added games).
+ */
+ludusavi_meta?: LudusaviMeta | null; store_user_ids?: Partial<{ [key in string]: string }> }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -693,6 +717,10 @@ name: string;
  * Steam ID if available
  */
 steamId: number | null; 
+/**
+ * Install directory names from manifest's `installDir` field
+ */
+installDirs: string[]; 
 /**
  * Whether this game is already managed
  */
@@ -731,6 +759,22 @@ localBytes: number | null;
  * Bundled manifest size in bytes.
  */
 bundledBytes: number }
+/**
+ * Manifest-derived metadata for games imported from Ludusavi.
+ * 
+ * These fields are **device-independent** (directory names and IDs, not paths)
+ * and are safe to persist in config and sync across devices.
+ */
+export type LudusaviMeta = { 
+/**
+ * Install directory names from the manifest's `installDir` field.
+ * e.g. `["100 Orange Juice"]`. Used to resolve `<game>` and `<base>`.
+ */
+installDirs?: string[]; 
+/**
+ * Steam App ID from the manifest's `steam.id`. Used to resolve `<storeGameId>`.
+ */
+steamId?: number | null }
 export type NotificationLevel = "info" | "warning" | "error"
 /**
  * Result of checking a single path
@@ -805,6 +849,7 @@ id?: number; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string 
  * backend logic allocates IDs for new rows and normalizes duplicates.
  */
 export type SaveUnitDraft = { id?: number | null; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean; enabled?: boolean }
+export type StoreUserIdCandidate = { userId: string; lastModifiedEpochSecs: number | null }
 /**
  * The kind of data a save unit backs up.
  */

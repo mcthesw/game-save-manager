@@ -10,6 +10,10 @@ pub type DeviceId = String;
 pub struct Device {
     pub id: DeviceId,
     pub name: String,
+    /// User-configured root directories for `<root>` path variable resolution.
+    /// First entry is used as `<root>`; empty = auto-detect Steam root.
+    #[serde(default)]
+    pub game_roots: Vec<String>,
 }
 
 // 存储当前设备的静态变量，使用 OnceLock 确保只初始化一次
@@ -36,6 +40,7 @@ impl Default for Device {
         Self {
             id: machine_uid::get().expect("Failed to get machine ID"),
             name: get_system_hostname(),
+            game_roots: Vec::new(),
         }
     }
 }

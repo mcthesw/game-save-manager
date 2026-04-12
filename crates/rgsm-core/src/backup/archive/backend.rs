@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::{
     backup::{CompressionPreset, SaveUnit},
+    path_resolver::PathContext,
     preclude::*,
 };
 
@@ -19,6 +20,7 @@ pub trait ArchiveBackend {
         save_units: &[SaveUnit],
         archive_path: &Path,
         preset: CompressionPreset,
+        path_ctx: Option<&PathContext>,
     ) -> Result<u64, CompressError>;
 
     /// Decompress an archive and restore save units to their original paths.
@@ -27,6 +29,7 @@ pub trait ArchiveBackend {
         save_units: &[SaveUnit],
         archive_path: &Path,
         notifier: Option<&dyn RestoreNotifier>,
+        path_ctx: Option<&PathContext>,
     ) -> Result<(), CompressError>;
 
     /// File extension for archives created by this backend (without dot).
@@ -43,8 +46,9 @@ impl ArchiveBackend for ZipBackend {
         save_units: &[SaveUnit],
         archive_path: &Path,
         preset: CompressionPreset,
+        path_ctx: Option<&PathContext>,
     ) -> Result<u64, CompressError> {
-        super::compress::compress_to_file(save_units, archive_path, preset)
+        super::compress::compress_to_file(save_units, archive_path, preset, path_ctx)
     }
 
     fn decompress(
@@ -52,8 +56,9 @@ impl ArchiveBackend for ZipBackend {
         save_units: &[SaveUnit],
         archive_path: &Path,
         notifier: Option<&dyn RestoreNotifier>,
+        path_ctx: Option<&PathContext>,
     ) -> Result<(), CompressError> {
-        super::decompress::decompress_from_archive(save_units, archive_path, notifier)
+        super::decompress::decompress_from_archive(save_units, archive_path, notifier, path_ctx)
     }
 
     fn extension(&self) -> &str {

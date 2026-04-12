@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use crate::default_value;
 use crate::device::{DeviceId, get_current_device_id};
+use crate::path_resolver::PathContext;
 use crate::preclude::BackupFileError;
 
 /// The kind of data a save unit backs up.
@@ -61,7 +62,10 @@ impl SaveUnit {
     }
 
     /// Resolve this save unit path for the current device.
-    pub fn resolve_path_for_current_device(&self) -> Result<PathBuf, BackupFileError> {
+    pub fn resolve_path_for_current_device(
+        &self,
+        path_ctx: Option<&PathContext>,
+    ) -> Result<PathBuf, BackupFileError> {
         let current_device_id = get_current_device_id();
         let unit_path_str = self
             .get_path_for_device(current_device_id)
@@ -70,7 +74,7 @@ impl SaveUnit {
             crate::config::get_config().map_err(|e| BackupFileError::Unexpected(e.into()))?;
         Ok(crate::path_resolver::resolve_path(
             unit_path_str,
-            None,
+            path_ctx,
             &config,
         )?)
     }

@@ -22,7 +22,7 @@ pub enum QuickActionCommand {
         game_item: tauri::menu::MenuItem<tauri::Wry>,
     },
     SetCurrentGame {
-        game: Game,
+        game: Box<Game>,
         respond_to: oneshot::Sender<anyhow::Result<()>>,
     },
     TriggerBackup(QuickActionType),
@@ -75,7 +75,7 @@ impl QuickActionManager {
         let (tx, rx) = oneshot::channel();
         self.command_tx
             .send(QuickActionCommand::SetCurrentGame {
-                game,
+                game: Box::new(game),
                 respond_to: tx,
             })
             .context("failed to send SetCurrentGame command")?;
@@ -173,7 +173,7 @@ impl QuickActionWorker {
                 self.handle_register_tray(game_item)
             }
             QuickActionCommand::SetCurrentGame { game, respond_to } => {
-                let result = self.handle_set_current_game(game).await;
+                let result = self.handle_set_current_game(*game).await;
                 let _ = respond_to.send(result);
             }
             QuickActionCommand::TriggerBackup(trigger) => {

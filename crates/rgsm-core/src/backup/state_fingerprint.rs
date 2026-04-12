@@ -13,6 +13,7 @@ use crate::backup::path_format::path_to_zip_style;
 use crate::backup::registry;
 #[cfg(target_os = "windows")]
 use crate::device::get_current_device_id;
+use crate::path_resolver::PathContext;
 use crate::{
     backup::{SaveUnit, SaveUnitType},
     preclude::*,
@@ -126,6 +127,7 @@ fn build_fingerprint(mut entries: Vec<SaveEntryMeta>) -> String {
 
 fn collect_entries_from_source(
     save_paths: &[SaveUnit],
+    path_ctx: Option<&PathContext>,
 ) -> Result<Vec<SaveEntryMeta>, BackupFileError> {
     let mut entries = Vec::new();
 
@@ -135,7 +137,7 @@ fn collect_entries_from_source(
             continue;
         }
 
-        let source_path = save_unit.resolve_path_for_current_device()?;
+        let source_path = save_unit.resolve_path_for_current_device(path_ctx)?;
         if !source_path.exists() {
             return Err(BackupFileError::NotExists(source_path));
         }
@@ -199,8 +201,12 @@ fn extend_with_registry(base: String, _save_paths: &[SaveUnit]) -> Result<String
     Ok(base)
 }
 
-pub(crate) fn fingerprint_source_state(save_paths: &[SaveUnit]) -> Result<String, CompressError> {
-    let entries = collect_entries_from_source(save_paths).map_err(CompressError::Single)?;
+pub(crate) fn fingerprint_source_state(
+    save_paths: &[SaveUnit],
+    path_ctx: Option<&PathContext>,
+) -> Result<String, CompressError> {
+    let entries =
+        collect_entries_from_source(save_paths, path_ctx).map_err(CompressError::Single)?;
     let base = build_fingerprint(entries);
     extend_with_registry(base, save_paths)
 }
