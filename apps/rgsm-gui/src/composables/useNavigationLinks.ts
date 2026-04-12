@@ -8,6 +8,7 @@ import {
   SwitchFilled,
 } from '@element-plus/icons-vue';
 import { $t } from '../i18n';
+import { getGameManagementPath } from './useGameManagementRoute';
 
 export interface NavigationLink {
   text: string;
@@ -34,7 +35,7 @@ export function useNavigationLinks() {
   const linksWithGames = computed<NavigationLink[]>(() => {
     const list = [...baseLinks.value];
     config.value?.games.forEach((game) => {
-      list.push({ text: game.name, link: `/Management/${game.name}`, icon: SwitchFilled });
+      list.push({ text: game.name, link: getGameManagementPath(game.name), icon: SwitchFilled });
     });
     return list;
   });

@@ -24,6 +24,7 @@
             :placeholder="$t('game_batch_import.store_user_id_placeholder')"
             class="store-user-id-select"
             :loading="loadingUserIds"
+            @change="handleStoreUserIdChange"
           >
             <el-option
               v-for="c in userIdCandidates"
@@ -58,7 +59,14 @@
             <el-table-column :label="$t('game_import_customize.path')" prop="path" min-width="300">
               <template #default="{ row }">
                 <div class="path-cell">
-                  <el-input v-model="row.path" size="small" />
+                  <path-variable-input
+                    v-model="row.path"
+                    class="path-input"
+                    status-mode="below"
+                    :store-user-id="selectedStoreUserId"
+                    :install-dirs="props.installDirs"
+                    :steam-id="props.steamId"
+                  />
                   <el-tag
                     v-if="isRegistryPath(row.path)"
                     type="info"
@@ -68,6 +76,13 @@
                     {{ $t('game_import_customize.registry') }}
                   </el-tag>
                 </div>
+              </template>
+            </el-table-column>
+            <el-table-column :label="$t('game_import_customize.type')" width="110">
+              <template #default="{ row, $index }">
+                <el-tag :type="getPathKindTagType(row, $index)" size="small">
+                  {{ getPathKindLabel(row, $index) }}
+                </el-tag>
               </template>
             </el-table-column>
             <el-table-column :label="$t('game_import_customize.tags')" width="150">
@@ -80,32 +95,21 @@
             <el-table-column :label="$t('game_import_customize.resolution')" min-width="220">
               <template #default="{ $index }">
                 <div v-if="pathChecks[$index]" class="resolution-cell">
-                  <el-tooltip
-                    v-if="pathChecks[$index]?.error"
-                    :content="pathChecks[$index]?.error"
-                    placement="top"
-                  >
-                    <el-tag type="danger" size="small">
-                      {{ $t('game_import_customize.status_error') }}
-                    </el-tag>
-                  </el-tooltip>
-                  <template v-else>
-                    <el-tooltip
-                      v-if="pathChecks[$index]?.resolvedPath"
-                      :content="pathChecks[$index]?.resolvedPath"
-                      placement="top"
-                    >
-                      <el-tag
-                        :type="pathChecks[$index]?.exists ? 'success' : 'warning'"
-                        size="small"
-                      >
-                        {{
-                          pathChecks[$index]?.exists
-                            ? $t('game_import_customize.status_exists')
-                            : $t('game_import_customize.status_missing')
-                        }}
+                  <template v-if="pathChecks[$index]?.error">
+                    <el-tooltip :content="pathChecks[$index]?.error" placement="top">
+                      <el-tag type="danger" size="small">
+                        {{ $t('game_import_customize.status_error') }}
                       </el-tag>
                     </el-tooltip>
+                  </template>
+                  <template v-else>
+                    <el-tag :type="pathChecks[$index]?.exists ? 'success' : 'warning'" size="small">
+                      {{
+                        pathChecks[$index]?.exists
+                          ? $t('game_import_customize.status_exists')
+                          : $t('game_import_customize.status_missing')
+                      }}
+                    </el-tag>
                   </template>
                 </div>
                 <el-tag v-else type="info" size="small">
@@ -136,8 +140,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
 import { $t } from '../i18n';
-import { commands, type SavePath, type PathCheckResult, type StoreUserIdCandidate } from '../bindings';
+import {
+  commands,
+  type SavePath,
+  type PathCheckResult,
+  type StoreUserIdCandidate,
+} from '../bindings';
 import { error } from '@tauri-apps/plugin-log';
+import PathVariableInput from './PathVariableInput.vue';
 
 interface CustomizeData {
   gameName: string;
@@ -187,12 +197,18 @@ type ElTableLike = {
   toggleRowSelection?: (row: SavePath, selected: boolean) => void;
 };
 
+type PathKind = 'file' | 'folder' | 'registry' | 'unknown';
+type PathCheckState = {
+  resolvedPath?: string;
+  exists?: boolean;
+  error?: string;
+  kind?: PathKind;
+};
+
 const tableRef = ref<ElTableLike | null>(null);
 const selectedPaths = ref<SavePath[]>([]);
 const isChecking = ref(false);
-const pathChecks = ref<Array<{ resolvedPath?: string; exists?: boolean; error?: string } | null>>(
-  []
-);
+const pathChecks = ref<Array<PathCheckState | null>>([]);
 
 const form = ref<CustomizeData>({
   gameName: props.gameName,
@@ -229,7 +245,7 @@ function formatUserIdLabel(c: StoreUserIdCandidate): string {
 }
 
 function formatTimeAgo(epochSecs: number): string {
-  const diffMs = Date.now() - epochSecs * 1000;
+  const diffMs = Math.max(0, Date.now() - epochSecs * 1000);
   const mins = Math.floor(diffMs / 60000);
   if (mins < 60) return $t('common.minutes_ago', { n: mins });
   const hours = Math.floor(mins / 60);
@@ -240,6 +256,35 @@ function formatTimeAgo(epochSecs: number): string {
 
 function isRegistryPath(path: string) {
   return path.startsWith('REGISTRY:') || path.startsWith('HKEY_');
+}
+
+function getPathKind(row: SavePath, index: number): PathKind {
+  if (isRegistryPath(row.path)) return 'registry';
+  return pathChecks.value[index]?.kind ?? 'unknown';
+}
+
+function getPathKindLabel(row: SavePath, index: number): string {
+  switch (getPathKind(row, index)) {
+    case 'file':
+      return $t('save_location_drawer.type_file');
+    case 'folder':
+      return $t('save_location_drawer.type_folder');
+    case 'registry':
+      return $t('save_location_drawer.type_registry');
+    default:
+      return $t('game_import_customize.type_unknown');
+  }
+}
+
+function getPathKindTagType(row: SavePath, index: number): 'success' | 'warning' | 'info' {
+  switch (getPathKind(row, index)) {
+    case 'file':
+      return 'warning';
+    case 'folder':
+      return 'success';
+    default:
+      return 'info';
+  }
 }
 
 function isRowSelectable(_row: SavePath) {
@@ -265,6 +310,14 @@ watch(
   { immediate: true, deep: true }
 );
 
+watch(
+  () => form.value.savePaths.map((item) => item.path),
+  () => {
+    pathChecks.value = new Array(form.value.savePaths.length).fill(null);
+  },
+  { deep: true }
+);
+
 // Default-select all supported rows when dialog opens
 watch(
   () => dialogVisible.value,
@@ -275,11 +328,18 @@ watch(
     }
 
     selectedStoreUserId.value = null;
-    loadUserIdCandidates();
+    await loadUserIdCandidates();
     await nextTick();
     await checkAllPaths(true);
   }
 );
+
+async function handleStoreUserIdChange() {
+  if (!dialogVisible.value || !form.value.savePaths.length) {
+    return;
+  }
+  await checkAllPaths();
+}
 
 function handleCancel() {
   emit('update:modelValue', false);
@@ -328,18 +388,31 @@ async function checkAllPaths(applySelection: boolean = false) {
   isChecking.value = true;
   try {
     const paths = form.value.savePaths.map((p) => p.path);
-    const result = await commands.checkPaths(paths, selectedStoreUserId.value || null, props.installDirs.length > 0 ? props.installDirs : null, props.steamId);    if (result.status === 'ok') {
+    const result = await commands.checkPaths(
+      paths,
+      selectedStoreUserId.value || null,
+      props.installDirs.length > 0 ? props.installDirs : null,
+      props.steamId
+    );
+    if (result.status === 'ok') {
       const checks = result.data as PathCheckResult[];
       // Map enum variants to the check object format
       pathChecks.value = checks.map((c) => {
         if (c.status === 'ok') {
-          return { resolvedPath: c.resolvedPath, exists: true };
+          return {
+            resolvedPath: c.resolvedPath,
+            exists: true,
+            kind: c.isFile ? 'file' : 'folder',
+          };
         } else if (c.status === 'notFound') {
           return { resolvedPath: c.resolvedPath, exists: false };
         } else if (c.status === 'registryPath') {
           return c.supported
-            ? { resolvedPath: c.rawPath, exists: c.exists }
-            : { error: $t('game_import_customize.registry_not_supported_platform') };
+            ? { resolvedPath: c.rawPath, exists: c.exists, kind: 'registry' }
+            : {
+                error: $t('game_import_customize.registry_not_supported_platform'),
+                kind: 'registry',
+              };
         } else if (c.status === 'resolveFailed') {
           return { error: c.error };
         }
@@ -403,12 +476,17 @@ async function selectByCheck() {
 
 .path-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+}
+
+.path-input {
+  flex: 1;
 }
 
 .registry-tag {
   flex-shrink: 0;
+  margin-top: 6px;
 }
 
 .resolution-cell {
