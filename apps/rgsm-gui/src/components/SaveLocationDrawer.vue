@@ -83,6 +83,7 @@ function syncAvailableDevices(game: Game) {
       deviceMap.get(id) ?? {
         id,
         name: `${id.substring(0, 8)}...`,
+        game_roots: [],
       }
     );
   });
@@ -289,7 +290,7 @@ async function addSaveFile() {
 }
 
 async function validateRegistryPath(path: string) {
-  const checkResult = await commands.checkPaths([path]);
+  const checkResult = await commands.checkPaths([path], null);
   if (checkResult.status !== 'ok') {
     return;
   }

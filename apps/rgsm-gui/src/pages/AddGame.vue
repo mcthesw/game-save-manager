@@ -82,6 +82,11 @@ const batchImportLoading = ref(false);
 const batchImportGames = ref<ImportableGame[]>([]);
 const batchGamePaths = ref<Record<string, SavePath[]>>({});
 
+// Ludusavi metadata pending for next save() call (set during single-game import)
+const pendingLudusaviMeta = ref<{ installDirs: string[]; steamId: number | null } | null>(null);
+// Store user ID pending for next save() call (set during import)
+const pendingStoreUserId = ref<string | null>(null);
+
 // 获取当前设备信息
 async function fetchCurrentDevice() {
   try {
@@ -201,8 +206,7 @@ async function add_registry_key() {
     if (!check_save_unit_unique(path)) return;
 
     // Validate registry path on current platform
-    const checkResult = await commands.checkPaths([path]);
-    if (checkResult.status === 'ok') {
+    const checkResult = await commands.checkPaths([path], null);    if (checkResult.status === 'ok') {
       const [check] = checkResult.data;
       if (check && check.status === 'registryPath' && !check.supported) {
         showWarning({ message: $t('addgame.registry_non_windows_warning') });
@@ -312,6 +316,7 @@ async function openVnBatchImportDialog(drafts: GameDraft[]) {
     games.push({
       name: draft.name,
       steamId: null,
+      installDirs: [],
       isManaged: existingNames.has(draft.name.toLowerCase()),
       savePathsCount: savePaths.length,
     });
@@ -421,7 +426,7 @@ async function showCustomizationDialog(game: ImportableGame) {
   }
 }
 
-async function handleCustomizeConfirm(data: { gameName: string; savePaths: SavePath[] }) {
+async function handleCustomizeConfirm(data: { gameName: string; savePaths: SavePath[]; storeUserId: string | null }) {
   try {
     // Convert the customized data to our Game format
     const gameName = data.gameName || customizingGame.value?.name || '';
@@ -449,8 +454,13 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
     // Check non-registry paths with backend to determine file/folder type
     const pathInfoMap = new Map<string, PathCheckResult>();
     if (validPaths.length > 0) {
-      const checkResult = await commands.checkPaths(validPaths);
-      if (checkResult.status === 'ok') {
+      const src = customizingGame.value;
+      const checkResult = await commands.checkPaths(
+        validPaths,
+        data.storeUserId,
+        src?.installDirs?.length ? src.installDirs : null,
+        src?.steamId ?? null,
+      );      if (checkResult.status === 'ok') {
         for (const info of checkResult.data) {
           pathInfoMap.set(info.rawPath, info);
         }
@@ -495,6 +505,16 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
     game_name.value = gameName;
     save_paths.splice(0, save_paths.length, ...savePaths);
 
+    // Attach Ludusavi metadata if available from the importing game
+    const src = customizingGame.value;
+    if (src && (src.installDirs.length > 0 || src.steamId)) {
+      pendingLudusaviMeta.value = {
+        installDirs: src.installDirs,
+        steamId: src.steamId ?? null,
+      };
+    }
+
+    pendingStoreUserId.value = data.storeUserId;
     await save();
   } catch (e) {
     error(`Error importing game: ${e}`);
@@ -513,9 +533,16 @@ interface GameConfig {
   }>;
 }
 
-async function handleBatchImportConfirm(configs: GameConfig[]) {
+async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: string | null) {
   let successCount = 0;
   const failedGames: Array<{ name: string; reason: string }> = [];
+
+  // Build lookup for Ludusavi metadata from original ImportableGame list
+  const importableGameMap = new Map<string, ImportableGame>();
+  for (const g of batchImportGames.value) {
+    importableGameMap.set(g.name, g);
+  }
+
   const existingNames = new Set(
     (config.value?.games ?? []).map((g) => (g.name ?? '').toLowerCase())
   );
@@ -539,8 +566,7 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
   // Check all paths with backend to determine file/folder type
   const pathInfoMap = new Map<string, PathCheckResult>();
   if (allPathsToCheck.length > 0) {
-    const checkResult = await commands.checkPaths(allPathsToCheck);
-    if (checkResult.status === 'ok') {
+    const checkResult = await commands.checkPaths(allPathsToCheck, storeUserId);    if (checkResult.status === 'ok') {
       for (const info of checkResult.data) {
         pathInfoMap.set(info.rawPath, info);
       }
@@ -611,11 +637,24 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
         continue;
       }
 
-      // Create the game
+      // Create the game with Ludusavi metadata if available
+      const originalGame = importableGameMap.get(gameConfig.name);
       const newGame: GameDraft = {
         name: gameName,
         save_paths: savePaths,
+        ludusavi_meta:
+          originalGame && (originalGame.installDirs.length > 0 || originalGame.steamId)
+            ? {
+                installDirs: originalGame.installDirs,
+                steamId: originalGame.steamId ?? null,
+              }
+            : undefined,
       };
+
+      if (storeUserId && currentDevice.value) {
+        newGame.store_user_ids = {};
+        newGame.store_user_ids[currentDevice.value.id] = storeUserId;
+      }
 
       const addResult = await commands.addGame(newGame);
 
@@ -668,6 +707,9 @@ async function handleBatchImportConfirm(configs: GameConfig[]) {
   }
 }
 async function save() {
+  const ludusaviMeta = pendingLudusaviMeta.value;
+  const storeUserId = pendingStoreUserId.value;
+
   game_name.value = game_name.value.trim();
   if (game_name.value == '' || save_paths.length == 0) {
     showError({ message: $t('addgame.no_name_error') });
@@ -692,11 +734,21 @@ async function save() {
   const game: GameDraft = {
     name: game_name.value,
     save_paths: save_paths,
+    ludusavi_meta: ludusaviMeta
+      ? {
+          installDirs: ludusaviMeta.installDirs,
+          steamId: ludusaviMeta.steamId,
+        }
+      : undefined,
   };
 
   if (game_path.value && currentDevice.value) {
     game.game_paths = {};
     game.game_paths[currentDevice.value.id] = game_path.value;
+  }
+  if (storeUserId && currentDevice.value) {
+    game.store_user_ids = {};
+    game.store_user_ids[currentDevice.value.id] = storeUserId;
   }
   try {
     if (is_editing.value) {
@@ -730,6 +782,8 @@ function reset_info(show_notification: boolean = true) {
   game_name.value = '';
   save_paths.splice(0, save_paths.length);
   game_path.value = '';
+  pendingLudusaviMeta.value = null;
+  pendingStoreUserId.value = null;
   // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
   if (show_notification) {
     showSuccess({ message: $t('settings.reset_success') });
@@ -874,6 +928,8 @@ function determineSaveUnitType(
       v-model="showCustomizeDialog"
       :game-name="customizingGame?.name || ''"
       :save-paths="customizingSavePaths"
+      :install-dirs="customizingGame?.installDirs || []"
+      :steam-id="customizingGame?.steamId ?? null"
       :loading="customizeDialogLoading"
       @confirm="handleCustomizeConfirm"
     />

@@ -122,7 +122,15 @@
     "delete_device_confirm_title": "删除设备确认",
     "delete_device_confirm_message": "删除该设备将移除所有与其关联的存档路径和游戏设置，此操作不可撤销，确认继续？",
     "delete_device_success": "设备已删除",
-    "delete_device_failed": "删除设备失败"
+    "delete_device_failed": "删除设备失败",
+    "game_roots_title": "游戏根目录",
+    "game_roots_hint": "游戏的安装目录，用于解析 <root> 路径变量。留空时将自动检测 Steam 库路径作为备选。",
+    "game_roots_path_placeholder": "例如 D:\\Steam",
+    "game_roots_add": "添加根目录",
+    "game_roots_auto_detect": "自动检测",
+    "game_roots_no_new": "未检测到新的游戏根目录",
+    "game_roots_detected": "检测到 {count} 个新的游戏根目录",
+    "game_roots_detect_failed": "检测游戏根目录失败"
   },
   "home": {
     "name": "游戏存档管理器",
@@ -371,7 +379,10 @@
     "status_missing": "不存在",
     "status_error": "错误",
     "registry": "注册表",
-    "registry_not_supported_platform": "当前平台不支持注册表路径"
+    "registry_not_supported_platform": "当前平台不支持注册表路径",
+    "store_user_id": "Steam 用户 ID",
+    "store_user_id_placeholder": "选择或输入 Steam 用户 ID",
+    "store_user_id_hint": "用于解析存档路径中的 <storeUserId> 变量"
   },
   "app": {
     "early_access_warning": "这是一个早期测试版本，不能保证稳定性，请谨慎使用"
@@ -637,6 +648,11 @@
     "win_dir": "Windows 目录",
     "xdg_data": "XDG 数据目录",
     "xdg_config": "XDG 配置目录",
+    "root": "游戏安装根目录（在备份工具中配置）",
+    "store_user_id": "当前用户在游戏商店中的 ID",
+    "base": "<root>/<game> 的简写",
+    "game": "游戏安装目录名，或清单中的游戏规范名称",
+    "store_game_id": "清单中特定于商店的游戏 ID",
     "test_resolution": "测试路径解析",
     "test_path_placeholder": "输入包含变量的路径",
     "resolve": "解析",
@@ -655,7 +671,10 @@
     "save_failed": "保存失败",
     "confirm": "确认",
     "refresh": "刷新",
-    "operation_in_progress": "正在处理中..."
+    "operation_in_progress": "正在处理中...",
+    "minutes_ago": "{n} 分钟前",
+    "hours_ago": "{n} 小时前",
+    "days_ago": "{n} 天前"
   },
   "device_setup": {
     "title": "设备设置",

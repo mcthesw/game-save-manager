@@ -14,6 +14,27 @@
           <el-input v-model="form.gameName" :placeholder="$t('addgame.input_game_name_prompt')" />
         </el-form-item>
 
+        <!-- Steam User ID selector -->
+        <el-form-item :label="$t('game_batch_import.store_user_id')">
+          <el-select
+            v-model="selectedStoreUserId"
+            filterable
+            allow-create
+            clearable
+            :placeholder="$t('game_batch_import.store_user_id_placeholder')"
+            class="store-user-id-select"
+            :loading="loadingUserIds"
+          >
+            <el-option
+              v-for="c in userIdCandidates"
+              :key="c.userId"
+              :label="formatUserIdLabel(c)"
+              :value="c.userId"
+            />
+          </el-select>
+          <span class="store-user-id-hint">{{ $t('game_batch_import.store_user_id_hint') }}</span>
+        </el-form-item>
+
         <!-- Save paths table -->
         <el-form-item :label="$t('game_import_customize.save_paths')">
           <div class="verify-row">
@@ -115,11 +136,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
 import { $t } from '../i18n';
-import { commands, type SavePath, type PathCheckResult } from '../bindings';
+import { commands, type SavePath, type PathCheckResult, type StoreUserIdCandidate } from '../bindings';
+import { error } from '@tauri-apps/plugin-log';
 
 interface CustomizeData {
   gameName: string;
   savePaths: SavePath[];
+  storeUserId: string | null;
 }
 
 const props = defineProps({
@@ -134,6 +157,14 @@ const props = defineProps({
   savePaths: {
     type: Array as () => SavePath[],
     default: () => [],
+  },
+  installDirs: {
+    type: Array as () => string[],
+    default: () => [],
+  },
+  steamId: {
+    type: Number as () => number | null,
+    default: null,
   },
   loading: {
     type: Boolean,
@@ -166,7 +197,46 @@ const pathChecks = ref<Array<{ resolvedPath?: string; exists?: boolean; error?: 
 const form = ref<CustomizeData>({
   gameName: props.gameName,
   savePaths: [],
+  storeUserId: null,
 });
+
+// Store user ID selection
+const selectedStoreUserId = ref<string | null>(null);
+const userIdCandidates = ref<StoreUserIdCandidate[]>([]);
+const loadingUserIds = ref(false);
+
+async function loadUserIdCandidates() {
+  loadingUserIds.value = true;
+  try {
+    const result = await commands.detectStoreUserIds();
+    if (result.status === 'ok') {
+      userIdCandidates.value = result.data;
+      if (result.data.length > 0 && !selectedStoreUserId.value) {
+        selectedStoreUserId.value = result.data[0]!.userId;
+      }
+    }
+  } catch (e) {
+    error(`Error detecting store user IDs: ${e}`);
+  } finally {
+    loadingUserIds.value = false;
+  }
+}
+
+function formatUserIdLabel(c: StoreUserIdCandidate): string {
+  if (c.lastModifiedEpochSecs == null) return c.userId;
+  const ago = formatTimeAgo(c.lastModifiedEpochSecs);
+  return `${c.userId} (${ago})`;
+}
+
+function formatTimeAgo(epochSecs: number): string {
+  const diffMs = Date.now() - epochSecs * 1000;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return $t('common.minutes_ago', { n: mins });
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return $t('common.hours_ago', { n: hours });
+  const days = Math.floor(hours / 24);
+  return $t('common.days_ago', { n: days });
+}
 
 function isRegistryPath(path: string) {
   return path.startsWith('REGISTRY:') || path.startsWith('HKEY_');
@@ -188,6 +258,7 @@ watch(
     form.value = {
       gameName: props.gameName,
       savePaths: JSON.parse(JSON.stringify(props.savePaths)),
+      storeUserId: null,
     };
     pathChecks.value = new Array(form.value.savePaths.length).fill(null);
   },
@@ -203,6 +274,8 @@ watch(
       return;
     }
 
+    selectedStoreUserId.value = null;
+    loadUserIdCandidates();
     await nextTick();
     await checkAllPaths(true);
   }
@@ -216,6 +289,7 @@ function handleConfirm() {
   emit('confirm', {
     gameName: form.value.gameName,
     savePaths: selectedPaths.value,
+    storeUserId: selectedStoreUserId.value || null,
   });
   emit('update:modelValue', false);
 }
@@ -254,8 +328,7 @@ async function checkAllPaths(applySelection: boolean = false) {
   isChecking.value = true;
   try {
     const paths = form.value.savePaths.map((p) => p.path);
-    const result = await commands.checkPaths(paths);
-    if (result.status === 'ok') {
+    const result = await commands.checkPaths(paths, selectedStoreUserId.value || null, props.installDirs.length > 0 ? props.installDirs : null, props.steamId);    if (result.status === 'ok') {
       const checks = result.data as PathCheckResult[];
       // Map enum variants to the check object format
       pathChecks.value = checks.map((c) => {
@@ -310,6 +383,16 @@ async function selectByCheck() {
   height: 70vh;
   min-height: 320px;
   overflow-y: auto;
+}
+
+.store-user-id-select {
+  width: 280px;
+}
+
+.store-user-id-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-left: 8px;
 }
 
 .verify-row {

@@ -62,6 +62,11 @@ const pathVariables: PathVariable[] = [
   { name: 'winDir', labelKey: 'win_dir', value: '<winDir>' },
   { name: 'xdgData', labelKey: 'xdg_data', value: '<xdgData>' },
   { name: 'xdgConfig', labelKey: 'xdg_config', value: '<xdgConfig>' },
+  { name: 'root', labelKey: 'root', value: '<root>' },
+  { name: 'storeUserId', labelKey: 'store_user_id', value: '<storeUserId>' },
+  { name: 'base', labelKey: 'base', value: '<base>' },
+  { name: 'game', labelKey: 'game', value: '<game>' },
+  { name: 'storeGameId', labelKey: 'store_game_id', value: '<storeGameId>' },
 ];
 
 // ── Autocomplete state ──
@@ -441,7 +446,7 @@ function scheduleResolve(path: string) {
   resolvedPathText.value = '';
   resolveTimer = setTimeout(async () => {
     try {
-      const result = await commands.checkPaths([path]);
+      const result = await commands.checkPaths([path], null);
       // Guard against stale responses
       if (path !== props.modelValue) return;
       if (result.status === 'error') {
