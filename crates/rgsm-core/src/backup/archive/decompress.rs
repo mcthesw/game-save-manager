@@ -16,6 +16,7 @@ use rust_i18n::t;
 use crate::{
     backup::{SaveUnit, SaveUnitType},
     device::get_current_device_id,
+    path_resolver::PathContext,
     preclude::*,
 };
 
@@ -303,12 +304,13 @@ fn restore_save_unit_from_temp(
     version: ArchiveVersion,
     temp_root: &Path,
     notifier: Option<&dyn RestoreNotifier>,
+    path_ctx: Option<&PathContext>,
 ) -> Result<RestoreOutcome, BackupFileError> {
     if let SaveUnitType::WinRegistry = unit.unit_type {
         return restore_registry_unit(unit, version, temp_root);
     }
 
-    let unit_path = unit.resolve_path_for_current_device()?;
+    let unit_path = unit.resolve_path_for_current_device(path_ctx)?;
     let file_name = unit_path
         .file_name()
         .ok_or(BackupFileError::NonePathError)?;
@@ -345,6 +347,7 @@ pub(super) fn decompress_from_archive(
     save_paths: &[SaveUnit],
     archive_path: &Path,
     notifier: Option<&dyn RestoreNotifier>,
+    path_ctx: Option<&PathContext>,
 ) -> Result<(), CompressError> {
     let file = File::open(archive_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
@@ -368,7 +371,7 @@ pub(super) fn decompress_from_archive(
 
     let mut restore_errors = Vec::new();
     for unit in save_paths.iter().filter(|unit| unit.enabled) {
-        match restore_save_unit_from_temp(unit, version, &temp_root, notifier) {
+        match restore_save_unit_from_temp(unit, version, &temp_root, notifier, path_ctx) {
             Ok(RestoreOutcome::Restored) => {}
             Ok(RestoreOutcome::Skipped(reason)) => {
                 emit_skip_notification(unit, &reason, notifier);
@@ -395,7 +398,7 @@ pub fn decompress_from_file(
     notifier: Option<&dyn RestoreNotifier>,
 ) -> Result<(), CompressError> {
     let zip_path = backup_path.join([date, ".zip"].concat());
-    decompress_from_archive(save_paths, &zip_path, notifier)
+    decompress_from_archive(save_paths, &zip_path, notifier, None)
 }
 
 #[cfg(test)]

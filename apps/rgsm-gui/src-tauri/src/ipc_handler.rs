@@ -11,6 +11,7 @@ use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus,
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::ServiceContext;
+use rgsm_core::steam;
 use rgsm_core::vn_scanner;
 use rgsm_core::{backup, config, system_fonts};
 
@@ -1000,9 +1001,34 @@ pub fn reset_ludusavi_manifest_to_bundled() -> Result<LudusaviManifestStatus, St
 #[specta::specta]
 pub async fn check_paths(
     paths: Vec<String>,
+    store_user_id: Option<String>,
+    install_dirs: Option<Vec<String>>,
+    steam_id: Option<u32>,
 ) -> Result<Vec<path_resolver::PathCheckResult>, String> {
     let config = get_config().map_err(|e| e.to_string())?;
-    Ok(path_resolver::check_paths(&paths, &config))
+    let device = config.devices.get(get_current_device_id());
+    let ctx = path_resolver::PathContext {
+        install_dirs: install_dirs.unwrap_or_default(),
+        steam_id,
+        install_dir_cache: None,
+        game_roots: device.map(|d| d.game_roots.clone()).unwrap_or_default(),
+        store_user_id,
+    };
+    Ok(path_resolver::check_paths(&paths, Some(&ctx), &config))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn detect_game_roots() -> Result<Vec<String>, String> {
+    info!(target:"rgsm::ipc", "Detecting game root directories");
+    steam::detect_game_roots().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn detect_store_user_ids() -> Result<Vec<steam::StoreUserIdCandidate>, String> {
+    info!(target:"rgsm::ipc", "Detecting Steam user IDs");
+    steam::detect_steam_user_ids().map_err(|e| e.to_string())
 }
 
 /// Gets a list of system font family names

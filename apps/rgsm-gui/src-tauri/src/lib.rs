@@ -137,6 +137,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::update_ludusavi_manifest,
             ipc_handler::reset_ludusavi_manifest_to_bundled,
             ipc_handler::check_paths,
+            ipc_handler::detect_game_roots,
+            ipc_handler::detect_store_user_ids,
             ipc_handler::get_system_fonts,
             ipc_handler::get_sync_state,
             ipc_handler::scan_vns,

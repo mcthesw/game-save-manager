@@ -1,4 +1,10 @@
-use crate::{app_dirs, config::Config, embedded_resources, path_resolver};
+use crate::{
+    app_dirs,
+    config::Config,
+    embedded_resources,
+    path_resolver::{self, PathContext},
+    steam,
+};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use log::{debug, info, warn};
@@ -93,6 +99,8 @@ pub struct ImportableGame {
     pub name: String,
     /// Steam ID if available
     pub steam_id: Option<u32>,
+    /// Install directory names from manifest's `installDir` field
+    pub install_dirs: Vec<String>,
     /// Whether this game is already managed
     pub is_managed: bool,
     /// Number of save paths detected
@@ -346,6 +354,41 @@ fn matches_current_system(when_value: Option<&serde_yaml::Value>) -> bool {
 
 /// Detects locally installed games by scanning for existing save paths
 /// Only considers paths that match the current OS
+/// Extract `installDir` names from a manifest game entry.
+///
+/// The manifest uses this format:
+/// ```yaml
+/// installDir:
+///   100 Orange Juice: {}
+///   AltName: {}
+/// ```
+pub fn extract_install_dirs(value: &serde_yaml::Value) -> Vec<String> {
+    value
+        .get("installDir")
+        .and_then(|v| v.as_mapping())
+        .map(|m| {
+            m.keys()
+                .filter_map(|k| k.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Extract Steam app ID from a manifest game entry.
+///
+/// The manifest uses this format:
+/// ```yaml
+/// steam:
+///   id: 282800
+/// ```
+pub fn extract_steam_id(value: &serde_yaml::Value) -> Option<u32> {
+    value
+        .get("steam")
+        .and_then(|s| s.get("id"))
+        .and_then(|id| id.as_u64())
+        .map(|id| id as u32)
+}
+
 pub fn detect_local_games(
     manifest: &HashMap<String, serde_yaml::Value>,
     config: &Config,
@@ -354,7 +397,21 @@ pub fn detect_local_games(
 
     info!(target: "rgsm::ludusavi", "Scanning for locally installed games on current OS...");
 
+    // Pre-scan all installed Steam games for O(1) per-game lookup
+    let steam_cache = Arc::new(steam::scan_all_installed_games().unwrap_or_default());
+
     for (name, value) in manifest {
+        let install_dirs = extract_install_dirs(value);
+        let steam_id = extract_steam_id(value);
+
+        let ctx = PathContext {
+            install_dirs,
+            steam_id,
+            install_dir_cache: Some(Arc::clone(&steam_cache)),
+            game_roots: Vec::new(),
+            store_user_id: None,
+        };
+
         // Check if any save paths exist locally
         if let Some(files) = value.get("files").and_then(|f| f.as_mapping()) {
             for (path_key, path_value) in files {
@@ -371,15 +428,17 @@ pub fn detect_local_games(
                         continue;
                     }
 
-                    // Try to resolve the path
-                    if let Ok(resolved) = path_resolver::resolve_path(path_str, None, config) {
-                        // Only check if the actual path exists (not parent)
-                        // This is more strict and avoids false positives
-                        if resolved.exists() {
+                    // Try to resolve the path with game context
+                    match path_resolver::resolve_path(path_str, Some(&ctx), config) {
+                        Ok(resolved) if resolved.exists() => {
                             detected.insert(name.clone());
                             debug!(target: "rgsm::ludusavi", "Detected installed game: {} (path: {})", name, path_str);
                             break;
                         }
+                        // Game not installed on this machine — skip silently
+                        Err(path_resolver::ResolveError::GameNotInstalled(_))
+                        | Err(path_resolver::ResolveError::StoreNotSupported(_)) => continue,
+                        _ => continue,
                     }
                 }
             }
@@ -436,11 +495,10 @@ pub fn parse_manifest_games(
         }
 
         // Extract Steam ID if available
-        let steam_id = value
-            .get("steam")
-            .and_then(|s| s.get("id"))
-            .and_then(|id| id.as_u64())
-            .map(|id| id as u32);
+        let steam_id = extract_steam_id(value);
+
+        // Extract install directory names
+        let install_dirs = extract_install_dirs(value);
 
         // Count save paths
         let save_paths_count = count_save_paths(value);
@@ -451,6 +509,7 @@ pub fn parse_manifest_games(
         games.push(ImportableGame {
             name: name.clone(),
             steam_id,
+            install_dirs,
             is_managed,
             save_paths_count,
         });

@@ -22,6 +22,7 @@ pub mod path_launcher;
 pub mod path_resolver;
 pub mod preclude;
 pub mod services;
+pub mod steam;
 pub mod system_fonts;
 pub mod updater;
 pub mod vn_scanner;

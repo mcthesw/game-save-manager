@@ -478,6 +478,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: false,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
         config.games.push(crate::backup::Game {
             name: "ExplicitFalse".to_string(),
@@ -487,6 +489,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: false,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let mut raw = serde_json::to_value(&config).unwrap();
@@ -521,6 +525,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let mut raw = serde_json::to_value(&config).unwrap();
@@ -576,6 +582,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -602,6 +610,8 @@ mod tests {
             next_save_unit_id: 6,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -621,6 +631,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -769,6 +781,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
         config.games.push(crate::backup::Game {
             name: "Game: With Colon".to_string(),
@@ -778,6 +792,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -800,6 +816,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -820,6 +838,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -840,6 +860,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
         config.games.push(crate::backup::Game {
             name: "CON".to_string(),
@@ -849,6 +871,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -873,6 +897,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
         config.quick_action.quick_action_game = Some(crate::backup::Game {
             name: "QA Game".to_string(),
@@ -882,6 +908,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup: None,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);

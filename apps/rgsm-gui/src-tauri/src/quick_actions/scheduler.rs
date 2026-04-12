@@ -323,6 +323,8 @@ mod tests {
             next_save_unit_id: 0,
             cloud_sync_enabled: true,
             auto_backup,
+            ludusavi_meta: None,
+            store_user_ids: std::collections::HashMap::new(),
         }
     }
 

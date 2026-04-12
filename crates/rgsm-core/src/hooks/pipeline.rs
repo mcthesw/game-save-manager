@@ -208,6 +208,8 @@ mod tests {
                 cloud_sync_enabled: true,
                 auto_backup: None,
                 next_save_unit_id: 0,
+                ludusavi_meta: None,
+                store_user_ids: std::collections::HashMap::new(),
             },
             snapshot: Snapshot {
                 date: "2025-01-01T00:00:00".into(),
@@ -237,6 +239,8 @@ mod tests {
                 cloud_sync_enabled: true,
                 auto_backup: None,
                 next_save_unit_id: 0,
+                ludusavi_meta: None,
+                store_user_ids: std::collections::HashMap::new(),
             },
             snapshots: GameSnapshots::new("NewGame"),
         }
@@ -254,6 +258,8 @@ mod tests {
                 cloud_sync_enabled: false,
                 auto_backup: None,
                 next_save_unit_id: 0,
+                ludusavi_meta: None,
+                store_user_ids: std::collections::HashMap::new(),
             },
             game: Game {
                 name: "ExistingGame".into(),
@@ -263,6 +269,8 @@ mod tests {
                 cloud_sync_enabled: true,
                 auto_backup: None,
                 next_save_unit_id: 0,
+                ludusavi_meta: None,
+                store_user_ids: std::collections::HashMap::new(),
             },
         }
     }
@@ -374,6 +382,8 @@ mod tests {
                 cloud_sync_enabled: true,
                 auto_backup: None,
                 next_save_unit_id: 0,
+                ludusavi_meta: None,
+                store_user_ids: std::collections::HashMap::new(),
             },
             snapshot: Snapshot {
                 date: "2025-01-01T00:00:00".into(),
