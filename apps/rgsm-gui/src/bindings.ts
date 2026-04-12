@@ -537,7 +537,7 @@ export type Backend = { type: "Disabled" } |
  * 参考：https://docs.rs/opendal/latest/opendal/services/struct.S3.html
  * 不支持 rename 和 blocking
  */
-{ type: "S3"; endpoint: string; bucket: string; region: string; access_key_id: string; secret_access_key: string }
+{ type: "S3"; endpoint: string; bucket: string; region: string; access_key_id: string; secret_access_key: string; addressing_style?: S3AddressingStyle }
 export type BatchSyncItemReport = { name: string; status: BatchSyncItemStatus }
 export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
 export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
@@ -827,6 +827,14 @@ export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: 
  */
 export type RestoreError = { type: "IntegrityCheckFailed"; expected: string; actual: string } | { type: "BackupNotFound"; date: string } | { type: "DecompressFailed"; message: string } | { type: "Io"; message: string } | { type: "Other"; message: string }
 /**
+ * How the S3 client addresses buckets.
+ * 
+ * - `PathStyle`: `https://endpoint/bucket/key` (default, works for most generic S3-compatible services)
+ * - `VirtualHostedStyle`: `https://bucket.endpoint/key` (required by Tencent COS, Alibaba OSS, etc.)
+ * - `Auto`: detect by endpoint host suffix; falls back to virtual-hosted-style for known providers
+ */
+export type S3AddressingStyle = "PathStyle" | "VirtualHostedStyle" | "Auto"
+/**
  * Settings that can be configured by user
  */
 export type SaveListExpandBehavior = "always_open" | "always_closed" | "remember_last"
@@ -912,7 +920,7 @@ created_by?: CreatedBy }
  */
 export type StoreUserIdCandidate = { userId: string; 
 /**
- * Seconds since UNIX epoch of the most recently modified file in the userdata dir.
+ * Seconds since UNIX epoch of the `userdata/<id>` directory mtime.
  */
 lastModifiedEpochSecs: number | null }
 export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "merged" | "conflict"

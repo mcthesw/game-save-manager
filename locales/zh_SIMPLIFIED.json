@@ -507,7 +507,12 @@
       "region": "区域",
       "access_key_id": "访问密钥 ID",
       "secret_access_key": "秘密访问密钥",
-      "region_hint": "如果不需要请输入test，不要留空"
+      "region_hint": "如果不需要请输入test，不要留空",
+      "addressing_style": "寻址方式",
+      "addressing_style_path": "路径寻址",
+      "addressing_style_virtual": "虚拟托管寻址",
+      "addressing_style_auto": "自动检测",
+      "virtual_host_hint": "提示：请尝试将 S3 设置中的「寻址方式」切换为「虚拟托管寻址」"
     },
     "overview": {
       "tab": "概览",
