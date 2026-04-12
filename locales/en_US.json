@@ -507,7 +507,12 @@
       "region": "Region",
       "region_hint": "Please enter test if not required, do not leave it blank",
       "access_key_id": "Access key ID",
-      "secret_access_key": "Secret access key"
+      "secret_access_key": "Secret access key",
+      "addressing_style": "Addressing style",
+      "addressing_style_path": "Path style",
+      "addressing_style_virtual": "Virtual-hosted style",
+      "addressing_style_auto": "Auto detect",
+      "virtual_host_hint": "Tip: try switching the Addressing style to \"Virtual-hosted style\" in the S3 settings"
     },
     "overview": {
       "tab": "Overview",
