@@ -314,6 +314,7 @@ mod tests {
             std::slice::from_ref(&save_unit),
             &zip_path,
             CompressionPreset::Standard,
+            None,
         )?;
         assert!(compressed_size > 0);
 
@@ -472,7 +473,7 @@ mod tests {
         let date = "collision_test";
         let zip_path = backup_dir.join(format!("{date}.zip"));
 
-        compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)?;
+        compress_to_file(&save_units, &zip_path, CompressionPreset::Standard, None)?;
 
         // Verify the ZIP contains index-prefixed entries
         let zip_file = File::open(&zip_path)?;
@@ -527,7 +528,7 @@ mod tests {
             build_file_save_unit_with_id(&file_b, 0),
         ];
 
-        let err = compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)
+        let err = compress_to_file(&save_units, &zip_path, CompressionPreset::Standard, None)
             .expect_err("duplicate save-unit IDs should be rejected");
         assert!(
             matches!(
@@ -580,6 +581,7 @@ mod tests {
             &[enabled_unit, disabled_unit],
             &zip_path,
             CompressionPreset::Standard,
+            None,
         )?;
 
         let zip_file = File::open(&zip_path)?;
@@ -617,6 +619,7 @@ mod tests {
             std::slice::from_ref(&unit_a),
             &zip_path,
             CompressionPreset::Standard,
+            None,
         )?;
 
         fs::write(&file_a, b"mutated-a")?;
@@ -658,6 +661,7 @@ mod tests {
             std::slice::from_ref(&original_unit),
             &zip_path,
             CompressionPreset::Standard,
+            None,
         )?;
 
         fs::write(&old_path, b"mutated-old")?;
@@ -696,6 +700,7 @@ mod tests {
             &[unit_a.clone(), unit_b.clone()],
             &zip_path,
             CompressionPreset::Standard,
+            None,
         )?;
 
         fs::write(&file_a, b"enabled-mutated")?;
@@ -737,7 +742,7 @@ mod tests {
             let date = "preset_test";
             let zip_path = backup_dir.join(format!("{date}.zip"));
 
-            let size = compress_to_file(std::slice::from_ref(&save_unit), &zip_path, preset)?;
+            let size = compress_to_file(std::slice::from_ref(&save_unit), &zip_path, preset, None)?;
             assert!(size > 0, "Preset {preset:?} produced empty archive");
 
             // Mutate and restore
@@ -782,9 +787,9 @@ mod tests {
         let backup_dir = temp_path.join("backup");
         fs::create_dir_all(&backup_dir)?;
         let zip_path = backup_dir.join("fp_test.zip");
-        compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)?;
+        compress_to_file(&save_units, &zip_path, CompressionPreset::Standard, None)?;
 
-        let source_fp = fingerprint_source_state(&save_units)?;
+        let source_fp = fingerprint_source_state(&save_units, None)?;
         let zip_fp =
             fingerprint_zip_state(&zip_path)?.expect("V2 archive should produce a fingerprint");
 
@@ -836,9 +841,9 @@ mod tests {
             key.set_value("Version", &1u32)?;
 
             let save_units = [build_registry_save_unit_with_id(&reg_path, 0)];
-            compress_to_file(&save_units, &zip_path, CompressionPreset::Standard)?;
+            compress_to_file(&save_units, &zip_path, CompressionPreset::Standard, None)?;
 
-            let source_fp = fingerprint_source_state(&save_units)?;
+            let source_fp = fingerprint_source_state(&save_units, None)?;
             let stored_fp = read_stored_fingerprint(&zip_path)
                 .expect("V2 archive should have stored source fingerprint");
             assert_eq!(

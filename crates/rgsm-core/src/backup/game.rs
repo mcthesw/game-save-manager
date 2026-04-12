@@ -14,7 +14,24 @@ use crate::backup::{
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::{DeviceId, get_current_device_id};
+use crate::path_resolver::PathContext;
 use crate::preclude::*;
+
+/// Manifest-derived metadata for games imported from Ludusavi.
+///
+/// These fields are **device-independent** (directory names and IDs, not paths)
+/// and are safe to persist in config and sync across devices.
+#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LudusaviMeta {
+    /// Install directory names from the manifest's `installDir` field.
+    /// e.g. `["100 Orange Juice"]`. Used to resolve `<game>` and `<base>`.
+    #[serde(default)]
+    pub install_dirs: Vec<String>,
+    /// Steam App ID from the manifest's `steam.id`. Used to resolve `<storeGameId>`.
+    #[serde(default)]
+    pub steam_id: Option<u32>,
+}
 
 /// Per-game auto-backup configuration.
 /// Presence (`Some`) enables the timer; absence (`None`) disables it.
@@ -54,6 +71,13 @@ pub struct Game {
     /// Per-game auto-backup configuration. `None` = disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_backup: Option<AutoBackupConfig>,
+    /// Metadata from Ludusavi manifest import. `None` for manually added games.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ludusavi_meta: Option<LudusaviMeta>,
+    /// Per-device store user ID for `<storeUserId>` resolution.
+    /// Key: DeviceId, Value: store-specific user ID (e.g. Steam user ID).
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub store_user_ids: HashMap<DeviceId, String>,
 }
 
 /// Frontend/IPC input shape for creating/updating a game.
@@ -64,6 +88,12 @@ pub struct GameDraft {
     pub save_paths: Vec<SaveUnitDraft>,
     #[serde(default)]
     pub game_paths: HashMap<DeviceId, String>,
+    /// Metadata from Ludusavi manifest import (optional for manually added games).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ludusavi_meta: Option<LudusaviMeta>,
+    /// Per-device store user ID for `<storeUserId>` resolution.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub store_user_ids: HashMap<DeviceId, String>,
 }
 
 fn save_unit_identity(
@@ -197,6 +227,16 @@ impl GameDraft {
             next_save_unit_id,
             cloud_sync_enabled: existing.map(|game| game.cloud_sync_enabled).unwrap_or(true),
             auto_backup: existing.and_then(|game| game.auto_backup.clone()),
+            ludusavi_meta: self
+                .ludusavi_meta
+                .or_else(|| existing.and_then(|g| g.ludusavi_meta.clone())),
+            store_user_ids: if self.store_user_ids.is_empty() {
+                existing
+                    .map(|g| g.store_user_ids.clone())
+                    .unwrap_or_default()
+            } else {
+                self.store_user_ids
+            },
         };
         game.normalize_save_unit_ids();
         game
@@ -204,6 +244,39 @@ impl GameDraft {
 }
 
 impl Game {
+    /// Build a `PathContext` from this game's metadata for path variable resolution.
+    /// Pass the current `Device` to include device-specific `game_roots` and `store_user_id`.
+    pub fn path_context(&self, device: Option<&crate::device::Device>) -> PathContext {
+        let device_id = device.map(|d| &d.id);
+        let store_user_id = device_id
+            .and_then(|id| self.store_user_ids.get(id))
+            .cloned();
+        let base = match &self.ludusavi_meta {
+            Some(meta) => PathContext {
+                install_dirs: meta.install_dirs.clone(),
+                steam_id: meta.steam_id,
+                install_dir_cache: None,
+                game_roots: Vec::new(),
+                store_user_id: None,
+            },
+            None => PathContext::default(),
+        };
+        PathContext {
+            game_roots: device.map(|d| d.game_roots.clone()).unwrap_or_default(),
+            store_user_id,
+            ..base
+        }
+    }
+
+    /// Build a `PathContext` using the current device from config.
+    /// Convenience wrapper around `path_context()` for runtime callers.
+    fn path_context_current_device(&self) -> PathContext {
+        let device = get_config()
+            .ok()
+            .and_then(|c| c.devices.get(get_current_device_id()).cloned());
+        self.path_context(device.as_ref())
+    }
+
     /// The directory/path component used for local backup storage and remote
     /// cloud paths. Returns `storage_key` when populated; otherwise computes
     /// a sanitized key from the display name as a safe fallback (this path
@@ -294,7 +367,8 @@ impl Game {
 
         let zip_path = backup_path.join([&date, ".zip"].concat());
         // 获取压缩后的文件大小
-        let file_size = match ZipBackend.compress(save_paths, &zip_path, preset) {
+        let path_ctx = self.path_context_current_device();
+        let file_size = match ZipBackend.compress(save_paths, &zip_path, preset, Some(&path_ctx)) {
             Ok(size) => size,
             Err(e) => {
                 // delete the zip if failed to write
@@ -351,7 +425,9 @@ impl Game {
             return Ok(TimerSnapshotDecision::Created);
         };
 
-        let current_fingerprint = match fingerprint_source_state(&self.save_paths) {
+        let path_ctx = self.path_context_current_device();
+        let current_fingerprint = match fingerprint_source_state(&self.save_paths, Some(&path_ctx))
+        {
             Ok(fingerprint) => fingerprint,
             Err(err) => {
                 warn!(
@@ -460,7 +536,8 @@ impl Game {
         let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
         let archive_path = backup_path.join(format!("{date}.zip"));
 
-        ZipBackend.decompress(&self.save_paths, &archive_path, notifier)?;
+        let path_ctx = self.path_context_current_device();
+        ZipBackend.decompress(&self.save_paths, &archive_path, notifier, Some(&path_ctx))?;
 
         let mut infos = self.get_game_snapshots_info()?;
         infos.set_current_device_head(Some(date.to_string()));
@@ -485,7 +562,8 @@ impl Game {
             .to_string();
         let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
         let preset = get_config()?.settings.compression_preset;
-        if let Err(e) = ZipBackend.compress(&self.save_paths, zip_path, preset) {
+        let path_ctx = self.path_context_current_device();
+        if let Err(e) = ZipBackend.compress(&self.save_paths, zip_path, preset, Some(&path_ctx)) {
             if let Err(rm_err) = fs::remove_file(zip_path) {
                 warn!(
                     target: "rgsm::backup",

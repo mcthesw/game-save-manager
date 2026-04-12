@@ -2914,6 +2914,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "keyvalues-parser"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b1d591f0c9482810347586bd2ae842bbd1fc4e0849283c611244930ff44e90f"
+dependencies = [
+ "pest",
+ "serde_core",
+]
+
+[[package]]
+name = "keyvalues-serde"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe5bbd40795b21e78109367a739c00365345b9b8c487ef2fd89e6d0e6f9e31f1"
+dependencies = [
+ "keyvalues-parser",
+ "serde_core",
+]
+
+[[package]]
 name = "kuchikiki"
 version = "0.8.8-speedreader"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3804,6 +3824,16 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pest"
+version = "2.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0848c601009d37dfa3430c4666e147e49cdcf1b92ecd3e63657d8a5f19da662"
+dependencies = [
+ "memchr",
+ "ucd-trie",
+]
 
 [[package]]
 name = "phf"
@@ -4761,6 +4791,7 @@ dependencies = [
  "font-kit",
  "fs_extra",
  "hostname",
+ "keyvalues-serde",
  "lazy_static",
  "log",
  "machine-uid",
@@ -6679,6 +6710,12 @@ name = "typenum"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
+
+[[package]]
+name = "ucd-trie"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 
 [[package]]
 name = "uds_windows"

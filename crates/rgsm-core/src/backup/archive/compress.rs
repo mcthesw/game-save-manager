@@ -17,6 +17,7 @@ use crate::backup::path_format::path_to_zip_style;
 use crate::{
     backup::{CompressionPreset, SaveUnit, SaveUnitType, registry},
     device::get_current_device_id,
+    path_resolver::PathContext,
     preclude::*,
 };
 
@@ -145,6 +146,7 @@ fn append_save_unit<T>(
     writer: &mut ZipWriter<T>,
     save_unit: &SaveUnit,
     preset: CompressionPreset,
+    path_ctx: Option<&PathContext>,
 ) -> Result<(), BackupFileError>
 where
     T: Write + Seek,
@@ -155,7 +157,7 @@ where
         return append_registry_unit(writer, save_unit, &id_prefix, preset);
     }
 
-    let unit_path = save_unit.resolve_path_for_current_device()?;
+    let unit_path = save_unit.resolve_path_for_current_device(path_ctx)?;
     if !unit_path.exists() {
         return Err(BackupFileError::NotExists(unit_path));
     }
@@ -224,6 +226,7 @@ pub fn compress_to_file(
     save_paths: &[SaveUnit],
     zip_path: &Path,
     preset: CompressionPreset,
+    path_ctx: Option<&PathContext>,
 ) -> Result<u64, CompressError> {
     ensure_unique_save_unit_ids(save_paths)?;
     let enabled_save_paths: Vec<&SaveUnit> = save_paths
@@ -232,7 +235,8 @@ pub fn compress_to_file(
         .collect();
 
     // Compute source fingerprint for timer dedup (stored in ZIP comment).
-    let source_fp = crate::backup::state_fingerprint::fingerprint_source_state(save_paths).ok();
+    let source_fp =
+        crate::backup::state_fingerprint::fingerprint_source_state(save_paths, path_ctx).ok();
     let mut meta = ArchiveMeta::new(preset);
     meta.source_fingerprint = source_fp;
 
@@ -242,7 +246,7 @@ pub fn compress_to_file(
 
     let mut compress_errors = Vec::new();
     for save_unit in enabled_save_paths {
-        if let Err(err) = append_save_unit(&mut zip, save_unit, preset) {
+        if let Err(err) = append_save_unit(&mut zip, save_unit, preset, path_ctx) {
             compress_errors.push(err);
         }
     }
