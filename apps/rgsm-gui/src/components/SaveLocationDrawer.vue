@@ -27,7 +27,13 @@ const emits = defineEmits<{
 const currentDevice = ref<Device | null>(null);
 const availableDevices = ref<Device[]>([]);
 const selectedDeviceId = ref('');
-const tempGame = ref<Game>({ name: '', storage_key: '', save_paths: [], game_paths: {} });
+const tempGame = ref<Game>({
+  name: '',
+  storage_key: '',
+  save_paths: [],
+  game_paths: {},
+  store_user_ids: {},
+});
 const hasUnsavedChanges = ref(false);
 
 const activeSaveUnits = computed(() =>
@@ -290,7 +296,7 @@ async function addSaveFile() {
 }
 
 async function validateRegistryPath(path: string) {
-  const checkResult = await commands.checkPaths([path], null);
+  const checkResult = await commands.checkPaths([path], null, null, null);
   if (checkResult.status !== 'ok') {
     return;
   }

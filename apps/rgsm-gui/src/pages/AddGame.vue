@@ -7,7 +7,7 @@ import {
   InfoFilled,
   Search,
 } from '@element-plus/icons-vue';
-import { reactive, ref, watchEffect } from 'vue';
+import { computed, reactive, ref, watchEffect } from 'vue';
 import {
   commands,
   type GameDraft,
@@ -86,6 +86,26 @@ const batchGamePaths = ref<Record<string, SavePath[]>>({});
 const pendingLudusaviMeta = ref<{ installDirs: string[]; steamId: number | null } | null>(null);
 // Store user ID pending for next save() call (set during import)
 const pendingStoreUserId = ref<string | null>(null);
+const manualInstallDirs = ref<string[]>([]);
+
+const editingGame = computed(() =>
+  is_editing.value && editing_storage_key.value
+    ? (config.value?.games.find(
+        (candidate) => candidate.storage_key === editing_storage_key.value
+      ) ?? null)
+    : null
+);
+
+const activeSteamId = computed(
+  () => pendingLudusaviMeta.value?.steamId ?? editingGame.value?.ludusavi_meta?.steamId ?? null
+);
+const activeStoreUserId = computed(() =>
+  currentDevice.value
+    ? (pendingStoreUserId.value ??
+      editingGame.value?.store_user_ids?.[currentDevice.value.id] ??
+      null)
+    : pendingStoreUserId.value
+);
 
 // 获取当前设备信息
 async function fetchCurrentDevice() {
@@ -114,6 +134,7 @@ watchEffect(() => {
       editing_storage_key.value = gameConfig.storage_key ?? '';
       game_name.value = gameConfig.name;
       save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
+      manualInstallDirs.value = [...(gameConfig.ludusavi_meta?.installDirs ?? [])];
 
       // 获取当前设备的游戏路径
       if (gameConfig.game_paths && currentDevice.value) {
@@ -206,7 +227,8 @@ async function add_registry_key() {
     if (!check_save_unit_unique(path)) return;
 
     // Validate registry path on current platform
-    const checkResult = await commands.checkPaths([path], null);    if (checkResult.status === 'ok') {
+    const checkResult = await commands.checkPaths([path], null, null, null);
+    if (checkResult.status === 'ok') {
       const [check] = checkResult.data;
       if (check && check.status === 'registryPath' && !check.supported) {
         showWarning({ message: $t('addgame.registry_non_windows_warning') });
@@ -226,6 +248,13 @@ async function choose_executable_file() {
       return;
     }
     game_path.value = file.data;
+    if (manualInstallDirs.value.length === 0) {
+      const segments = file.data.split(/[\\/]/).filter(Boolean);
+      const inferred = segments.length >= 2 ? segments[segments.length - 2] : '';
+      if (inferred) {
+        manualInstallDirs.value = [inferred];
+      }
+    }
   } catch (e) {
     error(`Error choosing executable file: ${e}`);
     showError({ message: $t('error.choose_executable_file_error') });
@@ -426,7 +455,11 @@ async function showCustomizationDialog(game: ImportableGame) {
   }
 }
 
-async function handleCustomizeConfirm(data: { gameName: string; savePaths: SavePath[]; storeUserId: string | null }) {
+async function handleCustomizeConfirm(data: {
+  gameName: string;
+  savePaths: SavePath[];
+  storeUserId: string | null;
+}) {
   try {
     // Convert the customized data to our Game format
     const gameName = data.gameName || customizingGame.value?.name || '';
@@ -459,8 +492,9 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
         validPaths,
         data.storeUserId,
         src?.installDirs?.length ? src.installDirs : null,
-        src?.steamId ?? null,
-      );      if (checkResult.status === 'ok') {
+        src?.steamId ?? null
+      );
+      if (checkResult.status === 'ok') {
         for (const info of checkResult.data) {
           pathInfoMap.set(info.rawPath, info);
         }
@@ -512,6 +546,7 @@ async function handleCustomizeConfirm(data: { gameName: string; savePaths: SaveP
         installDirs: src.installDirs,
         steamId: src.steamId ?? null,
       };
+      manualInstallDirs.value = [...src.installDirs];
     }
 
     pendingStoreUserId.value = data.storeUserId;
@@ -547,39 +582,39 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
     (config.value?.games ?? []).map((g) => (g.name ?? '').toLowerCase())
   );
 
-  // Collect all non-registry paths from all games to check at once
-  const allPathsToCheck: string[] = [];
-  for (const gameConfig of configs) {
-    for (const sp of gameConfig.paths) {
-      if (
-        sp.selected &&
-        sp.path &&
-        sp.path.trim() !== '' &&
-        !sp.path.startsWith('REGISTRY:') &&
-        !sp.path.startsWith('HKEY_')
-      ) {
-        allPathsToCheck.push(sp.path);
-      }
-    }
-  }
-
-  // Check all paths with backend to determine file/folder type
-  const pathInfoMap = new Map<string, PathCheckResult>();
-  if (allPathsToCheck.length > 0) {
-    const checkResult = await commands.checkPaths(allPathsToCheck, storeUserId);    if (checkResult.status === 'ok') {
-      for (const info of checkResult.data) {
-        pathInfoMap.set(info.rawPath, info);
-      }
-    }
-  }
-
   for (const gameConfig of configs) {
     try {
+      const pathInfoMap = new Map<string, PathCheckResult>();
       // Get selected paths
       const selectedPaths = gameConfig.paths.filter((p) => p.selected);
 
       if (selectedPaths.length === 0) {
         continue;
+      }
+
+      const originalGame = importableGameMap.get(gameConfig.name);
+      const nonRegistryPaths = selectedPaths
+        .map((sp) => sp.path)
+        .filter(
+          (path): path is string =>
+            !!path &&
+            path.trim() !== '' &&
+            !path.startsWith('REGISTRY:') &&
+            !path.startsWith('HKEY_')
+        );
+
+      if (nonRegistryPaths.length > 0) {
+        const checkResult = await commands.checkPaths(
+          nonRegistryPaths,
+          storeUserId,
+          originalGame?.installDirs?.length ? originalGame.installDirs : null,
+          originalGame?.steamId ?? null
+        );
+        if (checkResult.status === 'ok') {
+          for (const info of checkResult.data) {
+            pathInfoMap.set(info.rawPath, info);
+          }
+        }
       }
 
       // Convert to SaveUnits
@@ -638,10 +673,10 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
       }
 
       // Create the game with Ludusavi metadata if available
-      const originalGame = importableGameMap.get(gameConfig.name);
       const newGame: GameDraft = {
         name: gameName,
         save_paths: savePaths,
+        store_user_ids: {},
         ludusavi_meta:
           originalGame && (originalGame.installDirs.length > 0 || originalGame.steamId)
             ? {
@@ -707,8 +742,11 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
   }
 }
 async function save() {
-  const ludusaviMeta = pendingLudusaviMeta.value;
   const storeUserId = pendingStoreUserId.value;
+  const normalizedInstallDirs = manualInstallDirs.value
+    .map((dir) => dir.trim())
+    .filter((dir) => dir.length > 0);
+  const steamId = activeSteamId.value;
 
   game_name.value = game_name.value.trim();
   if (game_name.value == '' || save_paths.length == 0) {
@@ -734,21 +772,29 @@ async function save() {
   const game: GameDraft = {
     name: game_name.value,
     save_paths: save_paths,
-    ludusavi_meta: ludusaviMeta
-      ? {
-          installDirs: ludusaviMeta.installDirs,
-          steamId: ludusaviMeta.steamId,
-        }
-      : undefined,
+    store_user_ids: { ...(editingGame.value?.store_user_ids ?? {}) },
+    ludusavi_meta:
+      normalizedInstallDirs.length > 0 || steamId !== null
+        ? {
+            installDirs: normalizedInstallDirs,
+            steamId,
+          }
+        : undefined,
   };
 
   if (game_path.value && currentDevice.value) {
     game.game_paths = {};
     game.game_paths[currentDevice.value.id] = game_path.value;
   }
-  if (storeUserId && currentDevice.value) {
-    game.store_user_ids = {};
-    game.store_user_ids[currentDevice.value.id] = storeUserId;
+  if (currentDevice.value) {
+    const currentDeviceId = currentDevice.value.id;
+    if (storeUserId) {
+      game.store_user_ids[currentDeviceId] = storeUserId;
+    } else {
+      game.store_user_ids = Object.fromEntries(
+        Object.entries(game.store_user_ids).filter(([deviceId]) => deviceId !== currentDeviceId)
+      );
+    }
   }
   try {
     if (is_editing.value) {
@@ -782,6 +828,7 @@ function reset_info(show_notification: boolean = true) {
   game_name.value = '';
   save_paths.splice(0, save_paths.length);
   game_path.value = '';
+  manualInstallDirs.value = [];
   pendingLudusaviMeta.value = null;
   pendingStoreUserId.value = null;
   // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
@@ -834,13 +881,37 @@ function determineSaveUnitType(
             </el-form-item>
 
             <el-form-item :label="$t('addgame.game_launch_path')">
-              <path-variable-input v-model="game_path" :show-status="true">
+              <path-variable-input
+                v-model="game_path"
+                :show-status="true"
+                :install-dirs="manualInstallDirs"
+                :steam-id="activeSteamId"
+                :store-user-id="activeStoreUserId"
+              >
                 <template #append>
                   <el-button text @click="choose_executable_file()">
                     <el-icon><DocumentAdd /></el-icon>
                   </el-button>
                 </template>
               </path-variable-input>
+            </el-form-item>
+
+            <el-form-item :label="$t('addgame.install_dirs')">
+              <el-select
+                v-model="manualInstallDirs"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                class="install-dirs-select"
+                :placeholder="$t('addgame.install_dirs_placeholder')"
+              />
+              <div class="install-dirs-hint">
+                {{ $t('addgame.install_dirs_hint') }}
+              </div>
             </el-form-item>
           </el-form>
         </div>
@@ -877,6 +948,9 @@ function determineSaveUnitType(
                 scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''
               "
               status-mode="below"
+              :install-dirs="manualInstallDirs"
+              :steam-id="activeSteamId"
+              :store-user-id="activeStoreUserId"
               @update:model-value="
                 (value) => {
                   if (currentDevice && scope.row.paths) {
@@ -989,6 +1063,16 @@ function determineSaveUnitType(
 
 .field-form :deep(.el-form-item + .el-form-item) {
   margin-top: 12px;
+}
+
+.install-dirs-select {
+  width: 100%;
+}
+
+.install-dirs-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .table-toolbar {

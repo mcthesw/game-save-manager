@@ -6,6 +6,7 @@ import { $t } from '../i18n';
 import { debug } from '@tauri-apps/plugin-log';
 import type { MenuInstance } from 'element-plus';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
+import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { useSidebarResize } from '../composables/useSidebarResize';
 import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehavior';
 
@@ -131,7 +132,7 @@ function clearSearch() {
               <el-menu-item
                 v-for="game in filteredGames"
                 :key="game.name"
-                :index="'/Management/' + game.name"
+                :index="getGameManagementPath(game.name)"
               >
                 {{ game.name }}
               </el-menu-item>
