@@ -19,6 +19,7 @@ interface S3 {
   region: string;
   access_key_id: string;
   secret_access_key: string;
+  addressing_style: 'PathStyle' | 'VirtualHostedStyle' | 'Auto';
 }
 
 interface CloudSyncSessionConfig {
@@ -71,6 +72,7 @@ const s3_settings: Ref<S3> = ref({
   region: '',
   access_key_id: '',
   secret_access_key: '',
+  addressing_style: 'PathStyle',
 } as S3);
 
 function cloneValue<T>(value: T): T {
@@ -123,6 +125,11 @@ interface GameRow {
   cloudSyncEnabled: boolean;
   status: 'synced' | 'pending' | 'failed' | 'disabled' | 'conflict' | 'unknown';
   lastSyncAt: string | null;
+}
+
+/** Returns true when the error string indicates the bucket requires virtual-hosted-style addressing. */
+function isVirtualHostStyleError(msg: string): boolean {
+  return /virtual.host/i.test(msg);
 }
 
 function resolveStatus(enabled: boolean, gs?: GameSyncState): GameRow['status'] {
@@ -232,6 +239,9 @@ async function syncGame(gameName: string) {
     if (result.status === 'error') {
       showError({ message: `${$t('sync_settings.sync_failed')}: ${result.error}` });
       error(`Sync game error for ${gameName}: ${result.error}`);
+      if (isVirtualHostStyleError(result.error)) {
+        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+      }
       return;
     }
 
@@ -313,6 +323,9 @@ async function check() {
     if (result.status === 'error') {
       showError({ message: $t('sync_settings.test_failed') });
       error(`${session.backend.type} test error: ${result.error}`);
+      if (isVirtualHostStyleError(result.error)) {
+        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+      }
     } else {
       showSuccess({ message: $t('sync_settings.test_success') });
     }
@@ -401,6 +414,9 @@ async function upload_all() {
     if (result.status === 'error') {
       showError({ message: $t('sync_settings.upload_failed') });
       error(`Upload error: ${result.error}`);
+      if (isVirtualHostStyleError(result.error)) {
+        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+      }
     } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
       showError({ message: $t('sync_settings.upload_failed') });
     } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
@@ -437,6 +453,9 @@ async function download_all() {
     if (result.status === 'error') {
       showError({ message: $t('sync_settings.download_failed') });
       error(`Download error: ${result.error}`);
+      if (isVirtualHostStyleError(result.error)) {
+        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+      }
     } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
       showError({ message: $t('sync_settings.download_failed') });
     } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
@@ -616,6 +635,16 @@ onMounted(async () => {
             </ElFormItem>
             <ElFormItem :label="$t('sync_settings.s3.secret_access_key')">
               <ElInput v-model="s3_settings.secret_access_key" type="password" show-password />
+            </ElFormItem>
+            <ElFormItem :label="$t('sync_settings.s3.addressing_style')">
+              <ElSelect v-model="s3_settings.addressing_style">
+                <ElOption value="PathStyle" :label="$t('sync_settings.s3.addressing_style_path')" />
+                <ElOption
+                  value="VirtualHostedStyle"
+                  :label="$t('sync_settings.s3.addressing_style_virtual')"
+                />
+                <ElOption value="Auto" :label="$t('sync_settings.s3.addressing_style_auto')" />
+              </ElSelect>
             </ElFormItem>
           </template>
 
