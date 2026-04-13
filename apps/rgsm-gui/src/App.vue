@@ -4,13 +4,14 @@ import 'element-plus/theme-chalk/dark/css-vars.css';
 import { listen } from '@tauri-apps/api/event';
 import { Loading } from '@element-plus/icons-vue';
 import { useDark } from '@vueuse/core';
-import CloudSyncIndicator from './components/CloudSyncIndicator.vue';
+import ActivityDrawer from './components/ActivityDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
 import { commands } from './bindings';
 import type { Device } from './bindings';
-import { useNotification } from './composables/useNotification';
+import { notifyInfo, notifyWarning, notifyError } from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
 import { useGlobalLoading } from './composables/useGlobalLoading';
+import { useIpcNotificationCollector } from './composables/useIpcNotificationCollector';
 import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
 import { computed, ref, watch } from 'vue';
@@ -18,8 +19,8 @@ import { computed, ref, watch } from 'vue';
 const { config, refreshConfig, saveConfig } = useConfig();
 useDark();
 
-const { showInfo, showWarning, showError, showSuccess } = useNotification();
-const { isLoading, loadingMessage } = useGlobalLoading();
+const { isLoading, loadingMessage, loadingDetail } = useGlobalLoading();
+const { addIfCollecting } = useIpcNotificationCollector();
 
 const globalLoadingStyle = computed(() => ({
   zIndex: LAYER.globalLoading,
@@ -90,7 +91,7 @@ async function checkDeviceSetup() {
     }
   } catch (e) {
     console.error('Error checking device setup:', e);
-    showError({ message: $t('error.get_device_info_failed') });
+    notifyError($t('error.get_device_info_failed'));
   }
 }
 
@@ -133,14 +134,14 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
         }
       }
 
-      showSuccess({ message: $t('device_setup.import_success') });
+      notifySuccess($t('device_setup.import_success'));
     }
 
     // 保存配置
     await saveConfig();
   } catch (e) {
     console.error('Error saving device setup:', e);
-    showError({ message: $t('error.update_device_failed') });
+    notifyError($t('error.update_device_failed'));
   }
 }
 
@@ -156,7 +157,7 @@ try {
   // 在应用启动时检查设备设置
   await checkDeviceSetup();
 } catch {
-  showError({ message: $t('home.wrong_homepage') });
+  notifyError($t('home.wrong_homepage'));
   navigateTo('/');
 }
 type NotificationPayload = {
@@ -167,15 +168,16 @@ type NotificationPayload = {
 
 listen<NotificationPayload>('Notification', (event) => {
   const ev = event.payload;
+  if (addIfCollecting(ev)) return;
   switch (ev.level.toLowerCase()) {
     case 'info':
-      showInfo({ message: ev.msg, title: ev.title });
+      notifyInfo(ev.title ?? $t('misc.info'), ev.msg);
       break;
     case 'warning':
-      showWarning({ message: ev.msg, title: ev.title });
+      notifyWarning(ev.title ?? $t('misc.warning'), ev.msg);
       break;
     case 'error':
-      showError({ message: ev.msg, title: ev.title });
+      notifyError(ev.title ?? $t('misc.error'), ev.msg);
       break;
   }
 });
@@ -222,11 +224,12 @@ if (import.meta.client) {
             <Loading />
           </el-icon>
           <p class="global-loading-text">{{ loadingMessage }}</p>
+          <p v-if="loadingDetail" class="global-loading-detail">{{ loadingDetail }}</p>
         </div>
       </div>
     </Transition>
 
-    <CloudSyncIndicator />
+    <ActivityDrawer />
   </div>
 </template>
 
@@ -298,6 +301,14 @@ textarea,
   margin: 0;
   font-size: 1rem;
   line-height: 1.4;
+}
+
+.global-loading-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--el-text-color-secondary);
+  opacity: 0.85;
 }
 
 @keyframes global-loading-spin {

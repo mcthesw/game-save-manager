@@ -70,7 +70,6 @@
 import { Edit, Upload, Check, Lock, Star } from '@element-plus/icons-vue';
 import { $t, getSupportedLanguages, i18n } from '../i18n';
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-const { showInfo } = useNotification();
 
 // 语言轮播相关代码
 const languages = getSupportedLanguages();
@@ -122,9 +121,7 @@ function go_settings() {
   navigateTo('/Settings');
 }
 function go_backup() {
-  showInfo({
-    message: $t('home.go_backup_hint'),
-  });
+  notifyInfo($t('home.go_backup_hint'));
 }
 </script>
 

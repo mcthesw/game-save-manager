@@ -3,7 +3,6 @@ import { commands, DEFAULT_CONFIG, events, type Config } from '../bindings';
 import { $t } from '../i18n';
 
 const defaultConfig: Config = DEFAULT_CONFIG as unknown as Config;
-const { showError } = useNotification();
 const config = ref(defaultConfig);
 const isLoading = ref(false);
 
@@ -18,9 +17,7 @@ async function refreshConfig(): Promise<boolean> {
     return true;
   } catch (e) {
     error(`Failed to load config: ${e}`);
-    showError({
-      message: $t('error.config_load_failed'),
-    });
+    notifyError($t('error.config_load_failed'));
     config.value = defaultConfig;
     return false;
   } finally {
@@ -37,9 +34,7 @@ async function saveConfig(): Promise<boolean> {
     return true;
   } catch (e) {
     error(`Failed to set config: ${e}`);
-    showError({
-      message: $t('error.set_config_failed'),
-    });
+    notifyError($t('error.set_config_failed'));
     return false;
   }
 }

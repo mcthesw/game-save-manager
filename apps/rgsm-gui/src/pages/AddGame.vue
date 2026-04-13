@@ -27,7 +27,7 @@ import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
-const { showError, showWarning, showSuccess, showInfo } = useNotification();
+
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const buttons = [
@@ -114,11 +114,11 @@ async function fetchCurrentDevice() {
     if (result.status === 'ok') {
       currentDevice.value = result.data;
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error getting current device info: ${e}`);
-    showError({ message: $t('error.get_device_info_failed') });
+    notifyError($t('error.get_device_info_failed'));
   }
 }
 // 在组件挂载时获取当前设备信息
@@ -144,7 +144,7 @@ watchEffect(() => {
         game_path.value = '';
       }
     } else {
-      showError({ message: $t('addgame.change_target_not_exists_error') + gameName });
+      notifyError($t('addgame.change_target_not_exists_error') + gameName);
       router.back();
     }
   }
@@ -158,7 +158,7 @@ function check_save_unit_unique(p: string) {
       return Object.values(x.paths).includes(p);
     })
   ) {
-    showWarning({ message: $t('addgame.duplicated_path_error') });
+    notifyWarning($t('addgame.duplicated_path_error'));
     return false;
   }
   return true;
@@ -198,7 +198,7 @@ async function add_save_directory() {
     save_paths.push(generate_save_unit('Folder', dir.data));
   } catch (e) {
     error(`Error choosing save directory: ${e}`);
-    showError({ message: $t('error.choose_save_dir_error') });
+    notifyError($t('error.choose_save_dir_error'));
   }
 }
 
@@ -211,7 +211,7 @@ async function add_save_file() {
     save_paths.push(generate_save_unit('File', file.data));
   } catch (e) {
     error(`Error choosing save file: ${e}`);
-    showError({ message: $t('error.choose_save_file_error') });
+    notifyError($t('error.choose_save_file_error'));
   }
 }
 
@@ -231,7 +231,7 @@ async function add_registry_key() {
     if (checkResult.status === 'ok') {
       const [check] = checkResult.data;
       if (check && check.status === 'registryPath' && !check.supported) {
-        showWarning({ message: $t('addgame.registry_non_windows_warning') });
+        notifyWarning($t('addgame.registry_non_windows_warning'));
       }
     }
 
@@ -257,7 +257,7 @@ async function choose_executable_file() {
     }
   } catch (e) {
     error(`Error choosing executable file: ${e}`);
-    showError({ message: $t('error.choose_executable_file_error') });
+    notifyError($t('error.choose_executable_file_error'));
   }
 }
 
@@ -277,12 +277,12 @@ async function search_local() {
     if (result.status === 'ok') {
       importableGames.value = result.data;
     } else {
-      showError({ message: $t('game_import.fetch_error') + ': ' + result.error });
+      notifyError($t('game_import.fetch_error') + ': ' + result.error);
       showImportDialog.value = false;
     }
   } catch (e) {
     error(`Error fetching ludusavi games: ${e}`);
-    showError({ message: $t('game_import.fetch_error') });
+    notifyError($t('game_import.fetch_error'));
     showImportDialog.value = false;
   } finally {
     importDialogLoading.value = false;
@@ -292,28 +292,28 @@ async function search_local() {
 async function scan_vns() {
   const dirs = config.value?.settings.vn_scan_dirs;
   if (!dirs || dirs.length === 0) {
-    showWarning({ message: $t('addgame.scan_vns_no_dirs') });
+    notifyWarning($t('addgame.scan_vns_no_dirs'));
     return;
   }
 
   try {
     importDialogLoading.value = true;
-    showInfo({ message: $t('addgame.scan_vns_scanning') });
+    notifyInfo($t('addgame.scan_vns_scanning'));
 
     const result = await commands.scanVns(dirs);
     if (result.status === 'ok') {
       const drafts = result.data;
       if (drafts.length === 0) {
-        showInfo({ message: $t('addgame.scan_vns_no_result') });
+        notifyInfo($t('addgame.scan_vns_no_result'));
         return;
       }
       await openVnBatchImportDialog(drafts);
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error scanning visual novels: ${e}`);
-    showError({ message: $t('game_import.fetch_error') });
+    notifyError($t('game_import.fetch_error'));
   } finally {
     importDialogLoading.value = false;
   }
@@ -368,11 +368,11 @@ async function handleLocalToggle(enabled: boolean) {
     if (result.status === 'ok') {
       importableGames.value = result.data;
     } else {
-      showError({ message: $t('game_import.fetch_error') + ': ' + result.error });
+      notifyError($t('game_import.fetch_error') + ': ' + result.error);
     }
   } catch (e) {
     error(`Error toggling local filter: ${e}`);
-    showError({ message: $t('game_import.fetch_error') });
+    notifyError($t('game_import.fetch_error'));
   } finally {
     importDialogLoading.value = false;
   }
@@ -426,7 +426,7 @@ async function openBatchImportDialog(games: ImportableGame[]) {
     });
   } catch (e) {
     error(`Error preparing batch import: ${e}`);
-    showError({ message: $t('game_import.fetch_error') });
+    notifyError($t('game_import.fetch_error'));
     showBatchImportDialog.value = false;
   } finally {
     batchImportLoading.value = false;
@@ -445,11 +445,11 @@ async function showCustomizationDialog(game: ImportableGame) {
       customizingSavePaths.value = result.data;
       showCustomizeDialog.value = true;
     } else {
-      showError({ message: $t('game_import.fetch_error') + ': ' + result.error });
+      notifyError($t('game_import.fetch_error') + ': ' + result.error);
     }
   } catch (e) {
     error(`Error fetching game save paths: ${e}`);
-    showError({ message: $t('game_import.fetch_error') });
+    notifyError($t('game_import.fetch_error'));
   } finally {
     customizeDialogLoading.value = false;
   }
@@ -480,7 +480,7 @@ async function handleCustomizeConfirm(data: {
     }
 
     if (validPaths.length === 0 && registryPaths.length === 0) {
-      showWarning({ message: $t('game_import_customize.no_paths_selected') });
+      notifyWarning($t('game_import_customize.no_paths_selected'));
       return;
     }
 
@@ -553,7 +553,7 @@ async function handleCustomizeConfirm(data: {
     await save();
   } catch (e) {
     error(`Error importing game: ${e}`);
-    showError({ message: $t('game_import.import_error') });
+    notifyError($t('game_import.import_error'));
   }
 }
 
@@ -726,19 +726,18 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
   }
 
   if (successCount > 0) {
-    showSuccess({ message: $t('game_import.import_success', { count: successCount }) });
+    notifySuccess($t('game_import.import_success', { count: successCount }));
     await refreshConfig();
     if (failedGames.length > 0) {
       const failedDetails = failedGames.map((f) => `${f.name}: ${f.reason}`).join('\n');
-      showWarning({
-        message:
-          $t('game_import.import_partial', { success: successCount, failed: failedGames.length }) +
+      notifyWarning(
+        $t('game_import.import_partial', { success: successCount, failed: failedGames.length }) +
           '\n' +
-          failedDetails,
-      });
+          failedDetails
+      );
     }
   } else {
-    showError({ message: $t('game_import.import_error') });
+    notifyError($t('game_import.import_error'));
   }
 }
 async function save() {
@@ -750,11 +749,11 @@ async function save() {
 
   game_name.value = game_name.value.trim();
   if (game_name.value == '' || save_paths.length == 0) {
-    showError({ message: $t('addgame.no_name_error') });
+    notifyError($t('addgame.no_name_error'));
     return;
   }
   if (!check_name_valid(game_name.value)) {
-    showError({ message: $t('addgame.invalid_name_error') });
+    notifyError($t('addgame.invalid_name_error'));
     return;
   }
 
@@ -764,7 +763,7 @@ async function save() {
   );
   if (duplicate) {
     if (!is_editing.value || duplicate.storage_key !== editing_storage_key.value) {
-      showError({ message: $t('addgame.duplicated_name_error') });
+      notifyError($t('addgame.duplicated_name_error'));
       return;
     }
   }
@@ -800,7 +799,7 @@ async function save() {
     if (is_editing.value) {
       await commands.updateGame(editing_storage_key.value, game);
       is_editing.value = false;
-      showSuccess({ message: $t('addgame.add_game_success') });
+      notifySuccess($t('addgame.add_game_success'));
       router.back();
     } else {
       await commands.addGame(game);
@@ -814,13 +813,13 @@ async function save() {
         });
         await saveConfig();
       }
-      showSuccess({ message: $t('addgame.add_game_success') });
+      notifySuccess($t('addgame.add_game_success'));
     }
     reset_info(false);
     await refreshConfig();
   } catch (e) {
     error(`Error saving game: ${e}`);
-    showError({ message: $t('error.add_game_failed') });
+    notifyError($t('error.add_game_failed'));
   }
 }
 function reset_info(show_notification: boolean = true) {
@@ -833,7 +832,7 @@ function reset_info(show_notification: boolean = true) {
   pendingStoreUserId.value = null;
   // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
   if (show_notification) {
-    showSuccess({ message: $t('settings.reset_success') });
+    notifySuccess($t('settings.reset_success'));
   }
 }
 
