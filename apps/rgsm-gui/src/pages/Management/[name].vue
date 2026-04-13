@@ -31,10 +31,11 @@ import {
   getGameNameFromRouteParam,
 } from '../../composables/useGameManagementRoute';
 
-const { showInfo, showError, showSuccess } = useNotification();
+const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
+const { startCollecting, stopCollecting } = useIpcNotificationCollector();
 const router = useRouter();
 const route = useRoute();
 
@@ -97,11 +98,11 @@ async function fetchCurrentDevice() {
     if (result.status === 'ok') {
       currentDevice.value = result.data;
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error getting current device info: ${e}`);
-    showError({ message: $t('error.get_device_info_failed') });
+    notifyError($t('error.get_device_info_failed'));
   }
 }
 
@@ -185,15 +186,15 @@ async function batch_delete() {
       const deleteResult = await commands.batchDeleteSnapshots(game.value, dates);
       await refresh_backups_info();
       if (deleteResult.status === 'ok') {
-        showSuccess({ message: $t('manage.batch_delete_success', { count: dates.length }) });
+        notifySuccess($t('manage.batch_delete_success', { count: dates.length }));
       } else {
-        showError({ message: deleteResult.error });
+        notifyError(deleteResult.error);
       }
     } else {
-      showInfo({ message: $t('manage.invalid_input_error') });
+      notifyInfo($t('manage.invalid_input_error'));
     }
   } catch {
-    showError({ message: $t('manage.operation_canceled') });
+    notifyError($t('manage.operation_canceled'));
   }
 }
 
@@ -247,12 +248,12 @@ async function saveAutoBackupSettings() {
 
   const result = await commands.setGameAutoBackup(game.value.name, newConfig);
   if (result.status === 'error') {
-    showError({ message: $t('manage.auto_backup_save_failed') });
+    notifyError($t('manage.auto_backup_save_failed'));
     return;
   }
   game.value.auto_backup = newConfig ?? undefined;
   await refreshConfig();
-  showSuccess({ message: $t('manage.auto_backup_save_success') });
+  notifySuccess($t('manage.auto_backup_save_success'));
 }
 
 async function convertToPermanent(snapshotDate: string) {
@@ -270,19 +271,19 @@ async function convertToPermanent(snapshotDate: string) {
     if (value !== snapshot?.describe) {
       const descResult = await commands.setSnapshotDescription(game.value, snapshotDate, value);
       if (descResult.status === 'error') {
-        showError({ message: $t('manage.change_description_failed') });
+        notifyError($t('manage.change_description_failed'));
         return;
       }
     }
     const result = await commands.setSnapshotCreatedBy(game.value.name, snapshotDate, 'Manual');
     if (result.status === 'error') {
-      showError({ message: $t('manage.convert_to_permanent_failed') });
+      notifyError($t('manage.convert_to_permanent_failed'));
       return;
     }
-    showSuccess({ message: $t('manage.convert_to_permanent_success') });
+    notifySuccess($t('manage.convert_to_permanent_success'));
     await refresh_backups_info();
   } catch {
-    showInfo({ message: $t('manage.operation_canceled') });
+    notifyInfo($t('manage.operation_canceled'));
   }
 }
 
@@ -307,7 +308,7 @@ watch(
 async function refresh_backups_info() {
   const result = await commands.getGameSnapshotsInfo(game.value);
   if (result.status === 'error') {
-    showError({ message: result.error });
+    notifyError(result.error);
   } else {
     gameSnapshots.value = result.data;
     table_data.value = result.data.backups;
@@ -427,7 +428,7 @@ ${choices}`,
 
       const matchedHead = findHeadEntryByInput(otherHeads, headValue);
       if (!matchedHead) {
-        showError({ message: $t('manage.invalid_snapshot_or_device') });
+        notifyError($t('manage.invalid_snapshot_or_device'));
         return undefined;
       }
       return matchedHead.date;
@@ -451,7 +452,7 @@ ${items}`,
 
       const matchedSnapshot = findSnapshotByInput(snapshotValue);
       if (!matchedSnapshot) {
-        showError({ message: $t('manage.invalid_snapshot_or_device') });
+        notifyError($t('manage.invalid_snapshot_or_device'));
         return undefined;
       }
       return matchedSnapshot.date;
@@ -464,17 +465,16 @@ ${items}`,
 }
 
 async function send_save_to_background() {
-  showInfo({ message: $t('manage.wait_for_prompt_hint') });
   if (!backup_button_time_limit) {
-    showError({ message: $t('manage.save_too_fast_error') });
+    notifyError($t('manage.save_too_fast_error'));
     return;
   }
   if (!backup_button_backup_limit) {
-    showError({ message: $t('manage.last_backup_unfinished_error') });
+    notifyError($t('manage.last_backup_unfinished_error'));
     return;
   }
   if (!apply_button_apply_limit) {
-    showError({ message: $t('manage.last_overwrite_unfinished_error') });
+    notifyError($t('manage.last_overwrite_unfinished_error'));
     return;
   }
 
@@ -486,14 +486,23 @@ async function send_save_to_background() {
   backup_button_time_limit = false;
   backup_button_backup_limit = false;
 
-  await withLoading(async () => {
-    const result = await commands.createSnapshotAt(game.value, describe.value, parentDate);
-    if (result.status === 'error') {
-      showError({ message: result.error });
-    } else {
-      showSuccess({ message: backupSuccessMessage() });
-    }
-  }, $t('manage.creating_backup'));
+  const activityId = addActivity({ title: $t('manage.creating_backup'), status: 'running' });
+  try {
+    await withLoading(
+      async () => {
+        const result = await commands.createSnapshotAt(game.value, describe.value, parentDate);
+        if (result.status === 'error') {
+          updateActivity(activityId, { status: 'error', description: result.error });
+        } else {
+          updateActivity(activityId, { status: 'success', title: backupSuccessMessage() });
+        }
+      },
+      $t('manage.creating_backup'),
+      $t('manage.wait_for_prompt_hint')
+    );
+  } catch {
+    updateActivity(activityId, { status: 'error' });
+  }
   backup_button_backup_limit = true;
   refresh_backups_info();
 
@@ -528,12 +537,12 @@ async function launch_game() {
   }
 
   if (!gamePath) {
-    showError({ message: $t('manage.no_launch_path_error') });
+    notifyError($t('manage.no_launch_path_error'));
     return;
   } else {
     const result = await commands.openFileOrFolder(gamePath);
     if (result.status === 'error') {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   }
 }
@@ -542,22 +551,20 @@ async function del_save(date: string) {
   try {
     await commands.deleteSnapshot(game.value, date);
     refresh_backups_info();
-    showSuccess({ message: $t('manage.delete_success') });
+    notifySuccess($t('manage.delete_success'));
   } catch (e) {
     error(`Failed to delete snapshot: ${e}`);
-    showError({ message: $t('error.delete_snapshot_failed') });
+    notifyError($t('error.delete_snapshot_failed'));
   }
 }
 
 async function apply_save(date: string) {
-  showInfo({ message: $t('manage.wait_for_prompt_hint') });
-
   if (!apply_button_apply_limit) {
-    showError({ message: $t('manage.last_overwrite_unfinished_error') });
+    notifyError($t('manage.last_overwrite_unfinished_error'));
     return;
   }
   if (!backup_button_backup_limit) {
-    showError({ message: $t('manage.last_backup_unfinished_error') });
+    notifyError($t('manage.last_backup_unfinished_error'));
     return;
   }
   apply_button_apply_limit = false;
@@ -581,44 +588,58 @@ async function apply_save(date: string) {
   let integrityFailed = false;
   let restoreError = '';
 
-  await withLoading(async () => {
-    const result = await commands.restoreSnapshot(game.value, date);
-    if (result.status === 'error') {
-      const err = result.error;
-      if (err.type === 'IntegrityCheckFailed') {
-        integrityFailed = true;
-      } else if (err.type === 'BackupNotFound') {
-        restoreError = $t('manage.backup_not_found', { date: err.date });
-      } else {
-        restoreError = err.message;
-      }
-    } else {
-      showSuccess({ message: $t('manage.recover_success') });
-
-      // 验证最新额外备份已更新（date 不同），才启用撤销
-      if (extraBackupEnabled.value) {
-        try {
-          const extraResult = await commands.getGameExtraBackups(game.value);
-          if (extraResult.status === 'ok' && extraResult.data.length > 0) {
-            const latestExtra = extraResult.data[0];
-            if (latestExtra && latestExtra.date !== latestExtraDateBefore) {
-              undoInfo.value = {
-                extraBackupDate: latestExtra.date,
-                previousHead,
-              };
+  const activityId = addActivity({ title: $t('manage.restoring_backup'), status: 'running' });
+  startCollecting();
+  try {
+    await withLoading(
+      async () => {
+        const result = await commands.restoreSnapshot(game.value, date);
+        if (result.status === 'error') {
+          const err = result.error;
+          if (err.type === 'IntegrityCheckFailed') {
+            integrityFailed = true;
+          } else if (err.type === 'BackupNotFound') {
+            restoreError = $t('manage.backup_not_found', { date: err.date });
+          } else {
+            restoreError = err.message;
+          }
+        } else {
+          // 验证最新额外备份已更新（date 不同），才启用撤销
+          if (extraBackupEnabled.value) {
+            try {
+              const extraResult = await commands.getGameExtraBackups(game.value);
+              if (extraResult.status === 'ok' && extraResult.data.length > 0) {
+                const latestExtra = extraResult.data[0];
+                if (latestExtra && latestExtra.date !== latestExtraDateBefore) {
+                  undoInfo.value = {
+                    extraBackupDate: latestExtra.date,
+                    previousHead,
+                  };
+                }
+              }
+            } catch (e) {
+              error(`Failed to get extra backups for undo: ${e}`);
             }
           }
-        } catch (e) {
-          error(`Failed to get extra backups for undo: ${e}`);
         }
-      }
-    }
-  }, $t('manage.restoring_backup'));
+      },
+      $t('manage.restoring_backup'),
+      $t('manage.wait_for_prompt_hint')
+    );
+  } catch {
+    stopCollecting();
+    updateActivity(activityId, { status: 'error' });
+    apply_button_apply_limit = true;
+    refresh_backups_info();
+    return;
+  }
+  const collectedNotifications = stopCollecting();
   apply_button_apply_limit = true;
   refresh_backups_info();
 
   // Show error dialogs after loading overlay is dismissed
   if (integrityFailed) {
+    updateActivity(activityId, { status: 'error', title: $t('manage.integrity_failed_title') });
     try {
       await feedback.alert(
         $t('manage.integrity_failed_detail'),
@@ -629,7 +650,24 @@ async function apply_save(date: string) {
       // dialog dismissed
     }
   } else if (restoreError) {
-    showError({ message: $t('manage.recover_failed') + ': ' + restoreError });
+    updateActivity(activityId, {
+      status: 'error',
+      title: $t('manage.recover_failed'),
+      description: restoreError,
+    });
+  } else {
+    // Consolidate success + any backend warnings into a single activity entry
+    const warnings = collectedNotifications.filter((n) => n.level === 'warning');
+    if (warnings.length > 0) {
+      updateActivity(activityId, {
+        status: 'success',
+        title: $t('manage.recover_success'),
+        description: $t('manage.recover_success_with_warnings', { count: warnings.length }),
+        autoDismissMs: 5000,
+      });
+    } else {
+      updateActivity(activityId, { status: 'success', title: $t('manage.recover_success') });
+    }
   }
 }
 
@@ -648,26 +686,31 @@ async function undo_last_apply() {
 
   const { extraBackupDate, previousHead } = undoInfo.value;
 
-  await withLoading(async () => {
-    const result = await commands.restoreExtraBackup(game.value, extraBackupDate);
-    if (result.status === 'error') {
-      showError({ message: $t('manage.undo_failed') });
-      return;
-    }
-
-    // 恢复之前的 HEAD 指针
-    // TODO: 当 previousHead 为 null 时（首次应用前 HEAD 未设置），
-    // 需要后端支持 clearSnapshotHead 命令才能完全恢复状态
-    if (previousHead) {
-      const headResult = await commands.setSnapshotHead(game.value, previousHead);
-      if (headResult.status === 'error') {
-        error(`Failed to restore HEAD on undo: ${headResult.error}`);
+  const activityId = addActivity({ title: $t('manage.restoring_backup'), status: 'running' });
+  try {
+    await withLoading(async () => {
+      const result = await commands.restoreExtraBackup(game.value, extraBackupDate);
+      if (result.status === 'error') {
+        updateActivity(activityId, { status: 'error', description: $t('manage.undo_failed') });
+        return;
       }
-    }
 
-    undoInfo.value = null;
-    showSuccess({ message: $t('manage.undo_success') });
-  }, $t('manage.restoring_backup'));
+      // 恢复之前的 HEAD 指针
+      // TODO: 当 previousHead 为 null 时（首次应用前 HEAD 未设置），
+      // 需要后端支持 clearSnapshotHead 命令才能完全恢复状态
+      if (previousHead) {
+        const headResult = await commands.setSnapshotHead(game.value, previousHead);
+        if (headResult.status === 'error') {
+          error(`Failed to restore HEAD on undo: ${headResult.error}`);
+        }
+      }
+
+      undoInfo.value = null;
+      updateActivity(activityId, { status: 'success', title: $t('manage.undo_success') });
+    }, $t('manage.restoring_backup'));
+  } catch {
+    updateActivity(activityId, { status: 'error' });
+  }
 
   refresh_backups_info();
 }
@@ -686,13 +729,13 @@ async function change_describe(date: string) {
     );
     const result = await commands.setSnapshotDescription(game.value, date, value);
     if (result.status === 'error') {
-      showError({ message: $t('manage.change_description_failed') });
+      notifyError($t('manage.change_description_failed'));
       return;
     }
     refresh_backups_info();
-    showSuccess({ message: $t('manage.change_description_success') });
+    notifySuccess($t('manage.change_description_success'));
   } catch {
-    showInfo({ message: $t('manage.operation_canceled') });
+    notifyInfo($t('manage.operation_canceled'));
   }
 }
 
@@ -704,7 +747,7 @@ function load_latest_save() {
   if (lastBackup?.date) {
     apply_save(lastBackup.date);
   } else {
-    showError({ message: $t('manage.no_backup_error') });
+    notifyError($t('manage.no_backup_error'));
   }
 }
 
@@ -720,53 +763,63 @@ async function del_cur() {
     if (value === 'yes') {
       const result = await commands.deleteGame(game.value);
       if (result.status === 'error') {
-        showError({ message: $t('error.delete_game_failed') });
+        notifyError($t('error.delete_game_failed'));
       }
       await refreshConfig();
       router.back();
     } else {
-      showInfo({ message: $t('manage.invalid_input_error') });
+      notifyInfo($t('manage.invalid_input_error'));
     }
   } catch {
-    showInfo({ message: $t('manage.operation_canceled') });
+    notifyInfo($t('manage.operation_canceled'));
   }
 }
 
 async function open_backup_folder() {
   const result = await commands.openBackupFolder(game.value);
   if (result.status === 'error') {
-    showError({ message: $t('error.open_backup_folder_failed') });
+    notifyError($t('error.open_backup_folder_failed'));
   }
 }
 
 async function verify_archive_hashes() {
   const snapshots = table_data.value.filter((s) => s.archive_hash);
   if (snapshots.length === 0) {
-    showInfo({ message: $t('manage.verify_no_hashes') });
+    notifyInfo($t('manage.verify_no_hashes'));
     return;
   }
 
   let passed = 0;
   const failedSnapshots: string[] = [];
 
-  await withLoading(async () => {
-    for (const snapshot of snapshots) {
-      const result = await commands.verifyArchiveIntegrity(
-        snapshot.path,
-        snapshot.archive_hash ?? null
-      );
-      if (result.status === 'ok' && result.data) {
-        passed++;
-      } else {
-        failedSnapshots.push(snapshot.date);
+  const activityId = addActivity({ title: $t('manage.verifying_archives'), status: 'running' });
+  try {
+    await withLoading(async () => {
+      for (const snapshot of snapshots) {
+        const result = await commands.verifyArchiveIntegrity(
+          snapshot.path,
+          snapshot.archive_hash ?? null
+        );
+        if (result.status === 'ok' && result.data) {
+          passed++;
+        } else {
+          failedSnapshots.push(snapshot.date);
+        }
       }
-    }
-  }, $t('manage.verifying_archives'));
+    }, $t('manage.verifying_archives'));
+  } catch {
+    updateActivity(activityId, { status: 'error' });
+    return;
+  }
 
   // Show results after loading overlay is dismissed
   if (failedSnapshots.length === 0) {
-    showSuccess({ message: $t('manage.verify_all_passed', { count: passed }) });
+    updateActivity(activityId, {
+      status: 'success',
+      title: $t('manage.verify_all_passed', { count: passed }),
+    });
   } else {
+    updateActivity(activityId, { status: 'error', title: $t('manage.verify_failed_title') });
     const messageVNode = h('div', [
       h('p', $t('manage.verify_failed_summary', { passed, failed: failedSnapshots.length })),
       h(
@@ -797,11 +850,11 @@ const isQuickBackupGame = computed(() => {
 async function set_quick_backup() {
   const result = await commands.setQuickBackupGame(game.value);
   if (result.status === 'error') {
-    showError({ message: $t('manage.set_quick_backup_failed') });
+    notifyError($t('manage.set_quick_backup_failed'));
     return;
   }
   await refreshConfig();
-  showSuccess({ message: $t('manage.set_quick_backup_success') });
+  notifySuccess($t('manage.set_quick_backup_success'));
 }
 
 // 处理抽屉组件保存游戏路径的事件
@@ -816,12 +869,12 @@ async function on_drawer_save_changes(updatedGame: Game) {
     });
 
     if (result.status === 'error') {
-      showError({ message: result.error });
+      notifyError(result.error);
       return;
     }
 
     await refreshConfig();
-    showSuccess({ message: $t('manage.save_paths_updated') });
+    notifySuccess($t('manage.save_paths_updated'));
     drawer.value = false;
 
     const currentRouteGameName = getGameNameFromRouteParam(route.params.name);
@@ -836,7 +889,7 @@ async function on_drawer_save_changes(updatedGame: Game) {
     }
   } catch (e) {
     error(`Error saving game paths: ${e}`);
-    showError({ message: $t('error.save_config_failed') });
+    notifyError($t('error.save_config_failed'));
   }
 }
 
@@ -1099,12 +1152,12 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
       config.value.games[index] = game.value;
       try {
         await saveConfig();
-        showSuccess({ message: $t('manage.paths_copied_success') });
+        notifySuccess($t('manage.paths_copied_success'));
         // 打开侧栏让用户查看和编辑复制的路径
         drawer.value = true;
       } catch (e) {
         error(`Error saving config: ${e}`);
-        showError({ message: $t('error.save_config_failed') });
+        notifyError($t('error.save_config_failed'));
       }
     }
   }
@@ -1115,14 +1168,14 @@ async function onSetHead(date: string) {
   try {
     const result = await commands.setSnapshotHead(game.value, date);
     if (result.status === 'error') {
-      showError({ message: $t('manage.set_head_failed') });
+      notifyError($t('manage.set_head_failed'));
     } else {
-      showSuccess({ message: $t('manage.set_head_success') });
+      notifySuccess($t('manage.set_head_success'));
       await refresh_backups_info();
     }
   } catch (e) {
     error(`Failed to set HEAD: ${e}`);
-    showError({ message: $t('manage.set_head_failed') });
+    notifyError($t('manage.set_head_failed'));
   }
 }
 
@@ -1130,14 +1183,14 @@ async function onDetach(date: string) {
   try {
     const result = await commands.detachSnapshot(game.value, date);
     if (result.status === 'error') {
-      showError({ message: $t('manage.detach_failed') });
+      notifyError($t('manage.detach_failed'));
     } else {
-      showSuccess({ message: $t('manage.detach_success') });
+      notifySuccess($t('manage.detach_success'));
       await refresh_backups_info();
     }
   } catch (e) {
     error(`Failed to detach snapshot: ${e}`);
-    showError({ message: $t('manage.detach_failed') });
+    notifyError($t('manage.detach_failed'));
   }
 }
 
@@ -1155,9 +1208,9 @@ async function onCreateBranch(parentDate: string) {
     await withLoading(async () => {
       const result = await commands.createSnapshotAt(game.value, value || '', parentDate);
       if (result.status === 'error') {
-        showError({ message: result.error });
+        notifyError(result.error);
       } else {
-        showSuccess({ message: backupSuccessMessage() });
+        notifySuccess(backupSuccessMessage());
         await refresh_backups_info();
       }
     }, $t('manage.creating_backup'));

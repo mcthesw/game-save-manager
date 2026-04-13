@@ -175,6 +175,7 @@
     "no_launch_path_error": "You haven't saved the launch file for this game",
     "delete_success": "Successfully deleted",
     "recover_success": "Successfully restored",
+    "recover_success_with_warnings": "Successfully restored ({count} warning(s) during restore)",
     "undo_last_apply": "Undo last apply",
     "undo_success": "Successfully undone the last applied snapshot",
     "undo_failed": "Failed to undo",
@@ -545,6 +546,19 @@
       "cancel_sync": "Cancel Current Sync",
       "cancel_sync_desc": "Cancel the currently running cloud sync operation."
     }
+  },
+  "activity_center": {
+    "title": "Activity",
+    "empty": "No recent activity",
+    "dismiss_all": "Dismiss all",
+    "dismiss": "Dismiss",
+    "active_count": "{count} active",
+    "status_pending": "Pending",
+    "status_running": "Running",
+    "status_info": "Info",
+    "status_success": "Done",
+    "status_warning": "Warning",
+    "status_error": "Error"
   },
   "cloud_sync": {
     "title": "Cloud Sync",

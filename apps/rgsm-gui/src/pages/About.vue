@@ -3,7 +3,6 @@ import { commands } from '~/bindings';
 import { $t } from '../i18n';
 import { debug } from '@tauri-apps/plugin-log';
 
-const { showError } = useNotification();
 const { config } = useConfig();
 
 const gitHash = ref('');
@@ -22,7 +21,7 @@ async function openUrl(url: string) {
   try {
     await commands.openUrl(url);
   } catch (error) {
-    showError({ message: $t('error.open_url_failed') });
+    notifyError($t('error.open_url_failed'));
     console.error(`Failed to open URL ${url}:`, error);
   }
 }

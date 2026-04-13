@@ -175,6 +175,7 @@
     "no_launch_path_error": "您并没有储存过该游戏的启动方式",
     "delete_success": "删除成功",
     "recover_success": "恢复成功",
+    "recover_success_with_warnings": "恢复成功（恢复过程中有 {count} 条警告）",
     "undo_last_apply": "撤销上次应用",
     "undo_success": "已成功撤销上次应用的快照",
     "undo_failed": "撤销失败",
@@ -545,6 +546,19 @@
       "cancel_sync": "取消当前同步",
       "cancel_sync_desc": "取消正在运行的云同步操作。"
     }
+  },
+  "activity_center": {
+    "title": "活动",
+    "empty": "暂无近期活动",
+    "dismiss_all": "全部清除",
+    "dismiss": "关闭",
+    "active_count": "{count} 个进行中",
+    "status_pending": "等待",
+    "status_running": "运行中",
+    "status_info": "信息",
+    "status_success": "完成",
+    "status_warning": "警告",
+    "status_error": "错误"
   },
   "cloud_sync": {
     "title": "云同步",
