@@ -661,8 +661,8 @@ async function apply_save(date: string) {
     if (warnings.length > 0) {
       updateActivity(activityId, {
         status: 'success',
-        title: $t('manage.recover_success'),
-        description: $t('manage.recover_success_with_warnings', { count: warnings.length }),
+        title: $t('manage.recover_success_with_warnings', { count: warnings.length }),
+        description: undefined,
         autoDismissMs: 5000,
       });
     } else {
