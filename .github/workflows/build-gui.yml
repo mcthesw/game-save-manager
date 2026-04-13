@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: latest
       - name: Install Rust stable
@@ -118,7 +118,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: latest
       - name: Install Rust stable
