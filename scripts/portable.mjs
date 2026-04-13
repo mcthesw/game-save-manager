@@ -104,9 +104,14 @@ export async function resolvePortable() {
 
   const cargoToml = await readFile(cargoTomlPath, "utf-8");
   const version = parseWorkspaceVersion(cargoToml);
-  const buildVariant = (process.env.RGSM_BUILD_VARIANT?.trim() ?? "").toLowerCase();
+  const buildVariant = (
+    process.env.RGSM_BUILD_VARIANT?.trim() ?? ""
+  ).toLowerCase();
   const variantSuffix = buildVariant ? `-${buildVariant}` : "";
-  const zipFile = path.join(root, `RGSM_${version}_x64-portable${variantSuffix}.zip`);
+  const zipFile = path.join(
+    root,
+    `RGSM_${version}_x64-portable${variantSuffix}.zip`,
+  );
 
   zip.writeZip(zipFile);
 
@@ -130,9 +135,22 @@ export async function resolvePortable() {
   });
 }
 
+export async function runPortableCli({
+  resolvePortableFn = resolvePortable,
+  logError = console.error,
+} = {}) {
+  try {
+    await resolvePortableFn();
+    return 0;
+  } catch (error) {
+    logError(error);
+    return 1;
+  }
+}
+
 if (
   process.argv[1] &&
   pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
 ) {
-  resolvePortable().catch(console.error);
+  process.exitCode = await runPortableCli();
 }

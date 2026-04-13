@@ -7,6 +7,7 @@ import {
   createPortablePaths,
   getRepoRoot,
   parseWorkspaceVersion,
+  runPortableCli,
   resolveRepoRoot,
 } from "./portable.mjs";
 
@@ -110,4 +111,35 @@ test("parseWorkspaceVersion throws when version is missing", () => {
     () => parseWorkspaceVersion("[workspace]\nmembers = []\n"),
     /could not read version/,
   );
+});
+
+test("runPortableCli returns success when resolvePortable succeeds", async () => {
+  let logged = false;
+
+  const exitCode = await runPortableCli({
+    resolvePortableFn: async () => {},
+    logError: () => {
+      logged = true;
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.equal(logged, false);
+});
+
+test("runPortableCli returns failure and logs errors", async () => {
+  const error = new Error("portable failed");
+  const logged = [];
+
+  const exitCode = await runPortableCli({
+    resolvePortableFn: async () => {
+      throw error;
+    },
+    logError: (value) => {
+      logged.push(value);
+    },
+  });
+
+  assert.equal(exitCode, 1);
+  assert.deepEqual(logged, [error]);
 });

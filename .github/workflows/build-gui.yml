@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: 'Target platform'
+        description: "Target platform"
         required: true
         type: choice
         options:
@@ -14,7 +14,7 @@ on:
           - windows-latest
           - ubuntu-24.04
           - macos-latest
-        default: 'ubuntu-24.04'
+        default: "ubuntu-24.04"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -127,10 +127,13 @@ jobs:
         run: pnpm install
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
+      - name: Build slim app
+        run: pnpm tauri build --config src-tauri/tauri.slim.conf.json -- --no-default-features
+        working-directory: apps/rgsm-gui
+        env:
+          VITE_WIN_PORTABLE: 1
       - name: Build slim portable
-        run: |
-          pnpm build -- --config src-tauri/tauri.slim.conf.json --no-default-features
-          pnpm portable
+        run: pnpm portable
         working-directory: apps/rgsm-gui
         env:
           RELEASE_ID: ${{ github.event.release.id }}
