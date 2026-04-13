@@ -8,7 +8,6 @@ import { $t } from '../i18n';
 import { commands, type ExtraBackupItem, type Game } from '../bindings';
 import { useFeedback } from '../composables/useFeedback';
 import { useGlobalLoading } from '../composables/useGlobalLoading';
-import { useNotification } from '../composables/useNotification';
 
 const props = defineProps<{
   game: Game;
@@ -19,7 +18,6 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
 }>();
 
-const { showInfo, showError, showSuccess } = useNotification();
 const feedback = useFeedback();
 const { withLoading } = useGlobalLoading();
 
@@ -68,14 +66,14 @@ async function refresh() {
   try {
     const result = await commands.getGameExtraBackups(props.game);
     if (result.status === 'error') {
-      showError({ message: result.error });
+      notifyError(result.error);
       items.value = [];
       return;
     }
     items.value = result.data;
   } catch (e) {
     logError(`Failed to refresh extra backups: ${e}`);
-    showError({ message: $t('settings.failed') });
+    notifyError($t('settings.failed'));
     items.value = [];
   } finally {
     loading.value = false;
@@ -86,16 +84,15 @@ async function openFolder() {
   try {
     const result = await commands.openExtraBackupFolder(props.game);
     if (result.status === 'error' || !result.data) {
-      showError({ message: $t('error.open_backup_folder_failed') });
+      notifyError($t('error.open_backup_folder_failed'));
     }
   } catch (e) {
     logError(`Failed to open extra backup folder: ${e}`);
-    showError({ message: $t('error.open_backup_folder_failed') });
+    notifyError($t('error.open_backup_folder_failed'));
   }
 }
 
 async function restore(date: string) {
-  showInfo({ message: $t('manage.wait_for_prompt_hint') });
   try {
     await feedback.confirm($t('manage.confirm_overwrite_prompt'), $t('manage.warning'), {
       confirmButtonText: $t('manage.confirm'),
@@ -106,14 +103,18 @@ async function restore(date: string) {
     return;
   }
 
-  await withLoading(async () => {
-    const result = await commands.restoreExtraBackup(props.game, date);
-    if (result.status === 'error') {
-      showError({ message: $t('manage.recover_failed') });
-      return;
-    }
-    showSuccess({ message: $t('manage.recover_success') });
-  }, $t('manage.restoring_backup'));
+  await withLoading(
+    async () => {
+      const result = await commands.restoreExtraBackup(props.game, date);
+      if (result.status === 'error') {
+        notifyError($t('manage.recover_failed'));
+        return;
+      }
+      notifySuccess($t('manage.recover_success'));
+    },
+    $t('manage.restoring_backup'),
+    $t('manage.wait_for_prompt_hint')
+  );
 }
 
 async function del(date: string) {
@@ -129,10 +130,10 @@ async function del(date: string) {
 
   const result = await commands.deleteExtraBackup(props.game, date);
   if (result.status === 'error') {
-    showError({ message: $t('error.delete_snapshot_failed') });
+    notifyError($t('error.delete_snapshot_failed'));
     return;
   }
-  showSuccess({ message: $t('manage.delete_success') });
+  notifySuccess($t('manage.delete_success'));
   refresh();
 }
 </script>

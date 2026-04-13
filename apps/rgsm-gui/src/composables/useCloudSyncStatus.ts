@@ -3,7 +3,7 @@ import { computed, ref, shallowRef } from 'vue';
 
 import { commands } from '../bindings';
 import { $t } from '../i18n';
-import { useNotification } from './useNotification';
+import { notifyError, notifyInfo } from './useActivityCenter';
 
 export type CloudSyncJobStatus = 'Queued' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
 
@@ -43,40 +43,38 @@ function initListeners() {
   }
 
   initialized.value = true;
-  const { showError } = useNotification();
 
   listen<CloudSyncStatusPayload>('cloud-sync-status', (event) => {
     applyStatus(event.payload);
   }).catch((err) => {
-    showError({ message: `${$t('cloud_sync.listen_failed')}: ${String(err)}` });
+    notifyError($t('cloud_sync.listen_failed'), String(err));
   });
 
   listen<CloudSyncErrorPayload>('cloud-sync-error', (event) => {
     const payload = event.payload;
     const gameName = payload.game_name?.trim();
     if (gameName) {
-      showError({
-        message: $t('cloud_sync.failed_with_game', {
+      notifyError(
+        $t('cloud_sync.failed_with_game', {
           game: gameName,
           error: payload.error,
-        }),
-      });
+        })
+      );
       return;
     }
 
-    showError({
-      message: $t('cloud_sync.failed', {
+    notifyError(
+      $t('cloud_sync.failed', {
         error: payload.error,
-      }),
-    });
+      })
+    );
   }).catch((err) => {
-    showError({ message: `${$t('cloud_sync.listen_failed')}: ${String(err)}` });
+    notifyError($t('cloud_sync.listen_failed'), String(err));
   });
 }
 
 export function useCloudSyncStatus() {
   initListeners();
-  const { showInfo, showError } = useNotification();
 
   const isSyncing = computed(() => activeJobs.value > 0);
   const displayDescription = computed(
@@ -92,11 +90,11 @@ export function useCloudSyncStatus() {
     try {
       const result = await commands.cancelCloudSync();
       if (result.status === 'error') {
-        showError({ message: result.error });
+        notifyError(result.error);
         return;
       }
       if (result.data === 'cancelled') {
-        showInfo({ message: $t('cloud_sync.cancelled') });
+        notifyInfo($t('cloud_sync.cancelled'));
       }
     } finally {
       isCancelling.value = false;

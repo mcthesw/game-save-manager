@@ -5,11 +5,9 @@ import { $t } from '../i18n';
 import type { Device, Game, SaveUnit } from '../bindings';
 import { commands } from '../bindings';
 import { useConfig } from '../composables/useConfig';
-import { useNotification } from '../composables/useNotification';
 import PathVariableInput from './PathVariableInput.vue';
 
 const { config } = useConfig();
-const { showError, showWarning } = useNotification();
 const feedback = useFeedback();
 
 const props = defineProps({
@@ -144,10 +142,10 @@ async function fetchCurrentDevice() {
       return;
     }
 
-    showError({ message: result.error });
+    notifyError(result.error);
   } catch (e) {
     error(`Error getting current device info: ${e}`);
-    showError({ message: $t('error.get_device_info_failed') });
+    notifyError($t('error.get_device_info_failed'));
   }
 }
 
@@ -188,7 +186,7 @@ async function openPath(path: string) {
 
   const result = await commands.openFileOrFolder(path);
   if (result.status === 'error') {
-    showError({ message: $t('error.open_url_failed') });
+    notifyError($t('error.open_url_failed'));
   }
 }
 
@@ -199,7 +197,7 @@ function switchDeleteBeforeApply(_unit: SaveUnit) {
 function saveChanges() {
   const trimmedName = tempGame.value.name.trim();
   if (!trimmedName) {
-    showError({ message: $t('addgame.no_name_error') });
+    notifyError($t('addgame.no_name_error'));
     return;
   }
 
@@ -208,7 +206,7 @@ function saveChanges() {
       g.storage_key !== props.game.storage_key && g.name.toLowerCase() === trimmedName.toLowerCase()
   );
   if (isDuplicate) {
-    showError({ message: $t('addgame.duplicated_name_error') });
+    notifyError($t('addgame.duplicated_name_error'));
     return;
   }
 
@@ -249,7 +247,7 @@ function checkSaveUnitUnique(path: string, ignoreUnit?: SaveUnit) {
   });
 
   if (duplicated) {
-    showWarning({ message: $t('addgame.duplicated_path_error') });
+    notifyWarning($t('addgame.duplicated_path_error'));
     return false;
   }
 
@@ -276,7 +274,7 @@ async function addSaveDirectory() {
     hasUnsavedChanges.value = true;
   } catch (e) {
     error(`Error choosing save directory: ${e}`);
-    showError({ message: $t('error.choose_save_dir_error') });
+    notifyError($t('error.choose_save_dir_error'));
   }
 }
 
@@ -291,7 +289,7 @@ async function addSaveFile() {
     hasUnsavedChanges.value = true;
   } catch (e) {
     error(`Error choosing save file: ${e}`);
-    showError({ message: $t('error.choose_save_file_error') });
+    notifyError($t('error.choose_save_file_error'));
   }
 }
 
@@ -303,7 +301,7 @@ async function validateRegistryPath(path: string) {
 
   const [check] = checkResult.data;
   if (check && check.status === 'registryPath' && !check.supported) {
-    showWarning({ message: $t('addgame.registry_non_windows_warning') });
+    notifyWarning($t('addgame.registry_non_windows_warning'));
   }
 }
 
@@ -345,7 +343,7 @@ async function chooseLaunchPath() {
     updateGameLaunchPath(selectedDeviceId.value, file.data);
   } catch (e) {
     error(`Error choosing executable file: ${e}`);
-    showError({ message: $t('error.choose_executable_file_error') });
+    notifyError($t('error.choose_executable_file_error'));
   }
 }
 
@@ -374,12 +372,11 @@ async function chooseUnitPath(unit: SaveUnit) {
     updateDevicePath(unit, selectedDeviceId.value, result.data);
   } catch (e) {
     error(`Error choosing save unit path: ${e}`);
-    showError({
-      message:
-        unit.unit_type === 'Folder'
-          ? $t('error.choose_save_dir_error')
-          : $t('error.choose_save_file_error'),
-    });
+    notifyError(
+      unit.unit_type === 'Folder'
+        ? $t('error.choose_save_dir_error')
+        : $t('error.choose_save_file_error')
+    );
   }
 }
 

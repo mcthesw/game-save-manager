@@ -48,7 +48,6 @@ interface BatchSyncReportLike {
 const backends = ['WebDAV', 'S3', 'Disabled'];
 
 const { config, refreshConfig, saveConfig } = useConfig();
-const { showInfo, showWarning, showError, showSuccess } = useNotification();
 const { withLoading } = useGlobalLoading();
 const feedback = useFeedback();
 
@@ -101,7 +100,7 @@ function loadBackendSettings() {
     case 'Disabled':
       break;
     default:
-      showError({ message: $t('sync_settings.unknown_backend') });
+      notifyError($t('sync_settings.unknown_backend'));
       break;
   }
 }
@@ -237,22 +236,22 @@ async function syncGame(gameName: string) {
   try {
     const result = await commands.syncGame(gameName);
     if (result.status === 'error') {
-      showError({ message: `${$t('sync_settings.sync_failed')}: ${result.error}` });
+      notifyError(`${$t('sync_settings.sync_failed')}: ${result.error}`);
       error(`Sync game error for ${gameName}: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
-        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
       }
       return;
     }
 
     if (result.data === 'conflict') {
-      showWarning({ message: statusLabel('conflict') });
+      notifyWarning(statusLabel('conflict'));
     } else {
-      showSuccess({ message: $t('sync_settings.sync_success') });
+      notifySuccess($t('sync_settings.sync_success'));
     }
   } catch (e) {
     error(`Sync game exception for ${gameName}: ${e}`);
-    showError({ message: String(e) });
+    notifyError(String(e));
   } finally {
     syncingGames.value.delete(gameName);
     await loadSyncState();
@@ -312,22 +311,22 @@ function currentSessionConfig(): CloudSyncSessionConfig | null {
 }
 
 async function check() {
-  showInfo({ message: $t('sync_settings.start_test') });
+  notifyInfo($t('sync_settings.start_test'));
   await withLoading(async () => {
     const session = currentSessionConfig();
     if (!session || session.backend.type === 'Disabled') {
-      showError({ message: $t('sync_settings.test_failed') });
+      notifyError($t('sync_settings.test_failed'));
       return;
     }
     const result = await commands.checkCloudBackend(session);
     if (result.status === 'error') {
-      showError({ message: $t('sync_settings.test_failed') });
+      notifyError($t('sync_settings.test_failed'));
       error(`${session.backend.type} test error: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
-        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
       }
     } else {
-      showSuccess({ message: $t('sync_settings.test_success') });
+      notifySuccess($t('sync_settings.test_success'));
     }
   }, $t('sync_settings.checking_backend'));
 }
@@ -335,7 +334,7 @@ async function check() {
 async function save() {
   const backend = currentBackend();
   if (!backend) {
-    showError({ message: $t('sync_settings.unknown_backend') });
+    notifyError($t('sync_settings.unknown_backend'));
     return;
   }
 
@@ -362,13 +361,13 @@ async function submit_settings() {
     return;
   }
   await load_config();
-  showSuccess({ message: $t('sync_settings.submit_success') });
+  notifySuccess($t('sync_settings.submit_success'));
 }
 
 async function abort_change() {
   const loaded = await load_config();
   if (loaded) {
-    showSuccess({ message: $t('sync_settings.reset_success') });
+    notifySuccess($t('sync_settings.reset_success'));
   }
 }
 
@@ -403,7 +402,7 @@ async function upload_all() {
 
     const session = currentSessionConfig();
     if (!session || session.backend.type === 'Disabled') {
-      showError({ message: $t('sync_settings.upload_failed') });
+      notifyError($t('sync_settings.upload_failed'));
       return;
     }
 
@@ -412,20 +411,20 @@ async function upload_all() {
     }, $t('sync_settings.uploading_all'));
 
     if (result.status === 'error') {
-      showError({ message: $t('sync_settings.upload_failed') });
+      notifyError($t('sync_settings.upload_failed'));
       error(`Upload error: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
-        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
       }
     } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
-      showError({ message: $t('sync_settings.upload_failed') });
+      notifyError($t('sync_settings.upload_failed'));
     } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
-      showInfo({ message: $t('sync_settings.canceled') });
+      notifyInfo($t('sync_settings.canceled'));
     } else {
-      showSuccess({ message: $t('sync_settings.upload_success') });
+      notifySuccess($t('sync_settings.upload_success'));
     }
   } catch {
-    showInfo({ message: $t('sync_settings.canceled') });
+    notifyInfo($t('sync_settings.canceled'));
   } finally {
     await loadSyncState();
   }
@@ -442,7 +441,7 @@ async function download_all() {
 
     const session = currentSessionConfig();
     if (!session || session.backend.type === 'Disabled') {
-      showError({ message: $t('sync_settings.download_failed') });
+      notifyError($t('sync_settings.download_failed'));
       return;
     }
 
@@ -451,21 +450,21 @@ async function download_all() {
     }, $t('sync_settings.downloading_all'));
 
     if (result.status === 'error') {
-      showError({ message: $t('sync_settings.download_failed') });
+      notifyError($t('sync_settings.download_failed'));
       error(`Download error: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
-        showWarning({ message: $t('sync_settings.s3.virtual_host_hint') });
+        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
       }
     } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
-      showError({ message: $t('sync_settings.download_failed') });
+      notifyError($t('sync_settings.download_failed'));
     } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
-      showInfo({ message: $t('sync_settings.canceled') });
+      notifyInfo($t('sync_settings.canceled'));
     } else {
-      showSuccess({ message: $t('sync_settings.download_success') });
+      notifySuccess($t('sync_settings.download_success'));
       await load_config();
     }
   } catch {
-    showInfo({ message: $t('sync_settings.canceled') });
+    notifyInfo($t('sync_settings.canceled'));
   } finally {
     await loadSyncState();
   }
@@ -474,13 +473,13 @@ async function download_all() {
 async function cancelSync() {
   const result = await commands.cancelCloudSync();
   if (result.status === 'error') {
-    showError({ message: result.error });
+    notifyError(result.error);
     error(`Cancel sync error: ${result.error}`);
     return;
   }
 
   if (result.data === 'cancelled') {
-    showInfo({ message: $t('cloud_sync.cancelled') });
+    notifyInfo($t('cloud_sync.cancelled'));
   }
 }
 
@@ -488,7 +487,7 @@ async function open_manual() {
   const result = await commands.openUrl('https://help.sworld.club/docs/extras/cloud');
   if (result.status === 'error') {
     error(`open manual error: ${result.error}`);
-    showError({ message: $t('error.open_url_failed') });
+    notifyError($t('error.open_url_failed'));
   }
 }
 

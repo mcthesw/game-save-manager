@@ -10,7 +10,6 @@ import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 
 const { config, saveConfig } = useConfig();
-const { showWarning, showSuccess, showError } = useNotification();
 const feedback = useFeedback();
 const enable_edit = ref(false);
 const add_game_dialog_visible = ref(false);
@@ -61,7 +60,7 @@ function favorite_click_handler(node: FavoriteTreeNode) {
     return;
   }
   if (!config.value?.games.find((x) => x.name == node.label)) {
-    showWarning({ message: $t('favorite.game_not_found') + ': ' + node.label });
+    notifyWarning($t('favorite.game_not_found') + ': ' + node.label);
     return;
   }
   navigateTo(getGameManagementPath(node.label));
@@ -79,12 +78,12 @@ function remove_node(node: Node, data: FavoriteTreeNode) {
   children.splice(index, 1);
   config.value!.favorites = [...config.value!.favorites!];
   save_and_refresh();
-  showSuccess({ message: $t('favorite.remove_success') });
+  notifySuccess($t('favorite.remove_success'));
 }
 
 function add_game_to_favorite(game: Game) {
   add_node(game.name, true);
-  showSuccess({ message: $t('favorite.add_success') + ': ' + game.name });
+  notifySuccess($t('favorite.add_success') + ': ' + game.name);
 }
 
 const save_and_refresh = useDebounceFn(async () => {
@@ -135,7 +134,7 @@ async function add_folder() {
     name.value.length < 1 ||
     config.value?.favorites?.find((x) => x.label == name.value)
   ) {
-    showError({ message: $t('favorite.duplicated_empty_error') });
+    notifyError($t('favorite.duplicated_empty_error'));
     return;
   }
 
@@ -186,15 +185,13 @@ async function add_all_games() {
     }
 
     if (newNodes.length === 0) {
-      showWarning({ message: $t('favorite.no_new_games') });
+      notifyWarning($t('favorite.no_new_games'));
       return;
     }
 
     config.value!.favorites = [...(config.value!.favorites ?? []), ...newNodes];
     save_and_refresh();
-    showSuccess({
-      message: $t('favorite.add_all_success').replace('{count}', newNodes.length.toString()),
-    });
+    notifySuccess($t('favorite.add_all_success').replace('{count}', newNodes.length.toString()));
   } catch {
     // User cancelled
     return;

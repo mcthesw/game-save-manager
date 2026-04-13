@@ -30,7 +30,6 @@ import type { Device } from '../bindings';
 
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
-const { showSuccess, showError, showInfo } = useNotification();
 const feedback = useFeedback();
 const locale_message = i18n.global.messages;
 const locale_names = i18n.global.availableLocales;
@@ -109,11 +108,11 @@ async function refreshLudusaviManifestStatus() {
     if (result.status === 'ok') {
       ludusaviManifest.value = result.data;
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error getting ludusavi manifest status: ${e}`);
-    showError({ message: $t('settings.manifest_fetch_failed') });
+    notifyError($t('settings.manifest_fetch_failed'));
   } finally {
     ludusaviManifestLoading.value = false;
   }
@@ -125,13 +124,13 @@ async function updateLudusaviManifest() {
     const result = await commands.updateLudusaviManifest();
     if (result.status === 'ok') {
       ludusaviManifest.value = result.data;
-      showSuccess({ message: $t('settings.manifest_update_success') });
+      notifySuccess($t('settings.manifest_update_success'));
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error updating ludusavi manifest: ${e}`);
-    showError({ message: $t('settings.manifest_update_failed') });
+    notifyError($t('settings.manifest_update_failed'));
   } finally {
     ludusaviManifestUpdating.value = false;
   }
@@ -146,24 +145,22 @@ async function resetLudusaviManifest() {
     if (result.status === 'ok') {
       ludusaviManifest.value = result.data;
       if (hadLocal) {
-        showSuccess({
-          message: isBundled
-            ? $t('settings.manifest_reset_success')
-            : $t('settings.manifest_cache_cleared'),
-        });
+        notifySuccess(
+          isBundled ? $t('settings.manifest_reset_success') : $t('settings.manifest_cache_cleared')
+        );
       } else {
-        showInfo({
-          message: isBundled
+        notifyInfo(
+          isBundled
             ? $t('settings.manifest_already_bundled')
-            : $t('settings.manifest_already_empty'),
-        });
+            : $t('settings.manifest_already_empty')
+        );
       }
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error resetting ludusavi manifest: ${e}`);
-    showError({ message: $t('settings.manifest_reset_failed') });
+    notifyError($t('settings.manifest_reset_failed'));
   } finally {
     ludusaviManifestResetting.value = false;
   }
@@ -175,7 +172,7 @@ const debouncedSaveConfig = useDebounceFn(async () => {
     await saveConfig();
   } catch (e) {
     error(`save config error: ${e}`);
-    showError({ message: $t('error.set_config_failed') });
+    notifyError($t('error.set_config_failed'));
   }
 }, 500);
 
@@ -189,11 +186,11 @@ async function load_config() {
 async function reset_settings() {
   try {
     await commands.resetSettings();
-    showSuccess({ message: $t('settings.reset_success') });
+    notifySuccess($t('settings.reset_success'));
     load_config();
   } catch (e) {
     error(`reset settings error: ${e}`);
-    showError({ message: $t('error.reset_settings_failed') });
+    notifyError($t('error.reset_settings_failed'));
   }
 }
 
@@ -210,19 +207,18 @@ async function backup_all() {
       await withLoading(async () => {
         await commands.backupAll();
       }, $t('settings.backup_all_in_progress'));
-      showSuccess({
-        message:
-          config.value.settings.cloud_settings?.backend?.type !== 'Disabled' &&
+      notifySuccess(
+        config.value.settings.cloud_settings?.backend?.type !== 'Disabled' &&
           config.value.games.some((game) => game.cloud_sync_enabled !== false)
-            ? $t('settings.backup_all_success_with_sync')
-            : $t('settings.success'),
-      });
+          ? $t('settings.backup_all_success_with_sync')
+          : $t('settings.success')
+      );
     } catch (e) {
       error(`backup all error: ${e}`);
-      showError({ message: $t('settings.failed') });
+      notifyError($t('settings.failed'));
     }
   } catch {
-    showInfo({ message: $t('settings.operation_canceled') });
+    notifyInfo($t('settings.operation_canceled'));
   }
 }
 
@@ -241,7 +237,7 @@ async function apply_all() {
     if (e instanceof Error) {
       error(`apply all error: ${e}`);
     } else {
-      showInfo({ message: $t('settings.operation_canceled') });
+      notifyInfo($t('settings.operation_canceled'));
     }
   }
 }
@@ -251,18 +247,18 @@ async function open_log_folder() {
     const logDirResult = await commands.getAppLogDir();
     if (logDirResult.status === 'error') {
       error(`get log dir error: ${logDirResult.error}`);
-      showError({ message: $t('error.open_log_folder_failed') });
+      notifyError($t('error.open_log_folder_failed'));
       return;
     }
 
     const result = await commands.openFileOrFolder(logDirResult.data);
     if (result.status === 'error') {
       error(`open log folder error: ${result.error}`);
-      showError({ message: $t('error.open_log_folder_failed') });
+      notifyError($t('error.open_log_folder_failed'));
     }
   } catch (e) {
     error(`open log folder error: ${e}`);
-    showError({ message: $t('error.open_log_folder_failed') });
+    notifyError($t('error.open_log_folder_failed'));
   }
 }
 
@@ -272,10 +268,10 @@ async function saveHotkeys() {
     await saveConfig();
     hotkeysChanged.value = false;
     // 只显示功能完成的消息，而不是保存成功
-    showSuccess({ message: $t('settings.hotkeys_saved') });
+    notifySuccess($t('settings.hotkeys_saved'));
   } catch (e) {
     error(`save hotkeys error: ${e}`);
-    showError({ message: $t('error.set_config_failed') });
+    notifyError($t('error.set_config_failed'));
   }
 }
 
@@ -285,10 +281,10 @@ async function saveGameOrder() {
     await saveConfig();
     gameOrderChanged.value = false;
     // 只显示功能完成的消息，而不是保存成功
-    showSuccess({ message: $t('settings.game_order_saved') });
+    notifySuccess($t('settings.game_order_saved'));
   } catch (e) {
     error(`save game order error: ${e}`);
-    showError({ message: $t('error.set_config_failed') });
+    notifyError($t('error.set_config_failed'));
   }
 }
 
@@ -300,7 +296,7 @@ async function translate_website() {
     );
   } catch (e) {
     error(`open translate website error: ${e}`);
-    showError({ message: $t('error.open_url_failed') });
+    notifyError($t('error.open_url_failed'));
   }
 }
 
@@ -334,11 +330,11 @@ async function fetchDeviceInfo() {
         );
       }
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error getting device info: ${e}`);
-    showError({ message: $t('error.get_device_info_failed') });
+    notifyError($t('error.get_device_info_failed'));
   }
 }
 
@@ -357,12 +353,12 @@ async function persistDeviceInfo(showSuccessMessage: boolean = true) {
     // 保存配置
     await saveConfig();
     if (showSuccessMessage) {
-      showSuccess({ message: $t('settings.device_updated') });
+      notifySuccess($t('settings.device_updated'));
     }
     await fetchDeviceInfo(); // 刷新设备列表
   } catch (e) {
     error(`Error updating device info: ${e}`);
-    showError({ message: $t('error.update_device_failed') });
+    notifyError($t('error.update_device_failed'));
   }
 }
 
@@ -420,18 +416,18 @@ async function autoDetectGameRoots() {
       const existing = new Set(getCurrentGameRoots());
       const newRoots = result.data.filter((r) => !existing.has(r));
       if (newRoots.length === 0) {
-        showInfo({ message: $t('settings.game_roots_no_new') });
+        notifyInfo($t('settings.game_roots_no_new'));
         return;
       }
       getCurrentGameRoots().push(...newRoots);
       await saveGameRoots();
-      showSuccess({ message: $t('settings.game_roots_detected', { count: newRoots.length }) });
+      notifySuccess($t('settings.game_roots_detected', { count: newRoots.length }));
     } else {
-      showError({ message: result.error });
+      notifyError(result.error);
     }
   } catch (e) {
     error(`Error detecting game roots: ${e}`);
-    showError({ message: $t('settings.game_roots_detect_failed') });
+    notifyError($t('settings.game_roots_detect_failed'));
   } finally {
     detectingGameRoots.value = false;
   }
@@ -475,14 +471,14 @@ async function importFromDevice(deviceId: string) {
 
     // 保存配置
     await saveConfig();
-    showSuccess({ message: $t('settings.import_paths_success') });
+    notifySuccess($t('settings.import_paths_success'));
   } catch (e) {
     if (e instanceof Error) {
       error(`Error importing paths: ${e}`);
-      showError({ message: $t('error.import_paths_failed') });
+      notifyError($t('error.import_paths_failed'));
     } else {
       // 用户取消操作
-      showInfo({ message: $t('settings.operation_canceled') });
+      notifyInfo($t('settings.operation_canceled'));
     }
   }
 }
@@ -605,7 +601,7 @@ async function togglePreview(effect: 'success' | 'failure') {
     );
   } catch (e) {
     error(`toggle preview error: ${e}`);
-    showError({ message: $t('error.preview_sound_failed') });
+    notifyError($t('error.preview_sound_failed'));
   }
 }
 
@@ -624,25 +620,25 @@ async function chooseSoundFile(target: 'success' | 'failure') {
     }
   } catch (e) {
     error(`choose sound file error: ${e}`);
-    showError({ message: $t('error.choose_sound_file_error') });
+    notifyError($t('error.choose_sound_file_error'));
   }
 }
 
 // 删除设备
 async function deleteDevice(deviceId: string) {
   if (!config.value || !config.value.devices) {
-    showError({ message: $t('settings.delete_device_failed') });
+    notifyError($t('settings.delete_device_failed'));
     return;
   }
 
   if (currentDevice.value?.id === deviceId) {
-    showError({ message: $t('settings.delete_device_failed') });
+    notifyError($t('settings.delete_device_failed'));
     return;
   }
 
   const targetDevice = config.value.devices[deviceId];
   if (!targetDevice) {
-    showError({ message: $t('settings.delete_device_failed') });
+    notifyError($t('settings.delete_device_failed'));
     return;
   }
 
@@ -659,7 +655,7 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
       }
     );
   } catch {
-    showInfo({ message: $t('settings.operation_canceled') });
+    notifyInfo($t('settings.operation_canceled'));
     return;
   }
 
@@ -681,12 +677,12 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
     }
 
     await saveConfig();
-    showSuccess({ message: $t('settings.delete_device_success') });
+    notifySuccess($t('settings.delete_device_success'));
     await fetchDeviceInfo();
   } catch (e) {
     error(`Error deleting device ${deviceId}: ${e}`);
     await refreshConfig();
-    showError({ message: $t('settings.delete_device_failed') });
+    notifyError($t('settings.delete_device_failed'));
   }
 }
 
@@ -706,7 +702,7 @@ async function addVnScanDir() {
     }
   } catch (e) {
     error(`choose scan dir error: ${e}`);
-    showError({ message: $t('error.choose_save_dir_error') });
+    notifyError($t('error.choose_save_dir_error'));
   }
 }
 
@@ -752,7 +748,7 @@ watch(
     if (new_locale) {
       i18n.global.locale.value = new_locale as typeof i18n.global.locale.value;
     }
-    showInfo({ message: $t('settings.locale_changed') });
+    notifyInfo($t('settings.locale_changed'));
   }
 );
 
