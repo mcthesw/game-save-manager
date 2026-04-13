@@ -452,7 +452,8 @@
     "no_active_paths": "No active save locations yet. Add a folder, file, or registry key to start backing up this game.",
     "type_folder": "Folder",
     "type_file": "File",
-    "type_registry": "Registry"
+    "type_registry": "Registry",
+    "open_ctrl_hint": "Hold Ctrl and click to open the containing folder"
   },
   "sync_settings": {
     "title": "Sync settings",

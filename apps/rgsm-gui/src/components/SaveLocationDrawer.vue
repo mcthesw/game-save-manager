@@ -395,6 +395,35 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
       return unitType;
   }
 }
+
+async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
+  if (!path || !path.trim()) return;
+
+  const ctrl = (e && (e as MouseEvent).ctrlKey) || (e && (e as MouseEvent).metaKey);
+  if (ctrl && unit && unit.unit_type === 'File') {
+    const normalized = path.replace(/\\/g, '/');
+    const idx = normalized.lastIndexOf('/');
+    const parent = idx > -1 ? normalized.substring(0, idx) : normalized;
+    try {
+      const result = await commands.openFileOrFolder(parent);
+      if (result.status === 'error') {
+        showError({ message: $t('error.open_url_failed') });
+      }
+    } catch {
+      showError({ message: $t('error.open_url_failed') });
+    }
+    return;
+  }
+
+  try {
+    const result = await commands.openFileOrFolder(path);
+    if (result.status === 'error') {
+      showError({ message: $t('error.open_url_failed') });
+    }
+  } catch {
+    showError({ message: $t('error.open_url_failed') });
+  }
+}
 </script>
 
 <template>
@@ -539,14 +568,23 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
               }}</el-tag>
             </div>
             <div class="unit-card-actions">
-              <el-button
-                text
-                size="small"
-                :disabled="!getDevicePath(unit, selectedDeviceId)"
-                @click="openPath(getDevicePath(unit, selectedDeviceId))"
+              <el-tooltip
+                :content="
+                  unit.unit_type === 'File'
+                    ? $t('save_location_drawer.open_ctrl_hint')
+                    : $t('save_location_drawer.open')
+                "
+                placement="top"
               >
-                {{ $t('save_location_drawer.open') }}
-              </el-button>
+                <el-button
+                  text
+                  size="small"
+                  :disabled="!getDevicePath(unit, selectedDeviceId)"
+                  @click="(e) => handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)"
+                >
+                  {{ $t('save_location_drawer.open') }}
+                </el-button>
+              </el-tooltip>
               <el-button text size="small" @click="chooseUnitPath(unit)">
                 {{ $t('save_location_drawer.pick_path') }}
               </el-button>
@@ -624,14 +662,23 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
                 <el-button text size="small" @click="chooseUnitPath(unit)">
                   {{ $t('save_location_drawer.pick_path') }}
                 </el-button>
-                <el-button
-                  text
-                  size="small"
-                  :disabled="!getDevicePath(unit, selectedDeviceId)"
-                  @click="openPath(getDevicePath(unit, selectedDeviceId))"
+                <el-tooltip
+                  :content="
+                    unit.unit_type === 'File'
+                      ? $t('save_location_drawer.open_ctrl_hint')
+                      : $t('save_location_drawer.open')
+                  "
+                  placement="top"
                 >
-                  {{ $t('save_location_drawer.open') }}
-                </el-button>
+                  <el-button
+                    text
+                    size="small"
+                    :disabled="!getDevicePath(unit, selectedDeviceId)"
+                    @click="(e) => handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)"
+                  >
+                    {{ $t('save_location_drawer.open') }}
+                  </el-button>
+                </el-tooltip>
                 <el-button type="primary" size="small" plain @click="setUnitEnabled(unit, true)">
                   {{ $t('save_location_drawer.restore') }}
                 </el-button>

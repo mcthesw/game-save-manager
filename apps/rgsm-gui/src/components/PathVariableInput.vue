@@ -190,17 +190,18 @@ function getCursorOffset(): number {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return -1;
   const range = sel.getRangeAt(0);
-  if (!editorRef.value.contains(range.startContainer)) return -1;
+  if (!editorRef.value.contains(range.startContainer as Node)) return -1;
 
   let offset = 0;
-  const children = Array.from(editorRef.value.childNodes);
+  const children = Array.from((editorRef.value as unknown as HTMLElement).childNodes) as Node[];
 
   for (let i = 0; i < children.length; i++) {
     const node = children[i];
     if (!node) continue;
-    if (range.startContainer === editorRef.value && i === range.startOffset) return offset;
+    if (range.startContainer === (editorRef.value as unknown as Node) && i === range.startOffset)
+      return offset;
     if (range.startContainer === node) return offset + range.startOffset;
-    if (node.contains(range.startContainer)) return offset;
+    if (node.contains(range.startContainer as Node)) return offset;
     offset += nodeRawLen(node);
   }
 
@@ -213,7 +214,7 @@ function setCursorAtOffset(targetOffset: number) {
   if (!sel) return;
 
   let offset = 0;
-  const children = Array.from(editorRef.value.childNodes);
+  const children = Array.from((editorRef.value as unknown as HTMLElement).childNodes) as Node[];
 
   for (const node of children) {
     const len = nodeRawLen(node);
@@ -221,9 +222,9 @@ function setCursorAtOffset(targetOffset: number) {
       const r = document.createRange();
       if (node.nodeType === Node.TEXT_NODE) {
         const pos = Math.min(targetOffset - offset, node.textContent?.length || 0);
-        r.setStart(node, pos);
+        r.setStart(node as Node, pos);
       } else {
-        r.setStartAfter(node);
+        r.setStartAfter(node as Node);
       }
       r.collapse(true);
       sel.removeAllRanges();
@@ -234,7 +235,7 @@ function setCursorAtOffset(targetOffset: number) {
   }
 
   const r = document.createRange();
-  r.selectNodeContents(editorRef.value);
+  r.selectNodeContents(editorRef.value as unknown as Node);
   r.collapse(false);
   sel.removeAllRanges();
   sel.addRange(r);
@@ -347,9 +348,10 @@ function onKeydown(e: KeyboardEvent) {
       const range = sel.getRangeAt(0);
       if (range.collapsed) {
         let nodeBefore: Node | null = null;
-        if (range.startContainer === editorRef.value) {
+        if (range.startContainer === (editorRef.value as unknown as Node)) {
           const idx = range.startOffset - 1;
-          if (idx >= 0) nodeBefore = editorRef.value.childNodes[idx] ?? null;
+          if (idx >= 0)
+            nodeBefore = (editorRef.value as unknown as HTMLElement).childNodes[idx] ?? null;
         } else if (range.startOffset === 0) {
           nodeBefore = range.startContainer.previousSibling;
         }
