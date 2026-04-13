@@ -9,8 +9,10 @@ import {
   ArrowDown,
   Close,
   List,
+  CopyDocument,
+  Check,
 } from '@element-plus/icons-vue';
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { $t } from '../i18n';
 import { useCloudSyncStatus } from '../composables/useCloudSyncStatus';
 import type { CloudSyncJobStatus } from '../composables/useCloudSyncStatus';
@@ -22,9 +24,11 @@ import {
 import { LAYER } from '../ui/layers';
 
 const { activeJobs, isSyncing, isCancelling, jobs, cancelSync } = useCloudSyncStatus();
-const { activities, activityAddSignal, dismissActivity, dismissAll } = useActivityCenter();
+const { activities, activityAddSignal, dismissActivity, dismissAll, notifyError } =
+  useActivityCenter();
 
 const expanded = ref(false);
+let collapseTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Two states only: ghost ball (collapsed) or full panel (expanded)
 const isGhostTab = computed(() => !expanded.value);
@@ -38,21 +42,90 @@ const activeActivityCount = computed(
 
 const totalActiveCount = computed(() => activeJobs.value + activeActivityCount.value);
 const hasActiveWork = computed(() => isSyncing.value || activeActivityCount.value > 0);
+const hasErrors = computed(() => activities.value.some((e) => e.status === 'error'));
+// All active work done — trigger auto-collapse timer
+const isIdle = computed(() => !isSyncing.value && activeActivityCount.value === 0);
+
+function clearCollapseTimer() {
+  if (collapseTimer !== null) {
+    clearTimeout(collapseTimer);
+    collapseTimer = null;
+  }
+}
+
+function scheduleCollapse() {
+  clearCollapseTimer();
+  // Errors stay open longer so the user has time to read and copy them
+  const delay = hasErrors.value ? 20_000 : 5_000;
+  collapseTimer = setTimeout(() => {
+    expanded.value = false;
+    collapseTimer = null;
+  }, delay);
+}
+
+// Auto-collapse when all active work finishes
+watch(isIdle, (idle) => {
+  if (idle && expanded.value) {
+    scheduleCollapse();
+  } else {
+    clearCollapseTimer();
+  }
+});
 
 // Auto-expand on any new activity — watch the add-signal (not length) so eviction at MAX_HISTORY
-// doesn't suppress the trigger. Also no isGlobalLoading guard — withLoading covers the UI, and
-// we want the panel to be ready when loading completes.
+// doesn't suppress the trigger.
 watch(activityAddSignal, () => {
+  clearCollapseTimer();
   expanded.value = true;
 });
 
 // Auto-expand when cloud sync starts
 watch(isSyncing, (syncing) => {
-  if (syncing) expanded.value = true;
+  if (syncing) {
+    clearCollapseTimer();
+    expanded.value = true;
+  }
 });
 
+// Re-evaluate collapse delay when errors are dismissed (may switch from 20s to 5s window)
+watch(hasErrors, (nowHasErrors) => {
+  if (!nowHasErrors && isIdle.value && collapseTimer !== null) {
+    scheduleCollapse();
+  }
+});
+
+onUnmounted(() => clearCollapseTimer());
+
 function handleToggleExpanded() {
+  clearCollapseTimer();
   expanded.value = !expanded.value;
+}
+
+// Copy error/warning entry text to clipboard
+const copiedId = ref<string | null>(null);
+
+async function copyActivity(entry: ActivityEntry) {
+  const text = entry.description ? `${entry.title}\n${entry.description}` : entry.title;
+  if (
+    typeof navigator === 'undefined' ||
+    !navigator.clipboard ||
+    typeof navigator.clipboard.writeText !== 'function'
+  ) {
+    notifyError($t('activity_center.copy_failed'), $t('activity_center.copy_unavailable'));
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    notifyError($t('activity_center.copy_failed'), $t('activity_center.copy_failed_detail'));
+    return;
+  }
+
+  copiedId.value = entry.id;
+  setTimeout(() => {
+    if (copiedId.value === entry.id) copiedId.value = null;
+  }, 1500);
 }
 
 // Cloud sync helpers (ported from CloudSyncIndicator)
@@ -231,6 +304,17 @@ function canDismiss(entry: ActivityEntry) {
                 </span>
               </div>
               <span class="activity-item-badge">{{ activityStatusLabel(entry.status) }}</span>
+              <button
+                v-if="entry.status === 'error' || entry.status === 'warning'"
+                class="activity-item-copy"
+                :title="$t('activity_center.copy')"
+                @click.stop="copyActivity(entry)"
+              >
+                <el-icon :size="12">
+                  <Check v-if="copiedId === entry.id" />
+                  <CopyDocument v-else />
+                </el-icon>
+              </button>
               <button
                 v-if="canDismiss(entry)"
                 class="activity-item-dismiss"
@@ -528,6 +612,29 @@ function canDismiss(entry: ActivityEntry) {
 
 .activity-item-dismiss:hover {
   color: var(--el-text-color-secondary);
+  background: color-mix(in oklab, var(--el-fill-color) 80%, transparent);
+}
+
+.activity-item-copy {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--el-text-color-placeholder);
+  padding: 0;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.activity-item-copy:hover {
+  color: var(--el-color-primary);
   background: color-mix(in oklab, var(--el-fill-color) 80%, transparent);
 }
 

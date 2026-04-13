@@ -558,7 +558,11 @@
     "status_info": "信息",
     "status_success": "完成",
     "status_warning": "警告",
-    "status_error": "错误"
+    "status_error": "错误",
+    "copy": "复制到剪贴板",
+    "copy_failed": "无法复制活动详情",
+    "copy_unavailable": "当前环境不支持访问剪贴板。",
+    "copy_failed_detail": "复制活动详情到剪贴板失败。"
   },
   "cloud_sync": {
     "title": "云同步",

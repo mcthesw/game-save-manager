@@ -558,7 +558,11 @@
     "status_info": "Info",
     "status_success": "Done",
     "status_warning": "Warning",
-    "status_error": "Error"
+    "status_error": "Error",
+    "copy": "Copy to clipboard",
+    "copy_failed": "Unable to copy activity details",
+    "copy_unavailable": "Clipboard access is not available in this environment.",
+    "copy_failed_detail": "Failed to copy activity details to the clipboard."
   },
   "cloud_sync": {
     "title": "Cloud Sync",
