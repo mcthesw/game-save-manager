@@ -452,7 +452,8 @@
     "no_active_paths": "还没有启用中的存档路径。新增文件夹、文件或注册表项后即可开始备份。",
     "type_folder": "文件夹",
     "type_file": "文件",
-    "type_registry": "注册表"
+    "type_registry": "注册表",
+    "open_ctrl_hint": "按住 Ctrl 并点击打开父文件夹"
   },
   "sync_settings": {
     "title": "同步设置",
