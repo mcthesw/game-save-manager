@@ -67,7 +67,7 @@ jobs:
         with:
           tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
-          releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+          releaseId: ${{ inputs.release_id }}
       - uses: actions/upload-artifact@v7
         with:
           path: target/release/bundle/nsis/RGSM_*_x64-setup.exe
@@ -104,7 +104,7 @@ jobs:
         with:
           tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
-          releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+          releaseId: ${{ inputs.release_id }}
       - uses: actions/upload-artifact@v7
         with:
           path: target/release/bundle/deb/RGSM_*.deb
@@ -145,7 +145,7 @@ jobs:
         with:
           tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
-          releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+          releaseId: ${{ inputs.release_id }}
           args: --target aarch64-apple-darwin
       - uses: actions/upload-artifact@v7
         with:
@@ -158,7 +158,7 @@ jobs:
           if-no-files-found: error
           archive: false
       - name: Fix macOS updater artifact name
-        if: github.event_name == 'workflow_call' && inputs.release_id != ''
+        if: inputs.release_id != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -200,7 +200,7 @@ jobs:
       - name: Build slim portable
         run: pnpm portable
         env:
-          RELEASE_ID: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+          RELEASE_ID: ${{ inputs.release_id }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RGSM_BUILD_VARIANT: slim
           VITE_WIN_PORTABLE: 1
