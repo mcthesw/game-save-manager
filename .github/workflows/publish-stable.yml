@@ -38,10 +38,10 @@ jobs:
       contents: write
     uses: ./.github/workflows/build-gui.yml
     with:
-      build_windows: true
-      build_windows_portable: true
-      build_linux: true
-      build_macos: true
+      win: true
+      linux: true
+      macos: true
+      windows_portable_slim: true
       release_id: ${{ needs.create-release.outputs.release_id }}
       release_tag: ${{ needs.create-release.outputs.release_tag }}
     secrets: inherit
