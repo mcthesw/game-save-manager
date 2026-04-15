@@ -180,10 +180,14 @@ jobs:
         run: pnpm install
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
+      - name: Build app
+        run: pnpm build
+        working-directory: apps/rgsm-gui
+        env:
+          VITE_WIN_PORTABLE: 1
       - name: Build portable
-        run: |
-          pnpm build
-          pnpm portable
+        run: pnpm portable
+        working-directory: apps/rgsm-gui
         env:
           RELEASE_ID: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
