@@ -160,6 +160,7 @@ jobs:
           done
 
   build-portable:
+    needs: prepare-matrix
     if: inputs.build_windows_portable
     runs-on: windows-latest
     permissions:
@@ -182,12 +183,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Build app
         run: pnpm build
-        working-directory: apps/rgsm-gui
         env:
           VITE_WIN_PORTABLE: 1
       - name: Build portable
         run: pnpm portable
-        working-directory: apps/rgsm-gui
         env:
           RELEASE_ID: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -200,6 +199,7 @@ jobs:
           path: RGSM_*_x64-portable.zip
 
   build-slim-portable:
+    needs: prepare-matrix
     if: inputs.build_windows_portable
     runs-on: windows-latest
     permissions:
@@ -227,7 +227,6 @@ jobs:
           VITE_WIN_PORTABLE: 1
       - name: Build slim portable
         run: pnpm portable
-        working-directory: apps/rgsm-gui
         env:
           RELEASE_ID: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
