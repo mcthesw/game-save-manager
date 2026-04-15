@@ -10,6 +10,9 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release-metadata.outputs.release_id }}
+      release_tag: ${{ steps.release-metadata.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v5
       - name: Create GitHub release
@@ -19,3 +22,26 @@ jobs:
           prerelease: false
           files: |
             LICENSE
+      - id: release-metadata
+        name: Resolve release metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${{ github.ref_name }}"
+          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}" --jq '.id')"
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+  build-release:
+    needs: create-release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-gui.yml
+    with:
+      win: true
+      linux: true
+      macos: true
+      windows_portable_slim: true
+      release_id: ${{ needs.create-release.outputs.release_id }}
+      release_tag: ${{ needs.create-release.outputs.release_tag }}
+    secrets: inherit
