@@ -70,9 +70,14 @@ jobs:
           releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
       - uses: actions/upload-artifact@v7
         with:
-          name: gui-win-${{ github.run_id }}
+          path: target/release/bundle/nsis/RGSM_*_x64-setup.exe
           if-no-files-found: error
-          path: target/release/bundle/**
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/msi/RGSM_*_x64_en-US.msi
+          if-no-files-found: error
+          archive: false
 
   build-linux:
     if: inputs.linux
@@ -102,9 +107,19 @@ jobs:
           releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
       - uses: actions/upload-artifact@v7
         with:
-          name: gui-linux-${{ github.run_id }}
+          path: target/release/bundle/deb/RGSM_*.deb
           if-no-files-found: error
-          path: target/release/bundle/**
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/rpm/RGSM-*.rpm
+          if-no-files-found: error
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/appimage/RGSM_*.AppImage
+          if-no-files-found: error
+          archive: false
 
   build-macos:
     if: inputs.macos
@@ -134,9 +149,14 @@ jobs:
           args: --target aarch64-apple-darwin
       - uses: actions/upload-artifact@v7
         with:
-          name: gui-macos-${{ github.run_id }}
+          path: target/aarch64-apple-darwin/release/bundle/dmg/RGSM_*.dmg
           if-no-files-found: error
-          path: target/aarch64-apple-darwin/release/bundle/**
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+          if-no-files-found: error
+          archive: false
       - name: Fix macOS updater artifact name
         if: github.event_name == 'workflow_call' && inputs.release_id != ''
         env:
@@ -186,6 +206,6 @@ jobs:
           VITE_WIN_PORTABLE: 1
       - uses: actions/upload-artifact@v7
         with:
-          name: gui-windows-portable-slim-${{ github.run_id }}
-          if-no-files-found: error
           path: RGSM_*_x64-portable-slim.zip
+          if-no-files-found: error
+          archive: false
