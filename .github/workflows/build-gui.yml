@@ -15,6 +15,11 @@ on:
           - ubuntu-24.04
           - macos-latest
         default: "ubuntu-24.04"
+      build_windows_portable:
+        description: "Build Windows portable artifacts"
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -97,7 +102,7 @@ jobs:
             fi
           done
       - name: Build portable (Windows only)
-        if: matrix.platform == 'windows-latest' && github.event_name == 'release'
+        if: matrix.platform == 'windows-latest' && (github.event_name == 'release' || inputs.build_windows_portable)
         run: |
           pnpm build
           pnpm portable
@@ -107,7 +112,7 @@ jobs:
           VITE_WIN_PORTABLE: 1
 
   build-slim-portable:
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'windows-latest'))
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.build_windows_portable && (inputs.platform == 'all' || inputs.platform == 'windows-latest'))
     runs-on: windows-latest
     permissions:
       contents: write
