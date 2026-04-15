@@ -25,7 +25,7 @@ jobs:
       - id: release-metadata
         name: Resolve release metadata
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_TAG="${{ github.ref_name }}"
           RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}" --jq '.id')"
@@ -34,6 +34,8 @@ jobs:
 
   build-release:
     needs: create-release
+    permissions:
+      contents: write
     uses: ./.github/workflows/build-gui.yml
     with:
       build_windows: true
