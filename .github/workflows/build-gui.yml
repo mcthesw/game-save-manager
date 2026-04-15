@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       win:
-        description: "Build Windows installer"
+        description: "Build Windows"
         type: boolean
         default: false
       linux:
