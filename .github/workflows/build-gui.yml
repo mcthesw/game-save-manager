@@ -59,6 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_gui_matrix: ${{ steps.set-matrix.outputs.has_gui_matrix }}
     steps:
       - id: set-matrix
         run: |
@@ -76,15 +77,22 @@ jobs:
             MATRIX=$(jq '. + [{"platform":"macos-latest","args":"--target aarch64-apple-darwin"}]' <<<"$MATRIX")
           fi
 
-          if [ "$MATRIX" = "[]" ] && [ "${{ inputs.build_windows_portable }}" != "true" ]; then
+          if [ "$MATRIX" = "[]" ]; then
+            if [ "${{ inputs.build_windows_portable }}" = "true" ]; then
+              echo "has_gui_matrix=false" >> "$GITHUB_OUTPUT"
+              echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             echo "At least one build target must be selected." >&2
             exit 1
           fi
 
+          echo "has_gui_matrix=true" >> "$GITHUB_OUTPUT"
           echo "matrix={\"include\":$MATRIX}" >> "$GITHUB_OUTPUT"
 
   build-gui:
-    if: needs.prepare-matrix.outputs.matrix != '{"include":[]}'
+    if: needs.prepare-matrix.outputs.has_gui_matrix == 'true'
     needs: prepare-matrix
     permissions:
       contents: write
