@@ -1,91 +1,170 @@
 name: Build GUI
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
-      platform:
-        description: 'Target platform'
-        required: true
-        type: choice
-        options:
-          - all
-          - windows-latest
-          - ubuntu-24.04
-          - macos-latest
-        default: 'ubuntu-24.04'
+      win:
+        description: "Build Windows"
+        type: boolean
+        default: false
+      linux:
+        description: "Build Linux"
+        type: boolean
+        default: false
+      macos:
+        description: "Build macOS"
+        type: boolean
+        default: false
+      windows_portable_slim:
+        description: "Build Windows portable slim"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      win:
+        type: boolean
+        default: false
+      linux:
+        type: boolean
+        default: false
+      macos:
+        type: boolean
+        default: false
+      windows_portable_slim:
+        type: boolean
+        default: false
+      release_id:
+        type: string
+        default: ""
+      release_tag:
+        type: string
+        default: ""
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  prepare-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - id: set-matrix
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.platform }}" != "all" ]; then
-            PLATFORM="${{ inputs.platform }}"
-            if [ "$PLATFORM" = "macos-latest" ]; then
-              ARGS="--target aarch64-apple-darwin"
-            else
-              ARGS=""
-            fi
-            echo "matrix={\"include\":[{\"platform\":\"$PLATFORM\",\"args\":\"$ARGS\"}]}" >> $GITHUB_OUTPUT
-          else
-            echo 'matrix={"include":[{"platform":"macos-latest","args":"--target aarch64-apple-darwin"},{"platform":"ubuntu-24.04","args":""},{"platform":"windows-latest","args":""}]}' >> $GITHUB_OUTPUT
-          fi
-
-  build-gui:
-    needs: prepare-matrix
+  build-win:
+    if: inputs.win
+    runs-on: windows-latest
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare-matrix.outputs.matrix) }}
-    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: latest
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install system dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev
-      - name: Install frontend dependencies
-        run: pnpm install
-      - name: Restore Rust cache
-        uses: Swatinem/rust-cache@v2
-      - name: Build with Tauri
-        uses: tauri-apps/tauri-action@v0
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install
+      - uses: Swatinem/rust-cache@v2
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
-          releaseId: ${{ github.event_name == 'release' && github.event.release.id || '' }}
-          args: ${{ matrix.args }}
+          releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/nsis/RGSM_*_x64-setup.exe
+          if-no-files-found: error
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/msi/RGSM_*_x64_en-US.msi
+          if-no-files-found: error
+          archive: false
+
+  build-linux:
+    if: inputs.linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - uses: pnpm/action-setup@v5
+        with:
+          version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev
+      - run: pnpm install
+      - uses: Swatinem/rust-cache@v2
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: pnpm tauri
+          projectPath: apps/rgsm-gui
+          releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/deb/RGSM_*.deb
+          if-no-files-found: error
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/rpm/RGSM-*.rpm
+          if-no-files-found: error
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/appimage/RGSM_*.AppImage
+          if-no-files-found: error
+          archive: false
+
+  build-macos:
+    if: inputs.macos
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+      - uses: pnpm/action-setup@v5
+        with:
+          version: latest
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - run: pnpm install
+      - uses: Swatinem/rust-cache@v2
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: pnpm tauri
+          projectPath: apps/rgsm-gui
+          releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
+          args: --target aarch64-apple-darwin
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/aarch64-apple-darwin/release/bundle/dmg/RGSM_*.dmg
+          if-no-files-found: error
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+          if-no-files-found: error
+          archive: false
       - name: Fix macOS updater artifact name
-        if: matrix.platform == 'macos-latest' && github.event_name == 'release'
+        if: github.event_name == 'workflow_call' && inputs.release_id != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${{ inputs.release_tag }}"
           VERSION="${TAG#v}"
-          RELEASE_ID="${{ github.event.release.id }}"
+          RELEASE_ID="${{ inputs.release_id }}"
           gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
             --jq '.[] | select(.name | test("\\.app\\.tar\\.gz")) | "\(.id)\t\(.name)"' |
           while IFS=$'\t' read -r ASSET_ID OLD_NAME; do
@@ -96,44 +175,37 @@ jobs:
               echo "Renamed: ${OLD_NAME} -> ${NEW_NAME}"
             fi
           done
-      - name: Build portable (Windows only)
-        if: matrix.platform == 'windows-latest' && github.event_name == 'release'
-        run: |
-          pnpm build
-          pnpm portable
-        env:
-          RELEASE_ID: ${{ github.event.release.id }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_WIN_PORTABLE: 1
 
-  build-slim-portable:
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'all' || inputs.platform == 'windows-latest'))
+  build-windows-portable-slim:
+    if: inputs.windows_portable_slim
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         with:
           version: latest
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-      - name: Install frontend dependencies
-        run: pnpm install
-      - name: Restore Rust cache
-        uses: Swatinem/rust-cache@v2
-      - name: Build slim portable
-        run: |
-          pnpm build -- --config src-tauri/tauri.slim.conf.json --no-default-features
-          pnpm portable
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install
+      - uses: Swatinem/rust-cache@v2
+      - name: Build slim app
+        run: pnpm tauri build --config src-tauri/tauri.slim.conf.json -- --no-default-features
         working-directory: apps/rgsm-gui
         env:
-          RELEASE_ID: ${{ github.event.release.id }}
+          VITE_WIN_PORTABLE: 1
+      - name: Build slim portable
+        run: pnpm portable
+        env:
+          RELEASE_ID: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RGSM_BUILD_VARIANT: slim
           VITE_WIN_PORTABLE: 1
+      - uses: actions/upload-artifact@v7
+        with:
+          path: RGSM_*_x64-portable-slim.zip
+          if-no-files-found: error
+          archive: false
