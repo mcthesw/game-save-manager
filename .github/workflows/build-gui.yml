@@ -64,6 +64,7 @@ jobs:
       - id: set-matrix
         run: |
           MATRIX='[]'
+          HAS_PORTABLE_BUILD="${{ inputs.build_windows_portable }}"
 
           if [ "${{ inputs.build_windows }}" = "true" ]; then
             MATRIX=$(jq '. + [{"platform":"windows-latest","args":""}]' <<<"$MATRIX")
@@ -77,18 +78,17 @@ jobs:
             MATRIX=$(jq '. + [{"platform":"macos-latest","args":"--target aarch64-apple-darwin"}]' <<<"$MATRIX")
           fi
 
-          if [ "$MATRIX" = "[]" ]; then
-            if [ "${{ inputs.build_windows_portable }}" = "true" ]; then
-              echo "has_gui_matrix=false" >> "$GITHUB_OUTPUT"
-              echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+          HAS_GUI_MATRIX=false
+          if [ "$MATRIX" != "[]" ]; then
+            HAS_GUI_MATRIX=true
+          fi
 
+          if [ "$HAS_GUI_MATRIX" != "true" ] && [ "$HAS_PORTABLE_BUILD" != "true" ]; then
             echo "At least one build target must be selected." >&2
             exit 1
           fi
 
-          echo "has_gui_matrix=true" >> "$GITHUB_OUTPUT"
+          echo "has_gui_matrix=${HAS_GUI_MATRIX}" >> "$GITHUB_OUTPUT"
           echo "matrix={\"include\":$MATRIX}" >> "$GITHUB_OUTPUT"
 
   build-gui:
@@ -133,7 +133,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gui-${{ matrix.platform }}
+          name: gui-${{ matrix.platform }}-${{ github.run_id }}
           if-no-files-found: error
           path: |
             target/release/bundle/**
@@ -191,7 +191,7 @@ jobs:
       - name: Upload portable artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gui-windows-portable
+          name: gui-windows-portable-${{ github.run_id }}
           if-no-files-found: error
           path: RGSM_*_x64-portable.zip
 
@@ -232,6 +232,6 @@ jobs:
       - name: Upload slim portable artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gui-windows-portable-slim
+          name: gui-windows-portable-slim-${{ github.run_id }}
           if-no-files-found: error
           path: RGSM_*_x64-portable-slim.zip
