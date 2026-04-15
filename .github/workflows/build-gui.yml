@@ -68,11 +68,11 @@ jobs:
           tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
           releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: gui-win-${{ github.run_id }}
           if-no-files-found: error
-          path: apps/rgsm-gui/src-tauri/target/release/bundle/**
+          path: target/release/bundle/**
 
   build-linux:
     if: inputs.linux
@@ -100,11 +100,11 @@ jobs:
           tauriScript: pnpm tauri
           projectPath: apps/rgsm-gui
           releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: gui-linux-${{ github.run_id }}
           if-no-files-found: error
-          path: apps/rgsm-gui/src-tauri/target/release/bundle/**
+          path: target/release/bundle/**
 
   build-macos:
     if: inputs.macos
@@ -132,11 +132,11 @@ jobs:
           projectPath: apps/rgsm-gui
           releaseId: ${{ github.event_name == 'workflow_call' && inputs.release_id || '' }}
           args: --target aarch64-apple-darwin
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: gui-macos-${{ github.run_id }}
           if-no-files-found: error
-          path: apps/rgsm-gui/src-tauri/target/aarch64-apple-darwin/release/bundle/**
+          path: target/aarch64-apple-darwin/release/bundle/**
       - name: Fix macOS updater artifact name
         if: github.event_name == 'workflow_call' && inputs.release_id != ''
         env:
@@ -184,7 +184,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RGSM_BUILD_VARIANT: slim
           VITE_WIN_PORTABLE: 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: gui-windows-portable-slim-${{ github.run_id }}
           if-no-files-found: error
