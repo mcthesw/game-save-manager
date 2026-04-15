@@ -5,6 +5,7 @@ import path from "node:path";
 
 import {
   createPortablePaths,
+  getReleaseUploadConfig,
   getRepoRoot,
   parseWorkspaceVersion,
   runPortableCli,
@@ -110,6 +111,28 @@ test("parseWorkspaceVersion throws when version is missing", () => {
   assert.throws(
     () => parseWorkspaceVersion("[workspace]\nmembers = []\n"),
     /could not read version/,
+  );
+});
+
+test("getReleaseUploadConfig skips upload when release id is missing", () => {
+  assert.equal(getReleaseUploadConfig({}), null);
+  assert.equal(getReleaseUploadConfig({ RELEASE_ID: "   " }), null);
+});
+
+test("getReleaseUploadConfig requires a token when release id is present", () => {
+  assert.throws(
+    () => getReleaseUploadConfig({ RELEASE_ID: "123" }),
+    /GITHUB_TOKEN is required/,
+  );
+});
+
+test("getReleaseUploadConfig trims release upload environment values", () => {
+  assert.deepEqual(
+    getReleaseUploadConfig({
+      RELEASE_ID: " 123 ",
+      GITHUB_TOKEN: " token ",
+    }),
+    { releaseId: "123", githubToken: "token" },
   );
 });
 

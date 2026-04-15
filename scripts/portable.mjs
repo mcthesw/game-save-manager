@@ -73,6 +73,22 @@ export function parseWorkspaceVersion(cargoToml) {
   throw new Error("could not read version from workspace Cargo.toml");
 }
 
+export function getReleaseUploadConfig(env = process.env) {
+  const releaseId = env.RELEASE_ID?.trim() ?? "";
+
+  if (!releaseId) {
+    return null;
+  }
+
+  const githubToken = env.GITHUB_TOKEN?.trim() ?? "";
+
+  if (!githubToken) {
+    throw new Error("GITHUB_TOKEN is required");
+  }
+
+  return { releaseId, githubToken };
+}
+
 async function pathExists(targetPath) {
   try {
     await access(targetPath);
@@ -117,19 +133,22 @@ export async function resolvePortable() {
 
   console.log("[INFO]: create portable zip successfully");
 
-  if (process.env.GITHUB_TOKEN === undefined) {
-    throw new Error("GITHUB_TOKEN is required");
+  const releaseUploadConfig = getReleaseUploadConfig();
+
+  if (releaseUploadConfig === null) {
+    console.log("[INFO]: skip release upload because RELEASE_ID is not set");
+    return;
   }
 
   const options = { owner: context.repo.owner, repo: context.repo.repo };
-  const github = getOctokit(process.env.GITHUB_TOKEN);
+  const github = getOctokit(releaseUploadConfig.githubToken);
 
-  console.log("[INFO]: upload to ", process.env.RELEASE_ID);
+  console.log("[INFO]: upload to ", releaseUploadConfig.releaseId);
 
   // https://octokit.github.io/rest.js
   await github.rest.repos.uploadReleaseAsset({
     ...options,
-    release_id: process.env.RELEASE_ID,
+    release_id: releaseUploadConfig.releaseId,
     name: path.basename(zipFile),
     data: zip.toBuffer(),
   });
