@@ -26,6 +26,8 @@ jobs:
       release_tag: ${{ steps.release-metadata.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Create GitHub pre-release
         uses: 'marvinpinto/action-automatic-releases@latest'
         with:
@@ -35,6 +37,37 @@ jobs:
           title: 'Bleeding edge/前沿版本'
           files: |
             LICENSE
+      - name: Update release notes with changes since last stable release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LAST_STABLE="$(gh api "repos/${{ github.repository }}/releases" \
+            --jq '[.[] | select(.prerelease == false and .draft == false)] | sort_by(.created_at) | last | .tag_name' \
+            2>/dev/null || echo "")"
+
+          if [ -z "$LAST_STABLE" ] || [ "$LAST_STABLE" = "null" ]; then
+            echo "No stable release found, keeping auto-generated release notes."
+            exit 0
+          fi
+
+          echo "Generating changelog since stable release: $LAST_STABLE"
+          git fetch --tags --quiet
+
+          CHANGELOG="$(git log "${LAST_STABLE}..HEAD" \
+            --pretty=format:"- %s (%h)" \
+            --no-merges)"
+
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="No changes since last stable release."
+          fi
+
+          BODY="## Changes since last stable release (${LAST_STABLE})
+
+${CHANGELOG}"
+
+          gh release edit "latest" \
+            --notes "$BODY" \
+            --repo "${{ github.repository }}"
       - id: release-metadata
         name: Resolve release metadata
         env:
