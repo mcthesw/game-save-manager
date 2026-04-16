@@ -101,7 +101,7 @@ fn save_unit_identity(
     paths: &HashMap<DeviceId, String>,
 ) -> String {
     let mut entries: Vec<_> = paths.iter().collect();
-    entries.sort_by(|(left_id, _), (right_id, _)| left_id.cmp(right_id));
+    entries.sort_by_key(|(left_id, _)| *left_id);
     let paths_key = entries
         .into_iter()
         .map(|(device_id, path)| format!("{device_id}={path}"))
