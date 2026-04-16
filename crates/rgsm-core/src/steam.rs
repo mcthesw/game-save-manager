@@ -346,7 +346,7 @@ pub fn detect_steam_user_ids() -> Result<Vec<StoreUserIdCandidate>, SteamError> 
     }
 
     // Sort by most recently modified first
-    candidates.sort_by(|a, b| b.last_modified_epoch_secs.cmp(&a.last_modified_epoch_secs));
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.last_modified_epoch_secs));
     Ok(candidates)
 }
 
