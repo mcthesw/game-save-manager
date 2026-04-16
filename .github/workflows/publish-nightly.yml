@@ -41,8 +41,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LAST_STABLE="$(gh api "repos/${{ github.repository }}/releases" \
-            --jq '[.[] | select(.prerelease == false and .draft == false)] | sort_by(.created_at) | last | .tag_name' \
+          LAST_STABLE="$(gh api "repos/${{ github.repository }}/releases/latest" \
+            --jq '.tag_name' \
             2>/dev/null || echo "")"
 
           if [ -z "$LAST_STABLE" ] || [ "$LAST_STABLE" = "null" ]; then
