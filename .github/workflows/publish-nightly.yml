@@ -61,12 +61,11 @@ jobs:
             CHANGELOG="No changes since last stable release."
           fi
 
-          BODY="## Changes since last stable release (${LAST_STABLE})
-
-${CHANGELOG}"
+          printf "## Changes since last stable release (%s)\n\n%s\n" \
+            "$LAST_STABLE" "$CHANGELOG" > /tmp/release-notes.md
 
           gh release edit "latest" \
-            --notes "$BODY" \
+            --notes-file /tmp/release-notes.md \
             --repo "${{ github.repository }}"
       - id: release-metadata
         name: Resolve release metadata
