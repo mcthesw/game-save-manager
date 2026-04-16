@@ -16,12 +16,27 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Create GitHub release
-        uses: 'marvinpinto/action-automatic-releases@latest'
-        with:
-          repo_token: '${{ secrets.RELEASE_TOKEN }}'
-          prerelease: false
-          files: |
-            LICENSE
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          RELEASE_TAG="${{ github.ref_name }}"
+          GENERATED_NOTES="$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            --method POST \
+            -f tag_name="${RELEASE_TAG}" \
+            -f target_commitish="${GITHUB_SHA}" \
+            --jq '.body')"
+
+          if gh release view "${RELEASE_TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --notes "${GENERATED_NOTES}" \
+              --repo "${{ github.repository }}"
+          else
+            gh release create "${RELEASE_TAG}" \
+              --notes "${GENERATED_NOTES}" \
+              --repo "${{ github.repository }}"
+          fi
+
+          gh release upload "${RELEASE_TAG}" LICENSE --clobber --repo "${{ github.repository }}"
       - id: release-metadata
         name: Resolve release metadata
         env:
