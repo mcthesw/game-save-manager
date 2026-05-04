@@ -59,7 +59,3 @@ pub use LifecycleHook as SnapshotHook;
 pub trait SyncJobQueue: Send + Sync {
     async fn enqueue(&self, job: CloudSyncJob);
 }
-
-pub trait SchedulerSync: Send + Sync {
-    fn sync_from_config(&self);
-}

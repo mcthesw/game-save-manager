@@ -20,4 +20,4 @@ pub use cloud_sync_hook::CloudSyncEnqueueHook;
 pub use contexts::*;
 pub use pipeline::*;
 pub use pre_restore_backup_hook::PreRestoreBackupHook;
-pub use traits::{HookResult, LifecycleHook, SchedulerSync, SnapshotHook, SyncJobQueue};
+pub use traits::{HookResult, LifecycleHook, SnapshotHook, SyncJobQueue};
