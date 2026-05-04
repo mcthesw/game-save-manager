@@ -2,9 +2,9 @@
   "settings": {
     "locale_name": "한국어",
     "locale_changed": "현재 미리 보기 모델인 언어가 변경되어 영구적으로 힘을 입력할 수 있습니다",
-    "reset_success": "성공의 이유",
-    "customizable_settings": "회사연혁",
-    "submit_settings": "예약안내",
+    "reset_success": "초기화 성공",
+    "customizable_settings": "사용자 지정 설정",
+    "submit_settings": "변경사항 저장",
     "submit_success": "자주 묻는 질문",
     "abort_change": "수정의 금지",
     "confirm_reset": "인정의 발급?",
@@ -91,7 +91,7 @@
     "last_backup_unfinished_error": "마지막 규정은 완료되지 않았으며, 종료",
     "backup_success": "백업에서 성공",
     "backup_success_with_sync": "Backup successful. Cloud sync continues in background.",
-    "no_description_warning": "이 빠른 트랙을 설명하지 않고 계속",
+    "no_description_warning": "이 스냅샷에 대한 설명을 제공하지 않으셨습니다. 계속하시겠습니까?",
     "warning": "제품정보",
     "confirm_save": "자주 묻는 질문",
     "cancel": "제품정보",
@@ -191,7 +191,7 @@
     "thank_you_list": "감사합니다",
     "frameworks": "프레임의 사용",
     "official_website": "공식 웹사이트",
-    "version": "버전: [0] ·",
+    "version": "버전: {0}",
     "help": "도움말 파일"
   },
   "sync_settings": {
