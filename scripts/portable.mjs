@@ -89,6 +89,88 @@ export function getReleaseUploadConfig(env = process.env) {
   return { releaseId, githubToken };
 }
 
+export function isReleaseAssetNameConflict(error) {
+  if (error?.status !== 422) {
+    return false;
+  }
+
+  const errors = error.response?.data?.errors;
+  if (!Array.isArray(errors)) {
+    return false;
+  }
+
+  return errors.some(
+    (entry) =>
+      entry?.resource === "ReleaseAsset" &&
+      entry?.code === "already_exists" &&
+      entry?.field === "name",
+  );
+}
+
+export async function deleteReleaseAssetByName(
+  github,
+  options,
+  releaseId,
+  name,
+) {
+  const assets = await github.rest.repos.listReleaseAssets({
+    ...options,
+    release_id: releaseId,
+    per_page: 100,
+  });
+
+  const existingAsset = assets.data.find((asset) => asset.name === name);
+  if (!existingAsset) {
+    return false;
+  }
+
+  await github.rest.repos.deleteReleaseAsset({
+    ...options,
+    asset_id: existingAsset.id,
+  });
+
+  return true;
+}
+
+export async function uploadReleaseAssetWithClobber({
+  github,
+  options,
+  releaseId,
+  name,
+  data,
+  log = console.log,
+}) {
+  const upload = () =>
+    github.rest.repos.uploadReleaseAsset({
+      ...options,
+      release_id: releaseId,
+      name,
+      data,
+    });
+
+  try {
+    return await upload();
+  } catch (error) {
+    if (!isReleaseAssetNameConflict(error)) {
+      throw error;
+    }
+
+    const deleted = await deleteReleaseAssetByName(
+      github,
+      options,
+      releaseId,
+      name,
+    );
+    if (deleted) {
+      log(`[INFO]: deleted existing release asset ${name}`);
+    } else {
+      log(`[INFO]: release asset ${name} was already removed, retry upload`);
+    }
+
+    return await upload();
+  }
+}
+
 async function pathExists(targetPath) {
   try {
     await access(targetPath);
@@ -146,9 +228,10 @@ export async function resolvePortable() {
   console.log("[INFO]: upload to ", releaseUploadConfig.releaseId);
 
   // https://octokit.github.io/rest.js
-  await github.rest.repos.uploadReleaseAsset({
-    ...options,
-    release_id: releaseUploadConfig.releaseId,
+  await uploadReleaseAssetWithClobber({
+    github,
+    options,
+    releaseId: releaseUploadConfig.releaseId,
     name: path.basename(zipFile),
     data: zip.toBuffer(),
   });
