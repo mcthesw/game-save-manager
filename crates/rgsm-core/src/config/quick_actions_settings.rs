@@ -79,6 +79,21 @@ impl Default for QuickActionsSettings {
     }
 }
 
+impl QuickActionsSettings {
+    pub fn remove_deleted_game_reference(&mut self, deleted_game: &Game) -> bool {
+        let should_clear = self
+            .quick_action_game
+            .as_ref()
+            .is_some_and(|game| game.references_same_game(deleted_game));
+
+        if should_clear {
+            self.quick_action_game = None;
+        }
+
+        should_clear
+    }
+}
+
 impl From<&QuickActionsSettings> for QuickActionSoundPreferences {
     fn from(value: &QuickActionsSettings) -> Self {
         Self {

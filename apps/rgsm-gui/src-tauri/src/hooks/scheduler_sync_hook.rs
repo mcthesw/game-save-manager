@@ -1,16 +1,12 @@
-//! Built-in hook that keeps the live scheduler aligned with persisted config.
-//!
-//! It listens to existing game/config lifecycle events instead of inventing a
-//! new hook event taxonomy just for scheduler maintenance.
-
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
+use super::runtime_config_sync::ConfigRuntimeSync;
 use crate::quick_actions::AutoBackupScheduler;
 use rgsm_core::hooks::{
-    ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, LifecycleHook, SchedulerSync,
+    ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, LifecycleHook,
 };
 
 pub struct TauriSchedulerSync {
@@ -23,22 +19,28 @@ impl TauriSchedulerSync {
     }
 }
 
-impl SchedulerSync for TauriSchedulerSync {
-    fn sync_from_config(&self) {
+#[async_trait]
+impl ConfigRuntimeSync for TauriSchedulerSync {
+    async fn sync_from_config(&self) -> Result<()> {
         if let Some(scheduler) = self.app.try_state::<AutoBackupScheduler>() {
             scheduler.sync_from_config();
         }
+        Ok(())
     }
 }
 
 /// Keeps the live auto-backup scheduler synchronized with persisted config changes.
 pub struct SchedulerSyncHook {
-    scheduler: Arc<dyn SchedulerSync>,
+    scheduler: Arc<dyn ConfigRuntimeSync>,
 }
 
 impl SchedulerSyncHook {
-    pub fn new(scheduler: Arc<dyn SchedulerSync>) -> Self {
+    pub fn new(scheduler: Arc<dyn ConfigRuntimeSync>) -> Self {
         Self { scheduler }
+    }
+
+    async fn sync_from_config(&self) -> Result<()> {
+        self.scheduler.sync_from_config().await
     }
 }
 
@@ -53,22 +55,18 @@ impl LifecycleHook for SchedulerSyncHook {
     }
 
     async fn on_game_added(&self, _ctx: &GameAddedCtx) -> Result<()> {
-        self.scheduler.sync_from_config();
-        Ok(())
+        self.sync_from_config().await
     }
 
     async fn on_game_updated(&self, _ctx: &GameUpdatedCtx) -> Result<()> {
-        self.scheduler.sync_from_config();
-        Ok(())
+        self.sync_from_config().await
     }
 
     async fn on_game_deleted(&self, _ctx: &GameDeletedCtx) -> Result<()> {
-        self.scheduler.sync_from_config();
-        Ok(())
+        self.sync_from_config().await
     }
 
     async fn on_config_saved(&self, _ctx: &ConfigSavedCtx) -> Result<()> {
-        self.scheduler.sync_from_config();
-        Ok(())
+        self.sync_from_config().await
     }
 }

@@ -5,7 +5,7 @@ use crate::backup::{
     CreatedBy, Game, GameDraft, GameSnapshots, SaveUnit, SaveUnitDraft, SaveUnitType, Snapshot,
     TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision,
 };
-use crate::config::Config;
+use crate::config::{Config, get_config};
 use crate::device::get_current_device_id;
 use filetime::{FileTime, set_file_mtime};
 use std::collections::HashMap;
@@ -419,6 +419,25 @@ fn make_test_game(game_name: &str, backup_root: &Path) -> Result<Game, Box<dyn s
     })
 }
 
+fn make_test_game_with_storage_key(
+    game_name: &str,
+    storage_key: &str,
+    backup_root: &Path,
+) -> Result<Game, Box<dyn std::error::Error>> {
+    init_backups_json(storage_key, backup_root)?;
+    Ok(Game {
+        name: game_name.to_string(),
+        storage_key: storage_key.to_string(),
+        save_paths: Vec::new(),
+        game_paths: HashMap::new(),
+        next_save_unit_id: 0,
+        cloud_sync_enabled: true,
+        auto_backup: None,
+        ludusavi_meta: None,
+        store_user_ids: std::collections::HashMap::new(),
+    })
+}
+
 #[test]
 fn batch_delete_removes_snapshots_and_returns_remote_paths() -> TestResult {
     let _config_lock = lock_config_file();
@@ -609,6 +628,67 @@ fn batch_delete_empty_dates_is_noop() -> TestResult {
         assert_eq!(result.snapshots.backups.len(), 1);
         assert!(result.deleted_remote_paths.is_empty());
 
+        Ok(())
+    })
+}
+
+#[test]
+fn delete_game_clears_quick_action_reference_by_storage_key() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let backup_root = temp_dir.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+
+        let deleted_game =
+            make_test_game_with_storage_key("Deleted Game", "deleted-game-key", &backup_root)?;
+        let remaining_game =
+            make_test_game_with_storage_key("Remaining Game", "remaining-game-key", &backup_root)?;
+        let mut quick_action_reference = deleted_game.clone();
+        quick_action_reference.name = "Renamed Deleted Game".to_string();
+
+        let mut config = Config {
+            backup_path: backup_root.to_string_lossy().to_string(),
+            games: vec![deleted_game.clone(), remaining_game.clone()],
+            ..Config::default()
+        };
+        config.quick_action.quick_action_game = Some(quick_action_reference);
+        let _config_guard = restore_config_guard(&config)?;
+
+        deleted_game.delete_game().await?;
+
+        let persisted = get_config()?;
+        assert_eq!(persisted.games.len(), 1);
+        assert_eq!(persisted.games[0].storage_key, remaining_game.storage_key);
+        assert!(persisted.quick_action.quick_action_game.is_none());
+        Ok(())
+    })
+}
+
+#[test]
+fn delete_game_clears_legacy_quick_action_reference_by_name() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let backup_root = temp_dir.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+
+        let deleted_game = make_test_game("Legacy Deleted Game", &backup_root)?;
+        let remaining_game = make_test_game("Legacy Remaining Game", &backup_root)?;
+        let mut config = Config {
+            backup_path: backup_root.to_string_lossy().to_string(),
+            games: vec![deleted_game.clone(), remaining_game.clone()],
+            ..Config::default()
+        };
+        config.quick_action.quick_action_game = Some(deleted_game.clone());
+        let _config_guard = restore_config_guard(&config)?;
+
+        deleted_game.delete_game().await?;
+
+        let persisted = get_config()?;
+        assert_eq!(persisted.games.len(), 1);
+        assert_eq!(persisted.games[0].name, remaining_game.name);
+        assert!(persisted.quick_action.quick_action_game.is_none());
         Ok(())
     })
 }
