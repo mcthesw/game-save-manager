@@ -1,9 +1,11 @@
 //! Hook pipeline composition and built-in side-effect registration.
 //!
 //! Core hooks (pipeline, checksum, cloud_sync, pre_restore) live in rgsm_core.
-//! GUI-specific hooks (notification, scheduler_sync) live here.
+//! GUI-specific hooks (notification, quick_action_sync, scheduler_sync) live here.
 
 pub mod notification_hook;
+mod quick_action_sync_hook;
+mod runtime_config_sync;
 mod scheduler_sync_hook;
 
 // Re-export everything from core hooks so the rest of the GUI can `use crate::hooks::*`
@@ -59,10 +61,16 @@ pub fn build_builtin_pipeline(
     if config.settings.verify_archive_before_apply {
         hooks.push(Box::new(rgsm_core::hooks::checksum_hook::ArchiveVerifyHook));
     }
-    let scheduler_sync: Arc<dyn SchedulerSync> =
+    let scheduler_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> =
         Arc::new(scheduler_sync_hook::TauriSchedulerSync::new(app.clone()));
     hooks.push(Box::new(scheduler_sync_hook::SchedulerSyncHook::new(
         scheduler_sync,
+    )));
+    let quick_action_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> = Arc::new(
+        quick_action_sync_hook::TauriQuickActionRuntimeSync::new(app.clone()),
+    );
+    hooks.push(Box::new(quick_action_sync_hook::QuickActionSyncHook::new(
+        quick_action_sync,
     )));
     if !matches!(config.settings.cloud_settings.backend, Backend::Disabled) {
         let sync_queue: Arc<dyn SyncJobQueue> = task_manager;

@@ -289,6 +289,19 @@ impl Game {
         }
     }
 
+    /// Return whether two persisted game references identify the same game.
+    ///
+    /// Current configs use `storage_key` as the stable identity. Legacy configs
+    /// can still hold empty keys in secondary references, so those fall back to
+    /// display-name matching.
+    pub fn references_same_game(&self, other: &Game) -> bool {
+        if !self.storage_key.is_empty() && !other.storage_key.is_empty() {
+            return self.storage_key == other.storage_key;
+        }
+
+        self.name == other.name
+    }
+
     /// Remote cloud path prefix for this game, e.g. `save_data/Game Name`.
     pub fn remote_path_prefix(&self) -> String {
         format!("save_data/{}", self.backup_dir_name())
@@ -738,6 +751,9 @@ impl Game {
         config
             .games
             .retain(|x| x.backup_dir_name() != self.backup_dir_name());
+        // TODO(config-hooks): move this cleanup into a gated config-change hook
+        // once config commits can mutate/abort the pending write transaction.
+        config.remove_deleted_game_references(self);
         set_config_local(&config)?;
 
         info!(target:"rgsm::backup::game",

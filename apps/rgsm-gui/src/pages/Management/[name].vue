@@ -764,6 +764,7 @@ async function del_cur() {
       const result = await commands.deleteGame(game.value);
       if (result.status === 'error') {
         notifyError($t('error.delete_game_failed'));
+        return;
       }
       await refreshConfig();
       router.back();
