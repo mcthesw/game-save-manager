@@ -170,6 +170,13 @@ jobs:
           while IFS=$'\t' read -r ASSET_ID OLD_NAME; do
             if [[ "$OLD_NAME" != *"${VERSION}"* ]]; then
               NEW_NAME="${OLD_NAME/RGSM_/RGSM_${VERSION}_}"
+              EXISTING_ID="$(gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
+                --jq ".[] | select(.name == \"${NEW_NAME}\" and .id != ${ASSET_ID}) | .id" |
+                head -n 1)"
+              if [[ -n "$EXISTING_ID" ]]; then
+                gh api -X DELETE "repos/${{ github.repository }}/releases/assets/${EXISTING_ID}" >/dev/null
+                echo "Deleted existing target asset: ${NEW_NAME}"
+              fi
               gh api -X PATCH "repos/${{ github.repository }}/releases/assets/${ASSET_ID}" \
                 -f name="${NEW_NAME}"
               echo "Renamed: ${OLD_NAME} -> ${NEW_NAME}"
