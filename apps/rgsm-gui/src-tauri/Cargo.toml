@@ -26,7 +26,7 @@ rgsm-core.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 log.workspace = true
-tauri = { version = "2.10.3", features = ["tray-icon"] }
+tauri = { version = "2.11.1", features = ["tray-icon"] }
 tauri-plugin-log = "2.8.0"
 rust-i18n.workspace = true
 anyhow.workspace = true
