@@ -1,2 +1,8 @@
 packages:
   - 'apps/rgsm-gui'
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  unrs-resolver: true
+  vue-demi: true
