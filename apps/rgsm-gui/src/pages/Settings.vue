@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 // TODO:调整日志设置，比如删除日
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, nextTick, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
 import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
@@ -39,6 +39,8 @@ const gameOrderChanged = ref(false);
 const { withLoading } = useGlobalLoading();
 type SoundModeOption = 'default' | 'file';
 let skipQuickActionChange = true;
+/** Suppress dirty tracking during programmatic config refreshes. */
+let suppressConfigChangeTracking = false;
 
 // System fonts loaded from backend
 const systemFonts = ref<string[]>([]);
@@ -177,9 +179,20 @@ const debouncedSaveConfig = useDebounceFn(async () => {
 }, 500);
 
 async function load_config() {
+  suppressConfigChangeTracking = true;
   skipQuickActionChange = true;
-  await refreshConfig();
-  ensureQuickActionDefaults();
+  try {
+    await refreshConfig();
+    ensureQuickActionDefaults();
+    const currentLocale = config.value.settings.locale;
+    if (currentLocale) {
+      i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
+    }
+    await nextTick();
+  } finally {
+    suppressConfigChangeTracking = false;
+    skipQuickActionChange = false;
+  }
   await fetchDeviceInfo();
 }
 
@@ -187,7 +200,7 @@ async function reset_settings() {
   try {
     await commands.resetSettings();
     notifySuccess($t('settings.reset_success'));
-    load_config();
+    await load_config();
   } catch (e) {
     error(`reset settings error: ${e}`);
     notifyError($t('error.reset_settings_failed'));
@@ -716,6 +729,10 @@ watch(
   () => config.value.quick_action,
   () => {
     ensureQuickActionDefaults();
+    if (suppressConfigChangeTracking) {
+      skipQuickActionChange = false;
+      return;
+    }
     if (skipQuickActionChange) {
       skipQuickActionChange = false;
       return;
@@ -729,14 +746,17 @@ watch(
 watch(
   () => config.value.games,
   () => {
+    if (suppressConfigChangeTracking) {
+      return;
+    }
     gameOrderChanged.value = true;
   },
   { deep: true }
 );
 
-// 页面加载时获取设备信息
+// 页面加载时刷新配置与设备信息，避免其它页面更新配置后这里显示旧数据
 onMounted(async () => {
-  await fetchDeviceInfo();
+  await load_config();
   await refreshLudusaviManifestStatus();
   fetchSystemFonts(); // Load in background, no await needed
 });
@@ -744,6 +764,9 @@ onMounted(async () => {
 watch(
   () => config.value.settings.locale,
   (new_locale) => {
+    if (suppressConfigChangeTracking) {
+      return;
+    }
     info(`locale changed to ${new_locale}`);
     if (new_locale) {
       i18n.global.locale.value = new_locale as typeof i18n.global.locale.value;
@@ -755,6 +778,9 @@ watch(
 watch(
   () => config.value?.settings,
   async () => {
+    if (suppressConfigChangeTracking) {
+      return;
+    }
     debouncedSaveConfig();
   },
   { deep: true } // 深度监听对象变化
