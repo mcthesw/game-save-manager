@@ -6,6 +6,9 @@ on:
   push:
     branches: ["dev"]
 
+permissions:
+  contents: read
+
 concurrency:
   group: code-style-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

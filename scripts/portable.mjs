@@ -49,6 +49,21 @@ export function createPortablePaths(rootDir = getRepoRoot()) {
   };
 }
 
+async function importActionsGithub(rootDir) {
+  const entryPath = path.join(
+    rootDir,
+    "apps",
+    "rgsm-gui",
+    "node_modules",
+    "@actions",
+    "github",
+    "lib",
+    "github.js",
+  );
+
+  return await import(pathToFileURL(entryPath).href);
+}
+
 export function parseWorkspaceVersion(cargoToml) {
   let inWorkspacePackage = false;
 
@@ -189,7 +204,7 @@ export async function resolvePortable() {
     path.join(root, "apps", "rgsm-gui", "package.json"),
   );
   const AdmZip = requireFromGui("adm-zip");
-  const { getOctokit, context } = requireFromGui("@actions/github");
+  const { getOctokit, context } = await importActionsGithub(root);
 
   if (!(await pathExists(releaseDir))) {
     throw new Error("could not find the release dir");
