@@ -29,7 +29,7 @@ jobs:
           python-version: "3.x"
 
       - id: changes
-        name: Check changes since latest nightly
+        name: Check changes since latest successful nightly
         run: python scripts/should_publish_nightly.py --event-name "${{ github.event_name }}"
 
   create-release:
@@ -99,7 +99,7 @@ jobs:
           fi
 
           echo "Generating changelog since stable release: $LAST_STABLE"
-          git fetch --tags --quiet
+          git fetch --tags --force --quiet
 
           CHANGELOG="$(git log "${LAST_STABLE}..HEAD" \
             --pretty=format:"- %s (%h)" \
@@ -138,3 +138,28 @@ jobs:
       release_id: ${{ needs.create-release.outputs.release_id }}
       release_tag: ${{ needs.create-release.outputs.release_tag }}
     secrets: inherit
+
+  mark-nightly-success:
+    name: Mark successful nightly
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Update successful nightly baseline tag
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          BASELINE_TAG="latest-built"
+
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${BASELINE_TAG}" >/dev/null 2>&1; then
+            gh api "repos/${{ github.repository }}/git/refs/tags/${BASELINE_TAG}" \
+              --method PATCH \
+              -f sha="${GITHUB_SHA}" \
+              -F force=true >/dev/null
+          else
+            gh api "repos/${{ github.repository }}/git/refs" \
+              --method POST \
+              -f ref="refs/tags/${BASELINE_TAG}" \
+              -f sha="${GITHUB_SHA}" >/dev/null
+          fi
