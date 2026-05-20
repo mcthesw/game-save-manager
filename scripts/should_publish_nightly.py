@@ -72,7 +72,7 @@ def skip(reason: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--event-name", default=os.environ.get("GITHUB_EVENT_NAME", ""))
-    parser.add_argument("--release-tag", default="latest")
+    parser.add_argument("--release-tag", default="latest-built")
     args = parser.parse_args()
 
     if args.event_name == "workflow_dispatch":
@@ -90,8 +90,8 @@ def main() -> int:
         check=False,
     )
     if not base_sha:
-        print(f"No {args.release_tag} tag found; publishing nightly.")
-        publish(f"no {args.release_tag} tag")
+        print(f"No {args.release_tag} baseline tag found; publishing nightly.")
+        publish(f"no {args.release_tag} baseline tag")
         return 0
 
     head_sha = os.environ.get("GITHUB_SHA") or git("rev-parse", "HEAD")
@@ -106,14 +106,14 @@ def main() -> int:
     summary = [
         "### Nightly change detection",
         "",
-        f"Base `{args.release_tag}` tag: `{base_sha}`",
+        f"Base `{args.release_tag}` successful nightly tag: `{base_sha}`",
         f"Head: `{head_sha}`",
         "",
     ]
 
     if not changed_files:
-        print("No release-relevant changes since latest nightly; skipping publish.")
-        summary.append("No release-relevant changes since latest nightly.")
+        print("No release-relevant changes since latest successful nightly; skipping publish.")
+        summary.append("No release-relevant changes since latest successful nightly.")
         append_step_summary("\n".join(summary))
         skip("no release-relevant changes")
         return 0
