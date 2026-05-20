@@ -1,23 +1,40 @@
 name: Publish Nightly
 
 on:
-  push:
-    branches:
-      - dev
-    paths:
-      - apps/rgsm-gui/**
-      - crates/**
-      - Cargo.toml
-      - Cargo.lock
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - scripts/**
-      - locales/**
+  schedule:
+    # Run once every night at 00:00 UTC.
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: publish-nightly
+  cancel-in-progress: true
+
 jobs:
+  detect-changes:
+    name: Detect nightly changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_publish: ${{ steps.changes.outputs.should_publish }}
+      reason: ${{ steps.changes.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - id: changes
+        name: Check changes since latest nightly
+        run: python scripts/should_publish_nightly.py --event-name "${{ github.event_name }}"
+
   create-release:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.should_publish == 'true'
     permissions:
       contents: write
     runs-on: ubuntu-latest
