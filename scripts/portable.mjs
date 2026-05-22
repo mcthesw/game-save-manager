@@ -122,6 +122,67 @@ export function isReleaseAssetNameConflict(error) {
   );
 }
 
+function hasCauseCode(error, codes) {
+  let current = error;
+  while (current && typeof current === "object") {
+    if (codes.has(current.code)) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
+export function isRetriableReleaseAssetUploadError(error) {
+  const status = Number(error?.status ?? 0);
+  if (status === 408 || status === 429 || (status >= 500 && status < 600)) {
+    return true;
+  }
+
+  return hasCauseCode(
+    error,
+    new Set(["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "UND_ERR_SOCKET"]),
+  );
+}
+
+function describeReleaseAssetUploadError(error) {
+  const status = error?.status ? `HTTP ${error.status}` : "network error";
+  const message = error?.message ? `: ${error.message}` : "";
+  return `${status}${message}`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function uploadReleaseAssetWithRetry(
+  upload,
+  { log, retryDelaysMs = [2_000, 5_000, 10_000] },
+) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await upload();
+    } catch (error) {
+      const retryDelayMs = retryDelaysMs[attempt];
+      if (
+        retryDelayMs === undefined ||
+        !isRetriableReleaseAssetUploadError(error)
+      ) {
+        throw error;
+      }
+
+      log(
+        `[INFO]: release asset upload failed (${describeReleaseAssetUploadError(
+          error,
+        )}), retrying in ${retryDelayMs}ms`,
+      );
+      if (retryDelayMs > 0) {
+        await sleep(retryDelayMs);
+      }
+    }
+  }
+}
+
 export async function deleteReleaseAssetByName(
   github,
   options,
@@ -154,6 +215,7 @@ export async function uploadReleaseAssetWithClobber({
   name,
   data,
   log = console.log,
+  retryDelaysMs,
 }) {
   const upload = () =>
     github.rest.repos.uploadReleaseAsset({
@@ -164,7 +226,7 @@ export async function uploadReleaseAssetWithClobber({
     });
 
   try {
-    return await upload();
+    return await uploadReleaseAssetWithRetry(upload, { log, retryDelaysMs });
   } catch (error) {
     if (!isReleaseAssetNameConflict(error)) {
       throw error;
@@ -182,7 +244,7 @@ export async function uploadReleaseAssetWithClobber({
       log(`[INFO]: release asset ${name} was already removed, retry upload`);
     }
 
-    return await upload();
+    return await uploadReleaseAssetWithRetry(upload, { log, retryDelaysMs });
   }
 }
 
