@@ -85,6 +85,10 @@ jobs:
           fi
 
           gh release upload "${RELEASE_TAG}" LICENSE --clobber --repo "${{ github.repository }}"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
       - name: Update release notes with changes since last stable release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,17 +104,9 @@ jobs:
 
           echo "Generating changelog since stable release: $LAST_STABLE"
           git fetch --tags --force --quiet
-
-          CHANGELOG="$(git log "${LAST_STABLE}..HEAD" \
-            --pretty=format:"- %s (%h)" \
-            --no-merges)"
-
-          if [ -z "$CHANGELOG" ]; then
-            CHANGELOG="No changes since last stable release."
-          fi
-
-          printf "## Changes since last stable release (%s)\n\n%s\n" \
-            "$LAST_STABLE" "$CHANGELOG" > /tmp/release-notes.md
+          python scripts/nightly_changelog.py \
+            --stable-tag "$LAST_STABLE" \
+            --output /tmp/release-notes.md
 
           gh release edit "latest" \
             --notes-file /tmp/release-notes.md \
