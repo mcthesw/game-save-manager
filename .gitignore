@@ -26,6 +26,8 @@ target/
 
 # Misc
 .DS_Store
+__pycache__/
+*.pyc
 .fleet
 .idea
 GameSaveManager.config.json.backup.*
