@@ -2,6 +2,7 @@
 members = [
     "apps/rgsm-gui/src-tauri",
     "apps/rgsm-cli",
+    "apps/rgsm-tui",
     "crates/rgsm-core",
     "crates/rgsm-ffi",
 ]
