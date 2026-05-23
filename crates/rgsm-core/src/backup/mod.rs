@@ -19,7 +19,7 @@ pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{
     delete_extra_backup, extra_backup_folder_path, list_extra_backups, restore_extra_backup,
 };
-pub use game::{AutoBackupConfig, Game, GameDraft, TimerSnapshotDecision};
+pub use game::{AutoBackupConfig, Game, GameDraft, LudusaviMeta, TimerSnapshotDecision};
 pub use game_snapshots::GameSnapshots;
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitType};
 pub use snapshot::{CreatedBy, Snapshot};
