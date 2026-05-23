@@ -1,11 +1,49 @@
 use log::info;
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
 /// Stores the application's data directory path
 static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static APP_DATA_DIR_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
 #[cfg(test)]
 static TEST_APP_DATA_DIR: OnceLock<temp_dir::TempDir> = OnceLock::new();
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppDataDirOverrideError {
+    AlreadyInitialized,
+    AlreadySet,
+}
+
+impl fmt::Display for AppDataDirOverrideError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppDataDirOverrideError::AlreadyInitialized => {
+                write!(f, "application data directory is already initialized")
+            }
+            AppDataDirOverrideError::AlreadySet => {
+                write!(f, "application data directory override is already set")
+            }
+        }
+    }
+}
+
+impl std::error::Error for AppDataDirOverrideError {}
+
+/// Set an explicit application data directory before any config/path access.
+///
+/// The override is intended for non-GUI frontends such as `rgsm-tui` and must
+/// be installed during process startup. Once the default directory has been
+/// resolved, changing it would make later config reads/write target a different
+/// root from earlier reads, so this function rejects late calls.
+pub fn set_app_data_dir_override(path: PathBuf) -> Result<(), AppDataDirOverrideError> {
+    if APP_DATA_DIR.get().is_some() {
+        return Err(AppDataDirOverrideError::AlreadyInitialized);
+    }
+    APP_DATA_DIR_OVERRIDE
+        .set(path)
+        .map_err(|_| AppDataDirOverrideError::AlreadySet)
+}
 
 /// Get the directory where application data should be stored
 ///
@@ -16,6 +54,9 @@ static TEST_APP_DATA_DIR: OnceLock<temp_dir::TempDir> = OnceLock::new();
 /// The result is cached after the first call.
 /// The data directory is determined at startup and remains fixed for the application lifetime.
 pub fn get_app_data_dir() -> &'static PathBuf {
+    if let Some(path) = APP_DATA_DIR_OVERRIDE.get() {
+        return path;
+    }
     APP_DATA_DIR.get_or_init(init_app_data_dir)
 }
 
@@ -111,5 +152,24 @@ mod tests {
 
         // The result should be relative to app data dir
         assert!(result.ends_with(relative_path));
+    }
+
+    #[test]
+    fn test_override_error_display() {
+        assert_eq!(
+            AppDataDirOverrideError::AlreadyInitialized.to_string(),
+            "application data directory is already initialized"
+        );
+        assert_eq!(
+            AppDataDirOverrideError::AlreadySet.to_string(),
+            "application data directory override is already set"
+        );
+    }
+
+    #[test]
+    fn test_override_path_resolution_shape() {
+        let base = PathBuf::from("custom-data-dir");
+        let resolved = base.join("GameSaveManager.config.json");
+        assert!(resolved.ends_with("GameSaveManager.config.json"));
     }
 }

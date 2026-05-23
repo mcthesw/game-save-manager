@@ -10,7 +10,7 @@ mod task_manager;
 pub mod transfer;
 mod utils;
 
-pub use backend::{Backend, CloudSyncSessionConfig};
+pub use backend::{Backend, CloudSyncSessionConfig, S3AddressingStyle};
 pub use cloud_settings::CloudSettings;
 #[allow(unused_imports)]
 pub use conflict::{ConflictResolution, SyncRelation};
