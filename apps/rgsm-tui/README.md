@@ -1,6 +1,8 @@
 # RGSM TUI
 
-`rgsm-tui` is the terminal interface for Game Save Manager. It is intended for keyboard-first backup, restore, cloud sync, and Ludusavi import workflows.
+`rgsm-tui` is an experimental terminal interface for Game Save Manager. It is not recommended for anyone to use.
+
+It currently exists to explore keyboard-first backup, restore, cloud sync, and Ludusavi import workflows.
 
 ## Run
 
