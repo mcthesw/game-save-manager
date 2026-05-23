@@ -35,4 +35,4 @@ Screen-specific actions are shown in the footer. The Ludusavi screen uses `f` to
 
 - Keep terminal-only state in `rgsm-tui.settings.json`.
 - Keep business logic in `rgsm-core`; the TUI should only coordinate input, rendering, and calls into shared services.
-- Keep new user-facing text in `locales/en_US.json` and `locales/zh_SIMPLIFIED.json`.
+- Keep TUI user-facing text in `apps/rgsm-tui/locales/en_US.json` and `apps/rgsm-tui/locales/zh_SIMPLIFIED.json`.

@@ -72,7 +72,7 @@ impl App {
             import_sort: ListSort::Natural,
             import_path_overrides: HashMap::new(),
             vn_scan_results: Vec::new(),
-            modal: None,
+            modal: Some(Self::experimental_warning_modal()),
             log,
             cloud_sync_manager,
             operation_running: false,
@@ -81,6 +81,16 @@ impl App {
             op_tx,
             op_rx,
         })
+    }
+
+    fn experimental_warning_modal() -> Modal {
+        Modal {
+            kind: ModalKind::Confirm,
+            title: rust_i18n::t!("tui.warning.experimental_title").to_string(),
+            message: rust_i18n::t!("tui.warning.experimental_body").to_string(),
+            input: String::new(),
+            action: PendingAction::AcknowledgeExperimentalWarning,
+        }
     }
 
     pub fn should_quit(&self) -> bool {
@@ -300,9 +310,7 @@ impl App {
 
     fn handle_home_key(&mut self, code: KeyCode) {
         match code {
-            KeyCode::Char('n') => {
-                self.prompt(PendingAction::AddGameName, "Add game", "Game name", "")
-            }
+            KeyCode::Char('n') => self.prompt_add_game(),
             KeyCode::Char('b') => self.prompt_create_snapshot(None),
             KeyCode::Char('B') => self.prompt_create_snapshot(self.selected_snapshot_date()),
             KeyCode::Char('r') => self.confirm_selected(PendingAction::RestoreSnapshot),
@@ -322,9 +330,7 @@ impl App {
 
     fn handle_game_editor_key(&mut self, code: KeyCode) {
         match code {
-            KeyCode::Char('n') => {
-                self.prompt(PendingAction::AddGameName, "Add game", "Game name", "")
-            }
+            KeyCode::Char('n') => self.prompt_add_game(),
             KeyCode::Char('a') => self.prompt_context_add(),
             KeyCode::Char('e') | KeyCode::Char('P') => self.prompt_edit_selected_path(),
             KeyCode::Char('w') => self.prompt_rename_game(),
@@ -402,7 +408,11 @@ impl App {
                     self.run_pending_action(action, modal.input)?;
                 }
                 KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
-                    self.status = rust_i18n::t!("tui.status.cancelled").to_string();
+                    if matches!(modal.action, PendingAction::AcknowledgeExperimentalWarning) {
+                        self.should_quit = true;
+                    } else {
+                        self.status = rust_i18n::t!("tui.status.cancelled").to_string();
+                    }
                 }
                 _ => self.modal = Some(modal),
             },

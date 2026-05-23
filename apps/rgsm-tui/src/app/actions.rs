@@ -44,7 +44,7 @@ impl App {
     pub(super) fn show_help(&mut self) {
         self.modal = Some(Modal {
             kind: ModalKind::Help,
-            title: "Help".to_string(),
+            title: rust_i18n::t!("tui.dialog.help_title").to_string(),
             message: crate::ui::help_text(),
             input: String::new(),
             action: PendingAction::None,
@@ -128,12 +128,21 @@ impl App {
         match self.screen {
             Screen::GameEditor => self.prompt(
                 PendingAction::AddSaveUnitPath,
-                "Add save unit",
-                "Path for current device",
+                rust_i18n::t!("tui.dialog.add_save_unit").as_ref(),
+                rust_i18n::t!("tui.dialog.path_for_current_device").as_ref(),
                 "",
             ),
-            _ => self.prompt(PendingAction::AddGameName, "Add game", "Game name", ""),
+            _ => self.prompt_add_game(),
         }
+    }
+
+    pub(super) fn prompt_add_game(&mut self) {
+        self.prompt(
+            PendingAction::AddGameName,
+            rust_i18n::t!("tui.dialog.add_game").as_ref(),
+            rust_i18n::t!("addgame.game_name").as_ref(),
+            "",
+        );
     }
 
     pub(super) fn prompt_create_snapshot(&mut self, parent: Option<String>) {
@@ -143,10 +152,15 @@ impl App {
         }
         self.modal = Some(Modal {
             kind: ModalKind::Prompt,
-            title: "Create snapshot".to_string(),
+            title: rust_i18n::t!("tui.dialog.create_snapshot").to_string(),
             message: parent
                 .as_ref()
-                .map(|date| format!("Description for snapshot from {date}"))
+                .map(|date| {
+                    format!(
+                        "{}: {date}",
+                        rust_i18n::t!("tui.dialog.description_for_snapshot_from")
+                    )
+                })
                 .unwrap_or_else(|| rust_i18n::t!("manage.description").to_string()),
             input: String::new(),
             action: if parent.is_some() {
@@ -164,8 +178,11 @@ impl App {
         };
         self.prompt(
             PendingAction::EditSnapshotDescription,
-            "Edit snapshot description",
-            &format!("New description for {date}"),
+            rust_i18n::t!("tui.dialog.edit_snapshot_description").as_ref(),
+            &format!(
+                "{}: {date}",
+                rust_i18n::t!("tui.dialog.new_description_for")
+            ),
             "",
         );
     }
@@ -177,8 +194,8 @@ impl App {
         };
         self.prompt(
             PendingAction::RenameGame,
-            "Rename game",
-            "New game name",
+            rust_i18n::t!("tui.dialog.rename_game").as_ref(),
+            rust_i18n::t!("tui.dialog.new_game_name").as_ref(),
             &game.name,
         );
     }
@@ -197,8 +214,8 @@ impl App {
             .unwrap_or_default();
         self.prompt(
             PendingAction::EditSelectedPath,
-            "Edit save path",
-            "Path for current device",
+            rust_i18n::t!("tui.dialog.edit_save_path").as_ref(),
+            rust_i18n::t!("tui.dialog.path_for_current_device").as_ref(),
             &initial,
         );
     }
@@ -207,23 +224,30 @@ impl App {
         let message = match action {
             PendingAction::RestoreSnapshot => self
                 .selected_snapshot_date()
-                .map(|date| format!("Restore selected snapshot {date}?")),
+                .map(|date| format!("{}: {date}", rust_i18n::t!("tui.dialog.restore_snapshot"))),
             PendingAction::DeleteSnapshot => self
                 .selected_snapshot_date()
-                .map(|date| format!("Delete selected snapshot {date}?")),
+                .map(|date| format!("{}: {date}", rust_i18n::t!("tui.dialog.delete_snapshot"))),
             PendingAction::DeleteGame => self
                 .selected_game()
-                .map(|game| format!("Delete game {} and its snapshot data?", game.name)),
-            PendingAction::SetCurrentPosition => self
-                .selected_snapshot_date()
-                .map(|date| format!("Set current device position to {date}?")),
+                .map(|game| format!("{}: {}", rust_i18n::t!("tui.dialog.delete_game"), game.name)),
+            PendingAction::SetCurrentPosition => self.selected_snapshot_date().map(|date| {
+                format!(
+                    "{}: {date}",
+                    rust_i18n::t!("tui.dialog.set_current_position")
+                )
+            }),
             PendingAction::DetachSnapshot => self
                 .selected_snapshot_date()
-                .map(|date| format!("Detach snapshot {date} from its parent?")),
-            _ => Some("Confirm action?".to_string()),
+                .map(|date| format!("{}: {date}", rust_i18n::t!("tui.dialog.detach_snapshot"))),
+            _ => Some(rust_i18n::t!("tui.dialog.confirm_action").to_string()),
         };
         if let Some(message) = message {
-            self.confirm(action, "Confirm", message);
+            self.confirm(
+                action,
+                rust_i18n::t!("tui.dialog.confirm_title").as_ref(),
+                message,
+            );
         } else {
             self.status = rust_i18n::t!("tui.status.select_item_first").to_string();
         }
@@ -233,13 +257,13 @@ impl App {
         match action {
             PendingAction::UploadAll => self.confirm(
                 action,
-                "Cloud upload",
-                "Upload all local data to cloud?".to_string(),
+                rust_i18n::t!("tui.dialog.cloud_upload_title").as_ref(),
+                rust_i18n::t!("tui.dialog.cloud_upload_message").to_string(),
             ),
             PendingAction::DownloadAll => self.confirm(
                 action,
-                "Cloud download",
-                "Download cloud data and overwrite local data?".to_string(),
+                rust_i18n::t!("tui.dialog.cloud_download_title").as_ref(),
+                rust_i18n::t!("tui.dialog.cloud_download_message").to_string(),
             ),
             PendingAction::SyncSelected => {
                 if let Some(game) = self.selected_game() {
@@ -253,8 +277,12 @@ impl App {
                 if let Some(game) = self.selected_game() {
                     self.confirm(
                         action,
-                        "Resolve conflict",
-                        format!("Keep local progress for {}?", game.name),
+                        rust_i18n::t!("tui.dialog.resolve_conflict_title").as_ref(),
+                        format!(
+                            "{}: {}",
+                            rust_i18n::t!("tui.dialog.keep_local_progress"),
+                            game.name
+                        ),
                     );
                 }
             }
@@ -262,8 +290,12 @@ impl App {
                 if let Some(game) = self.selected_game() {
                     self.confirm(
                         action,
-                        "Resolve conflict",
-                        format!("Use cloud progress for {}?", game.name),
+                        rust_i18n::t!("tui.dialog.resolve_conflict_title").as_ref(),
+                        format!(
+                            "{}: {}",
+                            rust_i18n::t!("tui.dialog.use_cloud_progress"),
+                            game.name
+                        ),
                     );
                 }
             }
@@ -275,10 +307,12 @@ impl App {
         if let Some(candidate) = self.selected_import_candidate() {
             self.confirm(
                 PendingAction::ImportSelectedGame,
-                "Import game",
+                rust_i18n::t!("tui.dialog.import_game_title").as_ref(),
                 format!(
-                    "Import {} with {} save path(s)?",
+                    "{}: {}\n{}: {}",
+                    rust_i18n::t!("addgame.game_name"),
                     candidate.game.name,
+                    rust_i18n::t!("game_import.save_paths_count"),
                     self.selected_import_paths().len()
                 ),
             );
@@ -439,7 +473,10 @@ impl App {
 
     fn save_tui_settings(&mut self) -> bool {
         if let Err(err) = self.settings.save(&self.data_dir) {
-            self.status = format!("failed to save TUI settings: {err:#}");
+            self.status = format!(
+                "{}: {err:#}",
+                rust_i18n::t!("tui.status.save_settings_failed")
+            );
             false
         } else {
             self.status = rust_i18n::t!("tui.status.settings_saved").to_string();
@@ -452,8 +489,8 @@ impl App {
         let draft = cloud_settings_draft(current);
         self.prompt(
             PendingAction::EditCloudSettings,
-            "Cloud backend",
-            "Use: disabled | webdav endpoint=... username=... password=... root=/rgsm max=1 | s3 endpoint=... bucket=... region=... ak=... sk=... addressing=path|virtual|auto root=/rgsm max=1",
+            rust_i18n::t!("tui.dialog.cloud_backend_title").as_ref(),
+            rust_i18n::t!("tui.dialog.cloud_backend_hint").as_ref(),
             &draft,
         );
     }
@@ -464,6 +501,9 @@ impl App {
         input: String,
     ) -> Result<()> {
         match action {
+            PendingAction::AcknowledgeExperimentalWarning => {
+                self.status = rust_i18n::t!("tui.status.experimental_notice").to_string();
+            }
             PendingAction::AddGameName if !input.is_empty() => {
                 self.submit(Operation::AddGame(input))
             }
@@ -551,7 +591,12 @@ impl App {
                 let current = &self.data.config.settings.cloud_settings;
                 match parse_cloud_settings_draft(&input, current) {
                     Ok(settings) => self.submit(Operation::SaveCloudSettings(settings)),
-                    Err(err) => self.status = format!("invalid cloud settings: {err:#}"),
+                    Err(err) => {
+                        self.status = format!(
+                            "{}: {err:#}",
+                            rust_i18n::t!("tui.status.invalid_cloud_settings")
+                        );
+                    }
                 }
             }
             PendingAction::ResolveKeepLocal => {
@@ -671,10 +716,10 @@ impl App {
     }
 }
 
-fn sort_label(sort: ListSort) -> &'static str {
+fn sort_label(sort: ListSort) -> String {
     match sort {
-        ListSort::Natural => "natural",
-        ListSort::NameAsc => "name asc",
-        ListSort::NameDesc => "name desc",
+        ListSort::Natural => rust_i18n::t!("tui.sort.natural").to_string(),
+        ListSort::NameAsc => rust_i18n::t!("tui.sort.name_asc").to_string(),
+        ListSort::NameDesc => rust_i18n::t!("tui.sort.name_desc").to_string(),
     }
 }

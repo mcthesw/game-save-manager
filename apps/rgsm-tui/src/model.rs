@@ -59,6 +59,7 @@ pub struct Modal {
 #[derive(Debug, Clone)]
 pub enum PendingAction {
     None,
+    AcknowledgeExperimentalWarning,
     AddGameName,
     RenameGame,
     AddSaveUnitPath,

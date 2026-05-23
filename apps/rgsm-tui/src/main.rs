@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rust_i18n::i18n;
 
-i18n!("../../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
+i18n!("locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 mod app;
 mod args;
