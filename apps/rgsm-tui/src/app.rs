@@ -65,7 +65,7 @@ impl App {
             screen: Screen::Home,
             pane: Pane::Left,
             selection: Selection::default(),
-            status: rust_i18n::t!("tui.status.ready").to_string(),
+            status: rust_i18n::t!("tui.status.experimental_notice").to_string(),
             game_filter: String::new(),
             game_sort: ListSort::Natural,
             import_filter: String::new(),

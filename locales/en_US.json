@@ -159,6 +159,7 @@
         },
         "status": {
             "ready": "Ready",
+            "experimental_notice": "Experimental TUI. Not recommended for anyone to use.",
             "cancelled": "Cancelled",
             "terminal_too_small": "Terminal is too small",
             "select_game_first": "Select a game first",
@@ -234,7 +235,7 @@
             "logs": "j/k scroll | ? help | q quit"
         },
         "help": {
-            "body": "Navigation: 1-6 switch screens, arrows or hjkl move one row, Tab changes pane, / filters the active list, = cycles sorting, Backspace clears filtering, Esc returns to Backups.\nBackups: n adds a game, b creates a snapshot, r restores, d deletes a snapshot, x deletes a game, e edits snapshot text, p sets current position.\nSave Config: left pane selects a game, middle pane selects a save path, right pane shows device/path detail. n adds a game, a adds a save path, e edits the selected path, w renames the game, v scans configured VN directories.\nLudusavi: i imports selected game, e edits the selected detected path before import, f switches local/all filtering, m updates the manifest, ! resets to bundled data.\nCloud: c checks backend, e edits backend, u uploads all, o downloads all, y syncs selected game, a syncs all enabled games, t toggles selected game cloud sync, r keeps local progress, p uses cloud progress.\nSettings: Enter or t applies the selected setting, n renames the current device, r adds a game root, v runs the VN scanner.",
+            "body": "This TUI is experimental and not recommended for anyone to use.\n\nNavigation: 1-6 switch screens, arrows or hjkl move one row, Tab changes pane, / filters the active list, = cycles sorting, Backspace clears filtering, Esc returns to Backups.\nBackups: n adds a game, b creates a snapshot, r restores, d deletes a snapshot, x deletes a game, e edits snapshot text, p sets current position.\nSave Config: left pane selects a game, middle pane selects a save path, right pane shows device/path detail. n adds a game, a adds a save path, e edits the selected path, w renames the game, v scans configured VN directories.\nLudusavi: i imports selected game, e edits the selected detected path before import, f switches local/all filtering, m updates the manifest, ! resets to bundled data.\nCloud: c checks backend, e edits backend, u uploads all, o downloads all, y syncs selected game, a syncs all enabled games, t toggles selected game cloud sync, r keeps local progress, p uses cloud progress.\nSettings: Enter or t applies the selected setting, n renames the current device, r adds a game root, v runs the VN scanner.",
             "ludusavi_actions": "i imports selected. e edits highlighted path before import. f switches local/all filtering. m updates manifest. ! resets to bundled.",
             "editor_actions": "Left: choose game. Middle: choose save path. Right: choose device. n adds a game, a adds a path, e edits it, w renames the game, v scans VN directories.",
             "cloud_actions": "c check, e edit backend, u upload all, o download all, y sync selected, a sync all, t toggle game sync, z cancel active operation, r keep local, p use cloud.",
