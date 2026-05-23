@@ -111,8 +111,16 @@ Follow the Conventional Commit specification with emojis. The format is `type(sc
 
 - **Example**: `feat(backup): :sparkles: add support for zip64 archives`
 - Keep commits small and focused on a single logical change.
+- Split broad work into cohesive, reviewable commits by behavior or architectural layer. Do not hide a large feature, bug fix, and documentation cleanup in one giant commit.
+- When a branch has not been merged yet, prefer rewriting local branch history into a clean commit series over adding follow-up fix commits for issues introduced by the same change.
 - Pull requests must include a clear description, testing steps, and screenshots for any UI changes.
 - Wait for CI checks to pass before requesting a review.
+
+## Documentation Guidelines
+
+- Treat the root README files as user-facing project entry points. Do not add implementation notes, internal planning statements, or self-referential limitations there unless they directly help users.
+- Put app-specific usage and contributor notes under that app's directory, and keep them concise, practical, and audience-focused.
+- Do not mark OpenSpec tasks complete unless the behavior is implemented and verified. If reality contradicts the task list, fix the implementation or the task state before presenting the change as done.
 
 ## Localization (i18n)
 
