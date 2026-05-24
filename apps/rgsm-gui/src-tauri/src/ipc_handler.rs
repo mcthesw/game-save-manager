@@ -2,7 +2,7 @@ use crate::{quick_actions, sound};
 use rgsm_core::backup::{CreatedBy, ExtraBackupItem, Game, GameDraft, GameSnapshots};
 use rgsm_core::cloud_sync::{
     self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudSyncSessionConfig,
-    CloudSyncTaskManager, SyncGameOutcome,
+    CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome, SyncGameOutcome,
 };
 use rgsm_core::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use rgsm_core::device::{Device, get_current_device_id};
@@ -1087,6 +1087,32 @@ pub async fn sync_game(
     info!(target:"rgsm::ipc", "Syncing game: {}", game_name);
     svc(&app_handle)
         .sync_game(&game_name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Resolve a user-visible cloud sync conflict for one game.
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_game_sync_conflict(
+    game_name: String,
+    resolution: ConflictResolution,
+    app_handle: AppHandle,
+) -> Result<ConflictResolutionOutcome, String> {
+    info!(target:"rgsm::ipc", "Resolving cloud sync conflict for game: {}", game_name);
+    svc(&app_handle)
+        .resolve_game_conflict(&game_name, resolution)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Retry syncing the shared configuration to the configured cloud backend.
+#[tauri::command]
+#[specta::specta]
+pub async fn sync_config(app_handle: AppHandle) -> Result<(), String> {
+    info!(target:"rgsm::ipc", "Syncing cloud config");
+    svc(&app_handle)
+        .sync_config()
         .await
         .map_err(|e| e.to_string())
 }

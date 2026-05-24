@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, type Ref } from 'vue';
 import { $t } from '../i18n';
-import { commands, type Backend, type GameSyncState, type SyncState } from '../bindings';
+import {
+  commands,
+  type Backend,
+  type ConflictResolution,
+  type GameSyncState,
+  type SyncState,
+} from '../bindings';
 import { error } from '@tauri-apps/plugin-log';
-import { Lock, Refresh, Upload, Download } from '@element-plus/icons-vue';
+import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
 
 interface WebDAV {
   type: 'WebDAV';
@@ -54,6 +60,10 @@ const feedback = useFeedback();
 const activeTab = ref('overview');
 const syncState = ref<SyncState | null>(null);
 const syncingGames = ref<Set<string>>(new Set());
+const syncingConfig = ref(false);
+const resolvingConflict = ref(false);
+const conflictDialogVisible = ref(false);
+const selectedConflictGameName = ref<string | null>(null);
 const cloud_settings = ref<EditableCloudSettings>(
   toEditableCloudSettings(config.value!.settings.cloud_settings)
 );
@@ -124,6 +134,8 @@ interface GameRow {
   cloudSyncEnabled: boolean;
   status: 'synced' | 'pending' | 'failed' | 'disabled' | 'conflict' | 'unknown';
   lastSyncAt: string | null;
+  detail: string | null;
+  syncState: GameSyncState | null;
 }
 
 /** Returns true when the error string indicates the bucket requires virtual-hosted-style addressing. */
@@ -144,6 +156,14 @@ function resolveStatus(enabled: boolean, gs?: GameSyncState): GameRow['status'] 
   return 'unknown';
 }
 
+function syncErrorDetail(gs?: GameSyncState): string | null {
+  const result = gs?.last_sync_result;
+  if (result && typeof result === 'object' && 'error' in result) {
+    return String(result.error);
+  }
+  return null;
+}
+
 const gameRows = computed<GameRow[]>(() => {
   const states = syncState.value?.games ?? {};
   const configState = syncState.value?.config_state;
@@ -153,6 +173,8 @@ const gameRows = computed<GameRow[]>(() => {
     cloudSyncEnabled: true,
     status: resolveStatus(savedBackendEnabled.value, configState),
     lastSyncAt: configState?.last_sync_at ?? null,
+    detail: syncErrorDetail(configState),
+    syncState: configState ?? null,
   };
 
   const rows: GameRow[] = (config.value?.games ?? []).map((game) => {
@@ -164,6 +186,8 @@ const gameRows = computed<GameRow[]>(() => {
       cloudSyncEnabled: game.cloud_sync_enabled !== false,
       status: resolveStatus(enabled, gs),
       lastSyncAt: gs?.last_sync_at ?? null,
+      detail: syncErrorDetail(gs),
+      syncState: gs ?? null,
     };
   });
 
@@ -187,6 +211,79 @@ function statusLabel(status: StatusKey) {
 
 function statusType(status: StatusKey): TagType {
   return STATUS_META[status]?.type ?? 'info';
+}
+
+const selectedConflictRow = computed(
+  () =>
+    gameRows.value.find((row) => !row.isConfig && row.name === selectedConflictGameName.value) ??
+    null
+);
+const selectedConflictState = computed(() => selectedConflictRow.value?.syncState ?? null);
+
+function openConflictDialog(row: GameRow) {
+  if (row.isConfig || row.status !== 'conflict') return;
+  selectedConflictGameName.value = row.name;
+  conflictDialogVisible.value = true;
+}
+
+async function retryConfigSync() {
+  if (!savedBackendEnabled.value || syncingConfig.value) return;
+  syncingConfig.value = true;
+  try {
+    const result = await commands.syncConfig();
+    if (result.status === 'error') {
+      notifyError(`${$t('sync_settings.config_sync_failed')}: ${result.error}`);
+      error(`Sync config error: ${result.error}`);
+      return;
+    }
+    notifySuccess($t('sync_settings.config_sync_success'));
+  } catch (e) {
+    error(`Sync config exception: ${e}`);
+    notifyError(String(e));
+  } finally {
+    syncingConfig.value = false;
+    await loadSyncState();
+  }
+}
+
+async function resolveConflict(resolution: ConflictResolution) {
+  const row = selectedConflictRow.value;
+  if (!row || row.isConfig) return;
+
+  const confirmKey =
+    resolution === 'keep_local'
+      ? 'sync_settings.conflict.keep_local_confirm'
+      : 'sync_settings.conflict.accept_remote_confirm';
+
+  try {
+    await feedback.confirm($t(confirmKey, { game: row.name }), $t('sync_settings.conflict.title'), {
+      confirmButtonText: $t('sync_settings.confirm'),
+      cancelButtonText: $t('sync_settings.cancel'),
+      type: 'warning',
+    });
+  } catch {
+    notifyInfo($t('sync_settings.canceled'));
+    return;
+  }
+
+  try {
+    resolvingConflict.value = true;
+    const result = await commands.resolveGameSyncConflict(row.name, resolution);
+    if (result.status === 'error') {
+      notifyError(`${$t('sync_settings.conflict.resolve_failed')}: ${result.error}`);
+      error(`Resolve conflict error for ${row.name}: ${result.error}`);
+      return;
+    }
+
+    notifySuccess($t('sync_settings.conflict.resolve_success'));
+    conflictDialogVisible.value = false;
+  } catch (e) {
+    error(`Resolve conflict exception for ${row.name}: ${e}`);
+    notifyError(`${$t('sync_settings.conflict.resolve_failed')}: ${String(e)}`);
+  } finally {
+    resolvingConflict.value = false;
+    await loadSyncState();
+  }
 }
 
 async function toggleGameSync(row: GameRow) {
@@ -531,11 +628,16 @@ onMounted(async () => {
           >
             <template #default="{ row }">
               <div class="game-name-cell">
-                <span class="game-name">{{ row.name }}</span>
-                <ElTag v-if="row.isConfig" size="small" type="info" round effect="plain">
-                  <ElIcon :size="12" style="margin-right: 2px"><Lock /></ElIcon>
-                  {{ $t('sync_settings.overview.always_synced') }}
-                </ElTag>
+                <div class="game-name-stack">
+                  <div class="game-title-line">
+                    <span class="game-name">{{ row.name }}</span>
+                    <ElTag v-if="row.isConfig" size="small" type="info" round effect="plain">
+                      <ElIcon :size="12" style="margin-right: 2px"><Lock /></ElIcon>
+                      {{ $t('sync_settings.overview.always_synced') }}
+                    </ElTag>
+                  </div>
+                  <span v-if="row.detail" class="row-detail">{{ row.detail }}</span>
+                </div>
               </div>
             </template>
           </ElTableColumn>
@@ -574,10 +676,30 @@ onMounted(async () => {
               <span class="time-text">{{ formatTime(row.lastSyncAt) }}</span>
             </template>
           </ElTableColumn>
-          <ElTableColumn :label="$t('sync_settings.overview.actions')" width="100" align="center">
+          <ElTableColumn :label="$t('sync_settings.overview.actions')" width="150" align="center">
             <template #default="{ row }">
               <ElButton
-                v-if="!row.isConfig && row.cloudSyncEnabled && savedBackendEnabled"
+                v-if="row.isConfig && row.status === 'failed' && savedBackendEnabled"
+                :icon="Refresh"
+                size="small"
+                text
+                :loading="syncingConfig"
+                @click="retryConfigSync"
+              >
+                {{ $t('sync_settings.config_retry') }}
+              </ElButton>
+              <ElButton
+                v-else-if="!row.isConfig && row.status === 'conflict'"
+                :icon="Warning"
+                type="warning"
+                size="small"
+                text
+                @click="openConflictDialog(row)"
+              >
+                {{ $t('sync_settings.conflict.resolve') }}
+              </ElButton>
+              <ElButton
+                v-else-if="!row.isConfig && row.cloudSyncEnabled && savedBackendEnabled"
                 :icon="Refresh"
                 size="small"
                 text
@@ -730,6 +852,15 @@ onMounted(async () => {
         </div>
       </ElTabPane>
     </ElTabs>
+
+    <SyncConflictDialog
+      v-model="conflictDialogVisible"
+      :game-name="selectedConflictRow?.name ?? ''"
+      :state="selectedConflictState"
+      :current-device-id="syncState?.current_device_id"
+      :resolving="resolvingConflict"
+      @resolve="resolveConflict"
+    />
   </div>
 </template>
 
@@ -815,8 +946,28 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.game-name-stack {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.game-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .game-name {
   font-weight: 500;
+}
+
+.row-detail {
+  color: var(--el-text-color-secondary);
+  font-size: 0.78em;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .config-lock-icon {

@@ -145,6 +145,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::list_config_backups,
             ipc_handler::restore_config_backup,
             ipc_handler::sync_game,
+            ipc_handler::resolve_game_sync_conflict,
+            ipc_handler::sync_config,
         ])
         .events(tauri_specta::collect_events![
             ipc_handler::IpcNotification,
