@@ -477,6 +477,9 @@
         "backend_hint": "Choose the service backend",
         "sync_success": "Successfully synced",
         "sync_failed": "Sync failed",
+        "config_retry": "Retry",
+        "config_sync_success": "Config synced",
+        "config_sync_failed": "Config sync failed",
         "sync_syncing": "Syncing",
         "notification": "If games are added/removed or settings are changed, you should manually overwrite cloud files. Multi end users should use with caution",
         "start_test": "Start testing. If there is no response for a long time, please check the settings and network connection",
@@ -534,6 +537,27 @@
             "status_disabled": "Disabled",
             "status_conflict": "Conflict",
             "status_unknown": "Unknown"
+        },
+        "conflict": {
+            "title": "Resolve cloud sync conflict",
+            "summary": "{game} has different local and cloud progress. Choose which progress should be kept.",
+            "local_title": "Local progress",
+            "cloud_title": "Cloud progress",
+            "snapshot": "Snapshot",
+            "device": "Device",
+            "current_device": "Current device",
+            "cloud_device": "Cloud",
+            "last_checked": "Last checked",
+            "not_synced": "Not checked yet",
+            "no_snapshot": "No snapshot recorded",
+            "keep_local": "Keep local",
+            "accept_remote": "Use cloud",
+            "decide_later": "Decide later",
+            "resolve": "Resolve",
+            "keep_local_confirm": "Keep local progress for {game}? This uploads local snapshots to cloud and clears the conflict after the upload succeeds.",
+            "accept_remote_confirm": "Use cloud progress for {game}? This replaces local snapshot data with staged cloud data after the download succeeds.",
+            "resolve_success": "Conflict resolved",
+            "resolve_failed": "Conflict resolution failed"
         },
         "backend_tab": {
             "tab": "Backend"

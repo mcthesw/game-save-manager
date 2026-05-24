@@ -483,6 +483,28 @@ async syncGame(gameName: string) : Promise<Result<SyncGameOutcome, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Resolve a user-visible cloud sync conflict for one game.
+ */
+async resolveGameSyncConflict(gameName: string, resolution: ConflictResolution) : Promise<Result<ConflictResolutionOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resolve_game_sync_conflict", { gameName, resolution }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Retry syncing the shared configuration to the configured cloud backend.
+ */
+async syncConfig() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sync_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -604,6 +626,11 @@ export type Config = { version: string; backup_path: string; games: Game[]; sett
  * 设备ID到设备名称的映射
  */
 devices?: Partial<{ [key in string]: Device }> }
+/**
+ * What the user chose to do when a conflict is detected.
+ */
+export type ConflictResolution = "keep_local" | "accept_remote" | "fork" | "cancelled"
+export type ConflictResolutionOutcome = "cancelled" | "kept_local" | "accepted_remote"
 /**
  * Tracks how a snapshot was created.
  * 
