@@ -20,6 +20,7 @@ use tokio_util::sync::CancellationToken;
 use crate::hooks::{TuiRestoreNotifier, build_pipeline};
 use crate::logging::SessionLog;
 use crate::model::{AppData, ImportCandidate, OperationEvent};
+use crate::profile_import;
 use crate::tui_settings::TuiSettings;
 
 mod vn;
@@ -48,6 +49,7 @@ pub enum Operation {
     SaveCloudSettings(CloudSettings),
     UpdateManifest,
     ResetManifest,
+    ImportGuiProfile(String),
     ImportGame {
         name: String,
         save_paths: Vec<String>,
@@ -193,6 +195,7 @@ impl Operation {
             Operation::SaveCloudSettings(_) => "save cloud settings".to_string(),
             Operation::UpdateManifest => "update Ludusavi manifest".to_string(),
             Operation::ResetManifest => "reset Ludusavi manifest".to_string(),
+            Operation::ImportGuiProfile(_) => "import GUI profile".to_string(),
             Operation::ImportGame { name, .. } => format!("import {name} from Ludusavi"),
             Operation::ReloadData => "refresh RGSM data".to_string(),
             Operation::UpdateCurrentDeviceName(_) => "update current device name".to_string(),
@@ -375,6 +378,18 @@ async fn run_operation(
         Operation::ResetManifest => {
             let status = ludusavi_manifest::reset_manifest_to_bundled()?;
             Ok(format!("manifest reset: {status:?}"))
+        }
+        Operation::ImportGuiProfile(path) => {
+            let data_dir = rgsm_core::app_dirs::get_app_data_dir().clone();
+            let report =
+                profile_import::import_gui_profile(std::path::Path::new(&path), &data_dir)?;
+            Ok(format!(
+                "imported GUI profile: {} games, {} backup files copied, {} skipped from {}",
+                report.games,
+                report.copied_backup_files,
+                report.skipped_backup_files,
+                report.source_backup_path.display()
+            ))
         }
         Operation::ImportGame { name, save_paths } => {
             import_ludusavi_game(&service, &name, save_paths).await?;

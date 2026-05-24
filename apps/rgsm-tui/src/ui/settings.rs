@@ -45,8 +45,8 @@ fn draw_settings_menu(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let mut state = ListState::default().with_selected(Some(app.selection.settings));
     frame.render_stateful_widget(
         List::new(items)
-            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue))
-            .highlight_symbol("> ")
+            .highlight_style(Style::default().fg(Color::Black).bg(Color::Yellow))
+            .highlight_symbol("▶ ")
             .block(panel_block(
                 t!("tui.panel.settings_actions").as_ref(),
                 app.pane == Pane::Left,
@@ -157,6 +157,7 @@ fn setting_label(item: SettingsItem) -> String {
     match item {
         SettingsItem::AutoCloudEnqueue => t!("tui.settings.auto_enqueue_cloud").to_string(),
         SettingsItem::LudusaviLocalOnly => t!("tui.settings.ludusavi_local_only").to_string(),
+        SettingsItem::ImportGuiProfile => t!("tui.settings.import_gui_profile_action").to_string(),
         SettingsItem::CurrentDeviceName => t!("tui.settings.device_name_action").to_string(),
         SettingsItem::AddGameRoot => t!("tui.settings.add_game_root_action").to_string(),
         SettingsItem::AddVnScanRoot => t!("tui.settings.add_vn_scan_root_action").to_string(),
@@ -173,6 +174,7 @@ fn setting_value(item: SettingsItem, app: &App) -> String {
                 t!("tui.ludusavi.scope_all").to_string()
             }
         }
+        SettingsItem::ImportGuiProfile => t!("tui.settings.enter_to_edit").to_string(),
         SettingsItem::CurrentDeviceName => app
             .data
             .config
@@ -192,6 +194,7 @@ fn setting_detail(item: SettingsItem) -> String {
         SettingsItem::LudusaviLocalOnly => {
             t!("tui.settings.ludusavi_local_only_detail").to_string()
         }
+        SettingsItem::ImportGuiProfile => t!("tui.settings.import_gui_profile_detail").to_string(),
         SettingsItem::CurrentDeviceName => t!("tui.settings.device_name_detail").to_string(),
         SettingsItem::AddGameRoot => t!("tui.settings.add_game_root_detail").to_string(),
         SettingsItem::AddVnScanRoot => t!("tui.settings.add_vn_scan_root_detail").to_string(),
@@ -203,6 +206,7 @@ fn setting_action_hint(item: SettingsItem) -> String {
         SettingsItem::AutoCloudEnqueue | SettingsItem::LudusaviLocalOnly => {
             t!("tui.settings.toggle_hint").to_string()
         }
+        SettingsItem::ImportGuiProfile => t!("tui.settings.import_gui_profile_hint").to_string(),
         SettingsItem::CurrentDeviceName => t!("tui.settings.rename_hint").to_string(),
         SettingsItem::AddGameRoot => t!("tui.settings.add_root_hint").to_string(),
         SettingsItem::AddVnScanRoot => t!("tui.settings.add_vn_root_hint").to_string(),

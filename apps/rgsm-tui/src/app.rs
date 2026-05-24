@@ -376,6 +376,7 @@ impl App {
         match code {
             KeyCode::Char('n') => self.prompt_edit_current_device_name(),
             KeyCode::Char('r') => self.prompt_add_current_device_root(),
+            KeyCode::Char('g') => self.prompt_import_gui_profile(),
             KeyCode::Char('v') => self.scan_vns(),
             KeyCode::Char('t') => self.toggle_setting(),
             _ => {}

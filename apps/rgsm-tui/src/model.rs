@@ -24,15 +24,17 @@ pub enum Pane {
 pub enum SettingsItem {
     AutoCloudEnqueue,
     LudusaviLocalOnly,
+    ImportGuiProfile,
     CurrentDeviceName,
     AddGameRoot,
     AddVnScanRoot,
 }
 
 impl SettingsItem {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::AutoCloudEnqueue,
         Self::LudusaviLocalOnly,
+        Self::ImportGuiProfile,
         Self::CurrentDeviceName,
         Self::AddGameRoot,
         Self::AddVnScanRoot,
@@ -85,6 +87,7 @@ pub enum PendingAction {
     SearchGames,
     SearchImportableGames,
     EditImportPath,
+    ImportGuiProfile,
     EditCurrentDeviceName,
     AddCurrentDeviceRoot,
     AddVnScanRoot,
