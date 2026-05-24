@@ -71,6 +71,11 @@
     },
     "sync_settings": {
         "backend": "同步后端",
+        "backend_label": {
+            "disabled": "已禁用",
+            "s3": "S3",
+            "webdav": "WebDAV"
+        },
         "backend_tab": {
             "tab": "后端配置"
         },
@@ -153,15 +158,15 @@
             "editor": "/ 搜索 | = 排序 | Tab 面板 | n 游戏 | a 路径 | e 编辑 | w 改名 | v 识别VN | ? 帮助 | q 退",
             "home": "/ 搜索 | = 排序 | n 添加 | b 备份 | r 恢复 | d 删快照 | x 删游戏 | ? 帮助 | q 退",
             "logs": "j/k 滚动 | ? 帮助 | q 退出",
-            "ludusavi": "/ 搜索 | = 排序 | i 导入 | e 编辑 | f 本地/全部 | m 更新 | ! 恢复 | ? 帮助 | q 退",
+            "ludusavi": "/ 搜索 | = 排序 | i 导入 | e 编辑 | f 本地/全部 | u 更新识别数据库 | ! 恢复 | ? 帮助 | q 退",
             "settings": "Enter/t 应用 | g 导入GUI | n 设备 | r 根目录 | v 识别VN | ? 帮助 | q 退"
         },
         "help": {
-            "body": "这个 TUI 是试验性作品，不推荐任何人使用。\n\n导航：1-6 切换页面，方向键或 hjkl 移动一行，Tab 切换面板，/ 筛选当前列表，= 循环排序，Backspace 清除筛选，Esc 返回备份页。\n备份：n 添加游戏，b 创建快照，r 恢复，d 删除快照，x 删除游戏，e 编辑快照描述，p 设置当前进度。\n编辑存档配置：左侧选择游戏，中间选择存档路径，右侧显示设备/路径详情。n 添加游戏，a 添加存档路径，e 编辑选中路径，w 重命名游戏，v 扫描已配置的 VN 目录。\nLudusavi：i 导入选中游戏，e 在导入前编辑选中的探测路径，f 切换本地/全部筛选，m 更新清单，! 恢复内置清单。\n云同步：c 检查后端，e 编辑后端，u 上传全部，o 下载全部，y 同步选中游戏，a 同步全部启用游戏，t 切换选中游戏云同步，r 保留本地进度，p 使用云端进度。\n设置：Enter 或 t 应用选中设置，g 将 GUI 配置导入 TUI profile，n 重命名当前设备，r 添加游戏根目录，v 执行 VN 扫描。",
+            "body": "这个 TUI 是试验性作品，不推荐任何人使用。\n\n导航：1-6 切换页面，方向键或 hjkl 移动一行，Tab 切换面板，/ 筛选当前列表，= 循环排序，Backspace 清除筛选，Esc 返回备份页。\n备份：n 添加游戏，b 创建快照，r 恢复，d 删除快照，x 删除游戏，e 编辑快照描述，p 设置当前进度。\n编辑存档配置：左侧选择游戏，中间选择存档路径，右侧显示设备/路径详情。n 添加游戏，a 添加存档路径，e 编辑选中路径，w 重命名游戏，v 扫描已配置的 VN 目录。\n识别：i 导入选中游戏，e 在导入前编辑选中的探测路径，f 切换本地/全部筛选，u 更新识别数据库，! 恢复内置清单。\n云同步：c 检查后端，e 编辑后端，u 上传全部，o 下载全部，y 同步选中游戏，a 同步全部启用游戏，t 切换选中游戏云同步，r 保留本地进度，p 使用云端进度。\n设置：Enter 或 t 应用选中设置，g 将 GUI 配置导入 TUI profile，n 重命名当前设备，r 添加游戏根目录，v 执行 VN 扫描。",
             "cloud_actions": "c 检查，e 编辑后端，u 上传全部，o 下载全部，y 同步选中游戏，a 同步全部，t 切换游戏云同步，z 取消当前操作，r 保留本地，p 使用云端。",
             "confirm": "Enter/y 确认。Esc/n 取消。",
             "editor_actions": "左侧选择游戏，中间选择存档路径，右侧选择设备。n 添加游戏，a 添加路径，e 编辑路径，w 重命名游戏，v 扫描 VN 目录。",
-            "ludusavi_actions": "i 导入选中项。e 在导入前编辑高亮路径。f 切换本地/全部筛选。m 更新清单。! 恢复内置清单。",
+            "ludusavi_actions": "i 导入选中项。e 在导入前编辑高亮路径。f 切换本地/全部筛选。u 更新识别数据库。! 恢复内置清单。",
             "message": "Enter 或 Esc 关闭此消息。l 打开日志。",
             "prompt": "Enter 确认。Esc 取消。Tab 补全路径变量或文件系统路径。"
         },
@@ -170,6 +175,7 @@
         },
         "ludusavi": {
             "filter": "筛选",
+            "no_database_update_hint": "当前没有本地或内置数据库。联网后按 u 更新识别数据库。",
             "scope_all": "完整清单",
             "scope_local": "本地游戏"
         },
@@ -191,12 +197,12 @@
             "editor": "编辑存档配置",
             "home": "备份",
             "logs": "日志",
-            "ludusavi": "Ludusavi",
+            "ludusavi": "识别",
             "settings": "设置"
         },
         "search": {
             "games_title": "搜索游戏",
-            "importable_title": "搜索 Ludusavi 游戏",
+            "importable_title": "搜索可识别游戏",
             "sort": "排序"
         },
         "sort": {
@@ -206,7 +212,7 @@
         },
         "settings": {
             "add_game_root_action": "添加游戏根目录",
-            "add_game_root_detail": "添加用于解析 <root> 路径变量和 Ludusavi 本地游戏探测的目录。",
+            "add_game_root_detail": "添加用于解析 <root> 路径变量和本地游戏识别的目录。",
             "add_root_hint": "Enter 或 r 添加游戏根目录。",
             "add_vn_root_hint": "Enter 添加 VN 扫描目录，v 执行 VN 扫描。",
             "add_vn_scan_root_action": "添加 VN 扫描目录",
@@ -224,12 +230,19 @@
             "import_gui_profile_detail": "从 GUI profile 只读导入游戏、设备、部分备份设置、云同步设置、VN 扫描目录和缺失的备份文件到当前 TUI profile。",
             "import_gui_profile_hint": "Enter 或 g 输入 GUI profile 目录或 GameSaveManager.config.json。",
             "import_gui_profile_prompt": "GUI profile 目录或 GameSaveManager.config.json",
-            "ludusavi_local_only": "Ludusavi 导入范围",
-            "ludusavi_local_only_detail": "启用后，仅显示在已配置游戏根目录下探测到的本地游戏。",
+            "ludusavi_local_only": "识别导入范围",
+            "ludusavi_local_only_detail": "启用后，识别列表仅显示在已配置游戏根目录下找到的本地游戏。",
             "rename_hint": "Enter 或 n 修改当前设备名称。",
             "toggle_hint": "Enter 或 t 切换该设置。"
         },
         "snapshot": {
+            "created_by": {
+                "hotkey": "热键",
+                "manual": "手动",
+                "timer": "定时",
+                "tray": "托盘",
+                "unknown": "未知"
+            },
             "parent": "父快照",
             "source": "来源"
         },
@@ -253,6 +266,10 @@
         },
         "vn": {
             "detected_games": "识别到的 VN 游戏"
+        },
+        "value": {
+            "off": "关",
+            "on": "开"
         },
         "warning": {
             "experimental_body": "这个终端界面是试验性作品，不推荐任何人使用。\n\n按 Enter 或 y 表示知晓并继续。按 Esc 或 n 退出。",

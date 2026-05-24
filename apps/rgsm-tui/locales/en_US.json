@@ -71,6 +71,11 @@
     },
     "sync_settings": {
         "backend": "Sync backend",
+        "backend_label": {
+            "disabled": "Disabled",
+            "s3": "S3",
+            "webdav": "WebDAV"
+        },
         "backend_tab": {
             "tab": "Backend"
         },
@@ -153,15 +158,15 @@
             "editor": "/ search | = sort | Tab pane | n game | a path | e edit | w rename | v scan VN | ? help | q quit",
             "home": "/ search | = sort | n add | b backup | r restore | d del snap | x del game | ? help | q quit",
             "logs": "j/k scroll | ? help | q quit",
-            "ludusavi": "/ search | = sort | i import | e edit | f local/all | m update | ! reset | ? help | q quit",
+            "ludusavi": "/ search | = sort | i import | e edit | f local/all | u update detection database | ! reset | ? help | q quit",
             "settings": "Enter/t apply | g import GUI | n device | r root | v scan VN | ? help | q quit"
         },
         "help": {
-            "body": "This TUI is experimental and not recommended for anyone to use.\n\nNavigation: 1-6 switch screens, arrows or hjkl move one row, Tab changes pane, / filters the active list, = cycles sorting, Backspace clears filtering, Esc returns to Backups.\nBackups: n adds a game, b creates a snapshot, r restores, d deletes a snapshot, x deletes a game, e edits snapshot text, p sets current position.\nSave Config: left pane selects a game, middle pane selects a save path, right pane shows device/path detail. n adds a game, a adds a save path, e edits the selected path, w renames the game, v scans configured VN directories.\nLudusavi: i imports selected game, e edits the selected detected path before import, f switches local/all filtering, m updates the manifest, ! resets to bundled data.\nCloud: c checks backend, e edits backend, u uploads all, o downloads all, y syncs selected game, a syncs all enabled games, t toggles selected game cloud sync, r keeps local progress, p uses cloud progress.\nSettings: Enter or t applies the selected setting, g imports a GUI profile into the TUI profile, n renames the current device, r adds a game root, v runs the VN scanner.",
+            "body": "This TUI is experimental and not recommended for anyone to use.\n\nNavigation: 1-6 switch screens, arrows or hjkl move one row, Tab changes pane, / filters the active list, = cycles sorting, Backspace clears filtering, Esc returns to Backups.\nBackups: n adds a game, b creates a snapshot, r restores, d deletes a snapshot, x deletes a game, e edits snapshot text, p sets current position.\nSave Config: left pane selects a game, middle pane selects a save path, right pane shows device/path detail. n adds a game, a adds a save path, e edits the selected path, w renames the game, v scans configured VN directories.\nDetect: i imports selected game, e edits the selected detected path before import, f switches local/all filtering, u updates the detection database, ! resets to bundled data.\nCloud: c checks backend, e edits backend, u uploads all, o downloads all, y syncs selected game, a syncs all enabled games, t toggles selected game cloud sync, r keeps local progress, p uses cloud progress.\nSettings: Enter or t applies the selected setting, g imports a GUI profile into the TUI profile, n renames the current device, r adds a game root, v runs the VN scanner.",
             "cloud_actions": "c check, e edit backend, u upload all, o download all, y sync selected, a sync all, t toggle game sync, z cancel active operation, r keep local, p use cloud.",
             "confirm": "Enter/y confirms. Esc/n cancels.",
             "editor_actions": "Left: choose game. Middle: choose save path. Right: choose device. n adds a game, a adds a path, e edits it, w renames the game, v scans VN directories.",
-            "ludusavi_actions": "i imports selected. e edits highlighted path before import. f switches local/all filtering. m updates manifest. ! resets to bundled.",
+            "ludusavi_actions": "i imports selected. e edits highlighted path before import. f switches local/all filtering. u updates detection database. ! resets to bundled.",
             "message": "Enter or Esc closes this message. l opens logs.",
             "prompt": "Enter confirms. Esc cancels. Tab completes path variables or filesystem paths."
         },
@@ -170,6 +175,7 @@
         },
         "ludusavi": {
             "filter": "Filter",
+            "no_database_update_hint": "No local or bundled database is available. Press u to update the detection database while online.",
             "scope_all": "All manifest games",
             "scope_local": "Local games"
         },
@@ -191,12 +197,12 @@
             "editor": "Save Config",
             "home": "Backups",
             "logs": "Logs",
-            "ludusavi": "Ludusavi",
+            "ludusavi": "Detect",
             "settings": "Settings"
         },
         "search": {
             "games_title": "Search games",
-            "importable_title": "Search Ludusavi games",
+            "importable_title": "Search detected games",
             "sort": "Sort"
         },
         "sort": {
@@ -206,7 +212,7 @@
         },
         "settings": {
             "add_game_root_action": "Add game root",
-            "add_game_root_detail": "Add a directory used for <root> path resolution and Ludusavi local-game detection.",
+            "add_game_root_detail": "Add a directory used for <root> path resolution and local-game detection.",
             "add_root_hint": "Enter or r adds a game root directory.",
             "add_vn_root_hint": "Enter adds a VN scan directory. v runs the VN scan.",
             "add_vn_scan_root_action": "Add VN scan directory",
@@ -224,12 +230,19 @@
             "import_gui_profile_detail": "Import games, devices, selected backup settings, cloud settings, VN scan directories, and missing backup files from a GUI profile into this TUI profile. The GUI profile is read-only.",
             "import_gui_profile_hint": "Enter or g prompts for a GUI profile directory or GameSaveManager.config.json.",
             "import_gui_profile_prompt": "GUI profile directory or GameSaveManager.config.json",
-            "ludusavi_local_only": "Ludusavi import scope",
-            "ludusavi_local_only_detail": "When enabled, the import list only shows games detected under configured local game roots.",
+            "ludusavi_local_only": "Detection import scope",
+            "ludusavi_local_only_detail": "When enabled, the detection list only shows games found under configured local game roots.",
             "rename_hint": "Enter or n edits the current device name.",
             "toggle_hint": "Enter or t toggles this setting."
         },
         "snapshot": {
+            "created_by": {
+                "hotkey": "hotkey",
+                "manual": "manual",
+                "timer": "timer",
+                "tray": "tray",
+                "unknown": "unknown"
+            },
             "parent": "Parent",
             "source": "Source"
         },
@@ -253,6 +266,10 @@
         },
         "vn": {
             "detected_games": "Detected VN games"
+        },
+        "value": {
+            "off": "off",
+            "on": "on"
         },
         "warning": {
             "experimental_body": "This terminal UI is experimental and not recommended for anyone to use.\n\nPress Enter or y to acknowledge and continue. Press Esc or n to quit.",

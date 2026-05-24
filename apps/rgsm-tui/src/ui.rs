@@ -5,17 +5,17 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 use rgsm_core::{
-    backup::CreatedBy,
+    backup::{CreatedBy, SaveUnitType},
     cloud_sync::{Backend, GameSyncState, PendingAction as SyncPendingAction, SyncResult},
 };
 use rust_i18n::t;
 
 use crate::{
     app::App,
-    model::{ModalKind, Screen},
+    model::{ListSort, ModalKind, Screen},
 };
 
 mod ludusavi;
@@ -24,6 +24,9 @@ mod settings;
 
 const MIN_WIDTH: u16 = 78;
 const MIN_HEIGHT: u16 = 20;
+const ACCENT: Color = Color::Cyan;
+const ACTIVE: Color = Color::Yellow;
+const MUTED: Color = Color::DarkGray;
 
 pub fn draw(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
@@ -95,24 +98,34 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
         ("6", Screen::Logs, t!("tui.screen.logs").to_string()),
     ];
     let mut spans = vec![Span::styled(
-        "RGSM TUI ",
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
+        " RGSM TUI ",
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
     )];
     for (key, screen, label) in tabs {
-        let style = if screen == app.screen {
+        let key_style = if screen == app.screen {
+            Style::default().fg(ACTIVE).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(MUTED)
+        };
+        let label_style = if screen == app.screen {
             Style::default()
-                .fg(Color::Cyan)
+                .fg(Color::White)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Gray)
         };
-        spans.push(Span::styled(format!("[{key}]{label} "), style));
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(format!("[{key}]"), key_style));
+        spans.push(Span::styled(label, label_style));
     }
     frame.render_widget(Clear, area);
     frame.render_widget(
-        Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::ALL)),
+        Paragraph::new(Line::from(spans)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(MUTED)),
+        ),
         area,
     );
 }
@@ -123,11 +136,26 @@ fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     } else {
         app.status.clone()
     };
-    let text = format!("{status}\n{}", footer_actions(app.screen));
+    let status_style = if app.operation_running {
+        Style::default().fg(ACTIVE).add_modifier(Modifier::BOLD)
+    } else if app.modal.is_some() {
+        Style::default().fg(ACCENT)
+    } else {
+        Style::default().fg(Color::Gray)
+    };
+    let lines = vec![
+        Line::from(Span::styled(status, status_style)),
+        Line::from(Span::styled(
+            footer_actions(app.screen),
+            Style::default().fg(MUTED),
+        )),
+    ];
     frame.render_widget(
-        Paragraph::new(text)
-            .style(Style::default().fg(Color::Gray))
-            .block(Block::default().borders(Borders::TOP)),
+        Paragraph::new(lines).block(
+            Block::default()
+                .borders(Borders::TOP)
+                .border_style(Style::default().fg(MUTED)),
+        ),
         area,
     );
 }
@@ -151,7 +179,7 @@ fn draw_modal(
     message: &str,
     input: &str,
 ) {
-    let modal_area = centered_rect(64, 46, area);
+    let modal_area = centered_rect(60, 40, area);
     frame.render_widget(Clear, modal_area);
     let mut lines = vec![message.to_string()];
     match kind {
@@ -176,8 +204,9 @@ fn draw_modal(
             .block(
                 Block::default()
                     .borders(Borders::ALL)
+                    .border_type(BorderType::LightDoubleDashed)
                     .title(title.to_string())
-                    .style(Style::default().fg(Color::White)),
+                    .border_style(Style::default().fg(MUTED)),
             ),
         modal_area,
     );
@@ -213,21 +242,22 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 
 fn panel_block(title: impl Into<String>, focused: bool) -> Block<'static> {
     let style = if focused {
-        Style::default().fg(Color::Cyan)
+        Style::default().fg(ACCENT)
     } else {
-        Style::default().fg(Color::Gray)
+        Style::default().fg(MUTED)
     };
     Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(title.into())
-        .style(style)
+        .border_style(style)
 }
 
 fn selected_style(selected: bool) -> Style {
     if selected {
         Style::default()
-            .fg(Color::White)
-            .bg(Color::Blue)
+            .fg(Color::Black)
+            .bg(ACTIVE)
             .add_modifier(Modifier::BOLD)
     } else {
         Style::default()
@@ -257,21 +287,45 @@ fn sync_error(state: &GameSyncState) -> Option<&str> {
     }
 }
 
-fn backend_label(backend: &Backend) -> &'static str {
+fn backend_label(backend: &Backend) -> String {
     match backend {
-        Backend::Disabled => "Disabled",
-        Backend::WebDAV { .. } => "WebDAV",
-        Backend::S3 { .. } => "S3",
+        Backend::Disabled => t!("sync_settings.backend_label.disabled").to_string(),
+        Backend::WebDAV { .. } => t!("sync_settings.backend_label.webdav").to_string(),
+        Backend::S3 { .. } => t!("sync_settings.backend_label.s3").to_string(),
     }
 }
 
-fn created_by_label(created_by: &CreatedBy) -> &'static str {
+fn created_by_label(created_by: &CreatedBy) -> String {
     match created_by {
-        CreatedBy::Manual => "manual",
-        CreatedBy::Timer => "timer",
-        CreatedBy::Tray => "tray",
-        CreatedBy::Hotkey => "hotkey",
-        CreatedBy::Unknown => "unknown",
+        CreatedBy::Manual => t!("tui.snapshot.created_by.manual").to_string(),
+        CreatedBy::Timer => t!("tui.snapshot.created_by.timer").to_string(),
+        CreatedBy::Tray => t!("tui.snapshot.created_by.tray").to_string(),
+        CreatedBy::Hotkey => t!("tui.snapshot.created_by.hotkey").to_string(),
+        CreatedBy::Unknown => t!("tui.snapshot.created_by.unknown").to_string(),
+    }
+}
+
+fn save_unit_type_label(unit_type: &SaveUnitType) -> String {
+    match unit_type {
+        SaveUnitType::File => t!("save_location_drawer.type_file").to_string(),
+        SaveUnitType::Folder => t!("save_location_drawer.type_folder").to_string(),
+        SaveUnitType::WinRegistry => t!("game_import_customize.registry").to_string(),
+    }
+}
+
+fn sort_label(sort: ListSort) -> String {
+    match sort {
+        ListSort::Natural => t!("tui.sort.natural").to_string(),
+        ListSort::NameAsc => t!("tui.sort.name_asc").to_string(),
+        ListSort::NameDesc => t!("tui.sort.name_desc").to_string(),
+    }
+}
+
+fn bool_label(value: bool) -> String {
+    if value {
+        t!("tui.value.on").to_string()
+    } else {
+        t!("tui.value.off").to_string()
     }
 }
 

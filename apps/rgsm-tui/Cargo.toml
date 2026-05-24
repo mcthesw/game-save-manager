@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+chrono = "0.4.44"
 crossterm = "0.29"
 ratatui = "0.30"
 rgsm-core.workspace = true

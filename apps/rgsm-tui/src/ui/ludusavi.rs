@@ -83,8 +83,8 @@ fn draw_importable_games(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .with_selected((!indices.is_empty()).then_some(app.selection.importable));
     frame.render_stateful_widget(
         List::new(items)
-            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue))
-            .highlight_symbol("> ")
+            .highlight_style(Style::default().fg(Color::Black).bg(Color::Yellow))
+            .highlight_symbol("▶ ")
             .block(panel_block(title, app.pane == Pane::Left)),
         area,
         &mut state,
@@ -121,8 +121,11 @@ fn draw_import_detail(frame: &mut Frame<'_>, area: Rect, app: &App) {
             t!("settings.manifest_etag"),
             app.data.manifest_status.etag.as_deref().unwrap_or("-")
         ),
-        String::new(),
     ];
+    if app.data.manifest_status.source == "none" {
+        lines.push(t!("tui.ludusavi.no_database_update_hint").to_string());
+    }
+    lines.push(String::new());
     if let Some(candidate) = app.selected_import_candidate() {
         let game = &candidate.game;
         lines.extend([
@@ -192,8 +195,8 @@ fn draw_import_paths(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .with_selected((!paths.is_empty()).then_some(app.selection.import_path));
     frame.render_stateful_widget(
         List::new(items)
-            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue))
-            .highlight_symbol("> ")
+            .highlight_style(Style::default().fg(Color::Black).bg(Color::Yellow))
+            .highlight_symbol("▶ ")
             .block(panel_block(
                 t!("game_batch_import.save_paths").as_ref(),
                 app.pane != Pane::Left,
