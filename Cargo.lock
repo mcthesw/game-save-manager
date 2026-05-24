@@ -5340,6 +5340,7 @@ version = "1.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "crossterm",
  "ratatui",
  "rgsm-core",

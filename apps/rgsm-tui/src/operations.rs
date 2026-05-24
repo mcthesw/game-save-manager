@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use rgsm_core::backup::{
@@ -130,6 +131,7 @@ pub fn submit_operation(
 ) {
     tokio::spawn(async move {
         let description = operation.description();
+        let started_at = Instant::now();
         let _ = tx.send(OperationEvent::Started(description.clone()));
         let result = run_operation(
             operation,
@@ -141,7 +143,14 @@ pub fn submit_operation(
         .await;
         match result {
             Ok(message) => {
-                let _ = tx.send(OperationEvent::Finished(message));
+                let detail = format!(
+                    "{description} finished in {}: {message}",
+                    format_elapsed(started_at.elapsed())
+                );
+                let _ = tx.send(OperationEvent::Finished {
+                    status: message,
+                    detail,
+                });
                 match load_data(&settings).await {
                     Ok(data) => {
                         let _ = tx.send(OperationEvent::DataReloaded(Box::new(data)));
@@ -152,10 +161,10 @@ pub fn submit_operation(
                 }
             }
             Err(err) => {
-                if let Ok(mut log) = log.lock() {
-                    log.error(format!("{description} failed: {err:#}"));
-                }
-                let _ = tx.send(OperationEvent::Failed(format!("{description}: {err:#}")));
+                let _ = tx.send(OperationEvent::Failed(format!(
+                    "{description} failed in {}: {err:#}",
+                    format_elapsed(started_at.elapsed())
+                )));
             }
         }
     });
@@ -193,10 +202,10 @@ impl Operation {
                 format!("resolve cloud conflict for {name} ({resolution:?})")
             }
             Operation::SaveCloudSettings(_) => "save cloud settings".to_string(),
-            Operation::UpdateManifest => "update Ludusavi manifest".to_string(),
-            Operation::ResetManifest => "reset Ludusavi manifest".to_string(),
+            Operation::UpdateManifest => "update detection database".to_string(),
+            Operation::ResetManifest => "reset detection database".to_string(),
             Operation::ImportGuiProfile(_) => "import GUI profile".to_string(),
-            Operation::ImportGame { name, .. } => format!("import {name} from Ludusavi"),
+            Operation::ImportGame { name, .. } => format!("import {name} from detection database"),
             Operation::ReloadData => "refresh RGSM data".to_string(),
             Operation::UpdateCurrentDeviceName(_) => "update current device name".to_string(),
             Operation::AddCurrentDeviceRoot(_) => "add current device game root".to_string(),
@@ -205,6 +214,14 @@ impl Operation {
                 format!("import {} detected VN games", drafts.len())
             }
         }
+    }
+}
+
+fn format_elapsed(duration: Duration) -> String {
+    if duration.as_secs() > 0 {
+        format!("{}.{:03}s", duration.as_secs(), duration.subsec_millis())
+    } else {
+        format!("{}ms", duration.as_millis())
     }
 }
 

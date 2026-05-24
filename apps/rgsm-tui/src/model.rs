@@ -142,7 +142,7 @@ pub struct Selection {
 #[derive(Debug, Clone)]
 pub enum OperationEvent {
     Started(String),
-    Finished(String),
+    Finished { status: String, detail: String },
     Failed(String),
     DataReloaded(Box<AppData>),
 }

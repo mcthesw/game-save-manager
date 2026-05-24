@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use chrono::Local;
 
 const MAX_LOG_ENTRIES: usize = 300;
 
@@ -16,6 +17,7 @@ pub enum LogLevel {
 
 #[derive(Debug, Clone)]
 pub struct LogEntry {
+    pub timestamp: String,
     pub level: LogLevel,
     pub message: String,
 }
@@ -53,7 +55,9 @@ impl SessionLog {
     }
 
     fn push(&mut self, level: LogLevel, message: String) {
+        let timestamp = timestamp();
         self.entries.push_back(LogEntry {
+            timestamp: timestamp.clone(),
             level: level.clone(),
             message: message.clone(),
         });
@@ -66,7 +70,11 @@ impl SessionLog {
             .append(true)
             .open(&self.file_path)
         {
-            let _ = writeln!(file, "[{level:?}] {message}");
+            let _ = writeln!(file, "{timestamp} [{level:?}] {message}");
         }
     }
+}
+
+fn timestamp() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
 }

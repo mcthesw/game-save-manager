@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    backend_label, created_by_label, option, panel_block, selected_style, sync_error,
-    sync_state_label, validate_path_label,
+    backend_label, bool_label, created_by_label, option, panel_block, save_unit_type_label,
+    selected_style, sort_label, sync_error, sync_state_label, validate_path_label,
 };
 
 pub(super) fn draw_home(frame: &mut Frame<'_>, area: Rect, app: &App) {
@@ -73,7 +73,7 @@ pub(super) fn draw_cloud(frame: &mut Frame<'_>, area: Rect, app: &App) {
         let state = app.data.sync_state.games.get(&game.name);
         Row::new(vec![
             game.name.clone(),
-            if game.cloud_sync_enabled { "on" } else { "off" }.to_string(),
+            bool_label(game.cloud_sync_enabled),
             state
                 .map(sync_state_label)
                 .unwrap_or_else(|| t!("sync_settings.overview.status_unknown").to_string()),
@@ -128,7 +128,7 @@ pub(super) fn draw_cloud(frame: &mut Frame<'_>, area: Rect, app: &App) {
 }
 
 pub(super) fn draw_logs(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let items = app
+    let all_items = app
         .log
         .lock()
         .ok()
@@ -146,15 +146,19 @@ pub(super) fn draw_logs(frame: &mut Frame<'_>, area: Rect, app: &App) {
                         LogLevel::Warning => "WARN ",
                         LogLevel::Error => "ERROR",
                     };
-                    ListItem::new(format!("{level}  {}", entry.message)).style(style)
+                    ListItem::new(format!("{level}  {}  {}", entry.timestamp, entry.message))
+                        .style(style)
                 })
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let items = if items.is_empty() {
+    let items = if all_items.is_empty() {
         vec![ListItem::new(t!("activity_center.empty").to_string())]
     } else {
-        items
+        let visible_rows = usize::from(area.height.saturating_sub(2)).max(1);
+        let max_offset = all_items.len().saturating_sub(visible_rows);
+        let offset = usize::from(app.selection.log_scroll).min(max_offset);
+        all_items.into_iter().skip(offset).collect()
     };
     frame.render_widget(
         List::new(items).block(panel_block(t!("tui.screen.logs").as_ref(), true)),
@@ -198,8 +202,8 @@ fn draw_games(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .with_selected((!indices.is_empty()).then_some(app.selection.game));
     frame.render_stateful_widget(
         List::new(items)
-            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue))
-            .highlight_symbol("> ")
+            .highlight_style(Style::default().fg(Color::Black).bg(Color::Yellow))
+            .highlight_symbol("▶ ")
             .block(panel_block(title, app.pane == Pane::Left)),
         area,
         &mut state,
@@ -327,9 +331,13 @@ fn draw_editor_units(frame: &mut Frame<'_>, area: Rect, app: &App) {
                 .iter()
                 .enumerate()
                 .map(|(index, unit)| {
-                    let enabled = if unit.enabled { "on" } else { "off" };
-                    ListItem::new(format!("#{} {:?} [{}]", unit.id, unit.unit_type, enabled))
-                        .style(selected_style(index == app.selection.save_unit))
+                    ListItem::new(format!(
+                        "#{} {} [{}]",
+                        unit.id,
+                        save_unit_type_label(&unit.unit_type),
+                        bool_label(unit.enabled)
+                    ))
+                    .style(selected_style(index == app.selection.save_unit))
                 })
                 .collect()
         })
@@ -405,16 +413,20 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
     if let Some(unit) = unit {
         lines.extend([
             String::new(),
-            format!("{}: {:?}", t!("addgame.type"), unit.unit_type),
+            format!(
+                "{}: {}",
+                t!("addgame.type"),
+                save_unit_type_label(&unit.unit_type)
+            ),
             format!(
                 "{}: {}",
                 t!("save_location_drawer.backup_enabled"),
-                unit.enabled
+                bool_label(unit.enabled)
             ),
             format!(
                 "{}: {}",
                 t!("save_location_drawer.delete_before_apply"),
-                unit.delete_before_apply
+                bool_label(unit.delete_before_apply)
             ),
             format!(
                 "{}: {}",
@@ -474,11 +486,7 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
 }
 
 fn list_title(base: &str, filter: &str, sort: crate::model::ListSort, count: usize) -> String {
-    let sort = match sort {
-        crate::model::ListSort::Natural => "natural",
-        crate::model::ListSort::NameAsc => "A-Z",
-        crate::model::ListSort::NameDesc => "Z-A",
-    };
+    let sort = sort_label(sort);
     if filter.is_empty() {
         format!("{base} ({count}) [{sort}]")
     } else {

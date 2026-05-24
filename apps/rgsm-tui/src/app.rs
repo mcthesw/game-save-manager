@@ -58,7 +58,7 @@ impl App {
         });
         let data = load_data(&settings).await?;
         let (op_tx, op_rx) = unbounded_channel();
-        Ok(Self {
+        let app = Self {
             data_dir,
             settings,
             data,
@@ -80,7 +80,15 @@ impl App {
             should_quit: false,
             op_tx,
             op_rx,
-        })
+        };
+        app.log_info(format!(
+            "TUI started: profile={}, games={}, importable={}, manifest_source={}",
+            app.data_dir.display(),
+            app.data.games.len(),
+            app.data.importable_games.len(),
+            app.data.manifest_status.source
+        ));
+        Ok(app)
     }
 
     fn experimental_warning_modal() -> Modal {
@@ -153,13 +161,13 @@ impl App {
                 OperationEvent::Started(message) => {
                     self.operation_running = true;
                     self.status = message.clone();
-                    self.log_info(message);
+                    self.log_info(format!("started: {message}"));
                 }
-                OperationEvent::Finished(message) => {
+                OperationEvent::Finished { status, detail } => {
                     self.operation_running = false;
                     self.cancel_token = None;
-                    self.status = message.clone();
-                    self.log_info(message);
+                    self.status = status;
+                    self.log_info(detail);
                 }
                 OperationEvent::Failed(message) => {
                     self.operation_running = false;
@@ -171,6 +179,12 @@ impl App {
                 OperationEvent::DataReloaded(data) => {
                     self.data = *data;
                     self.refresh_selected_snapshots();
+                    self.log_info(format!(
+                        "data reloaded: games={}, importable={}, manifest_source={}",
+                        self.data.games.len(),
+                        self.data.importable_games.len(),
+                        self.data.manifest_status.source
+                    ));
                 }
             }
         }
@@ -342,10 +356,10 @@ impl App {
     fn handle_ludusavi_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('f') => self.toggle_ludusavi_filter(),
-            KeyCode::Char('m') => self.submit(Operation::UpdateManifest),
-            KeyCode::Char('!') | KeyCode::Char('M') => self.submit(Operation::ResetManifest),
-            KeyCode::Char('i') | KeyCode::Char('I') => self.import_selected(),
-            KeyCode::Char('e') | KeyCode::Char('P') => self.prompt_edit_import_path(),
+            KeyCode::Char('u') => self.submit(Operation::UpdateManifest),
+            KeyCode::Char('!') => self.submit(Operation::ResetManifest),
+            KeyCode::Char('i') => self.import_selected(),
+            KeyCode::Char('e') => self.prompt_edit_import_path(),
             _ => {}
         }
     }
