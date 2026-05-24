@@ -41,6 +41,14 @@ pub enum CompressError {
 pub enum BackendError {
     #[error("Backend is disabled")]
     Disabled,
+    #[error("Sync was cancelled")]
+    Cancelled,
+    #[error("Game not found: {0}")]
+    GameNotFound(String),
+    #[error("No unresolved cloud sync conflict for game: {0}")]
+    InvalidConflictState(String),
+    #[error("Unsupported cloud conflict resolution: {0}")]
+    UnsupportedConflictResolution(String),
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
     #[error("Opendal error: {0:#?}")]

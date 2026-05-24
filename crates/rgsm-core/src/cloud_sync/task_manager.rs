@@ -12,6 +12,7 @@ use tokio::sync::{Mutex, Notify, Semaphore};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
+use super::state_recording::{log_config_sync_failure, log_game_sync_failure};
 use super::sync_state::{
     GameSyncState, PendingAction, SyncResult, build_game_sync_state, update_config_sync_state,
     update_game_sync_state, with_sync_state,
@@ -494,6 +495,15 @@ fn record_job_sync_state(job: &CloudSyncJob, result: &Result<(), CloudSyncExecut
             ..
         } => {
             let state = build_state_for_result(snapshots.current_device_head_cloned(), result);
+            if let Err(CloudSyncExecuteError::Backend(err)) = result {
+                log_game_sync_failure(
+                    &session,
+                    game_name,
+                    "queued_game_upload",
+                    PendingAction::RetryRequired,
+                    &err.to_string(),
+                );
+            }
             if let Err(err) = with_sync_state(|sync_state| {
                 update_game_sync_state(sync_state, &session, game_name, state);
             }) {
@@ -502,6 +512,20 @@ fn record_job_sync_state(job: &CloudSyncJob, result: &Result<(), CloudSyncExecut
         }
         CloudSyncJob::DeleteGameAndUploadConfig { game_name, .. } => {
             let config_state = build_state_for_result(None, result);
+            if let Err(CloudSyncExecuteError::Backend(err)) = result {
+                log_game_sync_failure(
+                    &session,
+                    game_name,
+                    "queued_delete_game",
+                    PendingAction::RetryRequired,
+                    &err.to_string(),
+                );
+                log_config_sync_failure(
+                    &session,
+                    "queued_delete_game_config_upload",
+                    &err.to_string(),
+                );
+            }
             if let Err(err) = with_sync_state(|sync_state| {
                 update_config_sync_state(sync_state, &session, config_state.clone());
                 if result.is_ok() {
@@ -513,6 +537,9 @@ fn record_job_sync_state(job: &CloudSyncJob, result: &Result<(), CloudSyncExecut
         }
         CloudSyncJob::UploadConfig { .. } => {
             let config_state = build_state_for_result(None, result);
+            if let Err(CloudSyncExecuteError::Backend(err)) = result {
+                log_config_sync_failure(&session, "queued_config_upload", &err.to_string());
+            }
             if let Err(err) = with_sync_state(|sync_state| {
                 update_config_sync_state(sync_state, &session, config_state);
             }) {

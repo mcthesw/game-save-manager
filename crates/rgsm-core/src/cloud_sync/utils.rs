@@ -11,7 +11,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-use crate::backup::GameSnapshots;
+use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::transfer::{CloudTransfer, path_to_remote_key};
 use crate::config::{Config, get_backup_path, get_config, resolve_backup_path, set_config_local};
 use crate::preclude::*;
@@ -134,11 +134,15 @@ pub async fn upload_game_snapshots(
 }
 
 pub async fn upload_config(op: &Operator) -> Result<(), BackendError> {
-    let transfer = CloudTransfer::new(op);
     let config = get_config()?;
+    upload_config_snapshot(op, &config).await
+}
+
+pub async fn upload_config_snapshot(op: &Operator, config: &Config) -> Result<(), BackendError> {
+    let transfer = CloudTransfer::new(op);
     transfer
         .upload_bytes_streaming(
-            &serde_json::to_vec_pretty(&config)?,
+            &serde_json::to_vec_pretty(config)?,
             "/GameSaveManager.config.json",
         )
         .await?;
@@ -147,18 +151,10 @@ pub async fn upload_config(op: &Operator) -> Result<(), BackendError> {
 
 pub async fn upload_game_data(
     op: &Operator,
-    game_name: &str,
+    game: &Game,
     max_concurrency: usize,
     token: Option<CancellationToken>,
 ) -> Result<GameSnapshots, SyncOperationError> {
-    let config = get_config().map_err(SyncOperationError::from)?;
-    let game = config
-        .games
-        .iter()
-        .find(|g| g.name == game_name)
-        .ok_or_else(|| BackendError::Unexpected(anyhow::anyhow!("Game '{}' not found", game_name)))
-        .map_err(SyncOperationError::Backend)?;
-
     let dir_name = game.backup_dir_name().into_owned();
     let backup_info = game
         .get_game_snapshots_info()
@@ -311,10 +307,26 @@ async fn replace_directory(stage_dir: &Path, final_dir: &Path) -> Result<(), Bac
     if let Some(parent) = final_dir.parent() {
         fs::create_dir_all(parent).await?;
     }
-    if final_dir.exists() {
-        fs::remove_dir_all(final_dir).await?;
+
+    let rollback_dir = final_dir.with_file_name(stage_dir_name("game-rollback"));
+    if rollback_dir.exists() {
+        fs::remove_dir_all(&rollback_dir).await?;
     }
-    fs::rename(stage_dir, final_dir).await?;
+
+    if final_dir.exists() {
+        fs::rename(final_dir, &rollback_dir).await?;
+    }
+
+    if let Err(err) = fs::rename(stage_dir, final_dir).await {
+        if rollback_dir.exists() {
+            let _ = fs::rename(&rollback_dir, final_dir).await;
+        }
+        return Err(err.into());
+    }
+
+    if rollback_dir.exists() {
+        fs::remove_dir_all(&rollback_dir).await?;
+    }
     Ok(())
 }
 
@@ -326,6 +338,73 @@ pub async fn replace_local_game_from_stage(
     let stage_game_dir = stage_root.join(storage_key);
     let local_game_dir = backup_root.join(storage_key);
     replace_directory(&stage_game_dir, &local_game_dir).await
+}
+
+fn final_snapshot_path(backup_root: &Path, storage_key: &str, snapshot_date: &str) -> String {
+    backup_root
+        .join(storage_key)
+        .join(format!("{snapshot_date}.zip"))
+        .to_string_lossy()
+        .to_string()
+}
+
+async fn rewrite_staged_snapshot_paths(
+    stage_root: &Path,
+    backup_root: &Path,
+    storage_key: &str,
+    info: &mut GameSnapshots,
+) -> Result<(), BackendError> {
+    for snapshot in &mut info.backups {
+        snapshot.path = final_snapshot_path(backup_root, storage_key, &snapshot.date);
+    }
+
+    let metadata_path = stage_root.join(storage_key).join("Backups.json");
+    fs::write(metadata_path, serde_json::to_vec_pretty(info)?).await?;
+    Ok(())
+}
+
+pub async fn replace_local_game_with_remote(
+    session: &crate::cloud_sync::CloudSyncSessionConfig,
+    game: &Game,
+    op: &Operator,
+    stage_prefix: &str,
+    token: Option<CancellationToken>,
+) -> Result<GameSnapshots, SyncOperationError> {
+    let backup_root = get_backup_path().map_err(SyncOperationError::from)?;
+    let storage_key = game.backup_dir_name().into_owned();
+    let stage_root = new_stage_root(&backup_root, stage_prefix);
+    if stage_root.exists() {
+        let _ = fs::remove_dir_all(&stage_root).await;
+    }
+    fs::create_dir_all(&stage_root)
+        .await
+        .map_err(BackendError::from)
+        .map_err(SyncOperationError::Backend)?;
+
+    let result = async {
+        let mut downloaded = stage_remote_game_download(
+            op,
+            &storage_key,
+            &stage_root,
+            session.normalized_max_concurrency(),
+            token,
+        )
+        .await?;
+        rewrite_staged_snapshot_paths(&stage_root, &backup_root, &storage_key, &mut downloaded)
+            .await
+            .map_err(SyncOperationError::Backend)?;
+        replace_local_game_from_stage(&stage_root, &backup_root, &storage_key)
+            .await
+            .map_err(SyncOperationError::Backend)?;
+        Ok(downloaded)
+    }
+    .await;
+
+    if stage_root.exists() {
+        let _ = fs::remove_dir_all(&stage_root).await;
+    }
+
+    result
 }
 
 pub async fn commit_staged_backup_root(
