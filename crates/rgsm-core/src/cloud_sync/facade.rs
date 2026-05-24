@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
-use log::warn;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tokio::fs;
 use tokio_util::sync::CancellationToken;
 
 use super::conflict::{SyncRelation, determine_sync_relation};
-use super::sync_state::{
-    PendingAction, SyncResult, build_game_sync_state, update_config_sync_state,
-    update_game_sync_state, with_sync_state,
+use super::state_recording::{
+    current_device_head, log_config_sync_failure, log_game_sync_failure, record_config_state,
+    record_game_state,
 };
+use super::sync_state::{PendingAction, SyncResult};
 use super::utils::{
     SyncOperationError, commit_staged_backup_root, load_remote_config, load_remote_game_snapshots,
-    new_stage_root, replace_local_game_from_stage, stage_remote_game_download,
-    target_backup_root_from_config, upload_config, upload_game_data,
+    new_stage_root, replace_local_game_with_remote, stage_remote_game_download,
+    target_backup_root_from_config, upload_config_snapshot, upload_game_data,
 };
 use super::{Backend, CloudSyncSessionConfig};
 use crate::backup::GameSnapshots;
@@ -61,48 +61,19 @@ fn empty_batch_report() -> BatchSyncReport {
     }
 }
 
-fn record_config_state(
-    session: &CloudSyncSessionConfig,
-    result: SyncResult,
-    pending: PendingAction,
-) {
-    let state = build_game_sync_state(None, None, result, pending);
-    if let Err(err) = with_sync_state(|sync_state| {
-        update_config_sync_state(sync_state, session, state);
-    }) {
-        warn!("Failed to record config sync state: {err}");
-    }
-}
-
-fn record_game_state(
-    session: &CloudSyncSessionConfig,
-    game_name: &str,
-    local_head: Option<String>,
-    remote_head: Option<String>,
-    result: SyncResult,
-    pending: PendingAction,
-) {
-    let state = build_game_sync_state(local_head, remote_head, result, pending);
-    let game_name = game_name.to_string();
-    if let Err(err) = with_sync_state(|sync_state| {
-        update_game_sync_state(sync_state, session, &game_name, state);
-    }) {
-        warn!("Failed to record sync state for {game_name}: {err}");
-    }
-}
-
 async fn upload_config_with_token(
     session: &CloudSyncSessionConfig,
+    config: &crate::config::Config,
     token: Option<&CancellationToken>,
 ) -> Result<(), SyncOperationError> {
     let op = session.get_op().map_err(SyncOperationError::Backend)?;
     if let Some(token) = token {
         tokio::select! {
             _ = token.cancelled() => Err(SyncOperationError::Cancelled),
-            result = upload_config(&op) => result.map_err(SyncOperationError::Backend),
+            result = upload_config_snapshot(&op, config) => result.map_err(SyncOperationError::Backend),
         }
     } else {
-        upload_config(&op)
+        upload_config_snapshot(&op, config)
             .await
             .map_err(SyncOperationError::Backend)
     }
@@ -110,10 +81,6 @@ async fn upload_config_with_token(
 
 fn empty_remote_snapshots(game_name: &str) -> GameSnapshots {
     GameSnapshots::new(game_name)
-}
-
-fn current_device_head(info: &GameSnapshots) -> Option<String> {
-    info.current_device_head_cloned()
 }
 
 fn is_ancestor(
@@ -291,9 +258,7 @@ async fn coexist_game_from_remote(
         )
         .await
         .map_err(|err| match err {
-            SyncOperationError::Cancelled => {
-                BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
-            }
+            SyncOperationError::Cancelled => BackendError::Cancelled,
             SyncOperationError::Backend(inner) => inner,
         })?;
 
@@ -304,12 +269,10 @@ async fn coexist_game_from_remote(
         let merged = merge_snapshots_metadata(&local, &downloaded)?;
         game.set_game_snapshots_info(&merged)?;
 
-        upload_game_data(op, &game.name, session.normalized_max_concurrency(), None)
+        upload_game_data(op, game, session.normalized_max_concurrency(), None)
             .await
             .map_err(|err| match err {
-                SyncOperationError::Cancelled => {
-                    BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
-                }
+                SyncOperationError::Cancelled => BackendError::Cancelled,
                 SyncOperationError::Backend(inner) => inner,
             })
     }
@@ -330,7 +293,7 @@ pub async fn upload_all_from_session(
     let op = session.get_op()?;
     let mut report = empty_batch_report();
 
-    match upload_config_with_token(session, token.as_ref()).await {
+    match upload_config_with_token(session, &config, token.as_ref()).await {
         Ok(()) => {
             record_config_state(session, SyncResult::Success, PendingAction::None);
         }
@@ -342,6 +305,7 @@ pub async fn upload_all_from_session(
         Err(SyncOperationError::Backend(err)) => {
             let message = err.to_string();
             report.config.status = BatchSyncItemStatus::Failed(message.clone());
+            log_config_sync_failure(session, "overwrite_upload_config", &message);
             record_config_state(
                 session,
                 SyncResult::Error(message),
@@ -358,7 +322,7 @@ pub async fn upload_all_from_session(
             .and_then(|info| current_device_head(&info));
         match upload_game_data(
             &op,
-            &game.name,
+            &game,
             session.normalized_max_concurrency(),
             token.clone(),
         )
@@ -399,6 +363,13 @@ pub async fn upload_all_from_session(
                     name: game.name.clone(),
                     status: BatchSyncItemStatus::Failed(message.clone()),
                 });
+                log_game_sync_failure(
+                    session,
+                    &game.name,
+                    "overwrite_upload_game",
+                    PendingAction::RetryRequired,
+                    &message,
+                );
                 record_game_state(
                     session,
                     &game.name,
@@ -432,6 +403,7 @@ pub async fn download_all_from_session(
         Err(SyncOperationError::Backend(err)) => {
             let message = err.to_string();
             report.config.status = BatchSyncItemStatus::Failed(message.clone());
+            log_config_sync_failure(session, "overwrite_download_config", &message);
             record_config_state(
                 session,
                 SyncResult::Error(message),
@@ -474,6 +446,13 @@ pub async fn download_all_from_session(
                     status: BatchSyncItemStatus::Failed(message.clone()),
                 });
                 let _ = fs::remove_dir_all(&stage_root).await;
+                log_game_sync_failure(
+                    session,
+                    &game.name,
+                    "overwrite_download_game",
+                    PendingAction::RetryRequired,
+                    &message,
+                );
                 record_config_state(
                     session,
                     SyncResult::Error(message.clone()),
@@ -497,6 +476,7 @@ pub async fn download_all_from_session(
     {
         let message = err.to_string();
         report.config.status = BatchSyncItemStatus::Failed(message.clone());
+        log_config_sync_failure(session, "overwrite_download_commit", &message);
         record_config_state(
             session,
             SyncResult::Error(message),
@@ -524,26 +504,18 @@ pub async fn download_all_from_session(
     Ok(report)
 }
 
-pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, BackendError> {
-    let config = get_config()?;
-    let session = CloudSyncSessionConfig::from(&config.settings.cloud_settings);
-    let op = session.get_op()?;
-    let game = config
-        .games
-        .iter()
-        .find(|game| game.name == game_name)
-        .ok_or_else(|| {
-            BackendError::Unexpected(anyhow::anyhow!("Game '{}' not found", game_name))
-        })?;
-
+pub async fn sync_game(
+    session: &CloudSyncSessionConfig,
+    op: &opendal::Operator,
+    game: &crate::backup::Game,
+) -> Result<SyncGameOutcome, BackendError> {
+    let game_name = game.name.as_str();
     let dir_name = game.backup_dir_name().into_owned();
     let local = game.get_game_snapshots_info()?;
-    let remote = load_remote_game_snapshots(&op, &dir_name, None)
+    let remote = load_remote_game_snapshots(op, &dir_name, None)
         .await
         .map_err(|err| match err {
-            SyncOperationError::Cancelled => {
-                BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
-            }
+            SyncOperationError::Cancelled => BackendError::Cancelled,
             SyncOperationError::Backend(inner) => inner,
         })?
         .unwrap_or_else(|| empty_remote_snapshots(game_name));
@@ -551,7 +523,7 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
     match determine_sync_relation(&local, &remote) {
         SyncRelation::InSync => {
             record_game_state(
-                &session,
+                session,
                 game_name,
                 current_device_head(&local),
                 current_device_head(&remote),
@@ -561,17 +533,41 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             Ok(SyncGameOutcome::AlreadyInSync)
         }
         SyncRelation::CurrentDeviceAhead => {
-            let uploaded =
-                upload_game_data(&op, game_name, session.normalized_max_concurrency(), None)
-                    .await
-                    .map_err(|err| match err {
-                        SyncOperationError::Cancelled => {
-                            BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
-                        }
+            let uploaded = match upload_game_data(
+                op,
+                game,
+                session.normalized_max_concurrency(),
+                None,
+            )
+            .await
+            {
+                Ok(uploaded) => uploaded,
+                Err(err) => {
+                    let backend_err = match err {
+                        SyncOperationError::Cancelled => BackendError::Cancelled,
                         SyncOperationError::Backend(inner) => inner,
-                    })?;
+                    };
+                    let message = backend_err.to_string();
+                    log_game_sync_failure(
+                        session,
+                        game_name,
+                        "sync_game_upload",
+                        PendingAction::RetryRequired,
+                        &message,
+                    );
+                    record_game_state(
+                        session,
+                        game_name,
+                        current_device_head(&local),
+                        current_device_head(&remote),
+                        SyncResult::Error(message),
+                        PendingAction::RetryRequired,
+                    );
+                    return Err(backend_err);
+                }
+            };
             record_game_state(
-                &session,
+                session,
                 game_name,
                 current_device_head(&uploaded),
                 current_device_head(&uploaded),
@@ -581,32 +577,42 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             Ok(SyncGameOutcome::Uploaded)
         }
         SyncRelation::CurrentDeviceBehind => {
-            let backup_root = get_backup_path()?;
-            let stage_root = new_stage_root(&backup_root, "game-download-stage");
-            if stage_root.exists() {
-                let _ = fs::remove_dir_all(&stage_root).await;
-            }
-            fs::create_dir_all(&stage_root).await?;
-            let downloaded = stage_remote_game_download(
-                &op,
-                &dir_name,
-                &stage_root,
-                session.normalized_max_concurrency(),
+            let downloaded = match replace_local_game_with_remote(
+                session,
+                game,
+                op,
+                "game-download-stage",
                 None,
             )
             .await
-            .map_err(|err| match err {
-                SyncOperationError::Cancelled => {
-                    BackendError::Unexpected(anyhow::anyhow!("Sync unexpectedly cancelled"))
+            {
+                Ok(downloaded) => downloaded,
+                Err(err) => {
+                    let backend_err = match err {
+                        SyncOperationError::Cancelled => BackendError::Cancelled,
+                        SyncOperationError::Backend(inner) => inner,
+                    };
+                    let message = backend_err.to_string();
+                    log_game_sync_failure(
+                        session,
+                        game_name,
+                        "sync_game_download",
+                        PendingAction::RetryRequired,
+                        &message,
+                    );
+                    record_game_state(
+                        session,
+                        game_name,
+                        current_device_head(&local),
+                        current_device_head(&remote),
+                        SyncResult::Error(message),
+                        PendingAction::RetryRequired,
+                    );
+                    return Err(backend_err);
                 }
-                SyncOperationError::Backend(inner) => inner,
-            })?;
-            replace_local_game_from_stage(&stage_root, &backup_root, &dir_name).await?;
-            if stage_root.exists() {
-                let _ = fs::remove_dir_all(&stage_root).await;
-            }
+            };
             record_game_state(
-                &session,
+                session,
                 game_name,
                 current_device_head(&downloaded),
                 current_device_head(&downloaded),
@@ -616,9 +622,9 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
             Ok(SyncGameOutcome::Downloaded)
         }
         SyncRelation::SharedTreeDiverged | SyncRelation::ParallelBranches => {
-            let merged = coexist_game_from_remote(&session, game, &op).await?;
+            let merged = coexist_game_from_remote(session, game, op).await?;
             record_game_state(
-                &session,
+                session,
                 game_name,
                 current_device_head(&merged),
                 current_device_head(&merged),
@@ -629,7 +635,7 @@ pub async fn sync_game_from_config(game_name: &str) -> Result<SyncGameOutcome, B
         }
         SyncRelation::IncompatibleState => {
             record_game_state(
-                &session,
+                session,
                 game_name,
                 current_device_head(&local),
                 current_device_head(&remote),
