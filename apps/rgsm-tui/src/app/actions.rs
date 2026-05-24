@@ -381,6 +381,15 @@ impl App {
         );
     }
 
+    pub(super) fn prompt_import_gui_profile(&mut self) {
+        self.prompt(
+            PendingAction::ImportGuiProfile,
+            rust_i18n::t!("tui.settings.import_gui_profile_action").as_ref(),
+            rust_i18n::t!("tui.settings.import_gui_profile_prompt").as_ref(),
+            "",
+        );
+    }
+
     pub(super) fn scan_vns(&mut self) {
         let dirs = self.data.config.settings.vn_scan_dirs.clone();
         if dirs.is_empty() {
@@ -465,6 +474,7 @@ impl App {
                 self.save_tui_settings();
             }
             SettingsItem::LudusaviLocalOnly => self.toggle_ludusavi_filter(),
+            SettingsItem::ImportGuiProfile => self.prompt_import_gui_profile(),
             SettingsItem::CurrentDeviceName => self.prompt_edit_current_device_name(),
             SettingsItem::AddGameRoot => self.prompt_add_current_device_root(),
             SettingsItem::AddVnScanRoot => self.prompt_add_vn_scan_root(),
@@ -646,6 +656,9 @@ impl App {
                         self.status = rust_i18n::t!("tui.status.import_path_updated").to_string();
                     }
                 }
+            }
+            PendingAction::ImportGuiProfile if !input.is_empty() => {
+                self.submit(Operation::ImportGuiProfile(input));
             }
             PendingAction::EditCurrentDeviceName if !input.is_empty() => {
                 self.submit(Operation::UpdateCurrentDeviceName(input));

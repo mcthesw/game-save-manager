@@ -10,6 +10,7 @@ mod hooks;
 mod logging;
 mod model;
 mod operations;
+mod profile_import;
 mod terminal;
 mod tui_settings;
 mod ui;
@@ -27,18 +28,30 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Some(data_dir) = options.data_dir {
-        std::fs::create_dir_all(&data_dir).with_context(|| {
-            format!(
-                "failed to create RGSM data directory at {}",
-                data_dir.display()
-            )
-        })?;
-        rgsm_core::app_dirs::set_app_data_dir_override(data_dir)
-            .context("failed to set RGSM data directory override")?;
-    }
+    let data_dir = options.resolved_data_dir();
+    std::fs::create_dir_all(&data_dir).with_context(|| {
+        format!(
+            "failed to create RGSM TUI profile directory at {}",
+            data_dir.display()
+        )
+    })?;
+    rgsm_core::app_dirs::set_app_data_dir_override(data_dir.clone())
+        .context("failed to set RGSM TUI profile directory")?;
 
     rgsm_core::config::config_check().context("failed to initialize RGSM config")?;
+    if let Some(source) = &options.import_gui_config {
+        let report = profile_import::import_gui_profile(source, &data_dir)
+            .context("failed to import GUI profile")?;
+        eprintln!(
+            "Imported GUI profile into TUI profile: {} -> {}; {} games, {} devices, {} backup files copied, {} skipped",
+            report.source_config_path.display(),
+            report.target_backup_path.display(),
+            report.games,
+            report.devices,
+            report.copied_backup_files,
+            report.skipped_backup_files
+        );
+    }
     let config = rgsm_core::config::get_config().context("failed to load RGSM config")?;
     rust_i18n::set_locale(&config.settings.locale);
 
