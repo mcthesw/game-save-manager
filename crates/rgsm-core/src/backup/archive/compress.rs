@@ -105,8 +105,8 @@ where
     Ok(())
 }
 
-/// Append a Windows Registry save unit: export the key tree to JSON
-/// and store it as `{id}/registry.json` inside the archive.
+/// Append a Windows Registry save unit: export the key tree to a standard
+/// `.reg` file and store it as `{id}/registry.reg` inside the archive.
 fn append_registry_unit<T>(
     writer: &mut ZipWriter<T>,
     save_unit: &SaveUnit,
@@ -127,11 +127,11 @@ where
         }
         Err(e) => return Err(BackupFileError::RegistryError(e.to_string())),
     };
-    let json_bytes =
-        serde_json::to_vec_pretty(&reg_data).map_err(|e| BackupFileError::Unexpected(e.into()))?;
+    let reg_bytes = registry::serialize_reg_file(&reg_data)
+        .map_err(|e| BackupFileError::RegistryError(e.to_string()))?;
     write_bytes_entry(
         writer,
-        &json_bytes,
+        &reg_bytes,
         &id_prefix.join(registry::REGISTRY_DATA_FILENAME),
         preset,
     )

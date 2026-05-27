@@ -1,8 +1,8 @@
 //! Windows Registry export and import for `SaveUnitType::WinRegistry`.
 //!
-//! Registry data is serialized as JSON (`RegistryData`) and stored inside
-//! the ZIP archive at `{save_unit_id}/registry.json`. The JSON format uses
-//! a `format_version` field for future-proofing.
+//! Registry data is represented as `RegistryData` internally and stored inside
+//! new ZIP archives at `{save_unit_id}/registry.reg`. Legacy `registry.json`
+//! archive entries remain readable for backward compatibility.
 //!
 //! On non-Windows platforms, export/import return `RegistryError::UnsupportedPlatform`.
 
@@ -10,6 +10,10 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+
+mod reg_file;
+
+pub use reg_file::{deserialize_reg_file, serialize_reg_file};
 
 /// Root structure for serialized registry data inside an archive.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -43,8 +47,46 @@ pub enum RegistryValue {
     Binary { name: String, data: String },
 }
 
-/// Name of the registry data file inside a save-unit's ZIP directory.
-pub const REGISTRY_DATA_FILENAME: &str = "registry.json";
+/// Name of the standard registry data file inside a save-unit's ZIP directory.
+pub const REGISTRY_DATA_FILENAME: &str = "registry.reg";
+
+/// Legacy registry data file used by older archives.
+pub const LEGACY_REGISTRY_DATA_FILENAME: &str = "registry.json";
+
+const HIVE_PREFIXES: [&str; 5] = [
+    "HKEY_CURRENT_USER",
+    "HKEY_LOCAL_MACHINE",
+    "HKEY_CLASSES_ROOT",
+    "HKEY_USERS",
+    "HKEY_CURRENT_CONFIG",
+];
+
+pub fn is_registry_path(path: &str) -> bool {
+    let normalized = normalize_registry_path(path);
+    let upper = normalized.to_ascii_uppercase();
+    HIVE_PREFIXES.iter().any(|prefix| {
+        upper == *prefix
+            || upper
+                .strip_prefix(prefix)
+                .is_some_and(|rest| rest.starts_with('\\'))
+    })
+}
+
+pub fn normalize_registry_path(path: &str) -> String {
+    let trimmed = path.trim();
+    let without_prefix = if trimmed
+        .get(.."REGISTRY:".len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("REGISTRY:"))
+    {
+        &trimmed["REGISTRY:".len()..]
+    } else {
+        trimmed
+    };
+
+    without_prefix
+        .trim_start_matches(['/', '\\'])
+        .replace('/', "\\")
+}
 
 // ── Error type ──────────────────────────────────────────────────────────────
 
@@ -64,6 +106,10 @@ pub enum RegistryError {
     Json(#[from] serde_json::Error),
     #[error("Base64 decode error: {0}")]
     Base64(#[from] base64::DecodeError),
+    #[error("Invalid registry file: {0}")]
+    InvalidRegFile(String),
+    #[error("Unsupported registry file value type: {0}")]
+    UnsupportedRegValueType(String),
     #[cfg(target_os = "windows")]
     #[error(
         "Invalid registry value data length for '{name}': expected at least {expected} bytes, got {actual}"
@@ -102,10 +148,7 @@ mod platform {
     ///
     /// Also handles the Ludusavi `"REGISTRY:"` prefix format and normalizes `/` to `\`.
     pub(crate) fn parse_registry_path(path: &str) -> Result<(winreg::HKEY, String), RegistryError> {
-        // Strip optional Ludusavi "REGISTRY:" prefix
-        let path = path.strip_prefix("REGISTRY:").unwrap_or(path);
-        let path = path.trim_start_matches(['/', '\\']);
-        let path = path.replace('/', "\\");
+        let path = normalize_registry_path(path);
 
         let sep = path
             .find('\\')
