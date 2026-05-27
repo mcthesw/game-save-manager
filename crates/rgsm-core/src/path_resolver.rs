@@ -72,7 +72,7 @@ pub enum PathCheckResult {
 /// Check a single path: resolve variables and check filesystem status
 pub fn check_path(raw_path: &str, ctx: Option<&PathContext>, config: &Config) -> PathCheckResult {
     // Handle registry paths
-    if raw_path.starts_with("REGISTRY:") || raw_path.starts_with("HKEY_") {
+    if crate::backup::registry::is_registry_path(raw_path) {
         #[cfg(target_os = "windows")]
         {
             let exists = crate::backup::registry::registry_key_exists(raw_path).unwrap_or(false);
