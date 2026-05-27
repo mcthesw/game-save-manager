@@ -236,8 +236,9 @@ fn emit_skip_notification(
 
 /// Restore a Windows Registry save unit from the extracted temp directory.
 ///
-/// Reads `{id}/registry.json`, parses it, and imports the values back into
-/// the Windows Registry. On non-Windows platforms the restore is skipped.
+/// Reads `{id}/registry.reg` (or legacy `{id}/registry.json`), parses it, and
+/// imports the values back into the Windows Registry. On non-Windows platforms
+/// the restore is skipped.
 fn restore_registry_unit(
     unit: &SaveUnit,
     version: ArchiveVersion,
@@ -249,17 +250,23 @@ fn restore_registry_unit(
         return Ok(RestoreOutcome::Skipped(SkipReason::LegacyArchiveFormat));
     }
 
-    let reg_json_path = temp_root
-        .join(unit.id.to_string())
-        .join(registry::REGISTRY_DATA_FILENAME);
+    let reg_unit_root = temp_root.join(unit.id.to_string());
+    let reg_path = reg_unit_root.join(registry::REGISTRY_DATA_FILENAME);
+    let legacy_json_path = reg_unit_root.join(registry::LEGACY_REGISTRY_DATA_FILENAME);
 
-    if !reg_json_path.exists() {
+    if !reg_path.exists() && !legacy_json_path.exists() {
         return Ok(RestoreOutcome::Skipped(SkipReason::MissingArchiveEntry));
     }
 
-    let json_bytes = fs::read(&reg_json_path)?;
-    let reg_data: registry::RegistryData =
-        serde_json::from_slice(&json_bytes).map_err(|e| BackupFileError::Unexpected(e.into()))?;
+    let reg_data = if reg_path.exists() {
+        let reg_bytes = fs::read(&reg_path)?;
+        registry::deserialize_reg_file(&reg_bytes)
+            .map_err(|e| BackupFileError::RegistryError(e.to_string()))?
+    } else {
+        let json_bytes = fs::read(&legacy_json_path)?;
+        serde_json::from_slice::<registry::RegistryData>(&json_bytes)
+            .map_err(|e| BackupFileError::Unexpected(e.into()))?
+    };
 
     match registry::import_registry_data(&reg_data) {
         Ok(()) => Ok(RestoreOutcome::Restored),

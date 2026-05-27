@@ -13,7 +13,7 @@ use crate::preclude::BackupFileError;
 pub enum SaveUnitType {
     File,
     Folder,
-    /// Windows Registry key tree (stored as `registry.json` inside the archive).
+    /// Windows Registry key tree (stored as `registry.reg` inside new archives).
     WinRegistry,
 }
 
