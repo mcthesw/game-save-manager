@@ -2,10 +2,19 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::config::Config;
+use crate::path_resolver::{self, PathContext};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LaunchStrategy {
     OpenWithSystem,
     RunDirectly { working_dir: PathBuf },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ManagedLaunchTarget {
+    Filesystem(PathBuf),
+    Registry(String),
 }
 
 pub fn open_path(path: &Path) -> Result<()> {
@@ -30,6 +39,17 @@ pub fn open_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
+pub fn open_managed_location(
+    raw_path: &str,
+    path_ctx: Option<&PathContext>,
+    config: &Config,
+) -> Result<()> {
+    match managed_launch_target(raw_path, path_ctx, config)? {
+        ManagedLaunchTarget::Filesystem(path) => open_path(&path),
+        ManagedLaunchTarget::Registry(path) => open_registry_key(&path),
+    }
+}
+
 fn launch_strategy(path: &Path) -> LaunchStrategy {
     if should_run_directly(path) {
         let working_dir = path
@@ -40,6 +60,50 @@ fn launch_strategy(path: &Path) -> LaunchStrategy {
     } else {
         LaunchStrategy::OpenWithSystem
     }
+}
+
+fn managed_launch_target(
+    raw_path: &str,
+    path_ctx: Option<&PathContext>,
+    config: &Config,
+) -> Result<ManagedLaunchTarget> {
+    if crate::backup::registry::is_registry_path(raw_path) {
+        return Ok(ManagedLaunchTarget::Registry(
+            crate::backup::registry::normalize_registry_path(raw_path),
+        ));
+    }
+
+    let path = path_resolver::resolve_path(raw_path, path_ctx, config)
+        .with_context(|| format!("Failed to resolve path '{raw_path}'"))?;
+    Ok(ManagedLaunchTarget::Filesystem(path))
+}
+
+#[cfg(target_os = "windows")]
+fn open_registry_key(path: &str) -> Result<()> {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
+
+    let last_key = format!(
+        "Computer\\{}",
+        crate::backup::registry::normalize_registry_path(path)
+    );
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (regedit_key, _) = hkcu
+        .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Applets\\Regedit")
+        .context("Failed to open Regedit state key")?;
+    regedit_key
+        .set_value("LastKey", &last_key)
+        .context("Failed to set Regedit LastKey")?;
+
+    Command::new("regedit.exe")
+        .spawn()
+        .context("Failed to launch regedit.exe")?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn open_registry_key(_path: &str) -> Result<()> {
+    anyhow::bail!("Registry paths are not supported on this platform")
 }
 
 #[cfg(target_os = "windows")]
@@ -68,7 +132,8 @@ fn should_run_directly(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{LaunchStrategy, launch_strategy};
+    use super::{LaunchStrategy, ManagedLaunchTarget, launch_strategy, managed_launch_target};
+    use crate::config::Config;
     use std::fs;
     use temp_dir::TempDir;
 
@@ -131,5 +196,27 @@ mod tests {
             launch_strategy(&shortcut_path),
             LaunchStrategy::OpenWithSystem
         );
+    }
+
+    #[test]
+    fn routes_registry_locations_without_filesystem_resolution() {
+        let target = managed_launch_target(
+            "REGISTRY:HKEY_CURRENT_USER/Software/RGSM Test",
+            None,
+            &Config::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            target,
+            ManagedLaunchTarget::Registry("HKEY_CURRENT_USER\\Software\\RGSM Test".to_string())
+        );
+    }
+
+    #[test]
+    fn routes_filesystem_locations_through_path_resolution() {
+        let target = managed_launch_target("<home>", None, &Config::default()).unwrap();
+
+        assert!(matches!(target, ManagedLaunchTarget::Filesystem(_)));
     }
 }

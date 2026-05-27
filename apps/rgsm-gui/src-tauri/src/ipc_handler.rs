@@ -207,13 +207,7 @@ pub async fn open_file_or_folder(path: String) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Opening file or folder: {}", path);
 
     let config = get_config().map_err(|e| e.to_string())?;
-    let path = path_resolver::resolve_path(&path, None, &config).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to resolve url: {:?}", e);
-        e.to_string()
-    })?;
-
-    debug!(target:"rgsm::ipc", "Resolved url: {}", path.display());
-    rgsm_core::path_launcher::open_path(&path).map_err(|e| {
+    rgsm_core::path_launcher::open_managed_location(&path, None, &config).map_err(|e| {
         error!(target:"rgsm::ipc", "Failed to open file or folder: {:?}", e);
         e.to_string()
     })
