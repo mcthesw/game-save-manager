@@ -188,7 +188,7 @@ async openExtraBackupFolder(game: Game) : Promise<Result<boolean, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async checkCloudBackend(session: CloudSyncSessionConfig) : Promise<Result<null, string>> {
+async checkCloudBackend(session: CloudSyncSessionConfig) : Promise<Result<CloudBackendCheckReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("check_cloud_backend", { session }) };
 } catch (e) {
@@ -565,6 +565,11 @@ export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
 export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
 export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
+export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
+export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
+export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
+export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
+export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
 export type CloudSettings = { 
 /**
  * 同步间隔，单位分钟，为0则不自动同步
@@ -629,7 +634,13 @@ devices?: Partial<{ [key in string]: Device }> }
 /**
  * What the user chose to do when a conflict is detected.
  */
-export type ConflictResolution = "keep_local" | "accept_remote" | "fork" | "cancelled"
+export type ConflictResolution = "keep_local" | "accept_remote" | 
+/**
+ * Preserve both local and remote branches without merging.
+ * 
+ * TODO: implement branch selection and upload semantics for this git-like fork workflow.
+ */
+"fork" | "cancelled"
 export type ConflictResolutionOutcome = "cancelled" | "kept_local" | "accepted_remote"
 /**
  * Tracks how a snapshot was created.
@@ -903,7 +914,7 @@ export type SaveUnitDraft = { id?: number | null; unit_type: SaveUnitType; paths
  */
 export type SaveUnitType = "File" | "Folder" | 
 /**
- * Windows Registry key tree (stored as `registry.json` inside the archive).
+ * Windows Registry key tree (stored as `registry.reg` inside new archives).
  */
 "WinRegistry"
 export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; vn_scan_dirs?: string[]; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; 
