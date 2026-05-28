@@ -188,7 +188,7 @@ async openExtraBackupFolder(game: Game) : Promise<Result<boolean, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async checkCloudBackend(session: CloudSyncSessionConfig) : Promise<Result<null, string>> {
+async checkCloudBackend(session: CloudSyncSessionConfig) : Promise<Result<CloudBackendCheckReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("check_cloud_backend", { session }) };
 } catch (e) {
@@ -565,6 +565,11 @@ export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
 export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
 export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
+export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
+export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
+export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
+export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
+export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
 export type CloudSettings = { 
 /**
  * 同步间隔，单位分钟，为0则不自动同步
