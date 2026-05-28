@@ -83,10 +83,7 @@ fn open_registry_key(path: &str) -> Result<()> {
     use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
 
-    let last_key = format!(
-        "Computer\\{}",
-        crate::backup::registry::normalize_registry_path(path)
-    );
+    let last_key = registry_editor_last_key(path);
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (regedit_key, _) = hkcu
         .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Applets\\Regedit")
@@ -95,10 +92,27 @@ fn open_registry_key(path: &str) -> Result<()> {
         .set_value("LastKey", &last_key)
         .context("Failed to set Regedit LastKey")?;
 
-    Command::new("regedit.exe")
-        .spawn()
-        .context("Failed to launch regedit.exe")?;
+    let regedit_exe = registry_editor_executable();
+    open::that_detached(&regedit_exe)
+        .with_context(|| format!("Failed to launch '{}'", regedit_exe.display()))?;
     Ok(())
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn registry_editor_last_key(path: &str) -> String {
+    format!(
+        "Computer\\{}",
+        crate::backup::registry::normalize_registry_path(path)
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn registry_editor_executable() -> PathBuf {
+    std::env::var_os("SystemRoot")
+        .or_else(|| std::env::var_os("windir"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("regedit.exe")
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -132,6 +146,9 @@ fn should_run_directly(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "windows")]
+    use super::registry_editor_executable;
+    use super::registry_editor_last_key;
     use super::{LaunchStrategy, ManagedLaunchTarget, launch_strategy, managed_launch_target};
     use crate::config::Config;
     use std::fs;
@@ -211,6 +228,26 @@ mod tests {
             target,
             ManagedLaunchTarget::Registry("HKEY_CURRENT_USER\\Software\\RGSM Test".to_string())
         );
+    }
+
+    #[test]
+    fn formats_registry_editor_last_key_from_ludusavi_path() {
+        assert_eq!(
+            registry_editor_last_key("REGISTRY:HKEY_CURRENT_USER/Software/RGSM Test"),
+            "Computer\\HKEY_CURRENT_USER\\Software\\RGSM Test"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn uses_absolute_registry_editor_path() {
+        let regedit_exe = registry_editor_executable();
+
+        assert_eq!(
+            regedit_exe.file_name().and_then(|name| name.to_str()),
+            Some("regedit.exe")
+        );
+        assert!(regedit_exe.is_absolute());
     }
 
     #[test]

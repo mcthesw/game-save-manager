@@ -608,6 +608,7 @@
     },
     "error": {
         "open_url_failed": "Unable to open url",
+        "open_path_failed": "Unable to open path",
         "update_device_failed": "Failed to update device information",
         "get_devices_failed": "Failed to get device list",
         "import_paths_failed": "Failed to import paths",

@@ -181,13 +181,29 @@ function updateGameLaunchPath(deviceId: string, path: string) {
   hasUnsavedChanges.value = true;
 }
 
-async function openPath(path: string) {
+function notifyOpenPathFailed(detail?: unknown) {
+  notifyError(
+    $t('error.open_path_failed'),
+    typeof detail === 'string' ? detail : detail instanceof Error ? detail.message : undefined
+  );
+}
+
+async function openManagedPath(path: string) {
   if (!path.trim()) return;
 
-  const result = await commands.openFileOrFolder(path);
-  if (result.status === 'error') {
-    notifyError($t('error.open_url_failed'));
+  try {
+    const result = await commands.openFileOrFolder(path);
+    if (result.status === 'error') {
+      notifyOpenPathFailed(result.error);
+    }
+  } catch (e) {
+    error(`Error opening path: ${e}`);
+    notifyOpenPathFailed(e);
   }
+}
+
+async function openPath(path: string) {
+  await openManagedPath(path);
 }
 
 function switchDeleteBeforeApply(_unit: SaveUnit) {
@@ -401,25 +417,11 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
     const normalized = path.replace(/\\/g, '/');
     const idx = normalized.lastIndexOf('/');
     const parent = idx > -1 ? normalized.substring(0, idx) : normalized;
-    try {
-      const result = await commands.openFileOrFolder(parent);
-      if (result.status === 'error') {
-        showError({ message: $t('error.open_url_failed') });
-      }
-    } catch {
-      showError({ message: $t('error.open_url_failed') });
-    }
+    await openManagedPath(parent);
     return;
   }
 
-  try {
-    const result = await commands.openFileOrFolder(path);
-    if (result.status === 'error') {
-      showError({ message: $t('error.open_url_failed') });
-    }
-  } catch {
-    showError({ message: $t('error.open_url_failed') });
-  }
+  await openManagedPath(path);
 }
 </script>
 
