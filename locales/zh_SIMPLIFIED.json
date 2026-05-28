@@ -455,7 +455,10 @@
         "type_folder": "文件夹",
         "type_file": "文件",
         "type_registry": "注册表",
-        "open_ctrl_hint": "按住 Ctrl 并点击打开父文件夹"
+        "open_ctrl_hint": "按住 Ctrl 并点击打开父文件夹",
+        "open_warning": "无法打开路径",
+        "registry_open_unsupported_title": "无法自动定位注册表项",
+        "registry_open_unsupported_detail": "需要时请复制显示的注册表路径，并在注册表编辑器中手动粘贴定位。"
     },
     "sync_settings": {
         "title": "同步设置",
@@ -608,6 +611,7 @@
     },
     "error": {
         "open_url_failed": "无法打开链接",
+        "open_path_failed": "无法打开路径",
         "config_load_failed": "配置文件加载失败，可能是因为配置文件损坏或者不存在",
         "choose_save_dir_error": "选择存档文件夹时发生错误",
         "choose_save_file_error": "选择存档文件时发生错误",

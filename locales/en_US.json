@@ -455,7 +455,10 @@
         "type_folder": "Folder",
         "type_file": "File",
         "type_registry": "Registry",
-        "open_ctrl_hint": "Hold Ctrl and click to open the containing folder"
+        "open_ctrl_hint": "Hold Ctrl and click to open the containing folder",
+        "open_warning": "Unable to open path",
+        "registry_open_unsupported_title": "Registry keys cannot be opened automatically",
+        "registry_open_unsupported_detail": "Copy the displayed registry path and paste it into Registry Editor if needed."
     },
     "sync_settings": {
         "title": "Sync settings",
@@ -608,6 +611,7 @@
     },
     "error": {
         "open_url_failed": "Unable to open url",
+        "open_path_failed": "Unable to open path",
         "update_device_failed": "Failed to update device information",
         "get_devices_failed": "Failed to get device list",
         "import_paths_failed": "Failed to import paths",

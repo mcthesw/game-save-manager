@@ -8,6 +8,7 @@ use rgsm_core::config::{Config, QuickActionSoundPreferences, get_backup_path, ge
 use rgsm_core::device::{Device, get_current_device_id};
 use rgsm_core::hooks::{HookPipeline, HookSource};
 use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
+use rgsm_core::path_launcher::{OpenManagedLocationOutcome, OpenManagedLocationWarning};
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::ServiceContext;
@@ -182,6 +183,32 @@ pub struct BuildInfo {
     pub git_hash: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum OpenPathOutcome {
+    Opened,
+    Warning { warning: OpenPathWarning },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum OpenPathWarning {
+    RegistryOpenUnsupported,
+}
+
+impl From<OpenManagedLocationOutcome> for OpenPathOutcome {
+    fn from(outcome: OpenManagedLocationOutcome) -> Self {
+        match outcome {
+            OpenManagedLocationOutcome::Opened => Self::Opened,
+            OpenManagedLocationOutcome::Warning(
+                OpenManagedLocationWarning::RegistryOpenUnsupported,
+            ) => Self::Warning {
+                warning: OpenPathWarning::RegistryOpenUnsupported,
+            },
+        }
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_url(url: String) -> Result<(), String> {
@@ -203,14 +230,16 @@ pub async fn get_build_info() -> BuildInfo {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn open_file_or_folder(path: String) -> Result<(), String> {
+pub async fn open_file_or_folder(path: String) -> Result<OpenPathOutcome, String> {
     info!(target:"rgsm::ipc", "Opening file or folder: {}", path);
 
     let config = get_config().map_err(|e| e.to_string())?;
-    rgsm_core::path_launcher::open_managed_location(&path, None, &config).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to open file or folder: {:?}", e);
-        e.to_string()
-    })
+    rgsm_core::path_launcher::open_managed_location(&path, None, &config)
+        .map(OpenPathOutcome::from)
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to open file or folder: {:?}", e);
+            e.to_string()
+        })
 }
 
 #[tauri::command]
