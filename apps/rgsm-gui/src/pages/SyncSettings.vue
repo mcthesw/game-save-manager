@@ -4,12 +4,14 @@ import { $t } from '../i18n';
 import {
   commands,
   type Backend,
+  type CloudBackendCheckReport,
   type ConflictResolution,
   type GameSyncState,
   type SyncState,
 } from '../bindings';
 import { error } from '@tauri-apps/plugin-log';
 import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
+import BackendCheckResult from '../components/BackendCheckResult.vue';
 
 interface WebDAV {
   type: 'WebDAV';
@@ -64,6 +66,8 @@ const syncingConfig = ref(false);
 const resolvingConflict = ref(false);
 const conflictDialogVisible = ref(false);
 const selectedConflictGameName = ref<string | null>(null);
+const checkingBackend = ref(false);
+const backendCheckReport = ref<CloudBackendCheckReport | null>(null);
 const cloud_settings = ref<EditableCloudSettings>(
   toEditableCloudSettings(config.value!.settings.cloud_settings)
 );
@@ -375,6 +379,14 @@ watch(activeTab, (tab) => {
   }
 });
 
+watch(
+  [cloud_settings, webdav_settings, s3_settings],
+  () => {
+    backendCheckReport.value = null;
+  },
+  { deep: true }
+);
+
 function trimEndpoint(settings: { endpoint: string }) {
   if (settings.endpoint.endsWith('/')) {
     settings.endpoint = settings.endpoint.slice(0, -1);
@@ -409,23 +421,37 @@ function currentSessionConfig(): CloudSyncSessionConfig | null {
 
 async function check() {
   notifyInfo($t('sync_settings.start_test'));
-  await withLoading(async () => {
+  backendCheckReport.value = null;
+  checkingBackend.value = true;
+  try {
     const session = currentSessionConfig();
     if (!session || session.backend.type === 'Disabled') {
       notifyError($t('sync_settings.test_failed'));
       return;
     }
-    const result = await commands.checkCloudBackend(session);
+    const result = await withLoading(async () => {
+      return await commands.checkCloudBackend(session);
+    }, $t('sync_settings.checking_backend'));
     if (result.status === 'error') {
       notifyError($t('sync_settings.test_failed'));
       error(`${session.backend.type} test error: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
         notifyWarning($t('sync_settings.s3.virtual_host_hint'));
       }
-    } else {
-      notifySuccess($t('sync_settings.test_success'));
+      return;
     }
-  }, $t('sync_settings.checking_backend'));
+
+    backendCheckReport.value = result.data;
+    if (result.data.outcome === 'available') {
+      notifySuccess($t('sync_settings.test_success'));
+    } else if (result.data.outcome === 'degraded') {
+      notifyWarning($t('sync_settings.test_degraded'));
+    } else {
+      notifyError($t('sync_settings.test_failed'));
+    }
+  } finally {
+    checkingBackend.value = false;
+  }
 }
 
 async function save() {
@@ -795,11 +821,15 @@ onMounted(async () => {
               </ElButton>
               <ElButton
                 :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
+                :loading="checkingBackend"
                 @click="check"
               >
                 {{ $t('sync_settings.test_button') }}
               </ElButton>
             </div>
+          </ElFormItem>
+          <ElFormItem v-if="backendCheckReport" class="backend-check-form-item">
+            <BackendCheckResult :report="backendCheckReport" />
           </ElFormItem>
         </ElForm>
       </ElTabPane>
@@ -1002,6 +1032,10 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   padding-top: 8px;
+}
+
+.backend-check-form-item {
+  margin-top: -4px;
 }
 
 /* Operations tab */
