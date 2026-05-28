@@ -7,8 +7,8 @@ use rgsm_core::backup::{
     CreatedBy, Game, GameDraft, SaveUnitDraft, SaveUnitType, list_extra_backups,
 };
 use rgsm_core::cloud_sync::{
-    Backend, CloudSettings, CloudSyncSessionConfig, CloudSyncTaskManager, ConflictResolution,
-    S3AddressingStyle,
+    Backend, CloudBackendCheckOutcome, CloudSettings, CloudSyncSessionConfig, CloudSyncTaskManager,
+    ConflictResolution, S3AddressingStyle,
 };
 use rgsm_core::config::{get_config, set_config_local};
 use rgsm_core::device::{Device, get_current_device_id};
@@ -339,8 +339,16 @@ async fn run_operation(
         }
         Operation::CheckCloud => {
             let session = CloudSyncSessionConfig::from(&config.settings.cloud_settings);
-            service.check_cloud_backend(&session).await?;
-            Ok("cloud backend check passed".to_string())
+            let report = service.check_cloud_backend(&session).await?;
+            if let Some(message) = report.blocking_error_message() {
+                return Err(anyhow!(message));
+            }
+            let message = match report.outcome {
+                CloudBackendCheckOutcome::Available => "cloud backend check passed",
+                CloudBackendCheckOutcome::Degraded => "cloud backend check passed with warnings",
+                CloudBackendCheckOutcome::Unavailable => "cloud backend check failed",
+            };
+            Ok(message.to_string())
         }
         Operation::UploadAll => {
             let session = CloudSyncSessionConfig::from(&config.settings.cloud_settings);

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::Utc;
 use opendal::Operator;
 use opendal::layers::RetryLayer;
 use opendal::services;
@@ -145,6 +146,119 @@ pub struct CloudSyncSessionConfig {
     pub backend: Backend,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudBackendCheckOutcome {
+    Available,
+    Degraded,
+    Unavailable,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudBackendCheckStep {
+    PrepareBackend,
+    ListFiles,
+    WriteFile,
+    ReadFile,
+    VerifyContent,
+    DeleteFile,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudBackendCheckItemStatus {
+    Passed,
+    Warning,
+    Failed,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+pub struct CloudBackendCheckItem {
+    pub step: CloudBackendCheckStep,
+    pub status: CloudBackendCheckItemStatus,
+    pub critical: bool,
+    pub message: Option<String>,
+}
+
+impl CloudBackendCheckItem {
+    fn passed(step: CloudBackendCheckStep, critical: bool) -> Self {
+        Self {
+            step,
+            status: CloudBackendCheckItemStatus::Passed,
+            critical,
+            message: None,
+        }
+    }
+
+    fn warning(step: CloudBackendCheckStep, message: impl Into<String>) -> Self {
+        Self {
+            step,
+            status: CloudBackendCheckItemStatus::Warning,
+            critical: false,
+            message: Some(message.into()),
+        }
+    }
+
+    fn failed(step: CloudBackendCheckStep, message: impl Into<String>) -> Self {
+        Self {
+            step,
+            status: CloudBackendCheckItemStatus::Failed,
+            critical: true,
+            message: Some(message.into()),
+        }
+    }
+
+    fn blocks_usage(&self) -> bool {
+        self.critical && self.status == CloudBackendCheckItemStatus::Failed
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+pub struct CloudBackendCheckReport {
+    pub outcome: CloudBackendCheckOutcome,
+    pub items: Vec<CloudBackendCheckItem>,
+}
+
+impl CloudBackendCheckReport {
+    fn from_items(items: Vec<CloudBackendCheckItem>) -> Self {
+        let outcome = if items.iter().any(CloudBackendCheckItem::blocks_usage) {
+            CloudBackendCheckOutcome::Unavailable
+        } else if items
+            .iter()
+            .any(|item| item.status == CloudBackendCheckItemStatus::Warning)
+        {
+            CloudBackendCheckOutcome::Degraded
+        } else {
+            CloudBackendCheckOutcome::Available
+        };
+
+        Self { outcome, items }
+    }
+
+    pub fn is_usable(&self) -> bool {
+        self.outcome != CloudBackendCheckOutcome::Unavailable
+    }
+
+    pub fn blocking_error_message(&self) -> Option<String> {
+        self.items
+            .iter()
+            .find(|item| item.blocks_usage())
+            .and_then(|item| item.message.clone())
+            .or_else(|| {
+                if self.is_usable() {
+                    None
+                } else {
+                    Some("A required cloud backend check failed.".to_string())
+                }
+            })
+    }
+}
+
+fn check_failure_message(action: &str, err: impl std::fmt::Display) -> String {
+    format!("{action}: {err}")
+}
+
 impl Backend {
     fn retry_layer() -> RetryLayer {
         RetryLayer::new()
@@ -212,32 +326,114 @@ impl CloudSyncSessionConfig {
     }
 
     pub async fn check(&self) -> Result<(), BackendError> {
-        const TEST_FILENAME: &str = "test.txt";
+        let report = self.check_report().await;
+        if let Some(message) = report.blocking_error_message() {
+            return Err(BackendError::OperatorCheck(message));
+        }
+        Ok(())
+    }
+
+    pub async fn check_report(&self) -> CloudBackendCheckReport {
         const TEST_CONTENT: &str = "Hello from game save manager";
 
-        let op = self.get_op()?;
-        op.list(".")
-            .await
-            .map_err(|_| BackendError::OperatorCheck("Failed to list files.".into()))?;
-        op.write(TEST_FILENAME, TEST_CONTENT)
-            .await
-            .map_err(|_| BackendError::OperatorCheck("Failed to create test file.".into()))?;
-        let text = op
-            .read(TEST_FILENAME)
-            .await
-            .map_err(|_| BackendError::OperatorCheck("Failed to read test file.".into()))?;
-        let text = String::from_utf8(text.to_vec()).map_err(|_| {
-            BackendError::OperatorCheck("Failed to convert test file to string.".into())
-        })?;
-        if text != TEST_CONTENT {
-            return Err(BackendError::OperatorCheck(
-                "Test file content does not match.".into(),
+        let mut items = Vec::new();
+        let op = match self.get_op() {
+            Ok(op) => {
+                items.push(CloudBackendCheckItem::passed(
+                    CloudBackendCheckStep::PrepareBackend,
+                    true,
+                ));
+                op
+            }
+            Err(err) => {
+                items.push(CloudBackendCheckItem::failed(
+                    CloudBackendCheckStep::PrepareBackend,
+                    check_failure_message("Failed to prepare cloud backend", err),
+                ));
+                return CloudBackendCheckReport::from_items(items);
+            }
+        };
+
+        match op.list(".").await {
+            Ok(_) => items.push(CloudBackendCheckItem::passed(
+                CloudBackendCheckStep::ListFiles,
+                false,
+            )),
+            Err(err) => items.push(CloudBackendCheckItem::warning(
+                CloudBackendCheckStep::ListFiles,
+                check_failure_message("Failed to list files", err),
+            )),
+        }
+
+        let test_filename = format!(
+            ".rgsm-backend-check-{}-{}",
+            std::process::id(),
+            Utc::now().timestamp_millis()
+        );
+
+        if let Err(err) = op.write(test_filename.as_str(), TEST_CONTENT).await {
+            items.push(CloudBackendCheckItem::failed(
+                CloudBackendCheckStep::WriteFile,
+                check_failure_message("Failed to create test file", err),
+            ));
+            return CloudBackendCheckReport::from_items(items);
+        }
+        items.push(CloudBackendCheckItem::passed(
+            CloudBackendCheckStep::WriteFile,
+            true,
+        ));
+
+        let text = match op.read(test_filename.as_str()).await {
+            Ok(text) => {
+                items.push(CloudBackendCheckItem::passed(
+                    CloudBackendCheckStep::ReadFile,
+                    true,
+                ));
+                Some(text)
+            }
+            Err(err) => {
+                items.push(CloudBackendCheckItem::failed(
+                    CloudBackendCheckStep::ReadFile,
+                    check_failure_message("Failed to read test file", err),
+                ));
+                None
+            }
+        };
+
+        if let Some(text) = text {
+            match String::from_utf8(text.to_vec()) {
+                Ok(text) if text == TEST_CONTENT => items.push(CloudBackendCheckItem::passed(
+                    CloudBackendCheckStep::VerifyContent,
+                    true,
+                )),
+                Ok(_) => items.push(CloudBackendCheckItem::failed(
+                    CloudBackendCheckStep::VerifyContent,
+                    "Test file content does not match.",
+                )),
+                Err(err) => items.push(CloudBackendCheckItem::failed(
+                    CloudBackendCheckStep::VerifyContent,
+                    check_failure_message("Failed to convert test file to string", err),
+                )),
+            }
+        } else {
+            items.push(CloudBackendCheckItem::failed(
+                CloudBackendCheckStep::VerifyContent,
+                "Skipped because the test file could not be read.",
             ));
         }
-        op.delete(TEST_FILENAME)
-            .await
-            .map_err(|_| BackendError::OperatorCheck("Failed to delete test file.".into()))?;
-        Ok(())
+
+        match op.delete(test_filename.as_str()).await {
+            Ok(_) => items.push(CloudBackendCheckItem::passed(
+                CloudBackendCheckStep::DeleteFile,
+                true,
+            )),
+            Err(err) => items.push(CloudBackendCheckItem::failed(
+                CloudBackendCheckStep::DeleteFile,
+                check_failure_message("Failed to delete test file", err),
+            )),
+        }
+
+        CloudBackendCheckReport::from_items(items)
     }
 
     pub fn fingerprint(&self) -> String {
@@ -293,7 +489,10 @@ impl Sanitizable for Backend {
 
 #[cfg(test)]
 mod tests {
-    use super::{S3AddressingStyle, normalize_virtual_host_endpoint};
+    use super::{
+        CloudBackendCheckItem, CloudBackendCheckOutcome, CloudBackendCheckReport,
+        CloudBackendCheckStep, S3AddressingStyle, normalize_virtual_host_endpoint,
+    };
 
     #[test]
     fn path_style_never_enables_virtual_host() {
@@ -366,5 +565,37 @@ mod tests {
         } else {
             panic!("expected S3 backend");
         }
+    }
+
+    #[test]
+    fn optional_list_failure_degrades_without_blocking_usage() {
+        let report = CloudBackendCheckReport::from_items(vec![
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::PrepareBackend, true),
+            CloudBackendCheckItem::warning(CloudBackendCheckStep::ListFiles, "502 Bad Gateway"),
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::WriteFile, true),
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::ReadFile, true),
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::VerifyContent, true),
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::DeleteFile, true),
+        ]);
+
+        assert_eq!(report.outcome, CloudBackendCheckOutcome::Degraded);
+        assert!(report.is_usable());
+        assert_eq!(report.blocking_error_message(), None);
+    }
+
+    #[test]
+    fn critical_failure_marks_backend_unavailable() {
+        let report = CloudBackendCheckReport::from_items(vec![
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::PrepareBackend, true),
+            CloudBackendCheckItem::passed(CloudBackendCheckStep::ListFiles, false),
+            CloudBackendCheckItem::failed(CloudBackendCheckStep::WriteFile, "AccessDenied"),
+        ]);
+
+        assert_eq!(report.outcome, CloudBackendCheckOutcome::Unavailable);
+        assert!(!report.is_usable());
+        assert_eq!(
+            report.blocking_error_message(),
+            Some("AccessDenied".to_string())
+        );
     }
 }

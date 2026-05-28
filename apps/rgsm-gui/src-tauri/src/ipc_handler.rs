@@ -1,8 +1,9 @@
 use crate::{quick_actions, sound};
 use rgsm_core::backup::{CreatedBy, ExtraBackupItem, Game, GameDraft, GameSnapshots};
 use rgsm_core::cloud_sync::{
-    self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudSyncSessionConfig,
-    CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome, SyncGameOutcome,
+    self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudBackendCheckReport,
+    CloudSyncSessionConfig, CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome,
+    SyncGameOutcome,
 };
 use rgsm_core::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
 use rgsm_core::device::{Device, get_current_device_id};
@@ -535,12 +536,25 @@ pub async fn open_extra_backup_folder(game: Game) -> Result<bool, String> {
 pub async fn check_cloud_backend(
     session: CloudSyncSessionConfig,
     app_handle: AppHandle,
-) -> Result<(), String> {
+) -> Result<CloudBackendCheckReport, String> {
     info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", session.backend.clone().sanitize());
     match svc(&app_handle).check_cloud_backend(&session).await {
-        Ok(_) => {
-            info!(target:"rgsm::ipc", "Successfully checked cloud backend: {:?}", session.backend.sanitize());
-            Ok(())
+        Ok(report) => {
+            if report.is_usable() {
+                info!(
+                    target:"rgsm::ipc",
+                    "Checked cloud backend with outcome {:?}: {:?}",
+                    report.outcome,
+                    session.backend.sanitize()
+                );
+            } else {
+                warn!(
+                    target:"rgsm::ipc",
+                    "Cloud backend check reported unusable backend: {:?}",
+                    session.backend.sanitize()
+                );
+            }
+            Ok(report)
         }
         Err(e) => {
             error!(target:"rgsm::ipc", "Failed to check cloud backend: {:?}", e);

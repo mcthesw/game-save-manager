@@ -2,9 +2,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::backup::Game;
 use crate::cloud_sync::{
-    BatchSyncReport, CloudSyncSessionConfig, ConflictResolution, ConflictResolutionOutcome,
-    SyncGameOutcome, download_all_from_session, resolve_game_conflict as resolve_cloud_conflict,
-    sync_config as sync_cloud_config, sync_game as sync_cloud_game, upload_all_from_session,
+    BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
+    ConflictResolutionOutcome, SyncGameOutcome, download_all_from_session,
+    resolve_game_conflict as resolve_cloud_conflict, sync_config as sync_cloud_config,
+    sync_game as sync_cloud_game, upload_all_from_session,
 };
 use crate::config::{Config, get_config};
 use crate::hooks::{HookSource, MetadataChangedCtx};
@@ -29,8 +30,8 @@ impl ServiceContext {
     pub async fn check_cloud_backend(
         &self,
         session: &CloudSyncSessionConfig,
-    ) -> Result<(), BackendError> {
-        session.check().await
+    ) -> Result<CloudBackendCheckReport, BackendError> {
+        Ok(session.check_report().await)
     }
 
     pub async fn upload_all_from_session(
