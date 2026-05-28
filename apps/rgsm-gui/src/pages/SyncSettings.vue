@@ -4,12 +4,14 @@ import { $t } from '../i18n';
 import {
   commands,
   type Backend,
+  type CloudBackendCheckReport,
   type ConflictResolution,
   type GameSyncState,
   type SyncState,
 } from '../bindings';
 import { error } from '@tauri-apps/plugin-log';
 import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
+import BackendCheckResult from '../components/BackendCheckResult.vue';
 
 interface WebDAV {
   type: 'WebDAV';
@@ -64,6 +66,8 @@ const syncingConfig = ref(false);
 const resolvingConflict = ref(false);
 const conflictDialogVisible = ref(false);
 const selectedConflictGameName = ref<string | null>(null);
+const checkingBackend = ref(false);
+const backendCheckReport = ref<CloudBackendCheckReport | null>(null);
 const cloud_settings = ref<EditableCloudSettings>(
   toEditableCloudSettings(config.value!.settings.cloud_settings)
 );
@@ -141,6 +145,10 @@ interface GameRow {
 /** Returns true when the error string indicates the bucket requires virtual-hosted-style addressing. */
 function isVirtualHostStyleError(msg: string): boolean {
   return /virtual.host/i.test(msg);
+}
+
+function reportHasVirtualHostStyleError(report: CloudBackendCheckReport): boolean {
+  return report.items.some((item) => item.message && isVirtualHostStyleError(item.message));
 }
 
 function resolveStatus(enabled: boolean, gs?: GameSyncState): GameRow['status'] {
@@ -262,7 +270,7 @@ async function resolveConflict(resolution: ConflictResolution) {
       type: 'warning',
     });
   } catch {
-    notifyInfo($t('sync_settings.canceled'));
+    notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
     return;
   }
 
@@ -375,6 +383,14 @@ watch(activeTab, (tab) => {
   }
 });
 
+watch(
+  [cloud_settings, webdav_settings, s3_settings],
+  () => {
+    backendCheckReport.value = null;
+  },
+  { deep: true }
+);
+
 function trimEndpoint(settings: { endpoint: string }) {
   if (settings.endpoint.endsWith('/')) {
     settings.endpoint = settings.endpoint.slice(0, -1);
@@ -408,24 +424,33 @@ function currentSessionConfig(): CloudSyncSessionConfig | null {
 }
 
 async function check() {
-  notifyInfo($t('sync_settings.start_test'));
-  await withLoading(async () => {
+  backendCheckReport.value = null;
+  checkingBackend.value = true;
+  try {
     const session = currentSessionConfig();
     if (!session || session.backend.type === 'Disabled') {
       notifyError($t('sync_settings.test_failed'));
       return;
     }
-    const result = await commands.checkCloudBackend(session);
+    const result = await withLoading(async () => {
+      return await commands.checkCloudBackend(session);
+    }, $t('sync_settings.checking_backend'));
     if (result.status === 'error') {
       notifyError($t('sync_settings.test_failed'));
       error(`${session.backend.type} test error: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
         notifyWarning($t('sync_settings.s3.virtual_host_hint'));
       }
-    } else {
-      notifySuccess($t('sync_settings.test_success'));
+      return;
     }
-  }, $t('sync_settings.checking_backend'));
+
+    backendCheckReport.value = result.data;
+    if (session.backend.type === 'S3' && reportHasVirtualHostStyleError(result.data)) {
+      notifyWarning($t('sync_settings.s3.virtual_host_hint'));
+    }
+  } finally {
+    checkingBackend.value = false;
+  }
 }
 
 async function save() {
@@ -516,12 +541,12 @@ async function upload_all() {
     } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
       notifyError($t('sync_settings.upload_failed'));
     } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
-      notifyInfo($t('sync_settings.canceled'));
+      notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
     } else {
       notifySuccess($t('sync_settings.upload_success'));
     }
   } catch {
-    notifyInfo($t('sync_settings.canceled'));
+    notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
   } finally {
     await loadSyncState();
   }
@@ -555,13 +580,13 @@ async function download_all() {
     } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
       notifyError($t('sync_settings.download_failed'));
     } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
-      notifyInfo($t('sync_settings.canceled'));
+      notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
     } else {
       notifySuccess($t('sync_settings.download_success'));
       await load_config();
     }
   } catch {
-    notifyInfo($t('sync_settings.canceled'));
+    notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
   } finally {
     await loadSyncState();
   }
@@ -576,7 +601,7 @@ async function cancelSync() {
   }
 
   if (result.data === 'cancelled') {
-    notifyInfo($t('cloud_sync.cancelled'));
+    notifyInfo($t('cloud_sync.cancelled'), undefined, { silent: true });
   }
 }
 
@@ -716,92 +741,100 @@ onMounted(async () => {
         <ElAlert type="warning" :closable="false" show-icon style="margin-bottom: 20px">
           {{ $t('sync_settings.warning') }}
         </ElAlert>
-        <ElForm label-position="left" :label-width="160" class="backend-form">
-          <ElFormItem :label="$t('sync_settings.backend')">
-            <ElSelect
-              v-model="cloud_settings!.backend!.type"
-              :placeholder="$t('sync_settings.backend')"
-            >
-              <ElOption v-for="b in backends" :key="b" :label="b" :value="b" />
-            </ElSelect>
-          </ElFormItem>
-
-          <!-- WebDAV -->
-          <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
-            <ElFormItem :label="$t('sync_settings.webdav.endpoint')">
-              <ElInput v-model="webdav_settings.endpoint" />
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.webdav.username')">
-              <ElInput v-model="webdav_settings.username" />
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.webdav.password')">
-              <ElInput v-model="webdav_settings.password" type="password" show-password />
-            </ElFormItem>
-          </template>
-
-          <!-- S3 -->
-          <template v-if="cloud_settings!.backend!.type === 'S3'">
-            <ElFormItem :label="$t('sync_settings.s3.endpoint')">
-              <ElInput v-model="s3_settings.endpoint" />
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.s3.bucket')">
-              <ElInput v-model="s3_settings.bucket" />
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.s3.region')">
-              <ElInput v-model="s3_settings.region" />
-              <span class="field-hint">{{ $t('sync_settings.s3.region_hint') }}</span>
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.s3.access_key_id')">
-              <ElInput v-model="s3_settings.access_key_id" />
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.s3.secret_access_key')">
-              <ElInput v-model="s3_settings.secret_access_key" type="password" show-password />
-            </ElFormItem>
-            <ElFormItem :label="$t('sync_settings.s3.addressing_style')">
-              <ElSelect v-model="s3_settings.addressing_style">
-                <ElOption value="PathStyle" :label="$t('sync_settings.s3.addressing_style_path')" />
-                <ElOption
-                  value="VirtualHostedStyle"
-                  :label="$t('sync_settings.s3.addressing_style_virtual')"
-                />
-                <ElOption value="Auto" :label="$t('sync_settings.s3.addressing_style_auto')" />
+        <div class="backend-layout">
+          <ElForm label-position="left" :label-width="160" class="backend-form">
+            <ElFormItem :label="$t('sync_settings.backend')">
+              <ElSelect
+                v-model="cloud_settings!.backend!.type"
+                :placeholder="$t('sync_settings.backend')"
+              >
+                <ElOption v-for="b in backends" :key="b" :label="b" :value="b" />
               </ElSelect>
             </ElFormItem>
-          </template>
 
-          <ElFormItem :label="$t('sync_settings.cloud_root')">
-            <ElInput v-model="cloud_settings!.root_path" />
-            <span class="field-hint">{{ $t('sync_settings.cloud_root_hint') }}</span>
-          </ElFormItem>
-          <ElFormItem :label="$t('sync_settings.max_concurrency')">
-            <ElInputNumber
-              v-model="cloud_settings!.max_concurrency"
-              :value-on-clear="1"
-              :step="1"
-              :step-strictly="true"
-              :min="1"
-              :max="32"
-            />
-            <span class="field-hint">{{ $t('sync_settings.max_concurrency_hint') }}</span>
-          </ElFormItem>
+            <!-- WebDAV -->
+            <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
+              <ElFormItem :label="$t('sync_settings.webdav.endpoint')">
+                <ElInput v-model="webdav_settings.endpoint" />
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.webdav.username')">
+                <ElInput v-model="webdav_settings.username" />
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.webdav.password')">
+                <ElInput v-model="webdav_settings.password" type="password" show-password />
+              </ElFormItem>
+            </template>
 
-          <ElFormItem>
-            <div class="button-group">
-              <ElButton type="primary" @click="save">
-                {{ $t('sync_settings.save_button') }}
-              </ElButton>
-              <ElButton @click="abort_change">
-                {{ $t('sync_settings.abort_button') }}
-              </ElButton>
-              <ElButton
-                :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
-                @click="check"
-              >
-                {{ $t('sync_settings.test_button') }}
-              </ElButton>
-            </div>
-          </ElFormItem>
-        </ElForm>
+            <!-- S3 -->
+            <template v-if="cloud_settings!.backend!.type === 'S3'">
+              <ElFormItem :label="$t('sync_settings.s3.endpoint')">
+                <ElInput v-model="s3_settings.endpoint" />
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.s3.bucket')">
+                <ElInput v-model="s3_settings.bucket" />
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.s3.region')">
+                <ElInput v-model="s3_settings.region" />
+                <span class="field-hint">{{ $t('sync_settings.s3.region_hint') }}</span>
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.s3.access_key_id')">
+                <ElInput v-model="s3_settings.access_key_id" />
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.s3.secret_access_key')">
+                <ElInput v-model="s3_settings.secret_access_key" type="password" show-password />
+              </ElFormItem>
+              <ElFormItem :label="$t('sync_settings.s3.addressing_style')">
+                <ElSelect v-model="s3_settings.addressing_style">
+                  <ElOption
+                    value="PathStyle"
+                    :label="$t('sync_settings.s3.addressing_style_path')"
+                  />
+                  <ElOption
+                    value="VirtualHostedStyle"
+                    :label="$t('sync_settings.s3.addressing_style_virtual')"
+                  />
+                  <ElOption value="Auto" :label="$t('sync_settings.s3.addressing_style_auto')" />
+                </ElSelect>
+              </ElFormItem>
+            </template>
+
+            <ElFormItem :label="$t('sync_settings.cloud_root')">
+              <ElInput v-model="cloud_settings!.root_path" />
+              <span class="field-hint">{{ $t('sync_settings.cloud_root_hint') }}</span>
+            </ElFormItem>
+            <ElFormItem :label="$t('sync_settings.max_concurrency')">
+              <ElInputNumber
+                v-model="cloud_settings!.max_concurrency"
+                :value-on-clear="1"
+                :step="1"
+                :step-strictly="true"
+                :min="1"
+                :max="32"
+              />
+              <span class="field-hint">{{ $t('sync_settings.max_concurrency_hint') }}</span>
+            </ElFormItem>
+
+            <ElFormItem>
+              <div class="button-group">
+                <ElButton type="primary" @click="save">
+                  {{ $t('sync_settings.save_button') }}
+                </ElButton>
+                <ElButton @click="abort_change">
+                  {{ $t('sync_settings.abort_button') }}
+                </ElButton>
+                <ElButton
+                  :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
+                  :loading="checkingBackend"
+                  @click="check"
+                >
+                  {{ $t('sync_settings.test_button') }}
+                </ElButton>
+              </div>
+            </ElFormItem>
+          </ElForm>
+
+          <BackendCheckResult :report="backendCheckReport" :checking="checkingBackend" />
+        </div>
       </ElTabPane>
 
       <!-- Tab 3: Operations -->
@@ -981,7 +1014,7 @@ onMounted(async () => {
 }
 
 /* Backend tab */
-.backend-form {
+.backend-layout {
   max-width: 560px;
 }
 
@@ -1002,6 +1035,21 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   padding-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .backend-layout {
+    max-width: none;
+  }
+
+  .backend-form .el-input,
+  .backend-form .el-select {
+    width: 100%;
+  }
+
+  .button-group {
+    flex-wrap: wrap;
+  }
 }
 
 /* Operations tab */

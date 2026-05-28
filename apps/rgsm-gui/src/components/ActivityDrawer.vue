@@ -29,6 +29,8 @@ const { activities, activityAddSignal, dismissActivity, dismissAll, notifyError 
 
 const expanded = ref(false);
 let collapseTimer: ReturnType<typeof setTimeout> | null = null;
+const collapseCountdown = ref(false);
+const collapseDuration = ref(0);
 
 // Two states only: ghost ball (collapsed) or full panel (expanded)
 const isGhostTab = computed(() => !expanded.value);
@@ -51,15 +53,18 @@ function clearCollapseTimer() {
     clearTimeout(collapseTimer);
     collapseTimer = null;
   }
+  collapseCountdown.value = false;
 }
 
 function scheduleCollapse() {
   clearCollapseTimer();
-  // Errors stay open longer so the user has time to read and copy them
-  const delay = hasErrors.value ? 20_000 : 5_000;
+  const delay = hasErrors.value ? 20_000 : 3_000;
+  collapseDuration.value = delay;
+  collapseCountdown.value = true;
   collapseTimer = setTimeout(() => {
     expanded.value = false;
     collapseTimer = null;
+    collapseCountdown.value = false;
   }, delay);
 }
 
@@ -77,6 +82,9 @@ watch(isIdle, (idle) => {
 watch(activityAddSignal, () => {
   clearCollapseTimer();
   expanded.value = true;
+  if (isIdle.value) {
+    scheduleCollapse();
+  }
 });
 
 // Auto-expand when cloud sync starts
@@ -219,25 +227,75 @@ function canDismiss(entry: ActivityEntry) {
     aria-live="polite"
     :style="{ zIndex: LAYER.activityDrawer }"
   >
-    <!-- Expanded panel -->
+    <!-- Header pill (always visible, acts as toggle + header when expanded) -->
+    <div class="activity-pill" @click="handleToggleExpanded">
+      <el-icon
+        v-if="isGhostTab"
+        :size="18"
+        class="activity-ghost-icon"
+        :class="{ 'ghost-active': hasActiveWork }"
+      >
+        <Loading v-if="hasActiveWork" />
+        <List v-else />
+      </el-icon>
+      <template v-else>
+        <div class="activity-pill-left">
+          <el-icon
+            v-if="isSyncing || activeActivityCount > 0"
+            class="activity-pill-spinner"
+            :size="16"
+          >
+            <Loading />
+          </el-icon>
+          <span class="activity-pill-title">{{ $t('activity_center.title') }}</span>
+          <span v-if="!expanded && totalActiveCount > 0" class="activity-pill-count">
+            {{ $t('activity_center.active_count', { count: totalActiveCount }) }}
+          </span>
+        </div>
+        <div class="activity-pill-right">
+          <el-button
+            v-if="expanded && hasActivities"
+            text
+            size="small"
+            class="pill-dismiss-btn"
+            @click.stop="dismissAll"
+          >
+            {{ $t('activity_center.dismiss_all') }}
+          </el-button>
+          <el-button
+            v-if="expanded && isSyncing"
+            text
+            size="small"
+            class="pill-dismiss-btn"
+            :loading="isCancelling"
+            @click.stop="cancelSync"
+          >
+            {{ $t('cloud_sync.cancel') }}
+          </el-button>
+          <svg
+            v-if="collapseCountdown"
+            class="collapse-ring"
+            :style="{ '--collapse-duration': collapseDuration + 'ms' }"
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+          >
+            <circle class="collapse-ring-track" cx="9" cy="9" r="7" />
+            <circle class="collapse-ring-progress" cx="9" cy="9" r="7" />
+          </svg>
+          <el-icon :size="14" class="activity-pill-chevron">
+            <component :is="expanded ? ArrowDown : ArrowUp" />
+          </el-icon>
+        </div>
+      </template>
+    </div>
+
+    <!-- Expanded panel (content only, no header) -->
     <Transition name="activity-panel-slide">
       <div v-if="expanded" class="activity-panel">
-        <!-- Cloud sync section -->
-        <div v-if="hasCloudSyncJobs" class="activity-section cloud-sync-section">
-          <div class="activity-section-header">
-            <span class="activity-section-title">{{ $t('cloud_sync.title') }}</span>
-            <el-button
-              v-if="isSyncing"
-              text
-              size="small"
-              :loading="isCancelling"
-              class="activity-section-action"
-              @click.stop="cancelSync"
-            >
-              {{ $t('cloud_sync.cancel') }}
-            </el-button>
-          </div>
-          <div class="activity-list">
+        <div class="activity-panel-scroll">
+          <!-- Cloud sync jobs -->
+          <template v-if="hasCloudSyncJobs">
             <div
               v-for="job in jobs"
               :key="job.id"
@@ -260,24 +318,13 @@ function canDismiss(entry: ActivityEntry) {
               </div>
               <span class="activity-item-badge">{{ syncStatusLabel(job.status) }}</span>
             </div>
-          </div>
-        </div>
+          </template>
 
-        <!-- Divider between sections -->
-        <div v-if="hasCloudSyncJobs && hasActivities" class="activity-section-divider" />
+          <!-- Divider -->
+          <div v-if="hasCloudSyncJobs && hasActivities" class="activity-section-divider" />
 
-        <!-- General activities section -->
-        <div v-if="hasActivities" class="activity-section">
-          <div class="activity-section-header">
-            <span class="activity-section-title">{{ $t('activity_center.title') }}</span>
-            <el-button text size="small" class="activity-section-action" @click.stop="dismissAll">
-              {{ $t('activity_center.dismiss_all') }}
-            </el-button>
-          </div>
-          <div class="activity-list">
-            <div v-if="activities.length === 0" class="activity-empty">
-              {{ $t('activity_center.empty') }}
-            </div>
+          <!-- General activities -->
+          <template v-if="hasActivities">
             <div
               v-for="entry in [...activities].reverse()"
               :key="entry.id"
@@ -324,50 +371,15 @@ function canDismiss(entry: ActivityEntry) {
                 <el-icon :size="12"><Close /></el-icon>
               </button>
             </div>
-          </div>
-        </div>
+          </template>
 
-        <!-- Empty state when panel open but nothing to show -->
-        <div v-if="!hasCloudSyncJobs && !hasActivities" class="activity-empty activity-empty-panel">
-          {{ $t('activity_center.empty') }}
+          <!-- Empty state -->
+          <div v-if="!hasCloudSyncJobs && !hasActivities" class="activity-empty">
+            {{ $t('activity_center.empty') }}
+          </div>
         </div>
       </div>
     </Transition>
-
-    <!-- Collapsed pill bar -->
-    <div class="activity-pill" @click="handleToggleExpanded">
-      <!-- Ghost ball: collapsed state, always shows — spinner when active work, list icon when idle -->
-      <el-icon
-        v-if="isGhostTab"
-        :size="18"
-        class="activity-ghost-icon"
-        :class="{ 'ghost-active': hasActiveWork }"
-      >
-        <Loading v-if="hasActiveWork" />
-        <List v-else />
-      </el-icon>
-      <!-- Normal pill: full info bar when has content or is expanded -->
-      <template v-else>
-        <div class="activity-pill-left">
-          <el-icon
-            v-if="isSyncing || activeActivityCount > 0"
-            class="activity-pill-spinner"
-            :size="16"
-          >
-            <Loading />
-          </el-icon>
-          <span class="activity-pill-title">{{ $t('activity_center.title') }}</span>
-          <span v-if="totalActiveCount > 0" class="activity-pill-count">
-            {{ $t('activity_center.active_count', { count: totalActiveCount }) }}
-          </span>
-        </div>
-        <div class="activity-pill-right">
-          <el-icon :size="14" class="activity-pill-chevron">
-            <component :is="expanded ? ArrowDown : ArrowUp" />
-          </el-icon>
-        </div>
-      </template>
-    </div>
   </div>
 </template>
 
@@ -439,6 +451,18 @@ function canDismiss(entry: ActivityEntry) {
   gap: 10px;
 }
 
+.activity-drawer:not(.is-ghost-tab) .activity-pill:not(:has(.activity-pill-left)) {
+  justify-content: flex-end;
+  padding: 6px 14px;
+}
+
+.pill-dismiss-btn {
+  font-size: 0.75rem !important;
+  padding: 0 4px !important;
+  height: auto !important;
+  color: var(--el-text-color-secondary) !important;
+}
+
 /* Ghost tab pill: center the icon in a 40×40 square */
 .activity-drawer.is-ghost-tab .activity-pill {
   padding: 0;
@@ -471,8 +495,39 @@ function canDismiss(entry: ActivityEntry) {
 .activity-pill-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.collapse-ring {
+  --circumference: 43.98;
+}
+
+.collapse-ring-track {
+  fill: none;
+  stroke: var(--el-border-color-lighter);
+  stroke-width: 2;
+}
+
+.collapse-ring-progress {
+  fill: none;
+  stroke: var(--el-text-color-secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: var(--circumference);
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  animation: collapse-ring-drain var(--collapse-duration) linear forwards;
+}
+
+@keyframes collapse-ring-drain {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: var(--circumference);
+  }
 }
 
 .activity-pill-chevron {
@@ -488,57 +543,42 @@ function canDismiss(entry: ActivityEntry) {
 
 /* Panel */
 .activity-panel {
-  border-bottom: 1px solid color-mix(in oklab, var(--el-border-color-lighter) 80%, transparent);
-  max-height: 480px;
+  border-top: 1px solid color-mix(in oklab, var(--el-border-color-lighter) 80%, transparent);
+}
+
+.activity-panel-scroll {
+  max-height: 132px;
   overflow-y: auto;
+  padding: 6px 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--el-text-color-placeholder) 40%, transparent)
+    transparent;
 }
 
-.activity-section {
-  padding: 8px 0;
+.activity-panel-scroll::-webkit-scrollbar {
+  width: 4px;
 }
 
-.activity-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 14px 4px;
+.activity-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.activity-section-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--el-text-color-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.activity-section-action {
-  font-size: 0.75rem;
-  padding: 0 4px;
-  height: auto;
-  color: var(--el-text-color-secondary);
+.activity-panel-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--el-text-color-placeholder) 40%, transparent);
+  border-radius: 2px;
 }
 
 .activity-section-divider {
   height: 1px;
   background: color-mix(in oklab, var(--el-border-color-lighter) 80%, transparent);
-  margin: 0 14px;
-}
-
-.activity-list {
-  max-height: 220px;
-  overflow-y: auto;
+  margin: 4px 14px;
 }
 
 .activity-empty {
-  padding: 8px 14px;
+  padding: 12px 14px;
   text-align: center;
   color: var(--el-text-color-secondary);
   font-size: 0.82rem;
-}
-
-.activity-empty-panel {
-  padding: 16px;
 }
 
 /* Activity rows */
@@ -729,7 +769,7 @@ function canDismiss(entry: ActivityEntry) {
 }
 .activity-panel-slide-enter-to,
 .activity-panel-slide-leave-from {
-  max-height: 500px;
+  max-height: 220px;
   opacity: 1;
 }
 
