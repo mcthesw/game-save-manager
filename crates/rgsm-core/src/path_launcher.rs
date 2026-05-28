@@ -14,7 +14,18 @@ enum LaunchStrategy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ManagedLaunchTarget {
     Filesystem(PathBuf),
-    Registry(String),
+    Registry,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenManagedLocationOutcome {
+    Opened,
+    Warning(OpenManagedLocationWarning),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenManagedLocationWarning {
+    RegistryOpenUnsupported,
 }
 
 pub fn open_path(path: &Path) -> Result<()> {
@@ -43,10 +54,15 @@ pub fn open_managed_location(
     raw_path: &str,
     path_ctx: Option<&PathContext>,
     config: &Config,
-) -> Result<()> {
+) -> Result<OpenManagedLocationOutcome> {
     match managed_launch_target(raw_path, path_ctx, config)? {
-        ManagedLaunchTarget::Filesystem(path) => open_path(&path),
-        ManagedLaunchTarget::Registry(path) => open_registry_key(&path),
+        ManagedLaunchTarget::Filesystem(path) => {
+            open_path(&path)?;
+            Ok(OpenManagedLocationOutcome::Opened)
+        }
+        ManagedLaunchTarget::Registry => Ok(OpenManagedLocationOutcome::Warning(
+            OpenManagedLocationWarning::RegistryOpenUnsupported,
+        )),
     }
 }
 
@@ -68,42 +84,12 @@ fn managed_launch_target(
     config: &Config,
 ) -> Result<ManagedLaunchTarget> {
     if crate::backup::registry::is_registry_path(raw_path) {
-        return Ok(ManagedLaunchTarget::Registry(
-            crate::backup::registry::normalize_registry_path(raw_path),
-        ));
+        return Ok(ManagedLaunchTarget::Registry);
     }
 
     let path = path_resolver::resolve_path(raw_path, path_ctx, config)
         .with_context(|| format!("Failed to resolve path '{raw_path}'"))?;
     Ok(ManagedLaunchTarget::Filesystem(path))
-}
-
-#[cfg(target_os = "windows")]
-fn open_registry_key(path: &str) -> Result<()> {
-    use winreg::RegKey;
-    use winreg::enums::HKEY_CURRENT_USER;
-
-    let last_key = format!(
-        "Computer\\{}",
-        crate::backup::registry::normalize_registry_path(path)
-    );
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (regedit_key, _) = hkcu
-        .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Applets\\Regedit")
-        .context("Failed to open Regedit state key")?;
-    regedit_key
-        .set_value("LastKey", &last_key)
-        .context("Failed to set Regedit LastKey")?;
-
-    Command::new("regedit.exe")
-        .spawn()
-        .context("Failed to launch regedit.exe")?;
-    Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn open_registry_key(_path: &str) -> Result<()> {
-    anyhow::bail!("Registry paths are not supported on this platform")
 }
 
 #[cfg(target_os = "windows")]
@@ -132,7 +118,10 @@ fn should_run_directly(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{LaunchStrategy, ManagedLaunchTarget, launch_strategy, managed_launch_target};
+    use super::{
+        LaunchStrategy, ManagedLaunchTarget, OpenManagedLocationOutcome,
+        OpenManagedLocationWarning, launch_strategy, managed_launch_target, open_managed_location,
+    };
     use crate::config::Config;
     use std::fs;
     use temp_dir::TempDir;
@@ -207,9 +196,23 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(target, ManagedLaunchTarget::Registry);
+    }
+
+    #[test]
+    fn warns_instead_of_launching_registry_locations() {
+        let outcome = open_managed_location(
+            "REGISTRY:HKEY_CURRENT_USER/Software/RGSM Test",
+            None,
+            &Config::default(),
+        )
+        .unwrap();
+
         assert_eq!(
-            target,
-            ManagedLaunchTarget::Registry("HKEY_CURRENT_USER\\Software\\RGSM Test".to_string())
+            outcome,
+            OpenManagedLocationOutcome::Warning(
+                OpenManagedLocationWarning::RegistryOpenUnsupported
+            )
         );
     }
 

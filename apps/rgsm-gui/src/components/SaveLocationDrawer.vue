@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { error } from '@tauri-apps/plugin-log';
 import { $t } from '../i18n';
-import type { Device, Game, SaveUnit } from '../bindings';
+import type { Device, Game, OpenPathWarning, SaveUnit } from '../bindings';
 import { commands } from '../bindings';
 import { useConfig } from '../composables/useConfig';
 import PathVariableInput from './PathVariableInput.vue';
@@ -182,11 +182,40 @@ function updateGameLaunchPath(deviceId: string, path: string) {
 }
 
 async function openPath(path: string) {
-  if (!path.trim()) return;
+  await openManagedPath(path);
+}
 
-  const result = await commands.openFileOrFolder(path);
-  if (result.status === 'error') {
-    notifyError($t('error.open_url_failed'));
+function notifyOpenPathWarning(warning: OpenPathWarning) {
+  switch (warning) {
+    case 'registryOpenUnsupported':
+      notifyWarning(
+        $t('save_location_drawer.registry_open_unsupported_title'),
+        $t('save_location_drawer.registry_open_unsupported_detail')
+      );
+      return;
+    default:
+      notifyWarning($t('save_location_drawer.open_warning'));
+  }
+}
+
+async function openManagedPath(path: string) {
+  if (!path.trim()) {
+    return;
+  }
+
+  try {
+    const result = await commands.openFileOrFolder(path);
+    if (result.status === 'error') {
+      notifyError($t('error.open_path_failed'), result.error);
+      return;
+    }
+
+    if (result.data.status === 'warning') {
+      notifyOpenPathWarning(result.data.warning);
+    }
+  } catch (e) {
+    error(`Error opening path: ${e}`);
+    notifyError($t('error.open_path_failed'));
   }
 }
 
@@ -393,6 +422,18 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
   }
 }
 
+function openTooltip(unit: SaveUnit) {
+  if (unit.unit_type === 'File') {
+    return $t('save_location_drawer.open_ctrl_hint');
+  }
+
+  if (unit.unit_type === 'WinRegistry') {
+    return $t('save_location_drawer.registry_open_unsupported_title');
+  }
+
+  return $t('save_location_drawer.open');
+}
+
 async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
   if (!path || !path.trim()) return;
 
@@ -401,25 +442,11 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
     const normalized = path.replace(/\\/g, '/');
     const idx = normalized.lastIndexOf('/');
     const parent = idx > -1 ? normalized.substring(0, idx) : normalized;
-    try {
-      const result = await commands.openFileOrFolder(parent);
-      if (result.status === 'error') {
-        showError({ message: $t('error.open_url_failed') });
-      }
-    } catch {
-      showError({ message: $t('error.open_url_failed') });
-    }
+    await openManagedPath(parent);
     return;
   }
 
-  try {
-    const result = await commands.openFileOrFolder(path);
-    if (result.status === 'error') {
-      showError({ message: $t('error.open_url_failed') });
-    }
-  } catch {
-    showError({ message: $t('error.open_url_failed') });
-  }
+  await openManagedPath(path);
 }
 </script>
 
@@ -565,14 +592,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
               }}</el-tag>
             </div>
             <div class="unit-card-actions">
-              <el-tooltip
-                :content="
-                  unit.unit_type === 'File'
-                    ? $t('save_location_drawer.open_ctrl_hint')
-                    : $t('save_location_drawer.open')
-                "
-                placement="top"
-              >
+              <el-tooltip :content="openTooltip(unit)" placement="top">
                 <el-button
                   text
                   size="small"
@@ -659,14 +679,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
                 <el-button text size="small" @click="chooseUnitPath(unit)">
                   {{ $t('save_location_drawer.pick_path') }}
                 </el-button>
-                <el-tooltip
-                  :content="
-                    unit.unit_type === 'File'
-                      ? $t('save_location_drawer.open_ctrl_hint')
-                      : $t('save_location_drawer.open')
-                  "
-                  placement="top"
-                >
+                <el-tooltip :content="openTooltip(unit)" placement="top">
                   <el-button
                     text
                     size="small"
