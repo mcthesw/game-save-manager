@@ -341,7 +341,12 @@ function canDismiss(entry: ActivityEntry) {
               </el-icon>
               <span v-else class="activity-item-icon-placeholder" />
               <div class="activity-item-body">
-                <span class="activity-item-title" :title="entry.title">{{ entry.title }}</span>
+                <span class="activity-item-title" :title="entry.title"
+                  >{{ entry.title
+                  }}<span v-if="entry.count > 1" class="activity-item-count">
+                    ×{{ entry.count }}</span
+                  ></span
+                >
                 <span
                   v-if="entry.description"
                   class="activity-item-desc"
@@ -614,6 +619,11 @@ function canDismiss(entry: ActivityEntry) {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--el-text-color-regular);
+}
+
+.activity-item-count {
+  color: var(--el-text-color-secondary);
+  font-size: 0.85em;
 }
 
 .activity-item-desc {
