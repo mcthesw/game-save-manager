@@ -10,6 +10,7 @@ export interface ActivityEntry {
   createdAt: number;
   updatedAt: number;
   autoDismissMs: number;
+  count: number;
 }
 
 // No auto-dismiss — entries persist until the user dismisses them manually
@@ -107,6 +108,23 @@ export function addActivity(opts: {
   const autoDismissMs =
     opts.autoDismissMs !== undefined ? opts.autoDismissMs : DEFAULT_AUTO_DISMISS[status];
   const now = Date.now();
+
+  const last = activities.value[activities.value.length - 1];
+  if (
+    last &&
+    last.title === opts.title &&
+    last.status === status &&
+    last.description === opts.description
+  ) {
+    last.count++;
+    last.updatedAt = now;
+    if (!opts.silent) {
+      activityAddSignal.value++;
+    }
+    applyTimerPolicy(last);
+    return last.id;
+  }
+
   const id = generateId();
   const entry: ActivityEntry = {
     id,
@@ -116,6 +134,7 @@ export function addActivity(opts: {
     createdAt: now,
     updatedAt: now,
     autoDismissMs,
+    count: 1,
   };
   activities.value.push(entry);
   if (!opts.silent) {
