@@ -101,6 +101,7 @@ export function addActivity(opts: {
   description?: string;
   status?: ActivityStatus;
   autoDismissMs?: number;
+  silent?: boolean;
 }): string {
   const status = opts.status ?? 'pending';
   const autoDismissMs =
@@ -117,7 +118,9 @@ export function addActivity(opts: {
     autoDismissMs,
   };
   activities.value.push(entry);
-  activityAddSignal.value++;
+  if (!opts.silent) {
+    activityAddSignal.value++;
+  }
   evict();
   applyTimerPolicy(entry);
   return id;
@@ -164,7 +167,7 @@ export function dismissAll() {
 export function notifySuccess(
   title: string,
   description?: string,
-  opts?: { autoDismissMs?: number }
+  opts?: { autoDismissMs?: number; silent?: boolean }
 ) {
   return addActivity({ title, description, status: 'success', ...opts });
 }
@@ -172,7 +175,7 @@ export function notifySuccess(
 export function notifyError(
   title: string,
   description?: string,
-  opts?: { autoDismissMs?: number }
+  opts?: { autoDismissMs?: number; silent?: boolean }
 ) {
   return addActivity({ title, description, status: 'error', ...opts });
 }
@@ -180,12 +183,16 @@ export function notifyError(
 export function notifyWarning(
   title: string,
   description?: string,
-  opts?: { autoDismissMs?: number }
+  opts?: { autoDismissMs?: number; silent?: boolean }
 ) {
   return addActivity({ title, description, status: 'warning', ...opts });
 }
 
-export function notifyInfo(title: string, description?: string, opts?: { autoDismissMs?: number }) {
+export function notifyInfo(
+  title: string,
+  description?: string,
+  opts?: { autoDismissMs?: number; silent?: boolean }
+) {
   return addActivity({ title, description, status: 'info', ...opts });
 }
 
