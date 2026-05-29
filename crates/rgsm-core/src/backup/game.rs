@@ -424,16 +424,25 @@ impl Game {
         &self,
         describe: &str,
     ) -> Result<TimerSnapshotDecision, BackupError> {
+        self.create_snapshot_if_changed(describe, CreatedBy::Timer)
+            .await
+    }
+
+    pub async fn create_snapshot_if_changed(
+        &self,
+        describe: &str,
+        created_by: CreatedBy,
+    ) -> Result<TimerSnapshotDecision, BackupError> {
         let infos = self.get_game_snapshots_info()?;
         // `date` uses `%Y-%m-%d_%H-%M-%S`, so max lexicographic value is the newest snapshot.
         let latest_auto_snapshot = infos
             .backups
             .iter()
-            .filter(|snapshot| snapshot.created_by == CreatedBy::Timer)
+            .filter(|snapshot| snapshot.created_by.is_automatic_backup())
             .max_by_key(|snapshot| &snapshot.date);
 
         let Some(latest_auto_snapshot) = latest_auto_snapshot else {
-            self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+            self.create_snapshot_with_parent(describe, None, created_by)
                 .await?;
             return Ok(TimerSnapshotDecision::Created);
         };
@@ -447,7 +456,7 @@ impl Game {
                     target: "rgsm::backup::game",
                     "Failed to fingerprint current save state, fallback to creating snapshot: {err:?}"
                 );
-                self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                self.create_snapshot_with_parent(describe, None, created_by)
                     .await?;
                 return Ok(TimerSnapshotDecision::Created);
             }
@@ -469,16 +478,16 @@ impl Game {
                 Ok(TimerSnapshotDecision::SkippedUnchanged)
             }
             Some(_) => {
-                self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                self.create_snapshot_with_parent(describe, None, created_by)
                     .await?;
                 Ok(TimerSnapshotDecision::Created)
             }
             None => {
                 info!(
                     target: "rgsm::backup::game",
-                    "Latest timer backup is legacy format; create one new timer backup before dedup"
+                    "Latest automatic backup is legacy format; create one new automatic backup before dedup"
                 );
-                self.create_snapshot_with_parent(describe, None, CreatedBy::Timer)
+                self.create_snapshot_with_parent(describe, None, created_by)
                     .await?;
                 Ok(TimerSnapshotDecision::Created)
             }
@@ -503,7 +512,7 @@ impl Game {
         let mut auto_backups: Vec<_> = infos
             .backups
             .iter()
-            .filter(|snapshot| snapshot.created_by == CreatedBy::Timer)
+            .filter(|snapshot| snapshot.created_by.is_automatic_backup())
             .collect();
 
         // If we're within the limit, no cleanup needed

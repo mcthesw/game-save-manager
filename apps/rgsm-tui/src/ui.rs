@@ -301,6 +301,9 @@ fn created_by_label(created_by: &CreatedBy) -> String {
         CreatedBy::Timer => t!("tui.snapshot.created_by.timer").to_string(),
         CreatedBy::Tray => t!("tui.snapshot.created_by.tray").to_string(),
         CreatedBy::Hotkey => t!("tui.snapshot.created_by.hotkey").to_string(),
+        CreatedBy::ProcessStart => t!("tui.snapshot.created_by.process_start").to_string(),
+        CreatedBy::ProcessExit => t!("tui.snapshot.created_by.process_exit").to_string(),
+        CreatedBy::ProcessInterval => t!("tui.snapshot.created_by.process_interval").to_string(),
         CreatedBy::Unknown => t!("tui.snapshot.created_by.unknown").to_string(),
     }
 }

@@ -239,6 +239,9 @@
             "created_by": {
                 "hotkey": "hotkey",
                 "manual": "manual",
+                "process_exit": "process exit",
+                "process_interval": "process timer",
+                "process_start": "process start",
                 "timer": "timer",
                 "tray": "tray",
                 "unknown": "unknown"

@@ -16,6 +16,7 @@ pub enum HookSource {
     BatchOperation,
     QuickActionHotkey,
     QuickActionTray,
+    ProcessMonitorAutoBackup,
     CloudSync,
     Internal,
 }

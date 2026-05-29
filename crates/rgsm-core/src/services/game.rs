@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 
 use crate::backup::{self, AutoBackupConfig, Game, GameDraft};
-use crate::config::{get_config, set_config};
+use crate::config::{GameAutomationSettingsDraft, get_config, set_config};
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
 use super::ServiceContext;
@@ -71,14 +71,10 @@ impl ServiceContext {
 
         config.games[index] = draft.clone().into_game(Some(&previous_game));
 
-        // Also update quick_action_game reference if it points to this game
-        if let Some(ref mut qa_game) = config.quick_action.quick_action_game {
-            if qa_game.storage_key == storage_key {
-                qa_game.name = draft.name.clone();
-            }
-        }
-
         let updated_game = config.games[index].clone();
+        config
+            .quick_action
+            .sync_updated_game_reference(&previous_game, &updated_game);
         set_config(&config).await?;
 
         self.pipeline()
@@ -111,7 +107,7 @@ impl ServiceContext {
 
     pub async fn set_game_auto_backup(
         &self,
-        game_name: &str,
+        identity: &str,
         auto_backup: Option<AutoBackupConfig>,
         source: HookSource,
     ) -> Result<()> {
@@ -122,12 +118,11 @@ impl ServiceContext {
         }
 
         let mut config = get_config()?;
-        let game = config
-            .games
-            .iter_mut()
-            .find(|game| game.name == game_name)
-            .ok_or_else(|| anyhow!("Game '{}' not found", game_name))?;
+        let index = config
+            .position_game_by_identity(identity)
+            .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
 
+        let game = &mut config.games[index];
         let previous_game = game.clone();
         game.auto_backup = auto_backup;
         let updated_game = game.clone();
@@ -140,6 +135,49 @@ impl ServiceContext {
                 source,
                 previous_game,
                 game: updated_game,
+            })
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn set_game_automation(
+        &self,
+        storage_key: &str,
+        automation: Option<GameAutomationSettingsDraft>,
+        source: HookSource,
+    ) -> Result<()> {
+        if let Some(automation) = &automation
+            && let Some(interval_secs) = automation.in_process_interval_secs
+            && interval_secs == 0
+        {
+            bail!("Process monitor interval_secs must be greater than 0");
+        }
+
+        let mut config = get_config()?;
+        let index = config
+            .position_game_by_identity(storage_key)
+            .ok_or_else(|| anyhow!("Game with storage_key '{}' not found", storage_key))?;
+        let game = config.games[index].clone();
+        let previous_game = game.clone();
+
+        match automation {
+            Some(automation) => config
+                .quick_action
+                .upsert_game_automation(&game, automation),
+            None => {
+                config.quick_action.remove_game_automation(&game);
+            }
+        }
+
+        set_config(&config).await?;
+
+        self.pipeline()
+            .fire_game_updated(&GameUpdatedCtx {
+                config,
+                source,
+                previous_game,
+                game,
             })
             .await;
 
