@@ -4,6 +4,7 @@
 //! GUI-specific hooks (notification, quick_action_sync, scheduler_sync) live here.
 
 pub mod notification_hook;
+mod process_monitor_sync_hook;
 mod quick_action_sync_hook;
 mod runtime_config_sync;
 mod scheduler_sync_hook;
@@ -66,6 +67,12 @@ pub fn build_builtin_pipeline(
     hooks.push(Box::new(scheduler_sync_hook::SchedulerSyncHook::new(
         scheduler_sync,
     )));
+    let process_monitor_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> = Arc::new(
+        process_monitor_sync_hook::TauriProcessMonitorSync::new(app.clone()),
+    );
+    hooks.push(Box::new(
+        process_monitor_sync_hook::ProcessMonitorSyncHook::new(process_monitor_sync),
+    ));
     let quick_action_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> = Arc::new(
         quick_action_sync_hook::TauriQuickActionRuntimeSync::new(app.clone()),
     );

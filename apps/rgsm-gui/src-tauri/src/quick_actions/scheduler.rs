@@ -4,18 +4,15 @@ use std::time::Duration;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio::time::Instant;
 
-use std::path::PathBuf;
-
-use rgsm_core::backup::{AutoBackupConfig, Game, TimerSnapshotDecision};
+use rgsm_core::backup::{AutoBackupConfig, Game};
 use rgsm_core::config::get_config;
-use rgsm_core::hooks::{HookSource, SnapshotCreatedCtx, SnapshotDeletedCtx};
 
-use super::QuickActionType;
+use super::{QuickActionType, perform_changed_auto_backup};
 
 /// Commands sent to the scheduler's event loop.
 pub enum SchedulerCommand {
@@ -195,109 +192,7 @@ async fn trigger_due_games(app: &AppHandle, games: &mut HashMap<String, Schedule
 
 /// Perform a timer auto-backup for a specific game, including hooks and cleanup.
 async fn perform_timer_backup(app: &AppHandle, game: &Game, backup_config: &AutoBackupConfig) {
-    let describe = QuickActionType::Timer.generate_describe();
-
-    match game.create_timer_snapshot_if_changed(&describe).await {
-        Ok(TimerSnapshotDecision::SkippedUnchanged) => {
-            info!(
-                target: "rgsm::scheduler",
-                "Skipped auto-backup for '{}': state unchanged",
-                game.name
-            );
-            return;
-        }
-        Ok(TimerSnapshotDecision::Created) => {
-            info!(
-                target: "rgsm::scheduler",
-                "Auto-backup created for '{}'",
-                game.name
-            );
-        }
-        Err(e) => {
-            warn!(
-                target: "rgsm::scheduler",
-                "Auto-backup failed for '{}': {e:?}",
-                game.name
-            );
-            return;
-        }
-    }
-
-    let config = match get_config() {
-        Ok(c) => c,
-        Err(e) => {
-            warn!(
-                target: "rgsm::scheduler",
-                "Failed to load config after auto-backup: {e:?}"
-            );
-            return;
-        }
-    };
-
-    match game.get_game_snapshots_info() {
-        Ok(snapshots) => {
-            if let Some(snapshot) = snapshots.backups.last().cloned() {
-                let local_zip_path = PathBuf::from(&snapshot.path);
-                let remote_zip_path = format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
-                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                let mut ctx = SnapshotCreatedCtx {
-                    config: config.clone(),
-                    source: HookSource::TimerAutoBackup,
-                    game: game.clone(),
-                    snapshot,
-                    snapshots,
-                    local_zip_path,
-                    remote_zip_path,
-                };
-                pipeline.fire_snapshot_created(&mut ctx).await;
-                if let Err(err) = game.set_game_snapshots_info(&ctx.snapshots) {
-                    warn!(
-                        target: "rgsm::scheduler",
-                        "Failed to persist hook-updated snapshot metadata for '{}': {err:?}",
-                        game.name
-                    );
-                }
-            }
-        }
-        Err(err) => {
-            warn!(
-                target: "rgsm::scheduler",
-                "Failed to read snapshots after auto-backup for '{}': {err:?}",
-                game.name
-            );
-        }
-    }
-
-    // Cleanup old auto-backups
-    let effective_max = backup_config
-        .max_backup_count
-        .unwrap_or(config.settings.max_auto_backup_count);
-
-    if effective_max > 0 {
-        match game.cleanup_old_auto_backups(effective_max).await {
-            Ok(cleanup_result) => {
-                if !cleanup_result.deleted_remote_paths.is_empty() {
-                    let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                    pipeline
-                        .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                            config,
-                            source: HookSource::TimerAutoBackup,
-                            game: game.clone(),
-                            snapshots: cleanup_result.snapshots,
-                            deleted_remote_paths: cleanup_result.deleted_remote_paths,
-                        })
-                        .await;
-                }
-            }
-            Err(e) => {
-                warn!(
-                    target: "rgsm::scheduler",
-                    "Auto-backup cleanup failed for '{}': {e:?}",
-                    game.name
-                );
-            }
-        }
-    }
+    perform_changed_auto_backup(app, game, Some(backup_config), QuickActionType::Timer).await;
 }
 
 #[cfg(test)]

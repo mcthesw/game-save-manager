@@ -260,6 +260,14 @@ async setGameAutoBackup(gameName: string, autoBackup: AutoBackupConfig | null) :
     else return { status: "error", error: e  as any };
 }
 },
+async setGameAutomation(storageKey: string, automation: GameAutomationSettingsDraft | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_game_automation", { storageKey, automation }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setSnapshotCreatedBy(gameName: string, snapshotDate: string, createdBy: CreatedBy) : Promise<Result<GameSnapshots, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_snapshot_created_by", { gameName, snapshotDate, createdBy }) };
@@ -276,9 +284,17 @@ async getAutoBackupStatus() : Promise<Result<AutoBackupGameStatus[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async listRunningProcesses() : Promise<Result<RunningProcessOption[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_running_processes") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Resolves a path string containing variables to an actual filesystem path
- * 
+ *
  * This command allows the frontend to resolve paths with variables like <home>, <winAppData>, etc.
  */
 async resolvePath(path: string) : Promise<Result<string, string>> {
@@ -525,7 +541,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"hotkeys":{"apply":["","",""],"backup":["","",""]},"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false,"vn_scan_dirs":[]},"version":"1.9.0"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"game_automations":[],"hotkeys":{"apply":["","",""],"backup":["","",""]},"notify_when_unchanged":true,"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false,"vn_scan_dirs":[]},"version":"1.9.0"} as const;
 
 /** user-defined types **/
 
@@ -534,11 +550,11 @@ export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family
  * Per-game auto-backup configuration.
  * Presence (`Some`) enables the timer; absence (`None`) disables it.
  */
-export type AutoBackupConfig = { 
+export type AutoBackupConfig = {
 /**
  * Interval between auto-backups in seconds.
  */
-interval_secs: number; 
+interval_secs: number;
 /**
  * Maximum number of auto-backups to keep. `None` = use global setting.
  */
@@ -547,13 +563,13 @@ max_backup_count?: number | null }
  * Status of one game's auto-backup timer, returned by `GetStatus`.
  */
 export type AutoBackupGameStatus = { game_name: string; interval_secs: number }
-export type Backend = { type: "Disabled" } | 
+export type Backend = { type: "Disabled" } |
 /**
  * WebDAV 后端
  * 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
  * 不支持 blocking
  */
-{ type: "WebDAV"; endpoint: string; username: string; password: string } | 
+{ type: "WebDAV"; endpoint: string; username: string; password: string } |
 /**
  * Amazon S3 后端
  * 参考：https://docs.rs/opendal/latest/opendal/services/struct.S3.html
@@ -570,19 +586,19 @@ export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
 export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
 export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
-export type CloudSettings = { 
+export type CloudSettings = {
 /**
  * 同步间隔，单位分钟，为0则不自动同步
  */
-auto_sync_interval?: number; 
+auto_sync_interval?: number;
 /**
  * 云同步根目录
  */
-root_path?: string; 
+root_path?: string;
 /**
  * 云同步后端设置
  */
-backend?: Backend; 
+backend?: Backend;
 /**
  * 最大并发数
  */
@@ -600,23 +616,23 @@ export type CloudSyncSessionConfig = { root_path: string; max_concurrency: numbe
 export type CloudSyncStatusEvent = { active_jobs: number; current_description: string | null; jobs: CloudSyncJobInfo[] }
 /**
  * User-facing compression presets for backup archives.
- * 
+ *
  * Each preset maps to a specific `zip::CompressionMethod` and compression level.
  * Old archives using BZip2 remain fully readable regardless of the current preset.
  */
-export type CompressionPreset = 
+export type CompressionPreset =
 /**
  * No compression — fastest backup, largest file size.
  */
-"Store" | 
+"Store" |
 /**
  * Deflate level 1 — fast with reasonable compression.
  */
-"Fast" | 
+"Fast" |
 /**
  * Zstd level 3 — best speed/ratio balance (recommended).
  */
-"Standard" | 
+"Standard" |
 /**
  * Zstd level 19 — very high compression, slower.
  */
@@ -626,7 +642,7 @@ export type CompressionPreset =
  * include the version, backup's location path, games'info,
  * and the settings
  */
-export type Config = { version: string; backup_path: string; games: Game[]; settings: Settings; favorites?: FavoriteTreeNode[]; quick_action?: QuickActionsSettings; 
+export type Config = { version: string; backup_path: string; games: Game[]; settings: Settings; favorites?: FavoriteTreeNode[]; quick_action?: QuickActionsSettings;
 /**
  * 设备ID到设备名称的映射
  */
@@ -634,52 +650,64 @@ devices?: Partial<{ [key in string]: Device }> }
 /**
  * What the user chose to do when a conflict is detected.
  */
-export type ConflictResolution = "keep_local" | "accept_remote" | 
+export type ConflictResolution = "keep_local" | "accept_remote" |
 /**
  * Preserve both local and remote branches without merging.
- * 
+ *
  * TODO: implement branch selection and upload semantics for this git-like fork workflow.
  */
 "fork" | "cancelled"
 export type ConflictResolutionOutcome = "cancelled" | "kept_local" | "accepted_remote"
 /**
  * Tracks how a snapshot was created.
- * 
+ *
  * Forward-compatible: unknown variants from future versions deserialize
  * as `Unknown` — these are never auto-deleted by cleanup logic.
  */
-export type CreatedBy = 
+export type CreatedBy =
 /**
  * User-created snapshot (manual backup, IPC call, etc.)
  */
-"Manual" | 
+"Manual" |
 /**
  * Created by the auto-backup timer, subject to retention policy cleanup.
  */
-"Timer" | 
+"Timer" |
 /**
  * Created via the system tray quick action.
  */
-"Tray" | 
+"Tray" |
 /**
  * Created via a global hotkey quick action.
  */
-"Hotkey" | 
+"Hotkey" |
+/**
+ * Created when a monitored game process starts.
+ */
+"ProcessStart" |
+/**
+ * Created when a monitored game process exits.
+ */
+"ProcessExit" |
+/**
+ * Created by a timer while a monitored game process is running.
+ */
+"ProcessInterval" |
 /**
  * Forward-compat catch-all for variants added in future versions.
  */
 "Unknown"
-export type Device = { id: string; name: string; 
+export type Device = { id: string; name: string;
 /**
  * User-configured root directories for `<root>` path variable resolution.
  * First entry is used as `<root>`; empty = auto-detect Steam root.
  */
 game_roots?: string[] }
-export type ExtraBackupItem = { 
+export type ExtraBackupItem = {
 /**
  * Filename without extension, e.g. `Overwrite_2025-12-22_12-34-56`.
  */
-date: string; size: number; 
+date: string; size: number;
 /**
  * File modification time in milliseconds since Unix epoch.
  */
@@ -688,47 +716,49 @@ export type FavoriteTreeNode = { node_id: string; label: string; is_leaf: boolea
 /**
  * A game struct contains the save units and the game's launcher
  */
-export type Game = { name: string; 
+export type Game = { name: string;
 /**
  * Filesystem-safe identifier used for local backup directories and remote
  * cloud paths. Derived from `name` via [`super::storage_key::generate_storage_key`]
  * when the game is first created. Once set it never changes, even if the
  * display `name` is later renamed.
  */
-storage_key?: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>; 
+storage_key?: string; save_paths: SaveUnit[]; game_paths?: Partial<{ [key in string]: string }>;
 /**
  * Monotonically increasing counter for assigning unique save-unit IDs.
  * IDs can be provided by callers (frontend/CLI/FFI), and backend normalization
  * keeps this counter aligned with the highest in-use ID.
  */
-next_save_unit_id?: number; 
+next_save_unit_id?: number;
 /**
  * Whether this game participates in cloud sync.
  * Defaults to true so existing games are automatically included.
  */
-cloud_sync_enabled?: boolean; 
+cloud_sync_enabled?: boolean;
 /**
  * Per-game auto-backup configuration. `None` = disabled.
  */
-auto_backup?: AutoBackupConfig | null; 
+auto_backup?: AutoBackupConfig | null;
 /**
  * Metadata from Ludusavi manifest import. `None` for manually added games.
  */
-ludusavi_meta?: LudusaviMeta | null; 
+ludusavi_meta?: LudusaviMeta | null;
 /**
  * Per-device store user ID for `<storeUserId>` resolution.
  * Key: DeviceId, Value: store-specific user ID (e.g. Steam user ID).
  */
 store_user_ids: Partial<{ [key in string]: string }> }
+export type GameAutomationSettings = { storage_key?: string; game_name: string; process_name?: string; on_process_start?: boolean; on_process_exit?: boolean; in_process_interval_secs?: number | null }
+export type GameAutomationSettingsDraft = { process_name?: string; on_process_start?: boolean; on_process_exit?: boolean; in_process_interval_secs?: number | null }
 /**
  * Frontend/IPC input shape for creating/updating a game.
  * Save-unit IDs are assigned and normalized in backend domain logic.
  */
-export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?: Partial<{ [key in string]: string }>; 
+export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?: Partial<{ [key in string]: string }>;
 /**
  * Metadata from Ludusavi manifest import (optional for manually added games).
  */
-ludusavi_meta?: LudusaviMeta | null; 
+ludusavi_meta?: LudusaviMeta | null;
 /**
  * Per-device store user ID for `<storeUserId>` resolution.
  */
@@ -738,20 +768,20 @@ store_user_ids: Partial<{ [key in string]: string }> }
  * It contains the name of the game,
  * and all backups' path
  */
-export type GameSnapshots = { name: string; backups: Snapshot[]; 
+export type GameSnapshots = { name: string; backups: Snapshot[];
 /**
  * Device-specific HEAD pointers. Each device tracks which snapshot new
  * snapshots should branch from locally.
  */
-device_heads?: Partial<{ [key in string]: string }>; 
+device_heads?: Partial<{ [key in string]: string }>;
 /**
  * Monotonically increasing version for sync conflict detection.
  */
-sync_version?: number; 
+sync_version?: number;
 /**
  * The device that last modified this metadata.
  */
-last_sync_device?: string | null; 
+last_sync_device?: string | null;
 /**
  * ISO 8601 timestamp of the last sync operation.
  */
@@ -760,69 +790,69 @@ export type GameSyncState = { last_known_local_head?: string | null; last_known_
 /**
  * Simplified game info for the import dialog
  */
-export type ImportableGame = { 
+export type ImportableGame = {
 /**
  * Game name
  */
-name: string; 
+name: string;
 /**
  * Steam ID if available
  */
-steamId: number | null; 
+steamId: number | null;
 /**
  * Install directory names from manifest's `installDir` field
  */
-installDirs: string[]; 
+installDirs: string[];
 /**
  * Whether this game is already managed
  */
-isManaged: boolean; 
+isManaged: boolean;
 /**
  * Number of save paths detected
  */
 savePathsCount: number }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
-export type LudusaviManifestStatus = { 
+export type LudusaviManifestStatus = {
 /**
  * Current manifest source: `local`, `bundled`, or `none`.
  */
-source: string; 
+source: string;
 /**
  * Last update time (RFC3339, best-effort).
  */
-updatedAt: string | null; 
+updatedAt: string | null;
 /**
  * A version-like identifier (best-effort, e.g. HTTP ETag).
  */
-etag: string | null; 
+etag: string | null;
 /**
  * Whether a local cached manifest exists.
  */
-hasLocal: boolean; 
+hasLocal: boolean;
 /**
  * Local cache path (if available as a string).
  */
-localPath: string | null; 
+localPath: string | null;
 /**
  * Local cache size in bytes (if present).
  */
-localBytes: number | null; 
+localBytes: number | null;
 /**
  * Bundled manifest size in bytes.
  */
 bundledBytes: number }
 /**
  * Manifest-derived metadata for games imported from Ludusavi.
- * 
+ *
  * These fields are **device-independent** (directory names and IDs, not paths)
  * and are safe to persist in config and sync across devices.
  */
-export type LudusaviMeta = { 
+export type LudusaviMeta = {
 /**
  * Install directory names from the manifest's `installDir` field.
  * e.g. `["100 Orange Juice"]`. Used to resolve `<game>` and `<base>`.
  */
-installDirs?: string[]; 
+installDirs?: string[];
 /**
  * Steam App ID from the manifest's `steam.id`. Used to resolve `<storeGameId>`.
  */
@@ -833,19 +863,19 @@ export type OpenPathWarning = "registryOpenUnsupported"
 /**
  * Result of checking a single path
  */
-export type PathCheckResult = 
+export type PathCheckResult =
 /**
  * Path resolved and exists on filesystem
  */
-{ status: "ok"; rawPath: string; resolvedPath: string; isFile: boolean } | 
+{ status: "ok"; rawPath: string; resolvedPath: string; isFile: boolean } |
 /**
  * Path resolved but doesn't exist on filesystem
  */
-{ status: "notFound"; rawPath: string; resolvedPath: string } | 
+{ status: "notFound"; rawPath: string; resolvedPath: string } |
 /**
  * Registry path
  */
-{ status: "registryPath"; rawPath: string; exists: boolean; supported: boolean } | 
+{ status: "registryPath"; rawPath: string; exists: boolean; supported: boolean } |
 /**
  * Failed to resolve path variables
  */
@@ -858,17 +888,18 @@ export type QuickActionSoundEffect = "Success" | "Failure"
 export type QuickActionSoundPreferences = { enable_sound?: boolean; sounds?: QuickActionSoundSlots }
 export type QuickActionSoundSlots = { success?: QuickActionSoundSource; failure?: QuickActionSoundSource }
 export type QuickActionSoundSource = { kind: "default" } | { kind: "file"; path: string }
-export type QuickActionStatus = "Success" | "Failure"
-export type QuickActionType = "Timer" | "Tray" | "Hotkey"
-export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; sounds?: QuickActionSoundSlots }
+export type QuickActionStatus = "Success" | "Failure" | "SkippedUnchanged"
+export type QuickActionType = "Timer" | "Tray" | "Hotkey" | "ProcessStart" | "ProcessExit" | "ProcessInterval"
+export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; notify_when_unchanged?: boolean; sounds?: QuickActionSoundSlots; game_automations?: GameAutomationSettings[] }
 /**
  * Typed error for restore operations, allowing the frontend to
  * pattern-match on specific failure modes without string parsing.
  */
 export type RestoreError = { type: "IntegrityCheckFailed"; expected: string; actual: string } | { type: "BackupNotFound"; date: string } | { type: "DecompressFailed"; message: string } | { type: "Io"; message: string } | { type: "Other"; message: string }
+export type RunningProcessOption = { name: string; label: string; count: number }
 /**
  * How the S3 client addresses buckets.
- * 
+ *
  * - `PathStyle`: `https://endpoint/bucket/key` (default, works for most generic S3-compatible services)
  * - `VirtualHostedStyle`: `https://bucket.endpoint/key` (required by Tencent COS, Alibaba OSS, etc.)
  * - `Auto`: detect by endpoint host suffix; falls back to virtual-hosted-style for known providers
@@ -881,11 +912,11 @@ export type SaveListExpandBehavior = "always_open" | "always_closed" | "remember
 /**
  * Represents a save file path with its conditions
  */
-export type SavePath = { 
+export type SavePath = {
 /**
  * The path pattern
  */
-path: string; 
+path: string;
 /**
  * Tags like "save", "config", etc.
  */
@@ -893,13 +924,13 @@ tags: string[] }
 /**
  * A save unit declares one of the files/folders
  * that should be backup for a game.
- * 
+ *
  * The `id` field is a stable identifier used as the index prefix in V2 archives.
  * Unlike positional indices, it does not change when save units are added or removed,
  * ensuring old archives can always be restored correctly. The backend will
  * normalize duplicated IDs when persisting config.
  */
-export type SaveUnit = { 
+export type SaveUnit = {
 /**
  * Stable identifier for this save unit, used as archive entry prefix in V2 format.
  * Provided by the caller (frontend/CLI/FFI) and kept unique by backend normalization.
@@ -914,21 +945,21 @@ export type SaveUnitDraft = { id?: number | null; unit_type: SaveUnitType; paths
 /**
  * The kind of data a save unit backs up.
  */
-export type SaveUnitType = "File" | "Folder" | 
+export type SaveUnitType = "File" | "Folder" |
 /**
  * Windows Registry key tree (stored as `registry.reg` inside new archives).
  */
 "WinRegistry"
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; vn_scan_dirs?: string[]; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number; 
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; vn_scan_dirs?: string[]; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number;
 /**
  * Maximum number of extra overwrite backups to keep per game.
  * Keep the newest N backups; 0 means unlimited.
  */
-max_extra_backup_count?: number; appearance?: AppearanceSettings; compression_preset?: CompressionPreset; 
+max_extra_backup_count?: number; appearance?: AppearanceSettings; compression_preset?: CompressionPreset;
 /**
  * Compute an XXH3 hash when creating snapshots (for integrity verification).
  */
-compute_archive_hash?: boolean; 
+compute_archive_hash?: boolean;
 /**
  * Verify archive hash before applying a snapshot.
  */
@@ -938,19 +969,19 @@ verify_archive_before_apply?: boolean }
  * all the file that the save unit has declared.
  * The date is the unique indicator for a backup
  */
-export type Snapshot = { date: string; describe: string; path: string; size?: number; 
+export type Snapshot = { date: string; describe: string; path: string; size?: number;
 /**
  * Parent snapshot's date (None means this is a root node)
  */
-parent?: string | null; 
+parent?: string | null;
 /**
  * XXH3 hash of the archive file for integrity verification.
  */
-archive_hash?: string | null; 
+archive_hash?: string | null;
 /**
  * The device that created this snapshot.
  */
-device_id?: string | null; 
+device_id?: string | null;
 /**
  * How this snapshot was created.
  */
@@ -958,7 +989,7 @@ created_by?: CreatedBy }
 /**
  * A candidate Steam user ID with metadata for UI display.
  */
-export type StoreUserIdCandidate = { userId: string; 
+export type StoreUserIdCandidate = { userId: string;
 /**
  * Seconds since UNIX epoch of the `userdata/<id>` directory mtime.
  */

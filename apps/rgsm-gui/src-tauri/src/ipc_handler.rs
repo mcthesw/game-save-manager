@@ -5,7 +5,9 @@ use rgsm_core::cloud_sync::{
     CloudSyncSessionConfig, CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome,
     SyncGameOutcome,
 };
-use rgsm_core::config::{Config, QuickActionSoundPreferences, get_backup_path, get_config};
+use rgsm_core::config::{
+    Config, GameAutomationSettingsDraft, QuickActionSoundPreferences, get_backup_path, get_config,
+};
 use rgsm_core::device::{Device, get_current_device_id};
 use rgsm_core::hooks::{HookPipeline, HookSource};
 use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
@@ -727,6 +729,37 @@ pub async fn set_game_auto_backup(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn set_game_automation(
+    app_handle: AppHandle,
+    storage_key: String,
+    automation: Option<GameAutomationSettingsDraft>,
+) -> Result<(), String> {
+    info!(
+        target:"rgsm::ipc",
+        "Setting game automation for '{}': {:?}",
+        storage_key,
+        automation
+    );
+    if let Some(automation) = &automation {
+        quick_actions::validate_game_automation_target(&storage_key, automation).map_err(|e| {
+            error!(target:"rgsm::ipc", "Invalid game automation target: {:?}", e);
+            e.to_string()
+        })?;
+    }
+    svc(&app_handle)
+        .set_game_automation(&storage_key, automation, HookSource::UserManual)
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to save game automation: {:?}", e);
+            e.to_string()
+        })?;
+
+    info!(target:"rgsm::ipc", "Successfully set game automation for '{}'", storage_key);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn set_snapshot_created_by(
     app_handle: AppHandle,
     game_name: String,
@@ -764,6 +797,12 @@ pub async fn get_auto_backup_status(
 ) -> Result<Vec<quick_actions::AutoBackupGameStatus>, String> {
     let scheduler = app_handle.state::<quick_actions::AutoBackupScheduler>();
     Ok(scheduler.get_status().await)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_running_processes() -> Result<Vec<crate::process_util::RunningProcessOption>, String> {
+    crate::process_util::list_running_processes().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

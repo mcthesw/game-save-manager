@@ -18,6 +18,9 @@ pub enum QuickActionType {
     Timer,
     Tray,
     Hotkey,
+    ProcessStart,
+    ProcessExit,
+    ProcessInterval,
 }
 
 impl QuickActionType {
@@ -26,6 +29,9 @@ impl QuickActionType {
             QuickActionType::Timer => String::from(TIMER_AUTO_BACKUP_DESCRIPTION),
             QuickActionType::Tray => String::from("Quick Backup (Tray)"),
             QuickActionType::Hotkey => String::from("Quick Backup (Hotkey)"),
+            QuickActionType::ProcessStart => String::from("Auto Backup (Process Start)"),
+            QuickActionType::ProcessExit => String::from("Auto Backup (Process Exit)"),
+            QuickActionType::ProcessInterval => String::from("Auto Backup (Process Interval)"),
         }
     }
 
@@ -35,6 +41,9 @@ impl QuickActionType {
             QuickActionType::Timer => HookSource::TimerAutoBackup,
             QuickActionType::Tray => HookSource::QuickActionTray,
             QuickActionType::Hotkey => HookSource::QuickActionHotkey,
+            QuickActionType::ProcessStart
+            | QuickActionType::ProcessExit
+            | QuickActionType::ProcessInterval => HookSource::ProcessMonitorAutoBackup,
         }
     }
 
@@ -44,7 +53,20 @@ impl QuickActionType {
             QuickActionType::Timer => CreatedBy::Timer,
             QuickActionType::Tray => CreatedBy::Tray,
             QuickActionType::Hotkey => CreatedBy::Hotkey,
+            QuickActionType::ProcessStart => CreatedBy::ProcessStart,
+            QuickActionType::ProcessExit => CreatedBy::ProcessExit,
+            QuickActionType::ProcessInterval => CreatedBy::ProcessInterval,
         }
+    }
+
+    pub fn is_auto_backup(self) -> bool {
+        matches!(
+            self,
+            QuickActionType::Timer
+                | QuickActionType::ProcessStart
+                | QuickActionType::ProcessExit
+                | QuickActionType::ProcessInterval
+        )
     }
 }
 
@@ -58,6 +80,7 @@ pub enum QuickActionOperation {
 pub enum QuickActionStatus {
     Success,
     Failure,
+    SkippedUnchanged,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
@@ -66,6 +89,85 @@ pub struct QuickActionCompleted {
     pub status: QuickActionStatus,
     pub trigger: QuickActionType,
     pub game_name: Option<String>,
+}
+
+pub fn emit_quick_action_event(
+    app: &AppHandle,
+    trigger: QuickActionType,
+    operation: QuickActionOperation,
+    status: QuickActionStatus,
+    game_name: Option<String>,
+) {
+    if let Err(err) = (QuickActionCompleted {
+        operation,
+        status,
+        trigger,
+        game_name,
+    })
+    .emit(app)
+    {
+        warn!(
+            target: "rgsm::quick_action",
+            "Failed to emit quick action event: {err:?}"
+        );
+    }
+}
+
+pub fn notify_backup_skipped_unchanged(
+    app: &AppHandle,
+    config: &rgsm_core::config::Config,
+    trigger: QuickActionType,
+    game_name: &str,
+) {
+    let quick_settings = &config.quick_action;
+    let sound_preferences = QuickActionSoundPreferences::from(quick_settings);
+    let should_feedback = quick_settings.notify_when_unchanged
+        && should_show_auto_backup_notification(config, trigger);
+    if quick_settings.enable_notification && should_feedback {
+        show_notification(
+            t!("backend.tray.unchanged"),
+            t!("backend.tray.unchanged_detail", game = game_name),
+        );
+    }
+    if should_feedback {
+        play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Success);
+    }
+    emit_quick_action_event(
+        app,
+        trigger,
+        QuickActionOperation::Backup,
+        QuickActionStatus::SkippedUnchanged,
+        Some(game_name.to_string()),
+    );
+}
+
+pub fn notify_backup_failed(
+    app: &AppHandle,
+    config: &rgsm_core::config::Config,
+    trigger: QuickActionType,
+    game_name: &str,
+    error: &str,
+) {
+    let quick_settings = &config.quick_action;
+    let sound_preferences = QuickActionSoundPreferences::from(quick_settings);
+    if quick_settings.enable_notification {
+        show_notification(
+            t!("backend.tray.error"),
+            format!(
+                "{}\n{}",
+                t!("backend.tray.backup_failed_detail", game = game_name),
+                error
+            ),
+        );
+    }
+    play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
+    emit_quick_action_event(
+        app,
+        trigger,
+        QuickActionOperation::Backup,
+        QuickActionStatus::Failure,
+        Some(game_name.to_string()),
+    );
 }
 
 pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
@@ -181,4 +283,11 @@ fn maybe_show_notification<T1: AsRef<str>, T2: AsRef<str>>(
     if settings.enable_notification {
         show_notification(title, body);
     }
+}
+
+pub fn should_show_auto_backup_notification(
+    config: &rgsm_core::config::Config,
+    trigger: QuickActionType,
+) -> bool {
+    !trigger.is_auto_backup() || config.settings.prompt_when_auto_backup
 }
