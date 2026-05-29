@@ -239,6 +239,9 @@
             "created_by": {
                 "hotkey": "热键",
                 "manual": "手动",
+                "process_exit": "进程退出",
+                "process_interval": "进程定时",
+                "process_start": "进程启动",
                 "timer": "定时",
                 "tray": "托盘",
                 "unknown": "未知"

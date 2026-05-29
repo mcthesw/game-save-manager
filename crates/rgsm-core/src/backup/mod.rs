@@ -1,5 +1,6 @@
 mod archive;
 mod extra_backups;
+mod extra_info;
 mod game;
 mod game_snapshots;
 mod path_format;
@@ -19,6 +20,7 @@ pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{
     delete_extra_backup, extra_backup_folder_path, list_extra_backups, restore_extra_backup,
 };
+pub use extra_info::{extra_info_dir, extra_info_namespace_dir, extra_info_namespace_file};
 pub use game::{AutoBackupConfig, Game, GameDraft, LudusaviMeta, TimerSnapshotDecision};
 pub use game_snapshots::GameSnapshots;
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitType};

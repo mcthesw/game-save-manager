@@ -132,14 +132,14 @@ fn merge_snapshot(
         existing.path = incoming.path.clone();
     }
 
-    // If either side promoted the snapshot to non-Timer (e.g. user "Keep"),
-    // preserve that across sync so cleanup won't delete it on the other device.
-    if existing.created_by != incoming.created_by {
-        use crate::backup::CreatedBy;
-        // Timer is the only auto-deletable variant; any non-Timer wins.
-        if existing.created_by == CreatedBy::Timer {
-            existing.created_by = incoming.created_by.clone();
-        }
+    // If either side promoted the snapshot out of automatic retention (e.g.
+    // user "Keep"), preserve that across sync so cleanup won't delete it on
+    // the other device.
+    if existing.created_by != incoming.created_by
+        && existing.created_by.is_automatic_backup()
+        && !incoming.created_by.is_automatic_backup()
+    {
+        existing.created_by = incoming.created_by.clone();
     }
 
     Ok(())
@@ -659,7 +659,7 @@ pub fn session_from_backend(backend: &Backend) -> Result<CloudSyncSessionConfig,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backup::Snapshot;
+    use crate::backup::{CreatedBy, Snapshot};
     use crate::device::get_current_device_id;
 
     fn snapshot(date: &str, parent: Option<&str>, device_id: Option<&str>) -> Snapshot {
@@ -684,6 +684,37 @@ mod tests {
                 .insert((*device_id).to_string(), (*head).to_string());
         }
         snapshots
+    }
+
+    #[test]
+    fn merge_snapshot_preserves_manual_promotion_over_automatic_sources() {
+        for automatic_source in [
+            CreatedBy::Timer,
+            CreatedBy::ProcessStart,
+            CreatedBy::ProcessExit,
+            CreatedBy::ProcessInterval,
+        ] {
+            let mut existing = snapshot("2025-01-01_00-00-00", None, Some("device-a"));
+            existing.created_by = automatic_source;
+            let mut incoming = snapshot("2025-01-01_00-00-00", None, Some("device-a"));
+            incoming.created_by = CreatedBy::Manual;
+
+            merge_snapshot(&mut existing, &incoming).expect("snapshot merge should work");
+
+            assert_eq!(existing.created_by, CreatedBy::Manual);
+        }
+    }
+
+    #[test]
+    fn merge_snapshot_keeps_existing_manual_over_incoming_automatic_source() {
+        let mut existing = snapshot("2025-01-01_00-00-00", None, Some("device-a"));
+        existing.created_by = CreatedBy::Manual;
+        let mut incoming = snapshot("2025-01-01_00-00-00", None, Some("device-a"));
+        incoming.created_by = CreatedBy::ProcessInterval;
+
+        merge_snapshot(&mut existing, &incoming).expect("snapshot merge should work");
+
+        assert_eq!(existing.created_by, CreatedBy::Manual);
     }
 
     #[test]

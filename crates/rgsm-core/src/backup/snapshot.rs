@@ -19,9 +19,27 @@ pub enum CreatedBy {
     Tray,
     /// Created via a global hotkey quick action.
     Hotkey,
+    /// Created when a monitored game process starts.
+    ProcessStart,
+    /// Created when a monitored game process exits.
+    ProcessExit,
+    /// Created by a timer while a monitored game process is running.
+    ProcessInterval,
     /// Forward-compat catch-all for variants added in future versions.
     #[serde(other)]
     Unknown,
+}
+
+impl CreatedBy {
+    pub fn is_automatic_backup(&self) -> bool {
+        matches!(
+            self,
+            CreatedBy::Timer
+                | CreatedBy::ProcessStart
+                | CreatedBy::ProcessExit
+                | CreatedBy::ProcessInterval
+        )
+    }
 }
 
 /// A backup is a zip file that contains
@@ -59,6 +77,9 @@ mod tests {
             (CreatedBy::Timer, r#""Timer""#),
             (CreatedBy::Tray, r#""Tray""#),
             (CreatedBy::Hotkey, r#""Hotkey""#),
+            (CreatedBy::ProcessStart, r#""ProcessStart""#),
+            (CreatedBy::ProcessExit, r#""ProcessExit""#),
+            (CreatedBy::ProcessInterval, r#""ProcessInterval""#),
         ] {
             assert_eq!(serde_json::to_string(&variant).unwrap(), expected);
             assert_eq!(
@@ -66,6 +87,18 @@ mod tests {
                 variant
             );
         }
+    }
+
+    #[test]
+    fn automatic_backup_sources_are_marked() {
+        assert!(CreatedBy::Timer.is_automatic_backup());
+        assert!(CreatedBy::ProcessStart.is_automatic_backup());
+        assert!(CreatedBy::ProcessExit.is_automatic_backup());
+        assert!(CreatedBy::ProcessInterval.is_automatic_backup());
+        assert!(!CreatedBy::Manual.is_automatic_backup());
+        assert!(!CreatedBy::Tray.is_automatic_backup());
+        assert!(!CreatedBy::Hotkey.is_automatic_backup());
+        assert!(!CreatedBy::Unknown.is_automatic_backup());
     }
 
     #[test]

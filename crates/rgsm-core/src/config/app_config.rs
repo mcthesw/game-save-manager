@@ -83,6 +83,15 @@ impl Config {
 
         quick_action_changed || favorites_changed
     }
+
+    /// Locate a game by its stable identity, accepting legacy display-name
+    /// callers while preferring `storage_key` when available.
+    pub fn position_game_by_identity(&self, identity: &str) -> Option<usize> {
+        self.games
+            .iter()
+            .position(|game| !identity.is_empty() && game.storage_key == identity)
+            .or_else(|| self.games.iter().position(|game| game.name == identity))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -186,5 +195,28 @@ mod tests {
         );
         assert_eq!(config.favorites[1].label, "Deleted Game");
         assert!(!config.favorites[1].is_leaf);
+    }
+
+    #[test]
+    fn position_game_by_identity_prefers_storage_key() {
+        let config = Config {
+            games: vec![
+                test_game("Display Name", "stable-key"),
+                test_game("stable-key", "other-key"),
+            ],
+            ..Config::default()
+        };
+
+        assert_eq!(config.position_game_by_identity("stable-key"), Some(0));
+    }
+
+    #[test]
+    fn position_game_by_identity_falls_back_to_display_name() {
+        let config = Config {
+            games: vec![test_game("Display Name", "stable-key")],
+            ..Config::default()
+        };
+
+        assert_eq!(config.position_game_by_identity("Display Name"), Some(0));
     }
 }
