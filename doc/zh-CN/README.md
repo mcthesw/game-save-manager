@@ -62,6 +62,16 @@
 - IPC 层不要直接构造 OpenDAL Operator，应调用 cloud-sync facade。
 - 传输逻辑放在 `cloud_sync/transfer.rs`，流程编排放在 `cloud_sync/utils.rs`。
 
+### Snapshot 相关数据与附件分层
+
+Snapshot 除了 zip 压缩包本身，还可能需要挂接校验信息、生成索引、未来插件生成的上下文等数据。为避免把不同读写频率的数据混在一起，扩展数据按访问模式分三层：
+
+- **压缩包内部**：适合随 Snapshot 一起迁移、低频读取、恢复时才需要的数据。未来扩展应使用 zip 内的保留目录（例如 `__rgsm__/`）存放，避免污染用户的 Save Unit 路径。
+- **`Backups.json` 简短字段**：适合高频读取的小型元数据，例如 `archive_hash`、创建来源、轻量索引或 UI 需要直接排序/筛选的字段。这里不应放大对象或插件私有大块数据。
+- **外部附件目录**：适合需要单独读写、可能频繁访问、体积较大的数据。当前约定放在 `save_data/<game>/extra_info/<extension>/` 下，并由扩展目录维护自己的 `manifest.json`。Core 只提供 `extra_info/<extension>` 的安全路径边界；具体 schema 由扩展自己维护。
+
+未来插件系统接入 lifecycle hooks 后，插件可以根据数据需求选择上述 Snapshot 相关层级。GUI 内置扩展功能也应复用这些边界，而不是扩张成 core 的 Snapshot 字段。插件自身的配置、缓存、账号状态等不属于 Snapshot 附件，后续应另行设计插件数据目录。
+
 ## 开发流程
 
 若要为 Game-save-manager 项目做出贡献，你需要：
