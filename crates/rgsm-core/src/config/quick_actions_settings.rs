@@ -203,3 +203,9 @@ pub struct GameAutomationSettingsDraft {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_process_interval_secs: Option<u32>,
 }
+
+impl GameAutomationSettingsDraft {
+    pub fn has_process_triggers(&self) -> bool {
+        self.on_process_start || self.on_process_exit || self.in_process_interval_secs.is_some()
+    }
+}

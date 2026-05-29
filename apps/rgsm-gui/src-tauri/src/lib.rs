@@ -16,8 +16,10 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use rgsm_core::config::config_check;
 
 // GUI-specific modules
+mod bindings_format;
 mod hooks;
 mod ipc_handler;
+mod process_util;
 mod quick_actions;
 mod sound;
 
@@ -121,8 +123,10 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::apply_all,
             ipc_handler::set_quick_backup_game,
             ipc_handler::set_game_auto_backup,
+            ipc_handler::set_game_automation,
             ipc_handler::set_snapshot_created_by,
             ipc_handler::get_auto_backup_status,
+            ipc_handler::list_running_processes,
             ipc_handler::resolve_path,
             ipc_handler::get_current_device_info,
             ipc_handler::toggle_quick_action_sound_preview,
@@ -160,6 +164,7 @@ pub fn run() -> anyhow::Result<()> {
     command_builder.export(
         specta_typescript::Typescript::default()
             .bigint(specta_typescript::BigIntExportBehavior::Number) // 设置 bigint 为 number
+            .formatter(bindings_format::strip_trailing_whitespace)
             .header("/* tslint:disable */"), // 添加头部，关闭TS的检查，避免编译失败
         "../src/bindings.ts",
     )?;

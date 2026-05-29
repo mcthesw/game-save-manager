@@ -26,7 +26,7 @@ rgsm-core.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 log.workspace = true
-tauri = { version = "2.11.1", features = ["tray-icon"] }
+tauri = { version = "2.11.1", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-log = "2.8.0"
 rust-i18n.workspace = true
 anyhow.workspace = true
@@ -40,6 +40,7 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 rodio = { version = "0.18.1", features = ["flac", "mp3", "vorbis"] }
 async-trait.workspace = true
 open.workspace = true
+chrono = "0.4.44"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.1"
@@ -48,6 +49,10 @@ tauri-plugin-window-state = "2.4.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+] }
 
 [dev-dependencies]
 criterion.workspace = true
