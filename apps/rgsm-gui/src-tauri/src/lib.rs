@@ -124,6 +124,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_quick_backup_game,
             ipc_handler::set_game_auto_backup,
             ipc_handler::set_game_automation,
+            ipc_handler::set_game_auto_save_settings,
             ipc_handler::set_snapshot_created_by,
             ipc_handler::get_auto_backup_status,
             ipc_handler::list_running_processes,

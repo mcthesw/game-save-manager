@@ -507,11 +507,17 @@ function ensureQuickActionDefaults() {
   if (settings.enable_notification === undefined) {
     settings.enable_notification = true;
   }
+  if (settings.notify_when_unchanged === undefined) {
+    settings.notify_when_unchanged = true;
+  }
   if (!settings.sounds) {
     settings.sounds = {
       success: { kind: 'default' },
       failure: { kind: 'default' },
     };
+  }
+  if (!settings.game_automations) {
+    settings.game_automations = [];
   }
 }
 
@@ -1200,6 +1206,12 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <ElSwitch v-model="config.quick_action!.enable_notification" />
               <span class="setting-label">{{
                 $t('settings.quick_action_enable_notification')
+              }}</span>
+            </div>
+            <div class="quick-action-row">
+              <ElSwitch v-model="config.quick_action!.notify_when_unchanged" />
+              <span class="setting-label">{{
+                $t('settings.quick_action_notify_when_unchanged')
               }}</span>
             </div>
             <div class="sound-setting">

@@ -111,11 +111,7 @@ impl ServiceContext {
         auto_backup: Option<AutoBackupConfig>,
         source: HookSource,
     ) -> Result<()> {
-        if let Some(cfg) = &auto_backup
-            && cfg.interval_secs == 0
-        {
-            bail!("Auto-backup interval_secs must be greater than 0");
-        }
+        validate_auto_backup_config(auto_backup.as_ref())?;
 
         let mut config = get_config()?;
         let index = config
@@ -147,12 +143,7 @@ impl ServiceContext {
         automation: Option<GameAutomationSettingsDraft>,
         source: HookSource,
     ) -> Result<()> {
-        if let Some(automation) = &automation
-            && let Some(interval_secs) = automation.in_process_interval_secs
-            && interval_secs == 0
-        {
-            bail!("Process monitor interval_secs must be greater than 0");
-        }
+        validate_game_automation_config(automation.as_ref())?;
 
         let mut config = get_config()?;
         let index = config
@@ -183,4 +174,67 @@ impl ServiceContext {
 
         Ok(())
     }
+
+    pub async fn set_game_auto_save_settings(
+        &self,
+        identity: &str,
+        auto_backup: Option<AutoBackupConfig>,
+        automation: Option<GameAutomationSettingsDraft>,
+        source: HookSource,
+    ) -> Result<()> {
+        validate_auto_backup_config(auto_backup.as_ref())?;
+        validate_game_automation_config(automation.as_ref())?;
+
+        let mut config = get_config()?;
+        let index = config
+            .position_game_by_identity(identity)
+            .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
+
+        let previous_game = config.games[index].clone();
+        config.games[index].auto_backup = auto_backup;
+        let updated_game = config.games[index].clone();
+
+        match automation {
+            Some(automation) => config
+                .quick_action
+                .upsert_game_automation(&updated_game, automation),
+            None => {
+                config.quick_action.remove_game_automation(&updated_game);
+            }
+        }
+
+        set_config(&config).await?;
+
+        self.pipeline()
+            .fire_game_updated(&GameUpdatedCtx {
+                config,
+                source,
+                previous_game,
+                game: updated_game,
+            })
+            .await;
+
+        Ok(())
+    }
+}
+
+fn validate_auto_backup_config(auto_backup: Option<&AutoBackupConfig>) -> Result<()> {
+    if let Some(cfg) = auto_backup
+        && cfg.interval_secs == 0
+    {
+        bail!("Auto-backup interval_secs must be greater than 0");
+    }
+
+    Ok(())
+}
+
+fn validate_game_automation_config(automation: Option<&GameAutomationSettingsDraft>) -> Result<()> {
+    if let Some(automation) = automation
+        && let Some(interval_secs) = automation.in_process_interval_secs
+        && interval_secs == 0
+    {
+        bail!("Process monitor interval_secs must be greater than 0");
+    }
+
+    Ok(())
 }
