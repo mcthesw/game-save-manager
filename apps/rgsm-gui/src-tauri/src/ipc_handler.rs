@@ -760,6 +760,45 @@ pub async fn set_game_automation(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn set_game_auto_save_settings(
+    app_handle: AppHandle,
+    storage_key: String,
+    auto_backup: Option<backup::AutoBackupConfig>,
+    automation: Option<GameAutomationSettingsDraft>,
+) -> Result<(), String> {
+    info!(
+        target:"rgsm::ipc",
+        "Setting auto-save settings for '{}': auto_backup={:?}, automation={:?}",
+        storage_key,
+        auto_backup,
+        automation
+    );
+    if let Some(automation) = &automation {
+        quick_actions::validate_game_automation_target(&storage_key, automation).map_err(|e| {
+            error!(target:"rgsm::ipc", "Invalid game automation target: {:?}", e);
+            e.to_string()
+        })?;
+    }
+
+    svc(&app_handle)
+        .set_game_auto_save_settings(
+            &storage_key,
+            auto_backup,
+            automation,
+            HookSource::UserManual,
+        )
+        .await
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to save auto-save settings: {:?}", e);
+            e.to_string()
+        })?;
+
+    info!(target:"rgsm::ipc", "Successfully set auto-save settings for '{}'", storage_key);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn set_snapshot_created_by(
     app_handle: AppHandle,
     game_name: String,

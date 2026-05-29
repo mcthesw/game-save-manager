@@ -268,6 +268,14 @@ async setGameAutomation(storageKey: string, automation: GameAutomationSettingsDr
     else return { status: "error", error: e  as any };
 }
 },
+async setGameAutoSaveSettings(storageKey: string, autoBackup: AutoBackupConfig | null, automation: GameAutomationSettingsDraft | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_game_auto_save_settings", { storageKey, autoBackup, automation }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setSnapshotCreatedBy(gameName: string, snapshotDate: string, createdBy: CreatedBy) : Promise<Result<GameSnapshots, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_snapshot_created_by", { gameName, snapshotDate, createdBy }) };

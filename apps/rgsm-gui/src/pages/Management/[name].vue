@@ -4,9 +4,10 @@ import { ElInput, TableV2FixedDir, TableV2SortOrder } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
+import AutoSaveSettingsDrawer from '../../components/AutoSaveSettingsDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
 import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
-import type { Game, Snapshot, Device, GameSnapshots, AutoBackupConfig } from '../../bindings';
+import type { Game, GameSnapshots, Snapshot, Device } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
 import {
@@ -45,6 +46,7 @@ const viewMode = ref<'table' | 'branch'>('table');
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
 const extraBackupDrawer = ref(false); // 是否显示额外备份抽屉
+const autoSaveSettingsDrawer = ref(false); // 是否显示自动保存设置抽屉
 
 const table_data = ref<Snapshot[]>([]);
 const table_data_desc = ref<Snapshot[]>([]);
@@ -170,7 +172,20 @@ function snapshotSourceTag(snapshot: Snapshot): string | null {
   if (snapshot.created_by === 'Timer') return $t('manage.snapshot_source_timer');
   if (snapshot.created_by === 'Tray') return $t('manage.snapshot_source_tray');
   if (snapshot.created_by === 'Hotkey') return $t('manage.snapshot_source_hotkey');
+  if (snapshot.created_by === 'ProcessStart') return $t('manage.snapshot_source_process_start');
+  if (snapshot.created_by === 'ProcessExit') return $t('manage.snapshot_source_process_exit');
+  if (snapshot.created_by === 'ProcessInterval')
+    return $t('manage.snapshot_source_process_interval');
   return null;
+}
+
+function isAutomaticSnapshot(snapshot: Snapshot): boolean {
+  return (
+    snapshot.created_by === 'Timer' ||
+    snapshot.created_by === 'ProcessStart' ||
+    snapshot.created_by === 'ProcessExit' ||
+    snapshot.created_by === 'ProcessInterval'
+  );
 }
 async function batch_delete() {
   try {
@@ -198,62 +213,15 @@ async function batch_delete() {
   }
 }
 
-// Auto-backup settings
-const autoBackupEnabled = ref(false);
-const autoBackupIntervalSecs = ref(300);
-const autoBackupMaxCount = ref<number | undefined>(undefined);
-const autoBackupPreset = ref<string>('300');
+const autoSaveConfigured = computed(() => isAutoSaveConfigured(config.value, game.value));
 
-const intervalPresets = [
-  { label: () => $t('manage.preset_15s'), value: 15 },
-  { label: () => $t('manage.preset_30s'), value: 30 },
-  { label: () => $t('manage.preset_1m'), value: 60 },
-  { label: () => $t('manage.preset_2m'), value: 120 },
-  { label: () => $t('manage.preset_5m'), value: 300 },
-  { label: () => $t('manage.preset_10m'), value: 600 },
-  { label: () => $t('manage.preset_30m'), value: 1800 },
-  { label: () => $t('manage.preset_1h'), value: 3600 },
-];
-
-function syncAutoBackupFromGame() {
-  const cfg = game.value.auto_backup;
-  if (cfg) {
-    autoBackupEnabled.value = true;
-    autoBackupIntervalSecs.value = cfg.interval_secs;
-    autoBackupMaxCount.value = cfg.max_backup_count ?? undefined;
-    const matchedPreset = intervalPresets.find((p) => p.value === cfg.interval_secs);
-    autoBackupPreset.value = matchedPreset ? String(cfg.interval_secs) : 'custom';
-  } else {
-    autoBackupEnabled.value = false;
-    autoBackupIntervalSecs.value = 300;
-    autoBackupMaxCount.value = undefined;
-    autoBackupPreset.value = '300';
-  }
-}
-
-function onPresetChange(val: string) {
-  if (val !== 'custom') {
-    autoBackupIntervalSecs.value = Number(val);
-    saveAutoBackupSettings();
-  }
-}
-
-async function saveAutoBackupSettings() {
-  const newConfig: AutoBackupConfig | null = autoBackupEnabled.value
-    ? {
-        interval_secs: autoBackupIntervalSecs.value,
-        max_backup_count: autoBackupMaxCount.value ?? null,
-      }
-    : null;
-
-  const result = await commands.setGameAutoBackup(game.value.name, newConfig);
-  if (result.status === 'error') {
-    notifyError($t('manage.auto_backup_save_failed'));
-    return;
-  }
-  game.value.auto_backup = newConfig ?? undefined;
+async function onAutoSaveSettingsSaved() {
   await refreshConfig();
-  notifySuccess($t('manage.auto_backup_save_success'));
+  const latestGame = config.value.games.find((item) => item.name === game.value.name);
+  if (latestGame) {
+    game.value = latestGame;
+  }
+  await refresh_backups_info();
 }
 
 async function convertToPermanent(snapshotDate: string) {
@@ -297,7 +265,6 @@ watch(
     const name = getGameNameFromRouteParam(newValue);
     game.value = config.value.games.find((x) => x.name == name) as Game;
     undoInfo.value = null;
-    syncAutoBackupFromGame();
     refresh_backups_info();
     // 检查当前设备的存档路径是否为空
     checkCurrentDeviceSavePaths();
@@ -1324,67 +1291,14 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
             @click="set_quick_backup"
           />
         </el-tooltip>
-        <el-popover placement="bottom" :width="300" trigger="click">
-          <template #reference>
-            <el-button circle :icon="AlarmClock" :type="autoBackupEnabled ? 'success' : ''" />
-          </template>
-          <div class="auto-backup-popover">
-            <div class="auto-backup-popover-row">
-              <span>{{ $t('manage.auto_backup') }}</span>
-              <el-switch v-model="autoBackupEnabled" @change="saveAutoBackupSettings" />
-            </div>
-            <template v-if="autoBackupEnabled">
-              <el-divider style="margin: 8px 0" />
-              <div class="auto-backup-popover-row">
-                <span class="auto-backup-popover-label">{{
-                  $t('manage.auto_backup_interval')
-                }}</span>
-                <el-select
-                  v-model="autoBackupPreset"
-                  size="small"
-                  style="width: 120px"
-                  @change="onPresetChange"
-                >
-                  <el-option
-                    v-for="preset in intervalPresets"
-                    :key="preset.value"
-                    :label="preset.label()"
-                    :value="String(preset.value)"
-                  />
-                  <el-option :label="$t('manage.auto_backup_custom_interval')" value="custom" />
-                </el-select>
-              </div>
-              <div v-if="autoBackupPreset === 'custom'" class="auto-backup-popover-row">
-                <el-input-number
-                  v-model="autoBackupIntervalSecs"
-                  :min="1"
-                  :max="86400"
-                  :step="1"
-                  size="small"
-                  style="flex: 1"
-                />
-                <el-button size="small" type="primary" @click="saveAutoBackupSettings">
-                  {{ $t('manage.confirm') }}
-                </el-button>
-              </div>
-              <div class="auto-backup-popover-row">
-                <span class="auto-backup-popover-label">{{
-                  $t('manage.auto_backup_max_count')
-                }}</span>
-                <el-input-number
-                  v-model="autoBackupMaxCount"
-                  :min="0"
-                  :max="9999"
-                  :step="1"
-                  size="small"
-                  :placeholder="$t('manage.auto_backup_max_count_hint')"
-                  style="width: 120px"
-                  @change="saveAutoBackupSettings"
-                />
-              </div>
-            </template>
-          </div>
-        </el-popover>
+        <el-tooltip :content="$t('manage.auto_save_settings')" placement="bottom">
+          <el-button
+            circle
+            :icon="AlarmClock"
+            :type="autoSaveConfigured ? 'success' : ''"
+            @click="autoSaveSettingsDrawer = true"
+          />
+        </el-tooltip>
         <el-tooltip :content="$t('manage.delete_save_manage')" placement="bottom">
           <el-button circle :icon="Delete" type="danger" @click="del_cur" />
         </el-tooltip>
@@ -1569,7 +1483,7 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                     </span>
                   </el-tooltip>
                   <el-tooltip
-                    v-if="rowData.created_by === 'Timer'"
+                    v-if="isAutomaticSnapshot(rowData)"
                     :content="$t('manage.convert_to_permanent')"
                     placement="top"
                     :show-after="300"
@@ -1647,6 +1561,12 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
     />
 
     <ExtraBackupDrawer v-if="game" v-model="extraBackupDrawer" :game="game" />
+    <AutoSaveSettingsDrawer
+      v-if="game"
+      v-model="autoSaveSettingsDrawer"
+      :game="game"
+      @saved="onAutoSaveSettingsSaved"
+    />
   </div>
 </template>
 
@@ -1693,25 +1613,6 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
   flex-shrink: 0;
   border-radius: 8px;
   overflow: visible;
-}
-
-.auto-backup-popover {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.auto-backup-popover-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.auto-backup-popover-label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
 }
 
 .table-cell-describe {
