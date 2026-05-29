@@ -62,6 +62,16 @@ The software is divided into two main parts:
 - Do not construct OpenDAL operators in IPC handlers; call cloud-sync facade functions instead.
 - Put transfer logic in `cloud_sync/transfer.rs` and keep workflow orchestration in `cloud_sync/utils.rs`.
 
+### Snapshot Metadata and Attachment Layers
+
+Snapshots may need more than the zip archive itself: integrity data, generated indexes, and future plugin-generated context all have different access patterns. Keep extension data in one of three Snapshot-related layers:
+
+- **Inside the archive**: data that should travel with the Snapshot and is only read occasionally, usually during restore or inspection. Future archive extensions should use a reserved directory such as `__rgsm__/` so user Save Unit paths stay clean.
+- **Small `Backups.json` fields**: compact metadata that the app reads frequently, such as `archive_hash`, creation source, lightweight indexes, or fields needed for sorting and filtering. Do not put large objects or plugin-private payloads here.
+- **External attachment directories**: larger data that may be read or written independently from the archive. Use `save_data/<game>/extra_info/<extension>/`, with each extension owning its own `manifest.json`. Core only provides the safe path boundary for `extra_info/<extension>`; each extension owns its schema.
+
+When the future plugin system attaches to lifecycle hooks, plugins should choose one of these Snapshot-related layers based on how their data is read and migrated. GUI-built extension features should use the same boundaries instead of becoming core Snapshot fields. Plugin-owned configuration, caches, account state, and other non-Snapshot data are a separate concern and should get their own storage design later.
+
 ## Development Process
 
 To contribute to the Game-save-manager project, you need to:
