@@ -38,6 +38,20 @@ sudo apt install libwebkit2gtk-4.1-dev \
 - `pnpm web:typecheck`: Run the frontend typecheck.
 - `pnpm portable`: Create a Windows portable build from the workspace root.
 
+## Tauri UI Debugging
+
+- Use `pnpm dev` when validating frontend behavior that depends on Tauri IPC. `pnpm web:dev` only serves the Nuxt frontend in a normal browser context and does not provide the Tauri IPC bridge.
+- On Windows, agents can expose the Tauri WebView2 DevTools Protocol endpoint without changing repo config:
+
+```powershell
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
+pnpm dev
+```
+
+- After the Tauri window is running, inspect `http://127.0.0.1:9222/json/list` and attach to the page target whose URL is the configured `devUrl` (usually `http://localhost:3000/`). This validates the actual Tauri WebView with IPC available, not a separate browser tab.
+- For quick manual inspection inside the Tauri window, use the WebView inspector (`Ctrl+Shift+i` on Windows/Linux) or call `open_devtools()` in debug-only setup code.
+- Do not claim a GUI feature is verified from `pnpm web:dev` alone if the feature depends on Tauri commands, events, app config, or WebView-specific behavior.
+
 ## Project Structure & Module Organization
 
 The repository is split into workspace apps and crates.
