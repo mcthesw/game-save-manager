@@ -12,13 +12,14 @@ import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehav
 
 const { config } = useConfig();
 const { baseLinks } = useNavigationLinks();
+const { sortedGames } = useSaveListSort();
 const { isResizing, startResize } = useSidebarResize({
   minWidth: 200,
   maxWidth: 400,
 });
 
 const games = computed(() => {
-  return config.value.games;
+  return sortedGames(config.value.games);
 });
 
 const router = useRouter();

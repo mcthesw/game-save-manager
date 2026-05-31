@@ -549,7 +549,7 @@ quickActionCompleted: "quick-action-completed"
 
 /** user-defined constants **/
 
-export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"game_automations":[],"hotkeys":{"apply":["","",""],"backup":["","",""]},"notify_when_unchanged":true,"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"show_edit_button":false,"verify_archive_before_apply":false,"vn_scan_dirs":[]},"version":"1.9.0"} as const;
+export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites":[],"games":[],"quick_action":{"enable_notification":true,"enable_sound":true,"game_automations":[],"hotkeys":{"apply":["","",""],"backup":["","",""]},"notify_when_unchanged":true,"quick_action_game":null,"sounds":{"failure":{"kind":"default"},"success":{"kind":"default"}}},"settings":{"add_new_to_favorites":false,"appearance":{"custom_font_enabled":false,"ui_font_family":""},"cloud_settings":{"auto_sync_interval":0,"backend":{"type":"Disabled"},"max_concurrency":1,"root_path":"/game-save-manager"},"compression_preset":"Standard","compute_archive_hash":false,"default_delete_before_apply":false,"default_expend_favorites_tree":false,"exit_to_tray":true,"extra_backup_when_apply":true,"home_page":"/","locale":"zh_SIMPLIFIED","log_to_file":true,"max_auto_backup_count":0,"max_extra_backup_count":5,"prompt_when_auto_backup":true,"prompt_when_not_described":false,"save_list_expand_behavior":"always_closed","save_list_last_expanded":false,"save_list_sort_direction":"asc","save_list_sort_mode":"saved_order","show_edit_button":false,"verify_archive_before_apply":false,"vn_scan_dirs":[]},"version":"1.9.0"} as const;
 
 /** user-defined types **/
 
@@ -917,6 +917,7 @@ export type S3AddressingStyle = "PathStyle" | "VirtualHostedStyle" | "Auto"
  * Settings that can be configured by user
  */
 export type SaveListExpandBehavior = "always_open" | "always_closed" | "remember_last"
+export type SaveListSortMode = "saved_order" | "last_played" | "name"
 /**
  * Represents a save file path with its conditions
  */
@@ -958,7 +959,7 @@ export type SaveUnitType = "File" | "Folder" |
  * Windows Registry key tree (stored as `registry.reg` inside new archives).
  */
 "WinRegistry"
-export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; vn_scan_dirs?: string[]; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; max_auto_backup_count?: number;
+export type Settings = { prompt_when_not_described?: boolean; extra_backup_when_apply?: boolean; show_edit_button?: boolean; prompt_when_auto_backup?: boolean; exit_to_tray?: boolean; cloud_settings?: CloudSettings; locale?: string; default_delete_before_apply?: boolean; default_expend_favorites_tree?: boolean; home_page?: string; log_to_file?: boolean; add_new_to_favorites?: boolean; vn_scan_dirs?: string[]; save_list_expand_behavior?: SaveListExpandBehavior; save_list_last_expanded?: boolean; save_list_sort_mode?: SaveListSortMode; save_list_sort_direction?: SortDirection; max_auto_backup_count?: number;
 /**
  * Maximum number of extra overwrite backups to keep per game.
  * Keep the newest N backups; 0 means unlimited.
@@ -994,6 +995,7 @@ device_id?: string | null;
  * How this snapshot was created.
  */
 created_by?: CreatedBy }
+export type SortDirection = "asc" | "desc"
 /**
  * A candidate Steam user ID with metadata for UI display.
  */

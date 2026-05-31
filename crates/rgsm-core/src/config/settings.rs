@@ -33,6 +33,23 @@ pub enum SaveListExpandBehavior {
     RememberLast,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SaveListSortMode {
+    #[default]
+    SavedOrder,
+    LastPlayed,
+    Name,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SortDirection {
+    #[default]
+    Asc,
+    Desc,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct Settings {
     #[serde(default = "default_value::default_true")]
@@ -65,6 +82,10 @@ pub struct Settings {
     pub save_list_expand_behavior: SaveListExpandBehavior,
     #[serde(default = "default_value::default_false")]
     pub save_list_last_expanded: bool,
+    #[serde(default)]
+    pub save_list_sort_mode: SaveListSortMode,
+    #[serde(default)]
+    pub save_list_sort_direction: SortDirection,
     #[serde(default = "default_value::default_zero_u32")]
     pub max_auto_backup_count: u32,
     /// Maximum number of extra overwrite backups to keep per game.
@@ -101,6 +122,8 @@ impl Default for Settings {
             vn_scan_dirs: default_value::empty_vec(),
             save_list_expand_behavior: SaveListExpandBehavior::default(),
             save_list_last_expanded: default_value::default_false(),
+            save_list_sort_mode: SaveListSortMode::default(),
+            save_list_sort_direction: SortDirection::default(),
             max_auto_backup_count: default_value::default_zero_u32(),
             max_extra_backup_count: default_value::default_five_u32(),
             appearance: AppearanceSettings::default(),

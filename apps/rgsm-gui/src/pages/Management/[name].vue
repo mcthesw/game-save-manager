@@ -35,6 +35,7 @@ import {
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
+const { markGamePlayed } = useSaveListSort();
 const { withLoading } = useGlobalLoading();
 const { startCollecting, stopCollecting } = useIpcNotificationCollector();
 const router = useRouter();
@@ -510,6 +511,8 @@ async function launch_game() {
     const result = await commands.openFileOrFolder(gamePath);
     if (result.status === 'error') {
       notifyError(result.error);
+    } else {
+      markGamePlayed(game.value);
     }
   }
 }
