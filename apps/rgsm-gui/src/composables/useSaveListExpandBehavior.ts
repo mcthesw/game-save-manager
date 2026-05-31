@@ -120,9 +120,11 @@ export function useSaveListExpandBehavior(options: SaveListExpandOptions) {
     watch(
       filteredGames,
       () => {
-        void applySaveListExpandState();
+        if (isSearchActive()) {
+          void applySaveListExpandState();
+        }
       },
-      { deep: true }
+      { deep: false }
     );
   }
 

@@ -9,5 +9,7 @@ pub use quick_actions_settings::{
     GameAutomationSettings, GameAutomationSettingsDraft, QuickActionSoundPreferences,
     QuickActionSoundSlots, QuickActionSoundSource, QuickActionsSettings,
 };
-pub use settings::{AppearanceSettings, SaveListExpandBehavior, Settings};
+pub use settings::{
+    AppearanceSettings, SaveListExpandBehavior, SaveListSortMode, Settings, SortDirection,
+};
 pub use utils::*;

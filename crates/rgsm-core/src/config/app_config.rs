@@ -5,7 +5,10 @@ use specta::Type;
 
 use crate::backup::{CompressionPreset, Game};
 use crate::cloud_sync::CloudSettings;
-use crate::config::{AppearanceSettings, QuickActionsSettings, SaveListExpandBehavior, Settings};
+use crate::config::{
+    AppearanceSettings, QuickActionsSettings, SaveListExpandBehavior, SaveListSortMode, Settings,
+    SortDirection,
+};
 use crate::default_value;
 use crate::device::{Device, DeviceId};
 use crate::preclude::*;
@@ -59,6 +62,8 @@ impl Default for Config {
                 vn_scan_dirs: default_value::empty_vec(),
                 save_list_expand_behavior: SaveListExpandBehavior::default(),
                 save_list_last_expanded: false,
+                save_list_sort_mode: SaveListSortMode::default(),
+                save_list_sort_direction: SortDirection::default(),
                 max_auto_backup_count: 0,
                 max_extra_backup_count: 5,
                 appearance: AppearanceSettings::default(),

@@ -730,6 +730,10 @@ function removeVnScanDir(dir: string) {
   config.value.settings.vn_scan_dirs = vnScanDirs.filter((currentDir) => currentDir !== dir);
 }
 
+function onSaveListSortModeChange(mode: string) {
+  config.value.settings.save_list_sort_direction = mode === 'last_played' ? 'desc' : 'asc';
+}
+
 // 监听快捷操作相关设置变更
 watch(
   () => config.value.quick_action,
@@ -1281,7 +1285,36 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <el-icon>
               <Tools />
             </el-icon>
-            <span class="tab-title">{{ $t('settings.game_order') }}</span>
+            <span class="tab-title">{{ $t('settings.save_list_sort_settings') }}</span>
+          </el-divider>
+
+          <div class="setting-box">
+            <div class="sort-settings-row">
+              <ElSelect
+                v-model="config.settings.save_list_sort_mode"
+                style="width: 180px"
+                @change="onSaveListSortModeChange"
+              >
+                <ElOption :label="$t('settings.save_list_sort_saved_order')" value="saved_order" />
+                <ElOption :label="$t('settings.save_list_sort_last_played')" value="last_played" />
+                <ElOption :label="$t('settings.save_list_sort_name')" value="name" />
+              </ElSelect>
+              <span class="setting-label">{{ $t('settings.save_list_sort_mode') }}</span>
+            </div>
+            <div class="sort-settings-row">
+              <ElSelect v-model="config.settings.save_list_sort_direction" style="width: 180px">
+                <ElOption :label="$t('settings.save_list_sort_ascending')" value="asc" />
+                <ElOption :label="$t('settings.save_list_sort_descending')" value="desc" />
+              </ElSelect>
+              <span class="setting-label">{{ $t('settings.save_list_sort_direction') }}</span>
+            </div>
+          </div>
+
+          <el-divider content-position="left">
+            <el-icon>
+              <Tools />
+            </el-icon>
+            <span class="tab-title">{{ $t('settings.edit_default_game_order') }}</span>
           </el-divider>
 
           <div class="setting-box drag-game-box">
@@ -1502,6 +1535,12 @@ const { linksWithGames: router_list } = useNavigationLinks();
 
 .drag-game-box {
   user-select: none;
+}
+
+.sort-settings-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .el-select {
