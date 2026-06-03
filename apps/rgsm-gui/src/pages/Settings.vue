@@ -796,6 +796,24 @@ watch(
   { deep: true } // 深度监听对象变化
 );
 
+const confirmBeforeApplyLatest = computed({
+  get() {
+    return config.value.settings.confirm_before_apply_latest !== false;
+  },
+  set(value: boolean) {
+    config.value.settings.confirm_before_apply_latest = value;
+  },
+});
+
+const confirmBeforeApplySnapshot = computed({
+  get() {
+    return config.value.settings.confirm_before_apply_snapshot !== false;
+  },
+  set(value: boolean) {
+    config.value.settings.confirm_before_apply_snapshot = value;
+  },
+});
+
 const { linksWithGames: router_list } = useNavigationLinks();
 </script>
 
@@ -977,6 +995,14 @@ const { linksWithGames: router_list } = useNavigationLinks();
           <div class="setting-box">
             <ElSwitch v-model="config.settings.default_delete_before_apply" />
             <span class="setting-label">{{ $t('settings.default_delete_before_apply') }}</span>
+          </div>
+          <div class="setting-box">
+            <ElSwitch v-model="confirmBeforeApplyLatest" />
+            <span class="setting-label">{{ $t('settings.confirm_before_apply_latest') }}</span>
+          </div>
+          <div class="setting-box">
+            <ElSwitch v-model="confirmBeforeApplySnapshot" />
+            <span class="setting-label">{{ $t('settings.confirm_before_apply_snapshot') }}</span>
           </div>
           <div class="setting-box">
             <ElSelect v-model="config.settings.compression_preset" style="width: 160px">

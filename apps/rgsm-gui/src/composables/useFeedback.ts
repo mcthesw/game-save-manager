@@ -32,7 +32,7 @@ export function useFeedback() {
     alert: (message: string | VNode, title: string, options?: AlertOptions) =>
       ElMessageBox.alert(message, title, withDefaults(options)),
 
-    confirm: (message: string, title: string, options?: ConfirmOptions) =>
+    confirm: (message: string | VNode, title: string, options?: ConfirmOptions) =>
       ElMessageBox.confirm(message, title, withDefaults(options)),
 
     prompt: (message: string, title: string, options?: PromptOptions) =>

@@ -49,6 +49,8 @@ impl Default for Config {
             settings: Settings {
                 prompt_when_not_described: false,
                 extra_backup_when_apply: true,
+                confirm_before_apply_latest: true,
+                confirm_before_apply_snapshot: true,
                 show_edit_button: false,
                 prompt_when_auto_backup: true,
                 cloud_settings: CloudSettings::default(),
@@ -223,5 +225,19 @@ mod tests {
         };
 
         assert_eq!(config.position_game_by_identity("Display Name"), Some(0));
+    }
+
+    #[test]
+    fn missing_apply_confirmation_settings_default_to_enabled() {
+        let config: Config = serde_json::from_value(serde_json::json!({
+            "version": "1.9.0",
+            "backup_path": "save_data",
+            "games": [],
+            "settings": {}
+        }))
+        .expect("config without apply confirmation settings should deserialize");
+
+        assert!(config.settings.confirm_before_apply_latest);
+        assert!(config.settings.confirm_before_apply_snapshot);
     }
 }

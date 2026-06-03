@@ -6,6 +6,7 @@ import { error as logError } from '@tauri-apps/plugin-log';
 
 import { $t } from '../i18n';
 import { commands, type ExtraBackupItem, type Game } from '../bindings';
+import { useApplyConfirmation } from '../composables/useApplyConfirmation';
 import { useFeedback } from '../composables/useFeedback';
 import { useGlobalLoading } from '../composables/useGlobalLoading';
 
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const feedback = useFeedback();
+const { confirmAndRun } = useApplyConfirmation();
 const { withLoading } = useGlobalLoading();
 
 const loading = ref(false);
@@ -93,28 +95,20 @@ async function openFolder() {
 }
 
 async function restore(date: string) {
-  try {
-    await feedback.confirm($t('manage.confirm_overwrite_prompt'), $t('manage.warning'), {
-      confirmButtonText: $t('manage.confirm'),
-      cancelButtonText: $t('manage.cancel'),
-      type: 'warning',
-    });
-  } catch {
-    return;
-  }
-
-  await withLoading(
-    async () => {
-      const result = await commands.restoreExtraBackup(props.game, date);
-      if (result.status === 'error') {
-        notifyError($t('manage.recover_failed'));
-        return;
-      }
-      notifySuccess($t('manage.recover_success'));
-    },
-    $t('manage.restoring_backup'),
-    $t('manage.wait_for_prompt_hint')
-  );
+  await confirmAndRun('snapshot', async () => {
+    await withLoading(
+      async () => {
+        const result = await commands.restoreExtraBackup(props.game, date);
+        if (result.status === 'error') {
+          notifyError($t('manage.recover_failed'));
+          return;
+        }
+        notifySuccess($t('manage.recover_success'));
+      },
+      $t('manage.restoring_backup'),
+      $t('manage.wait_for_prompt_hint')
+    );
+  });
 }
 
 async function del(date: string) {

@@ -140,7 +140,9 @@
         "game_roots_auto_detect": "Auto-detect",
         "game_roots_no_new": "No new game roots detected",
         "game_roots_detected": "Detected {count} new game root(s)",
-        "game_roots_detect_failed": "Failed to detect game roots"
+        "game_roots_detect_failed": "Failed to detect game roots",
+        "confirm_before_apply_latest": "Confirm before the top Apply latest button",
+        "confirm_before_apply_snapshot": "Confirm before snapshot table Apply buttons"
     },
     "home": {
         "hello_world": "Hello world",
@@ -319,7 +321,8 @@
         "preset_5m": "5 min",
         "preset_10m": "10 min",
         "preset_30m": "30 min",
-        "preset_1h": "1 hour"
+        "preset_1h": "1 hour",
+        "do_not_ask_again": "Don't ask again"
     },
     "addgame": {
         "search_local": "Detect local games",
