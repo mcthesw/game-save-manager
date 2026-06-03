@@ -140,7 +140,9 @@
         "game_roots_auto_detect": "自动检测",
         "game_roots_no_new": "未检测到新的游戏根目录",
         "game_roots_detected": "检测到 {count} 个新的游戏根目录",
-        "game_roots_detect_failed": "检测游戏根目录失败"
+        "game_roots_detect_failed": "检测游戏根目录失败",
+        "confirm_before_apply_latest": "点击顶部「应用最新快照」前确认",
+        "confirm_before_apply_snapshot": "点击快照表格「应用」前确认"
     },
     "home": {
         "name": "游戏存档管理器",
@@ -319,7 +321,8 @@
         "preset_5m": "5分钟",
         "preset_10m": "10分钟",
         "preset_30m": "30分钟",
-        "preset_1h": "1小时"
+        "preset_1h": "1小时",
+        "do_not_ask_again": "以后不再提示"
     },
     "addgame": {
         "search_local": "自动识别本地游戏",

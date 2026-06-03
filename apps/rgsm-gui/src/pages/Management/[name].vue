@@ -31,10 +31,12 @@ import {
   getGameManagementPath,
   getGameNameFromRouteParam,
 } from '../../composables/useGameManagementRoute';
+import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
 
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
+const { confirmAndRun } = useApplyConfirmation();
 const { markGamePlayed } = useSaveListSort();
 const { withLoading } = useGlobalLoading();
 const { startCollecting, stopCollecting } = useIpcNotificationCollector();
@@ -528,6 +530,10 @@ async function del_save(date: string) {
   }
 }
 
+async function handleApplyClick(date: string) {
+  await confirmAndRun('snapshot', () => apply_save(date));
+}
+
 async function apply_save(date: string) {
   if (!apply_button_apply_limit) {
     notifyError($t('manage.last_overwrite_unfinished_error'));
@@ -709,13 +715,13 @@ async function change_describe(date: string) {
   }
 }
 
-function load_latest_save() {
+async function load_latest_save() {
   // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
   const lastIndex = table_data.value.length - 1;
   const lastBackup = lastIndex >= 0 ? table_data.value[lastIndex] : undefined;
 
   if (lastBackup?.date) {
-    apply_save(lastBackup.date);
+    await confirmAndRun('latest', () => apply_save(lastBackup.date));
   } else {
     notifyError($t('manage.no_backup_error'));
   }
@@ -1474,16 +1480,12 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                     :show-after="300"
                     popper-class="action-tooltip"
                   >
-                    <span>
-                      <el-popconfirm
-                        :title="$t('manage.confirm_overwrite_prompt')"
-                        @confirm="apply_save(rowData.date)"
-                      >
-                        <template #reference>
-                          <el-button link type="success" :icon="VideoPlay" />
-                        </template>
-                      </el-popconfirm>
-                    </span>
+                    <el-button
+                      link
+                      type="success"
+                      :icon="VideoPlay"
+                      @click="handleApplyClick(rowData.date)"
+                    />
                   </el-tooltip>
                   <el-tooltip
                     v-if="isAutomaticSnapshot(rowData)"
@@ -1544,7 +1546,7 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
           :snapshots="table_data"
           :current-head="currentHead"
           :device-heads="branchDeviceHeads"
-          @apply="apply_save"
+          @apply="handleApplyClick"
           @delete="del_save"
           @change-description="change_describe"
           @set-head="onSetHead"

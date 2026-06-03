@@ -124,6 +124,7 @@ CI will verify these checks. Fix any issues before committing.
 Follow the Conventional Commit specification with emojis. The format is `type(scope): :emoji: summary`.
 
 - **Example**: `feat(backup): :sparkles: add support for zip64 archives`
+- Do not add AI agent/tool branding to co-author metadata, pull request titles, or commit messages.
 - Keep commits small and focused on a single logical change.
 - Split broad work into cohesive, reviewable commits by behavior or architectural layer. Do not hide a large feature, bug fix, and documentation cleanup in one giant commit.
 - When a branch has not been merged yet, prefer rewriting local branch history into a clean commit series over adding follow-up fix commits for issues introduced by the same change.

@@ -56,6 +56,10 @@ pub struct Settings {
     pub prompt_when_not_described: bool,
     #[serde(default = "default_value::default_true")]
     pub extra_backup_when_apply: bool,
+    #[serde(default = "default_value::default_true")]
+    pub confirm_before_apply_latest: bool,
+    #[serde(default = "default_value::default_true")]
+    pub confirm_before_apply_snapshot: bool,
     #[serde(default = "default_value::default_false")]
     pub show_edit_button: bool,
     #[serde(default = "default_value::default_true")]
@@ -109,6 +113,8 @@ impl Default for Settings {
         Settings {
             prompt_when_not_described: default_value::default_true(),
             extra_backup_when_apply: default_value::default_true(),
+            confirm_before_apply_latest: default_value::default_true(),
+            confirm_before_apply_snapshot: default_value::default_true(),
             show_edit_button: default_value::default_false(),
             prompt_when_auto_backup: default_value::default_true(),
             exit_to_tray: default_value::default_true(),
