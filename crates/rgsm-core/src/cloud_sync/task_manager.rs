@@ -225,6 +225,23 @@ impl CloudSyncTaskManager {
             .await;
     }
 
+    pub async fn enqueue_config_upload_if_enabled(
+        &self,
+        config: &crate::config::Config,
+        context: impl Into<String>,
+    ) {
+        let backend = match &config.settings.cloud_settings.backend {
+            Backend::Disabled => return,
+            backend => backend.clone(),
+        };
+
+        self.enqueue(CloudSyncJob::UploadConfig {
+            backend,
+            context: context.into(),
+        })
+        .await;
+    }
+
     pub async fn cancel_all(&self) -> CancelCloudSyncResult {
         let mut had_active = self.running_count.load(Ordering::Relaxed) > 0;
         {
@@ -714,6 +731,63 @@ async fn execute_job_once(
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, upload_config(&op)).await?;
             Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct NoopEmitter;
+
+    impl SyncEventEmitter for NoopEmitter {
+        fn emit_status(&self, _status: &CloudSyncStatus) {}
+        fn emit_error(&self, _error: &CloudSyncError) {}
+    }
+
+    fn manager() -> Arc<CloudSyncTaskManager> {
+        CloudSyncTaskManager::new(Arc::new(NoopEmitter))
+    }
+
+    #[tokio::test]
+    async fn config_upload_enqueue_skips_disabled_backend() {
+        let manager = manager();
+        let config = crate::config::Config::default();
+
+        manager
+            .enqueue_config_upload_if_enabled(&config, "config_migration")
+            .await;
+
+        let state = manager.state.lock().await;
+        assert!(state.queue.is_empty());
+    }
+
+    #[tokio::test]
+    async fn config_upload_enqueue_uses_config_backend() {
+        let manager = manager();
+        let mut config = crate::config::Config::default();
+        config.settings.cloud_settings.backend = Backend::WebDAV {
+            endpoint: "https://example.invalid/dav".to_string(),
+            username: "user".to_string(),
+            password: "pass".to_string(),
+        };
+
+        manager
+            .enqueue_config_upload_if_enabled(&config, "config_migration")
+            .await;
+
+        let state = manager.state.lock().await;
+        assert_eq!(state.queue.len(), 1);
+        match &state.queue[0].job {
+            CloudSyncJob::UploadConfig {
+                backend: Backend::WebDAV { endpoint, .. },
+                context,
+            } => {
+                assert_eq!(endpoint, "https://example.invalid/dav");
+                assert_eq!(context, "config_migration");
+            }
+            other => panic!("expected config upload job, got {other:?}"),
         }
     }
 }

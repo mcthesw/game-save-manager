@@ -105,6 +105,18 @@ impl App {
         self.should_quit
     }
 
+    pub async fn enqueue_config_migration_sync(&self) -> Result<()> {
+        if !self.settings.auto_enqueue_cloud_on_change {
+            return Ok(());
+        }
+
+        let config = rgsm_core::config::get_config()?;
+        self.cloud_sync_manager
+            .enqueue_config_upload_if_enabled(&config, "config_migration")
+            .await;
+        Ok(())
+    }
+
     pub fn selected_game(&self) -> Option<rgsm_core::backup::Game> {
         let indices = self.visible_game_indices();
         indices

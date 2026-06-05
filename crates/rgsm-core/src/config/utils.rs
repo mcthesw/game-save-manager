@@ -19,6 +19,11 @@ pub(crate) fn lock_config_test_file() -> MutexGuard<'static, ()> {
     CONFIG_FILE_TEST_LOCK.blocking_lock()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfigCheckOutcome {
+    pub config_migrated: bool,
+}
+
 /// Set settings to original state
 pub async fn reset_settings() -> Result<(), ConfigError> {
     let settings = Config::default().settings;
@@ -68,7 +73,7 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// Check the config file exists or not
 /// if not, then create one
 /// then send the config to the front end
-pub fn config_check() -> Result<(), ConfigError> {
+pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");
     info!("Config file path: {}", config_path.display());
 
@@ -76,12 +81,12 @@ pub fn config_check() -> Result<(), ConfigError> {
         init_config()?;
     }
     // 执行配置迁移与升级
-    update_config(&config_path)?;
+    let config_migrated = update_config(&config_path)?;
     // 重新加载配置
     let config = get_config()?;
     // 应用本地化语言
     rust_i18n::set_locale(&config.settings.locale);
-    Ok(())
+    Ok(ConfigCheckOutcome { config_migrated })
 }
 
 /// Get the resolved backup path from the config
