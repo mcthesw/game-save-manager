@@ -63,7 +63,7 @@ impl SyncEventEmitter for TauriSyncEmitter {
 
 pub fn run() -> anyhow::Result<()> {
     info!("{}", t!("home.hello_world"));
-    config_check()?;
+    let config_status = config_check()?;
 
     // 将 panic 信息记录到日志中
     std::panic::set_hook(Box::new(|panic_info| {
@@ -206,7 +206,16 @@ pub fn run() -> anyhow::Result<()> {
                 hooks::build_builtin_pipeline(app.handle(), cloud_sync_manager.clone(), &config);
             app.manage(hooks::HookPipelineState::new(pipeline));
 
+            let startup_cloud_sync_manager = cloud_sync_manager.clone();
             app.manage(cloud_sync_manager);
+            if config_status.config_migrated {
+                let migrated_config = config.clone();
+                tauri::async_runtime::spawn(async move {
+                    startup_cloud_sync_manager
+                        .enqueue_config_upload_if_enabled(&migrated_config, "config_migration")
+                        .await;
+                });
+            }
 
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键

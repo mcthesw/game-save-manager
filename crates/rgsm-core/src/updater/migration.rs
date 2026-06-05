@@ -31,9 +31,10 @@ use crate::updater::{
 /// * `path` - Path to the config file
 ///
 /// # Returns
-/// * `Ok(())` - If migration succeeds or not needed
+/// * `Ok(true)` - If migration succeeds and writes an updated config
+/// * `Ok(false)` - If no migration is needed
 /// * `Err(UpdaterError)` - If any step fails
-pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
+pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     let path: &Path = path.as_ref();
     let version = probe_config_version(path)?;
     let current = Version::parse(CURRENT_VERSION)?;
@@ -73,7 +74,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
         });
     }
     if version == current {
-        return Ok(());
+        return Ok(false);
     }
 
     warn!(target: "rgsm::updater", "Config version is older than current version, updating...");
@@ -113,7 +114,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<(), UpdaterError> {
     // Write new config
     fs::write(path, serde_json::to_string_pretty(&new_cfg)?)?;
     info!(target: "rgsm::updater", "Config updated successfully to version {}", CURRENT_VERSION);
-    Ok(())
+    Ok(true)
 }
 
 /// Migrate config content based on its version
@@ -764,6 +765,44 @@ mod tests {
         assert!(message.contains("999.0.0"));
         assert!(message.contains(CURRENT_VERSION));
 
+        Ok(())
+    }
+
+    #[test]
+    fn update_config_reports_no_migration_for_current_config()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let config_path = temp_dir.path().join("GameSaveManager.config.json");
+        fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&Config::default())?,
+        )?;
+
+        let migrated = update_config(&config_path)?;
+
+        assert!(!migrated);
+        Ok(())
+    }
+
+    #[test]
+    fn update_config_reports_migration_when_version_changes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let config_path = temp_dir.path().join("GameSaveManager.config.json");
+        let backup_path = temp_dir.path().join("backup");
+        let mut config = Config {
+            version: VERSION_1_8_1.to_string(),
+            backup_path: backup_path.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+        config.settings.cloud_settings.backend = crate::cloud_sync::Backend::Disabled;
+        fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;
+
+        let migrated = update_config(&config_path)?;
+
+        assert!(migrated);
+        let migrated_config: Config = serde_json::from_str(&fs::read_to_string(&config_path)?)?;
+        assert_eq!(migrated_config.version, CURRENT_VERSION);
         Ok(())
     }
 
