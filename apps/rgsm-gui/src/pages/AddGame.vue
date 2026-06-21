@@ -126,7 +126,7 @@ fetchCurrentDevice();
 
 // init info when navigate from GameManage.vue
 watchEffect(() => {
-  const gameName = route.params.name;
+  const gameName = 'name' in route.params ? route.params.name : undefined;
   if (gameName) {
     const gameConfig = config.value?.games.find((game) => game.name === gameName);
     if (gameConfig) {

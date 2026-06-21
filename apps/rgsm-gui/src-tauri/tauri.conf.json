@@ -4,9 +4,9 @@
   "identifier": "com.game-save-manager",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm web:dev",
-    "beforeBuildCommand": "pnpm web:generate"
+    "beforeBuildCommand": "pnpm web:build"
   },
   "app": {
     "windows": [

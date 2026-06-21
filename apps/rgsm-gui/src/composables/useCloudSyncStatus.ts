@@ -38,7 +38,7 @@ function applyStatus(payload: CloudSyncStatusPayload) {
 }
 
 function initListeners() {
-  if (!import.meta.client || initialized.value) {
+  if (typeof window === 'undefined' || initialized.value) {
     return;
   }
 

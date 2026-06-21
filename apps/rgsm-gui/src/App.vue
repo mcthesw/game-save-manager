@@ -14,13 +14,16 @@ import { useGlobalLoading } from './composables/useGlobalLoading';
 import { useIpcNotificationCollector } from './composables/useIpcNotificationCollector';
 import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
-import { computed, ref, watch } from 'vue';
+import { computed, provide, ref, watch } from 'vue';
 
 const { config, refreshConfig, saveConfig } = useConfig();
 useDark();
 
 const { isLoading, loadingMessage, loadingDetail } = useGlobalLoading();
 const { addIfCollecting } = useIpcNotificationCollector();
+const sidebarWidth = ref(240);
+
+provide('sidebarWidth', sidebarWidth);
 
 const globalLoadingStyle = computed(() => ({
   zIndex: LAYER.globalLoading,
@@ -53,7 +56,7 @@ const uiFontStack = computed(() => {
 });
 
 function applyUiFont(stack: string | null) {
-  if (!import.meta.client) return;
+  if (typeof window === 'undefined') return;
   const style = document.documentElement.style;
   if (stack) {
     style.setProperty('--rgsm-ui-font-family', stack);
@@ -145,21 +148,25 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
   }
 }
 
-try {
-  await refreshConfig();
-  const currentLocale = config.value.settings.locale;
-  if (currentLocale) {
-    i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
-  }
-  applyUiFont(uiFontStack.value);
-  await navigateTo(config.value!.settings.home_page);
+async function initializeApp() {
+  try {
+    await refreshConfig();
+    const currentLocale = config.value.settings.locale;
+    if (currentLocale) {
+      i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
+    }
+    applyUiFont(uiFontStack.value);
+    await navigateTo(config.value!.settings.home_page ?? '/');
 
-  // 在应用启动时检查设备设置
-  await checkDeviceSetup();
-} catch {
-  notifyError($t('home.wrong_homepage'));
-  navigateTo('/');
+    // 在应用启动时检查设备设置
+    await checkDeviceSetup();
+  } catch {
+    notifyError($t('home.wrong_homepage'));
+    await navigateTo('/');
+  }
 }
+
+void initializeApp();
 type NotificationPayload = {
   level: 'info' | 'warning' | 'error';
   msg: string;
@@ -182,7 +189,7 @@ listen<NotificationPayload>('Notification', (event) => {
   }
 });
 
-if (import.meta.client) {
+if (typeof window !== 'undefined') {
   watch(uiFontStack, (stack) => applyUiFont(stack), { immediate: true });
 }
 
@@ -205,9 +212,20 @@ if (import.meta.client) {
 
 <template>
   <div>
-    <NuxtLayout>
-      <NuxtPage />
-    </NuxtLayout>
+    <ElContainer class="app-shell">
+      <ElAside :width="sidebarWidth + 'px'">
+        <MainSideBar />
+      </ElAside>
+      <ElScrollbar>
+        <ElMain>
+          <RouterView v-slot="{ Component }">
+            <Transition name="page" mode="out-in">
+              <component :is="Component" />
+            </Transition>
+          </RouterView>
+        </ElMain>
+      </ElScrollbar>
+    </ElContainer>
 
     <!-- 设备设置对话框 -->
     <DeviceSetupDialog
@@ -237,6 +255,22 @@ if (import.meta.client) {
 html,
 body {
   margin: 0;
+  overflow: hidden;
+}
+
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-shell .el-aside {
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-shell .el-scrollbar {
+  height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 

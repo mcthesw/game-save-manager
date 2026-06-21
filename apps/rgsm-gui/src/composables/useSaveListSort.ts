@@ -23,7 +23,7 @@ function isSortDirection(value: unknown): value is SaveListSortDirection {
 }
 
 function readStoredState() {
-  if (!import.meta.client) return;
+  if (typeof window === 'undefined') return;
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -44,7 +44,7 @@ function readStoredState() {
 }
 
 function persistState() {
-  if (!import.meta.client) return;
+  if (typeof window === 'undefined') return;
 
   try {
     window.localStorage.setItem(

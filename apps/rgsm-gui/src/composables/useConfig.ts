@@ -39,7 +39,7 @@ async function saveConfig(): Promise<boolean> {
   }
 }
 
-if (import.meta.client) {
+if (typeof window !== 'undefined') {
   events.quickActionCompleted
     .listen((event) => {
       const payload = event.payload;

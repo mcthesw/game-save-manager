@@ -2,7 +2,6 @@
 // TODO:调整日志设置，比如删除日
 import { computed, nextTick, ref, watch, onMounted } from 'vue';
 import { $t, i18n } from '../i18n';
-import { ElOption } from 'element-plus';
 import draggable from 'vuedraggable';
 import {
   Setting,

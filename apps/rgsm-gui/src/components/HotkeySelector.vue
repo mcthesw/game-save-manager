@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { ElSelect, ElOption } from 'element-plus';
 import { $t } from '../i18n';
 
 // Initialize hotkey_out with default values
@@ -17,38 +16,6 @@ const hotkey_out = defineModel<{
 // 这些代码是通过该文件获得的： https://github.com/tauri-apps/global-hotkey/blob/c9913a97667b3e44cb000de384cd8937d5a0050a/src/hotkey.rs#L212
 // 上述链接目标遵循 Apache-2.0/MIT 协议，本项目根据MIT协议合理使用该代码
 // 授权协议文件请参考 https://github.com/tauri-apps/global-hotkey/blob/dev/LICENSE-MIT
-
-// src/schemas/hotkeyMap.ts (7-114)
-const _otherKeys = [
-  'COMMA',
-  'EQUAL',
-  'MINUS',
-  'PERIOD',
-  'QUOTE',
-  'SEMICOLON',
-  'SLASH',
-  'BACKSPACE',
-  'ENTER',
-  'SPACE',
-  'TAB',
-  'DELETE',
-  'END',
-  'HOME',
-  'INSERT',
-  'PAGEDOWN',
-  'PAGEUP',
-  'ARROWDOWN',
-  'ARROWLEFT',
-  'ARROWRIGHT',
-  'ARROWUP',
-  'NUMPADADD',
-  'NUMPADDECIMAL',
-  'NUMPADDIVIDE',
-  'NUMPADENTER',
-  'NUMPADEQUAL',
-  'NUMPADMULTIPLY',
-  'NUMPADSUBTRACT',
-];
 
 const funcKeys1 = ['', 'SHIFT', 'CONTROL', 'ALT'];
 

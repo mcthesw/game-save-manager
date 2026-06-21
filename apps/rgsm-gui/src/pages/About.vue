@@ -40,7 +40,7 @@ const contributors = [
 const frontendDeps = [
   { name: 'Vue.js', url: 'https://vuejs.org/', license: 'MIT' },
   { name: 'Vue Router', url: 'https://router.vuejs.org/', license: 'MIT' },
-  { name: 'Nuxt', url: 'https://nuxt.com/', license: 'MIT' },
+  { name: 'Vite', url: 'https://vite.dev/', license: 'MIT' },
   { name: 'Element Plus', url: 'https://element-plus.org/', license: 'MIT' },
   { name: 'VueUse', url: 'https://vueuse.org/', license: 'MIT' },
   { name: 'Vue Flow', url: 'https://vueflow.dev/', license: 'MIT' },
