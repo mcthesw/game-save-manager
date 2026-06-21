@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Node } from 'element-plus/es/components/tree/src/model/node';
+import type TreeNode from 'element-plus/es/components/tree/src/model/node';
 import type { MessageBoxInputData } from 'element-plus';
 import { computed, ref, toRaw } from 'vue';
 import { $t } from '../i18n';
@@ -66,7 +66,7 @@ function favorite_click_handler(node: FavoriteTreeNode) {
   navigateTo(getGameManagementPath(node.label));
 }
 
-function remove_node(node: Node, data: FavoriteTreeNode) {
+function remove_node(node: TreeNode, data: FavoriteTreeNode) {
   const parent = node.parent;
   if (!parent) {
     return;
@@ -84,6 +84,10 @@ function remove_node(node: Node, data: FavoriteTreeNode) {
 function add_game_to_favorite(game: Game) {
   add_node(game.name, true);
   notifySuccess($t('favorite.add_success') + ': ' + game.name);
+}
+
+function tableRowToGame(row: unknown): Game {
+  return row as Game;
 }
 
 const save_and_refresh = useDebounceFn(async () => {
@@ -104,11 +108,11 @@ function add_node(
   save_and_refresh();
 }
 
-function allow_drag(_node: Node) {
+function allow_drag(_node: TreeNode) {
   return true;
 }
 
-function allow_drop(_draggingNode: Node, dropNode: Node, type: AllowDropType) {
+function allow_drop(_draggingNode: TreeNode, dropNode: TreeNode, type: AllowDropType) {
   if (dropNode.data.is_leaf) {
     // 防止拖拽游戏到游戏内部
     return type !== 'inner';
@@ -142,8 +146,8 @@ async function add_folder() {
 }
 
 function node_drag_end_handler(
-  start: Node,
-  end: Node | null,
+  start: TreeNode,
+  end: TreeNode | null,
   end_type: NodeDropType,
   event: DragEvent
 ) {
@@ -281,7 +285,12 @@ async function add_all_games() {
         <ElTableColumn prop="game_path" :label="$t('settings.game_path')" />
         <ElTableColumn fixed="right" :label="$t('settings.operation')" width="120">
           <template #default="scope">
-            <ElButton link type="primary" size="small" @click="add_game_to_favorite(scope.row)">
+            <ElButton
+              link
+              type="primary"
+              size="small"
+              @click="add_game_to_favorite(tableRowToGame(scope.row))"
+            >
               {{ $t('favorite.add_to_favorite') }}
             </ElButton>
           </template>

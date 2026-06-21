@@ -234,6 +234,10 @@ function openConflictDialog(row: GameRow) {
   conflictDialogVisible.value = true;
 }
 
+function tableRowToGameRow(row: unknown): GameRow {
+  return row as GameRow;
+}
+
 async function retryConfigSync() {
   if (!savedBackendEnabled.value || syncingConfig.value) return;
   syncingConfig.value = true;
@@ -676,7 +680,7 @@ onMounted(async () => {
                 v-if="!row.isConfig"
                 v-model="row.cloudSyncEnabled"
                 size="small"
-                @change="toggleGameSync(row)"
+                @change="toggleGameSync(tableRowToGameRow(row))"
               />
               <span v-else class="config-lock-icon">
                 <ElIcon><Lock /></ElIcon>
@@ -719,7 +723,7 @@ onMounted(async () => {
                 type="warning"
                 size="small"
                 text
-                @click="openConflictDialog(row)"
+                @click="openConflictDialog(tableRowToGameRow(row))"
               >
                 {{ $t('sync_settings.conflict.resolve') }}
               </ElButton>
