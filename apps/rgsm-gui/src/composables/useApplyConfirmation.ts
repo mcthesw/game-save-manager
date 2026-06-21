@@ -1,7 +1,7 @@
-import { ElCheckbox } from 'element-plus';
 import { defineComponent, h, ref } from 'vue';
 import { $t } from '../i18n';
 import type { Settings } from '../bindings';
+import { ElCheckbox } from '../ui/elementPlus/checkbox';
 import { useConfig } from './useConfig';
 import { useFeedback } from './useFeedback';
 

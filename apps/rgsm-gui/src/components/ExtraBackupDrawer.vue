@@ -137,7 +137,7 @@ async function del(date: string) {
     :model-value="modelValue"
     :title="$t('manage.extra_backups')"
     size="580px"
-    @update:model-value="(v) => emit('update:modelValue', v)"
+    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
     <div class="drawer-body">
       <!-- Toolbar -->

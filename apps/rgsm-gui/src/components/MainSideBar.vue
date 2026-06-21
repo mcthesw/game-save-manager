@@ -4,11 +4,11 @@ import FavoriteSideBar from './FavoriteSideBar.vue';
 import { Files, Search, Star, Menu } from '@element-plus/icons-vue';
 import { $t } from '../i18n';
 import { debug } from '@tauri-apps/plugin-log';
-import type { MenuInstance } from 'element-plus';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { useSidebarResize } from '../composables/useSidebarResize';
 import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehavior';
+import type { MenuInstance } from '../ui/elementPlus/menu';
 
 const { config } = useConfig();
 const { baseLinks } = useNavigationLinks();

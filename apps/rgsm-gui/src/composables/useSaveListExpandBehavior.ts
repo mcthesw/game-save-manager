@@ -1,5 +1,5 @@
 import { computed, watch, nextTick, onMounted, type Ref } from 'vue';
-import type { MenuInstance } from 'element-plus';
+import type { MenuInstance } from '../ui/elementPlus/menu';
 
 export interface SaveListExpandOptions {
   menuRef: Ref<MenuInstance | undefined>;

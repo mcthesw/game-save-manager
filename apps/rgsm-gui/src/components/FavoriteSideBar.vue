@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import type TreeNode from 'element-plus/es/components/tree/src/model/node';
-import type { MessageBoxInputData } from 'element-plus';
 import { computed, ref, toRaw } from 'vue';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,6 +7,7 @@ import type { AllowDropType, NodeDropType } from 'element-plus/es/components/tre
 import type { FavoriteTreeNode, Game } from '~/bindings';
 import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
+import type { MessageBoxInputData } from '../ui/elementPlus/messageBox';
 
 const { config, saveConfig } = useConfig();
 const feedback = useFeedback();

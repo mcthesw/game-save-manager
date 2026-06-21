@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onBeforeUnmount, onMounted, h } from 'vue';
-import { ElInput, TableV2FixedDir, TableV2SortOrder } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import { commands, events } from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
@@ -32,6 +31,7 @@ import {
   getGameNameFromRouteParam,
 } from '../../composables/useGameManagementRoute';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
+import { TableV2FixedDir, TableV2SortOrder } from '../../ui/elementPlus/tableV2';
 
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
@@ -260,7 +260,7 @@ async function convertToPermanent(snapshotDate: string) {
 
 // Init game info
 watch(
-  () => route.params.name,
+  () => ('name' in route.params ? route.params.name : undefined),
   (newValue) => {
     if (!newValue) {
       return;
@@ -854,7 +854,9 @@ async function on_drawer_save_changes(updatedGame: Game) {
     notifySuccess($t('manage.save_paths_updated'));
     drawer.value = false;
 
-    const currentRouteGameName = getGameNameFromRouteParam(route.params.name);
+    const currentRouteGameName = getGameNameFromRouteParam(
+      'name' in route.params ? route.params.name : undefined
+    );
     if (updatedGame.name !== currentRouteGameName) {
       await router.replace(getGameManagementPath(updatedGame.name));
     } else {
@@ -1445,7 +1447,10 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                 <el-checkbox
                   v-if="column.key === 'selection'"
                   :model-value="isSnapshotSelected(rowData.date)"
-                  @change="(value) => toggleSnapshotSelection(rowData.date, value === true)"
+                  @change="
+                    (value: string | number | boolean) =>
+                      toggleSnapshotSelection(rowData.date, value === true)
+                  "
                 />
                 <span v-else-if="column.key === 'date'" class="font-mono text-sm">
                   {{ rowData.date }}

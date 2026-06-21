@@ -1,5 +1,5 @@
-import { ElMessageBox } from 'element-plus';
 import type { VNode } from 'vue';
+import { ElMessageBox } from '../ui/elementPlus/messageBox';
 import { LAYER } from '../ui/layers';
 
 // A small, centralized façade for user feedback patterns.

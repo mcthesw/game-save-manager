@@ -12,6 +12,7 @@ pnpm-lock.yaml
 # Auto-generated files
 components.d.ts
 auto-imports.d.ts
+typed-router.d.ts
 src/bindings.ts
 src-tauri/gen
 

@@ -16,6 +16,7 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use rgsm_core::config::config_check;
 
 // GUI-specific modules
+#[cfg(debug_assertions)]
 mod bindings_format;
 mod hooks;
 mod ipc_handler;

@@ -6,6 +6,7 @@
     "dev": "pnpm --dir apps/rgsm-gui dev",
     "build": "pnpm --dir apps/rgsm-gui build",
     "web:dev": "pnpm --dir apps/rgsm-gui web:dev",
+    "web:build": "pnpm --dir apps/rgsm-gui web:build",
     "web:typecheck": "pnpm --dir apps/rgsm-gui web:typecheck",
     "web:format": "pnpm --dir apps/rgsm-gui web:format",
     "web:format:fix": "pnpm --dir apps/rgsm-gui web:format:fix",

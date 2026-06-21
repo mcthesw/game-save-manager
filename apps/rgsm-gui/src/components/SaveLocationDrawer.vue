@@ -597,7 +597,10 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
                   text
                   size="small"
                   :disabled="!getDevicePath(unit, selectedDeviceId)"
-                  @click="(e) => handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)"
+                  @click="
+                    (e: MouseEvent) =>
+                      handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)
+                  "
                 >
                   {{ $t('save_location_drawer.open') }}
                 </el-button>
@@ -620,7 +623,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           <path-variable-input
             :model-value="getDevicePath(unit, selectedDeviceId)"
             status-mode="tooltip"
-            @update:model-value="(value) => updateDevicePath(unit, selectedDeviceId, value)"
+            @update:model-value="(value: string) => updateDevicePath(unit, selectedDeviceId, value)"
           />
 
           <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="path-hint">
@@ -632,7 +635,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
               <span>{{ $t('save_location_drawer.backup_enabled') }}</span>
               <el-switch
                 :model-value="isUnitEnabled(unit)"
-                @change="(value) => setUnitEnabled(unit, Boolean(value))"
+                @change="(value: string | number | boolean) => setUnitEnabled(unit, Boolean(value))"
               />
             </label>
             <label class="toggle-item">
@@ -684,7 +687,10 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
                     text
                     size="small"
                     :disabled="!getDevicePath(unit, selectedDeviceId)"
-                    @click="(e) => handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)"
+                    @click="
+                      (e: MouseEvent) =>
+                        handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)
+                    "
                   >
                     {{ $t('save_location_drawer.open') }}
                   </el-button>
