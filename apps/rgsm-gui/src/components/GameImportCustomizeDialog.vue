@@ -80,8 +80,8 @@
             </el-table-column>
             <el-table-column :label="$t('game_import_customize.type')" width="110">
               <template #default="{ row, $index }">
-                <el-tag :type="getPathKindTagType(row, $index)" size="small">
-                  {{ getPathKindLabel(row, $index) }}
+                <el-tag :type="getPathKindTagType(tableRowToSavePath(row), $index)" size="small">
+                  {{ getPathKindLabel(tableRowToSavePath(row), $index) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -261,6 +261,10 @@ function isRegistryPath(path: string) {
 function getPathKind(row: SavePath, index: number): PathKind {
   if (isRegistryPath(row.path)) return 'registry';
   return pathChecks.value[index]?.kind ?? 'unknown';
+}
+
+function tableRowToSavePath(row: unknown): SavePath {
+  return row as SavePath;
 }
 
 function getPathKindLabel(row: SavePath, index: number): string {
