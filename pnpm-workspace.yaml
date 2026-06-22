@@ -1,6 +1,9 @@
 packages:
   - 'apps/rgsm-gui'
 
+overrides:
+  undici: 6.27.0
+
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true
