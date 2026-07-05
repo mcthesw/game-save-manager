@@ -432,6 +432,7 @@
         "project_initiator": "The founder of this project",
         "ea_tester": "Early testers",
         "developer": "Developer",
+        "active_translator": "Active Translator",
         "frontend_framework": "Frontend framework",
         "desktop_framework": "Desktop application framework",
         "ui_framework": "UI framework",
