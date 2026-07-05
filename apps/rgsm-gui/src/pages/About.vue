@@ -35,6 +35,14 @@ const contributors = [
   { name: 'Wali', role: $t('about.ea_tester') },
   { name: '土拨鼠', role: $t('about.ea_tester') },
   { name: '布莱泽', role: $t('about.ea_tester') },
+  { name: 'Tostar.King', role: $t('about.developer') },
+  { name: 'Summerraim', role: $t('about.developer') },
+  { name: 'saschabuehrle', role: $t('about.developer') },
+  { name: 'lucienlmy', role: $t('about.developer') },
+  { name: 'PlanC', role: $t('about.developer') },
+  { name: 'banzhe', role: $t('about.developer') },
+  { name: 'Максим Горпиніч', role: $t('about.active_translator') },
+  { name: 'தமிழ்நேரம்', role: $t('about.active_translator') },
 ];
 
 const frontendDeps = [
@@ -252,9 +260,16 @@ const backendDeps = [
 
 /* Contributors List */
 .contributors-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .contributors-list {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 2rem;
+  }
 }
 
 .contributor-item {
