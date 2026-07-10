@@ -358,7 +358,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: HashMap::new(),
+            device_bindings: HashMap::new(),
         }
     }
 }

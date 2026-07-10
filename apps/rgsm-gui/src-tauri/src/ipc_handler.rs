@@ -1126,7 +1126,9 @@ pub async fn check_paths(
         install_dirs: install_dirs.unwrap_or_default(),
         steam_id,
         install_dir_cache: None,
-        game_roots: device.map(|d| d.game_roots.clone()).unwrap_or_default(),
+        game_roots: device
+            .map(|device| device.game_root_paths().map(str::to_string).collect())
+            .unwrap_or_default(),
         store_user_id,
     };
     Ok(path_resolver::check_paths(&paths, Some(&ctx), &config))

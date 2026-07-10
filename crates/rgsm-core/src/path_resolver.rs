@@ -810,7 +810,8 @@ mod tests {
     #[test]
     fn test_path_context_from_game_includes_device_game_roots() {
         use crate::backup::Game;
-        use crate::device::Device;
+        use crate::device::{Device, DeviceResource, DeviceResourceKind, DeviceResourceSource};
+        use crate::path_pattern::StoreKind;
 
         let game = Game {
             name: "Test Game".to_string(),
@@ -821,12 +822,20 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         };
         let device = Device {
             id: "test-device".to_string(),
             name: "Test".to_string(),
-            game_roots: vec!["/custom/root".to_string()],
+            resources: vec![DeviceResource {
+                id: 0,
+                source: DeviceResourceSource::Manual,
+                kind: DeviceResourceKind::GameRoot {
+                    store: StoreKind::Other,
+                    path: "/custom/root".to_string(),
+                },
+            }],
+            next_resource_id: 1,
         };
 
         let ctx = game.path_context(Some(&device));
@@ -846,7 +855,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         };
 
         let ctx = game.path_context(None);
@@ -875,11 +884,17 @@ mod tests {
 
     #[test]
     fn test_path_context_includes_store_user_id_from_game() {
-        use crate::backup::Game;
-        use crate::device::Device;
+        use crate::backup::{Game, GameDeviceBinding};
+        use crate::device::{Device, DeviceResource, DeviceResourceKind, DeviceResourceSource};
+        use crate::path_pattern::StoreKind;
 
-        let mut store_user_ids = std::collections::HashMap::new();
-        store_user_ids.insert("dev-1".to_string(), "12345678".to_string());
+        let device_bindings = std::collections::HashMap::from([(
+            "dev-1".to_string(),
+            GameDeviceBinding {
+                account_ids: Some(vec![0]),
+                ..GameDeviceBinding::default()
+            },
+        )]);
 
         let game = Game {
             name: "Test Game".to_string(),
@@ -890,12 +905,20 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids,
+            device_bindings,
         };
         let device = Device {
             id: "dev-1".to_string(),
             name: "Test".to_string(),
-            game_roots: vec![],
+            resources: vec![DeviceResource {
+                id: 0,
+                source: DeviceResourceSource::Manual,
+                kind: DeviceResourceKind::StoreAccount {
+                    store: StoreKind::Steam,
+                    user_id: "12345678".to_string(),
+                },
+            }],
+            next_resource_id: 1,
         };
 
         let ctx = game.path_context(Some(&device));
@@ -904,11 +927,16 @@ mod tests {
 
     #[test]
     fn test_path_context_no_store_user_id_for_unknown_device() {
-        use crate::backup::Game;
+        use crate::backup::{Game, GameDeviceBinding};
         use crate::device::Device;
 
-        let mut store_user_ids = std::collections::HashMap::new();
-        store_user_ids.insert("dev-1".to_string(), "12345678".to_string());
+        let device_bindings = std::collections::HashMap::from([(
+            "dev-1".to_string(),
+            GameDeviceBinding {
+                account_ids: Some(vec![0]),
+                ..GameDeviceBinding::default()
+            },
+        )]);
 
         let game = Game {
             name: "Test Game".to_string(),
@@ -919,12 +947,13 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids,
+            device_bindings,
         };
         let device = Device {
             id: "dev-other".to_string(),
             name: "Other".to_string(),
-            game_roots: vec![],
+            resources: vec![],
+            next_resource_id: 0,
         };
 
         let ctx = game.path_context(Some(&device));

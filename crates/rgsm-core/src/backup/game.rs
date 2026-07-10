@@ -10,10 +10,12 @@ use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
 use crate::backup::{
-    ArchiveBackend, CreatedBy, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot, ZipBackend,
+    ArchiveBackend, CreatedBy, GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
+    ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
-use crate::device::{DeviceId, get_current_device_id};
+use crate::device::{DeviceId, DeviceResourceKind, get_current_device_id};
+use crate::path_pattern::StoreKind;
 use crate::path_resolver::PathContext;
 use crate::preclude::*;
 
@@ -28,9 +30,26 @@ pub struct LudusaviMeta {
     /// e.g. `["100 Orange Juice"]`. Used to resolve `<game>` and `<base>`.
     #[serde(default)]
     pub install_dirs: Vec<String>,
-    /// Steam App ID from the manifest's `steam.id`. Used to resolve `<storeGameId>`.
-    #[serde(default)]
-    pub steam_id: Option<u32>,
+    /// Store-specific game IDs used to resolve `<storeGameId>` in the context
+    /// of the candidate root or installation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub store_game_ids: Vec<StoreGameId>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreGameId {
+    pub store: StoreKind,
+    pub id: String,
+}
+
+impl LudusaviMeta {
+    pub fn store_game_id(&self, store: StoreKind) -> Option<&str> {
+        self.store_game_ids
+            .iter()
+            .find(|entry| entry.store == store)
+            .map(|entry| entry.id.as_str())
+    }
 }
 
 /// Per-game auto-backup configuration.
@@ -74,10 +93,10 @@ pub struct Game {
     /// Metadata from Ludusavi manifest import. `None` for manually added games.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ludusavi_meta: Option<LudusaviMeta>,
-    /// Per-device store user ID for `<storeUserId>` resolution.
-    /// Key: DeviceId, Value: store-specific user ID (e.g. Steam user ID).
+    /// Per-Device resource selections for this Game. Missing dimensions remain
+    /// implicit and become ambiguous if more than one applicable resource exists.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub store_user_ids: HashMap<DeviceId, String>,
+    pub device_bindings: HashMap<DeviceId, GameDeviceBinding>,
 }
 
 /// Frontend/IPC input shape for creating/updating a game.
@@ -91,9 +110,8 @@ pub struct GameDraft {
     /// Metadata from Ludusavi manifest import (optional for manually added games).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ludusavi_meta: Option<LudusaviMeta>,
-    /// Per-device store user ID for `<storeUserId>` resolution.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub store_user_ids: HashMap<DeviceId, String>,
+    pub device_bindings: HashMap<DeviceId, GameDeviceBinding>,
 }
 
 fn save_unit_identity(
@@ -230,12 +248,12 @@ impl GameDraft {
             ludusavi_meta: self
                 .ludusavi_meta
                 .or_else(|| existing.and_then(|g| g.ludusavi_meta.clone())),
-            store_user_ids: if self.store_user_ids.is_empty() {
+            device_bindings: if self.device_bindings.is_empty() {
                 existing
-                    .map(|g| g.store_user_ids.clone())
+                    .map(|g| g.device_bindings.clone())
                     .unwrap_or_default()
             } else {
-                self.store_user_ids
+                self.device_bindings
             },
         };
         game.normalize_save_unit_ids();
@@ -245,16 +263,31 @@ impl GameDraft {
 
 impl Game {
     /// Build a `PathContext` from this game's metadata for path variable resolution.
-    /// Pass the current `Device` to include device-specific `game_roots` and `store_user_id`.
+    /// Pass the current `Device` to include explicit Device Resources.
     pub fn path_context(&self, device: Option<&crate::device::Device>) -> PathContext {
         let device_id = device.map(|d| &d.id);
-        let store_user_id = device_id
-            .and_then(|id| self.store_user_ids.get(id))
-            .cloned();
+        let binding = device_id.and_then(|id| self.device_bindings.get(id));
+        let selected_account_ids = binding.and_then(|binding| binding.account_ids.as_ref());
+        let steam_accounts = device
+            .into_iter()
+            .flat_map(|device| device.store_accounts())
+            .filter_map(|resource| match &resource.kind {
+                DeviceResourceKind::StoreAccount { store, user_id }
+                    if *store == StoreKind::Steam
+                        && selected_account_ids.is_none_or(|ids| ids.contains(&resource.id)) =>
+                {
+                    Some(user_id.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let store_user_id = (steam_accounts.len() == 1).then(|| steam_accounts[0].clone());
         let base = match &self.ludusavi_meta {
             Some(meta) => PathContext {
                 install_dirs: meta.install_dirs.clone(),
-                steam_id: meta.steam_id,
+                steam_id: meta
+                    .store_game_id(StoreKind::Steam)
+                    .and_then(|id| id.parse().ok()),
                 install_dir_cache: None,
                 game_roots: Vec::new(),
                 store_user_id: None,
@@ -262,7 +295,19 @@ impl Game {
             None => PathContext::default(),
         };
         PathContext {
-            game_roots: device.map(|d| d.game_roots.clone()).unwrap_or_default(),
+            game_roots: device
+                .into_iter()
+                .flat_map(|device| device.game_roots())
+                .filter(|resource| {
+                    binding
+                        .and_then(|binding| binding.root_ids.as_ref())
+                        .is_none_or(|ids| ids.contains(&resource.id))
+                })
+                .filter_map(|resource| match &resource.kind {
+                    DeviceResourceKind::GameRoot { path, .. } => Some(path.clone()),
+                    _ => None,
+                })
+                .collect(),
             store_user_id,
             ..base
         }

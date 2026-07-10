@@ -209,7 +209,7 @@ mod tests {
                 auto_backup: None,
                 next_save_unit_id: 0,
                 ludusavi_meta: None,
-                store_user_ids: std::collections::HashMap::new(),
+                device_bindings: std::collections::HashMap::new(),
             },
             snapshot: Snapshot {
                 date: "2025-01-01T00:00:00".into(),
@@ -240,7 +240,7 @@ mod tests {
                 auto_backup: None,
                 next_save_unit_id: 0,
                 ludusavi_meta: None,
-                store_user_ids: std::collections::HashMap::new(),
+                device_bindings: std::collections::HashMap::new(),
             },
             snapshots: GameSnapshots::new("NewGame"),
         }
@@ -259,7 +259,7 @@ mod tests {
                 auto_backup: None,
                 next_save_unit_id: 0,
                 ludusavi_meta: None,
-                store_user_ids: std::collections::HashMap::new(),
+                device_bindings: std::collections::HashMap::new(),
             },
             game: Game {
                 name: "ExistingGame".into(),
@@ -270,7 +270,7 @@ mod tests {
                 auto_backup: None,
                 next_save_unit_id: 0,
                 ludusavi_meta: None,
-                store_user_ids: std::collections::HashMap::new(),
+                device_bindings: std::collections::HashMap::new(),
             },
         }
     }
@@ -383,7 +383,7 @@ mod tests {
                 auto_backup: None,
                 next_save_unit_id: 0,
                 ludusavi_meta: None,
-                store_user_ids: std::collections::HashMap::new(),
+                device_bindings: std::collections::HashMap::new(),
             },
             snapshot: Snapshot {
                 date: "2025-01-01T00:00:00".into(),

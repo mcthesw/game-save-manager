@@ -317,7 +317,7 @@ fn create_vn_draft(path: &Path, device_id: &str, save_subpath: &str) -> Option<G
         save_paths: vec![save_unit],
         game_paths,
         ludusavi_meta: None,
-        store_user_ids: HashMap::new(),
+        device_bindings: HashMap::new(),
     })
 }
 

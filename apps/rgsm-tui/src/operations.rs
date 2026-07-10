@@ -4,16 +4,17 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use rgsm_core::backup::{
-    CreatedBy, Game, GameDraft, SaveUnitDraft, SaveUnitType, list_extra_backups,
+    CreatedBy, Game, GameDraft, SaveUnitDraft, SaveUnitType, StoreGameId, list_extra_backups,
 };
 use rgsm_core::cloud_sync::{
     Backend, CloudBackendCheckOutcome, CloudSettings, CloudSyncSessionConfig, CloudSyncTaskManager,
     ConflictResolution, S3AddressingStyle,
 };
 use rgsm_core::config::{get_config, set_config_local};
-use rgsm_core::device::{Device, get_current_device_id};
+use rgsm_core::device::{Device, DeviceResourceKind, DeviceResourceSource, get_current_device_id};
 use rgsm_core::hooks::HookSource;
 use rgsm_core::ludusavi_manifest;
+use rgsm_core::path_pattern::StoreKind;
 use rgsm_core::services::ServiceContext;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
@@ -438,8 +439,14 @@ async fn run_operation(
             }
             let id = get_current_device_id().clone();
             let device = config.devices.entry(id).or_default();
-            if !device.game_roots.iter().any(|root| root == path) {
-                device.game_roots.push(path.to_string());
+            if !device.game_root_paths().any(|root| root == path) {
+                device.add_resource(
+                    DeviceResourceSource::Manual,
+                    DeviceResourceKind::GameRoot {
+                        store: StoreKind::Other,
+                        path: path.to_string(),
+                    },
+                );
                 set_config_local(&config)?;
             }
             Ok(format!("game root added: {path}"))
@@ -468,7 +475,7 @@ fn empty_game_draft(name: &str) -> GameDraft {
         save_paths: Vec::new(),
         game_paths: HashMap::new(),
         ludusavi_meta: None,
-        store_user_ids: HashMap::new(),
+        device_bindings: HashMap::new(),
     }
 }
 
@@ -488,7 +495,7 @@ fn draft_from_game(game: &Game, name_override: Option<String>) -> GameDraft {
             .collect(),
         game_paths: game.game_paths.clone(),
         ludusavi_meta: game.ludusavi_meta.clone(),
-        store_user_ids: game.store_user_ids.clone(),
+        device_bindings: game.device_bindings.clone(),
     }
 }
 
@@ -541,9 +548,15 @@ async fn import_ludusavi_game(
         game_paths: HashMap::new(),
         ludusavi_meta: Some(rgsm_core::backup::LudusaviMeta {
             install_dirs: ludusavi_manifest::extract_install_dirs(value),
-            steam_id: ludusavi_manifest::extract_steam_id(value),
+            store_game_ids: ludusavi_manifest::extract_steam_id(value)
+                .map(|id| StoreGameId {
+                    store: StoreKind::Steam,
+                    id: id.to_string(),
+                })
+                .into_iter()
+                .collect(),
         }),
-        store_user_ids: HashMap::new(),
+        device_bindings: HashMap::new(),
     };
     service.add_game(&draft, HookSource::UserManual).await?;
     Ok(())
