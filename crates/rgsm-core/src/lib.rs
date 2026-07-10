@@ -19,6 +19,8 @@ pub mod embedded_resources;
 pub mod hooks;
 pub mod ludusavi_manifest;
 pub mod path_launcher;
+pub mod path_pattern;
+pub mod path_resolution;
 pub mod path_resolver;
 pub mod preclude;
 pub mod services;

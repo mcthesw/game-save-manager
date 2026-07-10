@@ -41,6 +41,8 @@ lazy_static = "1.5"
 rust-embed = { version = "8.11.0", optional = true, features = ["compression", "debug-embed", "include-exclude"] }
 font-kit = "0.14"
 base64 = "0.22.1"
+globetter = "0.2.0"
+globset = "0.4.15"
 async-trait.workspace = true
 specta.workspace = true
 rust-i18n.workspace = true
@@ -48,4 +50,3 @@ keyvalues-serde = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true
-
