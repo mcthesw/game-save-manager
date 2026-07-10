@@ -2338,6 +2338,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "globetter"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b656e6c51ccf5966543712f56bf6235494a7cf341206b3ccb336d1586f0e01fd"
+
+[[package]]
 name = "globset"
 version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5309,6 +5315,8 @@ dependencies = [
  "filetime",
  "font-kit",
  "fs_extra",
+ "globetter",
+ "globset",
  "hostname",
  "keyvalues-serde",
  "lazy_static",
