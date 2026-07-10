@@ -16,12 +16,14 @@ mod backend;
 mod compress;
 mod compression_preset;
 mod decompress;
+mod manifest;
 mod timestamp;
 mod version;
 
 pub use backend::{ArchiveBackend, ZipBackend};
 pub use compression_preset::CompressionPreset;
 pub use decompress::{RestoreNotificationLevel, RestoreNotifier};
+pub(crate) use manifest::{ArchiveManifestV3, V3_MANIFEST_ENTRY};
 pub(crate) use version::ArchiveMeta;
 pub use version::ArchiveVersion;
 

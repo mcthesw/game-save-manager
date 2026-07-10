@@ -15,13 +15,16 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::backup::path_format::path_to_zip_style;
 use crate::{
-    backup::{CompressionPreset, SaveUnit, SaveUnitType, registry},
+    backup::{
+        CaptureGroup, CapturePlan, CaptureSourceKind, CompressionPreset, SaveUnit, SaveUnitType,
+        registry,
+    },
     device::get_current_device_id,
     path_resolver::PathContext,
     preclude::*,
 };
 
-use super::version::ArchiveMeta;
+use super::{ArchiveManifestV3, V3_MANIFEST_ENTRY, version::ArchiveMeta};
 
 use super::timestamp::system_time_to_zip_datetime;
 
@@ -264,4 +267,182 @@ pub fn compress_to_file(
         .map_err(|e| CompressError::Single(e.into()))?
         .len();
     Ok(file_size)
+}
+
+/// Write an immutable capture plan as a V3 archive. The archive is assembled in
+/// a sibling temporary file and becomes visible at `zip_path` only after every
+/// group and the internal manifest are finalized successfully.
+pub(crate) fn compress_capture_plan_to_file(
+    plan: &CapturePlan,
+    zip_path: &Path,
+    preset: CompressionPreset,
+    source_fingerprint: Option<String>,
+) -> Result<u64, CompressError> {
+    let temp_path = zip_path.with_extension("zip.capture.tmp");
+    let result = write_capture_plan_archive(plan, &temp_path, preset, source_fingerprint);
+    let size = match result {
+        Ok(size) => size,
+        Err(error) => {
+            let _ = fs::remove_file(&temp_path);
+            return Err(error);
+        }
+    };
+    if let Err(error) = fs::rename(&temp_path, zip_path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(CompressError::Single(error.into()));
+    }
+    Ok(size)
+}
+
+fn write_capture_plan_archive(
+    plan: &CapturePlan,
+    temp_path: &Path,
+    preset: CompressionPreset,
+    source_fingerprint: Option<String>,
+) -> Result<u64, CompressError> {
+    let file = File::create(temp_path).map_err(|error| CompressError::Single(error.into()))?;
+    let mut zip = ZipWriter::new(file);
+    let mut meta = ArchiveMeta::new_v3(preset);
+    meta.source_fingerprint = source_fingerprint;
+    zip.set_comment(meta.to_comment());
+
+    for group in &plan.groups {
+        append_capture_group(&mut zip, group, preset).map_err(CompressError::Single)?;
+    }
+    let manifest = ArchiveManifestV3::from(plan);
+    let manifest_bytes = serde_json::to_vec_pretty(&manifest)
+        .map_err(|error| CompressError::Single(BackupFileError::Unexpected(error.into())))?;
+    write_bytes_entry(
+        &mut zip,
+        &manifest_bytes,
+        Path::new(V3_MANIFEST_ENTRY),
+        preset,
+    )
+    .map_err(CompressError::Single)?;
+    zip.finish()
+        .map_err(|error| CompressError::Single(error.into()))?;
+
+    fs::metadata(temp_path)
+        .map(|metadata| metadata.len())
+        .map_err(|error| CompressError::Single(error.into()))
+}
+
+fn append_capture_group<T>(
+    writer: &mut ZipWriter<T>,
+    group: &CaptureGroup,
+    preset: CompressionPreset,
+) -> Result<(), BackupFileError>
+where
+    T: Write + Seek,
+{
+    match group.kind {
+        CaptureSourceKind::File => {
+            let source = Path::new(&group.source_path);
+            if !source.is_file() {
+                return Err(BackupFileError::NotExists(source.to_path_buf()));
+            }
+            write_file_entry(writer, source, Path::new(&group.archive_path), preset)
+        }
+        CaptureSourceKind::Directory => {
+            let source = Path::new(&group.source_path);
+            if !source.is_dir() {
+                return Err(BackupFileError::NotExists(source.to_path_buf()));
+            }
+            add_directory(writer, source, Path::new(&group.archive_path), preset)
+        }
+        CaptureSourceKind::Registry => {
+            let data = registry::export_registry_key(&group.source_path)
+                .map_err(|error| BackupFileError::RegistryError(error.to_string()))?;
+            let bytes = registry::serialize_reg_file(&data)
+                .map_err(|error| BackupFileError::RegistryError(error.to_string()))?;
+            write_bytes_entry(writer, &bytes, Path::new(&group.archive_path), preset)
+        }
+    }
+}
+
+#[cfg(test)]
+mod capture_plan_tests {
+    use super::*;
+    use crate::backup::archive::ArchiveVersion;
+    use crate::backup::{CaptureGroup, CapturePlan};
+    use crate::path_resolution::CandidateDimensions;
+    use std::io::Read;
+
+    #[test]
+    fn v3_archive_contains_capture_data_and_internal_manifest() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let source = temp.path().join("save.dat");
+        fs::write(&source, b"save").unwrap();
+        let archive = temp.path().join("snapshot.zip");
+        let plan = CapturePlan {
+            groups: vec![CaptureGroup {
+                id: 0,
+                save_unit_id: 7,
+                candidate_id: "platform".to_string(),
+                dimensions: CandidateDimensions::default(),
+                logical_anchor: temp.path().to_path_buf(),
+                source_path: source.to_string_lossy().into_owned(),
+                relative_path: "save.dat".to_string(),
+                archive_path: "7/0/data/save.dat".to_string(),
+                kind: CaptureSourceKind::File,
+                delete_before_apply: false,
+            }],
+        };
+
+        compress_capture_plan_to_file(
+            &plan,
+            &archive,
+            CompressionPreset::Standard,
+            Some("fingerprint".to_string()),
+        )
+        .unwrap();
+
+        let file = File::open(&archive).unwrap();
+        let mut zip = zip::ZipArchive::new(file).unwrap();
+        assert_eq!(
+            ArchiveVersion::from_comment(zip.comment()),
+            ArchiveVersion::V3
+        );
+        let mut captured = String::new();
+        zip.by_name("7/0/data/save.dat")
+            .unwrap()
+            .read_to_string(&mut captured)
+            .unwrap();
+        assert_eq!(captured, "save");
+        let manifest: ArchiveManifestV3 =
+            serde_json::from_reader(zip.by_name(V3_MANIFEST_ENTRY).unwrap()).unwrap();
+        assert_eq!(manifest.groups.len(), 1);
+        assert_eq!(manifest.groups[0].relative_path, "save.dat");
+    }
+
+    #[test]
+    fn failed_capture_leaves_no_visible_archive_or_temp_file() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("snapshot.zip");
+        let plan = CapturePlan {
+            groups: vec![CaptureGroup {
+                id: 0,
+                save_unit_id: 1,
+                candidate_id: "missing".to_string(),
+                dimensions: CandidateDimensions::default(),
+                logical_anchor: temp.path().to_path_buf(),
+                source_path: temp
+                    .path()
+                    .join("missing.sav")
+                    .to_string_lossy()
+                    .into_owned(),
+                relative_path: "missing.sav".to_string(),
+                archive_path: "1/0/data/missing.sav".to_string(),
+                kind: CaptureSourceKind::File,
+                delete_before_apply: false,
+            }],
+        };
+
+        assert!(
+            compress_capture_plan_to_file(&plan, &archive, CompressionPreset::Standard, None,)
+                .is_err()
+        );
+        assert!(!archive.exists());
+        assert!(!archive.with_extension("zip.capture.tmp").exists());
+    }
 }

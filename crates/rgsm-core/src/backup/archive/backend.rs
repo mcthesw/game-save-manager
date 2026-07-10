@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::{
-    backup::{CompressionPreset, SaveUnit},
+    backup::{CapturePlan, CompressionPreset, SaveUnit},
     path_resolver::PathContext,
     preclude::*,
 };
@@ -21,6 +21,15 @@ pub trait ArchiveBackend {
         archive_path: &Path,
         preset: CompressionPreset,
         path_ctx: Option<&PathContext>,
+    ) -> Result<u64, CompressError>;
+
+    /// Compress a fully resolved immutable capture plan as a V3 archive.
+    fn compress_capture_plan(
+        &self,
+        plan: &CapturePlan,
+        archive_path: &Path,
+        preset: CompressionPreset,
+        source_fingerprint: Option<String>,
     ) -> Result<u64, CompressError>;
 
     /// Decompress an archive and restore save units to their original paths.
@@ -49,6 +58,21 @@ impl ArchiveBackend for ZipBackend {
         path_ctx: Option<&PathContext>,
     ) -> Result<u64, CompressError> {
         super::compress::compress_to_file(save_units, archive_path, preset, path_ctx)
+    }
+
+    fn compress_capture_plan(
+        &self,
+        plan: &CapturePlan,
+        archive_path: &Path,
+        preset: CompressionPreset,
+        source_fingerprint: Option<String>,
+    ) -> Result<u64, CompressError> {
+        super::compress::compress_capture_plan_to_file(
+            plan,
+            archive_path,
+            preset,
+            source_fingerprint,
+        )
     }
 
     fn decompress(

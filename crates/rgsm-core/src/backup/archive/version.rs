@@ -13,6 +13,7 @@ use super::compression_preset::CompressionPreset;
 /// The version is encoded in the header itself (e.g., `RGSM_ARCHIVE_V2`),
 /// so future versions use a distinct header (`RGSM_ARCHIVE_V3`, etc.).
 pub const ARCHIVE_COMMENT_HEADER: &str = "RGSM_ARCHIVE_V2";
+pub const ARCHIVE_COMMENT_HEADER_V3: &str = "RGSM_ARCHIVE_V3";
 
 /// Comment marker for V1 archives (local timestamps, flat layout).
 pub(crate) const V1_COMMENT_MARKER: &str = "RGSM_TS_MODE=LOCAL_V1";
@@ -26,6 +27,8 @@ pub enum ArchiveVersion {
     V1,
     /// `RGSM_ARCHIVE_V2` header + JSON body — local timestamps, index-prefixed layout.
     V2,
+    /// `RGSM_ARCHIVE_V3` header + JSON body and an internal capture manifest.
+    V3,
 }
 
 impl ArchiveVersion {
@@ -35,6 +38,9 @@ impl ArchiveVersion {
             Ok(s) => s,
             Err(_) => return Self::Legacy,
         };
+        if s.starts_with(ARCHIVE_COMMENT_HEADER_V3) {
+            return Self::V3;
+        }
         if s.starts_with(ARCHIVE_COMMENT_HEADER) {
             return Self::V2;
         }
@@ -46,12 +52,12 @@ impl ArchiveVersion {
 
     /// V2+ archives prefix entries with `{save_unit_id}/`.
     pub fn uses_save_unit_prefix(self) -> bool {
-        matches!(self, Self::V2)
+        matches!(self, Self::V2 | Self::V3)
     }
 
     /// V1+ archives store timestamps in local time; Legacy uses UTC.
     pub fn uses_local_timestamps(self) -> bool {
-        matches!(self, Self::V1 | Self::V2)
+        matches!(self, Self::V1 | Self::V2 | Self::V3)
     }
 
     /// Normalize an archive entry path by stripping the save-unit prefix if present.
@@ -98,10 +104,23 @@ impl ArchiveMeta {
         }
     }
 
+    pub fn new_v3(preset: CompressionPreset) -> Self {
+        Self {
+            version: 3,
+            compression: preset.comment_id().to_string(),
+            source_fingerprint: None,
+        }
+    }
+
     /// Serialize to a ZIP comment string: header line + JSON body.
     pub fn to_comment(&self) -> String {
         let json = serde_json::to_string(self).expect("ArchiveMeta serialization cannot fail");
-        format!("{ARCHIVE_COMMENT_HEADER}\n{json}")
+        let header = if self.version >= 3 {
+            ARCHIVE_COMMENT_HEADER_V3
+        } else {
+            ARCHIVE_COMMENT_HEADER
+        };
+        format!("{header}\n{json}")
     }
 
     /// Parse from a ZIP comment. Returns `None` for non-V2 archives.
@@ -109,7 +128,8 @@ impl ArchiveMeta {
     pub fn from_comment(comment: &[u8]) -> Option<Self> {
         let s = std::str::from_utf8(comment).ok()?;
         let json_body = s
-            .strip_prefix(ARCHIVE_COMMENT_HEADER)?
+            .strip_prefix(ARCHIVE_COMMENT_HEADER_V3)
+            .or_else(|| s.strip_prefix(ARCHIVE_COMMENT_HEADER))?
             .trim_start_matches('\n');
         serde_json::from_str(json_body).ok()
     }
@@ -141,6 +161,23 @@ mod tests {
     }
 
     #[test]
+    fn version_from_v3_comment() {
+        let meta = ArchiveMeta::new_v3(CompressionPreset::Standard);
+        let comment = meta.to_comment();
+        assert!(comment.starts_with(ARCHIVE_COMMENT_HEADER_V3));
+        assert_eq!(
+            ArchiveVersion::from_comment(comment.as_bytes()),
+            ArchiveVersion::V3
+        );
+        assert_eq!(
+            ArchiveMeta::from_comment(comment.as_bytes())
+                .unwrap()
+                .version,
+            3
+        );
+    }
+
+    #[test]
     fn meta_roundtrip() {
         let meta = ArchiveMeta::new(CompressionPreset::Best);
         let comment = meta.to_comment();
@@ -167,6 +204,8 @@ mod tests {
 
         assert!(ArchiveVersion::V2.uses_local_timestamps());
         assert!(ArchiveVersion::V2.uses_save_unit_prefix());
+        assert!(ArchiveVersion::V3.uses_local_timestamps());
+        assert!(ArchiveVersion::V3.uses_save_unit_prefix());
     }
 
     #[test]

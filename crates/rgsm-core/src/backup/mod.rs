@@ -1,4 +1,5 @@
 mod archive;
+mod capture_plan;
 mod device_binding;
 mod extra_backups;
 mod extra_info;
@@ -16,6 +17,10 @@ mod utils;
 
 pub use archive::{
     ArchiveBackend, CompressionPreset, RestoreNotificationLevel, RestoreNotifier, ZipBackend,
+};
+pub use capture_plan::{
+    CaptureGroup, CapturePlan, CapturePlanError, CapturePreflightFailure, CaptureSourceKind,
+    SaveUnitCaptureInput,
 };
 pub use device_binding::GameDeviceBinding;
 pub use extra_backups::ExtraBackupItem;
