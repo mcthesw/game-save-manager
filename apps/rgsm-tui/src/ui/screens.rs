@@ -335,7 +335,9 @@ fn draw_editor_units(frame: &mut Frame<'_>, area: Rect, app: &App) {
                     ListItem::new(format!(
                         "#{} {} [{}]",
                         unit.id,
-                        save_unit_type_label(&unit.unit_type),
+                        unit.unit_type()
+                            .map(save_unit_type_label)
+                            .unwrap_or_else(|| t!("path_variable.tooltip").to_string()),
                         bool_label(unit.enabled)
                     ))
                     .style(selected_style(index == app.selection.save_unit))
@@ -420,7 +422,9 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
             format!(
                 "{}: {}",
                 t!("addgame.type"),
-                save_unit_type_label(&unit.unit_type)
+                unit.unit_type()
+                    .map(save_unit_type_label)
+                    .unwrap_or_else(|| t!("path_variable.tooltip").to_string())
             ),
             format!(
                 "{}: {}",
@@ -435,15 +439,21 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
             format!(
                 "{}: {}",
                 t!("addgame.path"),
-                unit.paths
-                    .get(&device_id)
+                unit.paths()
+                    .and_then(|paths| paths.get(&device_id))
                     .map(String::as_str)
+                    .or_else(|| unit.manifest_pattern().map(|(pattern, _)| pattern.raw()))
                     .unwrap_or("-")
             ),
             format!(
                 "{}: {}",
                 t!("tui.path.validation"),
-                validate_path_label(unit.paths.get(&device_id).map(String::as_str))
+                validate_path_label(
+                    unit.paths()
+                        .and_then(|paths| paths.get(&device_id))
+                        .map(String::as_str)
+                        .or_else(|| unit.manifest_pattern().map(|(pattern, _)| pattern.raw()))
+                )
             ),
         ]);
     }
@@ -463,7 +473,7 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
         lines.push(format!("{selected}{current} {} ({id})", device.name));
     }
     if matches!(
-        unit.map(|unit| &unit.unit_type),
+        unit.and_then(|unit| unit.unit_type()),
         Some(SaveUnitType::WinRegistry)
     ) {
         lines.push(t!("game_import_customize.registry").to_string());

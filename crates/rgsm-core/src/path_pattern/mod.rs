@@ -5,4 +5,4 @@ pub use model::{
     ManifestPathConstraints, ManifestPathPattern, ParsedManifestPathPattern, PathPlaceholder,
     PathPlaceholderDescriptor, PlatformKind, StoreKind,
 };
-pub use parse::{PathPatternError, parse_manifest_path_pattern};
+pub use parse::{PathPatternError, is_dynamic_manifest_path, parse_manifest_path_pattern};

@@ -132,7 +132,7 @@ fn collect_entries_from_source(
     let mut entries = Vec::new();
 
     for save_unit in save_paths.iter().filter(|save_unit| save_unit.enabled) {
-        if let SaveUnitType::WinRegistry = save_unit.unit_type {
+        if matches!(save_unit.unit_type(), Some(SaveUnitType::WinRegistry)) {
             // Registry content is fingerprinted separately via extend_with_registry().
             continue;
         }
@@ -142,7 +142,10 @@ fn collect_entries_from_source(
             return Err(BackupFileError::NotExists(source_path));
         }
 
-        match save_unit.unit_type {
+        match save_unit
+            .unit_type()
+            .ok_or(BackupFileError::NonePathError)?
+        {
             SaveUnitType::File => {
                 let file_name = source_path
                     .file_name()
@@ -169,7 +172,7 @@ fn collect_entries_from_source(
 fn extend_with_registry(base: String, save_paths: &[SaveUnit]) -> Result<String, CompressError> {
     let mut registry_data = Vec::new();
     for save_unit in save_paths.iter().filter(|save_unit| save_unit.enabled) {
-        if let SaveUnitType::WinRegistry = save_unit.unit_type {
+        if matches!(save_unit.unit_type(), Some(SaveUnitType::WinRegistry)) {
             let reg_path = save_unit
                 .get_path_for_device(get_current_device_id())
                 .ok_or(CompressError::Single(BackupFileError::NonePathError))?;

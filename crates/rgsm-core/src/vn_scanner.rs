@@ -304,13 +304,7 @@ fn create_vn_draft(path: &Path, device_id: &str, save_subpath: &str) -> Option<G
     let mut game_paths = HashMap::new();
     game_paths.insert(device_id.to_string(), path.to_string_lossy().to_string());
 
-    let save_unit = SaveUnitDraft {
-        id: None,
-        unit_type: SaveUnitType::Folder,
-        paths,
-        delete_before_apply: false,
-        enabled: true,
-    };
+    let save_unit = SaveUnitDraft::concrete(None, SaveUnitType::Folder, paths, false, true);
 
     Some(GameDraft {
         name,
@@ -403,7 +397,8 @@ mod tests {
         assert_eq!(draft.name, "MyGame");
         assert_eq!(draft.save_paths.len(), 1);
         let save_path = draft.save_paths[0]
-            .paths
+            .paths()
+            .expect("detected VN path should be concrete")
             .get("test-device")
             .expect("save path should exist");
         assert!(save_path.ends_with("savedata"));
@@ -421,7 +416,8 @@ mod tests {
 
         let draft = detect_renpy(&game_dir, "test-device").expect("renpy game should be detected");
         let save_path = draft.save_paths[0]
-            .paths
+            .paths()
+            .expect("detected VN path should be concrete")
             .get("test-device")
             .expect("save path should exist");
 

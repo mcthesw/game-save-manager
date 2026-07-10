@@ -1,15 +1,15 @@
-use serde::{Deserialize, Serialize};
-use specta::Type;
 use std::collections::HashMap;
-use std::path::PathBuf;
+
+use serde::{Deserialize, Deserializer, Serialize};
+use specta::Type;
 
 use crate::default_value;
 use crate::device::{DeviceId, get_current_device_id};
+use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
 use crate::path_resolver::PathContext;
 use crate::preclude::BackupFileError;
 
-/// The kind of data a save unit backs up.
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub enum SaveUnitType {
     File,
     Folder,
@@ -17,55 +17,178 @@ pub enum SaveUnitType {
     WinRegistry,
 }
 
-/// A save unit declares one of the files/folders
-/// that should be backup for a game.
-///
-/// The `id` field is a stable identifier used as the index prefix in V2 archives.
-/// Unlike positional indices, it does not change when save units are added or removed,
-/// ensuring old archives can always be restored correctly. The backend will
-/// normalize duplicated IDs when persisting config.
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum SaveUnitSource {
+    Concrete {
+        unit_type: SaveUnitType,
+        #[serde(default)]
+        paths: HashMap<DeviceId, String>,
+    },
+    ManifestPattern {
+        pattern: ManifestPathPattern,
+        #[serde(default)]
+        constraints: ManifestPathConstraints,
+    },
+}
+
+/// A save unit declares one concrete per-Device location or one portable
+/// Manifest Path Pattern. Dynamic patterns deliberately do not guess whether
+/// their future matches will be files or directories.
+#[derive(Debug, Serialize, Clone, Type)]
 pub struct SaveUnit {
-    /// Stable identifier for this save unit, used as archive entry prefix in V2 format.
-    /// Provided by the caller (frontend/CLI/FFI) and kept unique by backend normalization.
     #[serde(default)]
     pub id: u32,
-    pub unit_type: SaveUnitType,
-    #[serde(default)] // 如果反序列化时字段不存在，则使用默认值 (空 HashMap)
-    pub paths: HashMap<DeviceId, String>, // 存储不同设备的路径
+    pub source: SaveUnitSource,
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
     #[serde(default = "default_value::default_true")]
     pub enabled: bool,
 }
 
-/// Frontend/IPC input shape for save-unit editing.
-/// Existing rows may provide `id` to preserve archive compatibility during edits;
-/// backend logic allocates IDs for new rows and normalizes duplicates.
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Deserialize)]
+struct SaveUnitWire {
+    #[serde(default)]
+    id: u32,
+    #[serde(default)]
+    source: Option<SaveUnitSource>,
+    #[serde(default)]
+    unit_type: Option<SaveUnitType>,
+    #[serde(default)]
+    paths: HashMap<DeviceId, String>,
+    #[serde(default = "default_value::default_false")]
+    delete_before_apply: bool,
+    #[serde(default = "default_value::default_true")]
+    enabled: bool,
+}
+
+impl<'de> Deserialize<'de> for SaveUnit {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = SaveUnitWire::deserialize(deserializer)?;
+        let source = match (wire.source, wire.unit_type) {
+            (Some(source), _) => source,
+            (None, Some(unit_type)) => SaveUnitSource::Concrete {
+                unit_type,
+                paths: wire.paths,
+            },
+            (None, None) => {
+                return Err(serde::de::Error::missing_field("source"));
+            }
+        };
+        Ok(Self {
+            id: wire.id,
+            source,
+            delete_before_apply: wire.delete_before_apply,
+            enabled: wire.enabled,
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Clone, Type)]
 pub struct SaveUnitDraft {
     #[serde(default)]
     pub id: Option<u32>,
-    pub unit_type: SaveUnitType,
-    #[serde(default)]
-    pub paths: HashMap<DeviceId, String>,
+    pub source: SaveUnitSource,
     #[serde(default = "default_value::default_false")]
     pub delete_before_apply: bool,
     #[serde(default = "default_value::default_true")]
     pub enabled: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct SaveUnitDraftWire {
+    #[serde(default)]
+    id: Option<u32>,
+    #[serde(default)]
+    source: Option<SaveUnitSource>,
+    #[serde(default)]
+    unit_type: Option<SaveUnitType>,
+    #[serde(default)]
+    paths: HashMap<DeviceId, String>,
+    #[serde(default = "default_value::default_false")]
+    delete_before_apply: bool,
+    #[serde(default = "default_value::default_true")]
+    enabled: bool,
+}
+
+impl<'de> Deserialize<'de> for SaveUnitDraft {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = SaveUnitDraftWire::deserialize(deserializer)?;
+        let source = match (wire.source, wire.unit_type) {
+            (Some(source), _) => source,
+            (None, Some(unit_type)) => SaveUnitSource::Concrete {
+                unit_type,
+                paths: wire.paths,
+            },
+            (None, None) => {
+                return Err(serde::de::Error::missing_field("source"));
+            }
+        };
+        Ok(Self {
+            id: wire.id,
+            source,
+            delete_before_apply: wire.delete_before_apply,
+            enabled: wire.enabled,
+        })
+    }
+}
+
 impl SaveUnit {
-    /// 获取指定设备的路径
-    pub fn get_path_for_device(&self, device_id: &DeviceId) -> Option<&String> {
-        self.paths.get(device_id)
+    pub fn concrete(
+        id: u32,
+        unit_type: SaveUnitType,
+        paths: HashMap<DeviceId, String>,
+        delete_before_apply: bool,
+        enabled: bool,
+    ) -> Self {
+        Self {
+            id,
+            source: SaveUnitSource::Concrete { unit_type, paths },
+            delete_before_apply,
+            enabled,
+        }
     }
 
-    /// Resolve this save unit path for the current device.
+    pub fn get_path_for_device(&self, device_id: &DeviceId) -> Option<&String> {
+        self.paths()?.get(device_id)
+    }
+
+    pub fn unit_type(&self) -> Option<&SaveUnitType> {
+        match &self.source {
+            SaveUnitSource::Concrete { unit_type, .. } => Some(unit_type),
+            SaveUnitSource::ManifestPattern { .. } => None,
+        }
+    }
+
+    pub fn paths(&self) -> Option<&HashMap<DeviceId, String>> {
+        match &self.source {
+            SaveUnitSource::Concrete { paths, .. } => Some(paths),
+            SaveUnitSource::ManifestPattern { .. } => None,
+        }
+    }
+
+    pub fn manifest_pattern(&self) -> Option<(&ManifestPathPattern, &ManifestPathConstraints)> {
+        match &self.source {
+            SaveUnitSource::ManifestPattern {
+                pattern,
+                constraints,
+            } => Some((pattern, constraints)),
+            SaveUnitSource::Concrete { .. } => None,
+        }
+    }
+
+    /// Transitional concrete-path adapter. Dynamic sources are resolved by the
+    /// application service and never enter this scalar compatibility path.
     pub fn resolve_path_for_current_device(
         &self,
         path_ctx: Option<&PathContext>,
-    ) -> Result<PathBuf, BackupFileError> {
+    ) -> Result<std::path::PathBuf, BackupFileError> {
         let current_device_id = get_current_device_id();
         let unit_path_str = self
             .get_path_for_device(current_device_id)
@@ -77,5 +200,102 @@ impl SaveUnit {
             path_ctx,
             &config,
         )?)
+    }
+}
+
+impl SaveUnitDraft {
+    pub fn concrete(
+        id: Option<u32>,
+        unit_type: SaveUnitType,
+        paths: HashMap<DeviceId, String>,
+        delete_before_apply: bool,
+        enabled: bool,
+    ) -> Self {
+        Self {
+            id,
+            source: SaveUnitSource::Concrete { unit_type, paths },
+            delete_before_apply,
+            enabled,
+        }
+    }
+
+    pub fn paths_mut(&mut self) -> Option<&mut HashMap<DeviceId, String>> {
+        match &mut self.source {
+            SaveUnitSource::Concrete { paths, .. } => Some(paths),
+            SaveUnitSource::ManifestPattern { .. } => None,
+        }
+    }
+
+    pub fn paths(&self) -> Option<&HashMap<DeviceId, String>> {
+        match &self.source {
+            SaveUnitSource::Concrete { paths, .. } => Some(paths),
+            SaveUnitSource::ManifestPattern { .. } => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_concrete_shape_deserializes_and_serializes_as_typed_source() {
+        let legacy = serde_json::json!({
+            "id": 3,
+            "unit_type": "Folder",
+            "paths": { "device": "C:/Saves" },
+            "delete_before_apply": true,
+            "enabled": true
+        });
+
+        let unit: SaveUnit = serde_json::from_value(legacy).unwrap();
+        assert_eq!(unit.unit_type(), Some(&SaveUnitType::Folder));
+        assert_eq!(
+            unit.get_path_for_device(&"device".to_string())
+                .map(String::as_str),
+            Some("C:/Saves")
+        );
+
+        let serialized = serde_json::to_value(unit).unwrap();
+        assert_eq!(
+            serialized
+                .pointer("/source/type")
+                .and_then(serde_json::Value::as_str),
+            Some("concrete")
+        );
+        assert!(serialized.get("unit_type").is_none());
+        assert!(serialized.get("paths").is_none());
+    }
+
+    #[test]
+    fn manifest_pattern_has_no_concrete_type_or_device_paths() {
+        let unit = SaveUnit {
+            id: 1,
+            source: SaveUnitSource::ManifestPattern {
+                pattern: ManifestPathPattern::new("<home>/*.sav"),
+                constraints: ManifestPathConstraints::default(),
+            },
+            delete_before_apply: false,
+            enabled: true,
+        };
+
+        assert!(unit.unit_type().is_none());
+        assert!(unit.paths().is_none());
+        assert_eq!(unit.manifest_pattern().unwrap().0.raw(), "<home>/*.sav");
+    }
+
+    #[test]
+    fn nested_source_fields_match_generated_binding_names() {
+        let source = SaveUnitSource::Concrete {
+            unit_type: SaveUnitType::File,
+            paths: HashMap::new(),
+        };
+
+        let serialized = serde_json::to_value(source).unwrap();
+        assert_eq!(
+            serialized.get("unit_type"),
+            Some(&serde_json::json!("File"))
+        );
+        assert!(serde_json::from_value::<SaveUnitSource>(serialized).is_ok());
     }
 }

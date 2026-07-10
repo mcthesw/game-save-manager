@@ -181,11 +181,14 @@ fn restore_folder_unit(
 
 /// Emit a notification to the frontend indicating that a save unit was skipped during restore.
 fn save_unit_label(unit: &SaveUnit) -> String {
-    if let Some(path) = unit.paths.get(get_current_device_id()) {
+    let Some(paths) = unit.paths() else {
+        return format!("#{}", unit.id);
+    };
+    if let Some(path) = paths.get(get_current_device_id()) {
         return path.clone();
     }
 
-    let mut entries: Vec<_> = unit.paths.iter().collect();
+    let mut entries: Vec<_> = paths.iter().collect();
     entries.sort_by(|(left_id, left_path), (right_id, right_path)| {
         left_id
             .cmp(right_id)
@@ -313,7 +316,7 @@ fn restore_save_unit_from_temp(
     notifier: Option<&dyn RestoreNotifier>,
     path_ctx: Option<&PathContext>,
 ) -> Result<RestoreOutcome, BackupFileError> {
-    if let SaveUnitType::WinRegistry = unit.unit_type {
+    if matches!(unit.unit_type(), Some(SaveUnitType::WinRegistry)) {
         return restore_registry_unit(unit, version, temp_root);
     }
 
@@ -336,7 +339,7 @@ fn restore_save_unit_from_temp(
         return Ok(RestoreOutcome::Skipped(SkipReason::MissingArchiveEntry));
     };
 
-    match unit.unit_type {
+    match unit.unit_type().ok_or(BackupFileError::NonePathError)? {
         SaveUnitType::File => {
             restore_file_unit(unit, original_path, unit_path, notifier)?;
             Ok(RestoreOutcome::Restored)
@@ -421,13 +424,7 @@ mod tests {
         paths.insert("z-device".to_string(), "Z:\\save".to_string());
         paths.insert("a-device".to_string(), "A:\\save".to_string());
 
-        let unit = SaveUnit {
-            id: 7,
-            unit_type: SaveUnitType::Folder,
-            paths,
-            delete_before_apply: false,
-            enabled: true,
-        };
+        let unit = SaveUnit::concrete(7, SaveUnitType::Folder, paths, false, true);
 
         assert_eq!(save_unit_label(&unit), "A:\\save");
     }
@@ -436,8 +433,10 @@ mod tests {
     fn save_unit_label_falls_back_to_id_when_no_paths_exist() {
         let unit = SaveUnit {
             id: 42,
-            unit_type: SaveUnitType::File,
-            paths: HashMap::new(),
+            source: crate::backup::SaveUnitSource::Concrete {
+                unit_type: SaveUnitType::File,
+                paths: HashMap::new(),
+            },
             delete_before_apply: false,
             enabled: true,
         };

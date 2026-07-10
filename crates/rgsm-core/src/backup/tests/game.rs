@@ -34,13 +34,7 @@ fn build_file_save_unit(path: &Path) -> SaveUnit {
         get_current_device_id().clone(),
         path.to_string_lossy().to_string(),
     );
-    SaveUnit {
-        id: 0,
-        unit_type: SaveUnitType::File,
-        paths,
-        delete_before_apply: false,
-        enabled: true,
-    }
+    SaveUnit::concrete(0, SaveUnitType::File, paths, false, true)
 }
 
 fn init_backups_json(game_name: &str, backup_root: &Path) -> TestResult {
@@ -701,29 +695,37 @@ fn normalize_save_unit_ids_reassigns_duplicates() {
         save_paths: vec![
             SaveUnit {
                 id: 0,
-                unit_type: SaveUnitType::File,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnit {
                 id: 0,
-                unit_type: SaveUnitType::Folder,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::Folder,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnit {
                 id: 2,
-                unit_type: SaveUnitType::File,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnit {
                 id: 2,
-                unit_type: SaveUnitType::Folder,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::Folder,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
@@ -751,22 +753,28 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
         save_paths: vec![
             SaveUnit {
                 id: 0,
-                unit_type: SaveUnitType::File,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnit {
                 id: 0,
-                unit_type: SaveUnitType::Folder,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::Folder,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnit {
                 id: 0,
-                unit_type: SaveUnitType::File,
-                paths: HashMap::new(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: HashMap::new(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
@@ -828,15 +836,19 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
         save_paths: vec![
             SaveUnit {
                 id: 5,
-                unit_type: SaveUnitType::File,
-                paths: existing_path_a.clone(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: existing_path_a.clone(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnit {
                 id: 7,
-                unit_type: SaveUnitType::File,
-                paths: existing_path_b,
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: existing_path_b,
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
@@ -856,15 +868,19 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
         save_paths: vec![
             SaveUnitDraft {
                 id: None,
-                unit_type: SaveUnitType::File,
-                paths: existing_path_a,
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: existing_path_a,
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnitDraft {
                 id: None,
-                unit_type: SaveUnitType::File,
-                paths: new_path,
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: new_path,
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
@@ -892,8 +908,10 @@ fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
         storage_key: String::new(),
         save_paths: vec![SaveUnit {
             id: 5,
-            unit_type: SaveUnitType::File,
-            paths: existing_path,
+            source: crate::backup::SaveUnitSource::Concrete {
+                unit_type: SaveUnitType::File,
+                paths: existing_path,
+            },
             delete_before_apply: false,
             enabled: true,
         }],
@@ -911,8 +929,10 @@ fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
         name: "DraftEdit".to_string(),
         save_paths: vec![SaveUnitDraft {
             id: Some(5),
-            unit_type: SaveUnitType::File,
-            paths: updated_path.clone(),
+            source: crate::backup::SaveUnitSource::Concrete {
+                unit_type: SaveUnitType::File,
+                paths: updated_path.clone(),
+            },
             delete_before_apply: true,
             enabled: true,
         }],
@@ -925,7 +945,7 @@ fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
 
     assert_eq!(game.save_paths.len(), 1);
     assert_eq!(game.save_paths[0].id, 5);
-    assert_eq!(game.save_paths[0].paths, updated_path);
+    assert_eq!(game.save_paths[0].paths(), Some(&updated_path));
     assert!(game.save_paths[0].delete_before_apply);
     assert_eq!(game.next_save_unit_id, 6);
 }
@@ -941,8 +961,10 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
         storage_key: String::new(),
         save_paths: vec![SaveUnit {
             id: 5,
-            unit_type: SaveUnitType::File,
-            paths: existing_path.clone(),
+            source: crate::backup::SaveUnitSource::Concrete {
+                unit_type: SaveUnitType::File,
+                paths: existing_path.clone(),
+            },
             delete_before_apply: false,
             enabled: true,
         }],
@@ -964,15 +986,19 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
         save_paths: vec![
             SaveUnitDraft {
                 id: Some(5),
-                unit_type: SaveUnitType::File,
-                paths: updated_path,
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: updated_path,
+                },
                 delete_before_apply: false,
                 enabled: true,
             },
             SaveUnitDraft {
                 id: None,
-                unit_type: SaveUnitType::File,
-                paths: new_path,
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: new_path,
+                },
                 delete_before_apply: false,
                 enabled: true,
             },

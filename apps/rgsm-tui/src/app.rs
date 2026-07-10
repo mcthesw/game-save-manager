@@ -288,6 +288,13 @@ impl App {
             .unwrap_or_default()
     }
 
+    pub fn selected_import_path_overrides(&self) -> Option<Vec<String>> {
+        let candidate = self.selected_import_candidate()?;
+        self.import_path_overrides
+            .get(&candidate.game.name)
+            .cloned()
+    }
+
     pub fn draw(&mut self, terminal: &mut TuiTerminal) -> Result<()> {
         terminal.draw(|frame| crate::ui::draw(frame, self))?;
         Ok(())

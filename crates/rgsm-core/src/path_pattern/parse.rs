@@ -16,6 +16,10 @@ pub enum PathPatternError {
     InvalidGlob { message: String },
 }
 
+pub fn is_dynamic_manifest_path(raw: &str) -> bool {
+    raw.contains('<') || raw.contains('*') || raw.contains('?')
+}
+
 pub fn parse_manifest_path_pattern(
     raw: impl Into<String>,
 ) -> Result<ParsedManifestPathPattern, PathPatternError> {
@@ -112,5 +116,10 @@ mod tests {
             parse_manifest_path_pattern("<home>/save/[abc"),
             Err(PathPatternError::InvalidGlob { .. })
         ));
+    }
+
+    #[test]
+    fn literal_brackets_alone_do_not_make_a_legacy_path_dynamic() {
+        assert!(!is_dynamic_manifest_path("C:/Games/Game[One]/save.dat"));
     }
 }

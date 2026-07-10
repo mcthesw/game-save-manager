@@ -153,7 +153,7 @@ where
 {
     let id_prefix = PathBuf::from(save_unit.id.to_string());
 
-    if let SaveUnitType::WinRegistry = save_unit.unit_type {
+    if matches!(save_unit.unit_type(), Some(SaveUnitType::WinRegistry)) {
         return append_registry_unit(writer, save_unit, &id_prefix, preset);
     }
 
@@ -162,7 +162,10 @@ where
         return Err(BackupFileError::NotExists(unit_path));
     }
 
-    match save_unit.unit_type {
+    match save_unit
+        .unit_type()
+        .ok_or(BackupFileError::NonePathError)?
+    {
         SaveUnitType::File => {
             let file_name = unit_path
                 .file_name()
