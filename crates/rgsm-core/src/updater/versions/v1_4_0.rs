@@ -60,13 +60,7 @@ impl From<Config> for CurrentConfig {
                     .map(|su| {
                         let mut paths = HashMap::new();
                         paths.insert(current_device_id.clone(), su.path);
-                        SaveUnit {
-                            id: 0,
-                            unit_type: su.unit_type,
-                            paths,
-                            delete_before_apply: su.delete_before_apply,
-                            enabled: true,
-                        }
+                        SaveUnit::concrete(0, su.unit_type, paths, su.delete_before_apply, true)
                     })
                     .collect();
                 CurrentGame {

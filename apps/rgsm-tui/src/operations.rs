@@ -4,7 +4,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use rgsm_core::backup::{
-    CreatedBy, Game, GameDraft, SaveUnitDraft, SaveUnitType, StoreGameId, list_extra_backups,
+    CreatedBy, Game, GameDraft, SaveUnitDraft, SaveUnitSource, SaveUnitType, StoreGameId,
+    list_extra_backups,
 };
 use rgsm_core::cloud_sync::{
     Backend, CloudBackendCheckOutcome, CloudSettings, CloudSyncSessionConfig, CloudSyncTaskManager,
@@ -54,7 +55,7 @@ pub enum Operation {
     ImportGuiProfile(String),
     ImportGame {
         name: String,
-        save_paths: Vec<String>,
+        path_overrides: Option<Vec<String>>,
     },
     ReloadData,
     UpdateCurrentDeviceName(String),
@@ -254,13 +255,13 @@ async fn run_operation(
             let mut draft = draft_from_game(&game, None);
             let mut paths = HashMap::new();
             paths.insert(get_current_device_id().clone(), path);
-            draft.save_paths.push(SaveUnitDraft {
-                id: None,
-                unit_type: SaveUnitType::Folder,
+            draft.save_paths.push(SaveUnitDraft::concrete(
+                None,
+                SaveUnitType::Folder,
                 paths,
-                delete_before_apply: false,
-                enabled: true,
-            });
+                false,
+                true,
+            ));
             service
                 .update_game(&game.storage_key, &draft, HookSource::UserManual)
                 .await?;
@@ -271,7 +272,9 @@ async fn run_operation(
             let Some(unit) = draft.save_paths.get_mut(index) else {
                 return Err(anyhow!("save unit index out of range"));
             };
-            unit.paths.insert(get_current_device_id().clone(), path);
+            unit.paths_mut()
+                .ok_or_else(|| anyhow!("manifest patterns are edited as portable sources"))?
+                .insert(get_current_device_id().clone(), path);
             service
                 .update_game(&game.storage_key, &draft, HookSource::UserManual)
                 .await?;
@@ -417,8 +420,11 @@ async fn run_operation(
                 report.source_backup_path.display()
             ))
         }
-        Operation::ImportGame { name, save_paths } => {
-            import_ludusavi_game(&service, &name, save_paths).await?;
+        Operation::ImportGame {
+            name,
+            path_overrides,
+        } => {
+            import_ludusavi_game(&service, &name, path_overrides).await?;
             Ok(format!("imported {name}"))
         }
         Operation::ReloadData => Ok("data refreshed".to_string()),
@@ -487,8 +493,7 @@ fn draft_from_game(game: &Game, name_override: Option<String>) -> GameDraft {
             .iter()
             .map(|unit| SaveUnitDraft {
                 id: Some(unit.id),
-                unit_type: unit.unit_type.clone(),
-                paths: unit.paths.clone(),
+                source: unit.source.clone(),
                 delete_before_apply: unit.delete_before_apply,
                 enabled: unit.enabled,
             })
@@ -502,7 +507,7 @@ fn draft_from_game(game: &Game, name_override: Option<String>) -> GameDraft {
 async fn import_ludusavi_game(
     service: &ServiceContext,
     name: &str,
-    save_paths: Vec<String>,
+    path_overrides: Option<Vec<String>>,
 ) -> Result<()> {
     let config = get_config()?;
     if config
@@ -516,32 +521,55 @@ async fn import_ludusavi_game(
     let value = manifest
         .get(name)
         .ok_or_else(|| anyhow!("manifest game not found"))?;
-    let paths = if save_paths.is_empty() {
-        ludusavi_manifest::extract_save_paths(name, value)?
+    let save_paths = if let Some(save_paths) = path_overrides {
+        save_paths
             .into_iter()
-            .map(|save_path| save_path.path)
+            .map(|path| {
+                let mut paths = HashMap::new();
+                paths.insert(get_current_device_id().clone(), path.clone());
+                SaveUnitDraft::concrete(
+                    None,
+                    if path.starts_with("REGISTRY:") {
+                        SaveUnitType::WinRegistry
+                    } else {
+                        SaveUnitType::Folder
+                    },
+                    paths,
+                    config.settings.default_delete_before_apply,
+                    true,
+                )
+            })
             .collect()
     } else {
-        save_paths
-    };
-    let save_paths = paths
-        .into_iter()
-        .map(|path| {
-            let mut paths = HashMap::new();
-            paths.insert(get_current_device_id().clone(), path.clone());
-            SaveUnitDraft {
-                id: None,
-                unit_type: if path.starts_with("REGISTRY:") {
-                    SaveUnitType::WinRegistry
+        ludusavi_manifest::extract_save_paths(name, value)?
+            .into_iter()
+            .map(|save_path| {
+                if save_path.path.starts_with("REGISTRY:") {
+                    let mut paths = HashMap::new();
+                    paths.insert(get_current_device_id().clone(), save_path.path);
+                    SaveUnitDraft::concrete(
+                        None,
+                        SaveUnitType::WinRegistry,
+                        paths,
+                        config.settings.default_delete_before_apply,
+                        true,
+                    )
                 } else {
-                    SaveUnitType::Folder
-                },
-                paths,
-                delete_before_apply: config.settings.default_delete_before_apply,
-                enabled: true,
-            }
-        })
-        .collect();
+                    SaveUnitDraft {
+                        id: None,
+                        source: SaveUnitSource::ManifestPattern {
+                            pattern: rgsm_core::path_pattern::ManifestPathPattern::new(
+                                save_path.path,
+                            ),
+                            constraints: save_path.constraints,
+                        },
+                        delete_before_apply: config.settings.default_delete_before_apply,
+                        enabled: true,
+                    }
+                }
+            })
+            .collect()
+    };
     let draft = GameDraft {
         name: name.to_string(),
         save_paths,

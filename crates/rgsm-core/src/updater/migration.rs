@@ -7,10 +7,14 @@ use semver::Version;
 use serde_json::Value;
 
 use crate::backup::storage_key::generate_unique_storage_key;
-use crate::backup::{GameDeviceBinding, GameSnapshots, StoreGameId, TIMER_AUTO_BACKUP_DESCRIPTION};
+use crate::backup::{
+    GameDeviceBinding, GameSnapshots, SaveUnitSource, StoreGameId, TIMER_AUTO_BACKUP_DESCRIPTION,
+};
 use crate::config::{Config, resolve_backup_path};
 use crate::device::{DeviceResourceKind, DeviceResourceSource, get_current_device_id};
-use crate::path_pattern::StoreKind;
+use crate::path_pattern::{
+    ManifestPathConstraints, ManifestPathPattern, StoreKind, is_dynamic_manifest_path,
+};
 use crate::preclude::*;
 use crate::updater::{
     probe::probe_config_version,
@@ -39,7 +43,7 @@ use crate::updater::{
 pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     let path: &Path = path.as_ref();
     let content = fs::read_to_string(path)?;
-    let needs_resource_migration = has_legacy_path_resource_shape(&content)?;
+    let needs_path_migration = has_legacy_path_schema(&content)?;
     let version = probe_config_version(path)?;
     let current = Version::parse(CURRENT_VERSION)?;
     let min_supported = Version::parse(MIN_SUPPORTED_VERSION)?;
@@ -77,7 +81,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
             min_supported,
         });
     }
-    if version == current && !needs_resource_migration {
+    if version == current && !needs_path_migration {
         return Ok(false);
     }
 
@@ -124,7 +128,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     Ok(true)
 }
 
-fn has_legacy_path_resource_shape(content: &str) -> Result<bool, UpdaterError> {
+fn has_legacy_path_schema(content: &str) -> Result<bool, UpdaterError> {
     let raw: Value = serde_json::from_str(content)?;
     let legacy_device = raw
         .get("devices")
@@ -148,6 +152,15 @@ fn has_legacy_path_resource_shape(content: &str) -> Result<bool, UpdaterError> {
                             .and_then(Value::as_object)
                             .is_some_and(|meta| {
                                 meta.contains_key("steamId") || meta.contains_key("steam_id")
+                            })
+                        || game
+                            .get("save_paths")
+                            .and_then(Value::as_array)
+                            .is_some_and(|units| {
+                                units.iter().any(|unit| {
+                                    unit.as_object()
+                                        .is_some_and(|unit| !unit.contains_key("source"))
+                                })
                             })
                 })
             })
@@ -203,6 +216,30 @@ fn migrate_path_resource_schema(
     if let Some(raw_games) = raw.get("games").and_then(Value::as_array) {
         let (games, devices) = (&mut config.games, &mut config.devices);
         for (game, raw_game) in games.iter_mut().zip(raw_games.iter()) {
+            if let Some(raw_units) = raw_game.get("save_paths").and_then(Value::as_array) {
+                for (unit, raw_unit) in game.save_paths.iter_mut().zip(raw_units.iter()) {
+                    if raw_unit
+                        .as_object()
+                        .is_some_and(|unit| unit.contains_key("source"))
+                    {
+                        continue;
+                    }
+                    let SaveUnitSource::Concrete { paths, .. } = &unit.source else {
+                        continue;
+                    };
+                    let unique_paths = paths.values().collect::<std::collections::BTreeSet<_>>();
+                    let patterns = unique_paths.into_iter().collect::<Vec<_>>();
+                    if let [raw_pattern] = patterns.as_slice()
+                        && is_dynamic_manifest_path(raw_pattern)
+                    {
+                        unit.source = SaveUnitSource::ManifestPattern {
+                            pattern: ManifestPathPattern::new((*raw_pattern).clone()),
+                            constraints: ManifestPathConstraints::default(),
+                        };
+                    }
+                }
+            }
+
             if let Some(steam_id) = raw_game
                 .get("ludusavi_meta")
                 .and_then(|meta| meta.get("steamId").or_else(|| meta.get("steam_id")))
@@ -734,15 +771,19 @@ mod tests {
             save_paths: vec![
                 SaveUnit {
                     id: 0,
-                    unit_type: SaveUnitType::Folder,
-                    paths: Default::default(),
+                    source: crate::backup::SaveUnitSource::Concrete {
+                        unit_type: SaveUnitType::Folder,
+                        paths: Default::default(),
+                    },
                     delete_before_apply: false,
                     enabled: true,
                 },
                 SaveUnit {
                     id: 0,
-                    unit_type: SaveUnitType::File,
-                    paths: Default::default(),
+                    source: crate::backup::SaveUnitSource::Concrete {
+                        unit_type: SaveUnitType::File,
+                        paths: Default::default(),
+                    },
                     delete_before_apply: false,
                     enabled: true,
                 },
@@ -770,8 +811,10 @@ mod tests {
             storage_key: String::new(),
             save_paths: vec![SaveUnit {
                 id: 5,
-                unit_type: SaveUnitType::File,
-                paths: Default::default(),
+                source: crate::backup::SaveUnitSource::Concrete {
+                    unit_type: SaveUnitType::File,
+                    paths: Default::default(),
+                },
                 delete_before_apply: false,
                 enabled: true,
             }],
@@ -971,7 +1014,16 @@ mod tests {
         config.games.push(crate::backup::Game {
             name: "Legacy Game".to_string(),
             storage_key: "legacy-game".to_string(),
-            save_paths: Vec::new(),
+            save_paths: vec![SaveUnit::concrete(
+                4,
+                SaveUnitType::Folder,
+                std::collections::HashMap::from([(
+                    device_id.clone(),
+                    "<home>/Legacy Game/**/*.sav".to_string(),
+                )]),
+                false,
+                true,
+            )],
             game_paths: std::collections::HashMap::from([(
                 device_id.clone(),
                 "D:/Games/Legacy Game/game.exe".to_string(),
@@ -995,6 +1047,18 @@ mod tests {
             .pointer_mut("/games/0")
             .and_then(Value::as_object_mut)
             .unwrap();
+        let raw_unit = raw_game
+            .get_mut("save_paths")
+            .and_then(Value::as_array_mut)
+            .and_then(|units| units.first_mut())
+            .and_then(Value::as_object_mut)
+            .unwrap();
+        let mut source = raw_unit
+            .remove("source")
+            .and_then(|source| source.as_object().cloned())
+            .unwrap();
+        raw_unit.insert("unit_type".to_string(), source.remove("unit_type").unwrap());
+        raw_unit.insert("paths".to_string(), source.remove("paths").unwrap());
         raw_game.insert(
             "store_user_ids".to_string(),
             serde_json::json!({ device_id.clone(): "12345678" }),
@@ -1039,6 +1103,15 @@ mod tests {
         assert_eq!(
             migrated.games[0].game_paths[&device_id],
             "D:/Games/Legacy Game/game.exe"
+        );
+        assert_eq!(migrated.games[0].save_paths[0].id, 4);
+        assert_eq!(
+            migrated.games[0].save_paths[0]
+                .manifest_pattern()
+                .unwrap()
+                .0
+                .raw(),
+            "<home>/Legacy Game/**/*.sav"
         );
         assert_eq!(migrated.games[0].next_save_unit_id, 7);
         assert!(!update_config(&config_path)?);

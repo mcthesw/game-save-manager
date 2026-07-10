@@ -27,7 +27,7 @@ pub use game::{
     AutoBackupConfig, Game, GameDraft, LudusaviMeta, StoreGameId, TimerSnapshotDecision,
 };
 pub use game_snapshots::GameSnapshots;
-pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitType};
+pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitSource, SaveUnitType};
 pub use snapshot::{CreatedBy, Snapshot};
 pub use state_fingerprint::compute_file_hash;
 pub use utils::*;

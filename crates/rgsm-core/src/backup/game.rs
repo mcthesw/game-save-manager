@@ -114,18 +114,28 @@ pub struct GameDraft {
     pub device_bindings: HashMap<DeviceId, GameDeviceBinding>,
 }
 
-fn save_unit_identity(
-    unit_type: &crate::backup::SaveUnitType,
-    paths: &HashMap<DeviceId, String>,
-) -> String {
-    let mut entries: Vec<_> = paths.iter().collect();
-    entries.sort_by_key(|(left_id, _)| *left_id);
-    let paths_key = entries
-        .into_iter()
-        .map(|(device_id, path)| format!("{device_id}={path}"))
-        .collect::<Vec<_>>()
-        .join("|");
-    format!("{unit_type:?}|{paths_key}")
+fn save_unit_identity(source: &crate::backup::SaveUnitSource) -> String {
+    match source {
+        crate::backup::SaveUnitSource::Concrete { unit_type, paths } => {
+            let mut entries = paths.iter().collect::<Vec<_>>();
+            entries.sort_by_key(|(device_id, _)| *device_id);
+            let paths_key = entries
+                .into_iter()
+                .map(|(device_id, path)| format!("{device_id}={path}"))
+                .collect::<Vec<_>>()
+                .join("|");
+            format!("concrete:{unit_type:?}|{paths_key}")
+        }
+        crate::backup::SaveUnitSource::ManifestPattern {
+            pattern,
+            constraints,
+        } => format!(
+            "manifest:{}|{:?}|{:?}",
+            pattern.raw(),
+            constraints.os,
+            constraints.stores
+        ),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,7 +182,7 @@ impl GameDraft {
 
         if let Some(existing_game) = existing {
             for save_unit in &existing_game.save_paths {
-                let identity = save_unit_identity(&save_unit.unit_type, &save_unit.paths);
+                let identity = save_unit_identity(&save_unit.source);
                 existing_ids_by_identity
                     .entry(identity)
                     .or_default()
@@ -186,7 +196,7 @@ impl GameDraft {
         let mut used_ids = HashSet::new();
         let mut save_paths = Vec::with_capacity(self.save_paths.len());
         for draft in self.save_paths {
-            let identity = save_unit_identity(&draft.unit_type, &draft.paths);
+            let identity = save_unit_identity(&draft.source);
             let id = if let Some(id) = draft.id {
                 used_ids.insert(id);
                 if id >= next_save_unit_id {
@@ -222,8 +232,7 @@ impl GameDraft {
 
             save_paths.push(SaveUnit {
                 id,
-                unit_type: draft.unit_type,
-                paths: draft.paths,
+                source: draft.source,
                 delete_before_apply: draft.delete_before_apply,
                 enabled: draft.enabled,
             });

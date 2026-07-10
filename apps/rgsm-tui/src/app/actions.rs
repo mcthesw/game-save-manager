@@ -209,7 +209,8 @@ impl App {
         let initial = game
             .save_paths
             .get(self.selection.save_unit)
-            .and_then(|unit| unit.paths.get(current_id))
+            .and_then(|unit| unit.paths())
+            .and_then(|paths| paths.get(current_id))
             .cloned()
             .unwrap_or_default();
         self.prompt(
@@ -629,7 +630,7 @@ impl App {
                 if let Some(candidate) = self.selected_import_candidate() {
                     self.submit(Operation::ImportGame {
                         name: candidate.game.name.clone(),
-                        save_paths: self.selected_import_paths(),
+                        path_overrides: self.selected_import_path_overrides(),
                     });
                 }
             }

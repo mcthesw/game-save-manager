@@ -35,26 +35,14 @@ mod tests {
             get_current_device_id().clone(),
             path.to_string_lossy().to_string(),
         );
-        SaveUnit {
-            id,
-            unit_type: SaveUnitType::File,
-            paths,
-            delete_before_apply: false,
-            enabled: true,
-        }
+        SaveUnit::concrete(id, SaveUnitType::File, paths, false, true)
     }
 
     #[cfg(target_os = "windows")]
     fn build_registry_save_unit_with_id(path: &str, id: u32) -> SaveUnit {
         let mut paths = HashMap::new();
         paths.insert(get_current_device_id().clone(), path.to_string());
-        SaveUnit {
-            id,
-            unit_type: SaveUnitType::WinRegistry,
-            paths,
-            delete_before_apply: false,
-            enabled: true,
-        }
+        SaveUnit::concrete(id, SaveUnitType::WinRegistry, paths, false, true)
     }
 
     #[test]
@@ -571,8 +559,10 @@ mod tests {
         );
         let disabled_unit = SaveUnit {
             id: 1,
-            unit_type: SaveUnitType::File,
-            paths: disabled_paths,
+            source: crate::backup::SaveUnitSource::Concrete {
+                unit_type: SaveUnitType::File,
+                paths: disabled_paths,
+            },
             delete_before_apply: false,
             enabled: false,
         };
