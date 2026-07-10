@@ -7,8 +7,10 @@ use semver::Version;
 use serde_json::Value;
 
 use crate::backup::storage_key::generate_unique_storage_key;
-use crate::backup::{GameSnapshots, TIMER_AUTO_BACKUP_DESCRIPTION};
+use crate::backup::{GameDeviceBinding, GameSnapshots, StoreGameId, TIMER_AUTO_BACKUP_DESCRIPTION};
 use crate::config::{Config, resolve_backup_path};
+use crate::device::{DeviceResourceKind, DeviceResourceSource, get_current_device_id};
+use crate::path_pattern::StoreKind;
 use crate::preclude::*;
 use crate::updater::{
     probe::probe_config_version,
@@ -36,6 +38,8 @@ use crate::updater::{
 /// * `Err(UpdaterError)` - If any step fails
 pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     let path: &Path = path.as_ref();
+    let content = fs::read_to_string(path)?;
+    let needs_resource_migration = has_legacy_path_resource_shape(&content)?;
     let version = probe_config_version(path)?;
     let current = Version::parse(CURRENT_VERSION)?;
     let min_supported = Version::parse(MIN_SUPPORTED_VERSION)?;
@@ -73,20 +77,24 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
             min_supported,
         });
     }
-    if version == current {
+    if version == current && !needs_resource_migration {
         return Ok(false);
     }
 
-    warn!(target: "rgsm::updater", "Config version is older than current version, updating...");
+    warn!(target: "rgsm::updater", "Config schema requires migration, updating...");
     // Create backup
     backup_config(path)?;
-
-    // Read original content
-    let content = fs::read_to_string(path)?;
 
     // Migrate based on version
     let mut new_cfg = migrate_config(&content, &version)?;
     new_cfg = migrate_legacy_cloud_sync(&content, new_cfg)?;
+    let detected_steam_roots = crate::steam::detect_game_roots().unwrap_or_default();
+    migrate_path_resource_schema(
+        &content,
+        &mut new_cfg,
+        get_current_device_id(),
+        &detected_steam_roots,
+    )?;
 
     let backup_path = resolve_backup_path(&new_cfg.backup_path);
 
@@ -111,10 +119,169 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
         new_cfg = migrate_storage_keys(new_cfg, &backup_path);
     }
 
-    // Write new config
-    fs::write(path, serde_json::to_string_pretty(&new_cfg)?)?;
+    write_config_transactionally(path, serde_json::to_string_pretty(&new_cfg)?.as_bytes())?;
     info!(target: "rgsm::updater", "Config updated successfully to version {}", CURRENT_VERSION);
     Ok(true)
+}
+
+fn has_legacy_path_resource_shape(content: &str) -> Result<bool, UpdaterError> {
+    let raw: Value = serde_json::from_str(content)?;
+    let legacy_device = raw
+        .get("devices")
+        .and_then(Value::as_object)
+        .is_some_and(|devices| {
+            devices.values().any(|device| {
+                device
+                    .as_object()
+                    .is_some_and(|device| device.contains_key("game_roots"))
+            })
+        });
+    let legacy_game = raw
+        .get("games")
+        .and_then(Value::as_array)
+        .is_some_and(|games| {
+            games.iter().any(|game| {
+                game.as_object().is_some_and(|game| {
+                    game.contains_key("store_user_ids")
+                        || game
+                            .get("ludusavi_meta")
+                            .and_then(Value::as_object)
+                            .is_some_and(|meta| {
+                                meta.contains_key("steamId") || meta.contains_key("steam_id")
+                            })
+                })
+            })
+        });
+    Ok(legacy_device || legacy_game)
+}
+
+fn migrate_path_resource_schema(
+    content: &str,
+    config: &mut Config,
+    current_device_id: &str,
+    detected_steam_roots: &[String],
+) -> Result<(), UpdaterError> {
+    let raw: Value = serde_json::from_str(content)?;
+    let detected_steam_roots = detected_steam_roots
+        .iter()
+        .map(|path| normalized_path_identity(path))
+        .collect::<Vec<_>>();
+
+    if let Some(raw_devices) = raw.get("devices").and_then(Value::as_object) {
+        for (device_id, raw_device) in raw_devices {
+            let Some(game_roots) = raw_device.get("game_roots").and_then(Value::as_array) else {
+                continue;
+            };
+            let Some(device) = config.devices.get_mut(device_id) else {
+                continue;
+            };
+            for path in game_roots.iter().filter_map(Value::as_str) {
+                if device
+                    .game_root_paths()
+                    .any(|existing| existing.eq_ignore_ascii_case(path))
+                {
+                    continue;
+                }
+                let store = if device_id == current_device_id
+                    && detected_steam_roots.contains(&normalized_path_identity(path))
+                {
+                    StoreKind::Steam
+                } else {
+                    StoreKind::Other
+                };
+                device.add_resource(
+                    DeviceResourceSource::Manual,
+                    DeviceResourceKind::GameRoot {
+                        store,
+                        path: path.to_string(),
+                    },
+                );
+            }
+        }
+    }
+
+    if let Some(raw_games) = raw.get("games").and_then(Value::as_array) {
+        let (games, devices) = (&mut config.games, &mut config.devices);
+        for (game, raw_game) in games.iter_mut().zip(raw_games.iter()) {
+            if let Some(steam_id) = raw_game
+                .get("ludusavi_meta")
+                .and_then(|meta| meta.get("steamId").or_else(|| meta.get("steam_id")))
+                .and_then(Value::as_u64)
+                && let Some(meta) = game.ludusavi_meta.as_mut()
+                && meta.store_game_id(StoreKind::Steam).is_none()
+            {
+                meta.store_game_ids.push(StoreGameId {
+                    store: StoreKind::Steam,
+                    id: steam_id.to_string(),
+                });
+            }
+
+            let Some(store_user_ids) = raw_game.get("store_user_ids").and_then(Value::as_object)
+            else {
+                continue;
+            };
+            for (device_id, user_id) in store_user_ids {
+                let Some(user_id) = user_id.as_str() else {
+                    continue;
+                };
+                let Some(device) = devices.get_mut(device_id) else {
+                    continue;
+                };
+                let existing_account_id =
+                    device
+                        .store_accounts()
+                        .find_map(|resource| match &resource.kind {
+                            DeviceResourceKind::StoreAccount {
+                                store: StoreKind::Steam,
+                                user_id: existing,
+                            } if existing == user_id => Some(resource.id),
+                            _ => None,
+                        });
+                let account_id = match existing_account_id {
+                    Some(id) => id,
+                    None => device.add_resource(
+                        DeviceResourceSource::Manual,
+                        DeviceResourceKind::StoreAccount {
+                            store: StoreKind::Steam,
+                            user_id: user_id.to_string(),
+                        },
+                    ),
+                };
+                game.device_bindings
+                    .entry(device_id.clone())
+                    .or_insert_with(GameDeviceBinding::default)
+                    .account_ids = Some(vec![account_id]);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn normalized_path_identity(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
+}
+
+fn write_config_transactionally(path: &Path, content: &[u8]) -> Result<(), UpdaterError> {
+    let temp_path = path.with_extension("json.migration.tmp");
+    let rollback_path = path.with_extension("json.migration.rollback");
+    fs::write(&temp_path, content)?;
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&temp_path)?
+        .sync_all()?;
+
+    if rollback_path.exists() {
+        fs::remove_file(&rollback_path)?;
+    }
+    fs::rename(path, &rollback_path)?;
+    if let Err(error) = fs::rename(&temp_path, path) {
+        let _ = fs::rename(&rollback_path, path);
+        let _ = fs::remove_file(&temp_path);
+        return Err(error.into());
+    }
+    fs::remove_file(&rollback_path)?;
+    Ok(())
 }
 
 /// Migrate config content based on its version
@@ -466,7 +633,8 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backup::{SaveUnit, SaveUnitType, TIMER_AUTO_BACKUP_DESCRIPTION};
+    use crate::backup::{LudusaviMeta, SaveUnit, SaveUnitType, TIMER_AUTO_BACKUP_DESCRIPTION};
+    use crate::device::Device;
 
     #[test]
     fn migrate_legacy_cloud_sync_inherits_true_and_preserves_explicit_false() {
@@ -480,7 +648,7 @@ mod tests {
             cloud_sync_enabled: false,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
         config.games.push(crate::backup::Game {
             name: "ExplicitFalse".to_string(),
@@ -491,7 +659,7 @@ mod tests {
             cloud_sync_enabled: false,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let mut raw = serde_json::to_value(&config).unwrap();
@@ -527,7 +695,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let mut raw = serde_json::to_value(&config).unwrap();
@@ -584,7 +752,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -612,7 +780,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -633,7 +801,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_save_unit_ids(config);
@@ -785,6 +953,137 @@ mod tests {
     }
 
     #[test]
+    fn current_version_legacy_paths_migrate_to_resources_and_bindings()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let config_path = temp_dir.path().join("GameSaveManager.config.json");
+        let device_id = get_current_device_id().clone();
+        let mut config = Config::default();
+        config.devices.insert(
+            device_id.clone(),
+            Device {
+                id: device_id.clone(),
+                name: "Test Device".to_string(),
+                resources: Vec::new(),
+                next_resource_id: 0,
+            },
+        );
+        config.games.push(crate::backup::Game {
+            name: "Legacy Game".to_string(),
+            storage_key: "legacy-game".to_string(),
+            save_paths: Vec::new(),
+            game_paths: std::collections::HashMap::from([(
+                device_id.clone(),
+                "D:/Games/Legacy Game/game.exe".to_string(),
+            )]),
+            next_save_unit_id: 7,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+            ludusavi_meta: Some(LudusaviMeta {
+                install_dirs: vec!["Legacy Game".to_string()],
+                store_game_ids: Vec::new(),
+            }),
+            device_bindings: std::collections::HashMap::new(),
+        });
+
+        let mut raw = serde_json::to_value(&config)?;
+        raw.pointer_mut(&format!("/devices/{device_id}"))
+            .and_then(Value::as_object_mut)
+            .unwrap()
+            .insert("game_roots".to_string(), serde_json::json!(["D:/Games"]));
+        let raw_game = raw
+            .pointer_mut("/games/0")
+            .and_then(Value::as_object_mut)
+            .unwrap();
+        raw_game.insert(
+            "store_user_ids".to_string(),
+            serde_json::json!({ device_id.clone(): "12345678" }),
+        );
+        raw_game
+            .get_mut("ludusavi_meta")
+            .and_then(Value::as_object_mut)
+            .unwrap()
+            .insert("steamId".to_string(), serde_json::json!(12345));
+        fs::write(&config_path, serde_json::to_string_pretty(&raw)?)?;
+
+        assert!(update_config(&config_path)?);
+        assert!(config_path.with_extension("json.bak").exists());
+        let migrated_text = fs::read_to_string(&config_path)?;
+        let migrated_raw: Value = serde_json::from_str(&migrated_text)?;
+        assert!(
+            migrated_raw
+                .pointer(&format!("/devices/{device_id}/game_roots"))
+                .is_none()
+        );
+        assert!(migrated_raw.pointer("/games/0/store_user_ids").is_none());
+        assert!(
+            migrated_raw
+                .pointer("/games/0/ludusavi_meta/steamId")
+                .is_none()
+        );
+
+        let migrated: Config = serde_json::from_str(&migrated_text)?;
+        let device = &migrated.devices[&device_id];
+        assert_eq!(device.resources.len(), 2);
+        assert_eq!(device.next_resource_id, 2);
+        let binding = &migrated.games[0].device_bindings[&device_id];
+        assert_eq!(binding.account_ids.as_deref(), Some([1].as_slice()));
+        assert_eq!(
+            migrated.games[0]
+                .ludusavi_meta
+                .as_ref()
+                .unwrap()
+                .store_game_id(StoreKind::Steam),
+            Some("12345")
+        );
+        assert_eq!(
+            migrated.games[0].game_paths[&device_id],
+            "D:/Games/Legacy Game/game.exe"
+        );
+        assert_eq!(migrated.games[0].next_save_unit_id, 7);
+        assert!(!update_config(&config_path)?);
+        Ok(())
+    }
+
+    #[test]
+    fn verified_current_device_root_migrates_as_steam() {
+        let mut config = Config::default();
+        config.devices.insert(
+            "device".to_string(),
+            Device {
+                id: "device".to_string(),
+                name: "Test".to_string(),
+                resources: Vec::new(),
+                next_resource_id: 0,
+            },
+        );
+        let raw = serde_json::json!({
+            "devices": {
+                "device": {
+                    "game_roots": ["D:\\SteamLibrary"]
+                }
+            },
+            "games": []
+        });
+
+        migrate_path_resource_schema(
+            &raw.to_string(),
+            &mut config,
+            "device",
+            &["d:/steamlibrary/".to_string()],
+        )
+        .unwrap();
+
+        assert!(matches!(
+            config.devices["device"].resources[0].kind,
+            DeviceResourceKind::GameRoot {
+                store: StoreKind::Steam,
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn update_config_reports_migration_when_version_changes()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp_dir = temp_dir::TempDir::new()?;
@@ -821,7 +1120,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
         config.games.push(crate::backup::Game {
             name: "Game: With Colon".to_string(),
@@ -832,7 +1131,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -856,7 +1155,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -878,7 +1177,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -900,7 +1199,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
         config.games.push(crate::backup::Game {
             name: "CON".to_string(),
@@ -911,7 +1210,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);
@@ -937,7 +1236,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
         config.quick_action.quick_action_game = Some(crate::backup::Game {
             name: "QA Game".to_string(),
@@ -948,7 +1247,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         });
 
         let migrated = migrate_storage_keys(config, &backup_path);

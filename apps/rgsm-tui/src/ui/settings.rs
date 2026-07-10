@@ -220,10 +220,11 @@ fn game_roots_line(app: &App) -> String {
         .devices
         .get(get_current_device_id())
         .map(|device| {
-            if device.game_roots.is_empty() {
+            let roots = device.game_root_paths().collect::<Vec<_>>();
+            if roots.is_empty() {
                 "-".to_string()
             } else {
-                device.game_roots.join(", ")
+                roots.join(", ")
             }
         })
         .unwrap_or_else(|| "-".to_string());

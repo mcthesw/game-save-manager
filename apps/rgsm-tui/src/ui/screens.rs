@@ -8,6 +8,7 @@ use rgsm_core::{
     backup::{Game, SaveUnitType, list_extra_backups},
     cloud_sync::Backend,
     device::get_current_device_id,
+    path_pattern::StoreKind,
 };
 use rust_i18n::t;
 
@@ -385,6 +386,12 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
         .map(|(id, _)| id.clone())
         .unwrap_or_else(|| get_current_device_id().clone());
     let unit = game.save_paths.get(app.selection.save_unit);
+    let store_user_id = app
+        .data
+        .config
+        .devices
+        .get(&device_id)
+        .and_then(|device| game.path_context(Some(device)).store_user_id);
     let mut lines = vec![
         format!("{}: {}", t!("addgame.game_name"), game.name),
         format!(
@@ -404,10 +411,7 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
         format!(
             "{}: {}",
             t!("game_batch_import.store_user_id"),
-            game.store_user_ids
-                .get(&device_id)
-                .map(String::as_str)
-                .unwrap_or("-")
+            store_user_id.as_deref().unwrap_or("-")
         ),
     ];
     if let Some(unit) = unit {
@@ -470,8 +474,8 @@ fn editor_detail_lines(game: &Game, app: &App) -> Vec<String> {
             format!(
                 "{}: {}",
                 t!("game_import.steam_id"),
-                meta.steam_id
-                    .map(|id| id.to_string())
+                meta.store_game_id(StoreKind::Steam)
+                    .map(str::to_string)
                     .unwrap_or_else(|| "-".to_string())
             ),
             format!(

@@ -102,7 +102,7 @@ mod tests {
             cloud_sync_enabled: true,
             auto_backup: None,
             ludusavi_meta: None,
-            store_user_ids: std::collections::HashMap::new(),
+            device_bindings: std::collections::HashMap::new(),
         }
     }
 
