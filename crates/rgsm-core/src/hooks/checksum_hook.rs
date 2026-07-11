@@ -158,6 +158,7 @@ mod tests {
         let actual_hash = compute_file_hash(&archive_path)?;
 
         let ctx = BeforeRestoreCtx {
+            capture_plan: None,
             config: Config::default(),
             source: HookSource::UserManual,
             game: test_game(),

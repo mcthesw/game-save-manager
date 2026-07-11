@@ -6,7 +6,7 @@ import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
 import AutoSaveSettingsDrawer from '../../components/AutoSaveSettingsDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
 import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
-import type { Game, GameSnapshots, Snapshot, Device } from '../../bindings';
+import type { CandidateDimensions, Game, GameSnapshots, Snapshot, Device } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
 import {
@@ -564,6 +564,10 @@ async function apply_save(date: string) {
 
   let integrityFailed = false;
   let restoreError = '';
+  let mappingError: {
+    saveUnitId: number;
+    sourceDimensions: CandidateDimensions;
+  } | null = null;
 
   const activityId = addActivity({ title: $t('manage.restoring_backup'), status: 'running' });
   startCollecting();
@@ -577,6 +581,11 @@ async function apply_save(date: string) {
             integrityFailed = true;
           } else if (err.type === 'BackupNotFound') {
             restoreError = $t('manage.backup_not_found', { date: err.date });
+          } else if (err.type === 'RestoreMappingRequired' || err.type === 'StaleRestoreMapping') {
+            mappingError = {
+              saveUnitId: err.save_unit_id,
+              sourceDimensions: err.source_dimensions,
+            };
           } else {
             restoreError = err.message;
           }
@@ -626,6 +635,12 @@ async function apply_save(date: string) {
     } catch {
       // dialog dismissed
     }
+  } else if (mappingError) {
+    updateActivity(activityId, { status: 'error', title: $t('manage.choose_restore_location') });
+    const mapped = await chooseRestoreLocation(mappingError);
+    if (mapped) {
+      await apply_save(date);
+    }
   } else if (restoreError) {
     updateActivity(activityId, {
       status: 'error',
@@ -645,6 +660,53 @@ async function apply_save(date: string) {
     } else {
       updateActivity(activityId, { status: 'success', title: $t('manage.recover_success') });
     }
+  }
+}
+
+async function chooseRestoreLocation(mapping: {
+  saveUnitId: number;
+  sourceDimensions: CandidateDimensions;
+}): Promise<boolean> {
+  const unit = game.value.save_paths.find((candidate) => candidate.id === mapping.saveUnitId);
+  if (!unit) return false;
+  const preview = await commands.previewSaveUnitResolution(game.value, unit);
+  if (preview.status === 'error' || preview.data.candidates.length === 0) {
+    notifyError($t('manage.no_restore_locations'));
+    return false;
+  }
+  const choices = preview.data.candidates
+    .map((candidate, index) => `${index + 1}. ${candidate.expression}`)
+    .join('\n');
+  try {
+    const { value } = await feedback.prompt(
+      `${$t('manage.choose_restore_location_hint')}\n\n${choices}`,
+      $t('manage.choose_restore_location'),
+      { inputPlaceholder: '1' }
+    );
+    const index = Number(value) - 1;
+    const selected = preview.data.candidates[index];
+    if (!selected) {
+      notifyWarning($t('manage.invalid_restore_location'));
+      return false;
+    }
+    const result = await commands.saveRestoreMapping(
+      game.value.storage_key || game.value.name,
+      mapping.saveUnitId,
+      mapping.sourceDimensions,
+      [selected.id]
+    );
+    if (result.status === 'error') {
+      notifyError(result.error);
+      return false;
+    }
+    await refreshConfig();
+    const refreshedGame = config.value.games.find((item) => item.name === game.value.name);
+    if (refreshedGame) {
+      game.value = refreshedGame;
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 

@@ -77,6 +77,16 @@ pub enum RestoreError {
     DecompressFailed { message: String },
     #[error("IO error: {message}")]
     Io { message: String },
+    #[error("A save location must be chosen before restore")]
+    RestoreMappingRequired {
+        save_unit_id: u32,
+        source_dimensions: rgsm_core::path_resolution::CandidateDimensions,
+    },
+    #[error("A saved restore location is no longer available")]
+    StaleRestoreMapping {
+        save_unit_id: u32,
+        source_dimensions: rgsm_core::path_resolution::CandidateDimensions,
+    },
     #[error("{message}")]
     Other { message: String },
 }
@@ -93,6 +103,22 @@ impl From<BackupError> for RestoreError {
             },
             BackupError::Io(io) => RestoreError::Io {
                 message: io.to_string(),
+            },
+            BackupError::RestorePlan(backup::RestorePlanError::MappingRequired {
+                save_unit_id,
+                source_dimensions,
+                ..
+            }) => RestoreError::RestoreMappingRequired {
+                save_unit_id,
+                source_dimensions,
+            },
+            BackupError::RestorePlan(backup::RestorePlanError::StaleMapping {
+                save_unit_id,
+                source_dimensions,
+                ..
+            }) => RestoreError::StaleRestoreMapping {
+                save_unit_id,
+                source_dimensions,
             },
             other => RestoreError::Other {
                 message: other.to_string(),
@@ -1124,6 +1150,27 @@ pub async fn set_game_device_binding(
 ) -> Result<(), String> {
     svc(&app_handle)
         .set_game_device_binding(&identity, binding, HookSource::UserManual)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_restore_mapping(
+    identity: String,
+    save_unit_id: u32,
+    source_dimensions: rgsm_core::path_resolution::CandidateDimensions,
+    target_candidate_ids: Vec<String>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    svc(&app_handle)
+        .save_restore_mapping(
+            &identity,
+            save_unit_id,
+            source_dimensions,
+            target_candidate_ids,
+            HookSource::UserManual,
+        )
         .await
         .map_err(|error| error.to_string())
 }

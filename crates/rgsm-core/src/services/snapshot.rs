@@ -175,6 +175,7 @@ impl ServiceContext {
                 snapshot: snapshot.clone(),
                 snapshots: snapshots_before_restore,
                 archive_path: archive_path.clone(),
+                capture_plan: self.capture_plan(&config, game).ok(),
             })
             .await?;
 
@@ -185,7 +186,14 @@ impl ServiceContext {
             game.set_game_snapshots_info(&snapshots)?;
             snapshots
         } else {
-            game.restore_snapshot(date, notifier)?
+            let device = config.devices.get(crate::device::get_current_device_id());
+            let path_context = game.path_context(device);
+            game.restore_snapshot_with_context(
+                date,
+                notifier,
+                &resolve_backup_path(&config.backup_path),
+                &path_context,
+            )?
         };
 
         self.pipeline()

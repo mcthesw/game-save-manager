@@ -56,6 +56,7 @@ pub struct BeforeRestoreCtx {
     pub snapshot: Snapshot,
     pub snapshots: GameSnapshots,
     pub archive_path: PathBuf,
+    pub capture_plan: Option<crate::backup::CapturePlan>,
 }
 
 pub struct MetadataChangedCtx {

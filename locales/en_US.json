@@ -163,6 +163,10 @@
         "name": "Game save manager"
     },
     "manage": {
+        "choose_restore_location": "Choose restore location",
+        "choose_restore_location_hint": "This backup contains more than one possible source location. Enter the number of the location to use on this device. Your choice will be remembered.",
+        "no_restore_locations": "No restore location is available on this device",
+        "invalid_restore_location": "Choose one of the listed locations",
         "create_new_save": "Create new snapshot",
         "load_latest_save": "Apply latest",
         "launch_game": "Start game",

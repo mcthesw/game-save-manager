@@ -26,9 +26,17 @@ pub struct RestorePlan {
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RestorePlanError {
     #[error("restore mapping is required for save unit {save_unit_id}, capture group {group_id}")]
-    MappingRequired { save_unit_id: u32, group_id: u32 },
+    MappingRequired {
+        save_unit_id: u32,
+        group_id: u32,
+        source_dimensions: crate::path_resolution::CandidateDimensions,
+    },
     #[error("restore mapping for save unit {save_unit_id}, capture group {group_id} is stale")]
-    StaleMapping { save_unit_id: u32, group_id: u32 },
+    StaleMapping {
+        save_unit_id: u32,
+        group_id: u32,
+        source_dimensions: crate::path_resolution::CandidateDimensions,
+    },
 }
 
 impl RestorePlan {
@@ -42,6 +50,10 @@ impl RestorePlan {
             let Some(report) = reports.get(&group.save_unit_id) else {
                 continue;
             };
+            let source_group_count = groups
+                .iter()
+                .filter(|candidate| candidate.save_unit_id == group.save_unit_id)
+                .count();
             let candidates = report.candidates.as_slice();
             let rule = rules.iter().find(|rule| {
                 rule.save_unit_id == group.save_unit_id
@@ -56,6 +68,7 @@ impl RestorePlan {
                     return Err(RestorePlanError::StaleMapping {
                         save_unit_id: group.save_unit_id,
                         group_id: group.id,
+                        source_dimensions: group.dimensions.clone(),
                     });
                 }
                 selected
@@ -64,12 +77,13 @@ impl RestorePlan {
                 .find(|candidate| candidate.dimensions == group.dimensions)
             {
                 vec![equivalent]
-            } else if candidates.len() == 1 {
+            } else if candidates.len() == 1 && source_group_count == 1 {
                 vec![&candidates[0]]
             } else {
                 return Err(RestorePlanError::MappingRequired {
                     save_unit_id: group.save_unit_id,
                     group_id: group.id,
+                    source_dimensions: group.dimensions.clone(),
                 });
             };
             for candidate in selected {
@@ -146,7 +160,8 @@ mod tests {
             error,
             RestorePlanError::MappingRequired {
                 save_unit_id: 7,
-                group_id: 2
+                group_id: 2,
+                source_dimensions: group().dimensions,
             }
         );
     }
