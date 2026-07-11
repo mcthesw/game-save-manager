@@ -24,14 +24,21 @@ pub enum DeviceResourceKind {
     },
     StoreAccount {
         store: StoreKind,
+        #[serde(alias = "userId")]
         user_id: String,
     },
     GameInstallation {
+        #[serde(alias = "rootId")]
         root_id: DeviceResourceId,
         store: StoreKind,
+        #[serde(alias = "installDir")]
         install_dir: String,
         path: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            alias = "storeGameId",
+            skip_serializing_if = "Option::is_none"
+        )]
         store_game_id: Option<String>,
     },
 }
@@ -195,5 +202,16 @@ mod tests {
             Some(&serde_json::json!("Game"))
         );
         assert!(serde_json::from_value::<DeviceResourceKind>(serialized).is_ok());
+        assert!(
+            serde_json::from_value::<DeviceResourceKind>(serde_json::json!({
+                "type": "gameInstallation",
+                "rootId": 7,
+                "store": "steam",
+                "installDir": "Game",
+                "path": "C:/Games/Game",
+                "storeGameId": "42"
+            }))
+            .is_ok()
+        );
     }
 }

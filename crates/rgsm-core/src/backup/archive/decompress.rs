@@ -72,6 +72,7 @@ pub(super) fn restore_capture_plan(
     let file = File::open(archive_path).map_err(|error| CompressError::Single(error.into()))?;
     let mut zip =
         zip::ZipArchive::new(file).map_err(|error| CompressError::Single(error.into()))?;
+    verify_capture_entries(&mut zip, plan)?;
     for entry in &plan.entries {
         if entry.delete_before_apply && entry.target_path.exists() {
             let result = if entry.target_path.is_dir() {
@@ -90,6 +91,29 @@ pub(super) fn restore_capture_plan(
     Ok(())
 }
 
+fn verify_capture_entries(
+    zip: &mut zip::ZipArchive<File>,
+    plan: &RestorePlan,
+) -> Result<(), CompressError> {
+    for entry in &plan.entries {
+        match entry.kind {
+            CaptureSourceKind::File | CaptureSourceKind::Registry => {
+                zip.by_name(&entry.archive_path)
+                    .map_err(|error| CompressError::Single(error.into()))?;
+            }
+            CaptureSourceKind::Directory => {
+                let prefix = format!("{}/", entry.archive_path.trim_end_matches('/'));
+                if !zip.file_names().any(|name| name.starts_with(&prefix)) {
+                    return Err(CompressError::Single(BackupFileError::Unexpected(
+                        anyhow::anyhow!("capture directory is missing from archive: {prefix}"),
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn restore_file_capture(
     zip: &mut zip::ZipArchive<File>,
     entry: &crate::backup::RestoreEntry,
@@ -103,6 +127,12 @@ fn restore_file_capture(
     let mut target =
         File::create(&entry.target_path).map_err(|error| CompressError::Single(error.into()))?;
     std::io::copy(&mut source, &mut target).map_err(|error| CompressError::Single(error.into()))?;
+    if let Some(zip_time) = source.last_modified() {
+        let _ = set_file_mtime(
+            &entry.target_path,
+            FileTime::from_system_time(zip_datetime_to_system_time(zip_time, ArchiveVersion::V3)),
+        );
+    }
     Ok(())
 }
 
@@ -118,7 +148,7 @@ fn restore_directory_capture(
         let Some(relative) = source.name().strip_prefix(&prefix) else {
             continue;
         };
-        let relative = Path::new(relative);
+        let relative = PathBuf::from(relative);
         if relative.components().any(|component| {
             matches!(
                 component,
@@ -129,7 +159,7 @@ fn restore_directory_capture(
         }) {
             continue;
         }
-        let target = entry.target_path.join(relative);
+        let target = entry.target_path.join(&relative);
         if source.is_dir() {
             fs::create_dir_all(&target).map_err(|error| CompressError::Single(error.into()))?;
             continue;
@@ -141,6 +171,15 @@ fn restore_directory_capture(
             File::create(target).map_err(|error| CompressError::Single(error.into()))?;
         std::io::copy(&mut source, &mut output)
             .map_err(|error| CompressError::Single(error.into()))?;
+        if let Some(zip_time) = source.last_modified() {
+            let _ = set_file_mtime(
+                entry.target_path.join(relative),
+                FileTime::from_system_time(zip_datetime_to_system_time(
+                    zip_time,
+                    ArchiveVersion::V3,
+                )),
+            );
+        }
     }
     Ok(())
 }
@@ -590,6 +629,32 @@ mod tests {
 
         assert_eq!(fs::read(target).unwrap(), b"captured");
         assert_eq!(fs::read(source).unwrap(), b"captured");
+    }
+
+    #[test]
+    fn v3_restore_verifies_entries_before_deleting_existing_target() {
+        use crate::backup::{CaptureSourceKind, RestoreEntry, RestorePlan};
+
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("empty.zip");
+        let target = temp.path().join("save.dat");
+        fs::write(&target, b"keep").unwrap();
+        zip::ZipWriter::new(fs::File::create(&archive).unwrap())
+            .finish()
+            .unwrap();
+        let restore = RestorePlan {
+            entries: vec![RestoreEntry {
+                save_unit_id: 1,
+                group_id: 0,
+                archive_path: "1/0/data/save.dat".to_string(),
+                target_path: target.clone(),
+                kind: CaptureSourceKind::File,
+                delete_before_apply: true,
+            }],
+        };
+
+        assert!(super::restore_capture_plan(&restore, &archive).is_err());
+        assert_eq!(fs::read(target).unwrap(), b"keep");
     }
 
     #[test]

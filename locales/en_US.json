@@ -492,6 +492,8 @@
         "choose_libraries": "Choose game libraries",
         "choose_accounts": "Choose store accounts",
         "choose_installations": "Choose installations",
+        "saved_restore_choice": "Saved restore choice for save location #{id}",
+        "forget_restore_choice": "Forget",
         "drawer_title": "Modify configuration",
         "open": "Open",
         "backup_enabled": "Participate in backup",

@@ -146,18 +146,35 @@ impl ManifestPathPattern {
 #[serde(rename_all = "camelCase")]
 pub struct ManifestPathConstraints {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub os: Vec<PlatformKind>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub stores: Vec<StoreKind>,
+    pub alternatives: Vec<ManifestPathCondition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestPathCondition {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os: Option<PlatformKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store: Option<StoreKind>,
 }
 
 impl ManifestPathConstraints {
     pub fn allows_platform(&self, platform: PlatformKind) -> bool {
-        self.os.is_empty() || self.os.contains(&platform)
+        self.alternatives.is_empty()
+            || self
+                .alternatives
+                .iter()
+                .any(|condition| condition.os.is_none_or(|os| os == platform))
     }
 
-    pub fn allows_store(&self, store: StoreKind) -> bool {
-        self.stores.is_empty() || self.stores.contains(&store)
+    pub fn allows(&self, platform: PlatformKind, store: Option<StoreKind>) -> bool {
+        self.alternatives.is_empty()
+            || self.alternatives.iter().any(|condition| {
+                condition.os.is_none_or(|os| os == platform)
+                    && condition
+                        .store
+                        .is_none_or(|required| store == Some(required))
+            })
     }
 }
 

@@ -129,12 +129,7 @@ fn save_unit_identity(source: &crate::backup::SaveUnitSource) -> String {
         crate::backup::SaveUnitSource::ManifestPattern {
             pattern,
             constraints,
-        } => format!(
-            "manifest:{}|{:?}|{:?}",
-            pattern.raw(),
-            constraints.os,
-            constraints.stores
-        ),
+        } => format!("manifest:{}|{:?}", pattern.raw(), constraints.alternatives),
     }
 }
 
@@ -333,11 +328,8 @@ impl Game {
 
     /// Build a `PathContext` using the current device from config.
     /// Convenience wrapper around `path_context()` for runtime callers.
-    fn path_context_current_device(&self) -> PathContext {
-        let device = get_config()
-            .ok()
-            .and_then(|c| c.devices.get(get_current_device_id()).cloned());
-        self.path_context(device.as_ref())
+    fn path_context_current_device(&self, config: &crate::config::Config) -> PathContext {
+        self.path_context(config.devices.get(get_current_device_id()))
     }
 
     /// The directory/path component used for local backup storage and remote
@@ -439,11 +431,12 @@ impl Game {
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let save_paths = &self.save_paths; // everything you should copy
-        let preset = get_config()?.settings.compression_preset;
+        let config = get_config()?;
+        let preset = config.settings.compression_preset;
 
         let zip_path = backup_path.join([&date, ".zip"].concat());
         // 获取压缩后的文件大小
-        let path_ctx = self.path_context_current_device();
+        let path_ctx = self.path_context_current_device(&config);
         let file_size = match ZipBackend.compress(save_paths, &zip_path, preset, Some(&path_ctx)) {
             Ok(size) => size,
             Err(e) => {
@@ -552,7 +545,8 @@ impl Game {
             return Ok(TimerSnapshotDecision::Created);
         };
 
-        let path_ctx = self.path_context_current_device();
+        let config = get_config()?;
+        let path_ctx = self.path_context_current_device(&config);
         let current_fingerprint = match fingerprint_source_state(&self.save_paths, Some(&path_ctx))
         {
             Ok(fingerprint) => fingerprint,
@@ -660,8 +654,14 @@ impl Game {
         date: &str,
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<GameSnapshots, BackupError> {
-        let path_ctx = self.path_context_current_device();
-        self.restore_snapshot_with_context(date, notifier, &get_backup_path()?, &path_ctx)
+        let config = get_config()?;
+        let path_ctx = self.path_context_current_device(&config);
+        self.restore_snapshot_with_context(
+            date,
+            notifier,
+            &crate::config::resolve_backup_path(&config.backup_path),
+            &path_ctx,
+        )
     }
 
     pub fn restore_snapshot_with_context(
@@ -698,8 +698,9 @@ impl Game {
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
         let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
-        let preset = get_config()?.settings.compression_preset;
-        let path_ctx = self.path_context_current_device();
+        let config = get_config()?;
+        let preset = config.settings.compression_preset;
+        let path_ctx = self.path_context_current_device(&config);
         if let Err(e) = ZipBackend.compress(&self.save_paths, zip_path, preset, Some(&path_ctx)) {
             if let Err(rm_err) = fs::remove_file(zip_path) {
                 warn!(

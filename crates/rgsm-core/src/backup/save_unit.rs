@@ -21,6 +21,7 @@ pub enum SaveUnitType {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum SaveUnitSource {
     Concrete {
+        #[serde(alias = "unitType")]
         unit_type: SaveUnitType,
         #[serde(default)]
         paths: HashMap<DeviceId, String>,
@@ -193,12 +194,9 @@ impl SaveUnit {
         let unit_path_str = self
             .get_path_for_device(current_device_id)
             .ok_or(BackupFileError::NonePathError)?;
-        let config =
-            crate::config::get_config().map_err(|e| BackupFileError::Unexpected(e.into()))?;
-        Ok(crate::path_resolver::resolve_path(
+        Ok(crate::path_resolver::resolve_path_explicit(
             unit_path_str,
             path_ctx,
-            &config,
         )?)
     }
 }
@@ -297,5 +295,13 @@ mod tests {
             Some(&serde_json::json!("File"))
         );
         assert!(serde_json::from_value::<SaveUnitSource>(serialized).is_ok());
+        assert!(
+            serde_json::from_value::<SaveUnitSource>(serde_json::json!({
+                "type": "concrete",
+                "unitType": "File",
+                "paths": {}
+            }))
+            .is_ok()
+        );
     }
 }

@@ -144,7 +144,7 @@ fn build_combinations<'a>(
         context
             .installations
             .iter()
-            .filter(|installation| constraints.allows_store(installation.store))
+            .filter(|installation| constraints.allows(context.platform, Some(installation.store)))
             .filter(|installation| selected(&context.selection.installation_ids, &installation.id))
             .filter_map(|installation| {
                 let root = context
@@ -162,7 +162,7 @@ fn build_combinations<'a>(
         context
             .roots
             .iter()
-            .filter(|root| constraints.allows_store(root.store))
+            .filter(|root| constraints.allows(context.platform, Some(root.store)))
             .filter(|root| selected(&context.selection.root_ids, &root.id))
             .map(|root| CandidateParts {
                 root: Some(root),
@@ -184,7 +184,7 @@ fn build_combinations<'a>(
             .map(|installation| installation.store)
             .or_else(|| base.root.map(|root| root.store));
         for account in context.accounts.iter().filter(|account| {
-            constraints.allows_store(account.store)
+            constraints.allows(context.platform, Some(account.store))
                 && store.is_none_or(|store| store == account.store)
                 && selected(&context.selection.account_ids, &account.id)
         }) {
@@ -457,7 +457,9 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::path_pattern::{ManifestPathConstraints, StoreKind, parse_manifest_path_pattern};
+    use crate::path_pattern::{
+        ManifestPathCondition, ManifestPathConstraints, StoreKind, parse_manifest_path_pattern,
+    };
     use crate::path_resolution::{PlatformPaths, ResolutionSelection};
 
     fn context() -> ResolutionContext {
@@ -553,6 +555,52 @@ mod tests {
                 .iter()
                 .any(|candidate| candidate.dimensions.root_id.as_deref() == Some("root-b"))
         );
+    }
+
+    #[test]
+    fn when_alternatives_are_or_while_each_condition_is_and() {
+        let parsed = parse_manifest_path_pattern("<base>/config.py").unwrap();
+        let mut context = context();
+        context.roots.push(GameRootCandidate {
+            id: "root-gog".to_string(),
+            store: StoreKind::Gog,
+            path: PathBuf::from("F:/GOG"),
+        });
+        context.installations.push(GameInstallationCandidate {
+            id: "install-gog".to_string(),
+            root_id: "root-gog".to_string(),
+            store: StoreKind::Gog,
+            install_dir: "Game".to_string(),
+            install_path: PathBuf::from("F:/GOG/Game"),
+            store_game_id: None,
+        });
+
+        let alternatives = ManifestPathConstraints {
+            alternatives: vec![
+                ManifestPathCondition {
+                    os: None,
+                    store: Some(StoreKind::Steam),
+                },
+                ManifestPathCondition {
+                    os: Some(PlatformKind::Windows),
+                    store: None,
+                },
+            ],
+        };
+        let plan = plan_resolution(&parsed, alternatives, &context);
+        assert_eq!(plan.candidates.len(), 3);
+
+        let combined = ManifestPathConstraints {
+            alternatives: vec![ManifestPathCondition {
+                os: Some(PlatformKind::Windows),
+                store: Some(StoreKind::Steam),
+            }],
+        };
+        let plan = plan_resolution(&parsed, combined, &context);
+        assert_eq!(plan.candidates.len(), 2);
+        assert!(plan.candidates.iter().all(|candidate| {
+            candidate.dimensions.installation_id.as_deref() != Some("install-gog")
+        }));
     }
 
     #[test]

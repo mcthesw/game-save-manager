@@ -184,6 +184,48 @@ mod tests {
         );
         assert!(plan.entries[0].delete_before_apply);
     }
+
+    #[test]
+    fn saved_mapping_ignores_unrelated_new_candidates() {
+        let reports = BTreeMap::from([(
+            7,
+            report(&[("a", "C:/A"), ("b", "D:/B"), ("new", "E:/New")]),
+        )]);
+        let rules = vec![RestoreMappingRule {
+            save_unit_id: 7,
+            source_dimensions: group().dimensions,
+            target_candidate_ids: vec!["b".to_string()],
+        }];
+
+        let plan = RestorePlan::build(&[group()], &reports, &rules).unwrap();
+
+        assert_eq!(plan.entries.len(), 1);
+        assert_eq!(
+            plan.entries[0].target_path,
+            PathBuf::from("D:/B/Saves/game.dat")
+        );
+    }
+
+    #[test]
+    fn disappeared_saved_target_is_stale_before_restore() {
+        let reports = BTreeMap::from([(7, report(&[("a", "C:/A")]))]);
+        let rules = vec![RestoreMappingRule {
+            save_unit_id: 7,
+            source_dimensions: group().dimensions.clone(),
+            target_candidate_ids: vec!["missing".to_string()],
+        }];
+
+        let error = RestorePlan::build(&[group()], &reports, &rules).unwrap_err();
+
+        assert!(matches!(
+            error,
+            RestorePlanError::StaleMapping {
+                save_unit_id: 7,
+                ..
+            }
+        ));
+    }
+
     #[test]
     fn archived_groups_without_an_active_save_unit_are_skipped() {
         let plan = RestorePlan::build(&[group()], &BTreeMap::new(), &[]).unwrap();

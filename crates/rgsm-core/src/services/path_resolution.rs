@@ -16,7 +16,131 @@ use crate::path_resolution::{
 
 use super::ServiceContext;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResolutionPurpose {
+    Capture,
+    Restore,
+}
+
 impl ServiceContext {
+    pub fn check_ad_hoc_paths(
+        &self,
+        config: &Config,
+        paths: &[String],
+        store_user_id: Option<&str>,
+        install_dirs: &[String],
+        steam_id: Option<u32>,
+    ) -> Vec<crate::path_resolver::PathCheckResult> {
+        paths
+            .iter()
+            .map(|path| {
+                if crate::backup::registry::is_registry_path(path) {
+                    return crate::path_resolver::check_path(path, None, config);
+                }
+                let report = self.resolve_ad_hoc_pattern(
+                    config,
+                    path,
+                    store_user_id,
+                    install_dirs,
+                    steam_id,
+                );
+                if matches!(
+                    report.selection_state,
+                    ResolutionSelectionState::Missing
+                        | ResolutionSelectionState::Ambiguous { .. }
+                        | ResolutionSelectionState::StaleSelection { .. }
+                ) {
+                    return crate::path_resolver::PathCheckResult::ResolveFailed {
+                        raw_path: path.clone(),
+                        error: report
+                            .diagnostics
+                            .iter()
+                            .map(|diagnostic| diagnostic.message.as_str())
+                            .collect::<Vec<_>>()
+                            .join("; "),
+                    };
+                }
+                if let Some(location) = report.locations.first() {
+                    return crate::path_resolver::PathCheckResult::Ok {
+                        raw_path: path.clone(),
+                        resolved_path: location.path.clone(),
+                        is_file: matches!(location.kind, ResolvedLocationKind::File),
+                    };
+                }
+                crate::path_resolver::PathCheckResult::NotFound {
+                    raw_path: path.clone(),
+                    resolved_path: report
+                        .candidates
+                        .first()
+                        .map(|candidate| candidate.expression.clone())
+                        .unwrap_or_else(|| path.clone()),
+                }
+            })
+            .collect()
+    }
+
+    pub fn resolve_ad_hoc_pattern(
+        &self,
+        config: &Config,
+        pattern: &str,
+        store_user_id: Option<&str>,
+        install_dirs: &[String],
+        steam_id: Option<u32>,
+    ) -> ResolutionReport {
+        let game = Game {
+            name: "Path preview".to_string(),
+            storage_key: String::new(),
+            save_paths: Vec::new(),
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: false,
+            auto_backup: None,
+            ludusavi_meta: Some(crate::backup::LudusaviMeta {
+                install_dirs: install_dirs.to_vec(),
+                store_game_ids: steam_id
+                    .map(|id| crate::backup::StoreGameId {
+                        store: crate::path_pattern::StoreKind::Steam,
+                        id: id.to_string(),
+                    })
+                    .into_iter()
+                    .collect(),
+            }),
+            device_bindings: Default::default(),
+        };
+        let mut context = resolution_context(config, &game, get_current_device_id());
+        if let Some(user_id) = store_user_id {
+            let id = detected_id("preview-account", user_id);
+            context.accounts = vec![StoreAccountCandidate {
+                id: id.clone(),
+                store: crate::path_pattern::StoreKind::Steam,
+                user_id: user_id.to_string(),
+            }];
+            context.selection.account_ids = Some([id].into_iter().collect());
+        }
+        let parsed = match parse_manifest_path_pattern(pattern) {
+            Ok(parsed) => parsed,
+            Err(error) => return invalid_pattern_report(pattern, error),
+        };
+        let plan = plan_resolution(
+            &parsed,
+            crate::path_pattern::ManifestPathConstraints::default(),
+            &context,
+        );
+        match match_resolution_plan(&plan) {
+            Ok(report) => report,
+            Err(error) => ResolutionReport {
+                raw_pattern: pattern.to_string(),
+                selection_state: plan.selection_state,
+                candidates: plan.candidates,
+                locations: Vec::new(),
+                diagnostics: vec![ResolutionDiagnostic {
+                    kind: ResolutionDiagnosticKind::InvalidGlob,
+                    message: error.to_string(),
+                }],
+            },
+        }
+    }
+
     pub(crate) fn capture_plan(
         &self,
         config: &Config,
@@ -43,11 +167,35 @@ impl ServiceContext {
         game: &Game,
         save_unit: &SaveUnit,
     ) -> ResolutionReport {
+        self.resolve_save_unit_for(config, game, save_unit, ResolutionPurpose::Capture)
+    }
+
+    pub(crate) fn resolve_save_unit_for_restore(
+        &self,
+        config: &Config,
+        game: &Game,
+        save_unit: &SaveUnit,
+    ) -> ResolutionReport {
+        self.resolve_save_unit_for(config, game, save_unit, ResolutionPurpose::Restore)
+    }
+
+    fn resolve_save_unit_for(
+        &self,
+        config: &Config,
+        game: &Game,
+        save_unit: &SaveUnit,
+        purpose: ResolutionPurpose,
+    ) -> ResolutionReport {
         let device_id = get_current_device_id();
         match &save_unit.source {
             SaveUnitSource::Concrete { unit_type, paths } => {
                 let path_context = game.path_context(config.devices.get(device_id));
-                resolve_concrete(paths.get(device_id), unit_type, Some(&path_context))
+                resolve_concrete(
+                    paths.get(device_id),
+                    unit_type,
+                    Some(&path_context),
+                    purpose,
+                )
             }
             SaveUnitSource::ManifestPattern {
                 pattern,
@@ -59,6 +207,15 @@ impl ServiceContext {
                     Err(error) => return invalid_pattern_report(pattern.raw(), error),
                 };
                 let plan = plan_resolution(&parsed, constraints.clone(), &context);
+                if purpose == ResolutionPurpose::Restore {
+                    return ResolutionReport {
+                        raw_pattern: pattern.raw().to_string(),
+                        selection_state: plan.selection_state,
+                        candidates: plan.candidates,
+                        locations: Vec::new(),
+                        diagnostics: plan.diagnostics,
+                    };
+                }
                 match match_resolution_plan(&plan) {
                     Ok(report) => report,
                     Err(error) => ResolutionReport {
@@ -256,6 +413,7 @@ fn resolve_concrete(
     path: Option<&String>,
     unit_type: &SaveUnitType,
     path_context: Option<&crate::path_resolver::PathContext>,
+    purpose: ResolutionPurpose,
 ) -> ResolutionReport {
     let Some(path) = path else {
         return blocked_report(
@@ -274,16 +432,18 @@ fn resolve_concrete(
         Err(error) => return blocked_report(path, &error.to_string()),
     };
     let source = resolved.as_path();
-    let exists = match unit_type {
-        SaveUnitType::File => source.is_file(),
-        SaveUnitType::Folder => source.is_dir(),
-        SaveUnitType::WinRegistry => {
-            crate::backup::registry::registry_key_exists(&resolved.to_string_lossy())
-                .unwrap_or(false)
+    if purpose == ResolutionPurpose::Capture {
+        let exists = match unit_type {
+            SaveUnitType::File => source.is_file(),
+            SaveUnitType::Folder => source.is_dir(),
+            SaveUnitType::WinRegistry => {
+                crate::backup::registry::registry_key_exists(&resolved.to_string_lossy())
+                    .unwrap_or(false)
+            }
+        };
+        if !exists {
+            return blocked_report(path, "the configured save location is unavailable");
         }
-    };
-    if !exists {
-        return blocked_report(path, "the configured save location is unavailable");
     }
     let kind = match unit_type {
         SaveUnitType::File => ResolvedLocationKind::File,
@@ -381,6 +541,7 @@ mod concrete_tests {
             Some(&"<root>/save.dat".to_string()),
             &SaveUnitType::File,
             Some(&context),
+            ResolutionPurpose::Capture,
         );
 
         assert_eq!(report.locations.len(), 1);
@@ -394,6 +555,23 @@ mod concrete_tests {
         );
     }
 
+    #[test]
+    fn concrete_restore_targets_do_not_need_to_exist() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let target = temp.path().join("missing").join("save.dat");
+
+        let report = resolve_concrete(
+            Some(&target.to_string_lossy().into_owned()),
+            &SaveUnitType::File,
+            None,
+            ResolutionPurpose::Restore,
+        );
+
+        assert_eq!(report.candidates.len(), 1);
+        assert_eq!(PathBuf::from(&report.candidates[0].expression), target);
+        assert!(report.diagnostics.is_empty());
+    }
+
     #[cfg(not(target_os = "windows"))]
     #[test]
     fn unsupported_registry_units_are_non_blocking() {
@@ -401,6 +579,7 @@ mod concrete_tests {
             Some(&"HKEY_CURRENT_USER/Software/Game".to_string()),
             &SaveUnitType::WinRegistry,
             None,
+            ResolutionPurpose::Capture,
         );
 
         assert!(report.locations.is_empty());

@@ -385,7 +385,7 @@ async function openVnBatchImportDialog(drafts: GameDraft[]) {
       savePaths.push({
         path: currentPath,
         tags: [saveUnitType(saveUnit) ?? 'Folder'],
-        constraints: { os: [], stores: [] },
+        constraints: { alternatives: [] },
       });
     }
 
@@ -557,7 +557,7 @@ async function handleCustomizeConfirm(data: {
           delete_before_apply: config.value?.settings.default_delete_before_apply,
           enabled: true,
         },
-        data.savePaths.find((entry) => entry.path === path)?.constraints ?? { os: [], stores: [] }
+        data.savePaths.find((entry) => entry.path === path)?.constraints ?? { alternatives: [] }
       );
 
       savePaths.push(saveUnit);
@@ -682,7 +682,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
             delete_before_apply: config.value?.settings.default_delete_before_apply,
             enabled: true,
           },
-          sp.constraints ?? { os: [], stores: [] }
+          sp.constraints ?? { alternatives: [] }
         );
 
         savePaths.push(saveUnit);

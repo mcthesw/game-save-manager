@@ -1,4 +1,6 @@
-use crate::path_pattern::{ManifestPathConstraints, PlatformKind, StoreKind};
+use crate::path_pattern::{
+    ManifestPathCondition, ManifestPathConstraints, PlatformKind, StoreKind,
+};
 use crate::{
     app_dirs,
     config::Config,
@@ -394,7 +396,7 @@ pub fn extract_steam_id(value: &serde_yaml::Value) -> Option<u32> {
 
 pub fn detect_local_games(
     manifest: &HashMap<String, serde_yaml::Value>,
-    config: &Config,
+    _config: &Config,
 ) -> HashSet<String> {
     let mut detected = HashSet::new();
 
@@ -442,7 +444,7 @@ pub fn detect_local_games(
                     }
 
                     // Try to resolve the path with game context
-                    match path_resolver::resolve_path(path_str, Some(&ctx), config) {
+                    match path_resolver::resolve_path(path_str, Some(&ctx), _config) {
                         Ok(resolved) if resolved.exists() => {
                             detected.insert(name.clone());
                             debug!(target: "rgsm::ludusavi", "Detected installed game: {} (path: {})", name, path_str);
@@ -613,38 +615,35 @@ fn extract_constraints(value: Option<&serde_yaml::Value>) -> ManifestPathConstra
     let Some(conditions) = value.and_then(serde_yaml::Value::as_sequence) else {
         return ManifestPathConstraints::default();
     };
-    let mut os = Vec::new();
-    let mut stores = Vec::new();
+    let mut alternatives = Vec::new();
     for condition in conditions {
-        if let Some(value) = condition.get("os").and_then(serde_yaml::Value::as_str) {
-            let platform = match value {
+        let os = condition
+            .get("os")
+            .and_then(serde_yaml::Value::as_str)
+            .and_then(|value| match value {
                 "windows" => Some(PlatformKind::Windows),
                 "linux" => Some(PlatformKind::Linux),
                 "mac" => Some(PlatformKind::MacOs),
                 _ => None,
-            };
-            if let Some(platform) = platform
-                && !os.contains(&platform)
-            {
-                os.push(platform);
-            }
-        }
-        if let Some(value) = condition.get("store").and_then(serde_yaml::Value::as_str) {
-            let store = match value {
+            });
+        let store = condition
+            .get("store")
+            .and_then(serde_yaml::Value::as_str)
+            .and_then(|value| match value {
                 "steam" => Some(StoreKind::Steam),
                 "gog" => Some(StoreKind::Gog),
                 "microsoft" => Some(StoreKind::Microsoft),
                 "uplay" => Some(StoreKind::Uplay),
                 _ => None,
-            };
-            if let Some(store) = store
-                && !stores.contains(&store)
-            {
-                stores.push(store);
-            }
+            });
+        let alternative = ManifestPathCondition { os, store };
+        if (alternative.os.is_some() || alternative.store.is_some())
+            && !alternatives.contains(&alternative)
+        {
+            alternatives.push(alternative);
         }
     }
-    ManifestPathConstraints { os, stores }
+    ManifestPathConstraints { alternatives }
 }
 
 /// Extracts tags from a path value
@@ -663,6 +662,8 @@ fn extract_tags(value: &serde_yaml::Value) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "bundled-manifest")]
+    use crate::path_pattern::{PathPlaceholder, parse_manifest_path_pattern};
 
     #[test]
     fn test_count_save_paths() {
@@ -681,6 +682,43 @@ registry:
 "#;
         let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(count_save_paths(&value), 3);
+    }
+
+    #[cfg(feature = "bundled-manifest")]
+    #[test]
+    fn bundled_manifest_placeholder_inventory_has_no_unknown_tokens() {
+        // Contract snapshot researched against ludusavi-manifest on 2026-07-11.
+        let yaml = embedded_resources::ludusavi_manifest_yaml();
+        let manifest: HashMap<String, serde_yaml::Value> = serde_yaml::from_str(&yaml).unwrap();
+        let mut tokens = std::collections::BTreeSet::new();
+        for path in manifest
+            .values()
+            .filter_map(|game| game.get("files").and_then(serde_yaml::Value::as_mapping))
+            .flat_map(|files| files.keys().filter_map(serde_yaml::Value::as_str))
+        {
+            let mut cursor = 0;
+            while let Some(open) = path[cursor..].find('<').map(|offset| cursor + offset) {
+                let Some(close) = path[open..].find('>').map(|offset| open + offset) else {
+                    break;
+                };
+                tokens.insert(path[open..=close].to_string());
+                cursor = close + 1;
+            }
+        }
+
+        for token in &tokens {
+            assert!(
+                parse_manifest_path_pattern(token).is_ok(),
+                "bundled manifest introduced unknown placeholder {token}"
+            );
+        }
+        for placeholder in PathPlaceholder::ALL {
+            assert_eq!(
+                PathPlaceholder::from_token(placeholder.token()),
+                Some(placeholder)
+            );
+        }
+        assert!(!yaml.is_empty());
     }
 
     #[test]
@@ -754,13 +792,43 @@ files:
             .iter()
             .find(|path| path.path.contains("<root>"))
             .unwrap();
-        assert_eq!(windows.constraints.os, vec![PlatformKind::Windows]);
-        assert_eq!(windows.constraints.stores, vec![StoreKind::Steam]);
+        assert_eq!(
+            windows.constraints.alternatives,
+            vec![ManifestPathCondition {
+                os: Some(PlatformKind::Windows),
+                store: Some(StoreKind::Steam),
+            }]
+        );
         let linux = paths
             .iter()
             .find(|path| path.path.contains("<xdgData>"))
             .unwrap();
-        assert_eq!(linux.constraints.os, vec![PlatformKind::Linux]);
+        assert_eq!(
+            linux.constraints.alternatives,
+            vec![ManifestPathCondition {
+                os: Some(PlatformKind::Linux),
+                store: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn extract_save_paths_preserves_when_alternatives_as_or_conditions() {
+        let yaml = r#"
+files:
+  "<base>/game/config.py":
+    when:
+      - store: steam
+      - os: windows
+"#;
+        let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+
+        let paths = extract_save_paths("Game", &value).unwrap();
+        let constraints = &paths[0].constraints;
+
+        assert!(constraints.allows(PlatformKind::Linux, Some(StoreKind::Steam)));
+        assert!(constraints.allows(PlatformKind::Windows, Some(StoreKind::Gog)));
+        assert!(!constraints.allows(PlatformKind::Linux, Some(StoreKind::Gog)));
     }
 
     #[test]
