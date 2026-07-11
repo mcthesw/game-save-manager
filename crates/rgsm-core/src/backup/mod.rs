@@ -29,7 +29,8 @@ pub use extra_backups::{
 };
 pub use extra_info::{extra_info_dir, extra_info_namespace_dir, extra_info_namespace_file};
 pub use game::{
-    AutoBackupConfig, Game, GameDraft, LudusaviMeta, StoreGameId, TimerSnapshotDecision,
+    AutoBackupConfig, CaptureSnapshotOptions, Game, GameDraft, LudusaviMeta, StoreGameId,
+    TimerSnapshotDecision,
 };
 pub use game_snapshots::GameSnapshots;
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitSource, SaveUnitType};

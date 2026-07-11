@@ -472,6 +472,11 @@ pub fn registry_key_exists(path: &str) -> Result<bool, RegistryError> {
     platform::registry_key_exists(path)
 }
 
+#[cfg(not(target_os = "windows"))]
+pub fn registry_key_exists(_path: &str) -> Result<bool, RegistryError> {
+    Err(RegistryError::UnsupportedPlatform)
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

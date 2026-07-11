@@ -135,11 +135,8 @@ fn build_combinations<'a>(
     constraints: &ManifestPathConstraints,
     context: &'a ResolutionContext,
 ) -> Vec<CandidateParts<'a>> {
-    let needs_installation = parsed.contains(PathPlaceholder::Game)
-        || parsed.contains(PathPlaceholder::Base)
-        || (parsed.contains(PathPlaceholder::Root)
-            && !parsed.contains(PathPlaceholder::StoreUserId)
-            && !context.installations.is_empty());
+    let needs_installation =
+        parsed.contains(PathPlaceholder::Game) || parsed.contains(PathPlaceholder::Base);
     let needs_root = parsed.contains(PathPlaceholder::Root);
     let needs_account = parsed.contains(PathPlaceholder::StoreUserId);
 
@@ -496,6 +493,21 @@ mod tests {
             plan.selection_state,
             ResolutionSelectionState::Ambiguous { .. }
         ));
+    }
+
+    #[test]
+    fn root_only_patterns_do_not_inherit_installation_filtering() {
+        let parsed = parse_manifest_path_pattern("<root>/saves/*.sav").unwrap();
+        let context = context();
+
+        let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context);
+
+        assert_eq!(plan.candidates.len(), 2);
+        assert!(
+            plan.candidates
+                .iter()
+                .any(|candidate| candidate.dimensions.root_id.as_deref() == Some("root-b"))
+        );
     }
 
     #[test]

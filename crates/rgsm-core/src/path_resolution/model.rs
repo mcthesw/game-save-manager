@@ -130,6 +130,8 @@ pub enum ResolutionSelectionState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ResolutionDiagnosticKind {
+    UnknownPlaceholder,
+    InvalidGlob,
     MissingContext,
     UnsupportedPlatform,
     NoCandidate,
@@ -164,7 +166,9 @@ impl ResolutionPlan {
         ) || self.diagnostics.iter().any(|diagnostic| {
             matches!(
                 diagnostic.kind,
-                ResolutionDiagnosticKind::MissingContext
+                ResolutionDiagnosticKind::UnknownPlaceholder
+                    | ResolutionDiagnosticKind::InvalidGlob
+                    | ResolutionDiagnosticKind::MissingContext
                     | ResolutionDiagnosticKind::UnsupportedPlatform
                     | ResolutionDiagnosticKind::NoCandidate
             )
@@ -177,6 +181,7 @@ impl ResolutionPlan {
 pub enum ResolvedLocationKind {
     File,
     Directory,
+    Registry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]

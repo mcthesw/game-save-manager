@@ -1,5 +1,8 @@
-use crate::backup::{self, CreatedBy, Game, GameSnapshots, RestoreNotifier};
-use crate::config::{get_backup_path, get_config};
+use crate::backup::{
+    self, CapturePlan, CaptureSnapshotOptions, CreatedBy, Game, GameSnapshots, RestoreNotifier,
+    SaveUnitCaptureInput,
+};
+use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
     BeforeRestoreCtx, HookSource, MetadataChangedCtx, SnapshotAppliedCtx, SnapshotDeletedCtx,
 };
@@ -53,10 +56,31 @@ impl ServiceContext {
         created_by: CreatedBy,
         source: HookSource,
     ) -> Result<(), BackupError> {
-        let created = game
-            .create_snapshot_with_parent(describe, parent_date, created_by)
-            .await?;
         let config = get_config()?;
+        let plan = CapturePlan::from_resolution_reports(
+            game.save_paths
+                .iter()
+                .filter(|save_unit| save_unit.enabled)
+                .map(|save_unit| SaveUnitCaptureInput {
+                    save_unit_id: save_unit.id,
+                    delete_before_apply: save_unit.delete_before_apply,
+                    report: self.resolve_save_unit(&config, game, save_unit),
+                })
+                .collect(),
+        )?;
+        let created = game
+            .create_snapshot_from_capture_plan(
+                &plan,
+                CaptureSnapshotOptions {
+                    backup_base: &resolve_backup_path(&config.backup_path),
+                    preset: config.settings.compression_preset,
+                    describe,
+                    parent_date,
+                    created_by,
+                    source_fingerprint: None,
+                },
+            )
+            .await?;
 
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
             let mut ctx = crate::hooks::SnapshotCreatedCtx {

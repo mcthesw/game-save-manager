@@ -65,7 +65,8 @@ impl CapturePlan {
     ) -> Result<Self, CapturePlanError> {
         let failures = inputs
             .iter()
-            .filter(|input| is_blocking_state(&input.report.selection_state))
+            .filter(|input| !is_non_applicable_report(&input.report))
+            .filter(|input| is_blocking_report(&input.report))
             .map(|input| CapturePreflightFailure {
                 save_unit_id: input.save_unit_id,
                 selection_state: input.report.selection_state.clone(),
@@ -91,6 +92,7 @@ impl CapturePlan {
                 let kind = match location.kind {
                     ResolvedLocationKind::File => CaptureSourceKind::File,
                     ResolvedLocationKind::Directory => CaptureSourceKind::Directory,
+                    ResolvedLocationKind::Registry => CaptureSourceKind::Registry,
                 };
                 let id = groups.len() as u32;
                 let archive_path = archive_path(input.save_unit_id, id, &source_path, kind);
@@ -115,13 +117,28 @@ impl CapturePlan {
     }
 }
 
-fn is_blocking_state(state: &ResolutionSelectionState) -> bool {
+fn is_non_applicable_report(report: &ResolutionReport) -> bool {
+    report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.kind == crate::path_resolution::ResolutionDiagnosticKind::UnsupportedPlatform
+    })
+}
+
+fn is_blocking_report(report: &ResolutionReport) -> bool {
     matches!(
-        state,
+        report.selection_state,
         ResolutionSelectionState::Missing
             | ResolutionSelectionState::Ambiguous { .. }
             | ResolutionSelectionState::StaleSelection { .. }
-    )
+    ) || report.diagnostics.iter().any(|diagnostic| {
+        matches!(
+            diagnostic.kind,
+            crate::path_resolution::ResolutionDiagnosticKind::UnknownPlaceholder
+                | crate::path_resolution::ResolutionDiagnosticKind::InvalidGlob
+                | crate::path_resolution::ResolutionDiagnosticKind::MissingContext
+                | crate::path_resolution::ResolutionDiagnosticKind::UnsupportedPlatform
+                | crate::path_resolution::ResolutionDiagnosticKind::NoCandidate
+        )
+    })
 }
 
 fn archive_path(
@@ -263,6 +280,75 @@ mod tests {
             panic!("expected blocking preflight");
         };
         assert_eq!(failures.len(), 2);
+    }
+
+    #[test]
+    fn blocking_diagnostic_prevents_capture_even_with_explicit_selection() {
+        let mut invalid = report(&[]);
+        invalid.selection_state = ResolutionSelectionState::Explicit {
+            candidate_ids: vec!["platform".to_string()],
+        };
+        invalid.diagnostics.push(ResolutionDiagnostic {
+            kind: crate::path_resolution::ResolutionDiagnosticKind::InvalidGlob,
+            message: "invalid glob".to_string(),
+        });
+
+        let error = CapturePlan::from_resolution_reports(vec![SaveUnitCaptureInput {
+            save_unit_id: 7,
+            delete_before_apply: false,
+            report: invalid,
+        }])
+        .unwrap_err();
+
+        assert!(
+            matches!(error, CapturePlanError::Blocking(failures) if failures[0].save_unit_id == 7)
+        );
+    }
+
+    #[test]
+    fn unsupported_platform_reports_are_skipped_when_other_units_match() {
+        let mut unsupported = report(&[]);
+        unsupported.selection_state = ResolutionSelectionState::Missing;
+        unsupported.diagnostics.push(ResolutionDiagnostic {
+            kind: crate::path_resolution::ResolutionDiagnosticKind::UnsupportedPlatform,
+            message: "not applicable on this platform".to_string(),
+        });
+
+        let plan = CapturePlan::from_resolution_reports(vec![
+            SaveUnitCaptureInput {
+                save_unit_id: 1,
+                delete_before_apply: false,
+                report: report(&[("C:/Users/Player/Saves/game.sav", ResolvedLocationKind::File)]),
+            },
+            SaveUnitCaptureInput {
+                save_unit_id: 2,
+                delete_before_apply: false,
+                report: unsupported,
+            },
+        ])
+        .unwrap();
+
+        assert_eq!(plan.groups.len(), 1);
+        assert_eq!(plan.groups[0].save_unit_id, 1);
+    }
+
+    #[test]
+    fn only_unsupported_platform_reports_return_no_data() {
+        let mut unsupported = report(&[]);
+        unsupported.selection_state = ResolutionSelectionState::Missing;
+        unsupported.diagnostics.push(ResolutionDiagnostic {
+            kind: crate::path_resolution::ResolutionDiagnosticKind::UnsupportedPlatform,
+            message: "not applicable on this platform".to_string(),
+        });
+
+        assert!(matches!(
+            CapturePlan::from_resolution_reports(vec![SaveUnitCaptureInput {
+                save_unit_id: 2,
+                delete_before_apply: false,
+                report: unsupported,
+            }]),
+            Err(CapturePlanError::NoDataMatched)
+        ));
     }
 
     #[test]
