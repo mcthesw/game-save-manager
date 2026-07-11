@@ -1,3 +1,4 @@
+use crate::path_pattern::{ManifestPathConstraints, PlatformKind, StoreKind};
 use crate::{
     app_dirs,
     config::Config,
@@ -89,6 +90,8 @@ pub struct SavePath {
     pub path: String,
     /// Tags like "save", "config", etc.
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub constraints: ManifestPathConstraints,
 }
 
 /// Simplified game info for the import dialog
@@ -552,7 +555,7 @@ fn count_save_paths(value: &serde_yaml::Value) -> usize {
     count
 }
 
-/// Extracts save paths from a game's manifest entry, filtered by current OS
+/// Extracts portable save paths and preserves their platform/store constraints.
 pub fn extract_save_paths(game_name: &str, value: &serde_yaml::Value) -> Result<Vec<SavePath>> {
     let mut paths = Vec::new();
 
@@ -560,11 +563,7 @@ pub fn extract_save_paths(game_name: &str, value: &serde_yaml::Value) -> Result<
     if let Some(files) = value.get("files").and_then(|f| f.as_mapping()) {
         for (path_key, path_value) in files {
             if let Some(path_str) = path_key.as_str() {
-                // Check if this path applies to current OS
                 let when_conditions = path_value.get("when");
-                if !matches_current_system(when_conditions) {
-                    continue;
-                }
 
                 // Skip registry paths on non-Windows
                 #[cfg(not(target_os = "windows"))]
@@ -576,6 +575,7 @@ pub fn extract_save_paths(game_name: &str, value: &serde_yaml::Value) -> Result<
                 paths.push(SavePath {
                     path: path_str.to_string(),
                     tags,
+                    constraints: extract_constraints(when_conditions),
                 });
             }
         }
@@ -596,6 +596,7 @@ pub fn extract_save_paths(game_name: &str, value: &serde_yaml::Value) -> Result<
                 paths.push(SavePath {
                     path: format!("REGISTRY:{}", path_str),
                     tags,
+                    constraints: extract_constraints(when_conditions),
                 });
             }
         }
@@ -606,6 +607,44 @@ pub fn extract_save_paths(game_name: &str, value: &serde_yaml::Value) -> Result<
     }
 
     Ok(paths)
+}
+
+fn extract_constraints(value: Option<&serde_yaml::Value>) -> ManifestPathConstraints {
+    let Some(conditions) = value.and_then(serde_yaml::Value::as_sequence) else {
+        return ManifestPathConstraints::default();
+    };
+    let mut os = Vec::new();
+    let mut stores = Vec::new();
+    for condition in conditions {
+        if let Some(value) = condition.get("os").and_then(serde_yaml::Value::as_str) {
+            let platform = match value {
+                "windows" => Some(PlatformKind::Windows),
+                "linux" => Some(PlatformKind::Linux),
+                "mac" => Some(PlatformKind::MacOs),
+                _ => None,
+            };
+            if let Some(platform) = platform
+                && !os.contains(&platform)
+            {
+                os.push(platform);
+            }
+        }
+        if let Some(value) = condition.get("store").and_then(serde_yaml::Value::as_str) {
+            let store = match value {
+                "steam" => Some(StoreKind::Steam),
+                "gog" => Some(StoreKind::Gog),
+                "microsoft" => Some(StoreKind::Microsoft),
+                "uplay" => Some(StoreKind::Uplay),
+                _ => None,
+            };
+            if let Some(store) = store
+                && !stores.contains(&store)
+            {
+                stores.push(store);
+            }
+        }
+    }
+    ManifestPathConstraints { os, stores }
 }
 
 /// Extracts tags from a path value
@@ -690,6 +729,38 @@ files:
         assert_eq!(paths.len(), 2);
         assert!(paths.iter().any(|p| p.path.contains("<root>")));
         assert!(paths.iter().any(|p| p.path.contains("<storeuserid>")));
+    }
+
+    #[test]
+    fn extract_save_paths_preserves_platform_and_store_constraints() {
+        let yaml = r#"
+files:
+  "<root>/userdata/<storeUserId>/save.dat":
+    when:
+      - os: windows
+        store: steam
+    tags: [save]
+  "<xdgData>/game/save.dat":
+    when:
+      - os: linux
+    tags: [save]
+"#;
+        let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+
+        let paths = extract_save_paths("Game", &value).unwrap();
+
+        assert_eq!(paths.len(), 2);
+        let windows = paths
+            .iter()
+            .find(|path| path.path.contains("<root>"))
+            .unwrap();
+        assert_eq!(windows.constraints.os, vec![PlatformKind::Windows]);
+        assert_eq!(windows.constraints.stores, vec![StoreKind::Steam]);
+        let linux = paths
+            .iter()
+            .find(|path| path.path.contains("<xdgData>"))
+            .unwrap();
+        assert_eq!(linux.constraints.os, vec![PlatformKind::Linux]);
     }
 
     #[test]

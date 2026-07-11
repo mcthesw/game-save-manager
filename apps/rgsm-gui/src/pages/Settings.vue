@@ -26,6 +26,7 @@ import type {
 } from '~/bindings';
 import { error, info } from '@tauri-apps/plugin-log';
 import type { Device } from '../bindings';
+import { saveUnitPaths } from '../utils/saveUnit';
 
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
@@ -78,7 +79,7 @@ async function fetchSystemFonts() {
 }
 
 // 设备管理相关
-const currentDevice = ref<Device>({ id: '', name: '', game_roots: [] });
+const currentDevice = ref<Device>({ id: '', name: '', resources: [], next_resource_id: 0 });
 const otherDevices = ref<Device[]>([]);
 
 // Ludusavi manifest management
@@ -320,7 +321,7 @@ async function fetchDeviceInfo() {
     if (result.status === 'ok') {
       currentDevice.value = {
         ...result.data,
-        game_roots: result.data.game_roots ?? [],
+        resources: result.data.resources ?? [],
       };
 
       // 从配置中获取所有设备
@@ -334,7 +335,8 @@ async function fetchDeviceInfo() {
             list.push({
               id: device.id,
               name: device.name,
-              game_roots: device.game_roots ?? [],
+              resources: device.resources ?? [],
+              next_resource_id: device.next_resource_id ?? 0,
             });
             return list;
           },
@@ -382,14 +384,24 @@ async function updateDeviceInfo() {
 const detectingGameRoots = ref(false);
 
 function getCurrentGameRoots(): string[] {
-  if (!currentDevice.value.game_roots) {
-    currentDevice.value.game_roots = [];
-  }
-  return currentDevice.value.game_roots;
+  return (currentDevice.value.resources ?? [])
+    .filter((resource) => resource.kind.type === 'gameRoot')
+    .map((resource) => (resource.kind.type === 'gameRoot' ? resource.kind.path : ''));
 }
 
+const gameRootResources = computed(() =>
+  (currentDevice.value.resources ?? []).filter((resource) => resource.kind.type === 'gameRoot')
+);
+
 function addGameRoot() {
-  getCurrentGameRoots().push('');
+  currentDevice.value.resources ??= [];
+  const id = currentDevice.value.next_resource_id ?? 0;
+  currentDevice.value.resources.push({
+    id,
+    source: 'manual',
+    kind: { type: 'gameRoot', store: 'other', path: '' },
+  });
+  currentDevice.value.next_resource_id = id + 1;
 }
 
 let gameRootsSaveQueue = Promise.resolve();
@@ -400,19 +412,26 @@ function saveGameRoots() {
 }
 
 async function removeGameRoot(index: number) {
-  getCurrentGameRoots().splice(index, 1);
+  const roots = (currentDevice.value.resources ?? []).filter(
+    (resource) => resource.kind.type === 'gameRoot'
+  );
+  const target = roots[index];
+  currentDevice.value.resources = (currentDevice.value.resources ?? []).filter(
+    (resource) => resource.id !== target?.id
+  );
   await saveGameRoots();
 }
 
 function updateGameRoot(index: number, value: string) {
-  getCurrentGameRoots()[index] = value;
+  const resource = gameRootResources.value[index];
+  if (resource?.kind.type === 'gameRoot') resource.kind.path = value;
 }
 
 async function pickGameRoot(index: number) {
   try {
     const result = await commands.chooseSaveDir();
     if (result.status === 'ok' && result.data) {
-      getCurrentGameRoots()[index] = result.data;
+      updateGameRoot(index, result.data);
       await saveGameRoots();
     }
   } catch (e) {
@@ -431,7 +450,16 @@ async function autoDetectGameRoots() {
         notifyInfo($t('settings.game_roots_no_new'));
         return;
       }
-      getCurrentGameRoots().push(...newRoots);
+      for (const path of newRoots) {
+        const id = currentDevice.value.next_resource_id ?? 0;
+        currentDevice.value.resources ??= [];
+        currentDevice.value.resources.push({
+          id,
+          source: 'detected',
+          kind: { type: 'gameRoot', store: 'steam', path },
+        });
+        currentDevice.value.next_resource_id = id + 1;
+      }
       await saveGameRoots();
       notifySuccess($t('settings.game_roots_detected', { count: newRoots.length }));
     } else {
@@ -468,9 +496,10 @@ async function importFromDevice(deviceId: string) {
     for (const game of config.value.games) {
       // 复制存档路径
       for (const savePath of game.save_paths || []) {
-        if (savePath.paths) {
-          if (savePath.paths[deviceId]) {
-            savePath.paths[currentDeviceId] = savePath.paths[deviceId];
+        const paths = saveUnitPaths(savePath);
+        if (paths) {
+          if (paths[deviceId]) {
+            paths[currentDeviceId] = paths[deviceId];
           }
         }
       }
@@ -687,8 +716,9 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
         }
 
         for (const saveUnit of game.save_paths || []) {
-          if (saveUnit.paths && deviceId in saveUnit.paths) {
-            Reflect.deleteProperty(saveUnit.paths, deviceId);
+          const paths = saveUnitPaths(saveUnit);
+          if (paths && deviceId in paths) {
+            Reflect.deleteProperty(paths, deviceId);
           }
         }
       }
@@ -1156,13 +1186,9 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <h3>{{ $t('settings.game_roots_title') }}</h3>
             <p class="setting-hint">{{ $t('settings.game_roots_hint') }}</p>
             <div class="game-roots-list">
-              <div
-                v-for="(root, index) in currentDevice.game_roots"
-                :key="index"
-                class="game-root-item"
-              >
+              <div v-for="(root, index) in gameRootResources" :key="root.id" class="game-root-item">
                 <el-input
-                  :model-value="root"
+                  :model-value="root.kind.type === 'gameRoot' ? root.kind.path : ''"
                   :placeholder="$t('settings.game_roots_path_placeholder')"
                   @update:model-value="(val: string) => updateGameRoot(index, val)"
                   @change="saveGameRoots"

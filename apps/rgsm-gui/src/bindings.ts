@@ -404,6 +404,25 @@ async getGameSavePaths(gameName: string) : Promise<Result<SavePath[], string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getPathPlaceholderCatalog() : Promise<PathPlaceholderDescriptor[]> {
+    return await TAURI_INVOKE("get_path_placeholder_catalog");
+},
+async previewSaveUnitResolution(game: Game, saveUnit: SaveUnit) : Promise<Result<ResolutionReport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_save_unit_resolution", { game, saveUnit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setGameDeviceBinding(identity: string, binding: GameDeviceBinding) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_game_device_binding", { identity, binding }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getLudusaviManifestStatus() : Promise<Result<LudusaviManifestStatus, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_ludusavi_manifest_status") };
@@ -589,6 +608,8 @@ export type BatchSyncItemStatus = "success" | "cancelled" | { failed: string }
 export type BatchSyncReport = { config: BatchSyncItemReport; games: BatchSyncItemReport[] }
 export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
+export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
+export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
 export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
@@ -705,12 +726,10 @@ export type CreatedBy =
  * Forward-compat catch-all for variants added in future versions.
  */
 "Unknown"
-export type Device = { id: string; name: string;
-/**
- * User-configured root directories for `<root>` path variable resolution.
- * First entry is used as `<root>`; empty = auto-detect Steam root.
- */
-game_roots?: string[] }
+export type Device = { id: string; name: string; resources?: DeviceResource[]; next_resource_id?: number }
+export type DeviceResource = { id: number; source: DeviceResourceSource; kind: DeviceResourceKind }
+export type DeviceResourceKind = { type: "gameRoot"; store: StoreKind; path: string } | { type: "storeAccount"; store: StoreKind; user_id: string } | { type: "gameInstallation"; root_id: number; store: StoreKind; install_dir: string; path: string; store_game_id?: string | null }
+export type DeviceResourceSource = "manual" | "detected"
 export type ExtraBackupItem = {
 /**
  * Filename without extension, e.g. `Overwrite_2025-12-22_12-34-56`.
@@ -752,12 +771,13 @@ auto_backup?: AutoBackupConfig | null;
  */
 ludusavi_meta?: LudusaviMeta | null;
 /**
- * Per-device store user ID for `<storeUserId>` resolution.
- * Key: DeviceId, Value: store-specific user ID (e.g. Steam user ID).
+ * Per-Device resource selections for this Game. Missing dimensions remain
+ * implicit and become ambiguous if more than one applicable resource exists.
  */
-store_user_ids: Partial<{ [key in string]: string }> }
+device_bindings: Partial<{ [key in string]: GameDeviceBinding }> }
 export type GameAutomationSettings = { storage_key?: string; game_name: string; process_name?: string; on_process_start?: boolean; on_process_exit?: boolean; in_process_interval_secs?: number | null }
 export type GameAutomationSettingsDraft = { process_name?: string; on_process_start?: boolean; on_process_exit?: boolean; in_process_interval_secs?: number | null }
+export type GameDeviceBinding = { rootIds?: number[] | null; accountIds?: number[] | null; installationIds?: number[] | null; restoreMappings: RestoreMappingRule[] }
 /**
  * Frontend/IPC input shape for creating/updating a game.
  * Save-unit IDs are assigned and normalized in backend domain logic.
@@ -766,11 +786,7 @@ export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?
 /**
  * Metadata from Ludusavi manifest import (optional for manually added games).
  */
-ludusavi_meta?: LudusaviMeta | null;
-/**
- * Per-device store user ID for `<storeUserId>` resolution.
- */
-store_user_ids: Partial<{ [key in string]: string }> }
+ludusavi_meta?: LudusaviMeta | null; device_bindings: Partial<{ [key in string]: GameDeviceBinding }> }
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -862,9 +878,12 @@ export type LudusaviMeta = {
  */
 installDirs?: string[];
 /**
- * Steam App ID from the manifest's `steam.id`. Used to resolve `<storeGameId>`.
+ * Store-specific game IDs used to resolve `<storeGameId>` in the context
+ * of the candidate root or installation.
  */
-steamId?: number | null }
+storeGameIds: StoreGameId[] }
+export type ManifestPathConstraints = { os: PlatformKind[]; stores: StoreKind[] }
+export type ManifestPathPattern = string
 export type NotificationLevel = "info" | "warning" | "error"
 export type OpenPathOutcome = { status: "opened" } | { status: "warning"; warning: OpenPathWarning }
 export type OpenPathWarning = "registryOpenUnsupported"
@@ -888,7 +907,10 @@ export type PathCheckResult =
  * Failed to resolve path variables
  */
 { status: "resolveFailed"; rawPath: string; error: string }
+export type PathPlaceholder = "root" | "game" | "base" | "home" | "storeGameId" | "storeUserId" | "osUserName" | "winAppData" | "winLocalAppData" | "winLocalAppDataLow" | "winDocuments" | "winPublic" | "winProgramData" | "winDir" | "xdgData" | "xdgConfig"
+export type PathPlaceholderDescriptor = { placeholder: PathPlaceholder; token: string; windowsApplicable: boolean }
 export type PendingAction = "none" | "retry_required" | "user_decision_required"
+export type PlatformKind = "windows" | "linux" | "macOs"
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionOperation = "Backup" | "Apply"
@@ -899,11 +921,18 @@ export type QuickActionSoundSource = { kind: "default" } | { kind: "file"; path:
 export type QuickActionStatus = "Success" | "Failure" | "SkippedUnchanged"
 export type QuickActionType = "Timer" | "Tray" | "Hotkey" | "ProcessStart" | "ProcessExit" | "ProcessInterval"
 export type QuickActionsSettings = { quick_action_game?: Game | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; notify_when_unchanged?: boolean; sounds?: QuickActionSoundSlots; game_automations?: GameAutomationSettings[] }
+export type ResolutionDiagnostic = { kind: ResolutionDiagnosticKind; message: string }
+export type ResolutionDiagnosticKind = "unknownPlaceholder" | "invalidGlob" | "missingContext" | "unsupportedPlatform" | "noCandidate" | "noMatch" | "multipleCandidates" | "multipleMatches"
+export type ResolutionReport = { rawPattern: string; selectionState: ResolutionSelectionState; candidates: CandidateExpression[]; locations: ResolvedSaveLocation[]; diagnostics: ResolutionDiagnostic[] }
+export type ResolutionSelectionState = { status: "missing" } | { status: "implicitUnique"; candidate_id: string } | { status: "ambiguous"; candidate_ids: string[] } | { status: "explicit"; candidate_ids: string[] } | { status: "staleSelection"; selected_resource_ids: string[]; candidate_ids: string[] }
+export type ResolvedLocationKind = "file" | "directory" | "registry"
+export type ResolvedSaveLocation = { path: string; kind: ResolvedLocationKind; candidateId: string; logicalAnchor: string; dimensions: CandidateDimensions }
 /**
  * Typed error for restore operations, allowing the frontend to
  * pattern-match on specific failure modes without string parsing.
  */
 export type RestoreError = { type: "IntegrityCheckFailed"; expected: string; actual: string } | { type: "BackupNotFound"; date: string } | { type: "DecompressFailed"; message: string } | { type: "Io"; message: string } | { type: "Other"; message: string }
+export type RestoreMappingRule = { saveUnitId: number; sourceDimensions: CandidateDimensions; targetCandidateIds: string[] }
 export type RunningProcessOption = { name: string; label: string; count: number }
 /**
  * How the S3 client addresses buckets.
@@ -929,31 +958,15 @@ path: string;
 /**
  * Tags like "save", "config", etc.
  */
-tags: string[] }
+tags: string[]; constraints?: ManifestPathConstraints }
 /**
- * A save unit declares one of the files/folders
- * that should be backup for a game.
- *
- * The `id` field is a stable identifier used as the index prefix in V2 archives.
- * Unlike positional indices, it does not change when save units are added or removed,
- * ensuring old archives can always be restored correctly. The backend will
- * normalize duplicated IDs when persisting config.
+ * A save unit declares one concrete per-Device location or one portable
+ * Manifest Path Pattern. Dynamic patterns deliberately do not guess whether
+ * their future matches will be files or directories.
  */
-export type SaveUnit = {
-/**
- * Stable identifier for this save unit, used as archive entry prefix in V2 format.
- * Provided by the caller (frontend/CLI/FFI) and kept unique by backend normalization.
- */
-id?: number; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean; enabled?: boolean }
-/**
- * Frontend/IPC input shape for save-unit editing.
- * Existing rows may provide `id` to preserve archive compatibility during edits;
- * backend logic allocates IDs for new rows and normalizes duplicates.
- */
-export type SaveUnitDraft = { id?: number | null; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }>; delete_before_apply?: boolean; enabled?: boolean }
-/**
- * The kind of data a save unit backs up.
- */
+export type SaveUnit = { id?: number; source: SaveUnitSource; delete_before_apply?: boolean; enabled?: boolean }
+export type SaveUnitDraft = { id?: number | null; source: SaveUnitSource; delete_before_apply?: boolean; enabled?: boolean }
+export type SaveUnitSource = { type: "concrete"; unit_type: SaveUnitType; paths?: Partial<{ [key in string]: string }> } | { type: "manifestPattern"; pattern: ManifestPathPattern; constraints?: ManifestPathConstraints }
 export type SaveUnitType = "File" | "Folder" |
 /**
  * Windows Registry key tree (stored as `registry.reg` inside new archives).
@@ -996,6 +1009,8 @@ device_id?: string | null;
  */
 created_by?: CreatedBy }
 export type SortDirection = "asc" | "desc"
+export type StoreGameId = { store: StoreKind; id: string }
+export type StoreKind = "steam" | "gog" | "microsoft" | "uplay" | "other"
 /**
  * A candidate Steam user ID with metadata for UI display.
  */

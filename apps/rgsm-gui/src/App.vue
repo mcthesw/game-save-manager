@@ -15,6 +15,7 @@ import { useIpcNotificationCollector } from './composables/useIpcNotificationCol
 import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
 import { computed, provide, ref, watch } from 'vue';
+import { saveUnitPaths } from './utils/saveUnit';
 
 const { config, refreshConfig, saveConfig } = useConfig();
 useDark();
@@ -124,9 +125,10 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
       for (const game of config.value.games) {
         // 复制存档路径
         for (const savePath of game.save_paths || []) {
-          if (savePath.paths) {
-            if (savePath.paths[importFromDeviceId]) {
-              savePath.paths[currentDeviceId] = savePath.paths[importFromDeviceId];
+          const paths = saveUnitPaths(savePath);
+          if (paths) {
+            if (paths[importFromDeviceId]) {
+              paths[currentDeviceId] = paths[importFromDeviceId];
             }
           }
         }

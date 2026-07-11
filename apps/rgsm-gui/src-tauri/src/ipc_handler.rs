@@ -1,5 +1,7 @@
 use crate::{quick_actions, sound};
-use rgsm_core::backup::{CreatedBy, ExtraBackupItem, Game, GameDraft, GameSnapshots};
+use rgsm_core::backup::{
+    CreatedBy, ExtraBackupItem, Game, GameDeviceBinding, GameDraft, GameSnapshots, SaveUnit,
+};
 use rgsm_core::cloud_sync::{
     self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudBackendCheckReport,
     CloudSyncSessionConfig, CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome,
@@ -12,6 +14,8 @@ use rgsm_core::device::{Device, get_current_device_id};
 use rgsm_core::hooks::{HookPipeline, HookSource};
 use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
 use rgsm_core::path_launcher::{OpenManagedLocationOutcome, OpenManagedLocationWarning};
+use rgsm_core::path_pattern::{PathPlaceholder, PathPlaceholderDescriptor};
+use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::ServiceContext;
@@ -1092,6 +1096,36 @@ pub async fn get_game_save_paths(game_name: String) -> Result<Vec<SavePath>, Str
     info!(target:"rgsm::ipc", "Found {} save paths for game: {}", paths.len(), game_name);
 
     Ok(paths)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_path_placeholder_catalog() -> Vec<PathPlaceholderDescriptor> {
+    PathPlaceholder::catalog()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preview_save_unit_resolution(
+    game: Game,
+    save_unit: SaveUnit,
+    app_handle: AppHandle,
+) -> Result<ResolutionReport, String> {
+    let config = get_config().map_err(|error| error.to_string())?;
+    Ok(svc(&app_handle).resolve_save_unit(&config, &game, &save_unit))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_game_device_binding(
+    identity: String,
+    binding: GameDeviceBinding,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    svc(&app_handle)
+        .set_game_device_binding(&identity, binding, HookSource::UserManual)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
