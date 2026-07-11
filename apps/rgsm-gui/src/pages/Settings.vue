@@ -392,6 +392,14 @@ function getCurrentGameRoots(): string[] {
 const gameRootResources = computed(() =>
   (currentDevice.value.resources ?? []).filter((resource) => resource.kind.type === 'gameRoot')
 );
+const storeAccountResources = computed(() =>
+  (currentDevice.value.resources ?? []).filter((resource) => resource.kind.type === 'storeAccount')
+);
+const installationResources = computed(() =>
+  (currentDevice.value.resources ?? []).filter(
+    (resource) => resource.kind.type === 'gameInstallation'
+  )
+);
 
 function addGameRoot() {
   currentDevice.value.resources ??= [];
@@ -471,6 +479,53 @@ async function autoDetectGameRoots() {
   } finally {
     detectingGameRoots.value = false;
   }
+}
+
+function addStoreAccount() {
+  currentDevice.value.resources ??= [];
+  const id = currentDevice.value.next_resource_id ?? 0;
+  currentDevice.value.resources.push({
+    id,
+    source: 'manual',
+    kind: { type: 'storeAccount', store: 'steam', user_id: '' },
+  });
+  currentDevice.value.next_resource_id = id + 1;
+}
+
+async function removeStoreAccount(id: number) {
+  currentDevice.value.resources = (currentDevice.value.resources ?? []).filter(
+    (resource) => resource.id !== id
+  );
+  await persistDeviceInfo(false);
+}
+
+function addGameInstallation() {
+  const firstRoot = gameRootResources.value[0];
+  if (!firstRoot) {
+    notifyWarning($t('settings.installation_requires_root'));
+    return;
+  }
+  currentDevice.value.resources ??= [];
+  const id = currentDevice.value.next_resource_id ?? 0;
+  currentDevice.value.resources.push({
+    id,
+    source: 'manual',
+    kind: {
+      type: 'gameInstallation',
+      root_id: firstRoot.id,
+      store: firstRoot.kind.type === 'gameRoot' ? firstRoot.kind.store : 'other',
+      install_dir: '',
+      path: '',
+    },
+  });
+  currentDevice.value.next_resource_id = id + 1;
+}
+
+async function removeGameInstallation(id: number) {
+  currentDevice.value.resources = (currentDevice.value.resources ?? []).filter(
+    (resource) => resource.id !== id
+  );
+  await persistDeviceInfo(false);
 }
 
 // 从其他设备导入路径
@@ -1187,6 +1242,18 @@ const { linksWithGames: router_list } = useNavigationLinks();
             <p class="setting-hint">{{ $t('settings.game_roots_hint') }}</p>
             <div class="game-roots-list">
               <div v-for="(root, index) in gameRootResources" :key="root.id" class="game-root-item">
+                <el-select
+                  v-if="root.kind.type === 'gameRoot'"
+                  v-model="root.kind.store"
+                  style="width: 140px"
+                  @change="saveGameRoots"
+                >
+                  <el-option label="Steam" value="steam" />
+                  <el-option label="GOG" value="gog" />
+                  <el-option label="Microsoft" value="microsoft" />
+                  <el-option label="Ubisoft" value="uplay" />
+                  <el-option :label="$t('settings.store_other')" value="other" />
+                </el-select>
                 <el-input
                   :model-value="root.kind.type === 'gameRoot' ? root.kind.path : ''"
                   :placeholder="$t('settings.game_roots_path_placeholder')"
@@ -1215,6 +1282,87 @@ const { linksWithGames: router_list } = useNavigationLinks();
                 {{ $t('settings.game_roots_auto_detect') }}
               </el-button>
             </div>
+          </div>
+
+          <div class="setting-box">
+            <h3>{{ $t('settings.store_accounts_title') }}</h3>
+            <p class="setting-hint">{{ $t('settings.store_accounts_hint') }}</p>
+            <div class="game-roots-list">
+              <div
+                v-for="account in storeAccountResources"
+                :key="account.id"
+                class="game-root-item"
+              >
+                <template v-if="account.kind.type === 'storeAccount'">
+                  <el-select
+                    v-model="account.kind.store"
+                    style="width: 140px"
+                    @change="persistDeviceInfo(false)"
+                  >
+                    <el-option label="Steam" value="steam" />
+                    <el-option label="GOG" value="gog" />
+                    <el-option label="Microsoft" value="microsoft" />
+                    <el-option label="Ubisoft" value="uplay" />
+                    <el-option :label="$t('settings.store_other')" value="other" />
+                  </el-select>
+                  <el-input
+                    v-model="account.kind.user_id"
+                    :placeholder="$t('settings.store_account_id_placeholder')"
+                    @change="persistDeviceInfo(false)"
+                  />
+                  <el-button text type="danger" @click="removeStoreAccount(account.id)">
+                    <el-icon><Close /></el-icon>
+                  </el-button>
+                </template>
+              </div>
+            </div>
+            <el-button size="small" @click="addStoreAccount">
+              {{ $t('settings.store_account_add') }}
+            </el-button>
+          </div>
+
+          <div class="setting-box">
+            <h3>{{ $t('settings.game_installations_title') }}</h3>
+            <p class="setting-hint">{{ $t('settings.game_installations_hint') }}</p>
+            <div class="game-roots-list">
+              <div
+                v-for="installation in installationResources"
+                :key="installation.id"
+                class="game-root-item installation-item"
+              >
+                <template v-if="installation.kind.type === 'gameInstallation'">
+                  <el-select
+                    v-model="installation.kind.root_id"
+                    :placeholder="$t('settings.game_installation_root')"
+                    style="width: 180px"
+                    @change="persistDeviceInfo(false)"
+                  >
+                    <el-option
+                      v-for="root in gameRootResources"
+                      :key="root.id"
+                      :label="root.kind.type === 'gameRoot' ? root.kind.path : String(root.id)"
+                      :value="root.id"
+                    />
+                  </el-select>
+                  <el-input
+                    v-model="installation.kind.install_dir"
+                    :placeholder="$t('settings.game_installation_name')"
+                    @change="persistDeviceInfo(false)"
+                  />
+                  <el-input
+                    v-model="installation.kind.path"
+                    :placeholder="$t('settings.game_installation_path')"
+                    @change="persistDeviceInfo(false)"
+                  />
+                  <el-button text type="danger" @click="removeGameInstallation(installation.id)">
+                    <el-icon><Close /></el-icon>
+                  </el-button>
+                </template>
+              </div>
+            </div>
+            <el-button size="small" @click="addGameInstallation">
+              {{ $t('settings.game_installation_add') }}
+            </el-button>
           </div>
 
           <!-- 其他设备列表 -->

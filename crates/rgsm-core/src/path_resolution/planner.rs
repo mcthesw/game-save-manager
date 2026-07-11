@@ -287,7 +287,12 @@ fn render_candidate(
     let store_game_id = parts
         .installation
         .and_then(|installation| installation.store_game_id.as_deref())
-        .or_else(|| store.and_then(|store| context.store_game_ids.get(&store).map(String::as_str)));
+        .or_else(|| store.and_then(|store| context.store_game_ids.get(&store).map(String::as_str)))
+        .or_else(|| {
+            (context.store_game_ids.len() == 1)
+                .then(|| context.store_game_ids.values().next().map(String::as_str))
+                .flatten()
+        });
     replace_text(&mut expression, PathPlaceholder::StoreGameId, store_game_id)?;
     replace_text(
         &mut expression,
@@ -635,5 +640,30 @@ mod tests {
             plan.diagnostics[0].kind,
             ResolutionDiagnosticKind::UnsupportedPlatform
         );
+    }
+
+    #[test]
+    fn every_windows_placeholder_renders_from_the_typed_context() {
+        for placeholder in PathPlaceholder::ALL
+            .into_iter()
+            .filter(|placeholder| placeholder.windows_applicable())
+        {
+            let parsed = parse_manifest_path_pattern(placeholder.token()).unwrap();
+            let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context());
+
+            assert!(
+                !plan.candidates.is_empty(),
+                "{} produced no candidates: {:?}",
+                placeholder.token(),
+                plan.diagnostics
+            );
+            assert!(
+                plan.candidates
+                    .iter()
+                    .all(|candidate| !candidate.expression.contains('<')),
+                "{} remained unresolved",
+                placeholder.token()
+            );
+        }
     }
 }

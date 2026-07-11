@@ -103,14 +103,27 @@ fn resolution_context(config: &Config, game: &Game, device_id: &str) -> Resoluti
                     install_dir,
                     path,
                     store_game_id,
-                } => installations.push(GameInstallationCandidate {
-                    id,
-                    root_id: resource_id(*root_id),
-                    store: *store,
-                    install_dir: install_dir.clone(),
-                    install_path: PathBuf::from(path),
-                    store_game_id: store_game_id.clone(),
-                }),
+                } => {
+                    let applies = game.ludusavi_meta.as_ref().is_none_or(|meta| {
+                        meta.install_dirs
+                            .iter()
+                            .any(|candidate| candidate.eq_ignore_ascii_case(install_dir))
+                            || store_game_id.as_deref().is_some_and(|id| {
+                                meta.store_game_id(*store)
+                                    .is_some_and(|candidate| candidate == id)
+                            })
+                    });
+                    if applies {
+                        installations.push(GameInstallationCandidate {
+                            id,
+                            root_id: resource_id(*root_id),
+                            store: *store,
+                            install_dir: install_dir.clone(),
+                            install_path: PathBuf::from(path),
+                            store_game_id: store_game_id.clone(),
+                        });
+                    }
+                }
             }
         }
     }
