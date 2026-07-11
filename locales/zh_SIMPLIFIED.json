@@ -163,6 +163,10 @@
         "wrong_homepage": "页面不存在，请重设主页"
     },
     "manage": {
+        "choose_restore_location": "选择恢复位置",
+        "choose_restore_location_hint": "此备份包含多个可能的来源位置。请输入要在本设备上使用的位置编号，之后会记住该选择。",
+        "no_restore_locations": "本设备上没有可用的恢复位置",
+        "invalid_restore_location": "请选择列表中的一个位置",
         "create_new_save": "创建新快照",
         "load_latest_save": "应用最新快照",
         "launch_game": "启动游戏",

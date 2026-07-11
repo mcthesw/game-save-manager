@@ -142,6 +142,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::get_path_placeholder_catalog,
             ipc_handler::preview_save_unit_resolution,
             ipc_handler::set_game_device_binding,
+            ipc_handler::save_restore_mapping,
             ipc_handler::get_ludusavi_manifest_status,
             ipc_handler::update_ludusavi_manifest,
             ipc_handler::reset_ludusavi_manifest_to_bundled,

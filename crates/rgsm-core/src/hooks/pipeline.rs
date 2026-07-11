@@ -372,6 +372,7 @@ mod tests {
 
     fn make_before_restore_ctx() -> BeforeRestoreCtx {
         BeforeRestoreCtx {
+            capture_plan: None,
             config: Config::default(),
             source: HookSource::UserManual,
             game: Game {

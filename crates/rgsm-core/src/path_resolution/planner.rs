@@ -311,12 +311,7 @@ fn render_candidate(
         store,
     };
     let id = candidate_id(&dimensions);
-    let logical_anchor = parts
-        .installation
-        .map(|installation| installation.install_path.clone())
-        .or_else(|| parts.root.map(|root| root.path.clone()))
-        .or_else(|| context.platform_paths.home.clone())
-        .unwrap_or_else(|| PathBuf::from("."));
+    let logical_anchor = glob_logical_anchor(&expression);
 
     Ok(CandidateExpression {
         id,
@@ -325,6 +320,46 @@ fn render_candidate(
         dimensions,
         case_sensitive: context.platform != PlatformKind::Windows,
     })
+}
+
+fn glob_logical_anchor(expression: &str) -> PathBuf {
+    let first_glob = first_unescaped_glob(expression);
+    let anchor = match first_glob {
+        Some(index) => expression[..index]
+            .rfind('/')
+            .map(|slash| &expression[..slash])
+            .unwrap_or("."),
+        None => expression,
+    };
+    PathBuf::from(unescape_glob_literal(anchor))
+}
+
+fn first_unescaped_glob(expression: &str) -> Option<usize> {
+    let bytes = expression.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"[[]")
+            || bytes[index..].starts_with(b"[]]")
+            || bytes[index..].starts_with(b"[*]")
+            || bytes[index..].starts_with(b"[?]")
+        {
+            index += 3;
+            continue;
+        }
+        if matches!(bytes[index], b'*' | b'?' | b'[') {
+            return Some(index);
+        }
+        index += 1;
+    }
+    None
+}
+
+fn unescape_glob_literal(value: &str) -> String {
+    value
+        .replace("[[]", "[")
+        .replace("[]]", "]")
+        .replace("[*]", "*")
+        .replace("[?]", "?")
 }
 
 fn replace_path(
@@ -493,6 +528,11 @@ mod tests {
             plan.selection_state,
             ResolutionSelectionState::Ambiguous { .. }
         ));
+        assert!(
+            plan.candidates
+                .iter()
+                .any(|candidate| candidate.logical_anchor.ends_with("userdata/111/10"))
+        );
     }
 
     #[test]
@@ -566,6 +606,21 @@ mod tests {
         assert_eq!(
             plan.candidates[0].expression,
             "D:/Steam[[]Main[]]/steamapps/common/Game[[]One[]]/Save[0-9]/*.sav"
+        );
+    }
+
+    #[test]
+    fn literal_brackets_in_resources_do_not_truncate_logical_anchor() {
+        let parsed = parse_manifest_path_pattern("<base>/save/*.sav").unwrap();
+        let mut context = context();
+        context.selection.installation_ids = Some(BTreeSet::from(["install-a".to_string()]));
+
+        let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context);
+
+        assert_eq!(plan.candidates.len(), 1);
+        assert_eq!(
+            plan.candidates[0].logical_anchor,
+            "D:/Steam[Main]/steamapps/common/Game[One]/save"
         );
     }
 

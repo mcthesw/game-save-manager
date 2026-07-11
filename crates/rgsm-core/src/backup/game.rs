@@ -660,11 +660,21 @@ impl Game {
         date: &str,
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<GameSnapshots, BackupError> {
-        let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
-        let archive_path = backup_path.join(format!("{date}.zip"));
-
         let path_ctx = self.path_context_current_device();
-        ZipBackend.decompress(&self.save_paths, &archive_path, notifier, Some(&path_ctx))?;
+        self.restore_snapshot_with_context(date, notifier, &get_backup_path()?, &path_ctx)
+    }
+
+    pub fn restore_snapshot_with_context(
+        &self,
+        date: &str,
+        notifier: Option<&dyn RestoreNotifier>,
+        backup_base: &Path,
+        path_ctx: &PathContext,
+    ) -> Result<GameSnapshots, BackupError> {
+        let archive_path = backup_base
+            .join(self.backup_dir_name().as_ref())
+            .join(format!("{date}.zip"));
+        ZipBackend.decompress(&self.save_paths, &archive_path, notifier, Some(path_ctx))?;
 
         let mut infos = self.get_game_snapshots_info()?;
         infos.set_current_device_head(Some(date.to_string()));
@@ -703,6 +713,26 @@ impl Game {
 
         cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
         Result::Ok(())
+    }
+
+    pub fn create_overwrite_snapshot_from_capture_plan(
+        &self,
+        plan: &CapturePlan,
+        backup_base: &Path,
+        preset: crate::backup::CompressionPreset,
+        max_extra_backup_count: u32,
+    ) -> Result<(), BackupError> {
+        let extra_backup_path = backup_base
+            .join(self.backup_dir_name().as_ref())
+            .join("extra_backup");
+        fs::create_dir_all(&extra_backup_path)?;
+        let date = chrono::Local::now()
+            .format("Overwrite_%Y-%m-%d_%H-%M-%S")
+            .to_string();
+        let zip_path = extra_backup_path.join(format!("{date}.zip"));
+        ZipBackend.compress_capture_plan(plan, &zip_path, preset, None)?;
+        cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
+        Ok(())
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
         let save_path = get_backup_path()?

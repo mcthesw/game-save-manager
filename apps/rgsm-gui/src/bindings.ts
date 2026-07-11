@@ -423,6 +423,14 @@ async setGameDeviceBinding(identity: string, binding: GameDeviceBinding) : Promi
     else return { status: "error", error: e  as any };
 }
 },
+async saveRestoreMapping(identity: string, saveUnitId: number, sourceDimensions: CandidateDimensions, targetCandidateIds: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_restore_mapping", { identity, saveUnitId, sourceDimensions, targetCandidateIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getLudusaviManifestStatus() : Promise<Result<LudusaviManifestStatus, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_ludusavi_manifest_status") };
@@ -931,7 +939,7 @@ export type ResolvedSaveLocation = { path: string; kind: ResolvedLocationKind; c
  * Typed error for restore operations, allowing the frontend to
  * pattern-match on specific failure modes without string parsing.
  */
-export type RestoreError = { type: "IntegrityCheckFailed"; expected: string; actual: string } | { type: "BackupNotFound"; date: string } | { type: "DecompressFailed"; message: string } | { type: "Io"; message: string } | { type: "Other"; message: string }
+export type RestoreError = { type: "IntegrityCheckFailed"; expected: string; actual: string } | { type: "BackupNotFound"; date: string } | { type: "DecompressFailed"; message: string } | { type: "Io"; message: string } | { type: "RestoreMappingRequired"; save_unit_id: number; source_dimensions: CandidateDimensions } | { type: "StaleRestoreMapping"; save_unit_id: number; source_dimensions: CandidateDimensions } | { type: "Other"; message: string }
 export type RestoreMappingRule = { saveUnitId: number; sourceDimensions: CandidateDimensions; targetCandidateIds: string[] }
 export type RunningProcessOption = { name: string; label: string; count: number }
 /**

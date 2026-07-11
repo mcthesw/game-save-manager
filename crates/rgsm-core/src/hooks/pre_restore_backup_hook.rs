@@ -36,10 +36,15 @@ impl LifecycleHook for PreRestoreBackupHook {
             ctx.game.name, ctx.snapshot.date
         );
 
-        if let Err(e) = ctx
-            .game
-            .create_overwrite_snapshot(ctx.config.settings.max_extra_backup_count)
-        {
+        let result = ctx.capture_plan.as_ref().map(|plan| {
+            ctx.game.create_overwrite_snapshot_from_capture_plan(
+                plan,
+                &crate::config::resolve_backup_path(&ctx.config.backup_path),
+                ctx.config.settings.compression_preset,
+                ctx.config.settings.max_extra_backup_count,
+            )
+        });
+        if let Some(Err(e)) = result {
             warn!(
                 target: "rgsm::hooks::pre_restore_backup",
                 "Failed to create extra backup for {}: {e:#}",

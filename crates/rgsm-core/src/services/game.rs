@@ -243,6 +243,46 @@ impl ServiceContext {
             .await;
         Ok(())
     }
+
+    pub async fn save_restore_mapping(
+        &self,
+        identity: &str,
+        save_unit_id: u32,
+        source_dimensions: crate::path_resolution::CandidateDimensions,
+        target_candidate_ids: Vec<String>,
+        source: HookSource,
+    ) -> Result<()> {
+        let mut config = get_config()?;
+        let index = config
+            .position_game_by_identity(identity)
+            .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
+        let previous_game = config.games[index].clone();
+        let binding = config.games[index]
+            .device_bindings
+            .entry(crate::device::get_current_device_id().clone())
+            .or_default();
+        binding.restore_mappings.retain(|rule| {
+            rule.save_unit_id != save_unit_id || rule.source_dimensions != source_dimensions
+        });
+        binding
+            .restore_mappings
+            .push(crate::backup::RestoreMappingRule {
+                save_unit_id,
+                source_dimensions,
+                target_candidate_ids,
+            });
+        let game = config.games[index].clone();
+        set_config(&config).await?;
+        self.pipeline()
+            .fire_game_updated(&GameUpdatedCtx {
+                config,
+                source,
+                previous_game,
+                game,
+            })
+            .await;
+        Ok(())
+    }
 }
 
 fn validate_auto_backup_config(auto_backup: Option<&AutoBackupConfig>) -> Result<()> {
