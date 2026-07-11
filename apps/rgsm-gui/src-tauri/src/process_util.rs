@@ -272,7 +272,7 @@ mod ps_impl {
     fn process_entry_from_ps_line(line: &str) -> Option<(u32, String)> {
         let mut parts = line.trim_start().splitn(2, char::is_whitespace);
         let pid = parts.next()?.parse::<u32>().ok()?;
-        let command = parts.next()?.trim_start().split_whitespace().next()?;
+        let command = parts.next()?.split_whitespace().next()?;
         let normalized = normalize_process_name(command);
         (!normalized.is_empty()).then_some((pid, normalized))
     }

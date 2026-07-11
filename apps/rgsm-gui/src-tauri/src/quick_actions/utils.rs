@@ -202,7 +202,7 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
 
     // 处理结果
     if let Err(e) = result {
-        error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", &e);
+        error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", e);
         // Failure notifications stay inline — no hook event for failures
         maybe_show_notification(
             &quick_settings,
@@ -247,7 +247,7 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
         .await;
 
     if let Err(e) = result {
-        error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", &e);
+        error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", e);
         maybe_show_notification(
             &quick_settings,
             t!("backend.tray.error"),
