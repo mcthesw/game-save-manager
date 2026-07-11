@@ -58,28 +58,17 @@ interface PathVariable {
   value: string;
 }
 
-const pathVariables: PathVariable[] = [
-  { name: 'home', labelKey: 'home', value: '<home>' },
-  { name: 'osUserName', labelKey: 'os_user_name', value: '<osUserName>' },
-  { name: 'winAppData', labelKey: 'win_app_data', value: '<winAppData>' },
-  { name: 'winLocalAppData', labelKey: 'win_local_app_data', value: '<winLocalAppData>' },
-  {
-    name: 'winLocalAppDataLow',
-    labelKey: 'win_local_app_data_low',
-    value: '<winLocalAppDataLow>',
-  },
-  { name: 'winDocuments', labelKey: 'win_documents', value: '<winDocuments>' },
-  { name: 'winPublic', labelKey: 'win_public', value: '<winPublic>' },
-  { name: 'winProgramData', labelKey: 'win_program_data', value: '<winProgramData>' },
-  { name: 'winDir', labelKey: 'win_dir', value: '<winDir>' },
-  { name: 'xdgData', labelKey: 'xdg_data', value: '<xdgData>' },
-  { name: 'xdgConfig', labelKey: 'xdg_config', value: '<xdgConfig>' },
-  { name: 'root', labelKey: 'root', value: '<root>' },
-  { name: 'storeUserId', labelKey: 'store_user_id', value: '<storeUserId>' },
-  { name: 'base', labelKey: 'base', value: '<base>' },
-  { name: 'game', labelKey: 'game', value: '<game>' },
-  { name: 'storeGameId', labelKey: 'store_game_id', value: '<storeGameId>' },
-];
+const pathVariables = ref<PathVariable[]>([]);
+
+onMounted(async () => {
+  pathVariables.value = (await commands.getPathPlaceholderCatalog())
+    .filter((descriptor) => descriptor.windowsApplicable)
+    .map((descriptor) => ({
+      name: descriptor.placeholder,
+      labelKey: descriptor.placeholder.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+      value: descriptor.token,
+    }));
+});
 
 // ── Autocomplete state ──
 
@@ -90,8 +79,8 @@ const suggestionsStyle = ref<Record<string, string>>({});
 
 const filteredVariables = computed(() => {
   const q = suggestionFilter.value.toLowerCase();
-  if (!q) return pathVariables;
-  return pathVariables.filter(
+  if (!q) return pathVariables.value;
+  return pathVariables.value.filter(
     (v) =>
       v.name.toLowerCase().includes(q) ||
       $t(`path_variable.${v.labelKey}`).toLowerCase().includes(q)

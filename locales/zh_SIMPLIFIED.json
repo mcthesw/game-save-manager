@@ -348,6 +348,7 @@
         "add_registry_key": "添加注册表项",
         "registry_key_prompt": "输入要备份的 Windows 注册表路径（如 HKEY_CURRENT_USER\\SOFTWARE\\GameName）",
         "type": "类型",
+        "dynamic_path": "动态路径",
         "operations": "控制",
         "remove": "移除",
         "path": "路径",
@@ -470,6 +471,11 @@
         "about": "关于"
     },
     "save_location_drawer": {
+        "device_location": "此设备上的位置",
+        "device_location_hint": "仅当存在多个可用游戏库、账号或安装位置时选择；本游戏会记住你的选择。",
+        "choose_libraries": "选择游戏库",
+        "choose_accounts": "选择商店账号",
+        "choose_installations": "选择安装位置",
         "drawer_title": "修改配置",
         "open": "打开",
         "backup_enabled": "参与备份",

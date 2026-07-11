@@ -349,6 +349,7 @@
         "registry_key_prompt": "Enter the Windows Registry path to back up (e.g. HKEY_CURRENT_USER\\SOFTWARE\\GameName)",
         "registry_non_windows_warning": "Registry backup is only supported on Windows. This entry will be skipped on other platforms.",
         "type": "Type",
+        "dynamic_path": "Dynamic path",
         "operations": "Control",
         "remove": "Remove",
         "path": "Path",
@@ -470,6 +471,11 @@
         "about": "About"
     },
     "save_location_drawer": {
+        "device_location": "Location on this device",
+        "device_location_hint": "Choose only when more than one library, account, or installation applies. Your choice is remembered for this game.",
+        "choose_libraries": "Choose game libraries",
+        "choose_accounts": "Choose store accounts",
+        "choose_installations": "Choose installations",
         "drawer_title": "Modify configuration",
         "open": "Open",
         "backup_enabled": "Participate in backup",

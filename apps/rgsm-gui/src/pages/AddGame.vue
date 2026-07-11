@@ -24,6 +24,7 @@ import PathVariableInput from '../components/PathVariableInput.vue';
 import GameImportDialog from '../components/GameImportDialog.vue';
 import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
+import { concreteSaveUnit, manifestSaveUnit, saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 
 const route = useRoute();
 const router = useRouter();
@@ -97,15 +98,14 @@ const editingGame = computed(() =>
 );
 
 const activeSteamId = computed(
-  () => pendingLudusaviMeta.value?.steamId ?? editingGame.value?.ludusavi_meta?.steamId ?? null
-);
-const activeStoreUserId = computed(() =>
-  currentDevice.value
-    ? (pendingStoreUserId.value ??
-      editingGame.value?.store_user_ids?.[currentDevice.value.id] ??
+  () =>
+    pendingLudusaviMeta.value?.steamId ??
+    (Number(
+      editingGame.value?.ludusavi_meta?.storeGameIds.find((entry) => entry.store === 'steam')?.id
+    ) ||
       null)
-    : pendingStoreUserId.value
 );
+const activeStoreUserId = computed(() => pendingStoreUserId.value);
 
 // 获取当前设备信息
 async function fetchCurrentDevice() {
@@ -154,8 +154,8 @@ function check_save_unit_unique(p: string) {
   // 检查是否有任何存档单元的任何设备路径与新路径相同
   if (
     save_paths.find((x) => {
-      if (!x.paths) return false;
-      return Object.values(x.paths).includes(p);
+      const paths = saveUnitPaths(x);
+      return paths ? Object.values(paths).includes(p) : false;
     })
   ) {
     notifyWarning($t('addgame.duplicated_path_error'));
@@ -173,20 +173,41 @@ function generate_save_unit(
   const delete_before_apply = config.value?.settings.default_delete_before_apply;
 
   // 创建一个基本的 SaveUnit，使用当前设备ID作为路径映射的键
-  const saveUnit: SaveUnitDraft = {
+  const saveUnit = concreteSaveUnit(
     unit_type,
-    paths: {},
-    delete_before_apply,
-    enabled: true,
-  };
+    {},
+    {
+      delete_before_apply,
+      enabled: true,
+    }
+  );
 
   // 如果有当前设备信息，则添加路径
   if (currentDevice.value) {
     const deviceId = currentDevice.value.id;
-    saveUnit.paths![deviceId] = path;
+    if (saveUnit.source.type === 'concrete') {
+      saveUnit.source.paths![deviceId] = path;
+    }
   }
 
   return saveUnit;
+}
+
+function saveUnitDisplayPath(row: unknown): string {
+  const unit = row as SaveUnitDraft;
+  if (unit.source.type === 'manifestPattern') return unit.source.pattern;
+  if (!currentDevice.value) return Object.values(unit.source.paths ?? {})[0] ?? '';
+  return unit.source.paths?.[currentDevice.value.id] ?? '';
+}
+
+function updateSaveUnitPath(row: unknown, value: string) {
+  const unit = row as SaveUnitDraft;
+  if (unit.source.type === 'manifestPattern') {
+    unit.source.pattern = value;
+  } else if (currentDevice.value) {
+    unit.source.paths ??= {};
+    unit.source.paths[currentDevice.value.id] = value;
+  }
 }
 
 async function add_save_directory() {
@@ -330,15 +351,16 @@ async function openVnBatchImportDialog(drafts: GameDraft[]) {
     const savePaths: SavePath[] = [];
 
     for (const saveUnit of draft.save_paths) {
-      const currentPath =
-        (deviceId && saveUnit.paths?.[deviceId]) || Object.values(saveUnit.paths ?? {})[0] || '';
+      const paths = saveUnitPaths(saveUnit);
+      const currentPath = (deviceId && paths?.[deviceId]) || Object.values(paths ?? {})[0] || '';
       if (!currentPath) {
         continue;
       }
 
       savePaths.push({
         path: currentPath,
-        tags: [saveUnit.unit_type],
+        tags: [saveUnitType(saveUnit) ?? 'Folder'],
+        constraints: { os: [], stores: [] },
       });
     }
 
@@ -504,32 +526,24 @@ async function handleCustomizeConfirm(data: {
     // Build save units with accurate type info
     const savePaths: SaveUnitDraft[] = [];
     for (const path of validPaths) {
-      const pathInfo = pathInfoMap.get(path);
-      const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
-      const saveUnit: SaveUnitDraft = {
-        unit_type: determineSaveUnitType(path, isFile),
-        paths: {},
-        delete_before_apply: config.value?.settings.default_delete_before_apply,
-        enabled: true,
-      };
-
-      if (currentDevice.value) {
-        saveUnit.paths![currentDevice.value.id] = path;
-      }
+      const saveUnit = manifestSaveUnit(
+        path,
+        {
+          delete_before_apply: config.value?.settings.default_delete_before_apply,
+          enabled: true,
+        },
+        data.savePaths.find((entry) => entry.path === path)?.constraints ?? { os: [], stores: [] }
+      );
 
       savePaths.push(saveUnit);
     }
 
     // Add registry save units
     for (const path of registryPaths) {
-      const saveUnit: SaveUnitDraft = {
-        unit_type: 'WinRegistry',
-        paths: {},
-        enabled: true,
-      };
+      const saveUnit = concreteSaveUnit('WinRegistry', {}, { enabled: true });
 
-      if (currentDevice.value) {
-        saveUnit.paths![currentDevice.value.id] = path;
+      if (currentDevice.value && saveUnit.source.type === 'concrete') {
+        saveUnit.source.paths![currentDevice.value.id] = path;
       }
 
       savePaths.push(saveUnit);
@@ -564,6 +578,7 @@ interface GameConfig {
   paths: Array<{
     path: string;
     tags: string[];
+    constraints?: SavePath['constraints'];
     selected: boolean;
   }>;
 }
@@ -627,30 +642,22 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
 
         const isRegistry = sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_');
         if (isRegistry) {
-          const saveUnit: SaveUnitDraft = {
-            unit_type: 'WinRegistry',
-            paths: {},
-            enabled: true,
-          };
-          if (currentDevice.value) {
-            saveUnit.paths![currentDevice.value.id] = sp.path;
+          const saveUnit = concreteSaveUnit('WinRegistry', {}, { enabled: true });
+          if (currentDevice.value && saveUnit.source.type === 'concrete') {
+            saveUnit.source.paths![currentDevice.value.id] = sp.path;
           }
           savePaths.push(saveUnit);
           continue;
         }
 
-        const pathInfo = pathInfoMap.get(sp.path);
-        const isFile = pathInfo?.status === 'ok' ? pathInfo.isFile : undefined;
-        const saveUnit: SaveUnitDraft = {
-          unit_type: determineSaveUnitType(sp.path, isFile),
-          paths: {},
-          delete_before_apply: config.value?.settings.default_delete_before_apply,
-          enabled: true,
-        };
-
-        if (currentDevice.value) {
-          saveUnit.paths![currentDevice.value.id] = sp.path;
-        }
+        const saveUnit = manifestSaveUnit(
+          sp.path,
+          {
+            delete_before_apply: config.value?.settings.default_delete_before_apply,
+            enabled: true,
+          },
+          sp.constraints ?? { os: [], stores: [] }
+        );
 
         savePaths.push(saveUnit);
       }
@@ -676,20 +683,17 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
       const newGame: GameDraft = {
         name: gameName,
         save_paths: savePaths,
-        store_user_ids: {},
+        device_bindings: {},
         ludusavi_meta:
           originalGame && (originalGame.installDirs.length > 0 || originalGame.steamId)
             ? {
                 installDirs: originalGame.installDirs,
-                steamId: originalGame.steamId ?? null,
+                storeGameIds: originalGame.steamId
+                  ? [{ store: 'steam', id: String(originalGame.steamId) }]
+                  : [],
               }
             : undefined,
       };
-
-      if (storeUserId && currentDevice.value) {
-        newGame.store_user_ids = {};
-        newGame.store_user_ids[currentDevice.value.id] = storeUserId;
-      }
 
       const addResult = await commands.addGame(newGame);
 
@@ -741,7 +745,6 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
   }
 }
 async function save() {
-  const storeUserId = pendingStoreUserId.value;
   const normalizedInstallDirs = manualInstallDirs.value
     .map((dir) => dir.trim())
     .filter((dir) => dir.length > 0);
@@ -771,12 +774,12 @@ async function save() {
   const game: GameDraft = {
     name: game_name.value,
     save_paths: save_paths,
-    store_user_ids: { ...(editingGame.value?.store_user_ids ?? {}) },
+    device_bindings: { ...(editingGame.value?.device_bindings ?? {}) },
     ludusavi_meta:
       normalizedInstallDirs.length > 0 || steamId !== null
         ? {
             installDirs: normalizedInstallDirs,
-            steamId,
+            storeGameIds: steamId ? [{ store: 'steam', id: String(steamId) }] : [],
           }
         : undefined,
   };
@@ -784,16 +787,6 @@ async function save() {
   if (game_path.value && currentDevice.value) {
     game.game_paths = {};
     game.game_paths[currentDevice.value.id] = game_path.value;
-  }
-  if (currentDevice.value) {
-    const currentDeviceId = currentDevice.value.id;
-    if (storeUserId) {
-      game.store_user_ids[currentDeviceId] = storeUserId;
-    } else {
-      game.store_user_ids = Object.fromEntries(
-        Object.entries(game.store_user_ids).filter(([deviceId]) => deviceId !== currentDeviceId)
-      );
-    }
   }
   try {
     if (is_editing.value) {
@@ -838,31 +831,6 @@ function reset_info(show_notification: boolean = true) {
 
 function deleteRow(index: number) {
   save_paths.splice(index, 1);
-}
-
-// Helper function to determine save unit type from path
-// If isFile is provided (from backend check_paths), use it; otherwise fallback to path heuristics
-function determineSaveUnitType(
-  path: string,
-  isFile?: boolean | null
-): 'File' | 'Folder' | 'WinRegistry' {
-  // Registry paths become WinRegistry save units
-  if (path.startsWith('REGISTRY:') || path.startsWith('HKEY_')) {
-    return 'WinRegistry';
-  }
-
-  // If backend provided the answer, use it
-  if (isFile !== undefined && isFile !== null) {
-    return isFile ? 'File' : 'Folder';
-  }
-
-  // Paths ending with / are folders
-  if (path.endsWith('/') || path.endsWith('\\')) {
-    return 'Folder';
-  }
-
-  // Default to Folder for ambiguous cases (backend should provide accurate info)
-  return 'Folder';
 }
 </script>
 
@@ -939,24 +907,24 @@ function determineSaveUnitType(
 
       <!-- Save paths table -->
       <el-table :data="save_paths" style="width: 100%">
-        <el-table-column prop="unit_type" :label="$t('addgame.type')" width="110" />
+        <el-table-column :label="$t('addgame.type')" width="110">
+          <template #default="scope">
+            {{
+              scope.row.source.type === 'manifestPattern'
+                ? $t('addgame.dynamic_path')
+                : scope.row.source.unit_type
+            }}
+          </template>
+        </el-table-column>
         <el-table-column :label="$t('addgame.path')" min-width="300">
           <template #default="scope">
             <path-variable-input
-              :model-value="
-                scope.row.paths && currentDevice ? scope.row.paths[currentDevice.id] || '' : ''
-              "
+              :model-value="saveUnitDisplayPath(scope.row)"
               status-mode="below"
               :install-dirs="manualInstallDirs"
               :steam-id="activeSteamId"
               :store-user-id="activeStoreUserId"
-              @update:model-value="
-                (value) => {
-                  if (currentDevice && scope.row.paths) {
-                    scope.row.paths[currentDevice.id] = value;
-                  }
-                }
-              "
+              @update:model-value="(value) => updateSaveUnitPath(scope.row, value)"
             />
           </template>
         </el-table-column>

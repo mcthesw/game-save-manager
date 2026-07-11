@@ -32,6 +32,7 @@ import {
 } from '../../composables/useGameManagementRoute';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
 import { TableV2FixedDir, TableV2SortOrder } from '../../ui/elementPlus/tableV2';
+import { saveUnitPaths } from '../../utils/saveUnit';
 
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
@@ -67,7 +68,7 @@ const game: Ref<Game> = ref({
   storage_key: '',
   save_paths: [],
   game_paths: {},
-  store_user_ids: {},
+  device_bindings: {},
 });
 
 // 当前设备信息
@@ -842,7 +843,7 @@ async function on_drawer_save_changes(updatedGame: Game) {
       save_paths: updatedGame.save_paths,
       game_paths: updatedGame.game_paths ?? {},
       ludusavi_meta: updatedGame.ludusavi_meta ?? null,
-      store_user_ids: updatedGame.store_user_ids ?? {},
+      device_bindings: updatedGame.device_bindings ?? {},
     });
 
     if (result.status === 'error') {
@@ -1008,17 +1009,20 @@ async function checkCurrentDeviceSavePaths() {
 
   // 检查当前设备的存档路径是否全部为空
   const deviceId = currentDevice.value.id;
-  const allPathsEmpty = enabledSaveUnits.every(
-    (unit) => !unit.paths || !unit.paths[deviceId] || unit.paths[deviceId].trim() === ''
-  );
+  const allPathsEmpty = enabledSaveUnits.every((unit) => {
+    if (unit.source.type === 'manifestPattern') return unit.source.pattern.trim() === '';
+    const paths = saveUnitPaths(unit);
+    return !paths?.[deviceId]?.trim();
+  });
 
   if (!allPathsEmpty) return; // 如果有路径不为空，直接返回
 
   // 收集所有有效的设备ID（有存档路径的设备）
   const devicesWithPaths = new Set<string>();
   enabledSaveUnits.forEach((unit) => {
-    if (unit.paths) {
-      Object.entries(unit.paths).forEach(([id, path]) => {
+    const paths = saveUnitPaths(unit);
+    if (paths) {
+      Object.entries(paths).forEach(([id, path]) => {
         if (id !== deviceId && path && path.trim() !== '') {
           devicesWithPaths.add(id);
         }
@@ -1104,10 +1108,10 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
       if (unit.enabled === false) {
         return;
       }
-      if (unit.paths?.[sourceDeviceId]?.trim()) {
-        if (!unit.paths[targetDeviceId] || !unit.paths[targetDeviceId].trim()) {
-          if (!unit.paths) unit.paths = {};
-          unit.paths[targetDeviceId] = unit.paths[sourceDeviceId];
+      const paths = saveUnitPaths(unit);
+      if (paths?.[sourceDeviceId]?.trim()) {
+        if (!paths[targetDeviceId]?.trim()) {
+          paths[targetDeviceId] = paths[sourceDeviceId];
           updated = true;
         }
       }

@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow, bail};
 
-use crate::backup::{self, AutoBackupConfig, Game, GameDraft};
+use crate::backup::{self, AutoBackupConfig, Game, GameDeviceBinding, GameDraft};
 use crate::config::{GameAutomationSettingsDraft, get_config, set_config};
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
@@ -214,6 +214,33 @@ impl ServiceContext {
             })
             .await;
 
+        Ok(())
+    }
+
+    pub async fn set_game_device_binding(
+        &self,
+        identity: &str,
+        binding: GameDeviceBinding,
+        source: HookSource,
+    ) -> Result<()> {
+        let mut config = get_config()?;
+        let index = config
+            .position_game_by_identity(identity)
+            .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
+        let previous_game = config.games[index].clone();
+        config.games[index]
+            .device_bindings
+            .insert(crate::device::get_current_device_id().clone(), binding);
+        let game = config.games[index].clone();
+        set_config(&config).await?;
+        self.pipeline()
+            .fire_game_updated(&GameUpdatedCtx {
+                config,
+                source,
+                previous_game,
+                game,
+            })
+            .await;
         Ok(())
     }
 }

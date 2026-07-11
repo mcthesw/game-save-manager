@@ -114,6 +114,7 @@ fn resolution_context(config: &Config, game: &Game, device_id: &str) -> Resoluti
             }
         }
     }
+    add_detected_steam_resources(game, &mut roots, &mut accounts, &mut installations);
 
     let binding = game.device_bindings.get(device_id);
     ResolutionContext {
@@ -135,6 +136,82 @@ fn resolution_context(config: &Config, game: &Game, device_id: &str) -> Resoluti
                 .and_then(|value| selected_ids(value.installation_ids.as_deref())),
         },
     }
+}
+
+fn add_detected_steam_resources(
+    game: &Game,
+    roots: &mut Vec<GameRootCandidate>,
+    accounts: &mut Vec<StoreAccountCandidate>,
+    installations: &mut Vec<GameInstallationCandidate>,
+) {
+    let libraries = crate::steam::get_steam_library_paths().unwrap_or_default();
+    for library in &libraries {
+        if roots.iter().any(|root| same_path(&root.path, library)) {
+            continue;
+        }
+        roots.push(GameRootCandidate {
+            id: detected_id("steam-root", &library.to_string_lossy()),
+            store: crate::path_pattern::StoreKind::Steam,
+            path: library.clone(),
+        });
+    }
+    for account in crate::steam::detect_steam_user_ids().unwrap_or_default() {
+        if accounts.iter().any(|known| {
+            known.store == crate::path_pattern::StoreKind::Steam && known.user_id == account.user_id
+        }) {
+            continue;
+        }
+        accounts.push(StoreAccountCandidate {
+            id: detected_id("steam-account", &account.user_id),
+            store: crate::path_pattern::StoreKind::Steam,
+            user_id: account.user_id,
+        });
+    }
+
+    let Some(meta) = &game.ludusavi_meta else {
+        return;
+    };
+    let games = crate::steam::scan_all_installed_games().unwrap_or_default();
+    for install_dir in &meta.install_dirs {
+        let Some(installed) = games.get(&install_dir.to_lowercase()) else {
+            continue;
+        };
+        let Some(root) = roots.iter().find(|root| {
+            root.store == crate::path_pattern::StoreKind::Steam
+                && installed
+                    .install_path
+                    .starts_with(root.path.join("steamapps").join("common"))
+        }) else {
+            continue;
+        };
+        if installations
+            .iter()
+            .any(|known| same_path(&known.install_path, &installed.install_path))
+        {
+            continue;
+        }
+        installations.push(GameInstallationCandidate {
+            id: detected_id("steam-install", &installed.install_path.to_string_lossy()),
+            root_id: root.id.clone(),
+            store: crate::path_pattern::StoreKind::Steam,
+            install_dir: installed.install_dir.clone(),
+            install_path: installed.install_path.clone(),
+            store_game_id: Some(installed.app_id.to_string()),
+        });
+    }
+}
+
+fn detected_id(kind: &str, value: &str) -> String {
+    format!(
+        "detected:{kind}:{}",
+        value.replace('\\', "/").to_lowercase()
+    )
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    left.to_string_lossy()
+        .replace('\\', "/")
+        .eq_ignore_ascii_case(&right.to_string_lossy().replace('\\', "/"))
 }
 
 fn selected_ids(ids: Option<&[u32]>) -> Option<BTreeSet<String>> {

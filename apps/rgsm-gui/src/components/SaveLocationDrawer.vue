@@ -2,10 +2,19 @@
 import { computed, ref, watch } from 'vue';
 import { error } from '@tauri-apps/plugin-log';
 import { $t } from '../i18n';
-import type { Device, Game, OpenPathWarning, SaveUnit } from '../bindings';
+import type {
+  Device,
+  DeviceResource,
+  Game,
+  GameDeviceBinding,
+  OpenPathWarning,
+  SaveUnit,
+  SaveUnitType,
+} from '../bindings';
 import { commands } from '../bindings';
 import { useConfig } from '../composables/useConfig';
 import PathVariableInput from './PathVariableInput.vue';
+import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 
 const { config } = useConfig();
 const feedback = useFeedback();
@@ -30,9 +39,50 @@ const tempGame = ref<Game>({
   storage_key: '',
   save_paths: [],
   game_paths: {},
-  store_user_ids: {},
+  device_bindings: {},
 });
 const hasUnsavedChanges = ref(false);
+
+const selectedDevice = computed(() =>
+  availableDevices.value.find((device) => device.id === selectedDeviceId.value)
+);
+const selectedDeviceResources = computed(() => selectedDevice.value?.resources ?? []);
+const rootResources = computed(() =>
+  selectedDeviceResources.value.filter((resource) => resource.kind.type === 'gameRoot')
+);
+const accountResources = computed(() =>
+  selectedDeviceResources.value.filter((resource) => resource.kind.type === 'storeAccount')
+);
+const installationResources = computed(() =>
+  selectedDeviceResources.value.filter((resource) => resource.kind.type === 'gameInstallation')
+);
+
+function currentBinding(): GameDeviceBinding {
+  tempGame.value.device_bindings ??= {};
+  return (tempGame.value.device_bindings[selectedDeviceId.value] ??= {
+    restoreMappings: [],
+  });
+}
+
+function selectedResourceIds(kind: 'rootIds' | 'accountIds' | 'installationIds'): number[] {
+  return currentBinding()[kind] ?? [];
+}
+
+function updateResourceIds(kind: 'rootIds' | 'accountIds' | 'installationIds', ids: number[]) {
+  currentBinding()[kind] = ids.length > 0 ? ids : null;
+  hasUnsavedChanges.value = true;
+}
+
+function resourceLabel(resource: DeviceResource): string {
+  switch (resource.kind.type) {
+    case 'gameRoot':
+      return `${resource.kind.store} · ${resource.kind.path}`;
+    case 'storeAccount':
+      return `${resource.kind.store} · ${resource.kind.user_id}`;
+    case 'gameInstallation':
+      return `${resource.kind.store} · ${resource.kind.install_dir}`;
+  }
+}
 
 const activeSaveUnits = computed(() =>
   (tempGame.value.save_paths ?? []).filter((unit) => isUnitEnabled(unit))
@@ -72,7 +122,7 @@ function syncAvailableDevices(game: Game) {
   }
 
   game.save_paths?.forEach((unit) => {
-    Object.keys(unit.paths ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
+    Object.keys(saveUnitPaths(unit) ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
   });
 
   Object.keys(game.game_paths ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
@@ -87,7 +137,8 @@ function syncAvailableDevices(game: Game) {
       deviceMap.get(id) ?? {
         id,
         name: `${id.substring(0, 8)}...`,
-        game_roots: [],
+        resources: [],
+        next_resource_id: 0,
       }
     );
   });
@@ -152,7 +203,9 @@ async function fetchCurrentDevice() {
 void fetchCurrentDevice();
 
 function getDevicePath(unit: SaveUnit, deviceId: string): string {
-  return unit.paths?.[deviceId] ?? '';
+  return unit.source.type === 'manifestPattern'
+    ? unit.source.pattern
+    : (unit.source.paths?.[deviceId] ?? '');
 }
 
 function getGameLaunchPath(deviceId: string): string {
@@ -160,13 +213,13 @@ function getGameLaunchPath(deviceId: string): string {
 }
 
 function updateDevicePath(unit: SaveUnit, deviceId: string, path: string) {
-  if (!deviceId) return;
-
-  if (!unit.paths) {
-    unit.paths = {};
+  if (unit.source.type === 'manifestPattern') {
+    unit.source.pattern = path;
+  } else {
+    if (!deviceId) return;
+    unit.source.paths ??= {};
+    unit.source.paths[deviceId] = path;
   }
-
-  unit.paths[deviceId] = path;
   hasUnsavedChanges.value = true;
 }
 
@@ -272,7 +325,7 @@ function removeNewSaveUnit(unit: SaveUnit) {
 function checkSaveUnitUnique(path: string, ignoreUnit?: SaveUnit) {
   const duplicated = tempGame.value.save_paths.some((unit) => {
     if (unit === ignoreUnit) return false;
-    return Object.values(unit.paths ?? {}).includes(path);
+    return Object.values(saveUnitPaths(unit) ?? {}).includes(path);
   });
 
   if (duplicated) {
@@ -283,10 +336,13 @@ function checkSaveUnitUnique(path: string, ignoreUnit?: SaveUnit) {
   return true;
 }
 
-function createSaveUnit(unitType: SaveUnit['unit_type'], path: string): SaveUnit {
+function createSaveUnit(unitType: SaveUnitType, path: string): SaveUnit {
   return {
-    unit_type: unitType,
-    paths: selectedDeviceId.value ? { [selectedDeviceId.value]: path } : {},
+    source: {
+      type: 'concrete',
+      unit_type: unitType,
+      paths: selectedDeviceId.value ? { [selectedDeviceId.value]: path } : {},
+    },
     delete_before_apply: config.value?.settings.default_delete_before_apply ?? false,
     enabled: true,
   };
@@ -377,7 +433,7 @@ async function chooseLaunchPath() {
 }
 
 async function chooseUnitPath(unit: SaveUnit) {
-  if (unit.unit_type === 'WinRegistry') {
+  if (saveUnitType(unit) === 'WinRegistry') {
     const path = await promptRegistryPath(getDevicePath(unit, selectedDeviceId.value));
     if (!path || !checkSaveUnitUnique(path, unit)) {
       return;
@@ -390,7 +446,7 @@ async function chooseUnitPath(unit: SaveUnit) {
 
   try {
     const result =
-      unit.unit_type === 'Folder'
+      saveUnitType(unit) === 'Folder'
         ? await commands.chooseSaveDir()
         : await commands.chooseSaveFile();
 
@@ -402,14 +458,18 @@ async function chooseUnitPath(unit: SaveUnit) {
   } catch (e) {
     error(`Error choosing save unit path: ${e}`);
     notifyError(
-      unit.unit_type === 'Folder'
+      saveUnitType(unit) === 'Folder'
         ? $t('error.choose_save_dir_error')
         : $t('error.choose_save_file_error')
     );
   }
 }
 
-function formatUnitType(unitType: SaveUnit['unit_type']) {
+function formatUnitType(unit: SaveUnit) {
+  if (unit.source.type === 'manifestPattern') {
+    return $t('addgame.dynamic_path');
+  }
+  const unitType = unit.source.unit_type;
   switch (unitType) {
     case 'Folder':
       return $t('save_location_drawer.type_folder');
@@ -423,11 +483,11 @@ function formatUnitType(unitType: SaveUnit['unit_type']) {
 }
 
 function openTooltip(unit: SaveUnit) {
-  if (unit.unit_type === 'File') {
+  if (saveUnitType(unit) === 'File') {
     return $t('save_location_drawer.open_ctrl_hint');
   }
 
-  if (unit.unit_type === 'WinRegistry') {
+  if (saveUnitType(unit) === 'WinRegistry') {
     return $t('save_location_drawer.registry_open_unsupported_title');
   }
 
@@ -438,7 +498,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
   if (!path || !path.trim()) return;
 
   const ctrl = (e && (e as MouseEvent).ctrlKey) || (e && (e as MouseEvent).metaKey);
-  if (ctrl && unit && unit.unit_type === 'File') {
+  if (ctrl && unit && saveUnitType(unit) === 'File') {
     const normalized = path.replace(/\\/g, '/');
     const idx = normalized.lastIndexOf('/');
     const parent = idx > -1 ? normalized.substring(0, idx) : normalized;
@@ -523,6 +583,58 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         </div>
       </div>
 
+      <div v-if="selectedDeviceResources.length" class="section">
+        <div class="section-header">
+          <div class="section-label">{{ $t('save_location_drawer.device_location') }}</div>
+        </div>
+        <p class="section-hint">{{ $t('save_location_drawer.device_location_hint') }}</p>
+        <el-select
+          v-if="rootResources.length > 1"
+          :model-value="selectedResourceIds('rootIds')"
+          multiple
+          clearable
+          :placeholder="$t('save_location_drawer.choose_libraries')"
+          @update:model-value="(ids: number[]) => updateResourceIds('rootIds', ids)"
+        >
+          <el-option
+            v-for="item in rootResources"
+            :key="item.id"
+            :label="resourceLabel(item)"
+            :value="item.id"
+          />
+        </el-select>
+        <el-select
+          v-if="accountResources.length > 1"
+          :model-value="selectedResourceIds('accountIds')"
+          multiple
+          clearable
+          :placeholder="$t('save_location_drawer.choose_accounts')"
+          @update:model-value="(ids: number[]) => updateResourceIds('accountIds', ids)"
+        >
+          <el-option
+            v-for="item in accountResources"
+            :key="item.id"
+            :label="resourceLabel(item)"
+            :value="item.id"
+          />
+        </el-select>
+        <el-select
+          v-if="installationResources.length > 1"
+          :model-value="selectedResourceIds('installationIds')"
+          multiple
+          clearable
+          :placeholder="$t('save_location_drawer.choose_installations')"
+          @update:model-value="(ids: number[]) => updateResourceIds('installationIds', ids)"
+        >
+          <el-option
+            v-for="item in installationResources"
+            :key="item.id"
+            :label="resourceLabel(item)"
+            :value="item.id"
+          />
+        </el-select>
+      </div>
+
       <!-- Launch path -->
       <div class="section">
         <div class="section-header">
@@ -585,7 +697,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         >
           <div class="unit-card-top">
             <div class="unit-card-tags">
-              <el-tag size="small">{{ formatUnitType(unit.unit_type) }}</el-tag>
+              <el-tag size="small">{{ formatUnitType(unit) }}</el-tag>
               <el-tag v-if="hasPersistentId(unit)" type="info" size="small">#{{ unit.id }}</el-tag>
               <el-tag v-else type="success" size="small">{{
                 $t('save_location_drawer.new_path')
@@ -670,7 +782,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           >
             <div class="unit-card-top">
               <div class="unit-card-tags">
-                <el-tag type="info" size="small">{{ formatUnitType(unit.unit_type) }}</el-tag>
+                <el-tag type="info" size="small">{{ formatUnitType(unit) }}</el-tag>
                 <el-tag v-if="hasPersistentId(unit)" type="info" size="small"
                   >#{{ unit.id }}</el-tag
                 >
