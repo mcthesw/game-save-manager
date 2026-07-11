@@ -189,4 +189,26 @@ mod tests {
                 .any(|diagnostic| diagnostic.kind == ResolutionDiagnosticKind::NoMatch)
         );
     }
+
+    #[test]
+    fn reevaluating_a_pattern_includes_files_created_after_import() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let parsed = parse_manifest_path_pattern(format!(
+            "{}/*.sav",
+            temp.path().to_string_lossy().replace('\\', "/")
+        ))
+        .unwrap();
+        let plan = plan_resolution(
+            &parsed,
+            ManifestPathConstraints::default(),
+            &ResolutionContext::default(),
+        );
+        assert!(match_resolution_plan(&plan).unwrap().locations.is_empty());
+
+        fs::write(temp.path().join("created-later.sav"), b"save").unwrap();
+
+        let report = match_resolution_plan(&plan).unwrap();
+        assert_eq!(report.locations.len(), 1);
+        assert!(report.locations[0].path.ends_with("created-later.sav"));
+    }
 }

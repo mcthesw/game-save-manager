@@ -16,7 +16,7 @@ export function concreteSaveUnit(
 export function manifestSaveUnit(
   pattern: string,
   options: Omit<SaveUnitDraft, 'source'> = {},
-  constraints: ManifestPathConstraints = { os: [], stores: [] }
+  constraints: ManifestPathConstraints = { alternatives: [] }
 ): SaveUnitDraft {
   return {
     ...options,

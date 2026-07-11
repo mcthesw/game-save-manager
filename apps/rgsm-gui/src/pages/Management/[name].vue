@@ -31,6 +31,7 @@ import {
   getGameNameFromRouteParam,
 } from '../../composables/useGameManagementRoute';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
+import { usePathResolution } from '../../composables/usePathResolution';
 import { TableV2FixedDir, TableV2SortOrder } from '../../ui/elementPlus/tableV2';
 import { saveUnitPaths } from '../../utils/saveUnit';
 
@@ -41,6 +42,7 @@ const { confirmAndRun } = useApplyConfirmation();
 const { markGamePlayed } = useSaveListSort();
 const { withLoading } = useGlobalLoading();
 const { startCollecting, stopCollecting } = useIpcNotificationCollector();
+const { preview: previewSaveUnit, rememberRestoreMapping } = usePathResolution();
 const router = useRouter();
 const route = useRoute();
 
@@ -669,12 +671,12 @@ async function chooseRestoreLocation(mapping: {
 }): Promise<boolean> {
   const unit = game.value.save_paths.find((candidate) => candidate.id === mapping.saveUnitId);
   if (!unit) return false;
-  const preview = await commands.previewSaveUnitResolution(game.value, unit);
-  if (preview.status === 'error' || preview.data.candidates.length === 0) {
+  const preview = await previewSaveUnit(game.value, unit);
+  if (!preview || preview.candidates.length === 0) {
     notifyError($t('manage.no_restore_locations'));
     return false;
   }
-  const choices = preview.data.candidates
+  const choices = preview.candidates
     .map((candidate, index) => `${index + 1}. ${candidate.expression}`)
     .join('\n');
   try {
@@ -684,13 +686,13 @@ async function chooseRestoreLocation(mapping: {
       { inputPlaceholder: '1' }
     );
     const index = Number(value) - 1;
-    const selected = preview.data.candidates[index];
+    const selected = preview.candidates[index];
     if (!selected) {
       notifyWarning($t('manage.invalid_restore_location'));
       return false;
     }
-    const result = await commands.saveRestoreMapping(
-      game.value.storage_key || game.value.name,
+    const result = await rememberRestoreMapping(
+      game.value,
       mapping.saveUnitId,
       mapping.sourceDimensions,
       [selected.id]

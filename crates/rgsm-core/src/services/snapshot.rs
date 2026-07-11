@@ -243,7 +243,12 @@ impl ServiceContext {
             .save_paths
             .iter()
             .filter(|unit| unit.enabled)
-            .map(|unit| (unit.id, self.resolve_save_unit(config, game, unit)))
+            .map(|unit| {
+                (
+                    unit.id,
+                    self.resolve_save_unit_for_restore(config, game, unit),
+                )
+            })
             .collect();
         let rules = game
             .device_bindings

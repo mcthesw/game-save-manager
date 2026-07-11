@@ -1202,19 +1202,17 @@ pub async fn check_paths(
     store_user_id: Option<String>,
     install_dirs: Option<Vec<String>>,
     steam_id: Option<u32>,
+    app_handle: AppHandle,
 ) -> Result<Vec<path_resolver::PathCheckResult>, String> {
     let config = get_config().map_err(|e| e.to_string())?;
-    let device = config.devices.get(get_current_device_id());
-    let ctx = path_resolver::PathContext {
-        install_dirs: install_dirs.unwrap_or_default(),
+    let install_dirs = install_dirs.unwrap_or_default();
+    Ok(svc(&app_handle).check_ad_hoc_paths(
+        &config,
+        &paths,
+        store_user_id.as_deref(),
+        &install_dirs,
         steam_id,
-        install_dir_cache: None,
-        game_roots: device
-            .map(|device| device.game_root_paths().map(str::to_string).collect())
-            .unwrap_or_default(),
-        store_user_id,
-    };
-    Ok(path_resolver::check_paths(&paths, Some(&ctx), &config))
+    ))
 }
 
 #[tauri::command]

@@ -492,6 +492,8 @@
         "choose_libraries": "选择游戏库",
         "choose_accounts": "选择商店账号",
         "choose_installations": "选择安装位置",
+        "saved_restore_choice": "存档位置 #{id} 的恢复选择",
+        "forget_restore_choice": "清除",
         "drawer_title": "修改配置",
         "open": "打开",
         "backup_enabled": "参与备份",

@@ -164,6 +164,7 @@ import {
   type StoreUserIdCandidate,
 } from '../bindings';
 import { error } from '@tauri-apps/plugin-log';
+import type { ManifestPathConstraints } from '../bindings';
 
 /** Check if a path is a Windows registry path (not supported for backup) */
 function isRegistryPath(path: string): boolean {
@@ -179,6 +180,7 @@ interface GameConfig {
   paths: Array<{
     path: string;
     tags: string[];
+    constraints?: ManifestPathConstraints;
     selected: boolean;
     isRegistry: boolean;
     check?: { resolvedPath?: string; exists?: boolean; error?: string } | null;
@@ -275,6 +277,7 @@ watch(
         paths: paths.map((p) => ({
           path: p.path,
           tags: p.tags,
+          constraints: p.constraints,
           isRegistry: isRegistryPath(p.path),
           selected: true,
           check: null,

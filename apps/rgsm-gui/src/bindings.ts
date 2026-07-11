@@ -890,7 +890,8 @@ installDirs?: string[];
  * of the candidate root or installation.
  */
 storeGameIds: StoreGameId[] }
-export type ManifestPathConstraints = { os: PlatformKind[]; stores: StoreKind[] }
+export type ManifestPathCondition = { os?: PlatformKind | null; store?: StoreKind | null }
+export type ManifestPathConstraints = { alternatives: ManifestPathCondition[] }
 export type ManifestPathPattern = string
 export type NotificationLevel = "info" | "warning" | "error"
 export type OpenPathOutcome = { status: "opened" } | { status: "warning"; warning: OpenPathWarning }

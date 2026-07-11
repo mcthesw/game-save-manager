@@ -4,7 +4,6 @@ import { error } from '@tauri-apps/plugin-log';
 import { $t } from '../i18n';
 import type {
   Device,
-  DeviceResource,
   Game,
   GameDeviceBinding,
   OpenPathWarning,
@@ -13,11 +12,13 @@ import type {
 } from '../bindings';
 import { commands } from '../bindings';
 import { useConfig } from '../composables/useConfig';
+import { usePathResolution } from '../composables/usePathResolution';
 import PathVariableInput from './PathVariableInput.vue';
 import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 
 const { config } = useConfig();
 const feedback = useFeedback();
+const { resourceLabel } = usePathResolution();
 
 const props = defineProps({
   game: {
@@ -56,6 +57,9 @@ const accountResources = computed(() =>
 const installationResources = computed(() =>
   selectedDeviceResources.value.filter((resource) => resource.kind.type === 'gameInstallation')
 );
+const savedRestoreMappings = computed(
+  () => tempGame.value.device_bindings?.[selectedDeviceId.value]?.restoreMappings ?? []
+);
 
 function currentBinding(): GameDeviceBinding {
   tempGame.value.device_bindings ??= {};
@@ -73,15 +77,9 @@ function updateResourceIds(kind: 'rootIds' | 'accountIds' | 'installationIds', i
   hasUnsavedChanges.value = true;
 }
 
-function resourceLabel(resource: DeviceResource): string {
-  switch (resource.kind.type) {
-    case 'gameRoot':
-      return `${resource.kind.store} · ${resource.kind.path}`;
-    case 'storeAccount':
-      return `${resource.kind.store} · ${resource.kind.user_id}`;
-    case 'gameInstallation':
-      return `${resource.kind.store} · ${resource.kind.install_dir}`;
-  }
+function removeRestoreMapping(index: number) {
+  currentBinding().restoreMappings.splice(index, 1);
+  hasUnsavedChanges.value = true;
 }
 
 const activeSaveUnits = computed(() =>
@@ -633,6 +631,20 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
             :value="item.id"
           />
         </el-select>
+        <div v-if="savedRestoreMappings.length" class="mapping-list">
+          <div
+            v-for="(mapping, index) in savedRestoreMappings"
+            :key="`${mapping.saveUnitId}-${index}`"
+            class="mapping-row"
+          >
+            <span>{{
+              $t('save_location_drawer.saved_restore_choice', { id: mapping.saveUnitId })
+            }}</span>
+            <el-button text type="danger" @click="removeRestoreMapping(index)">
+              {{ $t('save_location_drawer.forget_restore_choice') }}
+            </el-button>
+          </div>
+        </div>
       </div>
 
       <!-- Launch path -->
@@ -872,6 +884,19 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.mapping-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.mapping-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--el-text-color-regular);
 }
 
 .section {
