@@ -7,32 +7,33 @@ mod game;
 mod game_snapshots;
 mod path_format;
 pub(crate) mod registry;
+mod restore_plan;
 mod save_unit;
 mod snapshot;
-mod state_fingerprint;
+pub(crate) mod state_fingerprint;
 pub mod storage_key;
 #[cfg(test)]
 mod tests;
 mod utils;
 
 pub use archive::{
-    ArchiveBackend, CompressionPreset, RestoreNotificationLevel, RestoreNotifier, ZipBackend,
+    ArchiveBackend, ArchiveVersion, CompressionPreset, RestoreNotificationLevel, RestoreNotifier,
+    ZipBackend,
 };
 pub use capture_plan::{
     CaptureGroup, CapturePlan, CapturePlanError, CapturePreflightFailure, CaptureSourceKind,
     SaveUnitCaptureInput,
 };
-pub use device_binding::GameDeviceBinding;
+pub use device_binding::{GameDeviceBinding, RestoreMappingRule};
 pub use extra_backups::ExtraBackupItem;
-pub use extra_backups::{
-    delete_extra_backup, extra_backup_folder_path, list_extra_backups, restore_extra_backup,
-};
+pub use extra_backups::{delete_extra_backup, extra_backup_folder_path, list_extra_backups};
 pub use extra_info::{extra_info_dir, extra_info_namespace_dir, extra_info_namespace_file};
 pub use game::{
     AutoBackupConfig, CaptureSnapshotOptions, Game, GameDraft, LudusaviMeta, StoreGameId,
     TimerSnapshotDecision,
 };
 pub use game_snapshots::GameSnapshots;
+pub use restore_plan::{RestoreEntry, RestorePlan, RestorePlanError};
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitSource, SaveUnitType};
 pub use snapshot::{CreatedBy, Snapshot};
 pub use state_fingerprint::compute_file_hash;

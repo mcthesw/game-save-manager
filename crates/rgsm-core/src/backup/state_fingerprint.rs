@@ -15,7 +15,7 @@ use crate::backup::registry;
 use crate::device::get_current_device_id;
 use crate::path_resolver::PathContext;
 use crate::{
-    backup::{SaveUnit, SaveUnitType},
+    backup::{CapturePlan, CaptureSourceKind, SaveUnit, SaveUnitType},
     preclude::*,
 };
 
@@ -212,6 +212,53 @@ pub(crate) fn fingerprint_source_state(
         collect_entries_from_source(save_paths, path_ctx).map_err(CompressError::Single)?;
     let base = build_fingerprint(entries);
     extend_with_registry(base, save_paths)
+}
+
+pub(crate) fn fingerprint_capture_plan(plan: &CapturePlan) -> Result<String, CompressError> {
+    let mut entries = Vec::new();
+    let mut registry_data = Vec::new();
+    for group in &plan.groups {
+        let source = Path::new(&group.source_path);
+        let archive_path = PathBuf::from(&group.archive_path);
+        match group.kind {
+            CaptureSourceKind::File => entries
+                .push(collect_file_entry(source, &archive_path).map_err(CompressError::Single)?),
+            CaptureSourceKind::Directory => {
+                collect_directory_entries(source, &archive_path, &mut entries)
+                    .map_err(CompressError::Single)?
+            }
+            CaptureSourceKind::Registry => {
+                registry_data.push(fingerprint_capture_registry(&group.source_path)?);
+            }
+        }
+    }
+    let mut base = build_fingerprint(entries);
+    if !registry_data.is_empty() {
+        let mut hasher = Xxh3::new();
+        hasher.write(base.as_bytes());
+        for data in registry_data {
+            hasher.write(&(data.len() as u64).to_le_bytes());
+            hasher.write(&data);
+        }
+        base = format!("{:016x}", hasher.finish());
+    }
+    Ok(base)
+}
+
+#[cfg(target_os = "windows")]
+fn fingerprint_capture_registry(path: &str) -> Result<Vec<u8>, CompressError> {
+    let data = registry::export_registry_key(path).map_err(|error| {
+        CompressError::Single(BackupFileError::RegistryError(error.to_string()))
+    })?;
+    serde_json::to_vec(&data)
+        .map_err(|error| CompressError::Single(BackupFileError::Unexpected(error.into())))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fingerprint_capture_registry(_path: &str) -> Result<Vec<u8>, CompressError> {
+    Err(CompressError::Single(BackupFileError::RegistryError(
+        "registry capture is unavailable on this platform".to_string(),
+    )))
 }
 
 /// Read the stored source fingerprint from a ZIP archive's comment metadata.

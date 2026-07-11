@@ -2,12 +2,10 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::{ffi::OsStr, fs, path::PathBuf, time::SystemTime};
 
-use crate::backup::archive::RestoreNotifier;
-use crate::config::{get_backup_path, get_config};
-use crate::device::get_current_device_id;
+use crate::config::get_backup_path;
 use crate::preclude::*;
 
-use super::{ArchiveBackend, Game, ZipBackend};
+use super::Game;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct ExtraBackupItem {
@@ -73,25 +71,6 @@ pub fn delete_extra_backup(game: &Game, date: &str) -> Result<(), BackupError> {
         return Ok(());
     }
     fs::remove_file(zip_path)?;
-    Ok(())
-}
-
-pub fn restore_extra_backup(
-    game: &Game,
-    date: &str,
-    notifier: Option<&dyn RestoreNotifier>,
-) -> Result<(), BackupError> {
-    let dir = extra_backup_folder_path(game)?;
-    let archive_path = dir.join(format!("{date}.zip"));
-    let device = get_config()
-        .ok()
-        .and_then(|c| c.devices.get(get_current_device_id()).cloned());
-    ZipBackend.decompress(
-        &game.save_paths,
-        &archive_path,
-        notifier,
-        Some(&game.path_context(device.as_ref())),
-    )?;
     Ok(())
 }
 
