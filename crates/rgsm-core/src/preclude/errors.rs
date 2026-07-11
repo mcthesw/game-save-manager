@@ -96,6 +96,10 @@ pub enum BackupError {
     BackupNotExist { name: String, date: String },
     #[error("No backups available")]
     NoBackupAvailable,
+    #[error("Save-location preflight failed for {count} save unit(s)", count = .0.len())]
+    PathPreflight(Vec<crate::backup::CapturePreflightFailure>),
+    #[error("No enabled save data currently matches")]
+    NoDataMatched,
     #[error("Backend error: {0:#?}")]
     Backend(Box<BackendError>),
     #[error("Compress/Decompress error: {0:#?}")]
@@ -110,6 +114,14 @@ pub enum BackupError {
     Io(#[from] io::Error),
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
+}
+impl From<crate::backup::CapturePlanError> for BackupError {
+    fn from(error: crate::backup::CapturePlanError) -> Self {
+        match error {
+            crate::backup::CapturePlanError::Blocking(failures) => Self::PathPreflight(failures),
+            crate::backup::CapturePlanError::NoDataMatched => Self::NoDataMatched,
+        }
+    }
 }
 impl From<opendal::Error> for BackupError {
     fn from(e: opendal::Error) -> Self {

@@ -1,5 +1,6 @@
 mod config;
 mod game;
+mod path_resolution;
 mod snapshot;
 mod sync;
 

@@ -10,8 +10,8 @@ use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
 use crate::backup::{
-    ArchiveBackend, CreatedBy, GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft, Snapshot,
-    ZipBackend,
+    ArchiveBackend, CapturePlan, CreatedBy, GameDeviceBinding, GameSnapshots, SaveUnit,
+    SaveUnitDraft, Snapshot, ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::{DeviceId, DeviceResourceKind, get_current_device_id};
@@ -149,6 +149,15 @@ pub struct SnapshotCreated {
     pub snapshots: GameSnapshots,
     pub local_zip_path: PathBuf,
     pub remote_zip_path: String,
+}
+
+pub struct CaptureSnapshotOptions<'a> {
+    pub backup_base: &'a Path,
+    pub preset: crate::backup::CompressionPreset,
+    pub describe: &'a str,
+    pub parent_date: Option<String>,
+    pub created_by: CreatedBy,
+    pub source_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -465,6 +474,48 @@ impl Game {
 
         infos.set_current_device_head(Some(date.clone()));
 
+        self.set_game_snapshots_info(&infos)?;
+
+        Ok(SnapshotCreated {
+            snapshots: infos,
+            remote_zip_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
+            local_zip_path: zip_path,
+        })
+    }
+
+    /// Persist a snapshot from a fully preflighted immutable capture plan.
+    /// Configuration and host discovery stay outside this domain operation.
+    pub async fn create_snapshot_from_capture_plan(
+        &self,
+        plan: &CapturePlan,
+        options: CaptureSnapshotOptions<'_>,
+    ) -> Result<SnapshotCreated, BackupError> {
+        let backup_path = options.backup_base.join(self.backup_dir_name().as_ref());
+        fs::create_dir_all(&backup_path)?;
+        let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+        let zip_path = backup_path.join(format!("{date}.zip"));
+        let file_size = ZipBackend.compress_capture_plan(
+            plan,
+            &zip_path,
+            options.preset,
+            options.source_fingerprint,
+        )?;
+
+        let mut infos = self.get_game_snapshots_info()?;
+        let parent = options
+            .parent_date
+            .or_else(|| infos.current_device_head().cloned());
+        infos.backups.push(Snapshot {
+            date: date.clone(),
+            describe: options.describe.to_string(),
+            path: zip_path.to_string_lossy().into_owned(),
+            size: file_size,
+            parent,
+            archive_hash: None,
+            device_id: Some(get_current_device_id().clone()),
+            created_by: options.created_by,
+        });
+        infos.set_current_device_head(Some(date.clone()));
         self.set_game_snapshots_info(&infos)?;
 
         Ok(SnapshotCreated {
