@@ -60,7 +60,7 @@ interface PathVariable {
 
 const pathVariables = ref<PathVariable[]>([]);
 
-onMounted(async () => {
+async function loadPathVariables() {
   pathVariables.value = (await commands.getPathPlaceholderCatalog())
     .filter((descriptor) => descriptor.windowsApplicable)
     .map((descriptor) => ({
@@ -68,7 +68,12 @@ onMounted(async () => {
       labelKey: descriptor.placeholder.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
       value: descriptor.token,
     }));
-});
+  if (editorRef.value === document.activeElement) {
+    nextTick(checkAutocomplete);
+  }
+}
+
+void loadPathVariables();
 
 // ── Autocomplete state ──
 
@@ -315,6 +320,15 @@ function onInput() {
   }
 }
 
+function onBeforeInput(e: InputEvent) {
+  if (e.isComposing || e.data !== '<') return;
+  nextTick(checkAutocomplete);
+}
+
+function onCompositionEnd() {
+  nextTick(checkAutocomplete);
+}
+
 function onBlur() {
   savedCursorOffset = getCursorOffset();
   // Delay to allow mousedown on suggestion items to fire first
@@ -549,6 +563,8 @@ watch(
           contenteditable="true"
           spellcheck="false"
           @input="onInput"
+          @beforeinput="onBeforeInput"
+          @compositionend="onCompositionEnd"
           @blur="onBlur"
           @keydown="onKeydown"
           @paste="onPaste"
