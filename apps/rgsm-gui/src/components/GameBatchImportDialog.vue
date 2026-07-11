@@ -247,9 +247,11 @@ async function loadUserIdCandidates() {
 }
 
 function formatUserIdLabel(c: StoreUserIdCandidate): string {
-  if (c.lastModifiedEpochSecs == null) return c.userId;
+  const displayName = c.personaName || c.accountName;
+  const identity = displayName ? `${displayName} (${c.userId})` : c.userId;
+  if (c.lastModifiedEpochSecs == null) return identity;
   const ago = formatTimeAgo(c.lastModifiedEpochSecs);
-  return `${c.userId} (${ago})`;
+  return `${identity} · ${ago}`;
 }
 
 function formatTimeAgo(epochSecs: number): string {

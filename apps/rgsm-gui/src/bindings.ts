@@ -1025,6 +1025,14 @@ export type StoreKind = "steam" | "gog" | "microsoft" | "uplay" | "other"
  */
 export type StoreUserIdCandidate = { userId: string;
 /**
+ * Stable Steam login name from `config/loginusers.vdf`, when available.
+ */
+accountName: string | null;
+/**
+ * Player-facing Steam profile name from `config/loginusers.vdf`, when available.
+ */
+personaName: string | null;
+/**
  * Seconds since UNIX epoch of the `userdata/<id>` directory mtime.
  */
 lastModifiedEpochSecs: number | null }

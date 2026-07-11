@@ -67,6 +67,20 @@ struct AppState {
     installdir: Option<String>,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+struct SteamLoginUser {
+    #[serde(default, alias = "AccountName")]
+    account_name: Option<String>,
+    #[serde(default, alias = "PersonaName")]
+    persona_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SteamUserNames {
+    account_name: Option<String>,
+    persona_name: Option<String>,
+}
+
 /// VDF values may be strings or numbers; this type handles both.
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -307,8 +321,50 @@ pub fn find_game_install_path(
 #[serde(rename_all = "camelCase")]
 pub struct StoreUserIdCandidate {
     pub user_id: String,
+    /// Stable Steam login name from `config/loginusers.vdf`, when available.
+    pub account_name: Option<String>,
+    /// Player-facing Steam profile name from `config/loginusers.vdf`, when available.
+    pub persona_name: Option<String>,
     /// Seconds since UNIX epoch of the `userdata/<id>` directory mtime.
     pub last_modified_epoch_secs: Option<i64>,
+}
+
+fn parse_login_user_names(content: &str) -> Result<HashMap<String, SteamUserNames>, String> {
+    let users: HashMap<String, SteamLoginUser> =
+        keyvalues_serde::from_str(content).map_err(|error| error.to_string())?;
+    Ok(users
+        .into_iter()
+        .filter_map(|(steam_id, user)| {
+            let steam_id = steam_id.parse::<u64>().ok()?;
+            let account_id = (steam_id & u32::MAX as u64).to_string();
+            Some((
+                account_id,
+                SteamUserNames {
+                    account_name: user.account_name.filter(|name| !name.is_empty()),
+                    persona_name: user.persona_name.filter(|name| !name.is_empty()),
+                },
+            ))
+        })
+        .collect())
+}
+
+fn read_login_user_names(steam_root: &Path) -> HashMap<String, SteamUserNames> {
+    let path = steam_root.join("config").join("loginusers.vdf");
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return HashMap::new();
+    };
+    match parse_login_user_names(&content) {
+        Ok(users) => users,
+        Err(reason) => {
+            warn!(
+                target: "rgsm::steam",
+                "failed to parse {} for Steam account labels: {}",
+                path.display(),
+                reason
+            );
+            HashMap::new()
+        }
+    }
 }
 
 /// Detect Steam user IDs from the `userdata/` directory.
@@ -316,6 +372,7 @@ pub struct StoreUserIdCandidate {
 pub fn detect_steam_user_ids() -> Result<Vec<StoreUserIdCandidate>, SteamError> {
     let steam_root = get_steam_root()?;
     let userdata_path = steam_root.join("userdata");
+    let mut login_user_names = read_login_user_names(&steam_root);
 
     let mut candidates = Vec::new();
     let entries = std::fs::read_dir(&userdata_path).map_err(|_| SteamError::SteamNotFound)?;
@@ -339,8 +396,11 @@ pub fn detect_steam_user_ids() -> Result<Vec<StoreUserIdCandidate>, SteamError> 
             .and_then(|t| t.duration_since(std::time::SystemTime::UNIX_EPOCH).ok())
             .map(|d| d.as_secs() as i64);
 
+        let names = login_user_names.remove(&dir_name);
         candidates.push(StoreUserIdCandidate {
             user_id: dir_name,
+            account_name: names.as_ref().and_then(|names| names.account_name.clone()),
+            persona_name: names.and_then(|names| names.persona_name),
             last_modified_epoch_secs,
         });
     }
@@ -603,6 +663,47 @@ mod tests {
         // We can't test the real function (needs Steam installed),
         // but we can test the directory parsing logic indirectly.
         // The function itself is integration-tested when Steam is present.
+    }
+
+    #[test]
+    fn parses_login_user_names_by_userdata_account_id() {
+        let login_users = parse_login_user_names(
+            r#"
+            "users"
+            {
+                "76561198000000042"
+                {
+                    "AccountName" "login_name"
+                    "PersonaName" "Player Name"
+                    "MostRecent" "1"
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let account_id = (76_561_198_000_000_042_u64 & u32::MAX as u64).to_string();
+        let names = login_users.get(&account_id).unwrap();
+        assert_eq!(names.account_name.as_deref(), Some("login_name"));
+        assert_eq!(names.persona_name.as_deref(), Some("Player Name"));
+    }
+
+    #[test]
+    fn malformed_login_user_ids_are_ignored() {
+        let login_users = parse_login_user_names(
+            r#"
+            "users"
+            {
+                "not-a-steam-id"
+                {
+                    "AccountName" "ignored"
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        assert!(login_users.is_empty());
     }
 
     #[test]
