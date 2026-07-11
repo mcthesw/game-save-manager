@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::{
-    backup::{CapturePlan, CompressionPreset, SaveUnit},
+    backup::{CapturePlan, CompressionPreset, RestorePlan, SaveUnit},
     path_resolver::PathContext,
     preclude::*,
 };
@@ -31,6 +31,19 @@ pub trait ArchiveBackend {
         preset: CompressionPreset,
         source_fingerprint: Option<String>,
     ) -> Result<u64, CompressError>;
+
+    fn read_capture_manifest(
+        &self,
+        archive_path: &Path,
+    ) -> Result<super::ArchiveManifestV3, CompressError>;
+
+    fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError>;
+
+    fn restore_capture_plan(
+        &self,
+        plan: &RestorePlan,
+        archive_path: &Path,
+    ) -> Result<(), CompressError>;
 
     /// Decompress an archive and restore save units to their original paths.
     fn decompress(
@@ -73,6 +86,25 @@ impl ArchiveBackend for ZipBackend {
             preset,
             source_fingerprint,
         )
+    }
+
+    fn read_capture_manifest(
+        &self,
+        archive_path: &Path,
+    ) -> Result<super::ArchiveManifestV3, CompressError> {
+        super::decompress::read_capture_manifest(archive_path)
+    }
+
+    fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError> {
+        super::decompress::archive_version(archive_path)
+    }
+
+    fn restore_capture_plan(
+        &self,
+        plan: &RestorePlan,
+        archive_path: &Path,
+    ) -> Result<(), CompressError> {
+        super::decompress::restore_capture_plan(plan, archive_path)
     }
 
     fn decompress(

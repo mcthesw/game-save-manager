@@ -1,11 +1,10 @@
-use std::path::PathBuf;
-
 use log::{info, warn};
 use tauri::{AppHandle, Manager};
 
 use rgsm_core::backup::{AutoBackupConfig, Game, TimerSnapshotDecision};
 use rgsm_core::config::get_config;
-use rgsm_core::hooks::{SnapshotCreatedCtx, SnapshotDeletedCtx};
+use rgsm_core::hooks::SnapshotDeletedCtx;
+use rgsm_core::services::ServiceContext;
 
 use super::{QuickActionType, notify_backup_failed, notify_backup_skipped_unchanged};
 
@@ -18,7 +17,11 @@ pub async fn perform_changed_auto_backup(
     let describe = trigger.generate_describe();
     let created_by = trigger.to_created_by();
 
-    match game.create_snapshot_if_changed(&describe, created_by).await {
+    let service = ServiceContext::new(app.state::<crate::hooks::HookPipelineState>().snapshot());
+    match service
+        .create_snapshot_if_changed(game, &describe, created_by, trigger.to_hook_source())
+        .await
+    {
         Ok(TimerSnapshotDecision::SkippedUnchanged) => {
             info!(
                 target: "rgsm::quick_action::auto_backup",
@@ -60,40 +63,6 @@ pub async fn perform_changed_auto_backup(
             return;
         }
     };
-
-    match game.get_game_snapshots_info() {
-        Ok(snapshots) => {
-            if let Some(snapshot) = snapshots.backups.last().cloned() {
-                let local_zip_path = PathBuf::from(&snapshot.path);
-                let remote_zip_path = format!("save_data/{}/{}.zip", snapshots.name, snapshot.date);
-                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                let mut ctx = SnapshotCreatedCtx {
-                    config: config.clone(),
-                    source: trigger.to_hook_source(),
-                    game: game.clone(),
-                    snapshot,
-                    snapshots,
-                    local_zip_path,
-                    remote_zip_path,
-                };
-                pipeline.fire_snapshot_created(&mut ctx).await;
-                if let Err(err) = game.set_game_snapshots_info(&ctx.snapshots) {
-                    warn!(
-                        target: "rgsm::quick_action::auto_backup",
-                        "Failed to persist hook-updated snapshot metadata for '{}': {err:?}",
-                        game.name
-                    );
-                }
-            }
-        }
-        Err(err) => {
-            warn!(
-                target: "rgsm::quick_action::auto_backup",
-                "Failed to read snapshots after automatic backup for '{}': {err:?}",
-                game.name
-            );
-        }
-    }
 
     cleanup_old_auto_backups(app, game, retention, config, trigger).await;
 }

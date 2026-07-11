@@ -1,6 +1,6 @@
 use crate::backup::{
-    self, CapturePlan, CaptureSnapshotOptions, CreatedBy, Game, GameSnapshots, RestoreNotifier,
-    SaveUnitCaptureInput,
+    ArchiveBackend, ArchiveVersion, CaptureSnapshotOptions, CreatedBy, Game, GameSnapshots,
+    RestoreNotifier, RestorePlan, TimerSnapshotDecision, ZipBackend,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -57,17 +57,7 @@ impl ServiceContext {
         source: HookSource,
     ) -> Result<(), BackupError> {
         let config = get_config()?;
-        let plan = CapturePlan::from_resolution_reports(
-            game.save_paths
-                .iter()
-                .filter(|save_unit| save_unit.enabled)
-                .map(|save_unit| SaveUnitCaptureInput {
-                    save_unit_id: save_unit.id,
-                    delete_before_apply: save_unit.delete_before_apply,
-                    report: self.resolve_save_unit(&config, game, save_unit),
-                })
-                .collect(),
-        )?;
+        let plan = self.capture_plan(&config, game)?;
         let created = game
             .create_snapshot_from_capture_plan(
                 &plan,
@@ -97,6 +87,61 @@ impl ServiceContext {
         }
 
         Ok(())
+    }
+
+    pub async fn create_snapshot_if_changed(
+        &self,
+        game: &Game,
+        describe: &str,
+        created_by: CreatedBy,
+        source: HookSource,
+    ) -> Result<TimerSnapshotDecision, BackupError> {
+        let config = get_config()?;
+        let plan = self.capture_plan(&config, game)?;
+        let fingerprint = crate::backup::state_fingerprint::fingerprint_capture_plan(&plan)?;
+        let snapshots = game.get_game_snapshots_info()?;
+        let latest = snapshots
+            .backups
+            .iter()
+            .filter(|snapshot| snapshot.created_by.is_automatic_backup())
+            .max_by_key(|snapshot| &snapshot.date);
+        if latest.is_some_and(|snapshot| {
+            crate::backup::state_fingerprint::read_stored_fingerprint(std::path::Path::new(
+                &snapshot.path,
+            ))
+            .as_deref()
+                == Some(fingerprint.as_str())
+        }) {
+            return Ok(TimerSnapshotDecision::SkippedUnchanged);
+        }
+
+        let created = game
+            .create_snapshot_from_capture_plan(
+                &plan,
+                CaptureSnapshotOptions {
+                    backup_base: &resolve_backup_path(&config.backup_path),
+                    preset: config.settings.compression_preset,
+                    describe,
+                    parent_date: None,
+                    created_by,
+                    source_fingerprint: Some(fingerprint),
+                },
+            )
+            .await?;
+        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            let mut ctx = crate::hooks::SnapshotCreatedCtx {
+                config,
+                source,
+                game: game.clone(),
+                snapshot,
+                snapshots: created.snapshots,
+                local_zip_path: created.local_zip_path,
+                remote_zip_path: created.remote_zip_path,
+            };
+            self.pipeline().fire_snapshot_created(&mut ctx).await;
+            game.set_game_snapshots_info(&ctx.snapshots)?;
+        }
+        Ok(TimerSnapshotDecision::Created)
     }
 
     pub async fn restore_snapshot(
@@ -129,11 +174,19 @@ impl ServiceContext {
                 game: game.clone(),
                 snapshot: snapshot.clone(),
                 snapshots: snapshots_before_restore,
-                archive_path,
+                archive_path: archive_path.clone(),
             })
             .await?;
 
-        let snapshots = game.restore_snapshot(date, notifier)?;
+        let snapshots = if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
+            self.restore_v3_archive(&config, game, &archive_path)?;
+            let mut snapshots = game.get_game_snapshots_info()?;
+            snapshots.set_current_device_head(Some(date.to_string()));
+            game.set_game_snapshots_info(&snapshots)?;
+            snapshots
+        } else {
+            game.restore_snapshot(date, notifier)?
+        };
 
         self.pipeline()
             .fire_snapshot_applied(&SnapshotAppliedCtx {
@@ -148,39 +201,62 @@ impl ServiceContext {
         Ok(())
     }
 
-    pub async fn backup_all(&self, source: HookSource) -> Result<(), BackupError> {
-        let created_snapshots = backup::backup_all().await?;
+    pub fn restore_extra_backup(
+        &self,
+        game: &Game,
+        date: &str,
+        notifier: Option<&dyn RestoreNotifier>,
+    ) -> Result<(), BackupError> {
         let config = get_config()?;
-
-        for created in created_snapshots {
-            let game = config
-                .games
-                .iter()
-                .find(|game| game.backup_dir_name() == created.snapshots.name)
-                .cloned()
-                .ok_or_else(|| {
-                    BackupError::Unexpected(anyhow::anyhow!(
-                        "Game '{}' was not found while finalizing backup_all",
-                        created.snapshots.name
-                    ))
-                })?;
-
-            if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-                let mut ctx = crate::hooks::SnapshotCreatedCtx {
-                    config: config.clone(),
-                    source: source.clone(),
-                    game: game.clone(),
-                    snapshot,
-                    snapshots: created.snapshots,
-                    local_zip_path: created.local_zip_path,
-                    remote_zip_path: created.remote_zip_path,
-                };
-                self.pipeline().fire_snapshot_created(&mut ctx).await;
-                game.set_game_snapshots_info(&ctx.snapshots)?;
-            }
+        let archive_path =
+            crate::backup::extra_backup_folder_path(game)?.join(format!("{date}.zip"));
+        if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
+            self.restore_v3_archive(&config, game, &archive_path)
+        } else {
+            let device = config.devices.get(crate::device::get_current_device_id());
+            ZipBackend.decompress(
+                &game.save_paths,
+                &archive_path,
+                notifier,
+                Some(&game.path_context(device)),
+            )?;
+            Ok(())
         }
+    }
 
+    fn restore_v3_archive(
+        &self,
+        config: &crate::config::Config,
+        game: &Game,
+        archive_path: &std::path::Path,
+    ) -> Result<(), BackupError> {
+        let manifest = ZipBackend.read_capture_manifest(archive_path)?;
+        let reports = game
+            .save_paths
+            .iter()
+            .filter(|unit| unit.enabled)
+            .map(|unit| (unit.id, self.resolve_save_unit(config, game, unit)))
+            .collect();
+        let rules = game
+            .device_bindings
+            .get(crate::device::get_current_device_id())
+            .map(|binding| binding.restore_mappings.as_slice())
+            .unwrap_or_default();
+        let plan = RestorePlan::build(&manifest.groups, &reports, rules)?;
+        ZipBackend.restore_capture_plan(&plan, archive_path)?;
         Ok(())
+    }
+
+    pub async fn backup_all(&self, source: HookSource) -> Result<(), BackupError> {
+        let config = get_config()?;
+        let mut first_error = None;
+        for game in &config.games {
+            let result = self
+                .create_snapshot_at(game, "Backup all", None, CreatedBy::Manual, source.clone())
+                .await;
+            retain_first_error(&mut first_error, result);
+        }
+        first_error.map_or(Ok(()), Err)
     }
 
     pub async fn apply_all(
@@ -189,38 +265,13 @@ impl ServiceContext {
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
         let config = get_config()?;
-        let backup_base = get_backup_path()?;
-
         for game in &config.games {
             let snapshots_info = game.get_game_snapshots_info()?;
             let Some(snapshot) = snapshots_info.backups.last().cloned() else {
                 continue;
             };
-            let archive_path = backup_base
-                .join(game.backup_dir_name().as_ref())
-                .join(format!("{}.zip", snapshot.date));
-
-            self.pipeline()
-                .fire_before_restore(&BeforeRestoreCtx {
-                    config: config.clone(),
-                    source: source.clone(),
-                    game: game.clone(),
-                    snapshot: snapshot.clone(),
-                    snapshots: snapshots_info,
-                    archive_path,
-                })
+            self.restore_snapshot(game, &snapshot.date, source.clone(), notifier)
                 .await?;
-
-            let snapshots = game.restore_snapshot(&snapshot.date, notifier)?;
-            self.pipeline()
-                .fire_snapshot_applied(&SnapshotAppliedCtx {
-                    config: config.clone(),
-                    source: source.clone(),
-                    game: game.clone(),
-                    snapshot,
-                    snapshots,
-                })
-                .await;
         }
 
         Ok(())
@@ -399,5 +450,26 @@ impl ServiceContext {
             .await;
 
         Ok(())
+    }
+}
+
+fn retain_first_error(first_error: &mut Option<BackupError>, result: Result<(), BackupError>) {
+    if let Err(error) = result {
+        first_error.get_or_insert(error);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch_error_state_retains_the_first_failure() {
+        let mut first_error = None;
+        retain_first_error(&mut first_error, Err(BackupError::NoDataMatched));
+        retain_first_error(&mut first_error, Ok(()));
+        retain_first_error(&mut first_error, Err(BackupError::NoBackupAvailable));
+
+        assert!(matches!(first_error, Some(BackupError::NoDataMatched)));
     }
 }

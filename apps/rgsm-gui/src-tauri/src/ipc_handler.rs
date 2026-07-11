@@ -516,10 +516,12 @@ pub async fn delete_extra_backup(game: Game, date: String) -> Result<(), String>
 pub async fn restore_extra_backup(game: Game, date: String, app: AppHandle) -> Result<(), String> {
     info!(target:"rgsm::ipc", "Restoring extra backup: {:?} for game: {:?}", date, game);
     let n = notifier(&app);
-    backup::restore_extra_backup(&game, &date, Some(&n)).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to restore extra backup: {:?}", e);
-        e.to_string()
-    })
+    svc(&app)
+        .restore_extra_backup(&game, &date, Some(&n))
+        .map_err(|e| {
+            error!(target:"rgsm::ipc", "Failed to restore extra backup: {:?}", e);
+            e.to_string()
+        })
 }
 
 #[tauri::command]

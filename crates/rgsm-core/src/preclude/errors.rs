@@ -100,6 +100,8 @@ pub enum BackupError {
     PathPreflight(Vec<crate::backup::CapturePreflightFailure>),
     #[error("No enabled save data currently matches")]
     NoDataMatched,
+    #[error(transparent)]
+    RestorePlan(#[from] crate::backup::RestorePlanError),
     #[error("Backend error: {0:#?}")]
     Backend(Box<BackendError>),
     #[error("Compress/Decompress error: {0:#?}")]

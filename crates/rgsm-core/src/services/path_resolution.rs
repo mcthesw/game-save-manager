@@ -1,20 +1,40 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use crate::backup::{Game, SaveUnit, SaveUnitSource, SaveUnitType};
+use crate::backup::{
+    CapturePlan, Game, SaveUnit, SaveUnitCaptureInput, SaveUnitSource, SaveUnitType,
+};
 use crate::config::Config;
 use crate::device::{DeviceResourceKind, get_current_device_id};
 use crate::path_pattern::{PathPatternError, PlatformKind, parse_manifest_path_pattern};
 use crate::path_resolution::{
-    CandidateDimensions, GameInstallationCandidate, GameRootCandidate, PlatformPaths,
-    ResolutionContext, ResolutionDiagnostic, ResolutionDiagnosticKind, ResolutionReport,
-    ResolutionSelection, ResolutionSelectionState, ResolvedLocationKind, ResolvedSaveLocation,
-    StoreAccountCandidate, match_resolution_plan, plan_resolution,
+    CandidateDimensions, CandidateExpression, GameInstallationCandidate, GameRootCandidate,
+    PlatformPaths, ResolutionContext, ResolutionDiagnostic, ResolutionDiagnosticKind,
+    ResolutionReport, ResolutionSelection, ResolutionSelectionState, ResolvedLocationKind,
+    ResolvedSaveLocation, StoreAccountCandidate, match_resolution_plan, plan_resolution,
 };
 
 use super::ServiceContext;
 
 impl ServiceContext {
+    pub(crate) fn capture_plan(
+        &self,
+        config: &Config,
+        game: &Game,
+    ) -> Result<CapturePlan, crate::backup::CapturePlanError> {
+        CapturePlan::from_resolution_reports(
+            game.save_paths
+                .iter()
+                .filter(|save_unit| save_unit.enabled)
+                .map(|save_unit| SaveUnitCaptureInput {
+                    save_unit_id: save_unit.id,
+                    delete_before_apply: save_unit.delete_before_apply,
+                    report: self.resolve_save_unit(config, game, save_unit),
+                })
+                .collect(),
+        )
+    }
+
     /// Resolve a Save Unit against an explicitly supplied configuration snapshot.
     /// This is the composition boundary for host paths and per-device resources.
     pub fn resolve_save_unit(
@@ -185,7 +205,17 @@ fn resolve_concrete(
         selection_state: ResolutionSelectionState::Explicit {
             candidate_ids: vec!["concrete".to_string()],
         },
-        candidates: Vec::new(),
+        candidates: vec![CandidateExpression {
+            id: "concrete".to_string(),
+            expression: resolved.to_string_lossy().into_owned(),
+            logical_anchor: source
+                .parent()
+                .unwrap_or(source)
+                .to_string_lossy()
+                .into_owned(),
+            dimensions: CandidateDimensions::default(),
+            case_sensitive: !cfg!(target_os = "windows"),
+        }],
         locations: vec![ResolvedSaveLocation {
             path: resolved.to_string_lossy().into_owned(),
             kind,
@@ -264,6 +294,10 @@ mod concrete_tests {
         );
 
         assert_eq!(report.locations.len(), 1);
+        assert_eq!(
+            PathBuf::from(&report.candidates[0].expression),
+            temp.path().join("save.dat")
+        );
         assert_eq!(
             PathBuf::from(&report.locations[0].path),
             temp.path().join("save.dat")

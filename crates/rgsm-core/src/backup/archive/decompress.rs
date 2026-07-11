@@ -5,6 +5,7 @@
 
 use std::{
     fs::{self, File},
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -14,7 +15,7 @@ use log::warn;
 use rust_i18n::t;
 
 use crate::{
-    backup::{SaveUnit, SaveUnitType},
+    backup::{CaptureSourceKind, RestorePlan, SaveUnit, SaveUnitType},
     device::get_current_device_id,
     path_resolver::PathContext,
     preclude::*,
@@ -35,7 +36,132 @@ pub trait RestoreNotifier: Send + Sync {
     fn notify(&self, level: RestoreNotificationLevel, title: &str, msg: &str);
 }
 
-use super::{timestamp::zip_datetime_to_system_time, version::ArchiveVersion};
+use super::{
+    ArchiveManifestV3, V3_MANIFEST_ENTRY, timestamp::zip_datetime_to_system_time,
+    version::ArchiveVersion,
+};
+
+pub(super) fn archive_version(archive_path: &Path) -> Result<ArchiveVersion, CompressError> {
+    let file = File::open(archive_path).map_err(|error| CompressError::Single(error.into()))?;
+    let zip = zip::ZipArchive::new(file).map_err(|error| CompressError::Single(error.into()))?;
+    Ok(ArchiveVersion::from_comment(zip.comment()))
+}
+
+pub(super) fn read_capture_manifest(
+    archive_path: &Path,
+) -> Result<ArchiveManifestV3, CompressError> {
+    let file = File::open(archive_path).map_err(|error| CompressError::Single(error.into()))?;
+    let mut zip =
+        zip::ZipArchive::new(file).map_err(|error| CompressError::Single(error.into()))?;
+    if ArchiveVersion::from_comment(zip.comment()) != ArchiveVersion::V3 {
+        return Err(CompressError::Single(BackupFileError::Unexpected(
+            anyhow::anyhow!("capture manifest requested from a non-V3 archive"),
+        )));
+    }
+    serde_json::from_reader(
+        zip.by_name(V3_MANIFEST_ENTRY)
+            .map_err(|error| CompressError::Single(error.into()))?,
+    )
+    .map_err(|error| CompressError::Single(BackupFileError::Unexpected(error.into())))
+}
+
+pub(super) fn restore_capture_plan(
+    plan: &RestorePlan,
+    archive_path: &Path,
+) -> Result<(), CompressError> {
+    let file = File::open(archive_path).map_err(|error| CompressError::Single(error.into()))?;
+    let mut zip =
+        zip::ZipArchive::new(file).map_err(|error| CompressError::Single(error.into()))?;
+    for entry in &plan.entries {
+        if entry.delete_before_apply && entry.target_path.exists() {
+            let result = if entry.target_path.is_dir() {
+                fs::remove_dir_all(&entry.target_path)
+            } else {
+                fs::remove_file(&entry.target_path)
+            };
+            result.map_err(|error| CompressError::Single(error.into()))?;
+        }
+        match entry.kind {
+            CaptureSourceKind::Registry => restore_registry_capture(&mut zip, entry)?,
+            CaptureSourceKind::File => restore_file_capture(&mut zip, entry)?,
+            CaptureSourceKind::Directory => restore_directory_capture(&mut zip, entry)?,
+        }
+    }
+    Ok(())
+}
+
+fn restore_file_capture(
+    zip: &mut zip::ZipArchive<File>,
+    entry: &crate::backup::RestoreEntry,
+) -> Result<(), CompressError> {
+    let mut source = zip
+        .by_name(&entry.archive_path)
+        .map_err(|error| CompressError::Single(error.into()))?;
+    if let Some(parent) = entry.target_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| CompressError::Single(error.into()))?;
+    }
+    let mut target =
+        File::create(&entry.target_path).map_err(|error| CompressError::Single(error.into()))?;
+    std::io::copy(&mut source, &mut target).map_err(|error| CompressError::Single(error.into()))?;
+    Ok(())
+}
+
+fn restore_directory_capture(
+    zip: &mut zip::ZipArchive<File>,
+    entry: &crate::backup::RestoreEntry,
+) -> Result<(), CompressError> {
+    let prefix = format!("{}/", entry.archive_path.trim_end_matches('/'));
+    for index in 0..zip.len() {
+        let mut source = zip
+            .by_index(index)
+            .map_err(|error| CompressError::Single(error.into()))?;
+        let Some(relative) = source.name().strip_prefix(&prefix) else {
+            continue;
+        };
+        let relative = Path::new(relative);
+        if relative.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        }) {
+            continue;
+        }
+        let target = entry.target_path.join(relative);
+        if source.is_dir() {
+            fs::create_dir_all(&target).map_err(|error| CompressError::Single(error.into()))?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|error| CompressError::Single(error.into()))?;
+        }
+        let mut output =
+            File::create(target).map_err(|error| CompressError::Single(error.into()))?;
+        std::io::copy(&mut source, &mut output)
+            .map_err(|error| CompressError::Single(error.into()))?;
+    }
+    Ok(())
+}
+
+fn restore_registry_capture(
+    zip: &mut zip::ZipArchive<File>,
+    entry: &crate::backup::RestoreEntry,
+) -> Result<(), CompressError> {
+    let mut source = zip
+        .by_name(&entry.archive_path)
+        .map_err(|error| CompressError::Single(error.into()))?;
+    let mut bytes = Vec::new();
+    source
+        .read_to_end(&mut bytes)
+        .map_err(|error| CompressError::Single(error.into()))?;
+    let data = crate::backup::registry::deserialize_reg_file(&bytes).map_err(|error| {
+        CompressError::Single(BackupFileError::RegistryError(error.to_string()))
+    })?;
+    crate::backup::registry::import_registry_data(&data)
+        .map_err(|error| CompressError::Single(BackupFileError::RegistryError(error.to_string())))
+}
 
 /// Why a save unit was skipped during restore.
 #[derive(Debug, Clone)]
@@ -414,9 +540,57 @@ pub fn decompress_from_file(
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::fs;
 
     use super::save_unit_label;
     use crate::backup::{SaveUnit, SaveUnitType};
+
+    #[test]
+    fn v3_restore_plan_extracts_only_approved_target() {
+        use crate::backup::{
+            ArchiveBackend, CaptureGroup, CapturePlan, CaptureSourceKind, CompressionPreset,
+            RestoreEntry, RestorePlan, ZipBackend,
+        };
+        use crate::path_resolution::CandidateDimensions;
+
+        let temp = temp_dir::TempDir::new().unwrap();
+        let source = temp.path().join("source.dat");
+        let target = temp.path().join("restore").join("target.dat");
+        let archive = temp.path().join("snapshot.zip");
+        fs::write(&source, b"captured").unwrap();
+        let capture = CapturePlan {
+            groups: vec![CaptureGroup {
+                id: 0,
+                save_unit_id: 4,
+                candidate_id: "source".to_string(),
+                dimensions: CandidateDimensions::default(),
+                logical_anchor: temp.path().to_path_buf(),
+                source_path: source.to_string_lossy().into_owned(),
+                relative_path: "source.dat".to_string(),
+                archive_path: "4/0/data/source.dat".to_string(),
+                kind: CaptureSourceKind::File,
+                delete_before_apply: true,
+            }],
+        };
+        ZipBackend
+            .compress_capture_plan(&capture, &archive, CompressionPreset::Standard, None)
+            .unwrap();
+        let restore = RestorePlan {
+            entries: vec![RestoreEntry {
+                save_unit_id: 4,
+                group_id: 0,
+                archive_path: "4/0/data/source.dat".to_string(),
+                target_path: target.clone(),
+                kind: CaptureSourceKind::File,
+                delete_before_apply: true,
+            }],
+        };
+
+        ZipBackend.restore_capture_plan(&restore, &archive).unwrap();
+
+        assert_eq!(fs::read(target).unwrap(), b"captured");
+        assert_eq!(fs::read(source).unwrap(), b"captured");
+    }
 
     #[test]
     fn save_unit_label_prefers_sorted_device_fallback() {
