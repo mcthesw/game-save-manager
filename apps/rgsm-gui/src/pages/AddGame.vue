@@ -106,6 +106,38 @@ const activeSteamId = computed(
       null)
 );
 const activeStoreUserId = computed(() => pendingStoreUserId.value);
+const needsInstallDirectoryNames = computed(
+  () =>
+    manualInstallDirs.value.length > 0 ||
+    save_paths.some(
+      (unit) =>
+        unit.source.type === 'manifestPattern' &&
+        (unit.source.pattern.includes('<game>') || unit.source.pattern.includes('<base>'))
+    )
+);
+
+async function ensureSteamAccountResource(userId: string | null): Promise<number | null> {
+  if (!userId || !currentDevice.value || !config.value) return null;
+  currentDevice.value.resources ??= [];
+  const existing = currentDevice.value.resources.find(
+    (resource) =>
+      resource.kind.type === 'storeAccount' &&
+      resource.kind.store === 'steam' &&
+      resource.kind.user_id === userId
+  );
+  if (existing) return existing.id;
+  const id = currentDevice.value.next_resource_id ?? 0;
+  currentDevice.value.resources.push({
+    id,
+    source: 'manual',
+    kind: { type: 'storeAccount', store: 'steam', user_id: userId },
+  });
+  currentDevice.value.next_resource_id = id + 1;
+  config.value.devices ??= {};
+  config.value.devices[currentDevice.value.id] = currentDevice.value;
+  await saveConfig();
+  return id;
+}
 
 // 获取当前设备信息
 async function fetchCurrentDevice() {
@@ -269,13 +301,6 @@ async function choose_executable_file() {
       return;
     }
     game_path.value = file.data;
-    if (manualInstallDirs.value.length === 0) {
-      const segments = file.data.split(/[\\/]/).filter(Boolean);
-      const inferred = segments.length >= 2 ? segments[segments.length - 2] : '';
-      if (inferred) {
-        manualInstallDirs.value = [inferred];
-      }
-    }
   } catch (e) {
     error(`Error choosing executable file: ${e}`);
     notifyError($t('error.choose_executable_file_error'));
@@ -596,6 +621,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
   const existingNames = new Set(
     (config.value?.games ?? []).map((g) => (g.name ?? '').toLowerCase())
   );
+  const accountResourceId = await ensureSteamAccountResource(storeUserId);
 
   for (const gameConfig of configs) {
     try {
@@ -694,6 +720,12 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
               }
             : undefined,
       };
+      if (accountResourceId !== null && currentDevice.value) {
+        newGame.device_bindings[currentDevice.value.id] = {
+          accountIds: [accountResourceId],
+          restoreMappings: [],
+        };
+      }
 
       const addResult = await commands.addGame(newGame);
 
@@ -745,6 +777,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
   }
 }
 async function save() {
+  const accountResourceId = await ensureSteamAccountResource(pendingStoreUserId.value);
   const normalizedInstallDirs = manualInstallDirs.value
     .map((dir) => dir.trim())
     .filter((dir) => dir.length > 0);
@@ -783,6 +816,14 @@ async function save() {
           }
         : undefined,
   };
+  if (accountResourceId !== null && currentDevice.value) {
+    const existingBinding = game.device_bindings[currentDevice.value.id];
+    game.device_bindings[currentDevice.value.id] = {
+      ...existingBinding,
+      accountIds: [accountResourceId],
+      restoreMappings: existingBinding?.restoreMappings ?? [],
+    };
+  }
 
   if (game_path.value && currentDevice.value) {
     game.game_paths = {};
@@ -863,7 +904,7 @@ function deleteRow(index: number) {
               </path-variable-input>
             </el-form-item>
 
-            <el-form-item :label="$t('addgame.install_dirs')">
+            <el-form-item v-if="needsInstallDirectoryNames" :label="$t('addgame.install_dirs')">
               <el-select
                 v-model="manualInstallDirs"
                 multiple
