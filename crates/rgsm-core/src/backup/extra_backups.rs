@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::{ffi::OsStr, fs, path::PathBuf, time::SystemTime};
+use std::{collections::HashMap, ffi::OsStr, fs, path::PathBuf, time::SystemTime};
 
 use crate::config::get_backup_path;
 use crate::preclude::*;
@@ -28,11 +28,14 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
         return Ok(Vec::new());
     }
 
-    let mut items = Vec::new();
+    let mut items_by_date: HashMap<String, (ExtraBackupItem, bool)> = HashMap::new();
     for entry in fs::read_dir(&dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension() != Some(OsStr::new("zip")) {
+        if !matches!(
+            path.extension(),
+            Some(extension) if extension == OsStr::new("zip") || extension == OsStr::new("7z")
+        ) {
             continue;
         }
 
@@ -46,13 +49,27 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
 
         let metadata = fs::metadata(&path)?;
         let modified_time_ms = metadata.modified().ok().and_then(system_time_to_ms);
-        items.push(ExtraBackupItem {
+        let item = ExtraBackupItem {
             date: file_stem,
             size: metadata.len(),
             modified_time_ms,
-        });
+        };
+        let is_v4 = path.extension() == Some(OsStr::new("7z"));
+        items_by_date
+            .entry(item.date.clone())
+            .and_modify(|(existing, existing_is_v4)| {
+                if is_v4 && !*existing_is_v4 {
+                    *existing = item.clone();
+                    *existing_is_v4 = true;
+                }
+            })
+            .or_insert((item, is_v4));
     }
 
+    let mut items = items_by_date
+        .into_values()
+        .map(|(item, _)| item)
+        .collect::<Vec<_>>();
     // Sort by modified time descending (newest first) for better UX.
     items.sort_by(|a, b| match (a.modified_time_ms, b.modified_time_ms) {
         (Some(a_ms), Some(b_ms)) => b_ms.cmp(&a_ms).then_with(|| b.date.cmp(&a.date)),
@@ -66,11 +83,12 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
 
 pub fn delete_extra_backup(game: &Game, date: &str) -> Result<(), BackupError> {
     let dir = extra_backup_folder_path(game)?;
-    let zip_path = dir.join(format!("{date}.zip"));
-    if !zip_path.exists() {
-        return Ok(());
+    for extension in ["7z", "zip"] {
+        let path = dir.join(format!("{date}.{extension}"));
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
     }
-    fs::remove_file(zip_path)?;
     Ok(())
 }
 

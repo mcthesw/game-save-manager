@@ -20,7 +20,7 @@ const RESERVED_NAMES: &[&str] = &[
 
 /// Maximum length for a storage key.
 ///
-/// Snapshot filenames are `{date}.zip` (~24 chars) appended inside the
+/// Snapshot filenames are `{date}.7z` or historical `{date}.zip` appended inside the
 /// directory, and most filesystems cap path *components* at 255 bytes.
 /// 200 chars leaves ample room.
 const MAX_KEY_LEN: usize = 200;

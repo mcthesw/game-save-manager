@@ -10,8 +10,8 @@ use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
 use crate::backup::{
-    ArchiveBackend, CapturePlan, CreatedBy, GameDeviceBinding, GameSnapshots, SaveUnit,
-    SaveUnitDraft, Snapshot, ZipBackend,
+    ArchiveBackend, ArchiveFormat, CapturePlan, CreatedBy, GameDeviceBinding, GameSnapshots,
+    SaveUnit, SaveUnitDraft, SevenZBackend, Snapshot, ZipBackend, archive_file_name,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::{DeviceId, DeviceResourceKind, get_current_device_id};
@@ -142,8 +142,8 @@ pub enum TimerSnapshotDecision {
 #[derive(Debug, Clone)]
 pub struct SnapshotCreated {
     pub snapshots: GameSnapshots,
-    pub local_zip_path: PathBuf,
-    pub remote_zip_path: String,
+    pub local_archive_path: PathBuf,
+    pub remote_archive_path: String,
 }
 
 pub struct CaptureSnapshotOptions<'a> {
@@ -164,7 +164,7 @@ pub struct AutoBackupsCleanupResult {
 #[derive(Debug, Clone)]
 pub struct SnapshotDeleted {
     pub snapshots: GameSnapshots,
-    pub remote_zip_path: String,
+    pub remote_archive_path: String,
 }
 
 #[derive(Debug, Clone)]
@@ -457,6 +457,7 @@ impl Game {
                 .to_str()
                 .ok_or(BackupError::NonePathError)?
                 .to_string(),
+            archive_format: crate::backup::ArchiveFormat::Zip,
             size: file_size,
             parent,
             archive_hash: None,
@@ -471,8 +472,8 @@ impl Game {
 
         Ok(SnapshotCreated {
             snapshots: infos,
-            remote_zip_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
-            local_zip_path: zip_path,
+            remote_archive_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
+            local_archive_path: zip_path,
         })
     }
 
@@ -486,10 +487,11 @@ impl Game {
         let backup_path = options.backup_base.join(self.backup_dir_name().as_ref());
         fs::create_dir_all(&backup_path)?;
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
-        let zip_path = backup_path.join(format!("{date}.zip"));
-        let file_size = ZipBackend.compress_capture_plan(
+        let archive_format = ArchiveFormat::SevenZ;
+        let archive_path = backup_path.join(archive_file_name(&date, archive_format));
+        let file_size = SevenZBackend.compress_capture_plan(
             plan,
-            &zip_path,
+            &archive_path,
             options.preset,
             options.source_fingerprint,
         )?;
@@ -501,7 +503,8 @@ impl Game {
         infos.backups.push(Snapshot {
             date: date.clone(),
             describe: options.describe.to_string(),
-            path: zip_path.to_string_lossy().into_owned(),
+            path: archive_path.to_string_lossy().into_owned(),
+            archive_format,
             size: file_size,
             parent,
             archive_hash: None,
@@ -513,8 +516,12 @@ impl Game {
 
         Ok(SnapshotCreated {
             snapshots: infos,
-            remote_zip_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
-            local_zip_path: zip_path,
+            remote_archive_path: format!(
+                "save_data/{}/{}",
+                self.backup_dir_name(),
+                archive_file_name(&date, archive_format)
+            ),
+            local_archive_path: archive_path,
         })
     }
 
@@ -730,18 +737,30 @@ impl Game {
         let date = chrono::Local::now()
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
-        let zip_path = extra_backup_path.join(format!("{date}.zip"));
-        ZipBackend.compress_capture_plan(plan, &zip_path, preset, None)?;
+        let archive_path = extra_backup_path.join(archive_file_name(&date, ArchiveFormat::SevenZ));
+        SevenZBackend.compress_capture_plan(plan, &archive_path, preset, None)?;
         cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
         Ok(())
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
-        let save_path = get_backup_path()?
-            .join(self.backup_dir_name().as_ref())
-            .join(date.to_string() + ".zip");
-        fs::remove_file(&save_path)?;
-
         let mut saves = self.get_game_snapshots_info()?;
+        let deleted = saves
+            .backups
+            .iter()
+            .find(|snapshot| snapshot.date == date)
+            .ok_or_else(|| {
+                BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
+            })?;
+        let backup_dir = get_backup_path()?.join(self.backup_dir_name().as_ref());
+        let archive_path = crate::backup::snapshot_archive_path(&backup_dir, deleted);
+        fs::remove_file(&archive_path)?;
+        let remote_archive_path = crate::backup::remote_archive_path(
+            self.backup_dir_name().as_ref(),
+            date,
+            deleted.archive_format,
+        )
+        .to_string_lossy()
+        .replace('\\', "/");
 
         // Find the parent of the deleted node
         let deleted_parent = saves
@@ -791,7 +810,7 @@ impl Game {
 
         Ok(SnapshotDeleted {
             snapshots: saves,
-            remote_zip_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
+            remote_archive_path,
         })
     }
 
@@ -807,19 +826,33 @@ impl Game {
         }
 
         let backup_dir = get_backup_path()?.join(self.backup_dir_name().as_ref());
+        let mut saves = self.get_game_snapshots_info()?;
         let to_delete: HashSet<&str> = dates.iter().map(|d| d.as_str()).collect();
 
-        // Delete zip files
+        // Resolve every archive from persisted metadata before mutating the snapshot graph.
         let mut deleted_remote_paths = Vec::new();
         for date in dates {
-            let zip_path = backup_dir.join(format!("{date}.zip"));
-            if zip_path.exists() {
-                fs::remove_file(&zip_path)?;
+            let snapshot = saves
+                .backups
+                .iter()
+                .find(|snapshot| snapshot.date == *date)
+                .ok_or_else(|| {
+                    BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
+                })?;
+            let archive_path = crate::backup::snapshot_archive_path(&backup_dir, snapshot);
+            if archive_path.exists() {
+                fs::remove_file(&archive_path)?;
             }
-            deleted_remote_paths.push(format!("save_data/{}/{date}.zip", self.backup_dir_name()));
+            deleted_remote_paths.push(
+                crate::backup::remote_archive_path(
+                    self.backup_dir_name().as_ref(),
+                    date,
+                    snapshot.archive_format,
+                )
+                .to_string_lossy()
+                .replace('\\', "/"),
+            );
         }
-
-        let mut saves = self.get_game_snapshots_info()?;
 
         // Build parent lookup for resolving ancestor chains
         let parent_map: HashMap<String, Option<String>> = saves
@@ -851,10 +884,10 @@ impl Game {
             if to_delete.contains(snapshot.date.as_str()) {
                 continue;
             }
-            if let Some(ref parent) = snapshot.parent {
-                if to_delete.contains(parent.as_str()) {
-                    snapshot.parent = surviving_ancestors[parent.as_str()].clone();
-                }
+            if let Some(ref parent) = snapshot.parent
+                && to_delete.contains(parent.as_str())
+            {
+                snapshot.parent = surviving_ancestors[parent.as_str()].clone();
             }
         }
 

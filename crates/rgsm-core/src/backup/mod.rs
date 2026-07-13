@@ -18,7 +18,8 @@ mod utils;
 
 pub use archive::{
     ArchiveBackend, ArchiveVersion, CompressionPreset, RestoreNotificationLevel, RestoreNotifier,
-    ZipBackend,
+    SevenZBackend, ZipBackend, archive_file_name, archive_path, remote_archive_path,
+    snapshot_archive_path,
 };
 pub use capture_plan::{
     CaptureGroup, CapturePlan, CapturePlanError, CapturePreflightFailure, CaptureSourceKind,
@@ -35,7 +36,7 @@ pub use game::{
 pub use game_snapshots::GameSnapshots;
 pub use restore_plan::{RestoreEntry, RestorePlan, RestorePlanError};
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitSource, SaveUnitType};
-pub use snapshot::{CreatedBy, Snapshot};
+pub use snapshot::{ArchiveFormat, CreatedBy, Snapshot};
 pub use state_fingerprint::compute_file_hash;
 pub use utils::*;
 

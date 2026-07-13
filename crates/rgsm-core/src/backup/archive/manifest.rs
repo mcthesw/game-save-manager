@@ -4,12 +4,22 @@ use crate::backup::{CapturePlan, CaptureSourceKind};
 use crate::path_resolution::CandidateDimensions;
 
 pub const V3_MANIFEST_ENTRY: &str = "_rgsm/manifest-v3.json";
+pub const V4_MANIFEST_ENTRY: &str = "_rgsm/manifest-v4.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveManifestV3 {
     pub version: u32,
     pub groups: Vec<ArchiveCaptureGroup>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveManifestV4 {
+    pub version: u32,
+    pub groups: Vec<ArchiveCaptureGroup>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +56,17 @@ impl From<&CapturePlan> for ArchiveManifestV3 {
                     source_path_diagnostic: Some(group.source_path.clone()),
                 })
                 .collect(),
+        }
+    }
+}
+
+impl ArchiveManifestV4 {
+    pub fn from_plan(plan: &CapturePlan, source_fingerprint: Option<String>) -> Self {
+        let v3 = ArchiveManifestV3::from(plan);
+        Self {
+            version: 4,
+            groups: v3.groups,
+            source_fingerprint,
         }
     }
 }

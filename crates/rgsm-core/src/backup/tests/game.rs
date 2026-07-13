@@ -97,6 +97,7 @@ fn create_legacy_auto_snapshot(
         date: date.to_string(),
         describe: TIMER_AUTO_BACKUP_DESCRIPTION.to_string(),
         path: zip_path.to_string_lossy().to_string(),
+        archive_format: crate::backup::ArchiveFormat::Zip,
         size: fs::metadata(&zip_path)?.len(),
         parent: None,
         archive_hash: None,
@@ -387,8 +388,35 @@ fn insert_snapshot(
         date: date.to_string(),
         describe: "test".to_string(),
         path: zip_path.to_string_lossy().to_string(),
+        archive_format: crate::backup::ArchiveFormat::Zip,
         size: fs::metadata(&zip_path)?.len(),
         parent: parent.map(|s| s.to_string()),
+        archive_hash: None,
+        device_id: None,
+        created_by: Default::default(),
+    });
+    snapshots.set_current_device_head(Some(date.to_string()));
+    game.set_game_snapshots_info(&snapshots)?;
+    Ok(())
+}
+
+fn insert_v4_snapshot(
+    game: &Game,
+    backup_root: &Path,
+    date: &str,
+    parent: Option<&str>,
+) -> TestResult {
+    let game_dir = backup_root.join(&game.name);
+    let archive_path = game_dir.join(format!("{date}.7z"));
+    fs::write(&archive_path, b"archive-v4")?;
+    let mut snapshots = game.get_game_snapshots_info()?;
+    snapshots.backups.push(Snapshot {
+        date: date.to_string(),
+        describe: "test".to_string(),
+        path: archive_path.to_string_lossy().to_string(),
+        archive_format: crate::backup::ArchiveFormat::SevenZ,
+        size: fs::metadata(&archive_path)?.len(),
+        parent: parent.map(str::to_string),
         archive_hash: None,
         device_id: None,
         created_by: Default::default(),
@@ -503,6 +531,40 @@ fn batch_delete_removes_snapshots_and_returns_remote_paths() -> TestResult {
                 .exists()
         );
 
+        Ok(())
+    })
+}
+
+#[test]
+fn batch_delete_uses_each_snapshot_container_in_mixed_history() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let backup_root = temp_dir.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+        let config = Config {
+            backup_path: backup_root.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+        let game = make_test_game("mixed_delete", &backup_root)?;
+        insert_snapshot(&game, &backup_root, "legacy", None)?;
+        insert_v4_snapshot(&game, &backup_root, "v4", Some("legacy"))?;
+
+        let result = game
+            .batch_delete_snapshots(&["legacy".into(), "v4".into()])
+            .await?;
+
+        assert!(result.snapshots.backups.is_empty());
+        assert!(!backup_root.join("mixed_delete/legacy.zip").exists());
+        assert!(!backup_root.join("mixed_delete/v4.7z").exists());
+        assert_eq!(
+            result.deleted_remote_paths,
+            vec![
+                "save_data/mixed_delete/legacy.zip".to_string(),
+                "save_data/mixed_delete/v4.7z".to_string(),
+            ]
+        );
         Ok(())
     })
 }
