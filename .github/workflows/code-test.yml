@@ -68,6 +68,9 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Run configuration upgrade compatibility tests
+        run: cargo test -p rgsm-core --test config_upgrade_compatibility
+
       - name: Run workspace checks
         run: |
           cargo check --workspace
