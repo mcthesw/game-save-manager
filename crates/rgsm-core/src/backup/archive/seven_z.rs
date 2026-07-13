@@ -17,7 +17,6 @@ use crate::{
 
 use super::{ArchiveManifestV4, V4_MANIFEST_ENTRY};
 
-#[cfg(unix)]
 const UNIX_EXTENSION: u32 = 0x8000;
 #[cfg(unix)]
 const POSIX_MODE_MASK: u32 = 0o7777;
@@ -237,10 +236,11 @@ pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<()
     let mut directories = Vec::new();
     reader
         .for_each_entries(|entry, source| {
-            let Some((planned, relative)) = matching_plan_entry(entry.name(), plan) else {
+            let matches = matching_plan_entries(entry.name(), plan);
+            let Some((first, _)) = matches.first() else {
                 return Ok(true);
             };
-            if planned.kind == CaptureSourceKind::Registry {
+            if first.kind == CaptureSourceKind::Registry {
                 let mut bytes = Vec::new();
                 source.read_to_end(&mut bytes)?;
                 let data = crate::backup::registry::deserialize_reg_file(&bytes)
@@ -250,27 +250,48 @@ pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<()
                 return Ok(true);
             }
 
-            let target = if let Some(relative) = relative {
-                checked_join(&planned.target_path, &relative)?
-            } else {
-                planned.target_path.clone()
-            };
+            let targets = matches
+                .into_iter()
+                .map(|(planned, relative)| {
+                    relative.map_or_else(
+                        || Ok(planned.target_path.clone()),
+                        |relative| checked_join(&planned.target_path, &relative),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             if entry.is_directory {
-                fs::create_dir_all(&target)?;
-                directories.push(DeferredDirectory {
-                    path: target,
-                    entry: entry.clone(),
-                });
+                for target in targets {
+                    fs::create_dir_all(&target)?;
+                    directories.push(DeferredDirectory {
+                        path: target,
+                        entry: entry.clone(),
+                    });
+                }
                 return Ok(true);
             }
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)?;
+
+            let mut outputs = Vec::with_capacity(targets.len());
+            for target in targets {
+                if let Some(parent) = target.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                outputs.push((target.clone(), File::create(target)?));
             }
-            let mut output = File::create(&target)?;
-            std::io::copy(source, &mut output)?;
-            output.flush()?;
-            drop(output);
-            apply_entry_metadata(&target, entry)?;
+            let mut buffer = [0_u8; 64 * 1024];
+            loop {
+                let read = source.read(&mut buffer)?;
+                if read == 0 {
+                    break;
+                }
+                for (_, output) in &mut outputs {
+                    output.write_all(&buffer[..read])?;
+                }
+            }
+            for (target, mut output) in outputs {
+                output.flush()?;
+                drop(output);
+                apply_entry_metadata(&target, entry)?;
+            }
             Ok(true)
         })
         .map_err(unexpected)?;
@@ -325,22 +346,23 @@ fn verify_entries<'a>(
     Ok(())
 }
 
-fn matching_plan_entry<'a>(
+fn matching_plan_entries<'a>(
     name: &str,
     plan: &'a RestorePlan,
-) -> Option<(&'a crate::backup::RestoreEntry, Option<String>)> {
-    for planned in &plan.entries {
-        let base = planned.archive_path.trim_end_matches('/');
-        if name == base {
-            return Some((planned, None));
-        }
-        if planned.kind == CaptureSourceKind::Directory
-            && let Some(relative) = name.strip_prefix(&format!("{base}/"))
-        {
-            return Some((planned, Some(relative.to_string())));
-        }
-    }
-    None
+) -> Vec<(&'a crate::backup::RestoreEntry, Option<String>)> {
+    plan.entries
+        .iter()
+        .filter_map(|planned| {
+            let base = planned.archive_path.trim_end_matches('/');
+            if name == base {
+                return Some((planned, None));
+            }
+            (planned.kind == CaptureSourceKind::Directory)
+                .then(|| name.strip_prefix(&format!("{base}/")))
+                .flatten()
+                .map(|relative| (planned, Some(relative.to_string())))
+        })
+        .collect()
 }
 
 fn checked_join(root: &Path, relative: &str) -> Result<PathBuf, sevenz_rust2::Error> {
@@ -461,6 +483,7 @@ fn apply_entry_metadata(path: &Path, entry: &ArchiveEntry) -> Result<(), sevenz_
             error
         );
     }
+    apply_windows_attributes(path, entry)?;
     Ok(())
 }
 
@@ -476,6 +499,50 @@ fn apply_posix_mode(path: &Path, entry: &ArchiveEntry) -> Result<(), sevenz_rust
 
 #[cfg(not(unix))]
 fn apply_posix_mode(_path: &Path, _entry: &ArchiveEntry) -> Result<(), sevenz_rust2::Error> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn apply_windows_attributes(path: &Path, entry: &ArchiveEntry) -> Result<(), sevenz_rust2::Error> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_NORMAL,
+        FILE_ATTRIBUTE_NOT_CONTENT_INDEXED, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_READONLY,
+        FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_TEMPORARY, SetFileAttributesW,
+    };
+
+    if !entry.has_windows_attributes || entry.windows_attributes & UNIX_EXTENSION != 0 {
+        return Ok(());
+    }
+    let settable = FILE_ATTRIBUTE_ARCHIVE
+        | FILE_ATTRIBUTE_HIDDEN
+        | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+        | FILE_ATTRIBUTE_OFFLINE
+        | FILE_ATTRIBUTE_READONLY
+        | FILE_ATTRIBUTE_SYSTEM
+        | FILE_ATTRIBUTE_TEMPORARY;
+    let attributes = entry.windows_attributes & settable;
+    let attributes = if attributes == 0 {
+        FILE_ATTRIBUTE_NORMAL
+    } else {
+        attributes
+    };
+    let wide = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    if unsafe { SetFileAttributesW(wide.as_ptr(), attributes) } == 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn apply_windows_attributes(
+    _path: &Path,
+    _entry: &ArchiveEntry,
+) -> Result<(), sevenz_rust2::Error> {
     Ok(())
 }
 
