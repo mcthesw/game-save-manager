@@ -25,7 +25,7 @@ impl LifecycleHook for ArchiveHashHook {
     }
 
     async fn on_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
-        let hash = compute_file_hash(&ctx.local_zip_path)?;
+        let hash = compute_file_hash(&ctx.local_archive_path)?;
         ctx.snapshot.archive_hash = Some(hash.clone());
         if let Some(snapshot) = ctx
             .snapshots
@@ -118,6 +118,7 @@ mod tests {
             date: "2025-01-01T00:00:00".into(),
             describe: String::new(),
             path: archive_path.to_string_lossy().to_string(),
+            archive_format: crate::backup::ArchiveFormat::Zip,
             size: fs::metadata(&archive_path)?.len(),
             parent: None,
             archive_hash: None,
@@ -132,8 +133,8 @@ mod tests {
             game: test_game(),
             snapshot: snapshot.clone(),
             snapshots,
-            local_zip_path: archive_path.clone(),
-            remote_zip_path: "save_data/ChecksumGame/2025-01-01T00:00:00.zip".into(),
+            local_archive_path: archive_path.clone(),
+            remote_archive_path: "save_data/ChecksumGame/2025-01-01T00:00:00.zip".into(),
         };
 
         ArchiveHashHook.on_snapshot_created(&mut ctx).await?;
@@ -166,6 +167,7 @@ mod tests {
                 date: "2025-01-01T00:00:00".into(),
                 describe: String::new(),
                 path: archive_path.to_string_lossy().to_string(),
+                archive_format: crate::backup::ArchiveFormat::Zip,
                 size: fs::metadata(&archive_path)?.len(),
                 parent: None,
                 archive_hash: Some("expected-hash".into()),

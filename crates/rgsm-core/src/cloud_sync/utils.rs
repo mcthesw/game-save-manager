@@ -11,7 +11,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-use crate::backup::{Game, GameSnapshots};
+use crate::backup::{Game, GameSnapshots, Snapshot, archive_file_name, remote_archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, path_to_remote_key};
 use crate::config::{Config, get_backup_path, get_config, resolve_backup_path, set_config_local};
 use crate::preclude::*;
@@ -80,11 +80,15 @@ pub fn game_cloud_metadata_path(storage_key: &str) -> Result<String, BackendErro
     path_to_remote_key(&backups_json)
 }
 
-pub fn game_cloud_zip_path(storage_key: &str, backup_date: &str) -> Result<String, BackendError> {
-    let zip_path = PathBuf::from("save_data")
-        .join(storage_key)
-        .join(format!("{backup_date}.zip"));
-    path_to_remote_key(&zip_path)
+pub fn game_cloud_archive_path(
+    storage_key: &str,
+    snapshot: &Snapshot,
+) -> Result<String, BackendError> {
+    path_to_remote_key(&remote_archive_path(
+        storage_key,
+        &snapshot.date,
+        snapshot.archive_format,
+    ))
 }
 
 pub async fn load_remote_config(
@@ -176,12 +180,12 @@ pub async fn upload_game_data(
     let mut tasks = JoinSet::new();
 
     for backup in &backup_info.backups {
-        let cloud_zip_path =
-            game_cloud_zip_path(&dir_name, &backup.date).map_err(SyncOperationError::Backend)?;
-        let local_zip_path = if backup.path.is_empty() {
+        let cloud_archive_path =
+            game_cloud_archive_path(&dir_name, backup).map_err(SyncOperationError::Backend)?;
+        let local_archive_path = if backup.path.is_empty() {
             backup_root
                 .join(&dir_name)
-                .join(format!("{}.zip", backup.date))
+                .join(archive_file_name(&backup.date, backup.archive_format))
         } else {
             PathBuf::from(&backup.path)
         };
@@ -196,13 +200,13 @@ pub async fn upload_game_data(
             info!(
                 target: "rgsm::cloud::utils",
                 "Uploading {} from {}",
-                cloud_zip_path,
-                local_zip_path.display()
+                cloud_archive_path,
+                local_archive_path.display()
             );
             let transfer = CloudTransfer::new(&op_clone);
             let result = run_with_optional_cancel(
                 child_token.as_ref(),
-                transfer.upload_file_streaming(&local_zip_path, &cloud_zip_path),
+                transfer.upload_file_streaming(&local_archive_path, &cloud_archive_path),
             )
             .await;
             drop(permit);
@@ -248,9 +252,10 @@ pub async fn stage_remote_game_download(
     let mut tasks = JoinSet::new();
 
     for backup in &backup_info.backups {
-        let cloud_zip_path =
-            game_cloud_zip_path(storage_key, &backup.date).map_err(SyncOperationError::Backend)?;
-        let local_zip_path = stage_game_dir.join(format!("{}.zip", backup.date));
+        let cloud_archive_path =
+            game_cloud_archive_path(storage_key, backup).map_err(SyncOperationError::Backend)?;
+        let local_archive_path =
+            stage_game_dir.join(archive_file_name(&backup.date, backup.archive_format));
         let permit = semaphore
             .clone()
             .acquire_owned()
@@ -262,13 +267,13 @@ pub async fn stage_remote_game_download(
             info!(
                 target: "rgsm::cloud::utils",
                 "Downloading {} to {}",
-                cloud_zip_path,
-                local_zip_path.display()
+                cloud_archive_path,
+                local_archive_path.display()
             );
             let transfer = CloudTransfer::new(&op_clone);
             let result = run_with_optional_cancel(
                 child_token.as_ref(),
-                transfer.download_file_streaming(&cloud_zip_path, &local_zip_path),
+                transfer.download_file_streaming(&cloud_archive_path, &local_archive_path),
             )
             .await;
             drop(permit);
@@ -286,8 +291,9 @@ pub async fn stage_remote_game_download(
 
     let mut updated_info = backup_info.clone();
     for backup in &mut updated_info.backups {
-        let local_zip_path = stage_game_dir.join(format!("{}.zip", backup.date));
-        backup.path = local_zip_path.to_string_lossy().to_string();
+        let local_archive_path =
+            stage_game_dir.join(archive_file_name(&backup.date, backup.archive_format));
+        backup.path = local_archive_path.to_string_lossy().to_string();
     }
 
     let transfer = CloudTransfer::new(op);
@@ -340,10 +346,10 @@ pub async fn replace_local_game_from_stage(
     replace_directory(&stage_game_dir, &local_game_dir).await
 }
 
-fn final_snapshot_path(backup_root: &Path, storage_key: &str, snapshot_date: &str) -> String {
+fn final_snapshot_path(backup_root: &Path, storage_key: &str, snapshot: &Snapshot) -> String {
     backup_root
         .join(storage_key)
-        .join(format!("{snapshot_date}.zip"))
+        .join(archive_file_name(&snapshot.date, snapshot.archive_format))
         .to_string_lossy()
         .to_string()
 }
@@ -355,7 +361,7 @@ async fn rewrite_staged_snapshot_paths(
     info: &mut GameSnapshots,
 ) -> Result<(), BackendError> {
     for snapshot in &mut info.backups {
-        snapshot.path = final_snapshot_path(backup_root, storage_key, &snapshot.date);
+        snapshot.path = final_snapshot_path(backup_root, storage_key, snapshot);
     }
 
     let metadata_path = stage_root.join(storage_key).join("Backups.json");
@@ -448,4 +454,47 @@ pub fn target_backup_root_from_config(config: &Config) -> PathBuf {
 
 pub fn new_stage_root(target_backup_root: &Path, prefix: &str) -> PathBuf {
     target_backup_root.with_file_name(stage_dir_name(prefix))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backup::{ArchiveFormat, CreatedBy};
+
+    fn snapshot(format: ArchiveFormat) -> Snapshot {
+        Snapshot {
+            date: "2026-07-13_12-00-00".into(),
+            describe: String::new(),
+            path: String::new(),
+            archive_format: format,
+            size: 0,
+            parent: None,
+            archive_hash: None,
+            device_id: None,
+            created_by: CreatedBy::Manual,
+        }
+    }
+
+    #[test]
+    fn cloud_and_final_paths_follow_snapshot_archive_format() {
+        let v4 = snapshot(ArchiveFormat::SevenZ);
+        assert_eq!(
+            game_cloud_archive_path("test-game", &v4).unwrap(),
+            "save_data/test-game/2026-07-13_12-00-00.7z"
+        );
+        assert!(
+            final_snapshot_path(Path::new("backup"), "test-game", &v4).ends_with(
+                Path::new("test-game")
+                    .join("2026-07-13_12-00-00.7z")
+                    .to_string_lossy()
+                    .as_ref()
+            )
+        );
+
+        let legacy = snapshot(ArchiveFormat::Zip);
+        assert_eq!(
+            game_cloud_archive_path("test-game", &legacy).unwrap(),
+            "save_data/test-game/2026-07-13_12-00-00.zip"
+        );
+    }
 }

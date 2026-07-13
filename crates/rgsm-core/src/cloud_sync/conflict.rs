@@ -204,6 +204,7 @@ mod tests {
             date: date.to_string(),
             describe: String::new(),
             path: String::new(),
+            archive_format: crate::backup::ArchiveFormat::Zip,
             size: 0,
             parent: parent.map(|s| s.to_string()),
             archive_hash: None,

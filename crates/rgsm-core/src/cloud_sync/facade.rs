@@ -226,7 +226,10 @@ async fn copy_remote_snapshots_into_local(
 
     for snapshot in &mut info.backups {
         let source = std::path::PathBuf::from(&snapshot.path);
-        let target = local_game_dir.join(format!("{}.zip", snapshot.date));
+        let target = local_game_dir.join(crate::backup::archive_file_name(
+            &snapshot.date,
+            snapshot.archive_format,
+        ));
         if !target.exists() {
             fs::copy(&source, &target).await?;
         }
@@ -667,6 +670,7 @@ mod tests {
             date: date.to_string(),
             describe: String::new(),
             path: format!("/tmp/{date}.zip"),
+            archive_format: crate::backup::ArchiveFormat::Zip,
             size: 0,
             parent: parent.map(str::to_string),
             archive_hash: None,

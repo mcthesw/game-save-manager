@@ -215,6 +215,7 @@ mod tests {
                 date: "2025-01-01T00:00:00".into(),
                 describe: String::new(),
                 path: "/tmp/test.zip".into(),
+                archive_format: crate::backup::ArchiveFormat::Zip,
                 size: 0,
                 parent: None,
                 archive_hash: None,
@@ -222,8 +223,8 @@ mod tests {
                 created_by: Default::default(),
             },
             snapshots: GameSnapshots::new("TestGame"),
-            local_zip_path: PathBuf::from("/tmp/test.zip"),
-            remote_zip_path: "TestGame/2025-01-01T00:00:00.zip".into(),
+            local_archive_path: PathBuf::from("/tmp/test.zip"),
+            remote_archive_path: "TestGame/2025-01-01T00:00:00.zip".into(),
         }
     }
 
@@ -390,6 +391,7 @@ mod tests {
                 date: "2025-01-01T00:00:00".into(),
                 describe: String::new(),
                 path: "/tmp/test.zip".into(),
+                archive_format: crate::backup::ArchiveFormat::Zip,
                 size: 0,
                 parent: None,
                 archive_hash: Some("abc123".into()),
