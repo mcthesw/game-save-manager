@@ -64,7 +64,7 @@ The software is divided into two main parts:
 
 ### Snapshot Metadata and Attachment Layers
 
-Snapshots may need more than the zip archive itself: integrity data, generated indexes, and future plugin-generated context all have different access patterns. Keep extension data in one of three Snapshot-related layers:
+Snapshots may need more than the archive itself: integrity data, generated indexes, and future plugin-generated context all have different access patterns. Keep extension data in one of three Snapshot-related layers:
 
 - **Inside the archive**: data that should travel with the Snapshot and is only read occasionally, usually during restore or inspection. Future archive extensions should use a reserved directory such as `__rgsm__/` so user Save Unit paths stay clean.
 - **Small `Backups.json` fields**: compact metadata that the app reads frequently, such as `archive_hash`, creation source, lightweight indexes, or fields needed for sorting and filtering. Do not put large objects or plugin-private payloads here.

@@ -8,15 +8,15 @@
 
 - [x] **压缩预设**：用户可选的压缩级别（仅存储 / 快速 / 标准 / 极限），使用 Zstd 替代 BZip2
 - [x] **V2 存档格式**：`RGSM_ARCHIVE_V2` 头 + JSON 元数据，index-prefixed 条目布局
-- [x] **ArchiveBackend trait**：可扩展的存档后端抽象（当前实现：ZipBackend）
+- [x] **ArchiveBackend trait**：可扩展的存档后端抽象（当前实现：ZipBackend、SevenZBackend）
 - [x] **同名文件支持**：不同存档单元中的同名文件不再冲突
 - [x] **生命周期 Hook 基础**：围绕快照创建/删除、恢复前、恢复后、配置保存、同步完成等事件提供 typed context + 内置 hooks 的组合式管线
-- [ ] **`__rgsm__/` 元数据目录**：在 ZIP 内部存储结构化元数据
+- [x] **Archive V4**：新 Snapshot 使用标准 7z、内部 Capture Manifest 和格式感知的本地/云端路径；旧 ZIP 永久保持可读
 - [ ] **Archive-stream Hook trait**：在压缩/解压流内部插入自定义逻辑，与业务生命周期 hooks 分层
 - [x] **整体存档 hash 与恢复前校验**：可选生成 archive hash，并在恢复前阻止损坏存档被应用
-- [ ] **Unix 权限保存**：利用 ZIP 格式原生的 Unix 权限字段保存和恢复文件权限
+- [x] **Unix 权限保存**：Archive V4 使用标准 7z 属性保存和恢复完整 POSIX mode（不含 UID/GID、ACL、xattr）
 - [x] **外部扩展附件目录**：为快照扩展保留 `save_data/<game>/extra_info/<extension>/` 路径边界，扩展目录自行维护 manifest，避免频繁读取 zip 或膨胀 `Backups.json`
-- [ ] **快照内嵌扩展数据**：对确实需要随 archive 原子迁移的附件，放入 `__rgsm__/` 或后续 archive-stream 扩展中
+- [ ] **快照内嵌扩展数据**：对确实需要随 archive 原子迁移的附件，放入保留目录或后续 archive-stream 扩展中
 
 ### 云同步大幅优化
 
@@ -46,5 +46,5 @@
 ## V3.0（远期展望）
 
 - [ ] 存档导入 / 导出
-- [ ] 高级插件系统：插件可接入 lifecycle hooks，并按读取频率选择附件层级：ZIP 内 `__rgsm__/`（随压缩包迁移、低频读取）、`Backups.json` 简短字段（如 hash/小型索引）、`extra_info/<extension>/` 外部扩展目录（截图等可独立读写的大对象；当前截图预览是 GUI 内置扩展）
+- [ ] 高级插件系统：插件可接入 lifecycle hooks，并按读取频率选择附件层级：archive 内保留目录（随压缩包迁移、低频读取）、`Backups.json` 简短字段（如 hash/小型索引）、`extra_info/<extension>/` 外部扩展目录（截图等可独立读写的大对象；当前截图预览是 GUI 内置扩展）
 - [ ] 存档云共享平台（可能需要脚本系统支持存档适配）
