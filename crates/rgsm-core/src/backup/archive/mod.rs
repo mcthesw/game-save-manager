@@ -16,14 +16,21 @@ mod backend;
 mod compress;
 mod compression_preset;
 mod decompress;
+mod location;
 mod manifest;
+mod seven_z;
+#[cfg(test)]
+mod seven_z_tests;
 mod timestamp;
 mod version;
 
-pub use backend::{ArchiveBackend, ZipBackend};
+pub use backend::{ArchiveBackend, SevenZBackend, ZipBackend};
 pub use compression_preset::CompressionPreset;
 pub use decompress::{RestoreNotificationLevel, RestoreNotifier};
-pub(crate) use manifest::{ArchiveCaptureGroup, ArchiveManifestV3, V3_MANIFEST_ENTRY};
+pub use location::{archive_file_name, archive_path, remote_archive_path, snapshot_archive_path};
+pub(crate) use manifest::{
+    ArchiveCaptureGroup, ArchiveManifestV3, ArchiveManifestV4, V3_MANIFEST_ENTRY, V4_MANIFEST_ENTRY,
+};
 pub(crate) use version::ArchiveMeta;
 pub use version::ArchiveVersion;
 

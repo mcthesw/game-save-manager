@@ -4,6 +4,26 @@ use specta::Type;
 use crate::default_value;
 use crate::device::DeviceId;
 
+/// Container format used by a Snapshot archive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveFormat {
+    /// Historical ZIP Archive Legacy/V1/V2/V3.
+    #[default]
+    Zip,
+    /// Metadata-faithful 7z Archive V4.
+    SevenZ,
+}
+
+impl ArchiveFormat {
+    pub const fn extension(self) -> &'static str {
+        match self {
+            Self::Zip => "zip",
+            Self::SevenZ => "7z",
+        }
+    }
+}
+
 /// Tracks how a snapshot was created.
 ///
 /// Forward-compatible: unknown variants from future versions deserialize
@@ -42,14 +62,16 @@ impl CreatedBy {
     }
 }
 
-/// A backup is a zip file that contains
-/// all the file that the save unit has declared.
+/// A backup archive containing all data declared by its Save Units.
 /// The date is the unique indicator for a backup
 #[derive(Debug, Serialize, Deserialize, Type, Clone)]
 pub struct Snapshot {
     pub date: String,
     pub describe: String,
-    pub path: String, // like "D:\\SaveManager\save_data\Game1\date.zip"
+    pub path: String,
+    /// Archive container. Missing values in historical Backups.json default to ZIP.
+    #[serde(default)]
+    pub archive_format: ArchiveFormat,
     #[serde(default = "default_value::default_zero")]
     pub size: u64, // in bytes
     /// Parent snapshot's date (None means this is a root node)
@@ -69,6 +91,25 @@ pub struct Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_snapshot_without_archive_format_defaults_to_zip() {
+        let snapshot: Snapshot = serde_json::from_value(serde_json::json!({
+            "date": "2026-07-13T00-00-00",
+            "describe": "legacy",
+            "path": "save_data/game/2026-07-13T00-00-00.zip",
+            "size": 1
+        }))
+        .unwrap();
+
+        assert_eq!(snapshot.archive_format, ArchiveFormat::Zip);
+    }
+
+    #[test]
+    fn archive_format_extensions_are_stable() {
+        assert_eq!(ArchiveFormat::Zip.extension(), "zip");
+        assert_eq!(ArchiveFormat::SevenZ.extension(), "7z");
+    }
 
     #[test]
     fn created_by_serde_roundtrip() {

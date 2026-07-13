@@ -582,6 +582,18 @@ export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites
 
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
 /**
+ * Container format used by a Snapshot archive.
+ */
+export type ArchiveFormat =
+/**
+ * Historical ZIP Archive Legacy/V1/V2/V3.
+ */
+"zip" |
+/**
+ * Metadata-faithful 7z Archive V4.
+ */
+"seven_z"
+/**
  * Per-game auto-backup configuration.
  * Presence (`Some`) enables the timer; absence (`None`) disables it.
  */
@@ -996,11 +1008,14 @@ compute_archive_hash?: boolean;
  */
 verify_archive_before_apply?: boolean }
 /**
- * A backup is a zip file that contains
- * all the file that the save unit has declared.
+ * A backup archive containing all data declared by its Save Units.
  * The date is the unique indicator for a backup
  */
-export type Snapshot = { date: string; describe: string; path: string; size?: number;
+export type Snapshot = { date: string; describe: string; path: string;
+/**
+ * Archive container. Missing values in historical Backups.json default to ZIP.
+ */
+archive_format?: ArchiveFormat; size?: number;
 /**
  * Parent snapshot's date (None means this is a root node)
  */

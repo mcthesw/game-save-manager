@@ -29,6 +29,8 @@ pub enum ArchiveVersion {
     V2,
     /// `RGSM_ARCHIVE_V3` header + JSON body and an internal capture manifest.
     V3,
+    /// Standard 7z container with an internal Archive V4 capture manifest.
+    V4,
 }
 
 impl ArchiveVersion {
@@ -52,12 +54,12 @@ impl ArchiveVersion {
 
     /// V2+ archives prefix entries with `{save_unit_id}/`.
     pub fn uses_save_unit_prefix(self) -> bool {
-        matches!(self, Self::V2 | Self::V3)
+        matches!(self, Self::V2 | Self::V3 | Self::V4)
     }
 
     /// V1+ archives store timestamps in local time; Legacy uses UTC.
     pub fn uses_local_timestamps(self) -> bool {
-        matches!(self, Self::V1 | Self::V2 | Self::V3)
+        matches!(self, Self::V1 | Self::V2 | Self::V3 | Self::V4)
     }
 
     /// Normalize an archive entry path by stripping the save-unit prefix if present.
