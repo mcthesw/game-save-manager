@@ -655,12 +655,14 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
         assigned.insert(key);
     }
 
-    // Backfill quick_action_game if present
+    // Refresh the selected quick-action Game from the fully migrated source of truth.
+    // Legacy configs persisted a complete Game copy here, so updating only its
+    // storage_key would leave old Save Unit paths and IDs behind.
     if let Some(ref mut qa_game) = config.quick_action.quick_action_game
         && qa_game.storage_key.is_empty()
         && let Some(matched) = config.games.iter().find(|g| g.name == qa_game.name)
     {
-        qa_game.storage_key = matched.storage_key.clone();
+        *qa_game = matched.clone();
     }
 
     config

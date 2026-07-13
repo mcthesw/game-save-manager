@@ -1,0 +1,78 @@
+{
+  "version": "1.4.0",
+  "backup_path": "./save_data",
+  "games": [
+    {
+      "name": "Legacy Adventure",
+      "save_paths": [
+        {
+          "unit_type": "File",
+          "path": "C:/Users/Player/Saved Games/Legacy Adventure/slot1.sav",
+          "delete_before_apply": true
+        },
+        {
+          "unit_type": "Folder",
+          "path": "C:/Users/Player/AppData/Local/Legacy Adventure/Saves",
+          "delete_before_apply": false
+        }
+      ],
+      "game_path": "D:/Games/Legacy Adventure/legacy.exe"
+    }
+  ],
+  "settings": {
+    "prompt_when_not_described": false,
+    "extra_backup_when_apply": false,
+    "show_edit_button": true,
+    "prompt_when_auto_backup": false,
+    "exit_to_tray": false,
+    "cloud_settings": {
+      "always_sync": true,
+      "auto_sync_interval": 0,
+      "root_path": "/legacy-saves",
+      "backend": { "type": "Disabled" }
+    },
+    "locale": "zh_SIMPLIFIED",
+    "default_delete_before_apply": true,
+    "default_expend_favorites_tree": true,
+    "home_page": "/settings",
+    "log_to_file": false,
+    "add_new_to_favorites": true
+  },
+  "favorites": [
+    {
+      "node_id": "folder-rpg",
+      "label": "RPG",
+      "is_leaf": false,
+      "children": [
+        {
+          "node_id": "game-legacy-adventure",
+          "label": "Legacy Adventure",
+          "is_leaf": true,
+          "children": null
+        }
+      ]
+    }
+  ],
+  "quick_action": {
+    "quick_action_game": {
+      "name": "Legacy Adventure",
+      "save_paths": [
+        {
+          "unit_type": "File",
+          "path": "C:/Users/Player/Saved Games/Legacy Adventure/slot1.sav",
+          "delete_before_apply": true
+        },
+        {
+          "unit_type": "Folder",
+          "path": "C:/Users/Player/AppData/Local/Legacy Adventure/Saves",
+          "delete_before_apply": false
+        }
+      ],
+      "game_path": "D:/Games/Legacy Adventure/legacy.exe"
+    },
+    "hotkeys": {
+      "apply": ["Alt", "Shift", "F9"],
+      "backup": ["Alt", "Shift", "F10"]
+    }
+  }
+}

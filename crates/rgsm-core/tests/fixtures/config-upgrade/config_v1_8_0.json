@@ -1,0 +1,83 @@
+{
+  "version": "1.8.0",
+  "backup_path": "save_data",
+  "games": [
+    {
+      "name": "Registry & Files",
+      "save_paths": [
+        {
+          "id": 7,
+          "unit_type": "WinRegistry",
+          "paths": {
+            "desktop-gamma": "HKEY_CURRENT_USER\\Software\\Example Studio\\Registry & Files"
+          },
+          "delete_before_apply": false
+        },
+        {
+          "id": 11,
+          "unit_type": "Folder",
+          "paths": {
+            "desktop-gamma": "C:/Users/Player/AppData/Local/Registry & Files/Saved"
+          },
+          "delete_before_apply": true
+        }
+      ],
+      "game_paths": {
+        "desktop-gamma": "D:/Games/Registry & Files/game.exe"
+      },
+      "next_save_unit_id": 12,
+      "cloud_sync_enabled": false
+    }
+  ],
+  "settings": {
+    "prompt_when_not_described": false,
+    "extra_backup_when_apply": true,
+    "show_edit_button": false,
+    "prompt_when_auto_backup": true,
+    "exit_to_tray": true,
+    "cloud_settings": {
+      "always_sync": false,
+      "auto_sync_interval": 30,
+      "root_path": "/version-1-8",
+      "backend": { "type": "Disabled" },
+      "max_concurrency": 4
+    },
+    "locale": "en_US",
+    "default_delete_before_apply": true,
+    "default_expend_favorites_tree": false,
+    "home_page": "/",
+    "log_to_file": true,
+    "add_new_to_favorites": false,
+    "save_list_expand_behavior": "always_open",
+    "save_list_last_expanded": false,
+    "max_auto_backup_count": 5,
+    "max_extra_backup_count": 9,
+    "appearance": {
+      "custom_font_enabled": true,
+      "ui_font_family": "Noto Sans"
+    },
+    "compression_preset": "Best",
+    "compute_archive_hash": true,
+    "verify_archive_before_apply": true
+  },
+  "favorites": [],
+  "quick_action": {
+    "quick_action_game": null,
+    "hotkeys": {
+      "apply": ["", "", ""],
+      "backup": ["", "", ""]
+    },
+    "enable_sound": true,
+    "enable_notification": false,
+    "sounds": {
+      "success": { "kind": "default" },
+      "failure": { "kind": "default" }
+    }
+  },
+  "devices": {
+    "desktop-gamma": {
+      "id": "desktop-gamma",
+      "name": "Windows Workstation"
+    }
+  }
+}
