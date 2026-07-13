@@ -65,7 +65,7 @@ fn decode_utf16_units(
     bytes: &[u8],
     read_unit: fn([u8; 2]) -> u16,
 ) -> Result<String, RegistryError> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(RegistryError::InvalidRegFile(
             "UTF-16 registry file has an odd byte length".to_string(),
         ));
@@ -440,7 +440,7 @@ fn decode_multi_sz_bytes(bytes: &[u8]) -> Result<Vec<String>, RegistryError> {
 }
 
 fn decode_utf16le_bytes(bytes: &[u8]) -> Result<Vec<u16>, RegistryError> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err(RegistryError::InvalidRegFile(format!(
             "UTF-16 value has odd byte length {}",
             bytes.len()

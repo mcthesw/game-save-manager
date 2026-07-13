@@ -415,34 +415,33 @@ fn get_steam_path_from_registry() -> Option<String> {
     use winreg::enums::*;
 
     // Try HKEY_CURRENT_USER first (user-specific installation)
-    if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Software\\Valve\\Steam") {
-        if let Ok(path) = hkcu.get_value::<String, _>("SteamPath") {
-            let normalized = path.replace('/', "\\");
-            if std::path::Path::new(&normalized).exists() {
-                return Some(normalized);
-            }
+    if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Software\\Valve\\Steam")
+        && let Ok(path) = hkcu.get_value::<String, _>("SteamPath")
+    {
+        let normalized = path.replace('/', "\\");
+        if std::path::Path::new(&normalized).exists() {
+            return Some(normalized);
         }
     }
 
     // Try HKEY_LOCAL_MACHINE (machine-wide installation, 32-bit on 64-bit Windows)
     if let Ok(hklm) =
         RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
+        && let Ok(path) = hklm.get_value::<String, _>("InstallPath")
     {
-        if let Ok(path) = hklm.get_value::<String, _>("InstallPath") {
-            let normalized = path.replace('/', "\\");
-            if std::path::Path::new(&normalized).exists() {
-                return Some(normalized);
-            }
+        let normalized = path.replace('/', "\\");
+        if std::path::Path::new(&normalized).exists() {
+            return Some(normalized);
         }
     }
 
     // Try HKEY_LOCAL_MACHINE (32-bit Windows or native key)
-    if let Ok(hklm) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\Valve\\Steam") {
-        if let Ok(path) = hklm.get_value::<String, _>("InstallPath") {
-            let normalized = path.replace('/', "\\");
-            if std::path::Path::new(&normalized).exists() {
-                return Some(normalized);
-            }
+    if let Ok(hklm) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\Valve\\Steam")
+        && let Ok(path) = hklm.get_value::<String, _>("InstallPath")
+    {
+        let normalized = path.replace('/', "\\");
+        if std::path::Path::new(&normalized).exists() {
+            return Some(normalized);
         }
     }
 
@@ -488,10 +487,10 @@ pub(crate) fn get_steam_root() -> Result<String, ResolveError> {
     let mut steam_roots: Vec<String> = Vec::new();
 
     // First, try environment variable
-    if let Ok(env_root) = env::var("STEAM_DIR") {
-        if !env_root.trim().is_empty() {
-            steam_roots.push(env_root);
-        }
+    if let Ok(env_root) = env::var("STEAM_DIR")
+        && !env_root.trim().is_empty()
+    {
+        steam_roots.push(env_root);
     }
 
     #[cfg(target_os = "windows")]

@@ -48,13 +48,13 @@ impl TuiSyncEmitter {
 
 impl SyncEventEmitter for TuiSyncEmitter {
     fn emit_status(&self, status: &CloudSyncStatus) {
-        if let Ok(mut log) = self.log.lock() {
-            if let Some(description) = &status.current_description {
-                log.info(format!(
-                    "cloud sync: {description} ({} active)",
-                    status.active_jobs
-                ));
-            }
+        if let Ok(mut log) = self.log.lock()
+            && let Some(description) = &status.current_description
+        {
+            log.info(format!(
+                "cloud sync: {description} ({} active)",
+                status.active_jobs
+            ));
         }
     }
 

@@ -275,10 +275,10 @@ pub fn find_game_install_path(
         // Fast O(1) lookup from pre-scanned cache
         for dir_name in install_dirs {
             let key = dir_name.to_lowercase();
-            if let Some(game) = cache.get(&key) {
-                if game.install_path.exists() {
-                    return Some((game.install_dir.clone(), game.install_path.clone()));
-                }
+            if let Some(game) = cache.get(&key)
+                && game.install_path.exists()
+            {
+                return Some((game.install_dir.clone(), game.install_path.clone()));
             }
         }
         return None;

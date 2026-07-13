@@ -268,13 +268,13 @@ impl QuickActionWorker {
             (label, item)
         };
 
-        if let Some(item) = item {
-            if let Err(err) = item.set_text(label) {
-                warn!(
-                    target: "rgsm::quick_action::manager",
-                    "Failed to refresh quick action game label: {err:?}"
-                );
-            }
+        if let Some(item) = item
+            && let Err(err) = item.set_text(label)
+        {
+            warn!(
+                target: "rgsm::quick_action::manager",
+                "Failed to refresh quick action game label: {err:?}"
+            );
         }
     }
 }

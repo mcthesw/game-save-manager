@@ -3243,9 +3243,9 @@ checksum = "2c4a545a15244c7d945065b5d392b2d2d7f21526fba56ce51467b06ed445e8f7"
 
 [[package]]
 name = "libc"
-version = "0.2.183"
+version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
+checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
 name = "libdbus-sys"
@@ -3381,6 +3381,12 @@ dependencies = [
  "crc",
  "sha2",
 ]
+
+[[package]]
+name = "lzma-rust2"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca93e534d1142d1d0dcca6d25fe302508a5dfb40b302802904577725ea0b695b"
 
 [[package]]
 name = "mac"
@@ -5320,6 +5326,7 @@ dependencies = [
  "hostname",
  "keyvalues-serde",
  "lazy_static",
+ "libc",
  "log",
  "machine-uid",
  "notify-rust",
@@ -5332,12 +5339,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sevenz-rust2",
  "specta",
  "temp-dir",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "whoami",
+ "windows-sys 0.61.2",
  "winreg",
  "xxhash-rust",
  "zip",
@@ -5963,6 +5972,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "170fb83ab34de17dc69aa7c67482b22218ddb85da56546f9bd6b929e32a05930"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "sevenz-rust2"
+version = "0.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5d71c87d24cb22976f3f6e6c2c9296ef1f6958394e2b868d56ca01b082798a"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "js-sys",
+ "lzma-rust2 0.16.5",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -8891,7 +8913,7 @@ dependencies = [
  "getrandom 0.3.4",
  "hmac",
  "indexmap 2.13.0",
- "lzma-rust2",
+ "lzma-rust2 0.13.0",
  "memchr",
  "pbkdf2",
  "ppmd-rust",

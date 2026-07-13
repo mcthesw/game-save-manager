@@ -656,12 +656,11 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
     }
 
     // Backfill quick_action_game if present
-    if let Some(ref mut qa_game) = config.quick_action.quick_action_game {
-        if qa_game.storage_key.is_empty() {
-            if let Some(matched) = config.games.iter().find(|g| g.name == qa_game.name) {
-                qa_game.storage_key = matched.storage_key.clone();
-            }
-        }
+    if let Some(ref mut qa_game) = config.quick_action.quick_action_game
+        && qa_game.storage_key.is_empty()
+        && let Some(matched) = config.games.iter().find(|g| g.name == qa_game.name)
+    {
+        qa_game.storage_key = matched.storage_key.clone();
     }
 
     config

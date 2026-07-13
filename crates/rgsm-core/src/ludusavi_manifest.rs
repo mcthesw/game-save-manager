@@ -118,11 +118,11 @@ pub async fn fetch_manifest() -> Result<HashMap<String, serde_yaml::Value>> {
     // Check cache first
     {
         let cache = MANIFEST_CACHE.lock().unwrap();
-        if let Some(cached) = cache.as_ref() {
-            if cached.fetched_at.elapsed() < CACHE_DURATION {
-                debug!(target: "rgsm::ludusavi", "Using cached manifest with {} games", cached.data.len());
-                return Ok(cached.data.clone());
-            }
+        if let Some(cached) = cache.as_ref()
+            && cached.fetched_at.elapsed() < CACHE_DURATION
+        {
+            debug!(target: "rgsm::ludusavi", "Using cached manifest with {} games", cached.data.len());
+            return Ok(cached.data.clone());
         }
     }
 
@@ -246,15 +246,15 @@ pub async fn update_manifest_from_remote() -> Result<LudusaviManifestStatus> {
         etag,
         source_url: Some(MANIFEST_URL.to_string()),
     };
-    if let Ok(meta_json) = serde_json::to_string_pretty(&meta) {
-        if let Err(e) = fs::write(&meta_path, meta_json) {
-            warn!(
-                target: "rgsm::ludusavi",
-                "Failed to write manifest meta cache at {}: {}",
-                meta_path.display(),
-                e
-            );
-        }
+    if let Ok(meta_json) = serde_json::to_string_pretty(&meta)
+        && let Err(e) = fs::write(&meta_path, meta_json)
+    {
+        warn!(
+            target: "rgsm::ludusavi",
+            "Failed to write manifest meta cache at {}: {}",
+            meta_path.display(),
+            e
+        );
     }
 
     // Invalidate in-memory cache so future calls re-load.
@@ -503,10 +503,10 @@ pub fn parse_manifest_games(
 
     for (name, value) in manifest {
         // If filtering by local games, skip games not detected locally
-        if let Some(ref local) = local_games {
-            if !local.contains(name) {
-                continue;
-            }
+        if let Some(ref local) = local_games
+            && !local.contains(name)
+        {
+            continue;
         }
 
         // Extract Steam ID if available
