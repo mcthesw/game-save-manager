@@ -141,6 +141,7 @@ fn restore_directory_capture(
     entry: &crate::backup::RestoreEntry,
 ) -> Result<(), CompressError> {
     let prefix = format!("{}/", entry.archive_path.trim_end_matches('/'));
+    let mut directory_times = Vec::new();
     for index in 0..zip.len() {
         let mut source = zip
             .by_index(index)
@@ -162,6 +163,15 @@ fn restore_directory_capture(
         let target = entry.target_path.join(&relative);
         if source.is_dir() {
             fs::create_dir_all(&target).map_err(|error| CompressError::Single(error.into()))?;
+            if let Some(zip_time) = source.last_modified() {
+                directory_times.push((
+                    target,
+                    FileTime::from_system_time(zip_datetime_to_system_time(
+                        zip_time,
+                        ArchiveVersion::V3,
+                    )),
+                ));
+            }
             continue;
         }
         if let Some(parent) = target.parent() {
@@ -180,6 +190,10 @@ fn restore_directory_capture(
                 )),
             );
         }
+    }
+    directory_times.sort_by_key(|(path, _)| std::cmp::Reverse(path.components().count()));
+    for (path, time) in directory_times {
+        set_file_mtime(path, time).map_err(|error| CompressError::Single(error.into()))?;
     }
     Ok(())
 }
@@ -581,6 +595,8 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
 
+    use filetime::{FileTime, set_file_mtime};
+
     use super::save_unit_label;
     use crate::backup::{SaveUnit, SaveUnitType};
 
@@ -655,6 +671,68 @@ mod tests {
 
         assert!(super::restore_capture_plan(&restore, &archive).is_err());
         assert_eq!(fs::read(target).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn v3_restore_reapplies_nested_directory_mtimes_after_children() {
+        use crate::backup::{
+            ArchiveBackend, CaptureGroup, CapturePlan, CaptureSourceKind, CompressionPreset,
+            RestoreEntry, RestorePlan, ZipBackend,
+        };
+        use crate::path_resolution::CandidateDimensions;
+
+        let temp = temp_dir::TempDir::new().unwrap();
+        let source = temp.path().join("source");
+        let nested = source.join("nested");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("save.dat"), b"save").unwrap();
+        let source_time = FileTime::from_unix_time(1_704_164_644, 0);
+        let nested_time = FileTime::from_unix_time(1_704_251_044, 0);
+        set_file_mtime(&nested, nested_time).unwrap();
+        set_file_mtime(&source, source_time).unwrap();
+        let archive = temp.path().join("snapshot.zip");
+        let capture = CapturePlan {
+            groups: vec![CaptureGroup {
+                id: 0,
+                save_unit_id: 1,
+                candidate_id: "source".into(),
+                dimensions: CandidateDimensions::default(),
+                logical_anchor: temp.path().to_path_buf(),
+                source_path: source.to_string_lossy().into_owned(),
+                relative_path: "source".into(),
+                archive_path: "1/0/data/source".into(),
+                kind: CaptureSourceKind::Directory,
+                delete_before_apply: false,
+            }],
+        };
+        ZipBackend
+            .compress_capture_plan(&capture, &archive, CompressionPreset::Fast, None)
+            .unwrap();
+        let target = temp.path().join("restored");
+        ZipBackend
+            .restore_capture_plan(
+                &RestorePlan {
+                    entries: vec![RestoreEntry {
+                        save_unit_id: 1,
+                        group_id: 0,
+                        archive_path: "1/0/data/source".into(),
+                        target_path: target.clone(),
+                        kind: CaptureSourceKind::Directory,
+                        delete_before_apply: false,
+                    }],
+                },
+                &archive,
+            )
+            .unwrap();
+
+        assert_eq!(
+            FileTime::from_last_modification_time(&fs::metadata(&target).unwrap()),
+            source_time
+        );
+        assert_eq!(
+            FileTime::from_last_modification_time(&fs::metadata(target.join("nested")).unwrap()),
+            nested_time
+        );
     }
 
     #[test]
