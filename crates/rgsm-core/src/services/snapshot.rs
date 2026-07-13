@@ -1,6 +1,7 @@
 use crate::backup::{
-    ArchiveBackend, ArchiveVersion, CaptureSnapshotOptions, CreatedBy, Game, GameSnapshots,
-    RestoreNotifier, RestorePlan, TimerSnapshotDecision, ZipBackend,
+    ArchiveBackend, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions, CreatedBy, Game,
+    GameSnapshots, RestoreNotifier, RestorePlan, SevenZBackend, TimerSnapshotDecision, ZipBackend,
+    archive_file_name, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -79,8 +80,8 @@ impl ServiceContext {
                 game: game.clone(),
                 snapshot,
                 snapshots: created.snapshots,
-                local_zip_path: created.local_zip_path,
-                remote_zip_path: created.remote_zip_path,
+                local_archive_path: created.local_archive_path,
+                remote_archive_path: created.remote_archive_path,
             };
             self.pipeline().fire_snapshot_created(&mut ctx).await;
             game.set_game_snapshots_info(&ctx.snapshots)?;
@@ -106,10 +107,13 @@ impl ServiceContext {
             .filter(|snapshot| snapshot.created_by.is_automatic_backup())
             .max_by_key(|snapshot| &snapshot.date);
         if latest.is_some_and(|snapshot| {
-            crate::backup::state_fingerprint::read_stored_fingerprint(std::path::Path::new(
-                &snapshot.path,
-            ))
-            .as_deref()
+            let backend: &dyn ArchiveBackend = match snapshot.archive_format {
+                ArchiveFormat::Zip => &ZipBackend,
+                ArchiveFormat::SevenZ => &SevenZBackend,
+            };
+            backend
+                .read_source_fingerprint(std::path::Path::new(&snapshot.path))
+                .as_deref()
                 == Some(fingerprint.as_str())
         }) {
             return Ok(TimerSnapshotDecision::SkippedUnchanged);
@@ -135,8 +139,8 @@ impl ServiceContext {
                 game: game.clone(),
                 snapshot,
                 snapshots: created.snapshots,
-                local_zip_path: created.local_zip_path,
-                remote_zip_path: created.remote_zip_path,
+                local_archive_path: created.local_archive_path,
+                remote_archive_path: created.remote_archive_path,
             };
             self.pipeline().fire_snapshot_created(&mut ctx).await;
             game.set_game_snapshots_info(&ctx.snapshots)?;
@@ -162,9 +166,8 @@ impl ServiceContext {
                 date: date.to_string(),
             })?;
 
-        let archive_path = get_backup_path()?
-            .join(game.backup_dir_name().as_ref())
-            .join(format!("{date}.zip"));
+        let game_dir = get_backup_path()?.join(game.backup_dir_name().as_ref());
+        let archive_path = snapshot_archive_path(&game_dir, &snapshot);
         let config = get_config()?;
 
         self.pipeline()
@@ -179,8 +182,14 @@ impl ServiceContext {
             })
             .await?;
 
-        let snapshots = if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
-            self.restore_v3_archive(&config, game, &archive_path)?;
+        let snapshots = if snapshot.archive_format == ArchiveFormat::SevenZ {
+            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend)?;
+            let mut snapshots = game.get_game_snapshots_info()?;
+            snapshots.set_current_device_head(Some(date.to_string()));
+            game.set_game_snapshots_info(&snapshots)?;
+            snapshots
+        } else if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
+            self.restore_capture_archive(&config, game, &archive_path, &ZipBackend)?;
             let mut snapshots = game.get_game_snapshots_info()?;
             snapshots.set_current_device_head(Some(date.to_string()));
             game.set_game_snapshots_info(&snapshots)?;
@@ -216,10 +225,17 @@ impl ServiceContext {
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
         let config = get_config()?;
-        let archive_path =
-            crate::backup::extra_backup_folder_path(game)?.join(format!("{date}.zip"));
-        if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
-            self.restore_v3_archive(&config, game, &archive_path)
+        let folder = crate::backup::extra_backup_folder_path(game)?;
+        let seven_z = folder.join(archive_file_name(date, ArchiveFormat::SevenZ));
+        let archive_path = if seven_z.exists() {
+            seven_z
+        } else {
+            folder.join(archive_file_name(date, ArchiveFormat::Zip))
+        };
+        if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
+            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend)
+        } else if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
+            self.restore_capture_archive(&config, game, &archive_path, &ZipBackend)
         } else {
             let device = config.devices.get(crate::device::get_current_device_id());
             ZipBackend.decompress(
@@ -232,13 +248,14 @@ impl ServiceContext {
         }
     }
 
-    fn restore_v3_archive(
+    fn restore_capture_archive(
         &self,
         config: &crate::config::Config,
         game: &Game,
         archive_path: &std::path::Path,
+        backend: &dyn ArchiveBackend,
     ) -> Result<(), BackupError> {
-        let manifest = ZipBackend.read_capture_manifest(archive_path)?;
+        let manifest = backend.read_capture_manifest(archive_path)?;
         let reports = game
             .save_paths
             .iter()
@@ -256,7 +273,7 @@ impl ServiceContext {
             .map(|binding| binding.restore_mappings.as_slice())
             .unwrap_or_default();
         let plan = RestorePlan::build(&manifest.groups, &reports, rules)?;
-        ZipBackend.restore_capture_plan(&plan, archive_path)?;
+        backend.restore_capture_plan(&plan, archive_path)?;
         Ok(())
     }
 
@@ -305,7 +322,7 @@ impl ServiceContext {
                 source,
                 game: game.clone(),
                 snapshots: deleted.snapshots,
-                deleted_remote_paths: vec![deleted.remote_zip_path],
+                deleted_remote_paths: vec![deleted.remote_archive_path],
             })
             .await;
 

@@ -321,6 +321,7 @@ mod tests {
             date: date.to_string(),
             describe: String::new(),
             path,
+            archive_format: crate::backup::ArchiveFormat::Zip,
             size: 0,
             parent: parent.map(str::to_string),
             archive_hash: None,
@@ -361,11 +362,11 @@ mod tests {
     async fn write_remote_snapshots(op: &Operator, storage_key: &str, info: &GameSnapshots) {
         write_remote_metadata(op, storage_key, info).await;
         for snapshot in &info.backups {
-            let zip_path = super::super::utils::game_cloud_zip_path(storage_key, &snapshot.date)
-                .expect("remote zip path should build");
-            op.write(&zip_path, format!("remote {}", snapshot.date))
+            let archive_path = super::super::utils::game_cloud_archive_path(storage_key, snapshot)
+                .expect("remote archive path should build");
+            op.write(&archive_path, format!("remote {}", snapshot.date))
                 .await
-                .expect("remote zip should be written");
+                .expect("remote archive should be written");
         }
     }
 
@@ -503,12 +504,11 @@ mod tests {
         let _guard = ConfigFileGuard::write(&config);
         let session = session();
         let op = memory_operator();
+        let mut remote_v4 = snapshot("remote", Some("base"), String::new());
+        remote_v4.archive_format = crate::backup::ArchiveFormat::SevenZ;
         let remote = snapshots(
             &game.name,
-            vec![
-                snapshot("base", None, String::new()),
-                snapshot("remote", Some("base"), String::new()),
-            ],
+            vec![snapshot("base", None, String::new()), remote_v4],
             "remote",
         );
         test_runtime().block_on(write_remote_snapshots(&op, "test-game", &remote));
@@ -549,12 +549,11 @@ mod tests {
         let _guard = ConfigFileGuard::write(&config);
         let session = session();
         let op = memory_operator();
+        let mut remote_v4 = snapshot("remote", Some("base"), String::new());
+        remote_v4.archive_format = crate::backup::ArchiveFormat::SevenZ;
         let remote = snapshots(
             &game.name,
-            vec![
-                snapshot("base", None, String::new()),
-                snapshot("remote", Some("base"), String::new()),
-            ],
+            vec![snapshot("base", None, String::new()), remote_v4],
             "remote",
         );
         test_runtime().block_on(write_remote_snapshots(&op, "test-game", &remote));
@@ -585,7 +584,7 @@ mod tests {
                 .all(|snapshot| PathBuf::from(&snapshot.path).starts_with(&backup_root))
         );
         assert_eq!(
-            fs::read_to_string(backup_root.join("test-game").join("remote.zip")).unwrap(),
+            fs::read_to_string(backup_root.join("test-game").join("remote.7z")).unwrap(),
             "remote remote"
         );
         let state = read_game_state(&game);

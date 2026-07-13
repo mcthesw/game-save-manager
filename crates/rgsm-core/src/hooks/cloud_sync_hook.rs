@@ -78,8 +78,8 @@ impl LifecycleHook for CloudSyncEnqueueHook {
                 game_name: ctx.game.name.clone(),
                 storage_key: ctx.game.backup_dir_name().into_owned(),
                 snapshots: ctx.snapshots.clone(),
-                local_zip_path: ctx.local_zip_path.clone(),
-                remote_zip_path: ctx.remote_zip_path.clone(),
+                local_archive_path: ctx.local_archive_path.clone(),
+                remote_archive_path: ctx.remote_archive_path.clone(),
             })
             .await;
         Ok(())
@@ -109,7 +109,7 @@ impl LifecycleHook for CloudSyncEnqueueHook {
                     game_name: ctx.game.name.clone(),
                     storage_key: ctx.game.backup_dir_name().into_owned(),
                     snapshots: ctx.snapshots.clone(),
-                    remote_zip_path: ctx.deleted_remote_paths[0].clone(),
+                    remote_archive_path: ctx.deleted_remote_paths[0].clone(),
                 })
                 .await;
         } else {
@@ -119,7 +119,7 @@ impl LifecycleHook for CloudSyncEnqueueHook {
                     game_name: ctx.game.name.clone(),
                     storage_key: ctx.game.backup_dir_name().into_owned(),
                     snapshots: ctx.snapshots.clone(),
-                    remote_zip_paths: ctx.deleted_remote_paths.clone(),
+                    remote_archive_paths: ctx.deleted_remote_paths.clone(),
                 })
                 .await;
         }

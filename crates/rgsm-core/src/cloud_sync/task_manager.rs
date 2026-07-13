@@ -42,8 +42,8 @@ pub enum CloudSyncJob {
         game_name: String,
         storage_key: String,
         snapshots: GameSnapshots,
-        local_zip_path: PathBuf,
-        remote_zip_path: String,
+        local_archive_path: PathBuf,
+        remote_archive_path: String,
     },
     UploadMetadata {
         backend: Backend,
@@ -56,14 +56,14 @@ pub enum CloudSyncJob {
         game_name: String,
         storage_key: String,
         snapshots: GameSnapshots,
-        remote_zip_path: String,
+        remote_archive_path: String,
     },
     DeleteFilesAndUploadMetadata {
         backend: Backend,
         game_name: String,
         storage_key: String,
         snapshots: GameSnapshots,
-        remote_zip_paths: Vec<String>,
+        remote_archive_paths: Vec<String>,
     },
     DeleteGameAndUploadConfig {
         backend: Backend,
@@ -656,8 +656,8 @@ async fn execute_job_once(
             backend,
             snapshots,
             storage_key,
-            local_zip_path,
-            remote_zip_path,
+            local_archive_path,
+            remote_archive_path,
             ..
         } => {
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
@@ -665,7 +665,7 @@ async fn execute_job_once(
             let transfer = CloudTransfer::new(&op);
             run_cancellable(
                 token,
-                transfer.upload_file_streaming(local_zip_path, remote_zip_path),
+                transfer.upload_file_streaming(local_archive_path, remote_archive_path),
             )
             .await?;
             Ok(())
@@ -684,12 +684,14 @@ async fn execute_job_once(
             backend,
             snapshots,
             storage_key,
-            remote_zip_path,
+            remote_archive_path,
             ..
         } => {
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, async {
-                op.delete(remote_zip_path).await.map_err(BackendError::from)
+                op.delete(remote_archive_path)
+                    .await
+                    .map_err(BackendError::from)
             })
             .await?;
             run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
@@ -699,11 +701,11 @@ async fn execute_job_once(
             backend,
             snapshots,
             storage_key,
-            remote_zip_paths,
+            remote_archive_paths,
             ..
         } => {
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            for remote_path in remote_zip_paths {
+            for remote_path in remote_archive_paths {
                 run_cancellable(token, async {
                     op.delete(remote_path).await.map_err(BackendError::from)
                 })

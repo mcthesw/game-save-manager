@@ -27,8 +27,8 @@ pub struct SnapshotCreatedCtx {
     pub game: Game,
     pub snapshot: Snapshot,
     pub snapshots: GameSnapshots,
-    pub local_zip_path: PathBuf,
-    pub remote_zip_path: String,
+    pub local_archive_path: PathBuf,
+    pub remote_archive_path: String,
 }
 
 pub struct SnapshotDeletedCtx {
