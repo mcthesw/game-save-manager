@@ -98,14 +98,14 @@ fn init_runtime_app_data_dir() -> PathBuf {
     }
 
     // Standard behavior: use executable directory for both portable and installed versions
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            info!(
-                "Using executable directory as data directory: {}",
-                exe_dir.display()
-            );
-            return exe_dir.to_path_buf();
-        }
+    if let Ok(exe_path) = std::env::current_exe()
+        && let Some(exe_dir) = exe_path.parent()
+    {
+        info!(
+            "Using executable directory as data directory: {}",
+            exe_dir.display()
+        );
+        return exe_dir.to_path_buf();
     }
 
     // Fallback only if we cannot determine executable directory

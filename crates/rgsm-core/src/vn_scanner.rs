@@ -159,25 +159,24 @@ fn collect_candidate_names(path: &Path) -> Vec<String> {
         names.push(dir_name.to_string_lossy().to_string());
     }
 
-    if let Ok(content) = fs::read_to_string(path.join("package.json")) {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(name) = json.get("name").and_then(|name| name.as_str()) {
-                let trimmed = name.trim();
-                if !trimmed.is_empty() {
-                    names.push(trimmed.to_string());
-                }
-            }
+    if let Ok(content) = fs::read_to_string(path.join("package.json"))
+        && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+        && let Some(name) = json.get("name").and_then(|name| name.as_str())
+    {
+        let trimmed = name.trim();
+        if !trimmed.is_empty() {
+            names.push(trimmed.to_string());
         }
     }
 
     if let Ok(content) = fs::read_to_string(path.join("Game.ini")) {
         for line in content.lines() {
-            if let Some((_, title)) = line.split_once('=') {
-                if line.starts_with("Title=") {
-                    let title = title.trim();
-                    if !title.is_empty() {
-                        names.push(title.to_string());
-                    }
+            if let Some((_, title)) = line.split_once('=')
+                && line.starts_with("Title=")
+            {
+                let title = title.trim();
+                if !title.is_empty() {
+                    names.push(title.to_string());
                 }
             }
         }
@@ -189,18 +188,17 @@ fn collect_candidate_names(path: &Path) -> Vec<String> {
                 continue;
             }
 
-            if let Some(ext) = entry.extension() {
-                if ext.to_string_lossy().eq_ignore_ascii_case("exe") {
-                    if let Some(stem) = entry.file_stem() {
-                        let stem_str = stem.to_string_lossy().to_string();
-                        let stem_lower = stem_str.to_lowercase();
-                        let is_generic = GENERIC_EXECUTABLE_NAMES
-                            .iter()
-                            .any(|generic| stem_lower.starts_with(generic));
-                        if !is_generic && stem_str.len() > 2 {
-                            names.push(stem_str);
-                        }
-                    }
+            if let Some(ext) = entry.extension()
+                && ext.to_string_lossy().eq_ignore_ascii_case("exe")
+                && let Some(stem) = entry.file_stem()
+            {
+                let stem_str = stem.to_string_lossy().to_string();
+                let stem_lower = stem_str.to_lowercase();
+                let is_generic = GENERIC_EXECUTABLE_NAMES
+                    .iter()
+                    .any(|generic| stem_lower.starts_with(generic));
+                if !is_generic && stem_str.len() > 2 {
+                    names.push(stem_str);
                 }
             }
         }
@@ -274,10 +272,10 @@ fn find_external_save_path(names: &[String]) -> Option<PathBuf> {
         return Some(path);
     }
 
-    if let Some(home) = dirs::home_dir() {
-        if let Some(path) = search_in_base(Some(home.join("Saved Games")), names, 1) {
-            return Some(path);
-        }
+    if let Some(home) = dirs::home_dir()
+        && let Some(path) = search_in_base(Some(home.join("Saved Games")), names, 1)
+    {
+        return Some(path);
     }
 
     None

@@ -44,10 +44,10 @@ struct SoundPlayer {
 
 impl SoundPlayer {
     fn clear_finished_state(&mut self) {
-        if let Some(sink) = self.sink.as_ref() {
-            if sink.empty() {
-                self.sink = None;
-            }
+        if let Some(sink) = self.sink.as_ref()
+            && sink.empty()
+        {
+            self.sink = None;
         }
 
         if self.sink.is_none() {
@@ -310,10 +310,10 @@ fn resolve_path(path: &str) -> PathBuf {
         return candidate.to_path_buf();
     }
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            return dir.join(candidate);
-        }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        return dir.join(candidate);
     }
 
     std::env::current_dir()
