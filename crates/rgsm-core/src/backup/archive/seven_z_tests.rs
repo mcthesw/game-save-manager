@@ -49,6 +49,7 @@ fn v4_round_trip_preserves_file_content_mtime_and_manifest() {
     let expected_atime = filetime::FileTime::from_unix_time(1_704_164_535, 0);
     let expected_mtime = filetime::FileTime::from_unix_time(1_704_164_645, 0);
     filetime::set_file_times(&source, expected_atime, expected_mtime).unwrap();
+    #[cfg(windows)]
     let expected_created = fs::metadata(&source).unwrap().created().ok();
     let archive = temp.path().join("snapshot.7z");
 
@@ -76,6 +77,7 @@ fn v4_round_trip_preserves_file_content_mtime_and_manifest() {
         filetime::FileTime::from_last_access_time(&restored_metadata),
         expected_atime
     );
+    #[cfg(windows)]
     if let Some(expected_created) = expected_created {
         assert_eq!(restored_metadata.created().unwrap(), expected_created);
     }
@@ -145,6 +147,80 @@ fn v4_round_trip_preserves_empty_files() {
     let target = temp.path().join("restore/empty.dat");
     restore_capture_plan(&restore_plan(&target, CaptureSourceKind::File), &archive).unwrap();
     assert_eq!(fs::metadata(target).unwrap().len(), 0);
+}
+
+#[test]
+fn v4_restore_applies_one_archive_entry_to_every_mapped_target() {
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source.dat");
+    fs::write(&source, b"save-data").unwrap();
+    let archive = temp.path().join("snapshot.7z");
+    compress_capture_plan(
+        &capture_plan(&source, CaptureSourceKind::File),
+        &archive,
+        CompressionPreset::Standard,
+        None,
+    )
+    .unwrap();
+
+    let first = temp.path().join("restore-a/save.dat");
+    let second = temp.path().join("restore-b/save.dat");
+    fs::create_dir_all(first.parent().unwrap()).unwrap();
+    fs::create_dir_all(second.parent().unwrap()).unwrap();
+    fs::write(&first, b"old-a").unwrap();
+    fs::write(&second, b"old-b").unwrap();
+    let mut plan = restore_plan(&first, CaptureSourceKind::File);
+    plan.entries[0].delete_before_apply = true;
+    plan.entries.push(RestoreEntry {
+        target_path: second.clone(),
+        ..plan.entries[0].clone()
+    });
+
+    restore_capture_plan(&plan, &archive).unwrap();
+
+    assert_eq!(fs::read(first).unwrap(), b"save-data");
+    assert_eq!(fs::read(second).unwrap(), b"save-data");
+}
+
+#[cfg(windows)]
+#[test]
+fn v4_round_trip_preserves_settable_windows_attributes() {
+    use std::os::windows::{ffi::OsStrExt, fs::MetadataExt};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_READONLY,
+        FILE_ATTRIBUTE_SYSTEM, SetFileAttributesW,
+    };
+
+    fn set_attributes(path: &Path, attributes: u32) {
+        let wide = path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        assert_ne!(unsafe { SetFileAttributesW(wide.as_ptr(), attributes) }, 0);
+    }
+
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source.dat");
+    fs::write(&source, b"save-data").unwrap();
+    let expected = FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
+    set_attributes(&source, expected);
+    let archive = temp.path().join("snapshot.7z");
+    compress_capture_plan(
+        &capture_plan(&source, CaptureSourceKind::File),
+        &archive,
+        CompressionPreset::Standard,
+        None,
+    )
+    .unwrap();
+
+    let target = temp.path().join("restore/save.dat");
+    restore_capture_plan(&restore_plan(&target, CaptureSourceKind::File), &archive).unwrap();
+
+    let actual = fs::metadata(&target).unwrap().file_attributes();
+    assert_eq!(actual & expected, expected);
+    set_attributes(&source, FILE_ATTRIBUTE_NORMAL);
+    set_attributes(&target, FILE_ATTRIBUTE_NORMAL);
 }
 
 #[cfg(unix)]
