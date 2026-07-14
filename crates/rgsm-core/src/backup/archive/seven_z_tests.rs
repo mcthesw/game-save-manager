@@ -262,6 +262,57 @@ fn v4_round_trip_preserves_full_posix_modes() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn v4_can_replace_a_restored_non_writable_directory_tree() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let source_child = source.join("child");
+    fs::create_dir_all(&source_child).unwrap();
+    fs::write(source_child.join("save.dat"), b"save-data").unwrap();
+    fs::set_permissions(&source_child, fs::Permissions::from_mode(0o555)).unwrap();
+    fs::set_permissions(&source, fs::Permissions::from_mode(0o555)).unwrap();
+    let archive = temp.path().join("snapshot.7z");
+    compress_capture_plan(
+        &capture_plan(&source, CaptureSourceKind::Directory),
+        &archive,
+        CompressionPreset::Standard,
+        None,
+    )
+    .unwrap();
+    fs::set_permissions(&source, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&source_child, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let target = temp.path().join("restore");
+    let target_child = target.join("child");
+    let target_file = target_child.join("save.dat");
+    let mut plan = restore_plan(&target, CaptureSourceKind::Directory);
+    plan.entries[0].delete_before_apply = true;
+    restore_capture_plan(&plan, &archive).unwrap();
+    assert_eq!(
+        fs::metadata(&target).unwrap().permissions().mode() & 0o7777,
+        0o555
+    );
+    assert_eq!(
+        fs::metadata(&target_child).unwrap().permissions().mode() & 0o7777,
+        0o555
+    );
+
+    let second_restore = restore_capture_plan(&plan, &archive);
+    let restored_content = fs::read(&target_file);
+    if target.exists() {
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    if target_child.exists() {
+        fs::set_permissions(&target_child, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    second_restore.unwrap();
+    assert_eq!(restored_content.unwrap(), b"save-data");
+}
+
 #[test]
 fn v4_archives_are_non_solid_for_every_preset() {
     let temp = temp_dir::TempDir::new().unwrap();
@@ -365,6 +416,107 @@ fn duplicate_entry_is_rejected_before_target_deletion() {
 
     assert!(restore_capture_plan(&plan, &archive).is_err());
     assert_eq!(fs::read(target).unwrap(), b"keep-me");
+}
+
+#[test]
+fn directory_root_file_collision_is_rejected_before_target_deletion() {
+    let temp = temp_dir::TempDir::new().unwrap();
+    let archive = temp.path().join("collision.7z");
+    let mut writer = ArchiveWriter::create(&archive).unwrap();
+    writer.set_content_methods(vec![EncoderMethod::COPY.into()]);
+    writer
+        .push_archive_entry(
+            ArchiveEntry::new_file("7/0/data/save.dat"),
+            Some(Cursor::new(b"not-a-directory")),
+        )
+        .unwrap();
+    writer
+        .push_archive_entry(
+            ArchiveEntry::new_file("7/0/data/save.dat/child.dat"),
+            Some(Cursor::new(b"child")),
+        )
+        .unwrap();
+    writer.finish().unwrap();
+
+    let target = temp.path().join("existing");
+    fs::create_dir(&target).unwrap();
+    fs::write(target.join("keep.dat"), b"keep-me").unwrap();
+    let mut plan = restore_plan(&target, CaptureSourceKind::Directory);
+    plan.entries[0].delete_before_apply = true;
+
+    assert!(restore_capture_plan(&plan, &archive).is_err());
+    assert_eq!(fs::read(target.join("keep.dat")).unwrap(), b"keep-me");
+}
+
+#[cfg(windows)]
+#[test]
+fn v4_can_replace_a_directory_containing_a_restored_readonly_file() {
+    use std::os::windows::{ffi::OsStrExt, fs::MetadataExt};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_READONLY, SetFileAttributesW,
+    };
+
+    fn set_attributes(path: &Path, attributes: u32) {
+        let wide = path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        assert_ne!(unsafe { SetFileAttributesW(wide.as_ptr(), attributes) }, 0);
+    }
+
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    fs::create_dir(&source).unwrap();
+    let source_file = source.join("save.dat");
+    fs::write(&source_file, b"save-data").unwrap();
+    set_attributes(&source_file, FILE_ATTRIBUTE_READONLY);
+    let archive = temp.path().join("snapshot.7z");
+    compress_capture_plan(
+        &capture_plan(&source, CaptureSourceKind::Directory),
+        &archive,
+        CompressionPreset::Standard,
+        None,
+    )
+    .unwrap();
+
+    let target = temp.path().join("restore");
+    let target_file = target.join("save.dat");
+    let mut plan = restore_plan(&target, CaptureSourceKind::Directory);
+    plan.entries[0].delete_before_apply = true;
+    restore_capture_plan(&plan, &archive).unwrap();
+    assert_ne!(
+        fs::metadata(&target_file).unwrap().file_attributes() & FILE_ATTRIBUTE_READONLY,
+        0
+    );
+
+    restore_capture_plan(&plan, &archive).unwrap();
+    assert_eq!(fs::read(&target_file).unwrap(), b"save-data");
+    set_attributes(&source_file, FILE_ATTRIBUTE_NORMAL);
+    set_attributes(&target_file, FILE_ATTRIBUTE_NORMAL);
+}
+
+#[cfg(unix)]
+#[test]
+fn v4_capture_rejects_non_utf8_child_names() {
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    fs::create_dir(&source).unwrap();
+    let invalid_name = OsString::from_vec(vec![b's', b'a', b'v', b'e', 0xFF]);
+    fs::write(source.join(invalid_name), b"save-data").unwrap();
+    let archive = temp.path().join("snapshot.7z");
+
+    let result = compress_capture_plan(
+        &capture_plan(&source, CaptureSourceKind::Directory),
+        &archive,
+        CompressionPreset::Standard,
+        None,
+    );
+
+    assert!(result.is_err());
+    assert!(!archive.exists());
 }
 
 #[cfg(windows)]

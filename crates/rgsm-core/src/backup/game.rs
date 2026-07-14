@@ -6,6 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::backup::archive::RestoreNotifier;
+use crate::backup::extra_backups::cleanup_oldest_extra_backups;
 use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
 };
@@ -959,41 +960,4 @@ impl Game {
         self.set_game_snapshots_info(&saves)?;
         Ok(saves)
     }
-}
-
-fn cleanup_oldest_extra_backups(
-    extra_backup_path: &Path,
-    max_count: u32,
-) -> Result<(), BackupError> {
-    if max_count == 0 {
-        return Ok(());
-    }
-
-    let mut items: Vec<_> = extra_backup_path
-        .read_dir()?
-        .filter_map(|e| e.ok())
-        .filter_map(|e| {
-            let path = e.path();
-            if path.extension().and_then(|x| x.to_str()) != Some("zip") {
-                return None;
-            }
-            let file_name = path.file_name()?.to_os_string();
-            let modified = fs::metadata(&path).ok()?.modified().ok()?;
-            Some((modified, file_name))
-        })
-        .collect();
-
-    if items.len() <= max_count as usize {
-        return Ok(());
-    }
-
-    items.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-
-    let to_delete = items.len() - max_count as usize;
-    for (_mtime, file_name) in items.into_iter().take(to_delete) {
-        let p = extra_backup_path.join(file_name);
-        let _ = fs::remove_file(p);
-    }
-
-    Ok(())
 }

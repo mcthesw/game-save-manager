@@ -15,7 +15,7 @@ use crate::{
     preclude::{BackupFileError, CompressError},
 };
 
-use super::{ArchiveManifestV4, V4_MANIFEST_ENTRY};
+use super::{ArchiveManifestV4, V4_MANIFEST_ENTRY, restored_directory::remove_restored_directory};
 
 const UNIX_EXTENSION: u32 = 0x8000;
 #[cfg(unix)]
@@ -157,7 +157,13 @@ fn append_path(
             let name = child.file_name().ok_or_else(|| {
                 CompressError::Unexpected(anyhow::anyhow!("path has no file name"))
             })?;
-            let child_name = format!("{archive_name}/{}", name.to_string_lossy());
+            let name = name.to_str().ok_or_else(|| {
+                CompressError::Unexpected(anyhow::anyhow!(
+                    "Archive V4 does not support non-UTF-8 file names: {}",
+                    child.display()
+                ))
+            })?;
+            let child_name = format!("{archive_name}/{name}");
             append_path(writer, &child, &child_name)?;
         }
         apply_metadata(source, &captured).map_err(single)?;
@@ -226,7 +232,7 @@ pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<()
     for planned in &plan.entries {
         if planned.delete_before_apply && planned.target_path.exists() {
             if planned.target_path.is_dir() {
-                fs::remove_dir_all(&planned.target_path).map_err(single)?;
+                remove_restored_directory(&planned.target_path).map_err(single)?;
             } else {
                 fs::remove_file(&planned.target_path).map_err(single)?;
             }
@@ -328,7 +334,12 @@ fn verify_entries<'a>(
                 let mut found = false;
                 for entry in &entries {
                     if entry.name() == base {
-                        found = entry.is_directory;
+                        if !entry.is_directory {
+                            return Err(CompressError::Unexpected(anyhow::anyhow!(
+                                "Archive V4 directory root is a file: {base}"
+                            )));
+                        }
+                        found = true;
                     } else if let Some(relative) = entry.name().strip_prefix(&prefix) {
                         checked_join(Path::new("."), relative).map_err(unexpected)?;
                         found = true;
