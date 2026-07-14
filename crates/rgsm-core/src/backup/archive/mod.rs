@@ -18,6 +18,7 @@ mod compression_preset;
 mod decompress;
 mod location;
 mod manifest;
+mod restored_directory;
 mod seven_z;
 #[cfg(test)]
 mod seven_z_tests;

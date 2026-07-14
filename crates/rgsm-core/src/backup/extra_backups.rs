@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::{collections::HashMap, ffi::OsStr, fs, path::PathBuf, time::SystemTime};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    fs,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use crate::config::get_backup_path;
 use crate::preclude::*;
@@ -32,10 +38,7 @@ pub fn list_extra_backups(game: &Game) -> Result<Vec<ExtraBackupItem>, BackupErr
     for entry in fs::read_dir(&dir)? {
         let entry = entry?;
         let path = entry.path();
-        if !matches!(
-            path.extension(),
-            Some(extension) if extension == OsStr::new("zip") || extension == OsStr::new("7z")
-        ) {
+        if !is_extra_backup_archive(&path) {
             continue;
         }
 
@@ -92,7 +95,69 @@ pub fn delete_extra_backup(game: &Game, date: &str) -> Result<(), BackupError> {
     Ok(())
 }
 
+pub(super) fn cleanup_oldest_extra_backups(
+    extra_backup_path: &Path,
+    max_count: u32,
+) -> Result<(), BackupError> {
+    if max_count == 0 {
+        return Ok(());
+    }
+
+    let mut items = extra_backup_path
+        .read_dir()?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            if !is_extra_backup_archive(&path) {
+                return None;
+            }
+            let file_name = path.file_name()?.to_os_string();
+            let modified = fs::metadata(&path).ok()?.modified().ok()?;
+            Some((modified, file_name))
+        })
+        .collect::<Vec<_>>();
+
+    if items.len() <= max_count as usize {
+        return Ok(());
+    }
+
+    items.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    let to_delete = items.len() - max_count as usize;
+    for (_, file_name) in items.into_iter().take(to_delete) {
+        let _ = fs::remove_file(extra_backup_path.join(file_name));
+    }
+    Ok(())
+}
+
+fn is_extra_backup_archive(path: &Path) -> bool {
+    matches!(
+        path.extension(),
+        Some(extension) if extension == OsStr::new("zip") || extension == OsStr::new("7z")
+    )
+}
+
 fn system_time_to_ms(t: SystemTime) -> Option<i64> {
     let d = t.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     i64::try_from(d.as_millis()).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_counts_zip_and_seven_z_toward_one_retention_limit() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let zip = temp.path().join("Overwrite_old.zip");
+        let seven_z = temp.path().join("Overwrite_new.7z");
+        fs::write(&zip, b"old").unwrap();
+        fs::write(&seven_z, b"new").unwrap();
+        filetime::set_file_mtime(&zip, filetime::FileTime::from_unix_time(1_000, 0)).unwrap();
+        filetime::set_file_mtime(&seven_z, filetime::FileTime::from_unix_time(2_000, 0)).unwrap();
+
+        cleanup_oldest_extra_backups(temp.path(), 1).unwrap();
+
+        assert!(!zip.exists());
+        assert!(seven_z.exists());
+    }
 }
