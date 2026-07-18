@@ -43,7 +43,7 @@
     "@types/uuid": "10.0.0",
     "@vitejs/plugin-vue": "6.0.7",
     "@vue/eslint-config-typescript": "14.8.0",
-    "adm-zip": "0.5.16",
+    "adm-zip": "0.6.0",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "10.9.2",
