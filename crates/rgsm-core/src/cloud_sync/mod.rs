@@ -11,6 +11,9 @@ pub mod transfer;
 mod utils;
 pub mod v2;
 
+pub const V1_CONFIG_PATH: &str = "/GameSaveManager.config.json";
+pub const V1_SAVE_DATA_PREFIX: &str = "save_data/";
+
 pub use backend::{
     Backend, CloudBackendCheckItem, CloudBackendCheckItemStatus, CloudBackendCheckOutcome,
     CloudBackendCheckReport, CloudBackendCheckStep, CloudSyncSessionConfig, S3AddressingStyle,

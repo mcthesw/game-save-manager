@@ -5681,6 +5681,7 @@ dependencies = [
  "filetime",
  "font-kit",
  "fs_extra",
+ "futures-util",
  "globetter",
  "globset",
  "hostname",
