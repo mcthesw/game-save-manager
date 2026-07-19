@@ -246,7 +246,7 @@ pub fn run() -> anyhow::Result<()> {
                         .await;
                 });
             }
-            snapshot_sync::setup(snapshot_sync_runtime);
+            snapshot_sync::setup(app.handle().clone(), snapshot_sync_runtime);
 
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键

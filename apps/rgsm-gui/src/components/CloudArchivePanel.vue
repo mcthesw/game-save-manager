@@ -21,8 +21,11 @@ const changingMode = ref(false);
 const activeTransfer = ref('');
 const openGames = ref<string[]>([]);
 const modeGame = ref<CloudArchiveGameView | null>(null);
+const pendingMode = ref<SyncMode>('snapshot_sync');
 const progressGame = ref<CloudArchiveGameView | null>(null);
 const catchUpPolicy = ref<InitialCatchUpPolicy>('keep_remote');
+const liveSaveProcessName = ref('');
+const liveSaveSnapshotOnExit = ref(false);
 
 const totalSnapshots = computed(
   () => library.value?.games.reduce((total, game) => total + game.snapshots.length, 0) ?? 0
@@ -153,18 +156,26 @@ async function materializeAll() {
 
 async function changeMode(game: CloudArchiveGameView, mode: SyncMode) {
   if (mode === game.sync_mode) return;
-  if (mode === 'snapshot_sync') {
+  if (mode === 'snapshot_sync' || mode === 'live_save_sync') {
     modeGame.value = game;
+    pendingMode.value = mode;
     catchUpPolicy.value = 'keep_remote';
+    liveSaveProcessName.value = game.live_save_process_name ?? '';
+    liveSaveSnapshotOnExit.value = game.live_save_snapshot_on_exit;
     return;
   }
-  await saveMode(game, mode, 'keep_remote');
+  await saveMode(game, mode, 'keep_remote', null);
 }
 
-async function saveMode(game: CloudArchiveGameView, mode: SyncMode, policy: InitialCatchUpPolicy) {
+async function saveMode(
+  game: CloudArchiveGameView,
+  mode: SyncMode,
+  policy: InitialCatchUpPolicy,
+  liveSave: { process_name: string; snapshot_on_exit: boolean } | null
+) {
   changingMode.value = true;
   try {
-    const result = await commands.setGameSyncMode(game.game_id, mode, policy);
+    const result = await commands.setGameSyncMode(game.game_id, mode, policy, liveSave);
     if (result.status === 'error') {
       notifyError($t('sync_settings.archives.mode_change_failed'), result.error);
       modeGame.value = null;
@@ -267,6 +278,7 @@ onMounted(load);
                   value="snapshot_sync"
                   :label="$t('sync_settings.archives.mode_snapshot')"
                 />
+                <ElOption value="live_save_sync" :label="$t('sync_settings.archives.mode_live')" />
               </ElSelect>
             </div>
           </div>
@@ -316,7 +328,11 @@ onMounted(load);
 
     <ElDialog
       :model-value="modeGame !== null"
-      :title="$t('sync_settings.archives.enable_snapshot_sync')"
+      :title="
+        pendingMode === 'live_save_sync'
+          ? $t('sync_settings.archives.enable_live_save_sync')
+          : $t('sync_settings.archives.enable_snapshot_sync')
+      "
       width="min(520px, 92vw)"
       :close-on-click-modal="!changingMode"
       :show-close="!changingMode"
@@ -326,11 +342,35 @@ onMounted(load);
         type="warning"
         show-icon
         :closable="false"
-        :title="$t('sync_settings.archives.snapshot_sync_risk')"
+        :title="
+          pendingMode === 'live_save_sync'
+            ? $t('sync_settings.archives.live_save_sync_risk')
+            : $t('sync_settings.archives.snapshot_sync_risk')
+        "
       />
       <p class="mode-description">
-        {{ $t('sync_settings.archives.snapshot_sync_description') }}
+        {{
+          pendingMode === 'live_save_sync'
+            ? $t('sync_settings.archives.live_save_sync_description')
+            : $t('sync_settings.archives.snapshot_sync_description')
+        }}
       </p>
+      <div v-if="pendingMode === 'live_save_sync'" class="live-save-options">
+        <label>
+          <span>{{ $t('sync_settings.archives.live_save_process') }}</span>
+          <ElInput
+            v-model="liveSaveProcessName"
+            :placeholder="$t('sync_settings.archives.live_save_process_placeholder')"
+          />
+        </label>
+        <div class="snapshot-exit-option">
+          <span>
+            <strong>{{ $t('sync_settings.archives.snapshot_on_exit') }}</strong>
+            <small>{{ $t('sync_settings.archives.snapshot_on_exit_description') }}</small>
+          </span>
+          <ElSwitch v-model="liveSaveSnapshotOnExit" />
+        </div>
+      </div>
       <ElRadioGroup v-model="catchUpPolicy" class="catch-up-options">
         <ElRadio value="keep_remote" border>
           <span class="option-copy">
@@ -358,8 +398,22 @@ onMounted(load);
         </ElButton>
         <ElButton
           type="primary"
+          :disabled="pendingMode === 'live_save_sync' && !liveSaveProcessName.trim()"
           :loading="changingMode"
-          @click="modeGame && saveMode(modeGame, 'snapshot_sync', catchUpPolicy)"
+          @click="
+            modeGame &&
+            saveMode(
+              modeGame,
+              pendingMode,
+              catchUpPolicy,
+              pendingMode === 'live_save_sync'
+                ? {
+                    process_name: liveSaveProcessName,
+                    snapshot_on_exit: liveSaveSnapshotOnExit,
+                  }
+                : null
+            )
+          "
         >
           {{ $t('sync_settings.archives.enable') }}
         </ElButton>
@@ -473,6 +527,29 @@ onMounted(load);
 .mode-description {
   color: var(--el-text-color-regular);
   line-height: 1.6;
+}
+
+.live-save-options {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.live-save-options label,
+.snapshot-exit-option span {
+  display: grid;
+  gap: 5px;
+}
+
+.snapshot-exit-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.snapshot-exit-option small {
+  color: var(--el-text-color-secondary);
 }
 
 .catch-up-options {
