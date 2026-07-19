@@ -9,6 +9,7 @@ pub mod sync_state;
 mod task_manager;
 pub mod transfer;
 mod utils;
+pub mod v2;
 
 pub use backend::{
     Backend, CloudBackendCheckItem, CloudBackendCheckItemStatus, CloudBackendCheckOutcome,
