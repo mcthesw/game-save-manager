@@ -726,8 +726,16 @@ fn delete_game_clears_legacy_quick_action_reference_by_name() -> TestResult {
         let backup_root = temp_dir.path().join("backup");
         fs::create_dir_all(&backup_root)?;
 
-        let deleted_game = make_test_game("Legacy Deleted Game", &backup_root)?;
-        let remaining_game = make_test_game("Legacy Remaining Game", &backup_root)?;
+        let deleted_game = make_test_game_with_storage_key(
+            "Legacy Deleted Game",
+            "legacy-deleted-game",
+            &backup_root,
+        )?;
+        let remaining_game = make_test_game_with_storage_key(
+            "Legacy Remaining Game",
+            "legacy-remaining-game",
+            &backup_root,
+        )?;
         let mut config = Config {
             backup_path: backup_root.to_string_lossy().to_string(),
             games: vec![deleted_game.clone(), remaining_game.clone()],

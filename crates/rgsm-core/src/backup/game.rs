@@ -24,7 +24,7 @@ use crate::preclude::*;
 ///
 /// These fields are **device-independent** (directory names and IDs, not paths)
 /// and are safe to persist in config and sync across devices.
-#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LudusaviMeta {
     /// Install directory names from the manifest's `installDir` field.

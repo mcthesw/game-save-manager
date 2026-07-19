@@ -33,6 +33,10 @@ pub enum OwnershipError {
     ProfileIdentityMismatch { key: DeviceId, embedded: DeviceId },
     #[error("Shared Library contains duplicate Game identity: {0}")]
     DuplicateSharedGame(String),
+    #[error("Shared Library contains an empty Game identity")]
+    EmptySharedGameId,
+    #[error("Shared Game {game_id} contains duplicate Save Unit ID {save_unit_id}")]
+    DuplicateSharedSaveUnit { game_id: String, save_unit_id: u32 },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -43,13 +47,13 @@ pub struct ConfigurationOwners {
     pub local_state: LocalState,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 pub struct SharedLibrary {
     pub schema_version: u32,
     pub games: Vec<SharedGame>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 pub struct SharedGame {
     pub name: String,
     pub storage_key: String,
@@ -58,13 +62,13 @@ pub struct SharedGame {
     pub ludusavi_meta: Option<LudusaviMeta>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 pub struct SharedSaveUnit {
     pub id: u32,
     pub source: SharedSaveUnitSource,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SharedSaveUnitSource {
     Concrete {
@@ -235,17 +239,9 @@ impl ConfigurationOwners {
 
     pub fn validate(&self) -> Result<(), OwnershipError> {
         validate_schema("Configuration Owners", self.schema_version)?;
-        validate_schema("Shared Library", self.shared_library.schema_version)?;
+        self.shared_library.validate()?;
         validate_schema("Local State", self.local_state.schema_version)?;
 
-        let mut game_ids = HashSet::new();
-        for game in &self.shared_library.games {
-            if !game_ids.insert(&game.storage_key) {
-                return Err(OwnershipError::DuplicateSharedGame(
-                    game.storage_key.clone(),
-                ));
-            }
-        }
         for (device_id, profile) in &self.device_profiles {
             validate_schema(
                 &format!("Device Profile {device_id}"),
@@ -417,6 +413,35 @@ impl ConfigurationOwners {
             ludusavi_meta: shared.ludusavi_meta.clone(),
             device_bindings,
         }
+    }
+}
+
+impl SharedLibrary {
+    /// Validate remote-portable configuration without requiring Local State or
+    /// a current Device Profile.
+    pub fn validate(&self) -> Result<(), OwnershipError> {
+        validate_schema("Shared Library", self.schema_version)?;
+        let mut game_ids = HashSet::new();
+        for game in &self.games {
+            if game.storage_key.trim().is_empty() {
+                return Err(OwnershipError::EmptySharedGameId);
+            }
+            if !game_ids.insert(&game.storage_key) {
+                return Err(OwnershipError::DuplicateSharedGame(
+                    game.storage_key.clone(),
+                ));
+            }
+            let mut save_unit_ids = HashSet::new();
+            for save_unit in &game.save_units {
+                if !save_unit_ids.insert(save_unit.id) {
+                    return Err(OwnershipError::DuplicateSharedSaveUnit {
+                        game_id: game.storage_key.clone(),
+                        save_unit_id: save_unit.id,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 }
 

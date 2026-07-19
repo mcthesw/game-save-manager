@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::backup::{Game, GameSnapshots, Snapshot, archive_file_name, remote_archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, path_to_remote_key};
+use crate::cloud_sync::{V1_CONFIG_PATH, V1_SAVE_DATA_PREFIX};
 use crate::config::{
     Config, get_backup_path, get_config, replace_config_local, resolve_backup_path,
 };
@@ -76,7 +77,7 @@ pub fn is_not_found(err: &BackendError) -> bool {
 }
 
 pub fn game_cloud_metadata_path(storage_key: &str) -> Result<String, BackendError> {
-    let backups_json = PathBuf::from("save_data")
+    let backups_json = PathBuf::from(V1_SAVE_DATA_PREFIX)
         .join(storage_key)
         .join("Backups.json");
     path_to_remote_key(&backups_json)
@@ -98,11 +99,8 @@ pub async fn load_remote_config(
     token: Option<&CancellationToken>,
 ) -> Result<Config, SyncOperationError> {
     let transfer = CloudTransfer::new(op);
-    let config_bytes = run_with_optional_cancel(
-        token,
-        transfer.download_bytes_streaming("/GameSaveManager.config.json"),
-    )
-    .await?;
+    let config_bytes =
+        run_with_optional_cancel(token, transfer.download_bytes_streaming(V1_CONFIG_PATH)).await?;
     serde_json::from_slice(&config_bytes)
         .map_err(BackendError::from)
         .map_err(Into::into)
@@ -147,10 +145,7 @@ pub async fn upload_config(op: &Operator) -> Result<(), BackendError> {
 pub async fn upload_config_snapshot(op: &Operator, config: &Config) -> Result<(), BackendError> {
     let transfer = CloudTransfer::new(op);
     transfer
-        .upload_bytes_streaming(
-            &serde_json::to_vec_pretty(config)?,
-            "/GameSaveManager.config.json",
-        )
+        .upload_bytes_streaming(&serde_json::to_vec_pretty(config)?, V1_CONFIG_PATH)
         .await?;
     Ok(())
 }
