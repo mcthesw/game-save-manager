@@ -130,6 +130,17 @@ pub(crate) fn activate_cutover_cloud_library(
     Ok(())
 }
 
+pub(crate) fn replace_current_device_profile(
+    expected: &DeviceProfile,
+    accepted: &DeviceProfile,
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().replace_current_profile(expected, accepted)?;
+    Ok(())
+}
+
 fn get_config_unlocked() -> Result<Config, ConfigError> {
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {

@@ -12,7 +12,8 @@ use rgsm_core::cloud_sync::{
     SyncGameOutcome,
 };
 use rgsm_core::config::{
-    Config, GameAutomationSettingsDraft, QuickActionSoundPreferences, get_backup_path, get_config,
+    Config, GameAutomationSettingsDraft, InitialCatchUpPolicy, QuickActionSoundPreferences,
+    SyncMode, get_backup_path, get_config,
 };
 use rgsm_core::device::{Device, get_current_device_id};
 use rgsm_core::hooks::{HookPipeline, HookSource};
@@ -23,7 +24,8 @@ use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::{
-    CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus, ServiceContext,
+    CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus, GameSyncModeOutcome,
+    ServiceContext,
 };
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
@@ -750,6 +752,19 @@ pub async fn materialize_all_cloud_archives(
         .finish_manual_job(job_id, "Downloading all Cloud Snapshots", status, error)
         .await;
     result.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_game_sync_mode(
+    game_id: String,
+    mode: SyncMode,
+    initial_catch_up: InitialCatchUpPolicy,
+    app_handle: AppHandle,
+) -> Result<GameSyncModeOutcome, String> {
+    crate::cloud_library::set_game_sync_mode(&app_handle, &game_id, mode, initial_catch_up)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

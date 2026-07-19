@@ -1,7 +1,7 @@
 //! Serializable V2 configuration owners and the compatibility projection used
 //! while the application still consumes the legacy flat [`Config`] model.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -95,6 +95,12 @@ pub struct DeviceProfile {
 pub struct DeviceGameProfile {
     pub visible: bool,
     pub sync_mode: SyncMode,
+    #[serde(default)]
+    pub snapshot_sync_activation_revision: Option<u64>,
+    #[serde(default)]
+    pub snapshot_sync_local_baseline: BTreeSet<String>,
+    #[serde(default)]
+    pub initial_catch_up: InitialCatchUpPolicy,
     pub game_path: Option<String>,
     pub binding: Option<GameDeviceBinding>,
     pub auto_backup: Option<AutoBackupConfig>,
@@ -114,6 +120,14 @@ pub enum SyncMode {
     Manual,
     SnapshotSync,
     LiveSaveSync,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum InitialCatchUpPolicy {
+    #[default]
+    KeepRemote,
+    DownloadExisting,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
@@ -450,6 +464,9 @@ impl DeviceProfile {
                         .unwrap_or(DeviceGameProfile {
                             visible: true,
                             sync_mode: SyncMode::Manual,
+                            snapshot_sync_activation_revision: None,
+                            snapshot_sync_local_baseline: BTreeSet::new(),
+                            initial_catch_up: InitialCatchUpPolicy::KeepRemote,
                             game_path: None,
                             binding: None,
                             auto_backup: None,
@@ -571,6 +588,9 @@ impl DeviceGameProfile {
             } else {
                 SyncMode::Manual
             },
+            snapshot_sync_activation_revision: game.cloud_sync_enabled.then_some(0),
+            snapshot_sync_local_baseline: BTreeSet::new(),
+            initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             game_path: game.game_paths.get(device_id).cloned(),
             binding: game.device_bindings.get(device_id).cloned(),
             auto_backup: game.auto_backup.clone(),

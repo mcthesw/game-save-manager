@@ -39,6 +39,8 @@ pub enum OwnerStoreError {
     JoinInputsChanged,
     #[error("Local configuration changed while Cloud Cutover was in progress")]
     CutoverInputsChanged,
+    #[error("The current Device Profile changed while it was being saved")]
+    ProfileInputsChanged,
 }
 
 pub(crate) struct OwnerStore {
@@ -225,6 +227,29 @@ impl OwnerStore {
         owners.shared_library = accepted_library.clone();
         owners.device_profiles = accepted_profiles.clone();
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        self.write(&owners)
+    }
+
+    pub(crate) fn replace_current_profile(
+        &self,
+        expected: &DeviceProfile,
+        accepted: &DeviceProfile,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        let current_device_id = owners.local_state.current_device_id.clone();
+        let current = owners
+            .device_profiles
+            .get(&current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
+            || serde_json::to_vec(current)? != serde_json::to_vec(expected)?
+            || accepted.device.id != current_device_id
+        {
+            return Err(OwnerStoreError::ProfileInputsChanged);
+        }
+        owners
+            .device_profiles
+            .insert(current_device_id, accepted.clone());
         self.write(&owners)
     }
 
@@ -508,6 +533,36 @@ mod tests {
             active.device_profiles[get_current_device_id()].device.name,
             "Migrated Device"
         );
+    }
+
+    #[test]
+    fn current_profile_replacement_is_v2_only_and_compare_checked() {
+        let (_root, store) = store();
+        let input = config(get_current_device_id(), "before");
+        store.initialize_from_legacy(&input).unwrap();
+        let owners = store.load().unwrap();
+        let expected = owners.device_profiles[get_current_device_id()].clone();
+        let mut accepted = expected.clone();
+        accepted.device.name = "Synchronized profile".into();
+
+        assert!(matches!(
+            store.replace_current_profile(&expected, &accepted),
+            Err(OwnerStoreError::ProfileInputsChanged)
+        ));
+        store
+            .activate_v2(&owners.shared_library, &expected)
+            .unwrap();
+        store.replace_current_profile(&expected, &accepted).unwrap();
+        assert_eq!(
+            store.load().unwrap().device_profiles[get_current_device_id()]
+                .device
+                .name,
+            "Synchronized profile"
+        );
+        assert!(matches!(
+            store.replace_current_profile(&expected, &accepted),
+            Err(OwnerStoreError::ProfileInputsChanged)
+        ));
     }
 
     #[test]

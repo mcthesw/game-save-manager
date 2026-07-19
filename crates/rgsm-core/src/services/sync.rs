@@ -9,8 +9,8 @@ use crate::cloud_sync::v2::{
     CloudArchiveLibraryView, CloudArchiveMaterializer, CloudLibraryBootstrap,
     CloudLibraryBootstrapError, CloudLibraryCutover, CloudLibraryCutoverError,
     CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
-    CloudNamespaceClassification, JoinGameDecision, MaterializationError, MaterializationOutcome,
-    MaterializationPreview,
+    CloudNamespaceClassification, DeviceProfileRepository, DeviceProfileRepositoryError,
+    JoinGameDecision, MaterializationError, MaterializationOutcome, MaterializationPreview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -19,9 +19,9 @@ use crate::cloud_sync::{
     sync_game as sync_cloud_game, upload_all_from_session,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, activate_cloud_namespace_v2, activate_cutover_cloud_library,
-    activate_joined_cloud_library, cloud_bootstrap_inputs, cloud_namespace_generation, get_config,
-    resolve_backup_path,
+    CloudNamespaceGeneration, Config, InitialCatchUpPolicy, SyncMode, activate_cloud_namespace_v2,
+    activate_cutover_cloud_library, activate_joined_cloud_library, cloud_bootstrap_inputs,
+    cloud_namespace_generation, get_config, replace_current_device_profile, resolve_backup_path,
 };
 use crate::hooks::{HookSource, MetadataChangedCtx};
 use crate::preclude::BackendError;
@@ -72,6 +72,12 @@ pub struct CloudLibraryCutoverOutcome {
     pub unavailable_archives: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct GameSyncModeOutcome {
+    pub mode: SyncMode,
+    pub downloaded: usize,
+}
+
 #[derive(Debug, Error)]
 pub enum CloudLibraryServiceError {
     #[error("Cloud Library creation requires explicit confirmation")]
@@ -87,6 +93,8 @@ pub enum CloudLibraryServiceError {
     #[error(transparent)]
     Backend(#[from] BackendError),
     #[error(transparent)]
+    Backup(#[from] crate::preclude::BackupError),
+    #[error(transparent)]
     Bootstrap(#[from] CloudLibraryBootstrapError),
     #[error(transparent)]
     Join(#[from] CloudLibraryJoinError),
@@ -94,6 +102,12 @@ pub enum CloudLibraryServiceError {
     Cutover(#[from] CloudLibraryCutoverError),
     #[error(transparent)]
     Materialization(#[from] MaterializationError),
+    #[error(transparent)]
+    DeviceProfile(#[from] DeviceProfileRepositoryError),
+    #[error("Game is not configured on this device: {0}")]
+    GameProfileNotFound(String),
+    #[error("Live Save Sync is not available yet")]
+    LiveSaveSyncUnavailable,
     #[error("Choose a local archive folder before downloading or uploading Snapshots")]
     StorageLocationRequired,
     #[error("Cloud Cutover progress identity could not be created: {0}")]
@@ -302,8 +316,9 @@ impl ServiceContext {
     pub async fn cloud_archive_library(
         &self,
     ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
-        let (library, _, _) = cloud_bootstrap_inputs()?;
-        self.materializer()?
+        let (library, profile, _) = cloud_bootstrap_inputs()?;
+        let mut view = self
+            .materializer()?
             .view(
                 &library
                     .games
@@ -312,7 +327,14 @@ impl ServiceContext {
                     .collect(),
             )
             .await
-            .map_err(Into::into)
+            .map_err(CloudLibraryServiceError::from)?;
+        for game in &mut view.games {
+            game.sync_mode = profile
+                .games
+                .get(&game.game_id)
+                .map_or(SyncMode::Manual, |settings| settings.sync_mode);
+        }
+        Ok(view)
     }
 
     pub async fn preview_materialize_all(
@@ -342,6 +364,89 @@ impl ServiceContext {
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, CloudLibraryServiceError> {
         Ok(self.materializer()?.materialize_all(cancellation).await?)
+    }
+
+    pub async fn set_game_sync_mode(
+        &self,
+        game_id: &str,
+        mode: SyncMode,
+        initial_catch_up: InitialCatchUpPolicy,
+        cancellation: &CancellationToken,
+    ) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
+        if mode == SyncMode::LiveSaveSync {
+            return Err(CloudLibraryServiceError::LiveSaveSyncUnavailable);
+        }
+        let (_, expected_profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        let materializer = self.materializer()?;
+        let mut accepted_profile = expected_profile.clone();
+        let effective_config = get_config()?;
+        let settings = accepted_profile
+            .games
+            .get_mut(game_id)
+            .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
+
+        let newly_enabled = mode == SyncMode::SnapshotSync
+            && (settings.sync_mode != SyncMode::SnapshotSync
+                || settings.snapshot_sync_activation_revision.is_none());
+        let activation_revision = if newly_enabled {
+            Some(materializer.catalog_revision().await?)
+        } else {
+            settings.snapshot_sync_activation_revision
+        };
+        let local_baseline = if newly_enabled {
+            effective_config
+                .games
+                .iter()
+                .find(|game| game.storage_key == game_id)
+                .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?
+                .get_game_snapshots_info()?
+                .backups
+                .into_iter()
+                .map(|snapshot| snapshot.date)
+                .collect()
+        } else {
+            settings.snapshot_sync_local_baseline.clone()
+        };
+        settings.sync_mode = mode;
+        settings.snapshot_sync_activation_revision = if mode == SyncMode::SnapshotSync {
+            activation_revision
+        } else {
+            None
+        };
+        settings.snapshot_sync_local_baseline = if mode == SyncMode::SnapshotSync {
+            local_baseline
+        } else {
+            Default::default()
+        };
+        settings.initial_catch_up = if mode == SyncMode::SnapshotSync {
+            initial_catch_up
+        } else {
+            InitialCatchUpPolicy::KeepRemote
+        };
+
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        DeviceProfileRepository::new(session.get_op()?, 3)
+            .publish(&local_state.current_device_id, &accepted_profile)
+            .await?;
+        replace_current_device_profile(&expected_profile, &accepted_profile)?;
+
+        let downloaded =
+            if newly_enabled && initial_catch_up == InitialCatchUpPolicy::DownloadExisting {
+                materializer
+                    .materialize_game(
+                        game_id,
+                        activation_revision.expect("new Snapshot Sync has an activation revision"),
+                        cancellation,
+                    )
+                    .await?
+                    .downloaded
+            } else {
+                0
+            };
+        Ok(GameSyncModeOutcome { mode, downloaded })
     }
 
     fn cutover(

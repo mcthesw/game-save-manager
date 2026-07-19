@@ -14,6 +14,7 @@ use super::{
 };
 use crate::backup::{ArchiveFormat, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
+use crate::config::SyncMode;
 use crate::device::{DeviceId, encode_device_id};
 use crate::preclude::BackendError;
 
@@ -29,6 +30,7 @@ pub struct CloudArchiveLibraryView {
 pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
+    pub sync_mode: SyncMode,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub local_count: usize,
     pub cloud_count: usize,
@@ -60,6 +62,8 @@ pub struct MaterializationOutcome {
 struct MaterializationPlan {
     schema_version: u32,
     manifest_revision: u64,
+    scope: Option<String>,
+    max_catalog_revision: Option<u64>,
     remaining: Vec<MaterializationItem>,
 }
 
@@ -139,6 +143,7 @@ impl CloudArchiveMaterializer {
                     .get(game_id)
                     .cloned()
                     .unwrap_or_else(|| game_id.clone()),
+                sync_mode: SyncMode::Manual,
                 local_count: snapshots
                     .iter()
                     .filter(|snapshot| snapshot.local_verified)
@@ -159,11 +164,18 @@ impl CloudArchiveMaterializer {
     pub async fn preview_materialize_all(
         &self,
     ) -> Result<MaterializationPreview, MaterializationError> {
-        let plan = self.load_or_plan(false).await?;
+        let plan = match self.load_plan().await? {
+            Some(plan) => plan,
+            None => self.load_or_plan(None, None, false).await?,
+        };
         Ok(MaterializationPreview {
             snapshot_count: plan.remaining.len(),
             total_bytes: plan.remaining.iter().map(|item| item.integrity.size).sum(),
         })
+    }
+
+    pub async fn catalog_revision(&self) -> Result<u64, MaterializationError> {
+        Ok(self.repository().load().await?.revision)
     }
 
     pub async fn upload(
@@ -242,7 +254,50 @@ impl CloudArchiveMaterializer {
         &self,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, MaterializationError> {
-        let mut plan = self.load_or_plan(true).await?;
+        match self.load_plan().await? {
+            Some(plan) => {
+                self.materialize_scope(plan.scope, plan.max_catalog_revision, cancellation)
+                    .await
+            }
+            None => self.materialize_scope(None, None, cancellation).await,
+        }
+    }
+
+    pub async fn preview_game(
+        &self,
+        game_id: &str,
+        max_catalog_revision: u64,
+    ) -> Result<MaterializationPreview, MaterializationError> {
+        let plan = self
+            .load_or_plan(Some(game_id.to_string()), Some(max_catalog_revision), false)
+            .await?;
+        Ok(MaterializationPreview {
+            snapshot_count: plan.remaining.len(),
+            total_bytes: plan.remaining.iter().map(|item| item.integrity.size).sum(),
+        })
+    }
+
+    pub async fn materialize_game(
+        &self,
+        game_id: &str,
+        max_catalog_revision: u64,
+        cancellation: &CancellationToken,
+    ) -> Result<MaterializationOutcome, MaterializationError> {
+        self.materialize_scope(
+            Some(game_id.to_string()),
+            Some(max_catalog_revision),
+            cancellation,
+        )
+        .await
+    }
+
+    async fn materialize_scope(
+        &self,
+        scope: Option<String>,
+        max_catalog_revision: Option<u64>,
+        cancellation: &CancellationToken,
+    ) -> Result<MaterializationOutcome, MaterializationError> {
+        let mut plan = self.load_or_plan(scope, max_catalog_revision, true).await?;
         let initial = plan.remaining.len();
         while let Some(item) = plan.remaining.first().cloned() {
             if cancellation.is_cancelled() {
@@ -299,14 +354,22 @@ impl CloudArchiveMaterializer {
 
     async fn load_or_plan(
         &self,
+        scope: Option<String>,
+        max_catalog_revision: Option<u64>,
         persist_new: bool,
     ) -> Result<MaterializationPlan, MaterializationError> {
         if let Some(plan) = self.load_plan().await? {
+            if plan.scope != scope || plan.max_catalog_revision != max_catalog_revision {
+                return Err(MaterializationError::AnotherMaterializationPending);
+            }
             return Ok(plan);
         }
         let manifest = self.repository().load().await?;
         let mut remaining = Vec::new();
         for (game_id, game) in &manifest.games {
+            if scope.as_ref().is_some_and(|scope| scope != game_id) {
+                continue;
+            }
             for node in game.snapshots.values() {
                 let SnapshotState::Live(live) = &node.state else {
                     continue;
@@ -315,6 +378,7 @@ impl CloudArchiveMaterializer {
                     continue;
                 };
                 if !live.cloud_archive_verified
+                    || max_catalog_revision.is_some_and(|maximum| node.catalog_revision > maximum)
                     || (self.is_locally_reported(game, &node.snapshot_id)
                         && local_size_matches(
                             &self.local_path(game_id, &node.snapshot_id, node.archive_format),
@@ -334,6 +398,8 @@ impl CloudArchiveMaterializer {
         let plan = MaterializationPlan {
             schema_version: MATERIALIZATION_PROGRESS_SCHEMA_VERSION,
             manifest_revision: manifest.revision,
+            scope,
+            max_catalog_revision,
             remaining,
         };
         if persist_new {
@@ -471,6 +537,8 @@ pub enum MaterializationError {
     UnsupportedProgressSchema(u32),
     #[error("Materialization was cancelled")]
     Cancelled,
+    #[error("Another bounded materialization operation must finish or be cancelled first")]
+    AnotherMaterializationPending,
     #[error("Archive hash task failed: {0}")]
     HashTask(String),
     #[error(transparent)]

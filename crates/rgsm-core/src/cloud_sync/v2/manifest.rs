@@ -314,6 +314,8 @@ pub struct SnapshotNode {
     pub snapshot_id: String,
     pub parent: Option<String>,
     #[serde(default)]
+    pub catalog_revision: u64,
+    #[serde(default)]
     pub description: String,
     #[serde(default)]
     pub archive_format: ArchiveFormat,
@@ -330,6 +332,7 @@ impl SnapshotNode {
         Self {
             snapshot_id: snapshot_id.into(),
             parent,
+            catalog_revision: 0,
             description: String::new(),
             archive_format: ArchiveFormat::default(),
             state: SnapshotState::Live(LiveSnapshot {
@@ -349,6 +352,7 @@ impl SnapshotNode {
         Self {
             snapshot_id: snapshot_id.into(),
             parent,
+            catalog_revision: 0,
             description: String::new(),
             archive_format: ArchiveFormat::default(),
             state: SnapshotState::Live(LiveSnapshot {
