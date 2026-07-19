@@ -806,6 +806,35 @@ pub async fn delete_v2_snapshot(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn set_shared_snapshot_retention(
+    game_id: String,
+    limit: Option<u32>,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::services::SnapshotRetentionOutcome, String> {
+    ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
+        .set_shared_snapshot_retention(&game_id, limit, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_snapshot_retention_protected(
+    game_id: String,
+    snapshot_id: String,
+    retention_protected: bool,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::services::SnapshotRetentionOutcome, String> {
+    ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
+        .set_snapshot_retention_protected(&game_id, &snapshot_id, retention_protected, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn materialize_all_cloud_archives(
     app_handle: AppHandle,
 ) -> Result<MaterializationOutcome, String> {
@@ -1090,6 +1119,13 @@ pub async fn set_snapshot_created_by(
     snapshot_date: String,
     created_by: CreatedBy,
 ) -> Result<GameSnapshots, String> {
+    if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
+        == CloudNamespaceGeneration::V2
+    {
+        return Err(
+            "Use V2 retention protection without changing Snapshot creation provenance".into(),
+        );
+    }
     info!(
         target:"rgsm::ipc",
         "Setting created_by for '{game_name}' snapshot '{snapshot_date}' to {created_by:?}"

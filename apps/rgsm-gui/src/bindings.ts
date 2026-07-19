@@ -316,6 +316,22 @@ async deleteV2Snapshot(gameId: string, snapshotId: string, confirmed: boolean) :
     else return { status: "error", error: e  as any };
 }
 },
+async setSharedSnapshotRetention(gameId: string, limit: number | null, confirmed: boolean) : Promise<Result<SnapshotRetentionOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_shared_snapshot_retention", { gameId, limit, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setSnapshotRetentionProtected(gameId: string, snapshotId: string, retentionProtected: boolean, confirmed: boolean) : Promise<Result<SnapshotRetentionOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_snapshot_retention_protected", { gameId, snapshotId, retentionProtected, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("materialize_all_cloud_archives") };
@@ -768,9 +784,9 @@ export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
 export type CloudArchiveDeletionView = { snapshot_id: string; description: string; retryable: boolean }
-export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; pending_deletions: CloudArchiveDeletionView[]; local_count: number; cloud_count: number }
+export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; retention_limit: number | null; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; pending_deletions: CloudArchiveDeletionView[]; local_count: number; cloud_count: number }
 export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
-export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[] }
+export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[]; created_by: CreatedBy; retention_protected: boolean }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
 export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
@@ -1187,6 +1203,7 @@ device_id?: string | null;
  * How this snapshot was created.
  */
 created_by?: CreatedBy }
+export type SnapshotRetentionOutcome = { limit: number | null; deleted: number }
 export type SortDirection = "asc" | "desc"
 export type StoreGameId = { store: StoreKind; id: string }
 export type StoreKind = "steam" | "gog" | "microsoft" | "uplay" | "other"

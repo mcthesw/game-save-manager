@@ -12,7 +12,7 @@ use super::{
     CloudManifestRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
     SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
 };
-use crate::backup::{ArchiveFormat, archive_path};
+use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
 use crate::config::SyncMode;
 use crate::device::{DeviceId, encode_device_id};
@@ -33,6 +33,7 @@ pub struct CloudArchiveGameView {
     pub sync_mode: SyncMode,
     pub live_save_process_name: Option<String>,
     pub live_save_snapshot_on_exit: bool,
+    pub retention_limit: Option<u32>,
     pub advertised_head_count: usize,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub pending_deletions: Vec<CloudArchiveDeletionView>,
@@ -48,6 +49,8 @@ pub struct CloudArchiveSnapshotView {
     pub local_verified: bool,
     pub cloud_verified: bool,
     pub reported_on_devices: Vec<DeviceId>,
+    pub created_by: CreatedBy,
+    pub retention_protected: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
@@ -158,6 +161,8 @@ impl CloudArchiveMaterializer {
                     local_verified,
                     cloud_verified: live.cloud_archive_verified,
                     reported_on_devices,
+                    created_by: live.created_by.clone(),
+                    retention_protected: live.retention_protected,
                 });
             }
             snapshots.reverse();
@@ -170,6 +175,7 @@ impl CloudArchiveMaterializer {
                 sync_mode: SyncMode::Manual,
                 live_save_process_name: None,
                 live_save_snapshot_on_exit: false,
+                retention_limit: None,
                 advertised_head_count: game
                     .device_heads
                     .values()

@@ -133,6 +133,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::upload_cloud_archive,
             ipc_handler::download_cloud_archive,
             ipc_handler::delete_v2_snapshot,
+            ipc_handler::set_shared_snapshot_retention,
+            ipc_handler::set_snapshot_retention_protected,
             ipc_handler::materialize_all_cloud_archives,
             ipc_handler::set_game_sync_mode,
             ipc_handler::cloud_upload_all,

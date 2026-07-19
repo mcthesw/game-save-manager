@@ -18,6 +18,14 @@ import {
 } from '../bindings';
 import { $t } from '../i18n';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
+import {
+  canProtectCloudArchiveSnapshot as canProtect,
+  cloudArchiveAvailabilityLabel as availabilityLabel,
+  cloudArchiveAvailabilityType as availabilityType,
+  cloudArchiveCatchUpPreview as catchUpPreview,
+  cloudArchiveTransferKey as transferKey,
+  formatCloudArchiveBytes as formatBytes,
+} from '../utils/cloudArchivePresentation';
 
 const feedback = useFeedback();
 const library = ref<CloudArchiveLibraryView | null>(null);
@@ -40,45 +48,6 @@ const totalSnapshots = computed(
 const localSnapshots = computed(
   () => library.value?.games.reduce((total, game) => total + game.local_count, 0) ?? 0
 );
-
-function formatBytes(bytes: number | null | undefined) {
-  if (!bytes) return $t('sync_settings.archives.size_unknown');
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
-function transferKey(gameId: string, snapshotId: string) {
-  return `${gameId}\0${snapshotId}`;
-}
-
-function catchUpPreview(game: CloudArchiveGameView | null) {
-  const snapshots =
-    game?.snapshots.filter((snapshot) => snapshot.cloud_verified && !snapshot.local_verified) ?? [];
-  return {
-    count: snapshots.length,
-    size: snapshots.reduce((total, snapshot) => total + (snapshot.size ?? 0), 0),
-  };
-}
-
-function availabilityLabel(snapshot: CloudArchiveSnapshotView) {
-  if (snapshot.local_verified && snapshot.cloud_verified) {
-    return $t('sync_settings.archives.available_both');
-  }
-  if (snapshot.local_verified) return $t('sync_settings.archives.available_local');
-  if (snapshot.cloud_verified) return $t('sync_settings.archives.available_cloud');
-  if (snapshot.reported_on_devices.length > 0) {
-    return $t('sync_settings.archives.available_other_device');
-  }
-  return $t('sync_settings.archives.unavailable');
-}
-
-function availabilityType(snapshot: CloudArchiveSnapshotView) {
-  if (snapshot.local_verified && snapshot.cloud_verified) return 'success';
-  if (snapshot.local_verified || snapshot.cloud_verified) return 'primary';
-  if (snapshot.reported_on_devices.length > 0) return 'warning';
-  return 'info';
-}
 
 async function load() {
   loading.value = true;
@@ -244,29 +213,14 @@ onMounted(load);
 
 <template>
   <section v-loading="loading" class="archive-panel">
-    <div class="archive-toolbar">
-      <div>
-        <h3>{{ $t('sync_settings.archives.title') }}</h3>
-        <p>
-          {{
-            $t('sync_settings.archives.summary', {
-              local: localSnapshots,
-              total: totalSnapshots,
-            })
-          }}
-        </p>
-      </div>
-      <div class="toolbar-actions">
-        <ElButton :icon="Refresh" circle :aria-label="$t('common.refresh')" @click="load" />
-        <ElButton type="primary" :icon="Download" :loading="materializing" @click="materializeAll">
-          {{
-            library?.pending_materialization
-              ? $t('sync_settings.archives.resume_download')
-              : $t('sync_settings.archives.download_all')
-          }}
-        </ElButton>
-      </div>
-    </div>
+    <CloudArchiveToolbar
+      :local-snapshots="localSnapshots"
+      :total-snapshots="totalSnapshots"
+      :materializing="materializing"
+      :pending-materialization="library?.pending_materialization ?? false"
+      @refresh="load"
+      @download-all="materializeAll"
+    />
 
     <ElAlert
       v-if="library?.pending_materialization"
@@ -326,6 +280,7 @@ onMounted(load);
             </div>
           </div>
         </template>
+        <CloudRetentionControls :game="game" @updated="load" />
         <div v-for="snapshot in game.snapshots" :key="snapshot.snapshot_id" class="snapshot-row">
           <div class="snapshot-info">
             <strong>{{ snapshot.description || snapshot.snapshot_id }}</strong>
@@ -335,6 +290,12 @@ onMounted(load);
             {{ availabilityLabel(snapshot) }}
           </ElTag>
           <div class="snapshot-actions">
+            <SnapshotRetentionButton
+              v-if="canProtect(snapshot)"
+              :game-id="game.game_id"
+              :snapshot="snapshot"
+              @updated="load"
+            />
             <ElButton
               v-if="snapshot.local_verified && !snapshot.cloud_verified"
               :icon="Upload"
@@ -520,35 +481,17 @@ onMounted(load);
   min-height: 160px;
 }
 
-.archive-toolbar,
 .game-summary,
 .snapshot-row {
   display: flex;
   align-items: center;
 }
 
-.archive-toolbar {
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 16px;
-}
-
-.archive-toolbar h3 {
-  margin: 0 0 4px;
-}
-
-.archive-toolbar p,
 .game-summary span,
 .snapshot-info span {
   margin: 0;
   color: var(--el-text-color-secondary);
   font-size: 0.82rem;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
 }
 
 .game-actions {
@@ -686,11 +629,6 @@ onMounted(load);
 }
 
 @media (max-width: 640px) {
-  .archive-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .snapshot-row {
     align-items: flex-start;
     flex-wrap: wrap;
