@@ -700,6 +700,11 @@
                 "keep_local_title": "保留本机当前进度？",
                 "keep_local_confirm": "应用会先上传本机可用的快照历史，确认成功后仅移动本设备的云端位置。其他设备及其进度不会改变，也不会恢复或修改游戏的实时存档。",
                 "keep_local_success": "已保留本机进度，并上传 {count} 个归档。",
+                "accept_remote": "使用此进度",
+                "accept_remote_title": "应用其他设备的进度？",
+                "accept_remote_confirm": "要将“{progress}”应用到本设备吗？应用会先下载并校验云端归档；如果检测到现有实时存档，会在替换前强制创建安全备份。操作期间请保持游戏关闭。",
+                "accept_remote_success": "已应用所选进度；此前未检测到需要安全备份的实时存档。",
+                "accept_remote_success_with_backup": "已创建安全备份并应用所选进度。",
                 "resolve_failed": "无法解决进度冲突",
                 "load_failed": "无法比较设备进度"
             }

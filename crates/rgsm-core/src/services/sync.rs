@@ -6,13 +6,13 @@ use tokio_util::sync::CancellationToken;
 use crate::app_dirs::resolve_app_path;
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::v2::{
-    CloudArchiveLibraryView, CloudArchiveMaterializer, CloudLibraryBootstrap,
-    CloudLibraryBootstrapError, CloudLibraryCutover, CloudLibraryCutoverError,
-    CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
-    CloudNamespaceClassification, ConflictReviewError, DeviceProfileRepository,
-    DeviceProfileRepositoryError, JoinGameDecision, KeepLocalProgressError,
-    KeepLocalProgressOutcome, MaterializationError, MaterializationOutcome, MaterializationPreview,
-    V2ConflictInspector, V2ConflictResolver, V2ConflictReview,
+    AcceptRemoteProgressError, CloudArchiveLibraryView, CloudArchiveMaterializer,
+    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryCutover,
+    CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError,
+    CloudLibraryJoinReview, CloudNamespaceClassification, ConflictReviewError,
+    DeviceProfileRepository, DeviceProfileRepositoryError, JoinGameDecision,
+    KeepLocalProgressError, MaterializationError, MaterializationOutcome, MaterializationPreview,
+    V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -109,6 +109,8 @@ pub enum CloudLibraryServiceError {
     #[error(transparent)]
     KeepLocalProgress(#[from] KeepLocalProgressError),
     #[error(transparent)]
+    AcceptRemoteProgress(#[from] AcceptRemoteProgressError),
+    #[error(transparent)]
     DeviceProfile(#[from] DeviceProfileRepositoryError),
     #[error("Game is not configured on this device: {0}")]
     GameProfileNotFound(String),
@@ -118,6 +120,14 @@ pub enum CloudLibraryServiceError {
     StorageLocationRequired,
     #[error("Cloud Cutover progress identity could not be created: {0}")]
     CutoverProgressIdentity(#[from] serde_json::Error),
+    #[error("Remote progress {stage} failed: {operation}; rollback: {rollback}")]
+    RemoteProgressApply {
+        stage: &'static str,
+        operation: String,
+        rollback: String,
+    },
+    #[error("Local and Cloud progress disagree about Snapshot identity: {0}")]
+    RemoteSnapshotIdentityConflict(String),
 }
 
 impl ServiceContext {
@@ -377,39 +387,6 @@ impl ServiceContext {
             3,
         )
         .review(game_id, &local)
-        .await?)
-    }
-
-    pub async fn keep_v2_local_progress(
-        &self,
-        game_id: &str,
-        manifest_revision: u64,
-        local_snapshot_id: &str,
-    ) -> Result<KeepLocalProgressOutcome, CloudLibraryServiceError> {
-        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
-        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
-            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
-        }
-        let local = get_config()?
-            .games
-            .into_iter()
-            .find(|game| game.storage_key == game_id)
-            .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?
-            .get_game_snapshots_info()?;
-        let local_archive_root = profile
-            .local_archive_root
-            .as_deref()
-            .map(resolve_app_path)
-            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        Ok(V2ConflictResolver::new(
-            session.get_op()?,
-            local_archive_root,
-            local_state.current_device_id,
-            resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
-            3,
-        )
-        .keep_local(game_id, manifest_revision, local_snapshot_id, &local)
         .await?)
     }
 

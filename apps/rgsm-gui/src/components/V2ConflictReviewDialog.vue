@@ -26,6 +26,8 @@ const feedback = useFeedback();
 const review = ref<V2ConflictReview | null>(null);
 const loading = ref(false);
 const resolving = ref(false);
+const acceptingSnapshotId = ref('');
+const busy = computed(() => resolving.value || acceptingSnapshotId.value !== '');
 
 const visible = computed({
   get: () => props.modelValue,
@@ -107,6 +109,49 @@ async function keepLocal() {
     visible.value = false;
   } finally {
     resolving.value = false;
+  }
+}
+
+async function acceptRemote(candidate: RemoteProgressCandidate) {
+  const current = review.value;
+  if (!current || !candidate.cloud_available) return;
+  try {
+    await feedback.confirm(
+      $t('sync_settings.archives.progress.accept_remote_confirm', {
+        progress: snapshotLabel(candidate.description, candidate.snapshot_id),
+      }),
+      $t('sync_settings.archives.progress.accept_remote_title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.progress.accept_remote'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+  acceptingSnapshotId.value = candidate.snapshot_id;
+  try {
+    const result = await commands.acceptV2RemoteProgress(
+      props.gameId,
+      current.manifest_revision,
+      current.local?.snapshot_id ?? null,
+      candidate.snapshot_id
+    );
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.progress.resolve_failed'), result.error);
+      await load();
+      return;
+    }
+    notifySuccess(
+      result.data.safety_backup_created
+        ? $t('sync_settings.archives.progress.accept_remote_success_with_backup')
+        : $t('sync_settings.archives.progress.accept_remote_success')
+    );
+    emit('resolved');
+    visible.value = false;
+  } finally {
+    acceptingSnapshotId.value = '';
   }
 }
 
@@ -209,21 +254,33 @@ watch(
             </div>
           </div>
 
-          <div class="availability">
-            <ElTag :type="candidate.local_available ? 'success' : 'info'" effect="plain" round>
-              {{
-                candidate.local_available
-                  ? $t('sync_settings.archives.progress.on_device')
-                  : $t('sync_settings.archives.progress.not_on_device')
-              }}
-            </ElTag>
-            <ElTag :type="candidate.cloud_available ? 'primary' : 'warning'" effect="plain" round>
-              {{
-                candidate.cloud_available
-                  ? $t('sync_settings.archives.progress.in_cloud')
-                  : $t('sync_settings.archives.progress.not_in_cloud')
-              }}
-            </ElTag>
+          <div class="candidate-actions">
+            <div class="availability">
+              <ElTag :type="candidate.local_available ? 'success' : 'info'" effect="plain" round>
+                {{
+                  candidate.local_available
+                    ? $t('sync_settings.archives.progress.on_device')
+                    : $t('sync_settings.archives.progress.not_on_device')
+                }}
+              </ElTag>
+              <ElTag :type="candidate.cloud_available ? 'primary' : 'warning'" effect="plain" round>
+                {{
+                  candidate.cloud_available
+                    ? $t('sync_settings.archives.progress.in_cloud')
+                    : $t('sync_settings.archives.progress.not_in_cloud')
+                }}
+              </ElTag>
+            </div>
+            <ElButton
+              v-if="candidate.relation !== 'same'"
+              type="primary"
+              plain
+              :disabled="busy || !candidate.cloud_available"
+              :loading="acceptingSnapshotId === candidate.snapshot_id"
+              @click="acceptRemote(candidate)"
+            >
+              {{ $t('sync_settings.archives.progress.accept_remote') }}
+            </ElButton>
           </div>
         </article>
       </div>
@@ -234,12 +291,13 @@ watch(
     </div>
 
     <template #footer>
-      <ElButton :disabled="resolving" @click="visible = false">
+      <ElButton :disabled="busy" @click="visible = false">
         {{ $t('sync_settings.archives.progress.decide_later') }}
       </ElButton>
       <ElButton
         v-if="review?.requires_choice && review.local"
         type="success"
+        :disabled="busy"
         :loading="resolving"
         @click="keepLocal"
       >
@@ -282,7 +340,8 @@ watch(
 
 .candidate-top,
 .position-heading,
-.availability {
+.availability,
+.candidate-actions {
   display: flex;
   align-items: center;
 }
@@ -364,6 +423,11 @@ watch(
   gap: 8px;
 }
 
+.candidate-actions {
+  justify-content: space-between;
+  gap: 12px;
+}
+
 @media (max-width: 600px) {
   .local-card,
   .candidate-top {
@@ -377,6 +441,11 @@ watch(
 
   .diff-grid div:last-child {
     grid-column: 1 / -1;
+  }
+
+  .candidate-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

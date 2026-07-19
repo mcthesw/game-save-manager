@@ -719,6 +719,26 @@ pub async fn keep_v2_local_progress(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn accept_v2_remote_progress(
+    game_id: String,
+    manifest_revision: u64,
+    expected_local_snapshot_id: Option<String>,
+    selected_snapshot_id: String,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::services::AcceptRemoteProgressOutcome, String> {
+    svc(&app_handle)
+        .accept_v2_remote_progress(
+            &game_id,
+            manifest_revision,
+            expected_local_snapshot_id.as_deref(),
+            &selected_snapshot_id,
+        )
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn preview_materialize_all(
     app_handle: AppHandle,
 ) -> Result<MaterializationPreview, String> {

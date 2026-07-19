@@ -700,6 +700,11 @@
                 "keep_local_title": "Keep this device's progress?",
                 "keep_local_confirm": "The app will upload the available Snapshot history first, then move only this device's cloud position. Other devices and their progress will remain unchanged. This does not restore or modify live save files.",
                 "keep_local_success": "This device now keeps its local progress. Uploaded {count} archives.",
+                "accept_remote": "Use this progress",
+                "accept_remote_title": "Apply another device's progress?",
+                "accept_remote_confirm": "Apply “{progress}” to this device? The cloud Archive will be downloaded and verified first. If live save data is found, a mandatory safety backup is created before replacement. Keep the game closed during this operation.",
+                "accept_remote_success": "The selected progress was applied. No previous live save data needed a safety backup.",
+                "accept_remote_success_with_backup": "The selected progress was applied after creating a safety backup.",
                 "resolve_failed": "Could not resolve progress",
                 "load_failed": "Could not compare Device progress"
             }

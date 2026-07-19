@@ -30,6 +30,12 @@ impl LifecycleHook for PreRestoreBackupHook {
     }
 
     async fn on_before_restore(&self, ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
+        // V2 conflict resolution creates a mandatory, checked backup and keeps
+        // its identifier for rollback. A second hook backup could evict that
+        // exact archive under a one-item retention policy.
+        if ctx.source == super::HookSource::CloudConflictResolution {
+            return Ok(());
+        }
         info!(
             target: "rgsm::hooks::pre_restore_backup",
             "Creating extra backup before restoring {} / {}",

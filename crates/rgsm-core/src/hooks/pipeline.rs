@@ -367,6 +367,7 @@ mod tests {
     fn hook_source_variants_are_distinct() {
         assert_ne!(HookSource::UserManual, HookSource::TimerAutoBackup);
         assert_ne!(HookSource::QuickActionHotkey, HookSource::CloudSync);
+        assert_ne!(HookSource::CloudSync, HookSource::CloudConflictResolution);
         assert_ne!(HookSource::QuickActionTray, HookSource::QuickActionHotkey);
         assert_eq!(HookSource::Internal, HookSource::Internal);
     }
