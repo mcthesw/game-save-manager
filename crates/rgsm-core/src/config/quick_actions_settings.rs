@@ -1,7 +1,31 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 
 use crate::{backup::Game, default_value};
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum QuickActionGameReference {
+    Id(String),
+    LegacyGame(Box<Game>),
+}
+
+fn deserialize_quick_action_game_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(
+        Option::<QuickActionGameReference>::deserialize(deserializer)?.map(|reference| {
+            match reference {
+                QuickActionGameReference::Id(id) => id,
+                QuickActionGameReference::LegacyGame(game) if !game.storage_key.is_empty() => {
+                    game.storage_key
+                }
+                QuickActionGameReference::LegacyGame(game) => game.name,
+            }
+        }),
+    )
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct QuickActionHotkeys {
@@ -55,8 +79,12 @@ impl Default for QuickActionSoundPreferences {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct QuickActionsSettings {
-    #[serde(default = "default_value::default_none")]
-    pub quick_action_game: Option<Game>,
+    #[serde(
+        default = "default_value::default_none",
+        alias = "quick_action_game",
+        deserialize_with = "deserialize_quick_action_game_id"
+    )]
+    pub quick_action_game_id: Option<String>,
     #[serde(default = "default_value::default")]
     pub hotkeys: QuickActionHotkeys,
     #[serde(default = "default_value::default_true")]
@@ -74,7 +102,7 @@ pub struct QuickActionsSettings {
 impl Default for QuickActionsSettings {
     fn default() -> Self {
         Self {
-            quick_action_game: default_value::default_none(),
+            quick_action_game_id: default_value::default_none(),
             hotkeys: QuickActionHotkeys::default(),
             enable_sound: default_value::default_true(),
             enable_notification: default_value::default_true(),
@@ -86,14 +114,25 @@ impl Default for QuickActionsSettings {
 }
 
 impl QuickActionsSettings {
+    pub fn selected_game<'a>(&self, games: &'a [Game]) -> Option<&'a Game> {
+        let identity = self.quick_action_game_id.as_deref()?;
+        games
+            .iter()
+            .find(|game| !identity.is_empty() && game.storage_key == identity)
+            .or_else(|| games.iter().find(|game| game.name == identity))
+    }
+
     pub fn remove_deleted_game_reference(&mut self, deleted_game: &Game) -> bool {
         let should_clear = self
-            .quick_action_game
-            .as_ref()
-            .is_some_and(|game| game.references_same_game(deleted_game));
+            .quick_action_game_id
+            .as_deref()
+            .is_some_and(|identity| {
+                (!deleted_game.storage_key.is_empty() && identity == deleted_game.storage_key)
+                    || identity == deleted_game.name
+            });
 
         if should_clear {
-            self.quick_action_game = None;
+            self.quick_action_game_id = None;
         }
 
         let before_len = self.game_automations.len();
@@ -104,11 +143,15 @@ impl QuickActionsSettings {
     }
 
     pub fn sync_updated_game_reference(&mut self, previous_game: &Game, updated_game: &Game) {
-        if let Some(ref mut qa_game) = self.quick_action_game
-            && qa_game.references_same_game(previous_game)
+        if let Some(identity) = self.quick_action_game_id.as_deref()
+            && ((!previous_game.storage_key.is_empty() && identity == previous_game.storage_key)
+                || identity == previous_game.name)
         {
-            qa_game.name = updated_game.name.clone();
-            qa_game.storage_key = updated_game.storage_key.clone();
+            self.quick_action_game_id = Some(if updated_game.storage_key.is_empty() {
+                updated_game.name.clone()
+            } else {
+                updated_game.storage_key.clone()
+            });
         }
 
         for automation in &mut self.game_automations {
@@ -151,6 +194,68 @@ impl QuickActionsSettings {
         self.game_automations
             .retain(|automation| !automation.references_game(game));
         before_len != self.game_automations.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn game(name: &str, storage_key: &str) -> Game {
+        Game {
+            name: name.to_string(),
+            storage_key: storage_key.to_string(),
+            save_paths: Vec::new(),
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: false,
+            auto_backup: None,
+            ludusavi_meta: None,
+            device_bindings: Default::default(),
+        }
+    }
+
+    #[test]
+    fn legacy_game_reference_deserializes_to_storage_key() {
+        let legacy = serde_json::json!({
+            "quick_action_game": game("Display Name", "stable-key")
+        });
+
+        let settings: QuickActionsSettings = serde_json::from_value(legacy).unwrap();
+
+        assert_eq!(settings.quick_action_game_id.as_deref(), Some("stable-key"));
+    }
+
+    #[test]
+    fn serialization_emits_only_stable_game_id() {
+        let settings = QuickActionsSettings {
+            quick_action_game_id: Some("stable-key".to_string()),
+            ..Default::default()
+        };
+
+        let serialized = serde_json::to_value(settings).unwrap();
+
+        assert_eq!(
+            serialized.pointer("/quick_action_game_id"),
+            Some(&serde_json::Value::String("stable-key".to_string()))
+        );
+        assert!(serialized.get("quick_action_game").is_none());
+    }
+
+    #[test]
+    fn selected_game_accepts_legacy_display_name() {
+        let games = vec![game("Display Name", "stable-key")];
+        let settings = QuickActionsSettings {
+            quick_action_game_id: Some("Display Name".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            settings
+                .selected_game(&games)
+                .map(|game| game.storage_key.as_str()),
+            Some("stable-key")
+        );
     }
 }
 

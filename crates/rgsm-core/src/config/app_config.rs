@@ -81,6 +81,10 @@ impl Default for Config {
 }
 
 impl Config {
+    pub fn selected_quick_action_game(&self) -> Option<&Game> {
+        self.quick_action.selected_game(&self.games)
+    }
+
     pub fn remove_deleted_game_references(&mut self, deleted_game: &Game) -> bool {
         let quick_action_changed = self
             .quick_action

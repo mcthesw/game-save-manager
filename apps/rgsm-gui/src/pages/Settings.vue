@@ -33,6 +33,11 @@ const { config, refreshConfig, saveConfig } = useConfig();
 const feedback = useFeedback();
 const locale_message = i18n.global.messages;
 const locale_names = i18n.global.availableLocales;
+const currentQuickActionGame = computed(() => {
+  const identity = config.value.quick_action?.quick_action_game_id;
+  if (!identity) return undefined;
+  return config.value.games.find((game) => game.storage_key === identity || game.name === identity);
+});
 const activeTab = ref('general');
 const hotkeysChanged = ref(false);
 const gameOrderChanged = ref(false);
@@ -1396,9 +1401,9 @@ const { linksWithGames: router_list } = useNavigationLinks();
 
           <div class="setting-box">
             <div>
-              <strong v-if="config.quick_action!.quick_action_game">
+              <strong v-if="currentQuickActionGame">
                 {{ $t('setting.current_quick_action_game') }} :
-                {{ config.quick_action!.quick_action_game?.name }}
+                {{ currentQuickActionGame.name }}
               </strong>
             </div>
             <div class="quick-action-row">

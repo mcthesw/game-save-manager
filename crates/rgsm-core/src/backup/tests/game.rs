@@ -700,15 +700,12 @@ fn delete_game_clears_quick_action_reference_by_storage_key() -> TestResult {
             make_test_game_with_storage_key("Deleted Game", "deleted-game-key", &backup_root)?;
         let remaining_game =
             make_test_game_with_storage_key("Remaining Game", "remaining-game-key", &backup_root)?;
-        let mut quick_action_reference = deleted_game.clone();
-        quick_action_reference.name = "Renamed Deleted Game".to_string();
-
         let mut config = Config {
             backup_path: backup_root.to_string_lossy().to_string(),
             games: vec![deleted_game.clone(), remaining_game.clone()],
             ..Config::default()
         };
-        config.quick_action.quick_action_game = Some(quick_action_reference);
+        config.quick_action.quick_action_game_id = Some(deleted_game.storage_key.clone());
         let _config_guard = restore_config_guard(&config)?;
 
         deleted_game.delete_game().await?;
@@ -716,7 +713,7 @@ fn delete_game_clears_quick_action_reference_by_storage_key() -> TestResult {
         let persisted = get_config()?;
         assert_eq!(persisted.games.len(), 1);
         assert_eq!(persisted.games[0].storage_key, remaining_game.storage_key);
-        assert!(persisted.quick_action.quick_action_game.is_none());
+        assert!(persisted.quick_action.quick_action_game_id.is_none());
         Ok(())
     })
 }
@@ -736,7 +733,7 @@ fn delete_game_clears_legacy_quick_action_reference_by_name() -> TestResult {
             games: vec![deleted_game.clone(), remaining_game.clone()],
             ..Config::default()
         };
-        config.quick_action.quick_action_game = Some(deleted_game.clone());
+        config.quick_action.quick_action_game_id = Some(deleted_game.name.clone());
         let _config_guard = restore_config_guard(&config)?;
 
         deleted_game.delete_game().await?;
@@ -744,7 +741,7 @@ fn delete_game_clears_legacy_quick_action_reference_by_name() -> TestResult {
         let persisted = get_config()?;
         assert_eq!(persisted.games.len(), 1);
         assert_eq!(persisted.games[0].name, remaining_game.name);
-        assert!(persisted.quick_action.quick_action_game.is_none());
+        assert!(persisted.quick_action.quick_action_game_id.is_none());
         Ok(())
     })
 }

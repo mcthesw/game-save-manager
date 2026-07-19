@@ -617,8 +617,8 @@ fn migrate_save_unit_ids(mut config: Config) -> Config {
 /// key to avoid renaming any directories. If the directory name would collide
 /// (case-insensitive) with another game's key, generate a unique suffix.
 ///
-/// Also backfills `quick_action.quick_action_game` if it references a game
-/// that just received a storage key.
+/// Also replaces a legacy quick-action display-name reference with the storage
+/// key assigned to that game.
 fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
     let mut assigned: std::collections::HashSet<String> = config
         .games
@@ -655,14 +655,12 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
         assigned.insert(key);
     }
 
-    // Refresh the selected quick-action Game from the fully migrated source of truth.
-    // Legacy configs persisted a complete Game copy here, so updating only its
-    // storage_key would leave old Save Unit paths and IDs behind.
-    if let Some(ref mut qa_game) = config.quick_action.quick_action_game
-        && qa_game.storage_key.is_empty()
-        && let Some(matched) = config.games.iter().find(|g| g.name == qa_game.name)
+    // Legacy quick-action references without a storage key deserialize to the
+    // display name. Replace that transitional identity after keys are assigned.
+    if let Some(ref mut identity) = config.quick_action.quick_action_game_id
+        && let Some(matched) = config.games.iter().find(|game| game.name == *identity)
     {
-        *qa_game = matched.clone();
+        *identity = matched.storage_key.clone();
     }
 
     config
@@ -1312,20 +1310,12 @@ mod tests {
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         });
-        config.quick_action.quick_action_game = Some(crate::backup::Game {
-            name: "QA Game".to_string(),
-            storage_key: String::new(),
-            save_paths: vec![],
-            game_paths: Default::default(),
-            next_save_unit_id: 0,
-            cloud_sync_enabled: true,
-            auto_backup: None,
-            ludusavi_meta: None,
-            device_bindings: std::collections::HashMap::new(),
-        });
+        config.quick_action.quick_action_game_id = Some("QA Game".to_string());
 
         let migrated = migrate_storage_keys(config, &backup_path);
-        let qa = migrated.quick_action.quick_action_game.unwrap();
-        assert_eq!(qa.storage_key, migrated.games[0].storage_key);
+        assert_eq!(
+            migrated.quick_action.quick_action_game_id.as_deref(),
+            Some(migrated.games[0].storage_key.as_str())
+        );
     }
 }
