@@ -37,6 +37,8 @@ pub enum OwnerStoreError {
     ActivationInputsChanged,
     #[error("Local configuration changed while Cloud Library join was in progress")]
     JoinInputsChanged,
+    #[error("Local configuration changed while Cloud Cutover was in progress")]
+    CutoverInputsChanged,
 }
 
 pub(crate) struct OwnerStore {
@@ -195,6 +197,33 @@ impl OwnerStore {
         owners
             .device_profiles
             .insert(current_device_id, accepted_profile.clone());
+        owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        self.write(&owners)
+    }
+
+    pub(crate) fn activate_cutover_v2(
+        &self,
+        expected_local_library: &SharedLibrary,
+        expected_local_profile: &DeviceProfile,
+        accepted_library: &SharedLibrary,
+        accepted_profiles: &HashMap<DeviceId, DeviceProfile>,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        let current_device_id = owners.local_state.current_device_id.clone();
+        let current_profile = owners
+            .device_profiles
+            .get(&current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1
+            || owners.shared_library != *expected_local_library
+            || serde_json::to_vec(current_profile)? != serde_json::to_vec(expected_local_profile)?
+            || !accepted_profiles.contains_key(&current_device_id)
+        {
+            return Err(OwnerStoreError::CutoverInputsChanged);
+        }
+
+        owners.shared_library = accepted_library.clone();
+        owners.device_profiles = accepted_profiles.clone();
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
         self.write(&owners)
     }
@@ -429,6 +458,55 @@ mod tests {
         assert_eq!(
             store.load().unwrap().local_state.cloud_namespace_generation,
             CloudNamespaceGeneration::V2
+        );
+    }
+
+    #[test]
+    fn cutover_activation_compare_checks_inputs_and_preserves_local_state() {
+        let (_root, store) = store();
+        let input = config(get_current_device_id(), "before");
+        store.initialize_from_legacy(&input).unwrap();
+        let before = store.load().unwrap();
+        let expected_profile = before.device_profiles[get_current_device_id()].clone();
+        let mut stale_profile = expected_profile.clone();
+        stale_profile.device.name = "stale".into();
+
+        assert!(matches!(
+            store.activate_cutover_v2(
+                &before.shared_library,
+                &stale_profile,
+                &before.shared_library,
+                &before.device_profiles,
+            ),
+            Err(OwnerStoreError::CutoverInputsChanged)
+        ));
+
+        let mut accepted_profiles = before.device_profiles.clone();
+        accepted_profiles
+            .get_mut(get_current_device_id())
+            .unwrap()
+            .device
+            .name = "Migrated Device".into();
+        store
+            .activate_cutover_v2(
+                &before.shared_library,
+                &expected_profile,
+                &before.shared_library,
+                &accepted_profiles,
+            )
+            .unwrap();
+        let active = store.load().unwrap();
+        assert_eq!(
+            active.local_state.interface.locale,
+            before.local_state.interface.locale
+        );
+        assert_eq!(
+            active.local_state.cloud_namespace_generation,
+            CloudNamespaceGeneration::V2
+        );
+        assert_eq!(
+            active.device_profiles[get_current_device_id()].device.name,
+            "Migrated Device"
         );
     }
 

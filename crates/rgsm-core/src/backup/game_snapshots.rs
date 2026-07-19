@@ -51,6 +51,15 @@ impl GameSnapshots {
     }
 
     pub fn normalize_heads(&mut self) {
+        self.normalize_heads_for_device(get_current_device_id());
+    }
+
+    /// Normalize legacy single-head metadata with an explicit fallback Device.
+    ///
+    /// Cutover uses this form so graph migration never consults process-global
+    /// Device state. The legacy Snapshot `device_id` is consumed only while
+    /// deriving a Head and is not part of the V2 Snapshot identity.
+    pub fn normalize_heads_for_device(&mut self, fallback_device_id: &DeviceId) {
         if self.device_heads.is_empty()
             && let Some(legacy_head) = self.legacy_head.take()
         {
@@ -63,7 +72,7 @@ impl GameSnapshots {
                         .find(|snapshot| snapshot.date == legacy_head)
                         .and_then(|snapshot| snapshot.device_id.clone())
                 })
-                .unwrap_or_else(|| get_current_device_id().clone());
+                .unwrap_or_else(|| fallback_device_id.clone());
             self.device_heads.insert(owner, legacy_head);
         }
 

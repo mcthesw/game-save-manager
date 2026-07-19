@@ -712,6 +712,25 @@
                 "review_changed": "{game} changed while you were reviewing. The latest version has been loaded.",
                 "join_success": "This device joined the Cloud Library",
                 "no_local_games": "There are no local games to compare."
+            },
+            "cutover": {
+                "action": "Migrate legacy library",
+                "title": "Migrate Legacy Cloud Library",
+                "games": "Games",
+                "snapshots": "Snapshots",
+                "declared_size": "Estimated archive size",
+                "size_unknown": "Unknown",
+                "compatibility_title": "Upgrade every participating device",
+                "compatibility_description": "After migration, this device uses the new Cloud Library. Older or downgraded versions keep seeing the unchanged legacy data and cannot see later V2 progress.",
+                "archive_title": "Existing archive damage is preserved safely",
+                "archive_description": "Migration verifies every available archive. A Snapshot whose archive is missing or corrupt remains listed but cannot be downloaded or restored. You can resume the same migration after an interruption.",
+                "acknowledgement": "I understand that participating devices must use a compatible version and downgrading will not show new progress.",
+                "start": "Migrate and switch",
+                "running": "Keep the app open. Archives are verified individually, and an interruption can resume without restarting completed items.",
+                "review_failed": "Could not prepare the migration review",
+                "failed": "Could not migrate the legacy Cloud Library",
+                "completed": "Legacy Cloud Library migrated",
+                "completed_with_warnings": "Migration completed, but {count} archives were already missing or corrupt."
             }
         },
         "operations": {

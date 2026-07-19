@@ -112,6 +112,24 @@ pub(crate) fn activate_joined_cloud_library(
     Ok(())
 }
 
+pub(crate) fn activate_cutover_cloud_library(
+    expected_local_library: &SharedLibrary,
+    expected_local_profile: &DeviceProfile,
+    accepted_library: &SharedLibrary,
+    accepted_profiles: &std::collections::HashMap<crate::device::DeviceId, DeviceProfile>,
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().activate_cutover_v2(
+        expected_local_library,
+        expected_local_profile,
+        accepted_library,
+        accepted_profiles,
+    )?;
+    Ok(())
+}
+
 fn get_config_unlocked() -> Result<Config, ConfigError> {
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {

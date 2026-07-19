@@ -5,7 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::backup::Game;
 use crate::cloud_sync::v2::{
-    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryJoin, CloudLibraryJoinError,
+    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryCutover,
+    CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError,
     CloudLibraryJoinReview, CloudNamespaceClassification, JoinGameDecision,
 };
 use crate::cloud_sync::{
@@ -15,8 +16,9 @@ use crate::cloud_sync::{
     sync_game as sync_cloud_game, upload_all_from_session,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, activate_cloud_namespace_v2, activate_joined_cloud_library,
-    cloud_bootstrap_inputs, cloud_namespace_generation, get_config,
+    CloudNamespaceGeneration, Config, activate_cloud_namespace_v2, activate_cutover_cloud_library,
+    activate_joined_cloud_library, cloud_bootstrap_inputs, cloud_namespace_generation, get_config,
+    resolve_backup_path,
 };
 use crate::hooks::{HookSource, MetadataChangedCtx};
 use crate::preclude::BackendError;
@@ -60,6 +62,13 @@ pub enum CloudLibraryJoinOutcome {
     ReviewChanged { game_name: String },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct CloudLibraryCutoverOutcome {
+    pub game_count: usize,
+    pub snapshot_count: usize,
+    pub unavailable_archives: usize,
+}
+
 #[derive(Debug, Error)]
 pub enum CloudLibraryServiceError {
     #[error("Cloud Library creation requires explicit confirmation")]
@@ -68,6 +77,8 @@ pub enum CloudLibraryServiceError {
     ActiveLibraryUnavailable,
     #[error("This installation does not need to join a Cloud Library")]
     JoinNotRequired,
+    #[error("This installation does not need Cloud Cutover")]
+    CutoverNotRequired,
     #[error(transparent)]
     Config(#[from] crate::preclude::ConfigError),
     #[error(transparent)]
@@ -76,6 +87,10 @@ pub enum CloudLibraryServiceError {
     Bootstrap(#[from] CloudLibraryBootstrapError),
     #[error(transparent)]
     Join(#[from] CloudLibraryJoinError),
+    #[error(transparent)]
+    Cutover(#[from] CloudLibraryCutoverError),
+    #[error("Cloud Cutover progress identity could not be created: {0}")]
+    CutoverProgressIdentity(#[from] serde_json::Error),
 }
 
 impl ServiceContext {
@@ -230,6 +245,73 @@ impl ServiceContext {
         Ok(CloudLibraryJoinOutcome::Active {
             game_count: accepted_library.games.len(),
         })
+    }
+
+    pub async fn review_cloud_library_cutover(
+        &self,
+    ) -> Result<CloudLibraryCutoverReview, CloudLibraryServiceError> {
+        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
+            return Err(CloudLibraryServiceError::CutoverNotRequired);
+        }
+        self.cutover(&profile, &local_state)?
+            .review()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn cutover_cloud_library(
+        &self,
+        confirmed: bool,
+    ) -> Result<CloudLibraryCutoverOutcome, CloudLibraryServiceError> {
+        if !confirmed {
+            return Err(CloudLibraryServiceError::ConfirmationRequired);
+        }
+        let (local_library, local_profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
+            return Err(CloudLibraryServiceError::CutoverNotRequired);
+        }
+        let cutover = self.cutover(&local_profile, &local_state)?;
+        let result = cutover.execute().await?;
+        activate_cutover_cloud_library(
+            &local_library,
+            &local_profile,
+            &result.shared_library,
+            &result.device_profiles,
+        )?;
+        if let Err(error) = cutover.finish().await {
+            log::warn!(
+                target: "rgsm::cloud::cutover",
+                "V2 activation succeeded but local Cutover cleanup failed: {error}"
+            );
+        }
+        Ok(CloudLibraryCutoverOutcome {
+            game_count: result.shared_library.games.len(),
+            snapshot_count: result.snapshot_count,
+            unavailable_archives: result.unavailable_archives,
+        })
+    }
+
+    fn cutover(
+        &self,
+        profile: &crate::config::DeviceProfile,
+        local_state: &crate::config::LocalState,
+    ) -> Result<CloudLibraryCutover, CloudLibraryServiceError> {
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        let identity =
+            xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(&local_state.cloud_settings)?);
+        let progress_path = crate::app_dirs::get_app_data_dir().join(format!(
+            "GameSaveManager.cloud-cutover.{identity:016x}.json"
+        ));
+        let archive_root =
+            resolve_backup_path(profile.local_archive_root.as_deref().unwrap_or("save_data"));
+        Ok(CloudLibraryCutover::new(
+            session.get_op()?,
+            archive_root,
+            progress_path,
+            local_state.current_device_id.clone(),
+            3,
+        ))
     }
 }
 

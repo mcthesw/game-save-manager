@@ -12,6 +12,7 @@ use super::super::V1_SAVE_DATA_PREFIX;
 use super::{CloudManifest, ManifestError};
 use crate::config::{Config, OwnershipError, SharedLibrary};
 use crate::device::encode_device_id;
+use crate::{backup::ArchiveFormat, cloud_sync::transfer::path_to_remote_key};
 
 pub const V2_NAMESPACE_SCHEMA_VERSION: u32 = 2;
 pub const V2_NAMESPACE_PREFIX: &str = "v2/";
@@ -26,6 +27,18 @@ pub fn device_profile_path(device_id: &str) -> String {
     format!(
         "{V2_DEVICE_PROFILES_PREFIX}{}.json",
         encode_device_id(device_id)
+    )
+}
+
+pub fn cloud_archive_path(
+    game_id: &str,
+    snapshot_id: &str,
+    format: ArchiveFormat,
+) -> Result<String, crate::preclude::BackendError> {
+    path_to_remote_key(
+        &std::path::PathBuf::from(CLOUD_ARCHIVES_PREFIX)
+            .join(game_id)
+            .join(format!("{snapshot_id}.{}", format.extension())),
     )
 }
 

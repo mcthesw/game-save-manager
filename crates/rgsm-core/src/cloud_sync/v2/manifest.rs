@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::ArchiveIntegrity;
-use crate::backup::CreatedBy;
+use crate::backup::{ArchiveFormat, CreatedBy};
 use crate::device::DeviceId;
 
 pub const CLOUD_MANIFEST_SCHEMA_VERSION: u32 = 2;
@@ -272,15 +272,19 @@ impl GameManifest {
                     parent: parent.clone(),
                 });
             }
-            if let SnapshotState::Live(live) = &node.state
-                && (live.integrity.xxh3_64.len() != 16
-                    || !live
-                        .integrity
-                        .xxh3_64
-                        .bytes()
-                        .all(|byte| byte.is_ascii_hexdigit()))
-            {
-                return Err(ManifestError::InvalidIntegrity(snapshot_id.clone()));
+            if let SnapshotState::Live(live) = &node.state {
+                if live.cloud_archive_verified && live.integrity.is_none() {
+                    return Err(ManifestError::InvalidIntegrity(snapshot_id.clone()));
+                }
+                if let Some(integrity) = &live.integrity
+                    && (integrity.xxh3_64.len() != 16
+                        || !integrity
+                            .xxh3_64
+                            .bytes()
+                            .all(|byte| byte.is_ascii_hexdigit()))
+                {
+                    return Err(ManifestError::InvalidIntegrity(snapshot_id.clone()));
+                }
             }
         }
         for snapshot_id in self.snapshots.keys() {
@@ -309,6 +313,10 @@ impl GameManifest {
 pub struct SnapshotNode {
     pub snapshot_id: String,
     pub parent: Option<String>,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub archive_format: ArchiveFormat,
     pub state: SnapshotState,
 }
 
@@ -322,8 +330,29 @@ impl SnapshotNode {
         Self {
             snapshot_id: snapshot_id.into(),
             parent,
+            description: String::new(),
+            archive_format: ArchiveFormat::default(),
             state: SnapshotState::Live(LiveSnapshot {
-                integrity,
+                integrity: Some(integrity),
+                cloud_archive_verified: false,
+                created_by,
+                retention_protected: false,
+            }),
+        }
+    }
+
+    pub fn unavailable(
+        snapshot_id: impl Into<String>,
+        parent: Option<String>,
+        created_by: CreatedBy,
+    ) -> Self {
+        Self {
+            snapshot_id: snapshot_id.into(),
+            parent,
+            description: String::new(),
+            archive_format: ArchiveFormat::default(),
+            state: SnapshotState::Live(LiveSnapshot {
+                integrity: None,
                 cloud_archive_verified: false,
                 created_by,
                 retention_protected: false,
@@ -348,7 +377,8 @@ impl SnapshotState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LiveSnapshot {
-    pub integrity: ArchiveIntegrity,
+    #[serde(default)]
+    pub integrity: Option<ArchiveIntegrity>,
     pub cloud_archive_verified: bool,
     pub created_by: CreatedBy,
     pub retention_protected: bool,
