@@ -14,6 +14,7 @@ pub use rgsm_core::hooks::*;
 
 use std::sync::{Arc, RwLock};
 
+use log::warn;
 use tauri::{AppHandle, Manager};
 
 use rgsm_core::cloud_sync::{Backend, CloudSyncTaskManager};
@@ -79,16 +80,30 @@ pub fn build_builtin_pipeline(
     hooks.push(Box::new(quick_action_sync_hook::QuickActionSyncHook::new(
         quick_action_sync,
     )));
-    if !matches!(config.settings.cloud_settings.backend, Backend::Disabled)
-        && matches!(
-            cloud_namespace_generation(),
-            Ok(CloudNamespaceGeneration::LegacyV1)
-        )
-    {
-        let sync_queue: Arc<dyn SyncJobQueue> = task_manager;
-        hooks.push(Box::new(
-            rgsm_core::hooks::cloud_sync_hook::CloudSyncEnqueueHook::new(sync_queue),
-        ));
+    if !matches!(config.settings.cloud_settings.backend, Backend::Disabled) {
+        match cloud_namespace_generation() {
+            Ok(CloudNamespaceGeneration::LegacyV1) => {
+                let sync_queue: Arc<dyn SyncJobQueue> = task_manager;
+                hooks.push(Box::new(
+                    rgsm_core::hooks::cloud_sync_hook::CloudSyncEnqueueHook::new(sync_queue),
+                ));
+            }
+            Ok(CloudNamespaceGeneration::V2) => {
+                let state = app.state::<crate::snapshot_sync::SnapshotSyncRuntimeState>();
+                match rgsm_core::services::build_v2_snapshot_sync_hook(state.operation_lock()) {
+                    Ok(Some(hook)) => hooks.push(Box::new(hook)),
+                    Ok(None) => {}
+                    Err(error) => warn!(
+                        target: "rgsm::hooks::v2_snapshot_sync",
+                        "Failed to build V2 Snapshot Sync hook: {error}"
+                    ),
+                }
+            }
+            Err(error) => warn!(
+                target: "rgsm::hooks::v2_snapshot_sync",
+                "Failed to determine Cloud Library generation: {error}"
+            ),
+        }
     }
     hooks.push(Box::new(notification_hook::NotificationHook::new(
         app.clone(),

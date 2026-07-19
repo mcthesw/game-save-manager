@@ -131,6 +131,12 @@ const savedBackendEnabled = computed(
   () => config.value?.settings.cloud_settings?.backend?.type !== 'Disabled'
 );
 const v2LibraryActive = computed(() => cloudLibraryStatus.value?.kind === 'active');
+const snapshotSyncInterval = computed({
+  get: () => cloud_settings.value.auto_sync_interval || 5,
+  set: (minutes: number) => {
+    cloud_settings.value.auto_sync_interval = minutes;
+  },
+});
 const savedConnectionKey = computed(() =>
   JSON.stringify(config.value?.settings.cloud_settings ?? null)
 );
@@ -842,6 +848,15 @@ onMounted(async () => {
                 :max="32"
               />
               <span class="field-hint">{{ $t('sync_settings.max_concurrency_hint') }}</span>
+            </ElFormItem>
+            <ElFormItem v-if="v2LibraryActive" :label="$t('sync_settings.auto_sync_interval')">
+              <ElInputNumber
+                v-model="snapshotSyncInterval"
+                :step="1"
+                :step-strictly="true"
+                :min="1"
+                :max="1440"
+              />
             </ElFormItem>
 
             <ElFormItem>

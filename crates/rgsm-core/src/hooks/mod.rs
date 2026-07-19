@@ -14,6 +14,7 @@ pub mod traits;
 pub mod checksum_hook;
 pub mod cloud_sync_hook;
 pub mod pre_restore_backup_hook;
+mod v2_snapshot_sync_hook;
 
 pub use checksum_hook::{ArchiveHashHook, ArchiveVerifyHook};
 pub use cloud_sync_hook::CloudSyncEnqueueHook;
@@ -21,3 +22,4 @@ pub use contexts::*;
 pub use pipeline::*;
 pub use pre_restore_backup_hook::PreRestoreBackupHook;
 pub use traits::{HookResult, LifecycleHook, SnapshotHook, SyncJobQueue};
+pub use v2_snapshot_sync_hook::{SnapshotSyncTarget, V2SnapshotSyncHook};
