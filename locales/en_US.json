@@ -673,7 +673,31 @@
             "preview_failed": "Could not prepare Download All",
             "transfer_failed": "Snapshot transfer failed",
             "upload_success": "Snapshot uploaded",
-            "download_success": "Snapshot downloaded"
+            "download_success": "Snapshot downloaded",
+            "progress": {
+                "action": "Compare progress",
+                "title": "Compare progress for {game}",
+                "choice_required": "Devices have different progress. Comparing the options does not change any save data.",
+                "aligned": "Advertised devices currently agree with this position.",
+                "local_title": "Current position on this device",
+                "no_local": "No current position on this device",
+                "relation_same": "Same position",
+                "relation_ahead": "Ahead of this device",
+                "relation_earlier": "Earlier than this device",
+                "relation_different": "Different progress",
+                "relation_no_local": "Available starting point",
+                "local_unique": "Only on this device",
+                "remote_unique": "Only in this progress",
+                "shared_point": "Shared starting point",
+                "no_shared_point": "Separate history",
+                "on_device": "Archive on this device",
+                "not_on_device": "Not stored on this device",
+                "in_cloud": "Ready in cloud",
+                "not_in_cloud": "Archive not available in cloud",
+                "no_candidates": "No Device has advertised a current position yet.",
+                "decide_later": "Decide later",
+                "load_failed": "Could not compare Device progress"
+            }
         },
         "conflict": {
             "title": "Resolve cloud sync conflict",

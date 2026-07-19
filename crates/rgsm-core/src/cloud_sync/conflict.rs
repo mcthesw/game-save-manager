@@ -33,11 +33,6 @@ pub enum SyncRelation {
 pub enum ConflictResolution {
     KeepLocal,
     AcceptRemote,
-    /// Preserve both local and remote branches without merging.
-    ///
-    /// TODO: implement branch selection and upload semantics for this git-like fork workflow.
-    Fork,
-    Cancelled,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

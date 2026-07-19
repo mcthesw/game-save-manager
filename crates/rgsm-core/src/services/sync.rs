@@ -4,13 +4,14 @@ use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
 use crate::app_dirs::resolve_app_path;
-use crate::backup::Game;
+use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::v2::{
     CloudArchiveLibraryView, CloudArchiveMaterializer, CloudLibraryBootstrap,
     CloudLibraryBootstrapError, CloudLibraryCutover, CloudLibraryCutoverError,
     CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
-    CloudNamespaceClassification, DeviceProfileRepository, DeviceProfileRepositoryError,
-    JoinGameDecision, MaterializationError, MaterializationOutcome, MaterializationPreview,
+    CloudNamespaceClassification, ConflictReviewError, DeviceProfileRepository,
+    DeviceProfileRepositoryError, JoinGameDecision, MaterializationError, MaterializationOutcome,
+    MaterializationPreview, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -102,6 +103,8 @@ pub enum CloudLibraryServiceError {
     Cutover(#[from] CloudLibraryCutoverError),
     #[error(transparent)]
     Materialization(#[from] MaterializationError),
+    #[error(transparent)]
+    ConflictReview(#[from] ConflictReviewError),
     #[error(transparent)]
     DeviceProfile(#[from] DeviceProfileRepositoryError),
     #[error("Game is not configured on this device: {0}")]
@@ -335,6 +338,43 @@ impl ServiceContext {
                 .map_or(SyncMode::Manual, |settings| settings.sync_mode);
         }
         Ok(view)
+    }
+
+    pub async fn review_v2_game_progress(
+        &self,
+        game_id: &str,
+    ) -> Result<V2ConflictReview, CloudLibraryServiceError> {
+        let (library, profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        let game_name = library
+            .games
+            .iter()
+            .find(|game| game.storage_key == game_id)
+            .map(|game| game.name.clone())
+            .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
+        let local = get_config()?
+            .games
+            .into_iter()
+            .find(|game| game.storage_key == game_id)
+            .map(|game| game.get_game_snapshots_info())
+            .transpose()?
+            .unwrap_or_else(|| GameSnapshots::new(game_name));
+        let local_archive_root = profile
+            .local_archive_root
+            .as_deref()
+            .map(resolve_app_path)
+            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        Ok(V2ConflictInspector::new(
+            session.get_op()?,
+            local_archive_root,
+            local_state.current_device_id,
+            3,
+        )
+        .review(game_id, &local)
+        .await?)
     }
 
     pub async fn preview_materialize_all(

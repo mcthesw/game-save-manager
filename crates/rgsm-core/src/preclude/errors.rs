@@ -47,8 +47,6 @@ pub enum BackendError {
     GameNotFound(String),
     #[error("No unresolved cloud sync conflict for game: {0}")]
     InvalidConflictState(String),
-    #[error("Unsupported cloud conflict resolution: {0}")]
-    UnsupportedConflictResolution(String),
     #[error("Legacy cloud synchronization is unavailable after V2 Cloud Library activation")]
     V2CloudLibraryActive,
     #[error("IO error: {0:#?}")]
