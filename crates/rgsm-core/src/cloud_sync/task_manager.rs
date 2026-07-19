@@ -721,7 +721,8 @@ async fn execute_job_once(
         } => {
             let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
             run_cancellable(token, async {
-                op.remove_all(remote_game_dir_path)
+                op.delete_with(remote_game_dir_path)
+                    .recursive(true)
                     .await
                     .map_err(BackendError::from)
             })
