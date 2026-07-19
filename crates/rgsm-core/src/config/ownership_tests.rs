@@ -200,6 +200,32 @@ fn normal_save_preserves_shared_snapshot_retention() {
 }
 
 #[test]
+fn normal_save_preserves_current_device_management_and_visibility() {
+    let (config, windows_id, _) = dual_device_config();
+    let mut owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    let current = owners.device_profiles.get_mut(&windows_id).unwrap();
+    current.games.get_mut("example-game").unwrap().visible = false;
+    let mut edited = owners.assemble_effective().unwrap();
+
+    owners.merge_effective(&edited).unwrap();
+    assert!(!owners.device_profiles[&windows_id].games["example-game"].visible);
+
+    owners
+        .device_profiles
+        .get_mut(&windows_id)
+        .unwrap()
+        .games
+        .remove("example-game");
+    edited.settings.prompt_when_not_described = !edited.settings.prompt_when_not_described;
+    owners.merge_effective(&edited).unwrap();
+    assert!(
+        !owners.device_profiles[&windows_id]
+            .games
+            .contains_key("example-game")
+    );
+}
+
+#[test]
 fn normal_save_removes_an_explicitly_deleted_device_profile() {
     let (config, windows_id, deck_id) = dual_device_config();
     let mut owners = ConfigurationOwners::from_legacy(&config, &windows_id);

@@ -6,8 +6,10 @@ mod deletion;
 mod game_comparison;
 mod integrity;
 mod join;
+mod local_eviction;
 mod manifest;
 mod materialization;
+mod materialization_models;
 #[cfg(test)]
 mod materialization_tests;
 mod namespace;
@@ -43,14 +45,17 @@ pub use join::{
     CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinItem, CloudLibraryJoinReview,
     GameDefinitionDifference, JoinGameAction, JoinGameDecision,
 };
+pub use local_eviction::{LocalArchiveEviction, LocalArchiveEvictionError};
 pub use manifest::{
     CLOUD_MANIFEST_SCHEMA_VERSION, CloudManifest, DeletionKind, GameManifest, LiveSnapshot,
     ManifestError, PendingTombstone, SnapshotNode, SnapshotState,
 };
 pub use materialization::{
-    CloudArchiveDeletionView, CloudArchiveGameView, CloudArchiveLibraryView,
-    CloudArchiveMaterializer, CloudArchiveSnapshotView, MaterializationError,
-    MaterializationOutcome, MaterializationPreview,
+    CloudArchiveGameView, CloudArchiveLibraryView, CloudArchiveMaterializer,
+    CloudArchiveSnapshotView, MaterializationError,
+};
+pub use materialization_models::{
+    CloudArchiveDeletionView, MaterializationOutcome, MaterializationPreview,
 };
 pub use namespace::{
     CLOUD_ARCHIVES_PREFIX, CLOUD_MANIFEST_PATH, CloudNamespaceClassification,

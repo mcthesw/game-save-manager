@@ -1,9 +1,10 @@
 import { error } from '@tauri-apps/plugin-log';
-import { commands, DEFAULT_CONFIG, events, type Config } from '../bindings';
+import { commands, DEFAULT_CONFIG, events, type Config, type DeviceGameStatus } from '../bindings';
 import { $t } from '../i18n';
 
 const defaultConfig: Config = DEFAULT_CONFIG as unknown as Config;
 const config = ref(defaultConfig);
+const deviceGameStatuses = ref<DeviceGameStatus[]>([]);
 const isLoading = ref(false);
 
 async function refreshConfig(): Promise<boolean> {
@@ -14,6 +15,15 @@ async function refreshConfig(): Promise<boolean> {
       throw new Error(result.error);
     }
     config.value = result.data;
+    const statuses = await commands.getCurrentDeviceGameStatuses();
+    deviceGameStatuses.value =
+      statuses.status === 'ok'
+        ? statuses.data
+        : config.value.games.map((game) => ({
+            game_id: game.storage_key || game.name,
+            managed: true,
+            visible: true,
+          }));
     return true;
   } catch (e) {
     error(`Failed to load config: ${e}`);
@@ -55,8 +65,14 @@ if (typeof window !== 'undefined') {
 void refreshConfig();
 
 export function useConfig() {
+  const isGameVisible = (gameId: string | undefined, fallbackName?: string) => {
+    const identity = gameId || fallbackName;
+    return deviceGameStatuses.value.find((status) => status.game_id === identity)?.visible ?? true;
+  };
   return {
     config,
+    deviceGameStatuses,
+    isGameVisible,
     isLoading,
     refreshConfig,
     saveConfig,

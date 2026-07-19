@@ -5,8 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     ArchiveIntegrity, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifest, DeletionKind,
-    GameManifest, MaterializationError, SnapshotDeletionLifecycleError, SnapshotNode,
-    SnapshotState, cloud_archive_path,
+    GameManifest, LocalArchiveEviction, MaterializationError, SnapshotDeletionLifecycleError,
+    SnapshotNode, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
 
@@ -89,6 +89,47 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
     assert!(!deck_only.local_verified);
     assert!(!deck_only.cloud_verified);
     assert_eq!(deck_only.reported_on_devices, vec!["deck"]);
+}
+
+#[tokio::test]
+async fn local_eviction_keeps_shared_snapshot_and_cloud_archive() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    game.set_head("pc".into(), "snapshot".into());
+    game.report_local_archive("pc".into(), "snapshot".into(), true);
+    manifest.games.insert("game".into(), game);
+    let local_path = archive_path(
+        &root.path().join("pc").join("game"),
+        "snapshot",
+        ArchiveFormat::Zip,
+    );
+    std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
+    std::fs::write(&local_path, b"bytes").unwrap();
+    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap();
+    operator
+        .write(&cloud_path, b"bytes".to_vec())
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+
+    assert!(
+        LocalArchiveEviction::new(operator.clone(), root.path().join("pc"), "pc".into(), 2,)
+            .evict("game", "snapshot")
+            .await
+            .unwrap()
+    );
+
+    assert!(!local_path.exists());
+    assert!(operator.exists(&cloud_path).await.unwrap());
+    let stored: CloudManifest =
+        serde_json::from_slice(&operator.read(CLOUD_MANIFEST_PATH).await.unwrap().to_vec())
+            .unwrap();
+    assert!(stored.games["game"].snapshots["snapshot"].state.is_live());
+    assert_eq!(stored.games["game"].device_heads["pc"], "snapshot");
+    assert!(!stored.games["game"].local_archives["pc"].contains("snapshot"));
 }
 
 #[tokio::test]

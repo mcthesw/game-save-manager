@@ -8,8 +8,9 @@ use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudManifest,
-    CloudManifestRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
+    ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveDeletionView,
+    CloudManifest, CloudManifestRepository, ManifestError, ManifestRepositoryError,
+    MaterializationOutcome, MaterializationPreview, SnapshotDeletionLifecycle,
     SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
@@ -34,6 +35,8 @@ pub struct CloudArchiveGameView {
     pub live_save_process_name: Option<String>,
     pub live_save_snapshot_on_exit: bool,
     pub retention_limit: Option<u32>,
+    pub managed: bool,
+    pub visible: bool,
     pub advertised_head_count: usize,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub pending_deletions: Vec<CloudArchiveDeletionView>,
@@ -51,25 +54,6 @@ pub struct CloudArchiveSnapshotView {
     pub reported_on_devices: Vec<DeviceId>,
     pub created_by: CreatedBy,
     pub retention_protected: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-pub struct CloudArchiveDeletionView {
-    pub snapshot_id: String,
-    pub description: String,
-    pub retryable: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-pub struct MaterializationPreview {
-    pub snapshot_count: usize,
-    pub total_bytes: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-pub struct MaterializationOutcome {
-    pub downloaded: usize,
-    pub remaining: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -176,6 +160,8 @@ impl CloudArchiveMaterializer {
                 live_save_process_name: None,
                 live_save_snapshot_on_exit: false,
                 retention_limit: None,
+                managed: false,
+                visible: false,
                 advertised_head_count: game
                     .device_heads
                     .values()

@@ -880,6 +880,31 @@ async function load_latest_save() {
 }
 
 async function del_cur() {
+  const cloud = await commands.inspectCloudLibrary();
+  if (cloud.status === 'ok' && cloud.data.kind === 'active') {
+    try {
+      await feedback.confirm($t('manage.stop_managing_confirm'), $t('manage.stop_managing_title'), {
+        confirmButtonText: $t('manage.stop_managing_action'),
+        cancelButtonText: $t('manage.cancel'),
+        type: 'warning',
+      });
+    } catch {
+      notifyInfo($t('manage.operation_canceled'));
+      return;
+    }
+    const result = await commands.setDeviceGameManaged(
+      game.value.storage_key || game.value.name,
+      false,
+      true
+    );
+    if (result.status === 'error') {
+      notifyError($t('manage.stop_managing_failed'), result.error);
+      return;
+    }
+    await refreshConfig();
+    router.back();
+    return;
+  }
   try {
     const { value } = await feedback.prompt($t('manage.delete_prompt'), $t('home.hint'), {
       confirmButtonText: $t('manage.confirm'),

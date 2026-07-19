@@ -21,6 +21,8 @@ impl ServiceContext {
             .await?;
         for game in &mut view.games {
             if let Some(settings) = profile.games.get(&game.game_id) {
+                game.managed = true;
+                game.visible = settings.visible;
                 game.sync_mode = settings.sync_mode;
                 game.live_save_process_name = settings.live_save_process_name.clone();
                 game.live_save_snapshot_on_exit = settings.live_save_snapshot_on_exit;

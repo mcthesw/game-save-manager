@@ -332,6 +332,38 @@ async setSnapshotRetentionProtected(gameId: string, snapshotId: string, retentio
     else return { status: "error", error: e  as any };
 }
 },
+async getCurrentDeviceGameStatuses() : Promise<Result<DeviceGameStatus[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_current_device_game_statuses") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setDeviceGameVisibility(gameId: string, visible: boolean) : Promise<Result<DeviceGameStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_device_game_visibility", { gameId, visible }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setDeviceGameManaged(gameId: string, managed: boolean, confirmed: boolean) : Promise<Result<DeviceGameStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_device_game_managed", { gameId, managed, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async evictLocalArchive(gameId: string, snapshotId: string, confirmed: boolean) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("evict_local_archive", { gameId, snapshotId, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("materialize_all_cloud_archives") };
@@ -784,7 +816,7 @@ export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
 export type CloudArchiveDeletionView = { snapshot_id: string; description: string; retryable: boolean }
-export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; retention_limit: number | null; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; pending_deletions: CloudArchiveDeletionView[]; local_count: number; cloud_count: number }
+export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; retention_limit: number | null; managed: boolean; visible: boolean; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; pending_deletions: CloudArchiveDeletionView[]; local_count: number; cloud_count: number }
 export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
 export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[]; created_by: CreatedBy; retention_protected: boolean }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
@@ -905,6 +937,7 @@ export type CreatedBy =
  */
 "Unknown"
 export type Device = { id: string; name: string; resources?: DeviceResource[]; next_resource_id?: number }
+export type DeviceGameStatus = { game_id: string; managed: boolean; visible: boolean }
 export type DeviceResource = { id: number; source: DeviceResourceSource; kind: DeviceResourceKind }
 export type DeviceResourceKind = { type: "gameRoot"; store: StoreKind; path: string } | { type: "storeAccount"; store: StoreKind; user_id: string } | { type: "gameInstallation"; root_id: number; store: StoreKind; install_dir: string; path: string; store_game_id?: string | null }
 export type DeviceResourceSource = "manual" | "detected"

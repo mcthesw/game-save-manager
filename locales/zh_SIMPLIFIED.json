@@ -213,6 +213,10 @@
         "restoring_backup": "正在恢复备份...",
         "no_backup_error": "发生了错误，可能您没有任何存档",
         "delete_prompt": "如果确定删除的话，请输入yes，否则请点击取消。这个操作将会抹除已经备份过的该游戏的所有存档，并且把该游戏从已识别列表中去除",
+        "stop_managing_title": "停止在此设备管理吗？",
+        "stop_managing_action": "停止在此设备管理",
+        "stop_managing_confirm": "此操作会从本设备移除此游戏的路径、同步模式、自动应用与进程设置，以及快捷操作绑定。共享历史、云端存档、其他设备和已有的本地存档文件均不会被删除。",
+        "stop_managing_failed": "无法停止在此设备管理该游戏",
         "confirm": "确定",
         "invalid_input_error": "无效的输入",
         "operation_canceled": "您取消了这次操作",
@@ -702,6 +706,27 @@
                 "unprotect_title": "取消保留保护吗？",
                 "unprotect_confirm": "如果此自动快照超过共享的每分支上限，它可能会立即被永久删除；其在各设备和云端已有的存档文件也会一并移除。",
                 "unprotect": "取消保护"
+            },
+            "device": {
+                "visible": "显示",
+                "hidden": "隐藏",
+                "not_managed": "本设备未管理",
+                "manage_action": "在此设备管理",
+                "stop_action": "停止在此设备管理",
+                "stop_title": "停止在此设备管理吗？",
+                "stop_confirm": "此操作会从本设备移除此游戏的路径、同步模式、自动应用与进程设置，以及快捷操作绑定。共享历史、云端存档、其他设备和已有的本地存档文件均不会被删除。",
+                "visibility_saved": "已更新本设备可见性",
+                "visibility_failed": "无法更新本设备可见性",
+                "manage_success": "此设备已开始以全手动模式管理该游戏",
+                "stop_success": "此设备已停止管理该游戏",
+                "management_failed": "无法更新本设备的管理状态"
+            },
+            "evict": {
+                "action": "移除本地副本",
+                "title": "移除此设备的存档副本吗？",
+                "confirm": "仅从此设备移除“{snapshot}”的本地存档文件吗？共享快照历史和云端副本仍会保留；自动同步模式可能再次下载它。",
+                "success": "已移除本地存档副本",
+                "failed": "无法移除本地存档副本"
             },
             "download_all": "全部下载",
             "resume_download": "继续下载",

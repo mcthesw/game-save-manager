@@ -308,8 +308,20 @@ impl ConfigurationOwners {
     pub fn merge_effective(&mut self, config: &Config) -> Result<(), OwnershipError> {
         self.validate()?;
         let current_device_id = self.local_state.current_device_id.clone();
+        let previously_shared = self
+            .shared_library
+            .games
+            .iter()
+            .map(|game| game.storage_key.clone())
+            .collect::<HashSet<_>>();
+        let previously_managed = self
+            .device_profiles
+            .get(&current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?
+            .games
+            .clone();
         let mut incoming = Self::from_legacy(config, &current_device_id);
-        let current_profile = incoming
+        let mut current_profile = incoming
             .device_profiles
             .remove(&current_device_id)
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
@@ -331,6 +343,17 @@ impl ConfigurationOwners {
                 .copied()
                 .flatten();
         }
+        // The flat compatibility view cannot represent "not managed" or
+        // Device Visibility. Preserve both for existing shared Games, while
+        // still creating conservative defaults for genuinely new Games.
+        current_profile.games.retain(|game_id, settings| {
+            if let Some(previous) = previously_managed.get(game_id) {
+                settings.visible = previous.visible;
+                true
+            } else {
+                !previously_shared.contains(game_id)
+            }
+        });
         self.shared_library = incoming.shared_library;
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
