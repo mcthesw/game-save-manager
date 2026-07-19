@@ -426,6 +426,8 @@ pub enum ManifestError {
     ExpectedLive(String),
     #[error("Snapshot has invalid XXH3-64 integrity: {0}")]
     InvalidIntegrity(String),
+    #[error("Snapshot identity already describes different content: {0}")]
+    SnapshotContentConflict(String),
     #[error("Tombstoned Snapshot cannot be resurrected: {0}")]
     TombstoneResurrection(String),
     #[error("Snapshot deletion conflicts with existing Tombstone state: {0}")]

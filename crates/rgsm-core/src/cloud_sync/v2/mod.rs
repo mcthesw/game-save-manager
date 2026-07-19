@@ -11,6 +11,7 @@ mod materialization_tests;
 mod namespace;
 mod profile_repository;
 mod repository;
+mod snapshot_sync;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
 pub use cutover::{
@@ -47,4 +48,7 @@ pub use namespace::{
 pub use profile_repository::{DeviceProfileRepository, DeviceProfileRepositoryError};
 pub use repository::{
     CloudManifestRepository, ManifestRepositoryError, ManifestTransport, OpenDalManifestTransport,
+};
+pub use snapshot_sync::{
+    SnapshotReconciliationOutcome, SnapshotSyncCoordinator, SnapshotSyncError,
 };

@@ -23,6 +23,7 @@ mod hooks;
 mod ipc_handler;
 mod process_util;
 mod quick_actions;
+mod snapshot_sync;
 mod sound;
 
 /// Tauri adapter for SyncEventEmitter — bridges core events to Tauri's event system.
@@ -220,6 +221,8 @@ pub fn run() -> anyhow::Result<()> {
                 cloud_sync_worker.run().await;
             });
             let config = get_config().expect("Failed to load config while building hooks");
+            let snapshot_sync_runtime = snapshot_sync::SnapshotSyncRuntimeState::default();
+            app.manage(snapshot_sync_runtime.clone());
             let pipeline =
                 hooks::build_builtin_pipeline(app.handle(), cloud_sync_manager.clone(), &config);
             app.manage(hooks::HookPipelineState::new(pipeline));
@@ -240,6 +243,7 @@ pub fn run() -> anyhow::Result<()> {
                         .await;
                 });
             }
+            snapshot_sync::setup(snapshot_sync_runtime);
 
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键

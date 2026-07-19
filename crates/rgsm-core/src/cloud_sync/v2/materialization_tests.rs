@@ -247,7 +247,7 @@ async fn game_materialization_respects_scope_and_activation_revision() {
     }
     write_manifest(&operator, &manifest).await;
 
-    let outcome = materializer(operator, root.path(), "deck")
+    let outcome = materializer(operator.clone(), root.path(), "deck")
         .materialize_game("selected", 3, &CancellationToken::new())
         .await
         .unwrap();
@@ -276,6 +276,28 @@ async fn game_materialization_respects_scope_and_activation_revision() {
             ArchiveFormat::Zip
         )
         .exists()
+    );
+
+    let post_activation = materializer(operator, root.path(), "laptop")
+        .materialize_game_since("selected", 3, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(post_activation.downloaded, 1);
+    assert!(
+        !archive_path(
+            &root.path().join("laptop").join("selected"),
+            "before",
+            ArchiveFormat::Zip
+        )
+        .exists()
+    );
+    assert!(
+        archive_path(
+            &root.path().join("laptop").join("selected"),
+            "after",
+            ArchiveFormat::Zip
+        )
+        .is_file()
     );
 }
 

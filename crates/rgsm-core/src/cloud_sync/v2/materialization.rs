@@ -64,6 +64,8 @@ struct MaterializationPlan {
     manifest_revision: u64,
     scope: Option<String>,
     max_catalog_revision: Option<u64>,
+    #[serde(default)]
+    min_catalog_revision_exclusive: Option<u64>,
     remaining: Vec<MaterializationItem>,
 }
 
@@ -166,7 +168,7 @@ impl CloudArchiveMaterializer {
     ) -> Result<MaterializationPreview, MaterializationError> {
         let plan = match self.load_plan().await? {
             Some(plan) => plan,
-            None => self.load_or_plan(None, None, false).await?,
+            None => self.load_or_plan(None, None, None, false).await?,
         };
         Ok(MaterializationPreview {
             snapshot_count: plan.remaining.len(),
@@ -256,10 +258,15 @@ impl CloudArchiveMaterializer {
     ) -> Result<MaterializationOutcome, MaterializationError> {
         match self.load_plan().await? {
             Some(plan) => {
-                self.materialize_scope(plan.scope, plan.max_catalog_revision, cancellation)
-                    .await
+                self.materialize_scope(
+                    plan.scope,
+                    plan.max_catalog_revision,
+                    plan.min_catalog_revision_exclusive,
+                    cancellation,
+                )
+                .await
             }
-            None => self.materialize_scope(None, None, cancellation).await,
+            None => self.materialize_scope(None, None, None, cancellation).await,
         }
     }
 
@@ -269,7 +276,12 @@ impl CloudArchiveMaterializer {
         max_catalog_revision: u64,
     ) -> Result<MaterializationPreview, MaterializationError> {
         let plan = self
-            .load_or_plan(Some(game_id.to_string()), Some(max_catalog_revision), false)
+            .load_or_plan(
+                Some(game_id.to_string()),
+                Some(max_catalog_revision),
+                None,
+                false,
+            )
             .await?;
         Ok(MaterializationPreview {
             snapshot_count: plan.remaining.len(),
@@ -286,18 +298,60 @@ impl CloudArchiveMaterializer {
         self.materialize_scope(
             Some(game_id.to_string()),
             Some(max_catalog_revision),
+            None,
             cancellation,
         )
         .await
+    }
+
+    pub async fn materialize_game_since(
+        &self,
+        game_id: &str,
+        min_catalog_revision_exclusive: u64,
+        cancellation: &CancellationToken,
+    ) -> Result<MaterializationOutcome, MaterializationError> {
+        self.materialize_scope(
+            Some(game_id.to_string()),
+            None,
+            Some(min_catalog_revision_exclusive),
+            cancellation,
+        )
+        .await
+    }
+
+    pub async fn resume_pending(
+        &self,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<MaterializationOutcome>, MaterializationError> {
+        let Some(plan) = self.load_plan().await? else {
+            return Ok(None);
+        };
+        Ok(Some(
+            self.materialize_scope(
+                plan.scope,
+                plan.max_catalog_revision,
+                plan.min_catalog_revision_exclusive,
+                cancellation,
+            )
+            .await?,
+        ))
     }
 
     async fn materialize_scope(
         &self,
         scope: Option<String>,
         max_catalog_revision: Option<u64>,
+        min_catalog_revision_exclusive: Option<u64>,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, MaterializationError> {
-        let mut plan = self.load_or_plan(scope, max_catalog_revision, true).await?;
+        let mut plan = self
+            .load_or_plan(
+                scope,
+                max_catalog_revision,
+                min_catalog_revision_exclusive,
+                true,
+            )
+            .await?;
         let initial = plan.remaining.len();
         while let Some(item) = plan.remaining.first().cloned() {
             if cancellation.is_cancelled() {
@@ -356,10 +410,14 @@ impl CloudArchiveMaterializer {
         &self,
         scope: Option<String>,
         max_catalog_revision: Option<u64>,
+        min_catalog_revision_exclusive: Option<u64>,
         persist_new: bool,
     ) -> Result<MaterializationPlan, MaterializationError> {
         if let Some(plan) = self.load_plan().await? {
-            if plan.scope != scope || plan.max_catalog_revision != max_catalog_revision {
+            if plan.scope != scope
+                || plan.max_catalog_revision != max_catalog_revision
+                || plan.min_catalog_revision_exclusive != min_catalog_revision_exclusive
+            {
                 return Err(MaterializationError::AnotherMaterializationPending);
             }
             return Ok(plan);
@@ -379,6 +437,8 @@ impl CloudArchiveMaterializer {
                 };
                 if !live.cloud_archive_verified
                     || max_catalog_revision.is_some_and(|maximum| node.catalog_revision > maximum)
+                    || min_catalog_revision_exclusive
+                        .is_some_and(|minimum| node.catalog_revision <= minimum)
                     || (self.is_locally_reported(game, &node.snapshot_id)
                         && local_size_matches(
                             &self.local_path(game_id, &node.snapshot_id, node.archive_format),
@@ -400,6 +460,7 @@ impl CloudArchiveMaterializer {
             manifest_revision: manifest.revision,
             scope,
             max_catalog_revision,
+            min_catalog_revision_exclusive,
             remaining,
         };
         if persist_new {
