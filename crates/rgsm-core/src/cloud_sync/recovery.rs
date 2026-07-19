@@ -1,4 +1,3 @@
-use log::info;
 use opendal::Operator;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -21,7 +20,6 @@ use crate::preclude::BackendError;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictResolutionOutcome {
-    Cancelled,
     KeptLocal,
     AcceptedRemote,
 }
@@ -119,18 +117,6 @@ pub async fn resolve_game_conflict(
     resolution: ConflictResolution,
 ) -> Result<ConflictResolutionOutcome, BackendError> {
     match resolution {
-        ConflictResolution::Cancelled => {
-            info!(
-                target: "rgsm::cloud::recovery",
-                "Conflict resolution cancelled for game {}",
-                game.name
-            );
-            Ok(ConflictResolutionOutcome::Cancelled)
-        }
-        ConflictResolution::Fork => {
-            // TODO: fork should preserve both branch heads without merging, like a git branch.
-            Err(BackendError::UnsupportedConflictResolution("fork".into()))
-        }
         ConflictResolution::KeepLocal | ConflictResolution::AcceptRemote => {
             let context = load_conflict_context(op, game).await?;
             match resolution {
@@ -140,7 +126,6 @@ pub async fn resolve_game_conflict(
                 ConflictResolution::AcceptRemote => {
                     accept_remote_progress(session, op, game, &context).await
                 }
-                ConflictResolution::Cancelled | ConflictResolution::Fork => unreachable!(),
             }
         }
     }
@@ -443,32 +428,6 @@ mod tests {
         let state = read_game_state(&game);
         assert_eq!(state.last_sync_result, Some(SyncResult::Conflict));
         assert_eq!(state.pending_action, PendingAction::UserDecisionRequired);
-    }
-
-    #[test]
-    fn cancelled_resolution_preserves_conflict_state() {
-        let _lock = crate::config::lock_config_test_file();
-        let temp = TempDir::new().expect("temp dir should be created");
-        let game = game();
-        let config = config_for(&temp.path().join("backup"), &game);
-        let _guard = ConfigFileGuard::write(&config);
-        let session = session();
-        write_conflict_state(&session, &game);
-        let before = read_game_state(&game);
-
-        let result = test_runtime()
-            .block_on(resolve_game_conflict(
-                &session,
-                &memory_operator(),
-                &game,
-                ConflictResolution::Cancelled,
-            ))
-            .unwrap();
-
-        assert_eq!(result, ConflictResolutionOutcome::Cancelled);
-        let after = read_game_state(&game);
-        assert_eq!(before.last_sync_result, after.last_sync_result);
-        assert_eq!(before.pending_action, after.pending_action);
     }
 
     #[test]

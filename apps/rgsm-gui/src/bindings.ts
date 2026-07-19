@@ -252,6 +252,14 @@ async getCloudArchiveLibrary() : Promise<Result<CloudArchiveLibraryView, string>
     else return { status: "error", error: e  as any };
 }
 },
+async reviewV2GameProgress(gameId: string) : Promise<Result<V2ConflictReview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("review_v2_game_progress", { gameId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async previewMaterializeAll() : Promise<Result<MaterializationPreview, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("preview_materialize_all") };
@@ -726,7 +734,7 @@ export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
-export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
+export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
 export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
 export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[] }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
@@ -804,14 +812,8 @@ devices?: Partial<{ [key in string]: Device }> }
 /**
  * What the user chose to do when a conflict is detected.
  */
-export type ConflictResolution = "keep_local" | "accept_remote" |
-/**
- * Preserve both local and remote branches without merging.
- *
- * TODO: implement branch selection and upload semantics for this git-like fork workflow.
- */
-"fork" | "cancelled"
-export type ConflictResolutionOutcome = "cancelled" | "kept_local" | "accepted_remote"
+export type ConflictResolution = "keep_local" | "accept_remote"
+export type ConflictResolutionOutcome = "kept_local" | "accepted_remote"
 /**
  * Tracks how a snapshot was created.
  *
@@ -967,6 +969,7 @@ export type InitialCatchUpPolicy = "keep_remote" | "download_existing"
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type JoinGameAction = "keep_cloud" | "add_local" | "replace_cloud"
 export type JoinGameDecision = { local_game_id: string; local_fingerprint: string; cloud_fingerprint: string | null; action: JoinGameAction }
+export type LocalProgressView = { snapshot_id: string; description: string; local_available: boolean; cloud_available: boolean }
 export type LudusaviManifestStatus = {
 /**
  * Current manifest source: `local`, `bundled`, or `none`.
@@ -1045,6 +1048,7 @@ export type PathPlaceholder = "root" | "game" | "base" | "home" | "storeGameId" 
 export type PathPlaceholderDescriptor = { placeholder: PathPlaceholder; token: string; windowsApplicable: boolean }
 export type PendingAction = "none" | "retry_required" | "user_decision_required"
 export type PlatformKind = "windows" | "linux" | "macOs"
+export type ProgressRelation = "same" | "remote_ahead" | "remote_earlier" | "different_progress" | "no_local_position"
 export type QuickActionCompleted = { operation: QuickActionOperation; status: QuickActionStatus; trigger: QuickActionType; game_name: string | null }
 export type QuickActionHotkeys = { apply: string[]; backup: string[] }
 export type QuickActionOperation = "Backup" | "Apply"
@@ -1055,6 +1059,7 @@ export type QuickActionSoundSource = { kind: "default" } | { kind: "file"; path:
 export type QuickActionStatus = "Success" | "Failure" | "SkippedUnchanged"
 export type QuickActionType = "Timer" | "Tray" | "Hotkey" | "ProcessStart" | "ProcessExit" | "ProcessInterval"
 export type QuickActionsSettings = { quick_action_game_id?: string | null; hotkeys?: QuickActionHotkeys; enable_sound?: boolean; enable_notification?: boolean; notify_when_unchanged?: boolean; sounds?: QuickActionSoundSlots; game_automations?: GameAutomationSettings[] }
+export type RemoteProgressCandidate = { snapshot_id: string; description: string; devices: string[]; relation: ProgressRelation; local_unique_snapshots: number; remote_unique_snapshots: number; common_ancestor: string | null; local_available: boolean; cloud_available: boolean }
 export type ResolutionDiagnostic = { kind: ResolutionDiagnosticKind; message: string }
 export type ResolutionDiagnosticKind = "unknownPlaceholder" | "invalidGlob" | "missingContext" | "unsupportedPlatform" | "noCandidate" | "noMatch" | "multipleCandidates" | "multipleMatches"
 export type ResolutionReport = { rawPattern: string; selectionState: ResolutionSelectionState; candidates: CandidateExpression[]; locations: ResolvedSaveLocation[]; diagnostics: ResolutionDiagnostic[] }
@@ -1168,6 +1173,7 @@ export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "m
 export type SyncMode = "manual" | "snapshot_sync" | "live_save_sync"
 export type SyncResult = "success" | { error: string } | "conflict" | "cancelled"
 export type SyncState = { schema_version: number; backend_fingerprint?: string; current_device_id?: string; config_state?: GameSyncState; games?: Partial<{ [key in string]: GameSyncState }> }
+export type V2ConflictReview = { game_id: string; manifest_revision: number; local: LocalProgressView | null; candidates: RemoteProgressCandidate[]; requires_choice: boolean }
 
 /** tauri-specta globals **/
 

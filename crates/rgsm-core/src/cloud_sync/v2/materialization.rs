@@ -31,6 +31,7 @@ pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
     pub sync_mode: SyncMode,
+    pub advertised_head_count: usize,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub local_count: usize,
     pub cloud_count: usize,
@@ -146,6 +147,11 @@ impl CloudArchiveMaterializer {
                     .cloned()
                     .unwrap_or_else(|| game_id.clone()),
                 sync_mode: SyncMode::Manual,
+                advertised_head_count: game
+                    .device_heads
+                    .values()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
                 local_count: snapshots
                     .iter()
                     .filter(|snapshot| snapshot.local_verified)

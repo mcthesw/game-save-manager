@@ -693,6 +693,18 @@ pub async fn get_cloud_archive_library(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn review_v2_game_progress(
+    game_id: String,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::cloud_sync::v2::V2ConflictReview, String> {
+    svc(&app_handle)
+        .review_v2_game_progress(&game_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn preview_materialize_all(
     app_handle: AppHandle,
 ) -> Result<MaterializationPreview, String> {

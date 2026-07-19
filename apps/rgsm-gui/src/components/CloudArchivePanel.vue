@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Download, Refresh, Upload } from '@element-plus/icons-vue';
+import { Connection, Download, Refresh, Upload } from '@element-plus/icons-vue';
 
 import {
   commands,
@@ -21,6 +21,7 @@ const changingMode = ref(false);
 const activeTransfer = ref('');
 const openGames = ref<string[]>([]);
 const modeGame = ref<CloudArchiveGameView | null>(null);
+const progressGame = ref<CloudArchiveGameView | null>(null);
 const catchUpPolicy = ref<InitialCatchUpPolicy>('keep_remote');
 
 const totalSnapshots = computed(
@@ -242,16 +243,32 @@ onMounted(load);
                 }}
               </span>
             </div>
-            <ElSelect
-              :model-value="game.sync_mode"
-              class="sync-mode-select"
-              :aria-label="$t('sync_settings.archives.mode')"
-              @click.stop
-              @change="changeMode(game, $event)"
-            >
-              <ElOption value="manual" :label="$t('sync_settings.archives.mode_manual')" />
-              <ElOption value="snapshot_sync" :label="$t('sync_settings.archives.mode_snapshot')" />
-            </ElSelect>
+            <div class="game-actions">
+              <ElButton
+                v-if="game.advertised_head_count > 0"
+                :icon="Connection"
+                type="primary"
+                plain
+                size="small"
+                @click.stop="progressGame = game"
+              >
+                {{ $t('sync_settings.archives.progress.action') }}
+                <ElBadge :value="game.advertised_head_count" />
+              </ElButton>
+              <ElSelect
+                :model-value="game.sync_mode"
+                class="sync-mode-select"
+                :aria-label="$t('sync_settings.archives.mode')"
+                @click.stop
+                @change="changeMode(game, $event)"
+              >
+                <ElOption value="manual" :label="$t('sync_settings.archives.mode_manual')" />
+                <ElOption
+                  value="snapshot_sync"
+                  :label="$t('sync_settings.archives.mode_snapshot')"
+                />
+              </ElSelect>
+            </div>
           </div>
         </template>
         <div v-for="snapshot in game.snapshots" :key="snapshot.snapshot_id" class="snapshot-row">
@@ -284,6 +301,14 @@ onMounted(load);
         </div>
       </ElCollapseItem>
     </ElCollapse>
+
+    <V2ConflictReviewDialog
+      v-if="progressGame"
+      :model-value="progressGame !== null"
+      :game-id="progressGame.game_id"
+      :game-name="progressGame.name"
+      @update:model-value="progressGame = null"
+    />
 
     <ElDialog
       :model-value="modeGame !== null"
@@ -373,6 +398,19 @@ onMounted(load);
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.game-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.game-actions :deep(.el-badge__content) {
+  position: static;
+  margin-left: 5px;
+  transform: none;
 }
 
 .resume-alert {
@@ -481,6 +519,11 @@ onMounted(load);
     gap: 10px;
   }
 
+  .game-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
   .sync-mode-select {
     width: 132px;
   }
@@ -492,6 +535,11 @@ onMounted(load);
   }
 
   .sync-mode-select {
+    width: 100%;
+  }
+
+  .game-actions {
+    align-items: stretch;
     width: 100%;
   }
 }

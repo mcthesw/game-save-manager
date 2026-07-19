@@ -673,7 +673,31 @@
             "preview_failed": "无法准备全部下载",
             "transfer_failed": "快照传输失败",
             "upload_success": "快照已上传",
-            "download_success": "快照已下载"
+            "download_success": "快照已下载",
+            "progress": {
+                "action": "比较进度",
+                "title": "比较 {game} 的进度",
+                "choice_required": "不同设备记录了不同进度。比较这些选项不会更改任何存档。",
+                "aligned": "目前已记录的设备进度与此位置一致。",
+                "local_title": "本设备的当前位置",
+                "no_local": "本设备还没有当前位置",
+                "relation_same": "位置相同",
+                "relation_ahead": "比本设备更靠后",
+                "relation_earlier": "比本设备更早",
+                "relation_different": "不同进度",
+                "relation_no_local": "可选的起始进度",
+                "local_unique": "仅本设备拥有的进度",
+                "remote_unique": "仅此进度拥有的内容",
+                "shared_point": "共同起点",
+                "no_shared_point": "彼此独立的进度",
+                "on_device": "存档文件已在本设备",
+                "not_on_device": "存档文件不在本设备",
+                "in_cloud": "云端文件可用",
+                "not_in_cloud": "云端文件暂不可用",
+                "no_candidates": "还没有设备记录当前位置。",
+                "decide_later": "稍后决定",
+                "load_failed": "无法比较设备进度"
+            }
         },
         "conflict": {
             "title": "解决云同步冲突",

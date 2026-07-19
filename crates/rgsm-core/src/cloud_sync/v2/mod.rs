@@ -1,4 +1,5 @@
 mod bootstrap;
+mod conflict_review;
 mod cutover;
 mod deletion;
 mod game_comparison;
@@ -14,6 +15,10 @@ mod repository;
 mod snapshot_sync;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
+pub use conflict_review::{
+    ConflictReviewError, LocalProgressView, ProgressRelation, RemoteProgressCandidate,
+    V2ConflictInspector, V2ConflictReview,
+};
 pub use cutover::{
     CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverResult,
     CloudLibraryCutoverReview,
