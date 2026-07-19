@@ -13,6 +13,7 @@ import {
 import { error } from '@tauri-apps/plugin-log';
 import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
+import CloudArchivePanel from '../components/CloudArchivePanel.vue';
 
 interface WebDAV {
   type: 'WebDAV';
@@ -651,7 +652,8 @@ onMounted(async () => {
           show-icon
           class="section-alert"
         />
-        <div class="overview-toolbar">
+        <CloudArchivePanel v-if="v2LibraryActive" />
+        <div v-if="!v2LibraryActive" class="overview-toolbar">
           <ElButton
             type="primary"
             :icon="Refresh"
@@ -663,6 +665,7 @@ onMounted(async () => {
         </div>
 
         <ElTable
+          v-if="!v2LibraryActive"
           :data="gameRows"
           stripe
           class="game-table"

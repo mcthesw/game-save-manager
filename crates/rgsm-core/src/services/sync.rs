@@ -3,11 +3,14 @@ use specta::Type;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
+use crate::app_dirs::resolve_app_path;
 use crate::backup::Game;
 use crate::cloud_sync::v2::{
-    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryCutover,
-    CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError,
-    CloudLibraryJoinReview, CloudNamespaceClassification, JoinGameDecision,
+    CloudArchiveLibraryView, CloudArchiveMaterializer, CloudLibraryBootstrap,
+    CloudLibraryBootstrapError, CloudLibraryCutover, CloudLibraryCutoverError,
+    CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
+    CloudNamespaceClassification, JoinGameDecision, MaterializationError, MaterializationOutcome,
+    MaterializationPreview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -89,6 +92,10 @@ pub enum CloudLibraryServiceError {
     Join(#[from] CloudLibraryJoinError),
     #[error(transparent)]
     Cutover(#[from] CloudLibraryCutoverError),
+    #[error(transparent)]
+    Materialization(#[from] MaterializationError),
+    #[error("Choose a local archive folder before downloading or uploading Snapshots")]
+    StorageLocationRequired,
     #[error("Cloud Cutover progress identity could not be created: {0}")]
     CutoverProgressIdentity(#[from] serde_json::Error),
 }
@@ -292,6 +299,51 @@ impl ServiceContext {
         })
     }
 
+    pub async fn cloud_archive_library(
+        &self,
+    ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
+        let (library, _, _) = cloud_bootstrap_inputs()?;
+        self.materializer()?
+            .view(
+                &library
+                    .games
+                    .into_iter()
+                    .map(|game| (game.storage_key, game.name))
+                    .collect(),
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn preview_materialize_all(
+        &self,
+    ) -> Result<MaterializationPreview, CloudLibraryServiceError> {
+        Ok(self.materializer()?.preview_materialize_all().await?)
+    }
+
+    pub async fn upload_cloud_archive(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+    ) -> Result<(), CloudLibraryServiceError> {
+        Ok(self.materializer()?.upload(game_id, snapshot_id).await?)
+    }
+
+    pub async fn download_cloud_archive(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+    ) -> Result<(), CloudLibraryServiceError> {
+        Ok(self.materializer()?.download(game_id, snapshot_id).await?)
+    }
+
+    pub async fn materialize_all_cloud_archives(
+        &self,
+        cancellation: &CancellationToken,
+    ) -> Result<MaterializationOutcome, CloudLibraryServiceError> {
+        Ok(self.materializer()?.materialize_all(cancellation).await?)
+    }
+
     fn cutover(
         &self,
         profile: &crate::config::DeviceProfile,
@@ -310,6 +362,26 @@ impl ServiceContext {
             archive_root,
             progress_path,
             local_state.current_device_id.clone(),
+            3,
+        ))
+    }
+
+    fn materializer(&self) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
+        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        let local_archive_root = profile
+            .local_archive_root
+            .as_deref()
+            .map(resolve_app_path)
+            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        Ok(CloudArchiveMaterializer::new(
+            session.get_op()?,
+            local_archive_root,
+            local_state.current_device_id,
+            resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
         ))
     }

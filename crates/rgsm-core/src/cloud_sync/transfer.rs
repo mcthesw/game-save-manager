@@ -116,7 +116,7 @@ async fn cleanup_temp_file(temp_path: &Path, cleanup_context: &str) {
 ///
 /// On platforms where direct rename-overwrite can fail (for example Windows),
 /// this falls back to: move old file to backup -> move temp to destination -> rollback if needed.
-async fn replace_path_preserving_existing(
+pub(crate) async fn replace_path_preserving_existing(
     temp_path: &Path,
     local_path: &Path,
 ) -> Result<(), BackendError> {

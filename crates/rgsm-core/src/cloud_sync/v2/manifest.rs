@@ -412,6 +412,8 @@ pub enum ManifestError {
     MissingParent { snapshot: String, parent: String },
     #[error("Snapshot parent cycle contains {0}")]
     ParentCycle(String),
+    #[error("Game does not exist: {0}")]
+    MissingGame(String),
     #[error("Device {device} Head references missing or non-live Snapshot {snapshot}")]
     InvalidHead { device: DeviceId, snapshot: String },
     #[error("Snapshot does not exist: {0}")]
