@@ -43,6 +43,8 @@ pub enum OwnerStoreError {
     ProfileInputsChanged,
     #[error("The Shared Library changed while it was being saved")]
     SharedLibraryInputsChanged,
+    #[error("The current Device Profile cannot remove itself")]
+    CurrentProfileRemoval,
 }
 
 pub(crate) struct OwnerStore {
@@ -268,6 +270,18 @@ impl OwnerStore {
         }
         accepted.validate()?;
         owners.shared_library = accepted.clone();
+        self.write(&owners)
+    }
+
+    pub(crate) fn remove_device_profile(&self, device_id: &str) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(OwnerStoreError::ProfileInputsChanged);
+        }
+        if owners.local_state.current_device_id == device_id {
+            return Err(OwnerStoreError::CurrentProfileRemoval);
+        }
+        owners.device_profiles.remove(device_id);
         self.write(&owners)
     }
 

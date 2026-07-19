@@ -152,6 +152,14 @@ pub(crate) fn replace_shared_library(
     Ok(())
 }
 
+pub(crate) fn remove_device_profile(device_id: &str) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().remove_device_profile(device_id)?;
+    Ok(())
+}
+
 fn get_config_unlocked() -> Result<Config, ConfigError> {
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {

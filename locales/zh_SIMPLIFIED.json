@@ -721,6 +721,21 @@
                 "stop_success": "此设备已停止管理该游戏",
                 "management_failed": "无法更新本设备的管理状态"
             },
+            "profiles": {
+                "title": "此云端资料库中的设备",
+                "description": "移除废弃设备后，其陈旧 Profile 无法重新出现，设备进度指针也会被清除；共享快照和存档文件不会被删除。",
+                "current": "本设备",
+                "heads": "{count} 个进度位置",
+                "removed": "已移除",
+                "incomplete": "移除未完成",
+                "remove_action": "移除设备",
+                "retry": "重试清理",
+                "remove_title": "永久移除此设备 Profile 吗？",
+                "remove_confirm": "要从此云端资料库移除“{device}”吗？该设备的 Profile 和全部进度指针都会被移除，离线的陈旧副本也无法再次发布同一设备 ID。共享快照以及本地或云端存档文件不会被删除。",
+                "remove_success": "设备 Profile 已移除，并清除 {count} 个进度指针",
+                "remove_incomplete": "设备移除尚未完成，仍可直接重试",
+                "load_failed": "无法读取云端设备"
+            },
             "evict": {
                 "action": "移除本地副本",
                 "title": "移除此设备的存档副本吗？",

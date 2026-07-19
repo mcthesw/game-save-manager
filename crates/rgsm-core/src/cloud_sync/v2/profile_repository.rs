@@ -1,8 +1,13 @@
+use futures_util::TryStreamExt;
 use opendal::Operator;
 use thiserror::Error;
 
-use super::device_profile_path;
+use super::{
+    DeletionRegistryError, DeletionRegistryRepository, V2_DEVICE_PROFILES_PREFIX,
+    device_profile_path,
+};
 use crate::config::{DeviceProfile, V2_CONFIG_SCHEMA_VERSION};
+use crate::device::DeviceId;
 
 pub struct DeviceProfileRepository {
     operator: Operator,
@@ -26,6 +31,16 @@ impl DeviceProfileRepository {
         acting_device_id: &str,
         profile: &DeviceProfile,
     ) -> Result<(), DeviceProfileRepositoryError> {
+        if DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .load()
+            .await?
+            .deleted_profiles
+            .contains_key(acting_device_id)
+        {
+            return Err(DeviceProfileRepositoryError::Deleted(
+                acting_device_id.to_string(),
+            ));
+        }
         if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
             return Err(DeviceProfileRepositoryError::UnsupportedSchema(
                 profile.schema_version,
@@ -54,6 +69,47 @@ impl DeviceProfileRepository {
             attempts: self.max_attempts,
         })
     }
+
+    pub async fn list(&self) -> Result<Vec<DeviceProfile>, DeviceProfileRepositoryError> {
+        let mut lister = self.operator.lister(V2_DEVICE_PROFILES_PREFIX).await?;
+        let mut profiles = Vec::new();
+        while let Some(entry) = lister.try_next().await? {
+            let path = entry.path();
+            if !path.ends_with(".json") {
+                continue;
+            }
+            let bytes = self.operator.read(path).await?;
+            let profile: DeviceProfile = serde_json::from_slice(&bytes.to_vec())?;
+            if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
+                return Err(DeviceProfileRepositoryError::UnsupportedSchema(
+                    profile.schema_version,
+                ));
+            }
+            if device_profile_path(&profile.device.id) != path {
+                return Err(DeviceProfileRepositoryError::PathIdentityMismatch {
+                    path: path.to_string(),
+                    device_id: profile.device.id,
+                });
+            }
+            profiles.push(profile);
+        }
+        profiles.sort_by(|left, right| left.device.id.cmp(&right.device.id));
+        Ok(profiles)
+    }
+
+    pub async fn delete(&self, device_id: &str) -> Result<(), DeviceProfileRepositoryError> {
+        let path = device_profile_path(device_id);
+        for _ in 0..self.max_attempts {
+            self.operator.delete(&path).await?;
+            if !self.operator.exists(&path).await? {
+                return Ok(());
+            }
+        }
+        Err(DeviceProfileRepositoryError::DeleteRetryExhausted {
+            device_id: device_id.to_string(),
+            attempts: self.max_attempts,
+        })
+    }
 }
 
 #[derive(Debug, Error)]
@@ -62,12 +118,23 @@ pub enum DeviceProfileRepositoryError {
     UnsupportedSchema(u32),
     #[error("Device {acting} cannot publish Device Profile {profile}")]
     WrongDevice { acting: String, profile: String },
+    #[error("Device Profile {0} has been permanently removed")]
+    Deleted(DeviceId),
+    #[error("Device Profile path {path} does not match embedded Device ID {device_id}")]
+    PathIdentityMismatch { path: String, device_id: DeviceId },
     #[error("Device Profile read-back verification failed after {attempts} attempts")]
     RetryExhausted { attempts: usize },
+    #[error("Device Profile {device_id} remained visible after {attempts} delete attempts")]
+    DeleteRetryExhausted {
+        device_id: DeviceId,
+        attempts: usize,
+    },
     #[error("Device Profile serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
     #[error("Device Profile transport failed: {0}")]
     Transport(#[from] opendal::Error),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
 }
 
 #[cfg(test)]
@@ -121,5 +188,9 @@ mod tests {
         ));
         repository.publish("deck", &profile()).await.unwrap();
         assert!(operator.read(&device_profile_path("deck")).await.is_ok());
+        assert_eq!(
+            repository.list().await.unwrap()[0].device.name,
+            "Steam Deck"
+        );
     }
 }

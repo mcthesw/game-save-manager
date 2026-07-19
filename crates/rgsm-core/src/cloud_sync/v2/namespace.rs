@@ -21,6 +21,7 @@ pub const SHARED_LIBRARY_PATH: &str = "v2/shared-library.json";
 pub const V2_DEVICE_PROFILES_PREFIX: &str = "v2/device-profiles/";
 pub const CLOUD_MANIFEST_PATH: &str = "v2/cloud-manifest.json";
 pub const CLOUD_ARCHIVES_PREFIX: &str = "v2/archives/";
+pub const DELETION_REGISTRY_PATH: &str = "v2/deletions.json";
 const CLASSIFICATION_ENTRY_SAMPLE_LIMIT: usize = 8;
 
 pub fn device_profile_path(device_id: &str) -> String {
@@ -495,6 +496,7 @@ mod tests {
             V2_DEVICE_PROFILES_PREFIX,
             CLOUD_MANIFEST_PATH,
             CLOUD_ARCHIVES_PREFIX,
+            DELETION_REGISTRY_PATH,
         ] {
             assert!(v2_path.starts_with(V2_NAMESPACE_PREFIX));
             assert_ne!(v2_path, V1_CONFIG_PATH);

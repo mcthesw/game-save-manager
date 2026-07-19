@@ -6,9 +6,9 @@ use thiserror::Error;
 
 use super::{
     CLOUD_MANIFEST_PATH, CloudManifest, CloudNamespaceClassification, CloudNamespaceClassifier,
-    CloudNamespaceDescriptor, CloudNamespaceError, ManifestError, NamespaceTransport,
-    OpenDalNamespaceTransport, SHARED_LIBRARY_PATH, V2_NAMESPACE_DESCRIPTOR_PATH,
-    device_profile_path,
+    CloudNamespaceDescriptor, CloudNamespaceError, DELETION_REGISTRY_PATH, DeletionRegistry,
+    ManifestError, NamespaceTransport, OpenDalNamespaceTransport, SHARED_LIBRARY_PATH,
+    V2_NAMESPACE_DESCRIPTOR_PATH, device_profile_path,
 };
 use crate::config::{DeviceProfile, OwnershipError, SharedLibrary};
 
@@ -84,6 +84,11 @@ impl<T: CloudLibraryTransport> CloudLibraryBootstrap<T> {
             .await?;
         self.write_verified(CLOUD_MANIFEST_PATH, &pretty_bytes(&manifest)?)
             .await?;
+        self.write_verified(
+            DELETION_REGISTRY_PATH,
+            &pretty_bytes(&DeletionRegistry::default())?,
+        )
+        .await?;
         self.write_verified(&profile_path, &pretty_bytes(device_profile)?)
             .await?;
         self.write_verified(V2_NAMESPACE_DESCRIPTOR_PATH, &pretty_bytes(&descriptor)?)
@@ -228,6 +233,7 @@ mod tests {
             Some(V2_NAMESPACE_DESCRIPTOR_PATH)
         );
         assert!(state.objects.contains_key(&device_profile_path("device")));
+        assert!(state.objects.contains_key(DELETION_REGISTRY_PATH));
     }
 
     #[tokio::test]

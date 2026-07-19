@@ -721,6 +721,21 @@
                 "stop_success": "This device stopped managing the game",
                 "management_failed": "Could not update Device management"
             },
+            "profiles": {
+                "title": "Devices in this cloud library",
+                "description": "Removing an abandoned Device blocks its stale Profile from returning and clears its progress pointers. Shared Snapshots and Archive files are not deleted.",
+                "current": "This device",
+                "heads": "{count} position(s)",
+                "removed": "Removed",
+                "incomplete": "Removal incomplete",
+                "remove_action": "Remove device",
+                "retry": "Retry cleanup",
+                "remove_title": "Permanently remove Device Profile?",
+                "remove_confirm": "Remove “{device}” from this cloud library? Its Device Profile and all of its progress pointers will be removed, and an offline stale copy cannot publish this Device ID again. Shared Snapshots and local or cloud Archive files are not deleted.",
+                "remove_success": "Device Profile removed; {count} progress pointer(s) cleared",
+                "remove_incomplete": "Device removal is incomplete; retry remains available",
+                "load_failed": "Could not load cloud Devices"
+            },
             "evict": {
                 "action": "Remove local copy",
                 "title": "Remove this Device's Archive copy?",

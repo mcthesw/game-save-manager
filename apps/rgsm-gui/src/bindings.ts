@@ -364,6 +364,22 @@ async evictLocalArchive(gameId: string, snapshotId: string, confirmed: boolean) 
     else return { status: "error", error: e  as any };
 }
 },
+async getCloudDeviceProfiles() : Promise<Result<CloudDeviceProfileView[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cloud_device_profiles") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async removeCloudDeviceProfile(deviceId: string, confirmed: boolean) : Promise<Result<DeviceProfileRemovalOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_cloud_device_profile", { deviceId, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("materialize_all_cloud_archives") };
@@ -824,6 +840,7 @@ export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
 export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
 export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
+export type CloudDeviceProfileView = { device_id: string; name: string; current: boolean; deleted: boolean; deletion_incomplete: boolean; head_count: number }
 export type CloudLibraryCutoverOutcome = { game_count: number; snapshot_count: number; unavailable_archives: number }
 export type CloudLibraryCutoverReview = { game_count: number; snapshot_count: number; declared_bytes: number }
 export type CloudLibraryJoinItem = { local_game_id: string; local_name: string; local_fingerprint: string; cloud_names: string[]; cloud_fingerprint: string | null; classification: GameJoinClassification; difference: GameDefinitionDifference }
@@ -938,6 +955,7 @@ export type CreatedBy =
 "Unknown"
 export type Device = { id: string; name: string; resources?: DeviceResource[]; next_resource_id?: number }
 export type DeviceGameStatus = { game_id: string; managed: boolean; visible: boolean }
+export type DeviceProfileRemovalOutcome = { device_id: string; removed_heads: number }
 export type DeviceResource = { id: number; source: DeviceResourceSource; kind: DeviceResourceKind }
 export type DeviceResourceKind = { type: "gameRoot"; store: StoreKind; path: string } | { type: "storeAccount"; store: StoreKind; user_id: string } | { type: "gameInstallation"; root_id: number; store: StoreKind; install_dir: string; path: string; store_game_id?: string | null }
 export type DeviceResourceSource = "manual" | "detected"
