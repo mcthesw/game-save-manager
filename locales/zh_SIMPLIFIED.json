@@ -696,6 +696,11 @@
                 "not_in_cloud": "云端文件暂不可用",
                 "no_candidates": "还没有设备记录当前位置。",
                 "decide_later": "稍后决定",
+                "keep_local": "保留本机进度",
+                "keep_local_title": "保留本机当前进度？",
+                "keep_local_confirm": "应用会先上传本机可用的快照历史，确认成功后仅移动本设备的云端位置。其他设备及其进度不会改变，也不会恢复或修改游戏的实时存档。",
+                "keep_local_success": "已保留本机进度，并上传 {count} 个归档。",
+                "resolve_failed": "无法解决进度冲突",
                 "load_failed": "无法比较设备进度"
             }
         },

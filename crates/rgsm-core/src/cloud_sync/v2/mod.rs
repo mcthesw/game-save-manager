@@ -1,4 +1,5 @@
 mod bootstrap;
+mod conflict_resolution;
 mod conflict_review;
 mod cutover;
 mod deletion;
@@ -15,6 +16,9 @@ mod repository;
 mod snapshot_sync;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
+pub use conflict_resolution::{
+    KeepLocalProgressError, KeepLocalProgressOutcome, V2ConflictResolver,
+};
 pub use conflict_review::{
     ConflictReviewError, LocalProgressView, ProgressRelation, RemoteProgressCandidate,
     V2ConflictInspector, V2ConflictReview,
