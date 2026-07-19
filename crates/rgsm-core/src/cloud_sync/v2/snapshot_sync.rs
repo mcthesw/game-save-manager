@@ -147,6 +147,12 @@ impl SnapshotSyncCoordinator {
             .map_or(0, |outcome| outcome.downloaded))
     }
 
+    pub async fn converge_local_tombstones(
+        &self,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>, SnapshotSyncError> {
+        Ok(self.materializer.converge_local_tombstones().await?)
+    }
+
     pub(crate) async fn publish_local_node(
         &self,
         game_id: &str,

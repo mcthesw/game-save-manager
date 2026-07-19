@@ -195,15 +195,45 @@ function isAutomaticSnapshot(snapshot: Snapshot): boolean {
 }
 async function batch_delete() {
   try {
-    const promptResult = await feedback.prompt($t('manage.batch_delete_prompt'), $t('home.hint'), {
-      confirmButtonText: $t('manage.confirm'),
-      cancelButtonText: $t('manage.cancel'),
-      inputPattern: /yes/,
-      inputErrorMessage: $t('manage.invalid_input_error'),
-    });
+    const generation = await commands.getCloudNamespaceGeneration();
+    if (generation.status === 'error') {
+      notifyError(generation.error);
+      return;
+    }
+    const global = generation.data === 'v2';
+    const promptResult = await feedback.prompt(
+      $t(global ? 'manage.batch_delete_global_prompt' : 'manage.batch_delete_prompt'),
+      $t('home.hint'),
+      {
+        confirmButtonText: $t('manage.confirm'),
+        cancelButtonText: $t('manage.cancel'),
+        inputPattern: /yes/,
+        inputErrorMessage: $t('manage.invalid_input_error'),
+      }
+    );
 
     if (promptResult.value === 'yes') {
       const dates = selected_game_snapshots.value.map((item) => item.date);
+      if (global) {
+        const gameId = game.value.storage_key || game.value.name;
+        let succeeded = 0;
+        for (const date of dates) {
+          const result = await commands.deleteV2Snapshot(gameId, date, true);
+          if (result.status === 'ok') succeeded += 1;
+        }
+        await refresh_backups_info();
+        if (succeeded === dates.length) {
+          notifySuccess($t('manage.batch_delete_success', { count: succeeded }));
+        } else {
+          notifyError(
+            $t('manage.batch_delete_partial', {
+              succeeded,
+              failed: dates.length - succeeded,
+            })
+          );
+        }
+        return;
+      }
       const deleteResult = await commands.batchDeleteSnapshots(game.value, dates);
       await refresh_backups_info();
       if (deleteResult.status === 'ok') {
@@ -524,12 +554,38 @@ async function launch_game() {
 
 async function del_save(date: string) {
   try {
-    await commands.deleteSnapshot(game.value, date);
-    refresh_backups_info();
+    const generation = await commands.getCloudNamespaceGeneration();
+    if (generation.status === 'error') {
+      notifyError(generation.error);
+      return;
+    }
+    let result;
+    if (generation.data === 'v2') {
+      const gameId = game.value.storage_key || game.value.name;
+      const snapshot = table_data.value.find((item) => item.date === date);
+      await feedback.confirm(
+        $t('sync_settings.archives.delete_confirm', {
+          snapshot: snapshot?.describe || date,
+        }),
+        $t('sync_settings.archives.delete_title'),
+        {
+          confirmButtonText: $t('sync_settings.archives.delete_permanently'),
+          cancelButtonText: $t('manage.cancel'),
+          type: 'warning',
+        }
+      );
+      result = await commands.deleteV2Snapshot(gameId, date, true);
+    } else {
+      result = await commands.deleteSnapshot(game.value, date);
+    }
+    if (result.status === 'error') {
+      notifyError(result.error);
+      return;
+    }
+    await refresh_backups_info();
     notifySuccess($t('manage.delete_success'));
   } catch (e) {
-    error(`Failed to delete snapshot: ${e}`);
-    notifyError($t('error.delete_snapshot_failed'));
+    info(`Snapshot deletion cancelled or interrupted: ${e}`);
   }
 }
 

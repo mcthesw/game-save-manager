@@ -12,8 +12,8 @@ use rgsm_core::cloud_sync::{
     SyncGameOutcome,
 };
 use rgsm_core::config::{
-    Config, GameAutomationSettingsDraft, InitialCatchUpPolicy, QuickActionSoundPreferences,
-    SyncMode, get_backup_path, get_config,
+    CloudNamespaceGeneration, Config, GameAutomationSettingsDraft, InitialCatchUpPolicy,
+    QuickActionSoundPreferences, SyncMode, get_backup_path, get_config,
 };
 use rgsm_core::device::{Device, get_current_device_id};
 use rgsm_core::hooks::{HookPipeline, HookSource};
@@ -394,6 +394,11 @@ pub async fn delete_snapshot(
     date: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
+        == CloudNamespaceGeneration::V2
+    {
+        return Err("Use permanent V2 Snapshot deletion for an active Cloud Library".into());
+    }
     info!(target:"rgsm::ipc", "Deleting backup: {:?} for game: {:?}", date, game);
     svc(&app_handle)
         .delete_snapshot(&game, &date, HookSource::UserManual)
@@ -414,6 +419,11 @@ pub async fn batch_delete_snapshots(
     dates: Vec<String>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
+    if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
+        == CloudNamespaceGeneration::V2
+    {
+        return Err("Use permanent V2 Snapshot deletion for an active Cloud Library".into());
+    }
     info!(target:"rgsm::ipc", "Batch deleting {} snapshots for game: {:?}", dates.len(), game.name);
     svc(&app_handle)
         .batch_delete_snapshots(&game, &dates, HookSource::UserManual)
@@ -425,6 +435,12 @@ pub async fn batch_delete_snapshots(
 
     info!(target:"rgsm::ipc", "Successfully batch deleted {} snapshots for game: {:?}", dates.len(), game.name);
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_cloud_namespace_generation() -> Result<CloudNamespaceGeneration, String> {
+    rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -770,6 +786,20 @@ pub async fn download_cloud_archive(
 ) -> Result<(), String> {
     svc(&app_handle)
         .download_cloud_archive(&game_id, &snapshot_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_v2_snapshot(
+    game_id: String,
+    snapshot_id: String,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
+        .delete_v2_snapshot(&game_id, &snapshot_id, confirmed)
         .await
         .map_err(|error| error.to_string())
 }

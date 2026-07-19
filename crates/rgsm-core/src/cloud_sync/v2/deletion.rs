@@ -1,10 +1,17 @@
-use std::path::Path;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use opendal::Operator;
 use thiserror::Error;
 
-use super::{CloudManifestRepository, DeletionKind, ManifestRepositoryError, ManifestTransport};
+use super::{
+    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionKind, ManifestRepositoryError,
+    ManifestTransport, SnapshotState, cloud_archive_path,
+};
+use crate::backup::{ArchiveFormat, archive_path};
+use crate::device::DeviceId;
+use crate::preclude::BackendError;
 
 #[async_trait]
 pub trait ArchiveDeletionBackend: Send + Sync {
@@ -52,6 +59,153 @@ pub struct SnapshotDeletionRequest<'a> {
     pub kind: DeletionKind,
     pub local_archive_path: &'a Path,
     pub cloud_archive_path: &'a str,
+}
+
+pub struct SnapshotDeletionLifecycle {
+    operator: Operator,
+    local_archive_root: PathBuf,
+    current_device_id: DeviceId,
+    max_attempts: usize,
+}
+
+impl SnapshotDeletionLifecycle {
+    pub fn new(
+        operator: Operator,
+        local_archive_root: PathBuf,
+        current_device_id: DeviceId,
+        max_attempts: usize,
+    ) -> Self {
+        Self {
+            operator,
+            local_archive_root,
+            current_device_id,
+            max_attempts: max_attempts.max(1),
+        }
+    }
+
+    pub async fn delete_snapshot(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        confirmed: bool,
+    ) -> Result<(), SnapshotDeletionLifecycleError> {
+        let repository = self.repository();
+        let manifest = repository.load().await?;
+        let game = manifest
+            .games
+            .get(game_id)
+            .ok_or_else(|| SnapshotDeletionLifecycleError::GameNotFound(game_id.to_string()))?;
+        let node = game.snapshots.get(snapshot_id).ok_or_else(|| {
+            SnapshotDeletionLifecycleError::SnapshotNotFound(snapshot_id.to_string())
+        })?;
+        let kind = match &node.state {
+            SnapshotState::Live(_) if confirmed => DeletionKind::User,
+            SnapshotState::Live(_) => {
+                return Err(SnapshotDeletionLifecycleError::ConfirmationRequired);
+            }
+            SnapshotState::PendingTombstone(pending)
+                if pending.acting_device == self.current_device_id =>
+            {
+                pending.kind.clone()
+            }
+            SnapshotState::PendingTombstone(pending) => {
+                return Err(SnapshotDeletionLifecycleError::DeletionOwnedByDevice(
+                    pending.acting_device.clone(),
+                ));
+            }
+            SnapshotState::FinalTombstone { .. } => return Ok(()),
+        };
+        let local_path = self.local_path(game_id, snapshot_id, node.archive_format);
+        let remote_path = cloud_archive_path(game_id, snapshot_id, node.archive_format)?;
+        GlobalSnapshotDeletion::execute(
+            &repository,
+            &OpenDalArchiveDeletionBackend::new(self.operator.clone()),
+            SnapshotDeletionRequest {
+                game_id,
+                snapshot_id,
+                acting_device: &self.current_device_id,
+                kind,
+                local_archive_path: &local_path,
+                cloud_archive_path: &remote_path,
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Deletes local Archive copies for every durable Tombstone before another
+    /// transfer is planned. The returned IDs let the application remove legacy
+    /// local presentation without reparenting the shared graph.
+    pub async fn converge_local_tombstones(
+        &self,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>, SnapshotDeletionLifecycleError> {
+        let repository = self.repository();
+        let manifest = repository.load().await?;
+        let mut tombstones = BTreeMap::<String, BTreeSet<String>>::new();
+        for (game_id, game) in &manifest.games {
+            for node in game.snapshots.values().filter(|node| !node.state.is_live()) {
+                remove_file_if_exists(&self.local_path(
+                    game_id,
+                    &node.snapshot_id,
+                    node.archive_format,
+                ))
+                .await?;
+                tombstones
+                    .entry(game_id.clone())
+                    .or_default()
+                    .insert(node.snapshot_id.clone());
+            }
+        }
+        let has_stale_report = tombstones.iter().any(|(game_id, snapshot_ids)| {
+            manifest
+                .games
+                .get(game_id)
+                .and_then(|game| game.local_archives.get(&self.current_device_id))
+                .is_some_and(|reported| !reported.is_disjoint(snapshot_ids))
+        });
+        if has_stale_report {
+            let current_device = self.current_device_id.clone();
+            let removed = tombstones.clone();
+            repository
+                .mutate(move |manifest| {
+                    for (game_id, snapshot_ids) in &removed {
+                        let Some(game) = manifest.games.get_mut(game_id) else {
+                            continue;
+                        };
+                        for snapshot_id in snapshot_ids {
+                            game.report_local_archive(
+                                current_device.clone(),
+                                snapshot_id.clone(),
+                                false,
+                            );
+                        }
+                    }
+                    Ok(())
+                })
+                .await?;
+        }
+        Ok(tombstones)
+    }
+
+    fn repository(&self) -> CloudManifestRepository<super::OpenDalManifestTransport> {
+        CloudManifestRepository::new(
+            self.operator.clone(),
+            CLOUD_MANIFEST_PATH,
+            self.max_attempts,
+        )
+    }
+
+    fn local_path(&self, game_id: &str, snapshot_id: &str, format: ArchiveFormat) -> PathBuf {
+        archive_path(&self.local_archive_root.join(game_id), snapshot_id, format)
+    }
+}
+
+async fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 impl GlobalSnapshotDeletion {
@@ -123,6 +277,26 @@ pub enum GlobalSnapshotDeletionError {
     Archive(#[from] ArchiveDeletionError),
     #[error("Cloud Archive is still provider-visible after deletion: {0}")]
     CloudArchiveStillPresent(String),
+}
+
+#[derive(Debug, Error)]
+pub enum SnapshotDeletionLifecycleError {
+    #[error("V2 Game not found: {0}")]
+    GameNotFound(String),
+    #[error("V2 Snapshot not found: {0}")]
+    SnapshotNotFound(String),
+    #[error("Permanent Snapshot deletion requires explicit confirmation")]
+    ConfirmationRequired,
+    #[error("Snapshot deletion must be retried on the initiating Device: {0}")]
+    DeletionOwnedByDevice(DeviceId),
+    #[error(transparent)]
+    Repository(#[from] ManifestRepositoryError),
+    #[error(transparent)]
+    Deletion(#[from] GlobalSnapshotDeletionError),
+    #[error(transparent)]
+    Backend(#[from] BackendError),
+    #[error("Local Tombstone convergence failed: {0}")]
+    Local(#[from] std::io::Error),
 }
 
 #[cfg(test)]

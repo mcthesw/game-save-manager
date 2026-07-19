@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use opendal::Operator;
@@ -9,8 +9,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudManifest,
-    CloudManifestRepository, ManifestError, ManifestRepositoryError, SnapshotState,
-    cloud_archive_path,
+    CloudManifestRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
+    SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
@@ -35,6 +35,7 @@ pub struct CloudArchiveGameView {
     pub live_save_snapshot_on_exit: bool,
     pub advertised_head_count: usize,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
+    pub pending_deletions: Vec<CloudArchiveDeletionView>,
     pub local_count: usize,
     pub cloud_count: usize,
 }
@@ -47,6 +48,13 @@ pub struct CloudArchiveSnapshotView {
     pub local_verified: bool,
     pub cloud_verified: bool,
     pub reported_on_devices: Vec<DeviceId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+pub struct CloudArchiveDeletionView {
+    pub snapshot_id: String,
+    pub description: String,
+    pub retryable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
@@ -109,10 +117,21 @@ impl CloudArchiveMaterializer {
         &self,
         game_names: &BTreeMap<String, String>,
     ) -> Result<CloudArchiveLibraryView, MaterializationError> {
+        self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
         let mut games = Vec::with_capacity(manifest.games.len());
         for (game_id, game) in &manifest.games {
             let mut snapshots = Vec::new();
+            let mut pending_deletions = Vec::new();
+            for node in game.snapshots.values() {
+                if let SnapshotState::PendingTombstone(pending) = &node.state {
+                    pending_deletions.push(CloudArchiveDeletionView {
+                        snapshot_id: node.snapshot_id.clone(),
+                        description: node.description.clone(),
+                        retryable: pending.acting_device == self.current_device_id,
+                    });
+                }
+            }
             for node in game.snapshots.values().filter(|node| node.state.is_live()) {
                 let SnapshotState::Live(live) = &node.state else {
                     unreachable!("live filter guarantees a live Snapshot")
@@ -165,6 +184,7 @@ impl CloudArchiveMaterializer {
                     .filter(|snapshot| snapshot.cloud_verified)
                     .count(),
                 snapshots,
+                pending_deletions,
             });
         }
         Ok(CloudArchiveLibraryView {
@@ -176,6 +196,7 @@ impl CloudArchiveMaterializer {
     pub async fn preview_materialize_all(
         &self,
     ) -> Result<MaterializationPreview, MaterializationError> {
+        self.converge_local_tombstones().await?;
         let plan = match self.load_plan().await? {
             Some(plan) => plan,
             None => self.load_or_plan(None, None, None, false).await?,
@@ -195,6 +216,7 @@ impl CloudArchiveMaterializer {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), MaterializationError> {
+        self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
         let item = manifest_item(&manifest, game_id, snapshot_id, false)?;
         let local_path = self.local_path(game_id, snapshot_id, item.archive_format);
@@ -257,6 +279,7 @@ impl CloudArchiveMaterializer {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), MaterializationError> {
+        self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
         let item = manifest_item(&manifest, game_id, snapshot_id, true)?;
         self.download_item(&item).await
@@ -266,6 +289,7 @@ impl CloudArchiveMaterializer {
         &self,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, MaterializationError> {
+        self.converge_local_tombstones().await?;
         match self.load_plan().await? {
             Some(plan) => {
                 self.materialize_scope(
@@ -285,6 +309,7 @@ impl CloudArchiveMaterializer {
         game_id: &str,
         max_catalog_revision: u64,
     ) -> Result<MaterializationPreview, MaterializationError> {
+        self.converge_local_tombstones().await?;
         let plan = self
             .load_or_plan(
                 Some(game_id.to_string()),
@@ -305,6 +330,7 @@ impl CloudArchiveMaterializer {
         max_catalog_revision: u64,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, MaterializationError> {
+        self.converge_local_tombstones().await?;
         self.materialize_scope(
             Some(game_id.to_string()),
             Some(max_catalog_revision),
@@ -320,6 +346,7 @@ impl CloudArchiveMaterializer {
         min_catalog_revision_exclusive: u64,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, MaterializationError> {
+        self.converge_local_tombstones().await?;
         self.materialize_scope(
             Some(game_id.to_string()),
             None,
@@ -333,6 +360,7 @@ impl CloudArchiveMaterializer {
         &self,
         cancellation: &CancellationToken,
     ) -> Result<Option<MaterializationOutcome>, MaterializationError> {
+        self.converge_local_tombstones().await?;
         let Some(plan) = self.load_plan().await? else {
             return Ok(None);
         };
@@ -345,6 +373,45 @@ impl CloudArchiveMaterializer {
             )
             .await?,
         ))
+    }
+
+    pub async fn delete_snapshot(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        confirmed: bool,
+    ) -> Result<(), MaterializationError> {
+        self.converge_local_tombstones().await?;
+        self.deletion_lifecycle()
+            .delete_snapshot(game_id, snapshot_id, confirmed)
+            .await?;
+        self.converge_local_tombstones().await?;
+        Ok(())
+    }
+
+    /// Delete local Archive copies for every durable Tombstone before another
+    /// transfer is planned. Returns the structural Snapshot IDs so the service
+    /// layer can remove their legacy local presentation without reparenting.
+    pub async fn converge_local_tombstones(
+        &self,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>, MaterializationError> {
+        let tombstones = self
+            .deletion_lifecycle()
+            .converge_local_tombstones()
+            .await?;
+        if let Some(mut plan) = self.load_plan().await? {
+            plan.remaining.retain(|item| {
+                !tombstones
+                    .get(&item.game_id)
+                    .is_some_and(|items| items.contains(&item.snapshot_id))
+            });
+            if plan.remaining.is_empty() {
+                remove_file_if_exists(&self.progress_path).await?;
+            } else {
+                self.store_plan(&plan).await?;
+            }
+        }
+        Ok(tombstones)
     }
 
     async fn materialize_scope(
@@ -509,6 +576,15 @@ impl CloudArchiveMaterializer {
         )
     }
 
+    fn deletion_lifecycle(&self) -> SnapshotDeletionLifecycle {
+        SnapshotDeletionLifecycle::new(
+            self.operator.clone(),
+            self.local_archive_root.clone(),
+            self.current_device_id.clone(),
+            self.max_attempts,
+        )
+    }
+
     fn is_locally_reported(&self, game: &super::GameManifest, snapshot_id: &str) -> bool {
         game.local_archives
             .get(&self.current_device_id)
@@ -616,6 +692,8 @@ pub enum MaterializationError {
     Integrity(#[from] ArchiveIntegrityError),
     #[error(transparent)]
     Manifest(#[from] ManifestRepositoryError),
+    #[error(transparent)]
+    Deletion(#[from] SnapshotDeletionLifecycleError),
     #[error(transparent)]
     Backend(#[from] BackendError),
     #[error("Materialization I/O error: {0}")]

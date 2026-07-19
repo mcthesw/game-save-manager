@@ -96,6 +96,14 @@ async batchDeleteSnapshots(game: Game, dates: string[]) : Promise<Result<null, s
     else return { status: "error", error: e  as any };
 }
 },
+async getCloudNamespaceGeneration() : Promise<Result<CloudNamespaceGeneration, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cloud_namespace_generation") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async deleteGame(game: Game) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_game", { game }) };
@@ -295,6 +303,14 @@ async uploadCloudArchive(gameId: string, snapshotId: string) : Promise<Result<nu
 async downloadCloudArchive(gameId: string, snapshotId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("download_cloud_archive", { gameId, snapshotId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteV2Snapshot(gameId: string, snapshotId: string, confirmed: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_v2_snapshot", { gameId, snapshotId, confirmed }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -751,7 +767,8 @@ export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
-export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
+export type CloudArchiveDeletionView = { snapshot_id: string; description: string; retryable: boolean }
+export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; pending_deletions: CloudArchiveDeletionView[]; local_count: number; cloud_count: number }
 export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
 export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[] }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
@@ -765,6 +782,7 @@ export type CloudLibraryJoinItem = { local_game_id: string; local_name: string; 
 export type CloudLibraryJoinOutcome = { kind: "active"; game_count: number } | { kind: "review_changed"; game_name: string }
 export type CloudLibraryJoinReview = { cloud_game_count: number; items: CloudLibraryJoinItem[] }
 export type CloudLibraryStatus = { kind: "empty" } | { kind: "join_required"; game_count: number } | { kind: "cutover_required"; game_count: number } | { kind: "active"; game_count: number }
+export type CloudNamespaceGeneration = "legacy_v1" | "v2"
 export type CloudSettings = {
 /**
  * 同步间隔，单位分钟，为0则不自动同步

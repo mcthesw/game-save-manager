@@ -1,7 +1,7 @@
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -813,6 +813,43 @@ impl Game {
             snapshots: saves,
             remote_archive_path,
         })
+    }
+
+    /// Remove local presentation and Head references for V2 Tombstones without
+    /// rewriting surviving parent links. The Cloud Manifest retains the
+    /// structural Tombstone, so local reparenting would create a conflicting
+    /// graph on the next synchronization.
+    pub fn forget_v2_tombstones(
+        &self,
+        snapshot_ids: &BTreeSet<String>,
+    ) -> Result<usize, BackupError> {
+        if snapshot_ids.is_empty() {
+            return Ok(0);
+        }
+        let metadata_path = get_backup_path()?
+            .join(self.backup_dir_name().as_ref())
+            .join("Backups.json");
+        if !metadata_path.is_file() {
+            return Ok(0);
+        }
+        let mut saves = self.get_game_snapshots_info()?;
+        let previous = saves.backups.len();
+        saves
+            .backups
+            .retain(|snapshot| !snapshot_ids.contains(&snapshot.date));
+        let affected_devices = saves
+            .head_entries()
+            .filter(|(_, head)| snapshot_ids.contains(head.as_str()))
+            .map(|(device_id, _)| device_id.clone())
+            .collect::<Vec<_>>();
+        for device_id in affected_devices {
+            saves.set_head_for_device(device_id, None);
+        }
+        let removed = previous - saves.backups.len();
+        if removed > 0 {
+            self.set_game_snapshots_info(&saves)?;
+        }
+        Ok(removed)
     }
 
     pub async fn batch_delete_snapshots(

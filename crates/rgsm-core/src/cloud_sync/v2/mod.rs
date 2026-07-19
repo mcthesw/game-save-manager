@@ -30,7 +30,8 @@ pub use cutover::{
 };
 pub use deletion::{
     ArchiveDeletionBackend, ArchiveDeletionError, GlobalSnapshotDeletion,
-    GlobalSnapshotDeletionError, OpenDalArchiveDeletionBackend, SnapshotDeletionRequest,
+    GlobalSnapshotDeletionError, OpenDalArchiveDeletionBackend, SnapshotDeletionLifecycle,
+    SnapshotDeletionLifecycleError, SnapshotDeletionRequest,
 };
 pub use game_comparison::{
     GameJoinCandidate, GameJoinClassification, GameJoinComparisonError, compare_join_libraries,
@@ -45,8 +46,9 @@ pub use manifest::{
     ManifestError, PendingTombstone, SnapshotNode, SnapshotState,
 };
 pub use materialization::{
-    CloudArchiveGameView, CloudArchiveLibraryView, CloudArchiveMaterializer,
-    CloudArchiveSnapshotView, MaterializationError, MaterializationOutcome, MaterializationPreview,
+    CloudArchiveDeletionView, CloudArchiveGameView, CloudArchiveLibraryView,
+    CloudArchiveMaterializer, CloudArchiveSnapshotView, MaterializationError,
+    MaterializationOutcome, MaterializationPreview,
 };
 pub use namespace::{
     CLOUD_ARCHIVES_PREFIX, CLOUD_MANIFEST_PATH, CloudNamespaceClassification,

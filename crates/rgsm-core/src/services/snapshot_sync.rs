@@ -56,6 +56,7 @@ pub async fn run_v2_snapshot_sync_once(
     let Some(runtime) = load_runtime()? else {
         return Ok(SnapshotReconciliationOutcome::default());
     };
+    let tombstones = runtime.coordinator.converge_local_tombstones().await?;
     let mut total = SnapshotReconciliationOutcome::default();
     for (game_id, target) in &runtime.targets {
         if cancellation.is_cancelled() {
@@ -67,7 +68,12 @@ pub async fn run_v2_snapshot_sync_once(
             .iter()
             .find(|game| game.storage_key == *game_id)
         {
-            Some(game) => game.get_game_snapshots_info()?,
+            Some(game) => {
+                if let Some(snapshot_ids) = tombstones.get(game_id) {
+                    game.forget_v2_tombstones(snapshot_ids)?;
+                }
+                game.get_game_snapshots_info()?
+            }
             None => GameSnapshots::new(
                 runtime
                     .game_names
