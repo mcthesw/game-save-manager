@@ -340,7 +340,8 @@ impl ServiceContext {
     ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
         let (library, profile, _) = cloud_bootstrap_inputs()?;
         let mut view = self
-            .materializer()?
+            .converged_materializer()
+            .await?
             .view(
                 &library
                     .games
@@ -400,7 +401,11 @@ impl ServiceContext {
     pub async fn preview_materialize_all(
         &self,
     ) -> Result<MaterializationPreview, CloudLibraryServiceError> {
-        Ok(self.materializer()?.preview_materialize_all().await?)
+        Ok(self
+            .converged_materializer()
+            .await?
+            .preview_materialize_all()
+            .await?)
     }
 
     pub async fn upload_cloud_archive(
@@ -408,7 +413,11 @@ impl ServiceContext {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), CloudLibraryServiceError> {
-        Ok(self.materializer()?.upload(game_id, snapshot_id).await?)
+        Ok(self
+            .converged_materializer()
+            .await?
+            .upload(game_id, snapshot_id)
+            .await?)
     }
 
     pub async fn download_cloud_archive(
@@ -416,14 +425,37 @@ impl ServiceContext {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), CloudLibraryServiceError> {
-        Ok(self.materializer()?.download(game_id, snapshot_id).await?)
+        Ok(self
+            .converged_materializer()
+            .await?
+            .download(game_id, snapshot_id)
+            .await?)
     }
 
     pub async fn materialize_all_cloud_archives(
         &self,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, CloudLibraryServiceError> {
-        Ok(self.materializer()?.materialize_all(cancellation).await?)
+        Ok(self
+            .converged_materializer()
+            .await?
+            .materialize_all(cancellation)
+            .await?)
+    }
+
+    pub async fn delete_v2_snapshot(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        confirmed: bool,
+    ) -> Result<(), CloudLibraryServiceError> {
+        let materializer = self.converged_materializer().await?;
+        let deletion = materializer
+            .delete_snapshot(game_id, snapshot_id, confirmed)
+            .await;
+        let convergence = self.converge_local_tombstone_metadata(&materializer).await;
+        deletion?;
+        convergence
     }
 
     pub async fn set_game_sync_mode(
@@ -451,7 +483,7 @@ impl ServiceContext {
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        let materializer = self.materializer()?;
+        let materializer = self.converged_materializer().await?;
         let mut accepted_profile = expected_profile.clone();
         let effective_config = get_config()?;
         let settings = accepted_profile
@@ -566,6 +598,32 @@ impl ServiceContext {
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
         ))
+    }
+
+    async fn converged_materializer(
+        &self,
+    ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
+        let materializer = self.materializer()?;
+        self.converge_local_tombstone_metadata(&materializer)
+            .await?;
+        Ok(materializer)
+    }
+
+    async fn converge_local_tombstone_metadata(
+        &self,
+        materializer: &CloudArchiveMaterializer,
+    ) -> Result<(), CloudLibraryServiceError> {
+        let tombstones = materializer.converge_local_tombstones().await?;
+        if tombstones.is_empty() {
+            return Ok(());
+        }
+        let config = get_config()?;
+        for game in &config.games {
+            if let Some(snapshot_ids) = tombstones.get(&game.storage_key) {
+                game.forget_v2_tombstones(snapshot_ids)?;
+            }
+        }
+        Ok(())
     }
 }
 

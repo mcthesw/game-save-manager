@@ -8,7 +8,7 @@ use crate::backup::{
 use crate::config::{Config, get_config};
 use crate::device::get_current_device_id;
 use filetime::{FileTime, set_file_mtime};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs::{self, File};
 use std::future::Future;
 use std::io::Write;
@@ -613,6 +613,51 @@ fn batch_delete_reparents_through_deleted_chain() -> TestResult {
             .unwrap();
         assert_eq!(a_snapshot.parent, None);
 
+        Ok(())
+    })
+}
+
+#[test]
+fn v2_tombstone_forget_preserves_surviving_parent_links_and_clears_heads() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let temp_dir = temp_dir::TempDir::new()?;
+        let backup_root = temp_dir.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+        let config = Config {
+            backup_path: backup_root.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+        let game = make_test_game("v2_tombstone", &backup_root)?;
+        insert_snapshot(&game, &backup_root, "A", None)?;
+        insert_snapshot(&game, &backup_root, "B", Some("A"))?;
+        insert_snapshot(&game, &backup_root, "C", Some("B"))?;
+        let mut snapshots = game.get_game_snapshots_info()?;
+        snapshots.set_current_device_head(Some("B".into()));
+        game.set_game_snapshots_info(&snapshots)?;
+
+        assert_eq!(
+            game.forget_v2_tombstones(&BTreeSet::from(["B".to_string()]))?,
+            1
+        );
+
+        let snapshots = game.get_game_snapshots_info()?;
+        assert!(
+            snapshots
+                .backups
+                .iter()
+                .all(|snapshot| snapshot.date != "B")
+        );
+        assert_eq!(
+            snapshots
+                .backups
+                .iter()
+                .find(|snapshot| snapshot.date == "C")
+                .and_then(|snapshot| snapshot.parent.as_deref()),
+            Some("B")
+        );
+        assert!(snapshots.current_device_head().is_none());
         Ok(())
     })
 }

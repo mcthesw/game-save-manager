@@ -4,8 +4,9 @@ use opendal::{Operator, services};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    ArchiveIntegrity, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifest, GameManifest,
-    MaterializationError, SnapshotNode, SnapshotState, cloud_archive_path,
+    ArchiveIntegrity, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifest, DeletionKind,
+    GameManifest, MaterializationError, SnapshotDeletionLifecycleError, SnapshotNode,
+    SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
 
@@ -110,6 +111,129 @@ async fn another_devices_local_only_archive_cannot_be_downloaded() {
         error,
         MaterializationError::CloudArchiveUnavailable(snapshot) if snapshot == "snapshot"
     ));
+}
+
+#[tokio::test]
+async fn permanent_deletion_requires_confirmation_then_removes_local_and_cloud_copies() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    game.set_head("pc".into(), "snapshot".into());
+    game.report_local_archive("pc".into(), "snapshot".into(), true);
+    manifest.games.insert("game".into(), game);
+    let local_path = archive_path(
+        &root.path().join("pc").join("game"),
+        "snapshot",
+        ArchiveFormat::Zip,
+    );
+    std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
+    std::fs::write(&local_path, b"bytes").unwrap();
+    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap();
+    operator
+        .write(&cloud_path, b"bytes".to_vec())
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+    let pc = materializer(operator.clone(), root.path(), "pc");
+
+    assert!(matches!(
+        pc.delete_snapshot("game", "snapshot", false).await,
+        Err(MaterializationError::Deletion(
+            SnapshotDeletionLifecycleError::ConfirmationRequired
+        ))
+    ));
+    assert!(local_path.is_file());
+    assert!(operator.exists(&cloud_path).await.unwrap());
+
+    pc.delete_snapshot("game", "snapshot", true).await.unwrap();
+
+    assert!(!local_path.exists());
+    assert!(!operator.exists(&cloud_path).await.unwrap());
+    let stored: CloudManifest =
+        serde_json::from_slice(&operator.read(CLOUD_MANIFEST_PATH).await.unwrap().to_vec())
+            .unwrap();
+    assert!(stored.games["game"].is_final_tombstone("snapshot"));
+    assert!(stored.games["game"].device_heads.is_empty());
+}
+
+#[tokio::test]
+async fn observing_pending_tombstone_removes_this_devices_local_copy() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    game.report_local_archive("pc".into(), "snapshot".into(), true);
+    game.begin_deletion("snapshot", "deck", DeletionKind::User)
+        .unwrap();
+    manifest.games.insert("game".into(), game);
+    let local_path = archive_path(
+        &root.path().join("pc").join("game"),
+        "snapshot",
+        ArchiveFormat::Zip,
+    );
+    std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
+    std::fs::write(&local_path, b"bytes").unwrap();
+    write_manifest(&operator, &manifest).await;
+
+    let pc = materializer(operator.clone(), root.path(), "pc");
+    let view = pc
+        .view(&BTreeMap::from([("game".into(), "Example".into())]))
+        .await
+        .unwrap();
+
+    assert!(!local_path.exists());
+    assert!(view.games[0].snapshots.is_empty());
+    assert_eq!(view.games[0].pending_deletions.len(), 1);
+    assert!(!view.games[0].pending_deletions[0].retryable);
+    let stored: CloudManifest =
+        serde_json::from_slice(&operator.read(CLOUD_MANIFEST_PATH).await.unwrap().to_vec())
+            .unwrap();
+    assert!(
+        !stored.games["game"]
+            .local_archives
+            .get("pc")
+            .is_some_and(|items| items.contains("snapshot"))
+    );
+}
+
+#[tokio::test]
+async fn initiating_device_can_directly_retry_a_pending_deletion() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    game.begin_deletion("snapshot", "pc", DeletionKind::User)
+        .unwrap();
+    manifest.games.insert("game".into(), game);
+    let local_path = archive_path(
+        &root.path().join("pc").join("game"),
+        "snapshot",
+        ArchiveFormat::Zip,
+    );
+    std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
+    std::fs::write(&local_path, b"bytes").unwrap();
+    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap();
+    operator
+        .write(&cloud_path, b"bytes".to_vec())
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+
+    materializer(operator.clone(), root.path(), "pc")
+        .delete_snapshot("game", "snapshot", false)
+        .await
+        .unwrap();
+
+    let stored: CloudManifest =
+        serde_json::from_slice(&operator.read(CLOUD_MANIFEST_PATH).await.unwrap().to_vec())
+            .unwrap();
+    assert!(stored.games["game"].is_final_tombstone("snapshot"));
+    assert!(!local_path.exists());
+    assert!(!operator.exists(&cloud_path).await.unwrap());
 }
 
 #[tokio::test]

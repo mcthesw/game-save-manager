@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Connection, Download, Refresh, Upload } from '@element-plus/icons-vue';
+import {
+  Connection,
+  Delete as DeleteIcon,
+  Download,
+  Refresh,
+  Upload,
+} from '@element-plus/icons-vue';
 
 import {
   commands,
@@ -19,6 +25,7 @@ const loading = ref(false);
 const materializing = ref(false);
 const changingMode = ref(false);
 const activeTransfer = ref('');
+const activeDeletion = ref('');
 const openGames = ref<string[]>([]);
 const modeGame = ref<CloudArchiveGameView | null>(null);
 const pendingMode = ref<SyncMode>('snapshot_sync');
@@ -109,6 +116,42 @@ async function transfer(gameId: string, snapshot: CloudArchiveSnapshotView, uplo
     await load();
   } finally {
     activeTransfer.value = '';
+  }
+}
+
+async function deleteSnapshot(
+  gameId: string,
+  snapshotId: string,
+  label: string,
+  confirmed: boolean
+) {
+  const key = transferKey(gameId, snapshotId);
+  if (confirmed) {
+    try {
+      await feedback.confirm(
+        $t('sync_settings.archives.delete_confirm', { snapshot: label }),
+        $t('sync_settings.archives.delete_title'),
+        {
+          confirmButtonText: $t('sync_settings.archives.delete_permanently'),
+          cancelButtonText: $t('sync_settings.cancel'),
+          type: 'warning',
+        }
+      );
+    } catch {
+      return;
+    }
+  }
+  activeDeletion.value = key;
+  try {
+    const result = await commands.deleteV2Snapshot(gameId, snapshotId, confirmed);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
+    } else {
+      notifySuccess($t('sync_settings.archives.delete_success'));
+    }
+    await load();
+  } finally {
+    activeDeletion.value = '';
   }
 }
 
@@ -291,25 +334,75 @@ onMounted(load);
           <ElTag :type="availabilityType(snapshot)" effect="plain" round>
             {{ availabilityLabel(snapshot) }}
           </ElTag>
+          <div class="snapshot-actions">
+            <ElButton
+              v-if="snapshot.local_verified && !snapshot.cloud_verified"
+              :icon="Upload"
+              text
+              :loading="activeTransfer === transferKey(game.game_id, snapshot.snapshot_id)"
+              @click="transfer(game.game_id, snapshot, true)"
+            >
+              {{ $t('sync_settings.archives.upload') }}
+            </ElButton>
+            <ElButton
+              v-else-if="snapshot.cloud_verified && !snapshot.local_verified"
+              :icon="Download"
+              text
+              :loading="activeTransfer === transferKey(game.game_id, snapshot.snapshot_id)"
+              @click="transfer(game.game_id, snapshot, false)"
+            >
+              {{ $t('sync_settings.archives.download') }}
+            </ElButton>
+            <ElButton
+              :icon="DeleteIcon"
+              text
+              type="danger"
+              :loading="activeDeletion === transferKey(game.game_id, snapshot.snapshot_id)"
+              @click="
+                deleteSnapshot(
+                  game.game_id,
+                  snapshot.snapshot_id,
+                  snapshot.description || snapshot.snapshot_id,
+                  true
+                )
+              "
+            >
+              {{ $t('sync_settings.archives.delete') }}
+            </ElButton>
+          </div>
+        </div>
+        <div
+          v-for="deletion in game.pending_deletions"
+          :key="`deleting-${deletion.snapshot_id}`"
+          class="snapshot-row pending-deletion"
+        >
+          <div class="snapshot-info">
+            <strong>{{ deletion.description || deletion.snapshot_id }}</strong>
+            <span>{{ deletion.snapshot_id }}</span>
+          </div>
+          <ElTag type="warning" effect="plain" round>
+            {{ $t('sync_settings.archives.deletion_pending') }}
+          </ElTag>
           <ElButton
-            v-if="snapshot.local_verified && !snapshot.cloud_verified"
-            :icon="Upload"
+            v-if="deletion.retryable"
+            :icon="Refresh"
             text
-            :loading="activeTransfer === transferKey(game.game_id, snapshot.snapshot_id)"
-            @click="transfer(game.game_id, snapshot, true)"
+            type="warning"
+            :loading="activeDeletion === transferKey(game.game_id, deletion.snapshot_id)"
+            @click="
+              deleteSnapshot(
+                game.game_id,
+                deletion.snapshot_id,
+                deletion.description || deletion.snapshot_id,
+                false
+              )
+            "
           >
-            {{ $t('sync_settings.archives.upload') }}
+            {{ $t('sync_settings.archives.retry_delete') }}
           </ElButton>
-          <ElButton
-            v-else-if="snapshot.cloud_verified && !snapshot.local_verified"
-            :icon="Download"
-            text
-            :loading="activeTransfer === transferKey(game.game_id, snapshot.snapshot_id)"
-            @click="transfer(game.game_id, snapshot, false)"
-          >
-            {{ $t('sync_settings.archives.download') }}
-          </ElButton>
-          <span v-else class="action-placeholder" />
+          <span v-else class="deletion-waiting">
+            {{ $t('sync_settings.archives.deletion_waiting') }}
+          </span>
         </div>
       </ElCollapseItem>
     </ElCollapse>
@@ -518,10 +611,22 @@ onMounted(load);
   flex-shrink: 0;
 }
 
-.snapshot-row :deep(.el-button),
-.action-placeholder {
-  width: 94px;
+.snapshot-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 180px;
   flex-shrink: 0;
+}
+
+.pending-deletion {
+  background: var(--el-color-warning-light-9);
+}
+
+.deletion-waiting {
+  max-width: 180px;
+  color: var(--el-text-color-secondary);
+  font-size: 0.78rem;
+  text-align: right;
 }
 
 .mode-description {
@@ -593,6 +698,11 @@ onMounted(load);
 
   .snapshot-info {
     flex-basis: 100%;
+  }
+
+  .snapshot-actions {
+    flex: 1;
+    min-width: 0;
   }
 
   .game-summary {
