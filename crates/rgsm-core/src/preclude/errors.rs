@@ -160,6 +160,10 @@ pub enum ConfigError {
     Io(#[from] io::Error),
     #[error("Backend error: {0:#?}")]
     Backend(Box<BackendError>),
+    #[error("Configuration store lock is poisoned")]
+    StoreLockPoisoned,
+    #[error(transparent)]
+    OwnerStore(#[from] crate::config::OwnerStoreError),
     #[error(transparent)]
     Updater(#[from] UpdaterError),
 }

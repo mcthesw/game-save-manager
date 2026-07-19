@@ -1,5 +1,6 @@
 mod app_config;
 pub mod backup;
+pub(crate) mod owner_store;
 mod ownership;
 #[cfg(test)]
 mod ownership_tests;
@@ -8,6 +9,7 @@ mod settings;
 mod utils;
 
 pub use app_config::{Config, FavoriteTreeNode};
+pub use owner_store::OwnerStoreError;
 pub use ownership::{
     ConfigurationOwners, DeviceBehaviorSettings, DeviceGameProfile, DeviceProfile,
     DeviceSaveUnitSettings, EffectiveConfiguration, LocalInterfaceSettings, LocalState,

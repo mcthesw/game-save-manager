@@ -18,7 +18,8 @@ impl ServiceContext {
     }
 
     pub fn restore_config_backup(&self, index: usize) -> Result<Config, ConfigError> {
-        config::backup::restore_config_from_backup(index)?;
+        let backup = config::backup::load_config_from_backup(index)?;
+        config::replace_config_local(&backup)?;
         get_config()
     }
 
