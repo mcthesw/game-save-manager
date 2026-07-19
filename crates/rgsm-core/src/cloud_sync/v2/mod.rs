@@ -1,4 +1,5 @@
 mod bootstrap;
+mod cutover;
 mod deletion;
 mod game_comparison;
 mod integrity;
@@ -8,6 +9,10 @@ mod namespace;
 mod repository;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
+pub use cutover::{
+    CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverResult,
+    CloudLibraryCutoverReview,
+};
 pub use deletion::{
     ArchiveDeletionBackend, ArchiveDeletionError, GlobalSnapshotDeletion,
     GlobalSnapshotDeletionError, OpenDalArchiveDeletionBackend, SnapshotDeletionRequest,
@@ -29,7 +34,7 @@ pub use namespace::{
     CloudNamespaceClassifier, CloudNamespaceDescriptor, CloudNamespaceError, NamespaceTransport,
     OpenDalNamespaceTransport, SHARED_LIBRARY_PATH, V2_DEVICE_PROFILES_PREFIX,
     V2_NAMESPACE_DESCRIPTOR_PATH, V2_NAMESPACE_PREFIX, V2_NAMESPACE_SCHEMA_VERSION,
-    device_profile_path,
+    cloud_archive_path, device_profile_path,
 };
 pub use repository::{
     CloudManifestRepository, ManifestRepositoryError, ManifestTransport, OpenDalManifestTransport,

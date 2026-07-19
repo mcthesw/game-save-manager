@@ -18,6 +18,7 @@ const status = ref<CloudLibraryStatus | null>(null);
 const inspecting = ref(false);
 const creating = ref(false);
 const joining = ref(false);
+const cuttingOver = ref(false);
 
 const alertType = computed(() => {
   switch (status.value?.kind) {
@@ -148,8 +149,16 @@ watch(
       <ElButton v-if="status?.kind === 'join_required'" type="primary" @click="joining = true">
         {{ $t('sync_settings.library.join.join_action') }}
       </ElButton>
+      <ElButton
+        v-if="status?.kind === 'cutover_required'"
+        type="primary"
+        @click="cuttingOver = true"
+      >
+        {{ $t('sync_settings.library.cutover.action') }}
+      </ElButton>
     </div>
     <CloudLibraryJoinDialog v-model="joining" @joined="joined" />
+    <CloudLibraryCutoverDialog v-model="cuttingOver" @cutover="joined" />
   </section>
 </template>
 

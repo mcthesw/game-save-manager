@@ -712,6 +712,25 @@
                 "review_changed": "你审阅期间 {game} 已发生变化，现已重新加载最新版本。",
                 "join_success": "此设备已加入云端资料库",
                 "no_local_games": "没有需要比较的本机游戏。"
+            },
+            "cutover": {
+                "action": "迁移旧版资料库",
+                "title": "迁移旧版云端资料库",
+                "games": "游戏",
+                "snapshots": "快照",
+                "declared_size": "预计归档大小",
+                "size_unknown": "未知",
+                "compatibility_title": "所有参与设备都需要升级",
+                "compatibility_description": "迁移后，此设备将使用新的云端资料库。旧版或降级后的程序仍只能看到保持不变的旧版数据，无法看到之后的 V2 进度。",
+                "archive_title": "已有的归档损坏会被安全保留",
+                "archive_description": "迁移会逐一验证可用归档。若某个快照的归档已缺失或损坏，该快照仍会保留在列表中，但无法下载或恢复。迁移中断后可以继续同一进度。",
+                "acknowledgement": "我明白参与同步的设备必须使用兼容版本，降级后也无法看到新的进度。",
+                "start": "迁移并切换",
+                "running": "请保持应用运行。归档会逐一验证；即使中断，之后也会跳过已完成的项目并继续。",
+                "review_failed": "无法准备迁移审阅",
+                "failed": "无法迁移旧版云端资料库",
+                "completed": "旧版云端资料库已迁移",
+                "completed_with_warnings": "迁移已完成，但有 {count} 个归档原本就已缺失或损坏。"
             }
         },
         "operations": {

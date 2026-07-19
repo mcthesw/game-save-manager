@@ -228,6 +228,22 @@ async joinCloudLibrary(decisions: JoinGameDecision[], confirmedReplacements: boo
     else return { status: "error", error: e  as any };
 }
 },
+async reviewCloudLibraryCutover() : Promise<Result<CloudLibraryCutoverReview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("review_cloud_library_cutover") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async cutoverCloudLibrary(confirmed: boolean) : Promise<Result<CloudLibraryCutoverOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cutover_cloud_library", { confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cloudUploadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { session }) };
@@ -667,6 +683,8 @@ export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
 export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
 export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
+export type CloudLibraryCutoverOutcome = { game_count: number; snapshot_count: number; unavailable_archives: number }
+export type CloudLibraryCutoverReview = { game_count: number; snapshot_count: number; declared_bytes: number }
 export type CloudLibraryJoinItem = { local_game_id: string; local_name: string; local_fingerprint: string; cloud_names: string[]; cloud_fingerprint: string | null; classification: GameJoinClassification; difference: GameDefinitionDifference }
 export type CloudLibraryJoinOutcome = { kind: "active"; game_count: number } | { kind: "review_changed"; game_name: string }
 export type CloudLibraryJoinReview = { cloud_game_count: number; items: CloudLibraryJoinItem[] }
