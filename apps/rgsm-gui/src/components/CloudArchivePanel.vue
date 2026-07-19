@@ -2,7 +2,14 @@
 import { computed, onMounted, ref } from 'vue';
 import { Download, Refresh, Upload } from '@element-plus/icons-vue';
 
-import { commands, type CloudArchiveLibraryView, type CloudArchiveSnapshotView } from '../bindings';
+import {
+  commands,
+  type CloudArchiveGameView,
+  type CloudArchiveLibraryView,
+  type CloudArchiveSnapshotView,
+  type InitialCatchUpPolicy,
+  type SyncMode,
+} from '../bindings';
 import { $t } from '../i18n';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
 
@@ -10,8 +17,11 @@ const feedback = useFeedback();
 const library = ref<CloudArchiveLibraryView | null>(null);
 const loading = ref(false);
 const materializing = ref(false);
+const changingMode = ref(false);
 const activeTransfer = ref('');
 const openGames = ref<string[]>([]);
+const modeGame = ref<CloudArchiveGameView | null>(null);
+const catchUpPolicy = ref<InitialCatchUpPolicy>('keep_remote');
 
 const totalSnapshots = computed(
   () => library.value?.games.reduce((total, game) => total + game.snapshots.length, 0) ?? 0
@@ -29,6 +39,15 @@ function formatBytes(bytes: number | null | undefined) {
 
 function transferKey(gameId: string, snapshotId: string) {
   return `${gameId}\0${snapshotId}`;
+}
+
+function catchUpPreview(game: CloudArchiveGameView | null) {
+  const snapshots =
+    game?.snapshots.filter((snapshot) => snapshot.cloud_verified && !snapshot.local_verified) ?? [];
+  return {
+    count: snapshots.length,
+    size: snapshots.reduce((total, snapshot) => total + (snapshot.size ?? 0), 0),
+  };
 }
 
 function availabilityLabel(snapshot: CloudArchiveSnapshotView) {
@@ -131,6 +150,40 @@ async function materializeAll() {
   }
 }
 
+async function changeMode(game: CloudArchiveGameView, mode: SyncMode) {
+  if (mode === game.sync_mode) return;
+  if (mode === 'snapshot_sync') {
+    modeGame.value = game;
+    catchUpPolicy.value = 'keep_remote';
+    return;
+  }
+  await saveMode(game, mode, 'keep_remote');
+}
+
+async function saveMode(game: CloudArchiveGameView, mode: SyncMode, policy: InitialCatchUpPolicy) {
+  changingMode.value = true;
+  try {
+    const result = await commands.setGameSyncMode(game.game_id, mode, policy);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.mode_change_failed'), result.error);
+      modeGame.value = null;
+      await load();
+      return;
+    }
+    modeGame.value = null;
+    notifySuccess(
+      result.data.downloaded > 0
+        ? $t('sync_settings.archives.mode_enabled_downloaded', {
+            count: result.data.downloaded,
+          })
+        : $t('sync_settings.archives.mode_changed')
+    );
+    await load();
+  } finally {
+    changingMode.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -151,7 +204,11 @@ onMounted(load);
       <div class="toolbar-actions">
         <ElButton :icon="Refresh" circle :aria-label="$t('common.refresh')" @click="load" />
         <ElButton type="primary" :icon="Download" :loading="materializing" @click="materializeAll">
-          {{ $t('sync_settings.archives.download_all') }}
+          {{
+            library?.pending_materialization
+              ? $t('sync_settings.archives.resume_download')
+              : $t('sync_settings.archives.download_all')
+          }}
         </ElButton>
       </div>
     </div>
@@ -173,16 +230,28 @@ onMounted(load);
       <ElCollapseItem v-for="game in library?.games ?? []" :key="game.game_id" :name="game.game_id">
         <template #title>
           <div class="game-summary">
-            <strong>{{ game.name }}</strong>
-            <span>
-              {{
-                $t('sync_settings.archives.game_summary', {
-                  local: game.local_count,
-                  cloud: game.cloud_count,
-                  total: game.snapshots.length,
-                })
-              }}
-            </span>
+            <div class="game-label">
+              <strong>{{ game.name }}</strong>
+              <span>
+                {{
+                  $t('sync_settings.archives.game_summary', {
+                    local: game.local_count,
+                    cloud: game.cloud_count,
+                    total: game.snapshots.length,
+                  })
+                }}
+              </span>
+            </div>
+            <ElSelect
+              :model-value="game.sync_mode"
+              class="sync-mode-select"
+              :aria-label="$t('sync_settings.archives.mode')"
+              @click.stop
+              @change="changeMode(game, $event)"
+            >
+              <ElOption value="manual" :label="$t('sync_settings.archives.mode_manual')" />
+              <ElOption value="snapshot_sync" :label="$t('sync_settings.archives.mode_snapshot')" />
+            </ElSelect>
           </div>
         </template>
         <div v-for="snapshot in game.snapshots" :key="snapshot.snapshot_id" class="snapshot-row">
@@ -215,6 +284,58 @@ onMounted(load);
         </div>
       </ElCollapseItem>
     </ElCollapse>
+
+    <ElDialog
+      :model-value="modeGame !== null"
+      :title="$t('sync_settings.archives.enable_snapshot_sync')"
+      width="min(520px, 92vw)"
+      :close-on-click-modal="!changingMode"
+      :show-close="!changingMode"
+      @close="modeGame = null"
+    >
+      <ElAlert
+        type="warning"
+        show-icon
+        :closable="false"
+        :title="$t('sync_settings.archives.snapshot_sync_risk')"
+      />
+      <p class="mode-description">
+        {{ $t('sync_settings.archives.snapshot_sync_description') }}
+      </p>
+      <ElRadioGroup v-model="catchUpPolicy" class="catch-up-options">
+        <ElRadio value="keep_remote" border>
+          <span class="option-copy">
+            <strong>{{ $t('sync_settings.archives.keep_remote') }}</strong>
+            <small>{{ $t('sync_settings.archives.keep_remote_description') }}</small>
+          </span>
+        </ElRadio>
+        <ElRadio value="download_existing" border>
+          <span class="option-copy">
+            <strong>{{ $t('sync_settings.archives.download_existing') }}</strong>
+            <small>
+              {{
+                $t('sync_settings.archives.download_existing_description', {
+                  count: catchUpPreview(modeGame).count,
+                  size: formatBytes(catchUpPreview(modeGame).size),
+                })
+              }}
+            </small>
+          </span>
+        </ElRadio>
+      </ElRadioGroup>
+      <template #footer>
+        <ElButton :disabled="changingMode" @click="modeGame = null">
+          {{ $t('sync_settings.cancel') }}
+        </ElButton>
+        <ElButton
+          type="primary"
+          :loading="changingMode"
+          @click="modeGame && saveMode(modeGame, 'snapshot_sync', catchUpPolicy)"
+        >
+          {{ $t('sync_settings.archives.enable') }}
+        </ElButton>
+      </template>
+    </ElDialog>
   </section>
 </template>
 
@@ -259,8 +380,21 @@ onMounted(load);
 }
 
 .game-summary {
-  gap: 12px;
+  justify-content: space-between;
+  gap: 18px;
+  width: calc(100% - 24px);
   min-width: 0;
+}
+
+.game-label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sync-mode-select {
+  width: 148px;
+  flex-shrink: 0;
 }
 
 .snapshot-row {
@@ -294,6 +428,39 @@ onMounted(load);
   flex-shrink: 0;
 }
 
+.mode-description {
+  color: var(--el-text-color-regular);
+  line-height: 1.6;
+}
+
+.catch-up-options {
+  display: grid;
+  gap: 10px;
+}
+
+.catch-up-options :deep(.el-radio) {
+  width: 100%;
+  height: auto;
+  min-height: 68px;
+  margin: 0;
+  padding: 12px 16px;
+}
+
+.catch-up-options :deep(.el-radio__label) {
+  min-width: 0;
+  white-space: normal;
+}
+
+.option-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.option-copy small {
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+
 @media (max-width: 640px) {
   .archive-toolbar {
     align-items: flex-start;
@@ -311,8 +478,21 @@ onMounted(load);
 
   .game-summary {
     align-items: flex-start;
+    gap: 10px;
+  }
+
+  .sync-mode-select {
+    width: 132px;
+  }
+}
+
+@media (max-width: 520px) {
+  .game-summary {
     flex-direction: column;
-    gap: 2px;
+  }
+
+  .sync-mode-select {
+    width: 100%;
   }
 }
 </style>

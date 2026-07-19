@@ -216,3 +216,106 @@ async fn materialize_all_resume_keeps_the_original_catalog_boundary() {
         .exists()
     );
 }
+
+#[tokio::test]
+async fn game_materialization_respects_scope_and_activation_revision() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest {
+        revision: 4,
+        ..Default::default()
+    };
+    for (game_id, snapshots) in [
+        ("selected", [("before", 3), ("after", 4)]),
+        ("other", [("other", 1), ("other-later", 2)]),
+    ] {
+        let mut game = GameManifest::new(game_id);
+        for (snapshot_id, catalog_revision) in snapshots {
+            let bytes = snapshot_id.as_bytes();
+            let mut node = live(snapshot_id, bytes, true);
+            node.catalog_revision = catalog_revision;
+            game.upsert_live(node).unwrap();
+            operator
+                .write(
+                    &cloud_archive_path(game_id, snapshot_id, ArchiveFormat::Zip).unwrap(),
+                    bytes.to_vec(),
+                )
+                .await
+                .unwrap();
+        }
+        manifest.games.insert(game_id.into(), game);
+    }
+    write_manifest(&operator, &manifest).await;
+
+    let outcome = materializer(operator, root.path(), "deck")
+        .materialize_game("selected", 3, &CancellationToken::new())
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.downloaded, 1);
+    assert!(
+        archive_path(
+            &root.path().join("deck").join("selected"),
+            "before",
+            ArchiveFormat::Zip
+        )
+        .is_file()
+    );
+    assert!(
+        !archive_path(
+            &root.path().join("deck").join("selected"),
+            "after",
+            ArchiveFormat::Zip
+        )
+        .exists()
+    );
+    assert!(
+        !archive_path(
+            &root.path().join("deck").join("other"),
+            "other",
+            ArchiveFormat::Zip
+        )
+        .exists()
+    );
+}
+
+#[tokio::test]
+async fn materialize_all_resumes_the_one_pending_scope() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    manifest.games.insert("game".into(), game);
+    operator
+        .write(
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            b"bytes".to_vec(),
+        )
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+    let deck = materializer(operator, root.path(), "deck");
+    let cancelled = CancellationToken::new();
+    cancelled.cancel();
+    assert!(matches!(
+        deck.materialize_game("game", 0, &cancelled).await,
+        Err(MaterializationError::Cancelled)
+    ));
+
+    assert!(matches!(
+        deck.preview_game("other", 0).await,
+        Err(MaterializationError::AnotherMaterializationPending)
+    ));
+    assert_eq!(
+        deck.preview_materialize_all().await.unwrap().snapshot_count,
+        1
+    );
+    assert_eq!(
+        deck.materialize_all(&CancellationToken::new())
+            .await
+            .unwrap()
+            .downloaded,
+        1
+    );
+}

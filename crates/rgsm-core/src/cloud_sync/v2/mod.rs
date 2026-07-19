@@ -9,6 +9,7 @@ mod materialization;
 #[cfg(test)]
 mod materialization_tests;
 mod namespace;
+mod profile_repository;
 mod repository;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
@@ -43,6 +44,7 @@ pub use namespace::{
     V2_NAMESPACE_DESCRIPTOR_PATH, V2_NAMESPACE_PREFIX, V2_NAMESPACE_SCHEMA_VERSION,
     cloud_archive_path, device_profile_path,
 };
+pub use profile_repository::{DeviceProfileRepository, DeviceProfileRepositoryError};
 pub use repository::{
     CloudManifestRepository, ManifestRepositoryError, ManifestTransport, OpenDalManifestTransport,
 };

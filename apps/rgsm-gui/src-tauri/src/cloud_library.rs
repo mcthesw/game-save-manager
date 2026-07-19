@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use rgsm_core::cloud_sync::CloudSyncTaskManager;
 use rgsm_core::cloud_sync::v2::{
     CloudLibraryCutoverReview, CloudLibraryJoinReview, JoinGameDecision,
 };
-use rgsm_core::config::get_config;
+use rgsm_core::cloud_sync::{CloudSyncJobStatus, CloudSyncTaskManager};
+use rgsm_core::config::{InitialCatchUpPolicy, SyncMode, get_config};
 use rgsm_core::services::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryServiceError,
-    CloudLibraryStatus, ServiceContext,
+    CloudLibraryStatus, GameSyncModeOutcome, ServiceContext,
 };
 use tauri::{AppHandle, Manager};
 
@@ -72,4 +72,35 @@ pub async fn cutover(
         .await?;
     crate::hooks::rebuild_pipeline(app, &get_config()?);
     Ok(outcome)
+}
+
+pub async fn set_game_sync_mode(
+    app: &AppHandle,
+    game_id: &str,
+    mode: SyncMode,
+    initial_catch_up: InitialCatchUpPolicy,
+) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
+    let manager = Arc::clone(app.state::<Arc<CloudSyncTaskManager>>().inner());
+    let description = format!("Updating Snapshot Sync for {game_id}");
+    let (job_id, token) = manager.begin_manual_job(description.clone()).await;
+    let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+        .set_game_sync_mode(game_id, mode, initial_catch_up, &token)
+        .await;
+    let status = if outcome.is_ok() {
+        CloudSyncJobStatus::Completed
+    } else if token.is_cancelled() {
+        CloudSyncJobStatus::Cancelled
+    } else {
+        CloudSyncJobStatus::Failed
+    };
+    manager
+        .finish_manual_job(
+            job_id,
+            &description,
+            status,
+            outcome.as_ref().err().map(ToString::to_string),
+        )
+        .await;
+    crate::hooks::rebuild_pipeline(app, &get_config()?);
+    outcome
 }

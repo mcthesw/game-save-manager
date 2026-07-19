@@ -10,7 +10,7 @@ use crate::hooks::HookPipeline;
 
 pub use sync::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryServiceError,
-    CloudLibraryStatus,
+    CloudLibraryStatus, GameSyncModeOutcome,
 };
 
 #[derive(Clone)]

@@ -284,6 +284,14 @@ async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, str
     else return { status: "error", error: e  as any };
 }
 },
+async setGameSyncMode(gameId: string, mode: SyncMode, initialCatchUp: InitialCatchUpPolicy) : Promise<Result<GameSyncModeOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_game_sync_mode", { gameId, mode, initialCatchUp }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cloudUploadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { session }) };
@@ -718,7 +726,7 @@ export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
-export type CloudArchiveGameView = { game_id: string; name: string; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
+export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
 export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
 export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[] }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
@@ -929,6 +937,7 @@ last_sync_device?: string | null;
  * ISO 8601 timestamp of the last sync operation.
  */
 last_sync_timestamp?: string | null }
+export type GameSyncModeOutcome = { mode: SyncMode; downloaded: number }
 export type GameSyncState = { last_known_local_head?: string | null; last_known_remote_head?: string | null; last_sync_result?: SyncResult | null; last_sync_at?: string | null; pending_action?: PendingAction }
 /**
  * Simplified game info for the import dialog
@@ -954,6 +963,7 @@ isManaged: boolean;
  * Number of save paths detected
  */
 savePathsCount: number }
+export type InitialCatchUpPolicy = "keep_remote" | "download_existing"
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type JoinGameAction = "keep_cloud" | "add_local" | "replace_cloud"
 export type JoinGameDecision = { local_game_id: string; local_fingerprint: string; cloud_fingerprint: string | null; action: JoinGameAction }
@@ -1155,6 +1165,7 @@ personaName: string | null;
  */
 lastModifiedEpochSecs: number | null }
 export type SyncGameOutcome = "already_in_sync" | "uploaded" | "downloaded" | "merged" | "conflict"
+export type SyncMode = "manual" | "snapshot_sync" | "live_save_sync"
 export type SyncResult = "success" | { error: string } | "conflict" | "cancelled"
 export type SyncState = { schema_version: number; backend_fingerprint?: string; current_device_id?: string; config_state?: GameSyncState; games?: Partial<{ [key in string]: GameSyncState }> }
 

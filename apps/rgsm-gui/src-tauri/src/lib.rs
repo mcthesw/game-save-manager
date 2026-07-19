@@ -128,6 +128,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::upload_cloud_archive,
             ipc_handler::download_cloud_archive,
             ipc_handler::materialize_all_cloud_archives,
+            ipc_handler::set_game_sync_mode,
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
             ipc_handler::cancel_cloud_sync,
