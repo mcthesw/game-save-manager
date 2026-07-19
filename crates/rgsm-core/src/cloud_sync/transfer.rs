@@ -324,7 +324,7 @@ mod tests {
 
     use opendal::raw::{Access, AccessorInfo, OpWrite, RpWrite, oio};
     use opendal::services;
-    use opendal::{Buffer, Capability, Metadata, Operator, Scheme};
+    use opendal::{Buffer, Capability, Metadata, Operator};
     use tokio::io::{AsyncRead, ReadBuf};
 
     use super::*;
@@ -363,16 +363,16 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
-            info.set_scheme(Scheme::Webdav.into())
-                .set_native_capability(Capability {
-                    write: true,
-                    write_can_multi: false,
-                    write_can_empty: true,
-                    ..Default::default()
-                });
+            info.set_scheme("webdav").set_native_capability(Capability {
+                write: true,
+                write_can_multi: false,
+                write_can_empty: true,
+                ..Default::default()
+            });
             info.into()
         }
 
