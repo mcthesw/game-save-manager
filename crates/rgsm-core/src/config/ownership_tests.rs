@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use super::{
     CloudNamespaceGeneration, Config, ConfigurationOwners, OwnershipError, QuickActionsSettings,
+    SharedSnapshotRetentionPolicy,
 };
 use crate::backup::{Game, SaveUnit, SaveUnitType};
 use crate::device::{Device, DeviceId};
@@ -176,6 +177,26 @@ fn normal_save_preserves_other_device_private_profile_fields() {
         Some("deck-only-selection")
     );
     assert_eq!(deck.behavior.max_extra_backup_count, 37);
+}
+
+#[test]
+fn normal_save_preserves_shared_snapshot_retention() {
+    let (config, windows_id, _) = dual_device_config();
+    let mut owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    owners.shared_library.games[0].snapshot_retention = Some(SharedSnapshotRetentionPolicy {
+        automatic_snapshots_per_branch: 7,
+    });
+    let mut edited = owners.assemble_effective().unwrap();
+    edited.games[0].name = "Edited display name".into();
+
+    owners.merge_effective(&edited).unwrap();
+
+    assert_eq!(
+        owners.shared_library.games[0].snapshot_retention,
+        Some(SharedSnapshotRetentionPolicy {
+            automatic_snapshots_per_branch: 7,
+        })
+    );
 }
 
 #[test]

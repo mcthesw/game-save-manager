@@ -14,7 +14,7 @@ pub use ownership::{
     CloudNamespaceGeneration, ConfigurationOwners, DeviceBehaviorSettings, DeviceGameProfile,
     DeviceProfile, DeviceSaveUnitSettings, EffectiveConfiguration, InitialCatchUpPolicy,
     LocalInterfaceSettings, LocalState, OwnershipError, SharedGame, SharedLibrary, SharedSaveUnit,
-    SharedSaveUnitSource, SyncMode, V2_CONFIG_SCHEMA_VERSION,
+    SharedSaveUnitSource, SharedSnapshotRetentionPolicy, SyncMode, V2_CONFIG_SCHEMA_VERSION,
 };
 pub use quick_actions_settings::{
     GameAutomationSettings, GameAutomationSettingsDraft, QuickActionSoundPreferences,

@@ -267,7 +267,9 @@ fn apply_decisions(
                         local_game.name.clone(),
                     ));
                 }
+                let retention = latest.games[index].snapshot_retention;
                 latest.games[index] = local_game.clone();
+                latest.games[index].snapshot_retention = retention;
             }
         }
     }
@@ -319,7 +321,8 @@ mod tests {
         V2_NAMESPACE_DESCRIPTOR_PATH,
     };
     use crate::config::{
-        ConfigurationOwners, SharedSaveUnit, SharedSaveUnitSource, V2_CONFIG_SCHEMA_VERSION,
+        ConfigurationOwners, SharedSaveUnit, SharedSaveUnitSource, SharedSnapshotRetentionPolicy,
+        V2_CONFIG_SCHEMA_VERSION,
     };
 
     #[derive(Default)]
@@ -375,6 +378,7 @@ mod tests {
             }],
             next_save_unit_id: unit_id + 1,
             ludusavi_meta: None,
+            snapshot_retention: None,
         }
     }
 
@@ -468,7 +472,10 @@ mod tests {
     async fn join_adds_and_replaces_whole_games_then_publishes_profile() {
         let local_only = game("local", "Local", 1);
         let replacement = game("conflict", "Local Conflict", 2);
-        let cloud_conflict = game("conflict", "Cloud Conflict", 1);
+        let mut cloud_conflict = game("conflict", "Cloud Conflict", 1);
+        cloud_conflict.snapshot_retention = Some(SharedSnapshotRetentionPolicy {
+            automatic_snapshots_per_branch: 4,
+        });
         let local = library(vec![local_only.clone(), replacement.clone()]);
         let cloud = library(vec![cloud_conflict.clone(), game("remote", "Remote", 1)]);
         let review = build_review(&local, &cloud).unwrap();
@@ -494,7 +501,17 @@ mod tests {
             .unwrap();
 
         assert!(accepted.games.contains(&local_only));
-        assert!(accepted.games.contains(&replacement));
+        let accepted_replacement = accepted
+            .games
+            .iter()
+            .find(|game| game.storage_key == "conflict")
+            .unwrap();
+        assert_eq!(accepted_replacement.name, replacement.name);
+        assert_eq!(accepted_replacement.save_units, replacement.save_units);
+        assert_eq!(
+            accepted_replacement.snapshot_retention,
+            cloud_conflict.snapshot_retention
+        );
         assert!(
             accepted
                 .games
