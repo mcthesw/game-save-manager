@@ -308,6 +308,10 @@ onMounted(load);
       :game-id="progressGame.game_id"
       :game-name="progressGame.name"
       @update:model-value="progressGame = null"
+      @resolved="
+        progressGame = null;
+        load();
+      "
     />
 
     <ElDialog

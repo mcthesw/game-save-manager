@@ -126,6 +126,7 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::cutover_cloud_library,
             ipc_handler::get_cloud_archive_library,
             ipc_handler::review_v2_game_progress,
+            ipc_handler::keep_v2_local_progress,
             ipc_handler::preview_materialize_all,
             ipc_handler::upload_cloud_archive,
             ipc_handler::download_cloud_archive,

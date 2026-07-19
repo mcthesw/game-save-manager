@@ -8,7 +8,7 @@ import {
   type RemoteProgressCandidate,
   type V2ConflictReview,
 } from '../bindings';
-import { notifyError } from '../composables/useActivityCenter';
+import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 
 const props = defineProps<{
@@ -19,10 +19,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
+  (event: 'resolved'): void;
 }>();
 
+const feedback = useFeedback();
 const review = ref<V2ConflictReview | null>(null);
 const loading = ref(false);
+const resolving = ref(false);
 
 const visible = computed({
   get: () => props.modelValue,
@@ -64,6 +67,46 @@ async function load() {
     review.value = result.data;
   } finally {
     loading.value = false;
+  }
+}
+
+async function keepLocal() {
+  const current = review.value;
+  if (!current?.local) return;
+  try {
+    await feedback.confirm(
+      $t('sync_settings.archives.progress.keep_local_confirm'),
+      $t('sync_settings.archives.progress.keep_local_title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.progress.keep_local'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+  resolving.value = true;
+  try {
+    const result = await commands.keepV2LocalProgress(
+      props.gameId,
+      current.manifest_revision,
+      current.local.snapshot_id
+    );
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.progress.resolve_failed'), result.error);
+      await load();
+      return;
+    }
+    notifySuccess(
+      $t('sync_settings.archives.progress.keep_local_success', {
+        count: result.data.uploaded_archives,
+      })
+    );
+    emit('resolved');
+    visible.value = false;
+  } finally {
+    resolving.value = false;
   }
 }
 
@@ -191,8 +234,16 @@ watch(
     </div>
 
     <template #footer>
-      <ElButton @click="visible = false">
+      <ElButton :disabled="resolving" @click="visible = false">
         {{ $t('sync_settings.archives.progress.decide_later') }}
+      </ElButton>
+      <ElButton
+        v-if="review?.requires_choice && review.local"
+        type="success"
+        :loading="resolving"
+        @click="keepLocal"
+      >
+        {{ $t('sync_settings.archives.progress.keep_local') }}
       </ElButton>
     </template>
   </ElDialog>

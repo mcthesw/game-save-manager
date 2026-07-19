@@ -705,6 +705,20 @@ pub async fn review_v2_game_progress(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn keep_v2_local_progress(
+    game_id: String,
+    manifest_revision: u64,
+    local_snapshot_id: String,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::cloud_sync::v2::KeepLocalProgressOutcome, String> {
+    svc(&app_handle)
+        .keep_v2_local_progress(&game_id, manifest_revision, &local_snapshot_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn preview_materialize_all(
     app_handle: AppHandle,
 ) -> Result<MaterializationPreview, String> {

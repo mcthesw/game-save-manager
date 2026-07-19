@@ -696,6 +696,11 @@
                 "not_in_cloud": "Archive not available in cloud",
                 "no_candidates": "No Device has advertised a current position yet.",
                 "decide_later": "Decide later",
+                "keep_local": "Keep this device",
+                "keep_local_title": "Keep this device's progress?",
+                "keep_local_confirm": "The app will upload the available Snapshot history first, then move only this device's cloud position. Other devices and their progress will remain unchanged. This does not restore or modify live save files.",
+                "keep_local_success": "This device now keeps its local progress. Uploaded {count} archives.",
+                "resolve_failed": "Could not resolve progress",
                 "load_failed": "Could not compare Device progress"
             }
         },

@@ -147,7 +147,7 @@ impl SnapshotSyncCoordinator {
             .map_or(0, |outcome| outcome.downloaded))
     }
 
-    async fn publish_local_node(
+    pub(crate) async fn publish_local_node(
         &self,
         game_id: &str,
         snapshot: &Snapshot,
@@ -249,7 +249,7 @@ impl SnapshotSyncCoordinator {
         )
     }
 
-    fn local_path(&self, game_id: &str, snapshot: &Snapshot) -> PathBuf {
+    pub(crate) fn local_path(&self, game_id: &str, snapshot: &Snapshot) -> PathBuf {
         archive_path(
             &self.local_archive_root.join(game_id),
             &snapshot.date,

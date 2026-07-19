@@ -260,6 +260,14 @@ async reviewV2GameProgress(gameId: string) : Promise<Result<V2ConflictReview, st
     else return { status: "error", error: e  as any };
 }
 },
+async keepV2LocalProgress(gameId: string, manifestRevision: number, localSnapshotId: string) : Promise<Result<KeepLocalProgressOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("keep_v2_local_progress", { gameId, manifestRevision, localSnapshotId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async previewMaterializeAll() : Promise<Result<MaterializationPreview, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("preview_materialize_all") };
@@ -969,6 +977,7 @@ export type InitialCatchUpPolicy = "keep_remote" | "download_existing"
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
 export type JoinGameAction = "keep_cloud" | "add_local" | "replace_cloud"
 export type JoinGameDecision = { local_game_id: string; local_fingerprint: string; cloud_fingerprint: string | null; action: JoinGameAction }
+export type KeepLocalProgressOutcome = { snapshot_id: string; prepared_snapshots: number; uploaded_archives: number; manifest_revision: number }
 export type LocalProgressView = { snapshot_id: string; description: string; local_available: boolean; cloud_available: boolean }
 export type LudusaviManifestStatus = {
 /**
