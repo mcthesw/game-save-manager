@@ -41,6 +41,8 @@ pub enum OwnerStoreError {
     CutoverInputsChanged,
     #[error("The current Device Profile changed while it was being saved")]
     ProfileInputsChanged,
+    #[error("The Shared Library changed while it was being saved")]
+    SharedLibraryInputsChanged,
 }
 
 pub(crate) struct OwnerStore {
@@ -250,6 +252,22 @@ impl OwnerStore {
         owners
             .device_profiles
             .insert(current_device_id, accepted.clone());
+        self.write(&owners)
+    }
+
+    pub(crate) fn replace_shared_library(
+        &self,
+        expected: &SharedLibrary,
+        accepted: &SharedLibrary,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
+            || owners.shared_library != *expected
+        {
+            return Err(OwnerStoreError::SharedLibraryInputsChanged);
+        }
+        accepted.validate()?;
+        owners.shared_library = accepted.clone();
         self.write(&owners)
     }
 
@@ -562,6 +580,41 @@ mod tests {
         assert!(matches!(
             store.replace_current_profile(&expected, &accepted),
             Err(OwnerStoreError::ProfileInputsChanged)
+        ));
+    }
+
+    #[test]
+    fn shared_library_replacement_is_v2_only_and_compare_checked() {
+        let (_root, store) = store();
+        let input = config(get_current_device_id(), "before");
+        store.initialize_from_legacy(&input).unwrap();
+        let owners = store.load().unwrap();
+        let expected = owners.shared_library.clone();
+        let mut accepted = expected.clone();
+        accepted.games.push(crate::config::SharedGame {
+            name: "Synchronized game".into(),
+            storage_key: "synchronized-game".into(),
+            save_units: Vec::new(),
+            next_save_unit_id: 0,
+            ludusavi_meta: None,
+            snapshot_retention: None,
+        });
+
+        assert!(matches!(
+            store.replace_shared_library(&expected, &accepted),
+            Err(OwnerStoreError::SharedLibraryInputsChanged)
+        ));
+        store
+            .activate_v2(&expected, &owners.device_profiles[get_current_device_id()])
+            .unwrap();
+        store.replace_shared_library(&expected, &accepted).unwrap();
+        assert_eq!(
+            store.load().unwrap().shared_library.games[0].name,
+            "Synchronized game"
+        );
+        assert!(matches!(
+            store.replace_shared_library(&expected, &accepted),
+            Err(OwnerStoreError::SharedLibraryInputsChanged)
         ));
     }
 

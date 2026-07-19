@@ -1,7 +1,9 @@
+mod cloud_archive;
 mod config;
 mod conflict_resolution;
 mod game;
 mod path_resolution;
+mod retention;
 mod snapshot;
 mod snapshot_sync;
 mod sync;
@@ -11,6 +13,7 @@ use std::sync::Arc;
 use crate::hooks::HookPipeline;
 
 pub use conflict_resolution::AcceptRemoteProgressOutcome;
+pub use retention::SnapshotRetentionOutcome;
 pub use snapshot_sync::{
     DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES, LiveSaveApplyPlan, LiveSaveSyncTarget,
     SnapshotSyncServiceError, build_v2_snapshot_sync_hook, resume_v2_snapshot_sync,

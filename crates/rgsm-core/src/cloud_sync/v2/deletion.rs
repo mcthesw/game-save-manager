@@ -89,6 +89,29 @@ impl SnapshotDeletionLifecycle {
         snapshot_id: &str,
         confirmed: bool,
     ) -> Result<(), SnapshotDeletionLifecycleError> {
+        self.delete_snapshot_with_kind(
+            game_id,
+            snapshot_id,
+            confirmed.then_some(DeletionKind::User),
+        )
+        .await
+    }
+
+    pub(crate) async fn delete_retention_snapshot(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+    ) -> Result<(), SnapshotDeletionLifecycleError> {
+        self.delete_snapshot_with_kind(game_id, snapshot_id, Some(DeletionKind::Retention))
+            .await
+    }
+
+    async fn delete_snapshot_with_kind(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        requested_kind: Option<DeletionKind>,
+    ) -> Result<(), SnapshotDeletionLifecycleError> {
         let repository = self.repository();
         let manifest = repository.load().await?;
         let game = manifest
@@ -99,12 +122,17 @@ impl SnapshotDeletionLifecycle {
             SnapshotDeletionLifecycleError::SnapshotNotFound(snapshot_id.to_string())
         })?;
         let kind = match &node.state {
-            SnapshotState::Live(_) if confirmed => DeletionKind::User,
+            SnapshotState::Live(_) if requested_kind.is_some() => requested_kind
+                .clone()
+                .expect("checked requested deletion kind"),
             SnapshotState::Live(_) => {
                 return Err(SnapshotDeletionLifecycleError::ConfirmationRequired);
             }
             SnapshotState::PendingTombstone(pending)
-                if pending.acting_device == self.current_device_id =>
+                if pending.acting_device == self.current_device_id
+                    && requested_kind
+                        .as_ref()
+                        .is_none_or(|kind| kind == &pending.kind) =>
             {
                 pending.kind.clone()
             }

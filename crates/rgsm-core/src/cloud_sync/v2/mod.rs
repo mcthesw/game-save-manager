@@ -71,5 +71,6 @@ pub use retention::{
 };
 pub use shared_library_repository::{SharedLibraryRepository, SharedLibraryRepositoryError};
 pub use snapshot_sync::{
-    SnapshotReconciliationOutcome, SnapshotSyncCoordinator, SnapshotSyncError,
+    RetentionEnforcementOutcome, SnapshotReconciliationOutcome, SnapshotSyncCoordinator,
+    SnapshotSyncError,
 };

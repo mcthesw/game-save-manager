@@ -53,6 +53,7 @@ pub fn build_v2_snapshot_sync_hook(
 pub async fn run_v2_snapshot_sync_once(
     cancellation: &CancellationToken,
 ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError> {
+    super::retention::refresh_v2_snapshot_retention().await?;
     let Some(runtime) = load_runtime()? else {
         return Ok(SnapshotReconciliationOutcome::default());
     };
@@ -95,6 +96,20 @@ pub async fn run_v2_snapshot_sync_once(
         total.published += outcome.published;
         total.uploaded += outcome.uploaded;
         total.downloaded += outcome.downloaded;
+        if let Some(limit) = target.retention_limit {
+            let retention = runtime
+                .coordinator
+                .enforce_retention(game_id, limit)
+                .await?;
+            if let Some(game) = runtime
+                .config
+                .games
+                .iter()
+                .find(|game| game.storage_key == *game_id)
+            {
+                game.forget_v2_tombstones(&retention.tombstones)?;
+            }
+        }
     }
     Ok(total)
 }
@@ -220,7 +235,7 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
         return Ok(None);
     }
-    let targets = sync_targets(&profile);
+    let targets = sync_targets(&profile, &library);
     if targets.is_empty() {
         return Ok(None);
     }
@@ -248,7 +263,10 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
     }))
 }
 
-fn sync_targets(profile: &DeviceProfile) -> BTreeMap<String, SnapshotSyncTarget> {
+fn sync_targets(
+    profile: &DeviceProfile,
+    library: &crate::config::SharedLibrary,
+) -> BTreeMap<String, SnapshotSyncTarget> {
     profile
         .games
         .iter()
@@ -260,6 +278,12 @@ fn sync_targets(profile: &DeviceProfile) -> BTreeMap<String, SnapshotSyncTarget>
                         SnapshotSyncTarget {
                             activation_revision: revision,
                             local_baseline: settings.snapshot_sync_local_baseline.clone(),
+                            retention_limit: library
+                                .games
+                                .iter()
+                                .find(|game| game.storage_key == *game_id)
+                                .and_then(|game| game.snapshot_retention)
+                                .map(|policy| policy.automatic_snapshots_per_branch),
                         },
                     )
                 })
@@ -284,6 +308,8 @@ pub enum SnapshotSyncServiceError {
     SnapshotSync(#[from] SnapshotSyncError),
     #[error(transparent)]
     ConflictReview(#[from] crate::cloud_sync::v2::ConflictReviewError),
+    #[error(transparent)]
+    Retention(#[from] super::CloudLibraryServiceError),
 }
 
 #[cfg(test)]
@@ -349,7 +375,13 @@ mod tests {
             .games
             .insert("incomplete".into(), game(SyncMode::SnapshotSync, None));
 
-        let targets = sync_targets(&profile);
+        let targets = sync_targets(
+            &profile,
+            &crate::config::SharedLibrary {
+                schema_version: crate::config::V2_CONFIG_SCHEMA_VERSION,
+                games: Vec::new(),
+            },
+        );
 
         assert_eq!(
             targets.keys().cloned().collect::<Vec<_>>(),

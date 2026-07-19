@@ -61,6 +61,7 @@ const tableSortBy = ref<{ key: string; order: TableV2SortOrder }>({
   order: TableV2SortOrder.DESC,
 });
 const selectedDates = ref<Set<string>>(new Set());
+const retentionProtectedDates = ref<Set<string>>(new Set());
 
 // Game snapshots info including HEAD
 const gameSnapshots = ref<GameSnapshots | null>(null);
@@ -262,6 +263,35 @@ async function onAutoSaveSettingsSaved() {
 
 async function convertToPermanent(snapshotDate: string) {
   try {
+    const generation = await commands.getCloudNamespaceGeneration();
+    if (generation.status === 'error') {
+      notifyError(generation.error);
+      return;
+    }
+    if (generation.data === 'v2') {
+      await feedback.confirm(
+        $t('manage.protect_from_retention_confirm'),
+        $t('manage.convert_to_permanent'),
+        {
+          confirmButtonText: $t('manage.convert_to_permanent'),
+          cancelButtonText: $t('manage.cancel'),
+          type: 'info',
+        }
+      );
+      const result = await commands.setSnapshotRetentionProtected(
+        game.value.storage_key || game.value.name,
+        snapshotDate,
+        true,
+        false
+      );
+      if (result.status === 'error') {
+        notifyError($t('manage.protect_from_retention_failed'), result.error);
+        return;
+      }
+      retentionProtectedDates.value = new Set([...retentionProtectedDates.value, snapshotDate]);
+      notifySuccess($t('manage.protect_from_retention_success'));
+      return;
+    }
     const snapshot = table_data.value.find((x) => x.date === snapshotDate);
     const { value } = await feedback.prompt(
       $t('manage.input_description_prompt'),
@@ -301,6 +331,7 @@ watch(
     const name = getGameNameFromRouteParam(newValue);
     game.value = config.value.games.find((x) => x.name == name) as Game;
     undoInfo.value = null;
+    retentionProtectedDates.value = new Set();
     refresh_backups_info();
     // 检查当前设备的存档路径是否为空
     checkCurrentDeviceSavePaths();
@@ -1618,7 +1649,9 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                     />
                   </el-tooltip>
                   <el-tooltip
-                    v-if="isAutomaticSnapshot(rowData)"
+                    v-if="
+                      isAutomaticSnapshot(rowData) && !retentionProtectedDates.has(rowData.date)
+                    "
                     :content="$t('manage.convert_to_permanent')"
                     placement="top"
                     :show-after="300"

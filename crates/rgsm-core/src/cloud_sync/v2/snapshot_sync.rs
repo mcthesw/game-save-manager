@@ -7,8 +7,9 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer,
-    CloudManifest, CloudManifestRepository, ManifestError, ManifestRepositoryError, SnapshotNode,
-    SnapshotState,
+    CloudManifest, CloudManifestRepository, DeletionKind, ManifestError, ManifestRepositoryError,
+    SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotNode,
+    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
@@ -18,6 +19,12 @@ pub struct SnapshotReconciliationOutcome {
     pub published: usize,
     pub uploaded: usize,
     pub downloaded: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RetentionEnforcementOutcome {
+    pub deleted: usize,
+    pub tombstones: BTreeSet<String>,
 }
 
 pub struct SnapshotSyncCoordinator {
@@ -151,6 +158,67 @@ impl SnapshotSyncCoordinator {
         &self,
     ) -> Result<BTreeMap<String, BTreeSet<String>>, SnapshotSyncError> {
         Ok(self.materializer.converge_local_tombstones().await?)
+    }
+
+    pub async fn enforce_retention(
+        &self,
+        game_id: &str,
+        automatic_snapshots_per_branch: u32,
+    ) -> Result<RetentionEnforcementOutcome, SnapshotSyncError> {
+        let lifecycle = SnapshotDeletionLifecycle::new(
+            self.operator.clone(),
+            self.local_archive_root.clone(),
+            self.current_device_id.clone(),
+            self.max_attempts,
+        );
+        let mut manifest = self.repository().load().await?;
+        let pending = manifest
+            .games
+            .get(game_id)
+            .map(|game| {
+                game.snapshots
+                    .values()
+                    .filter(|node| {
+                        matches!(
+                            &node.state,
+                            SnapshotState::PendingTombstone(pending)
+                                if pending.kind == DeletionKind::Retention
+                                    && pending.acting_device == self.current_device_id
+                        )
+                    })
+                    .map(|node| node.snapshot_id.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut deleted = 0;
+        for snapshot_id in pending {
+            lifecycle
+                .delete_retention_snapshot(game_id, &snapshot_id)
+                .await?;
+            deleted += 1;
+        }
+
+        manifest = self.repository().load().await?;
+        let Some(game) = manifest.games.get(game_id) else {
+            return Ok(RetentionEnforcementOutcome::default());
+        };
+        let plan = SnapshotRetentionPlanner::plan(game, automatic_snapshots_per_branch as usize)?;
+        for snapshot_id in &plan.candidates {
+            lifecycle
+                .delete_retention_snapshot(game_id, snapshot_id)
+                .await?;
+            deleted += 1;
+        }
+        let tombstones = self
+            .materializer
+            .converge_local_tombstones()
+            .await?
+            .remove(game_id)
+            .unwrap_or_default();
+        Ok(RetentionEnforcementOutcome {
+            deleted,
+            tombstones,
+        })
     }
 
     pub(crate) async fn publish_local_node(
@@ -369,6 +437,10 @@ pub enum SnapshotSyncError {
     Manifest(#[from] ManifestRepositoryError),
     #[error(transparent)]
     Materialization(#[from] super::MaterializationError),
+    #[error(transparent)]
+    Retention(#[from] SnapshotRetentionPlannerError),
+    #[error(transparent)]
+    Deletion(#[from] SnapshotDeletionLifecycleError),
 }
 
 #[cfg(test)]
@@ -545,5 +617,70 @@ mod tests {
         assert_eq!(outcome.downloaded, 1);
         assert!(!archive_path(&archive_root.join("game"), "old", ArchiveFormat::Zip).exists());
         assert!(archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).is_file());
+    }
+
+    #[tokio::test]
+    async fn retention_enforcement_uses_global_tombstones_and_keeps_each_head() {
+        let operator = memory_operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let archive_root = root.path().join("deck");
+        let game_root = archive_root.join("game");
+        std::fs::create_dir_all(&game_root).unwrap();
+        let mut game = GameManifest::new("game");
+        for (id, parent) in [("old", None), ("kept", Some("old")), ("head", Some("kept"))] {
+            let local_path = archive_path(&game_root, id, ArchiveFormat::Zip);
+            std::fs::write(&local_path, id.as_bytes()).unwrap();
+            let mut node = SnapshotNode::live(
+                id,
+                parent.map(str::to_string),
+                ArchiveIntegrity::from_file(&local_path).unwrap(),
+                CreatedBy::Timer,
+            );
+            let SnapshotState::Live(live) = &mut node.state else {
+                unreachable!()
+            };
+            live.cloud_archive_verified = true;
+            game.upsert_live(node).unwrap();
+            game.report_local_archive("deck".into(), id.into(), true);
+            operator
+                .write(
+                    &cloud_archive_path("game", id, ArchiveFormat::Zip).unwrap(),
+                    id.as_bytes().to_vec(),
+                )
+                .await
+                .unwrap();
+        }
+        game.set_head("deck".into(), "head".into());
+        let mut manifest = CloudManifest::default();
+        manifest.games.insert("game".into(), game);
+        write_manifest(&operator, &manifest).await;
+        let coordinator = SnapshotSyncCoordinator::new(
+            operator.clone(),
+            archive_root,
+            "deck".into(),
+            root.path().join("progress.json"),
+            2,
+        );
+
+        let outcome = coordinator.enforce_retention("game", 1).await.unwrap();
+
+        assert_eq!(outcome.deleted, 1);
+        assert_eq!(outcome.tombstones, BTreeSet::from(["old".into()]));
+        let stored = coordinator.repository().load().await.unwrap();
+        assert!(matches!(
+            stored.games["game"].snapshots["old"].state,
+            SnapshotState::FinalTombstone {
+                kind: DeletionKind::Retention
+            }
+        ));
+        assert!(stored.games["game"].snapshots["kept"].state.is_live());
+        assert!(stored.games["game"].snapshots["head"].state.is_live());
+        assert!(!archive_path(&game_root, "old", ArchiveFormat::Zip).exists());
+        assert!(
+            !operator
+                .exists(&cloud_archive_path("game", "old", ArchiveFormat::Zip).unwrap())
+                .await
+                .unwrap()
+        );
     }
 }

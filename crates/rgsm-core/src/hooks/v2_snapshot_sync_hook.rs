@@ -14,6 +14,7 @@ use crate::cloud_sync::v2::SnapshotSyncCoordinator;
 pub struct SnapshotSyncTarget {
     pub activation_revision: u64,
     pub local_baseline: BTreeSet<String>,
+    pub retention_limit: Option<u32>,
 }
 
 pub struct V2SnapshotSyncHook {
@@ -65,13 +66,24 @@ impl LifecycleHook for V2SnapshotSyncHook {
                 &CancellationToken::new(),
             )
             .await?;
+        let retained = if let Some(limit) = target.retention_limit {
+            let retention = self
+                .coordinator
+                .enforce_retention(game_id.as_ref(), limit)
+                .await?;
+            ctx.game.forget_v2_tombstones(&retention.tombstones)?;
+            retention.deleted
+        } else {
+            0
+        };
         info!(
             target: "rgsm::hooks::v2_snapshot_sync",
-            "Reconciled {} after Snapshot creation: {} published, {} uploaded, {} downloaded",
+            "Reconciled {} after Snapshot creation: {} published, {} uploaded, {} downloaded, {} retained-history deletions",
             game_id,
             outcome.published,
             outcome.uploaded,
-            outcome.downloaded
+            outcome.downloaded,
+            retained,
         );
         Ok(())
     }

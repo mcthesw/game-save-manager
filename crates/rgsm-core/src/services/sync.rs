@@ -6,13 +6,13 @@ use tokio_util::sync::CancellationToken;
 use crate::app_dirs::resolve_app_path;
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::v2::{
-    AcceptRemoteProgressError, CloudArchiveLibraryView, CloudArchiveMaterializer,
-    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryCutover,
-    CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError,
-    CloudLibraryJoinReview, CloudNamespaceClassification, ConflictReviewError,
-    DeviceProfileRepository, DeviceProfileRepositoryError, JoinGameDecision,
-    KeepLocalProgressError, MaterializationError, MaterializationOutcome, MaterializationPreview,
-    V2ConflictInspector, V2ConflictReview,
+    AcceptRemoteProgressError, CloudArchiveMaterializer, CloudLibraryBootstrap,
+    CloudLibraryBootstrapError, CloudLibraryCutover, CloudLibraryCutoverError,
+    CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
+    CloudNamespaceClassification, ConflictReviewError, DeviceProfileRepository,
+    DeviceProfileRepositoryError, JoinGameDecision, KeepLocalProgressError,
+    ManifestRepositoryError, MaterializationError, MaterializationOutcome, MaterializationPreview,
+    SharedLibraryRepositoryError, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -96,6 +96,12 @@ pub enum CloudLibraryServiceError {
     JoinNotRequired,
     #[error("This installation does not need Cloud Cutover")]
     CutoverNotRequired,
+    #[error("Enabling or reducing shared Snapshot retention requires explicit confirmation")]
+    RetentionConfirmationRequired,
+    #[error("Removing Snapshot retention protection requires explicit confirmation")]
+    ProtectionRemovalConfirmationRequired,
+    #[error("Snapshot retention must keep at least one automatic Snapshot per Branch")]
+    InvalidRetentionLimit,
     #[error(transparent)]
     Config(#[from] crate::preclude::ConfigError),
     #[error(transparent)]
@@ -118,6 +124,12 @@ pub enum CloudLibraryServiceError {
     AcceptRemoteProgress(#[from] AcceptRemoteProgressError),
     #[error(transparent)]
     DeviceProfile(#[from] DeviceProfileRepositoryError),
+    #[error(transparent)]
+    SharedLibrary(#[from] SharedLibraryRepositoryError),
+    #[error(transparent)]
+    ManifestRepository(#[from] ManifestRepositoryError),
+    #[error(transparent)]
+    SnapshotSync(#[from] SnapshotSyncError),
     #[error("Game is not configured on this device: {0}")]
     GameProfileNotFound(String),
     #[error("Live Save Sync requires a process name")]
@@ -333,32 +345,6 @@ impl ServiceContext {
             snapshot_count: result.snapshot_count,
             unavailable_archives: result.unavailable_archives,
         })
-    }
-
-    pub async fn cloud_archive_library(
-        &self,
-    ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
-        let (library, profile, _) = cloud_bootstrap_inputs()?;
-        let mut view = self
-            .converged_materializer()
-            .await?
-            .view(
-                &library
-                    .games
-                    .into_iter()
-                    .map(|game| (game.storage_key, game.name))
-                    .collect(),
-            )
-            .await
-            .map_err(CloudLibraryServiceError::from)?;
-        for game in &mut view.games {
-            if let Some(settings) = profile.games.get(&game.game_id) {
-                game.sync_mode = settings.sync_mode;
-                game.live_save_process_name = settings.live_save_process_name.clone();
-                game.live_save_snapshot_on_exit = settings.live_save_snapshot_on_exit;
-            }
-        }
-        Ok(view)
     }
 
     pub async fn review_v2_game_progress(
@@ -600,7 +586,7 @@ impl ServiceContext {
         ))
     }
 
-    async fn converged_materializer(
+    pub(super) async fn converged_materializer(
         &self,
     ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
         let materializer = self.materializer()?;
