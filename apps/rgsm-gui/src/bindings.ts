@@ -196,6 +196,22 @@ async checkCloudBackend(session: CloudSyncSessionConfig) : Promise<Result<CloudB
     else return { status: "error", error: e  as any };
 }
 },
+async inspectCloudLibrary() : Promise<Result<CloudLibraryStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("inspect_cloud_library") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createCloudLibrary(confirmed: boolean) : Promise<Result<CloudLibraryStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_cloud_library", { confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cloudUploadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { session }) };
@@ -635,6 +651,7 @@ export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
 export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
 export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
+export type CloudLibraryStatus = { kind: "empty" } | { kind: "join_required"; game_count: number } | { kind: "cutover_required"; game_count: number } | { kind: "active"; game_count: number }
 export type CloudSettings = {
 /**
  * 同步间隔，单位分钟，为0则不自动同步

@@ -4,6 +4,7 @@
 /gen/schemas
 
 GameSaveManager.config.json
+GameSaveManager.config.v2/
 *.bak
 save_data/
 

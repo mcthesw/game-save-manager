@@ -18,7 +18,7 @@ use rgsm_core::path_pattern::{PathPlaceholder, PathPlaceholderDescriptor};
 use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
-use rgsm_core::services::ServiceContext;
+use rgsm_core::services::{CloudLibraryStatus, ServiceContext};
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
 use rgsm_core::{backup, config, system_fonts};
@@ -595,6 +595,34 @@ pub async fn check_cloud_backend(
             Err(e.to_string())
         }
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn inspect_cloud_library(app_handle: AppHandle) -> Result<CloudLibraryStatus, String> {
+    info!(target:"rgsm::ipc", "Inspecting the saved Cloud Library");
+    svc(&app_handle)
+        .inspect_cloud_library()
+        .await
+        .map_err(|error| {
+            error!(target:"rgsm::ipc", "Failed to inspect Cloud Library: {error:?}");
+            error.to_string()
+        })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_cloud_library(
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<CloudLibraryStatus, String> {
+    info!(target:"rgsm::ipc", "Creating a new Cloud Library");
+    crate::cloud_library::create(&app_handle, confirmed)
+        .await
+        .map_err(|error| {
+            error!(target:"rgsm::ipc", "Failed to create Cloud Library: {error:?}");
+            error.to_string()
+        })
 }
 
 #[tauri::command]

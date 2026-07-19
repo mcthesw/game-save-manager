@@ -35,4 +35,5 @@ Cargo.lock
 
 # Test related
 src-tauri/GameSaveManager.config.json
+src-tauri/GameSaveManager.config.v2/
 src-tauri/save_data/*

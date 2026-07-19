@@ -8,6 +8,19 @@ use crate::path_pattern::StoreKind;
 pub type DeviceId = String;
 pub type DeviceResourceId = u32;
 
+/// Encode a Device ID as path-safe lowercase hexadecimal.
+///
+/// Each UTF-8 byte becomes two characters, so time and output space are O(n).
+pub fn encode_device_id(device_id: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(device_id.len() * 2);
+    for byte in device_id.as_bytes() {
+        encoded.push(HEX[(byte >> 4) as usize] as char);
+        encoded.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    encoded
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum DeviceResourceSource {
@@ -183,6 +196,11 @@ mod tests {
 
         assert_eq!(device.resources[0].id, id);
         assert_eq!(device.next_resource_id, 1);
+    }
+
+    #[test]
+    fn encoded_device_ids_are_path_safe() {
+        assert_eq!(encode_device_id("../Deck"), "2e2e2f4465636b");
     }
 
     #[test]

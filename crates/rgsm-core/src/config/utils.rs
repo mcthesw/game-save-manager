@@ -6,7 +6,9 @@ use tokio::sync::{Mutex as TokioMutex, MutexGuard};
 
 use crate::app_dirs::resolve_app_path;
 use crate::config::owner_store::OwnerStore;
-use crate::config::{Config, backup};
+use crate::config::{
+    CloudNamespaceGeneration, Config, DeviceProfile, LocalState, SharedLibrary, backup,
+};
 use crate::preclude::*;
 use crate::updater::update_config;
 use log::info;
@@ -50,6 +52,46 @@ pub fn get_config() -> Result<Config, ConfigError> {
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     get_config_unlocked()
+}
+
+pub fn cloud_namespace_generation() -> Result<CloudNamespaceGeneration, ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    Ok(OwnerStore::runtime()
+        .load()?
+        .local_state
+        .cloud_namespace_generation)
+}
+
+pub(crate) fn cloud_bootstrap_inputs()
+-> Result<(SharedLibrary, DeviceProfile, LocalState), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    let owners = OwnerStore::runtime().load()?;
+    let profile = owners
+        .device_profiles
+        .get(&owners.local_state.current_device_id)
+        .cloned()
+        .ok_or_else(|| {
+            crate::config::OwnershipError::MissingDeviceProfile(
+                owners.local_state.current_device_id.clone(),
+            )
+        })
+        .map_err(crate::config::OwnerStoreError::from)?;
+    Ok((owners.shared_library, profile, owners.local_state))
+}
+
+pub(crate) fn activate_cloud_namespace_v2(
+    expected_library: &SharedLibrary,
+    expected_profile: &DeviceProfile,
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().activate_v2(expected_library, expected_profile)?;
+    Ok(())
 }
 
 fn get_config_unlocked() -> Result<Config, ConfigError> {

@@ -660,6 +660,25 @@
         "backend_tab": {
             "tab": "后端配置"
         },
+        "library": {
+            "title": "云端资料库",
+            "description": "请先保存上方连接设置，再检查该位置能否使用新的多设备资料库。",
+            "backend_disabled": "请先启用并保存云存档后端。",
+            "not_checked": "尚未检查当前保存的云端位置。",
+            "inspect": "检查资料库",
+            "inspect_failed": "无法检查云端资料库",
+            "empty": "该位置为空，可以创建新的云端资料库。",
+            "join_required": "发现包含 {count} 个游戏的云端资料库，此设备需要审阅后加入。",
+            "cutover_required": "发现 {count} 个游戏的旧版云存档，需要明确执行迁移。",
+            "active": "此设备正在使用包含 {count} 个游戏的云端资料库。",
+            "create": "创建资料库",
+            "create_title": "创建云端资料库",
+            "create_warning": "要根据此设备的游戏列表创建新的多设备云端资料库吗？此设备也会停止使用旧版云存档格式。其他设备必须使用兼容版本才能共享后续变更。",
+            "create_confirm": "创建并切换",
+            "create_failed": "无法创建云端资料库",
+            "create_success": "云端资料库已创建",
+            "legacy_disabled": "此设备已切换到新的云端资料库，旧版同步操作已不可用。"
+        },
         "operations": {
             "tab": "操作",
             "warning": "以下操作可能会覆盖数据，请谨慎使用。",
