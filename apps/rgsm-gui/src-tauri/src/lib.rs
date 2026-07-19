@@ -139,6 +139,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::set_device_game_visibility,
             ipc_handler::set_device_game_managed,
             ipc_handler::evict_local_archive,
+            ipc_handler::get_cloud_device_profiles,
+            ipc_handler::remove_cloud_device_profile,
             ipc_handler::materialize_all_cloud_archives,
             ipc_handler::set_game_sync_mode,
             ipc_handler::cloud_upload_all,

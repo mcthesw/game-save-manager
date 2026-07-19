@@ -4,6 +4,7 @@ mod conflict_resolution;
 mod device_game_lifecycle;
 mod game;
 mod path_resolution;
+mod profile_management;
 mod retention;
 mod snapshot;
 mod snapshot_sync;
@@ -15,6 +16,7 @@ use crate::hooks::HookPipeline;
 
 pub use conflict_resolution::AcceptRemoteProgressOutcome;
 pub use device_game_lifecycle::DeviceGameStatus;
+pub use profile_management::CloudDeviceProfileView;
 pub use retention::SnapshotRetentionOutcome;
 pub use snapshot_sync::{
     DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES, LiveSaveApplyPlan, LiveSaveSyncTarget,

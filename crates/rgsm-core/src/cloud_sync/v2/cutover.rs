@@ -1,8 +1,9 @@
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudManifest,
     CloudNamespaceClassification, CloudNamespaceClassifier, CloudNamespaceDescriptor,
-    CloudNamespaceError, GameManifest, ManifestError, SHARED_LIBRARY_PATH, SnapshotNode,
-    SnapshotState, V2_NAMESPACE_DESCRIPTOR_PATH, cloud_archive_path, device_profile_path,
+    CloudNamespaceError, DELETION_REGISTRY_PATH, DeletionRegistry, GameManifest, ManifestError,
+    SHARED_LIBRARY_PATH, SnapshotNode, SnapshotState, V2_NAMESPACE_DESCRIPTOR_PATH,
+    cloud_archive_path, device_profile_path,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::cloud_sync::transfer::CloudTransfer;
@@ -343,6 +344,11 @@ impl CloudLibraryCutover {
         .await?;
         self.write_verified(CLOUD_MANIFEST_PATH, &serde_json::to_vec_pretty(manifest)?)
             .await?;
+        self.write_verified(
+            DELETION_REGISTRY_PATH,
+            &serde_json::to_vec_pretty(&DeletionRegistry::default())?,
+        )
+        .await?;
         let mut profiles = plan.device_profiles.iter().collect::<Vec<_>>();
         profiles.sort_by_key(|(device_id, _)| *device_id);
         for (device_id, profile) in profiles {

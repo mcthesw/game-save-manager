@@ -886,6 +886,30 @@ pub async fn evict_local_archive(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_cloud_device_profiles(
+    app_handle: AppHandle,
+) -> Result<Vec<rgsm_core::services::CloudDeviceProfileView>, String> {
+    svc(&app_handle)
+        .cloud_device_profiles()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_cloud_device_profile(
+    device_id: String,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::cloud_sync::v2::DeviceProfileRemovalOutcome, String> {
+    svc(&app_handle)
+        .remove_cloud_device_profile(&device_id, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn materialize_all_cloud_archives(
     app_handle: AppHandle,
 ) -> Result<MaterializationOutcome, String> {

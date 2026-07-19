@@ -231,6 +231,8 @@ onMounted(load);
       class="resume-alert"
     />
 
+    <CloudDeviceProfilesPanel />
+
     <ElEmpty
       v-if="library && library.games.length === 0"
       :description="$t('sync_settings.overview.no_games')"

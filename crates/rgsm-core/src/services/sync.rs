@@ -9,11 +9,11 @@ use crate::cloud_sync::v2::{
     AcceptRemoteProgressError, CloudArchiveMaterializer, CloudLibraryBootstrap,
     CloudLibraryBootstrapError, CloudLibraryCutover, CloudLibraryCutoverError,
     CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
-    CloudNamespaceClassification, ConflictReviewError, DeviceProfileRepository,
-    DeviceProfileRepositoryError, JoinGameDecision, KeepLocalProgressError,
-    LocalArchiveEvictionError, ManifestRepositoryError, MaterializationError,
-    MaterializationOutcome, MaterializationPreview, SharedLibraryRepositoryError,
-    SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
+    CloudNamespaceClassification, ConflictReviewError, DeletionRegistryError,
+    DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
+    JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
+    MaterializationError, MaterializationOutcome, MaterializationPreview,
+    SharedLibraryRepositoryError, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -133,6 +133,10 @@ pub enum CloudLibraryServiceError {
     SnapshotSync(#[from] SnapshotSyncError),
     #[error(transparent)]
     LocalArchiveEviction(#[from] LocalArchiveEvictionError),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
+    #[error(transparent)]
+    DeviceProfileRemoval(#[from] DeviceProfileRemovalError),
     #[error("Game is not configured on this device: {0}")]
     GameProfileNotFound(String),
     #[error("Game is not managed on this device: {0}")]
