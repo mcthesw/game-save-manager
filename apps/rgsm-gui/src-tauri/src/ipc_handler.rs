@@ -835,6 +835,57 @@ pub async fn set_snapshot_retention_protected(
 
 #[tauri::command]
 #[specta::specta]
+pub fn get_current_device_game_statuses(
+    app_handle: AppHandle,
+) -> Result<Vec<rgsm_core::services::DeviceGameStatus>, String> {
+    svc(&app_handle)
+        .current_device_game_statuses()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_device_game_visibility(
+    game_id: String,
+    visible: bool,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::services::DeviceGameStatus, String> {
+    svc(&app_handle)
+        .set_device_game_visibility(&game_id, visible)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_device_game_managed(
+    game_id: String,
+    managed: bool,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::services::DeviceGameStatus, String> {
+    svc(&app_handle)
+        .set_device_game_managed(&game_id, managed, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn evict_local_archive(
+    game_id: String,
+    snapshot_id: String,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    svc(&app_handle)
+        .evict_local_archive(&game_id, &snapshot_id, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn materialize_all_cloud_archives(
     app_handle: AppHandle,
 ) -> Result<MaterializationOutcome, String> {

@@ -213,6 +213,10 @@
         "restoring_backup": "Restoring backup...",
         "no_backup_error": "An error occurred. It's possible you don't have any saves",
         "delete_prompt": "If you are sure you want to delete, please enter yes. Otherwise, click cancel. This action will erase all saved game files and remove the game from the managed game list",
+        "stop_managing_title": "Stop managing on this device?",
+        "stop_managing_action": "Stop managing here",
+        "stop_managing_confirm": "This removes this game's paths, Sync Mode, automatic Apply and process settings, and quick-action bindings from this device. Shared history, Cloud Archives, other devices, and existing local Archive files are not deleted.",
+        "stop_managing_failed": "Could not stop managing this game on this device",
         "confirm": "Confirm",
         "invalid_input_error": "Invalid input",
         "operation_canceled": "You have canceled this operation",
@@ -702,6 +706,27 @@
                 "unprotect_title": "Remove retention protection?",
                 "unprotect_confirm": "This automatic Snapshot may be permanently deleted immediately if it exceeds the shared per-Branch limit. Its available local and cloud Archive copies would also be removed across devices.",
                 "unprotect": "Remove protection"
+            },
+            "device": {
+                "visible": "Shown",
+                "hidden": "Hidden",
+                "not_managed": "Not managed here",
+                "manage_action": "Manage on this device",
+                "stop_action": "Stop managing here",
+                "stop_title": "Stop managing on this device?",
+                "stop_confirm": "This removes this game's paths, Sync Mode, automatic Apply and process settings, and quick-action bindings from this device. Shared history, Cloud Archives, other devices, and existing local Archive files are not deleted.",
+                "visibility_saved": "Device visibility updated",
+                "visibility_failed": "Could not update Device visibility",
+                "manage_success": "This device now manages the game in Manual mode",
+                "stop_success": "This device stopped managing the game",
+                "management_failed": "Could not update Device management"
+            },
+            "evict": {
+                "action": "Remove local copy",
+                "title": "Remove this Device's Archive copy?",
+                "confirm": "Remove the local Archive for “{snapshot}” from this device only? Shared Snapshot history and the cloud copy remain available. An automatic Sync Mode may download it again.",
+                "success": "Local Archive copy removed",
+                "failed": "Could not remove the local Archive copy"
             },
             "download_all": "Download all",
             "resume_download": "Resume download",

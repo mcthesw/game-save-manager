@@ -9,7 +9,7 @@ import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import type { MessageBoxInputData } from '../ui/elementPlus/messageBox';
 
-const { config, saveConfig } = useConfig();
+const { config, saveConfig, isGameVisible } = useConfig();
 const feedback = useFeedback();
 const enable_edit = ref(false);
 const add_game_dialog_visible = ref(false);
@@ -25,15 +25,21 @@ const props = defineProps({
 // 过滤收藏夹树
 const filteredFavorites = computed(() => {
   const query = props.searchQuery.trim().toLowerCase();
-  if (!query || !config.value?.favorites) return config.value?.favorites;
+  if (!config.value?.favorites) return config.value?.favorites;
+  const visibleNames = new Set(
+    config.value.games
+      .filter((game) => isGameVisible(game.storage_key, game.name))
+      .map((game) => game.name)
+  );
 
   // 递归过滤函数
   const filterNodes = (nodes: FavoriteTreeNode[]): FavoriteTreeNode[] => {
     if (!nodes) return [];
 
     return nodes.filter((node: FavoriteTreeNode) => {
+      if (node.is_leaf && !visibleNames.has(node.label)) return false;
       // 检查当前节点是否匹配
-      const nodeMatches = node.label.toLowerCase().includes(query);
+      const nodeMatches = !query || node.label.toLowerCase().includes(query);
 
       // 如果有子节点，递归过滤
       if (node.children && node.children.length > 0) {

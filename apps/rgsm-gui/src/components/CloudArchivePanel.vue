@@ -252,8 +252,9 @@ onMounted(load);
               </span>
             </div>
             <div class="game-actions">
+              <CloudDeviceGameControls :game="game" @updated="load" />
               <ElButton
-                v-if="game.advertised_head_count > 0"
+                v-if="game.managed && game.advertised_head_count > 0"
                 :icon="Connection"
                 type="primary"
                 plain
@@ -264,6 +265,7 @@ onMounted(load);
                 <ElBadge :value="game.advertised_head_count" />
               </ElButton>
               <ElSelect
+                v-if="game.managed"
                 :model-value="game.sync_mode"
                 class="sync-mode-select"
                 :aria-label="$t('sync_settings.archives.mode')"
@@ -290,6 +292,13 @@ onMounted(load);
             {{ availabilityLabel(snapshot) }}
           </ElTag>
           <div class="snapshot-actions">
+            <LocalArchiveEvictionButton
+              v-if="snapshot.local_verified"
+              :game-id="game.game_id"
+              :snapshot-id="snapshot.snapshot_id"
+              :label="snapshot.description || snapshot.snapshot_id"
+              @updated="load"
+            />
             <SnapshotRetentionButton
               v-if="canProtect(snapshot)"
               :game-id="game.game_id"

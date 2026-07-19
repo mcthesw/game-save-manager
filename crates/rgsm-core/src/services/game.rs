@@ -1,7 +1,10 @@
 use anyhow::{Result, anyhow, bail};
 
 use crate::backup::{self, AutoBackupConfig, Game, GameDeviceBinding, GameDraft};
-use crate::config::{GameAutomationSettingsDraft, get_config, set_config};
+use crate::config::{
+    CloudNamespaceGeneration, GameAutomationSettingsDraft, cloud_namespace_generation, get_config,
+    set_config,
+};
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
 use super::ServiceContext;
@@ -90,6 +93,11 @@ impl ServiceContext {
     }
 
     pub async fn delete_game(&self, game: &Game, source: HookSource) -> Result<()> {
+        if cloud_namespace_generation()? == CloudNamespaceGeneration::V2 {
+            bail!(
+                "V2 requires the distinct Stop Managing or Permanent Shared Game Deletion action"
+            );
+        }
         let deleted = game.delete_game().await?;
         let config = get_config()?;
 

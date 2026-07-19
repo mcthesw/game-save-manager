@@ -11,8 +11,9 @@ use crate::cloud_sync::v2::{
     CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
     CloudNamespaceClassification, ConflictReviewError, DeviceProfileRepository,
     DeviceProfileRepositoryError, JoinGameDecision, KeepLocalProgressError,
-    ManifestRepositoryError, MaterializationError, MaterializationOutcome, MaterializationPreview,
-    SharedLibraryRepositoryError, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
+    LocalArchiveEvictionError, ManifestRepositoryError, MaterializationError,
+    MaterializationOutcome, MaterializationPreview, SharedLibraryRepositoryError,
+    SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -130,8 +131,12 @@ pub enum CloudLibraryServiceError {
     ManifestRepository(#[from] ManifestRepositoryError),
     #[error(transparent)]
     SnapshotSync(#[from] SnapshotSyncError),
+    #[error(transparent)]
+    LocalArchiveEviction(#[from] LocalArchiveEvictionError),
     #[error("Game is not configured on this device: {0}")]
     GameProfileNotFound(String),
+    #[error("Game is not managed on this device: {0}")]
+    GameNotManaged(String),
     #[error("Live Save Sync requires a process name")]
     LiveSaveProcessRequired,
     #[error("Choose a local archive folder before downloading or uploading Snapshots")]

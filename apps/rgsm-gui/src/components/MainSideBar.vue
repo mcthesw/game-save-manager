@@ -10,7 +10,7 @@ import { useSidebarResize } from '../composables/useSidebarResize';
 import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehavior';
 import type { MenuInstance } from '../ui/elementPlus/menu';
 
-const { config } = useConfig();
+const { config, isGameVisible } = useConfig();
 const { baseLinks } = useNavigationLinks();
 const { sortedGames } = useSaveListSort();
 const { isResizing, startResize } = useSidebarResize({
@@ -19,7 +19,9 @@ const { isResizing, startResize } = useSidebarResize({
 });
 
 const games = computed(() => {
-  return sortedGames(config.value.games);
+  return sortedGames(
+    config.value.games.filter((game) => isGameVisible(game.storage_key, game.name))
+  );
 });
 
 const router = useRouter();
