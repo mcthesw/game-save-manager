@@ -37,6 +37,8 @@ pub enum OwnershipError {
     EmptySharedGameId,
     #[error("Shared Game {game_id} contains duplicate Save Unit ID {save_unit_id}")]
     DuplicateSharedSaveUnit { game_id: String, save_unit_id: u32 },
+    #[error("Shared Game {0} has an invalid Snapshot retention limit")]
+    InvalidSnapshotRetention(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -60,6 +62,13 @@ pub struct SharedGame {
     pub save_units: Vec<SharedSaveUnit>,
     pub next_save_unit_id: u32,
     pub ludusavi_meta: Option<LudusaviMeta>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot_retention: Option<SharedSnapshotRetentionPolicy>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+pub struct SharedSnapshotRetentionPolicy {
+    pub automatic_snapshots_per_branch: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
@@ -310,6 +319,18 @@ impl ConfigurationOwners {
             .cloned()
             .collect::<HashSet<_>>();
 
+        let existing_retention = self
+            .shared_library
+            .games
+            .iter()
+            .map(|game| (game.storage_key.as_str(), game.snapshot_retention))
+            .collect::<HashMap<_, _>>();
+        for game in &mut incoming.shared_library.games {
+            game.snapshot_retention = existing_retention
+                .get(game.storage_key.as_str())
+                .copied()
+                .flatten();
+        }
         self.shared_library = incoming.shared_library;
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
@@ -522,6 +543,14 @@ impl SharedLibrary {
                     });
                 }
             }
+            if game
+                .snapshot_retention
+                .is_some_and(|policy| policy.automatic_snapshots_per_branch == 0)
+            {
+                return Err(OwnershipError::InvalidSnapshotRetention(
+                    game.storage_key.clone(),
+                ));
+            }
         }
         Ok(())
     }
@@ -546,6 +575,7 @@ impl From<&Game> for SharedGame {
             save_units: game.save_paths.iter().map(SharedSaveUnit::from).collect(),
             next_save_unit_id: game.next_save_unit_id,
             ludusavi_meta: game.ludusavi_meta.clone(),
+            snapshot_retention: None,
         }
     }
 }

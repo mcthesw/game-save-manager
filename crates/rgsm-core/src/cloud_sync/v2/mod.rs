@@ -14,6 +14,8 @@ mod namespace;
 mod profile_repository;
 mod remote_resolution;
 mod repository;
+mod retention;
+mod shared_library_repository;
 mod snapshot_sync;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
@@ -64,6 +66,10 @@ pub use remote_resolution::{
 pub use repository::{
     CloudManifestRepository, ManifestRepositoryError, ManifestTransport, OpenDalManifestTransport,
 };
+pub use retention::{
+    SnapshotRetentionPlan, SnapshotRetentionPlanner, SnapshotRetentionPlannerError,
+};
+pub use shared_library_repository::{SharedLibraryRepository, SharedLibraryRepositoryError};
 pub use snapshot_sync::{
     SnapshotReconciliationOutcome, SnapshotSyncCoordinator, SnapshotSyncError,
 };

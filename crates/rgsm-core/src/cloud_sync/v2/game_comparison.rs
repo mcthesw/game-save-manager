@@ -37,6 +37,9 @@ impl SharedGame {
     /// identity, display, path-pattern, or Save Unit values.
     pub fn normalized_portable(&self) -> Self {
         let mut normalized = self.clone();
+        // Retention is shared Cloud Library policy, not part of a portable
+        // Game definition. A joining Device inherits it from the cloud side.
+        normalized.snapshot_retention = None;
         for unit in &mut normalized.save_units {
             if let SharedSaveUnitSource::ManifestPattern { constraints, .. } = &mut unit.source {
                 constraints
@@ -115,7 +118,7 @@ pub fn compare_join_libraries(
 #[cfg(test)]
 mod tests {
     use crate::backup::{LudusaviMeta, StoreGameId};
-    use crate::config::{SharedSaveUnit, V2_CONFIG_SCHEMA_VERSION};
+    use crate::config::{SharedSaveUnit, SharedSnapshotRetentionPolicy, V2_CONFIG_SCHEMA_VERSION};
     use crate::path_pattern::{ManifestPathCondition, ManifestPathConstraints, StoreKind};
 
     use super::*;
@@ -164,6 +167,7 @@ mod tests {
                     },
                 ],
             }),
+            snapshot_retention: None,
         }
     }
 
@@ -175,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn normalization_ignores_only_unordered_portable_values() {
+    fn normalization_ignores_unordered_values_and_shared_retention_policy() {
         let original = game("game", "Game");
         let mut reordered = original.clone();
         for unit in &mut reordered.save_units {
@@ -184,6 +188,14 @@ mod tests {
             }
         }
 
+        assert_eq!(
+            original.portable_fingerprint().unwrap(),
+            reordered.portable_fingerprint().unwrap()
+        );
+
+        reordered.snapshot_retention = Some(SharedSnapshotRetentionPolicy {
+            automatic_snapshots_per_branch: 5,
+        });
         assert_eq!(
             original.portable_fingerprint().unwrap(),
             reordered.portable_fingerprint().unwrap()

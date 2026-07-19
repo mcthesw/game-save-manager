@@ -390,6 +390,7 @@ mod tests {
             save_units: Vec::new(),
             next_save_unit_id: 0,
             ludusavi_meta: None,
+            snapshot_retention: None,
         });
         invalid_library.objects.insert(
             SHARED_LIBRARY_PATH.into(),
