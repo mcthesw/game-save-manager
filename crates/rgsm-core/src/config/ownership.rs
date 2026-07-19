@@ -27,6 +27,12 @@ pub type EffectiveConfiguration = Config;
 pub enum OwnershipError {
     #[error("Device Profile not found: {0}")]
     MissingDeviceProfile(DeviceId),
+    #[error("Unsupported {owner} schema version: {found}")]
+    UnsupportedSchema { owner: String, found: u32 },
+    #[error("Device Profile key {key} does not match embedded Device ID {embedded}")]
+    ProfileIdentityMismatch { key: DeviceId, embedded: DeviceId },
+    #[error("Shared Library contains duplicate Game identity: {0}")]
+    DuplicateSharedGame(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -227,9 +233,87 @@ impl ConfigurationOwners {
         }
     }
 
+    pub fn validate(&self) -> Result<(), OwnershipError> {
+        validate_schema("Configuration Owners", self.schema_version)?;
+        validate_schema("Shared Library", self.shared_library.schema_version)?;
+        validate_schema("Local State", self.local_state.schema_version)?;
+
+        let mut game_ids = HashSet::new();
+        for game in &self.shared_library.games {
+            if !game_ids.insert(&game.storage_key) {
+                return Err(OwnershipError::DuplicateSharedGame(
+                    game.storage_key.clone(),
+                ));
+            }
+        }
+        for (device_id, profile) in &self.device_profiles {
+            validate_schema(
+                &format!("Device Profile {device_id}"),
+                profile.schema_version,
+            )?;
+            if &profile.device.id != device_id {
+                return Err(OwnershipError::ProfileIdentityMismatch {
+                    key: device_id.clone(),
+                    embedded: profile.device.id.clone(),
+                });
+            }
+        }
+        if !self
+            .device_profiles
+            .contains_key(&self.local_state.current_device_id)
+        {
+            return Err(OwnershipError::MissingDeviceProfile(
+                self.local_state.current_device_id.clone(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Apply an effective-configuration save without granting the current
+    /// Device permission to rewrite another Device's private Profile fields.
+    pub fn merge_effective(&mut self, config: &Config) -> Result<(), OwnershipError> {
+        self.validate()?;
+        let current_device_id = self.local_state.current_device_id.clone();
+        let mut incoming = Self::from_legacy(config, &current_device_id);
+        let current_profile = incoming
+            .device_profiles
+            .remove(&current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
+        let incoming_device_ids = incoming
+            .device_profiles
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        self.shared_library = incoming.shared_library;
+        self.local_state = incoming.local_state;
+        self.device_profiles.retain(|device_id, _| {
+            device_id == &current_device_id || incoming_device_ids.contains(device_id)
+        });
+        for (device_id, profile) in incoming.device_profiles {
+            self.device_profiles.entry(device_id).or_insert(profile);
+        }
+        self.device_profiles
+            .insert(current_device_id, current_profile);
+
+        let shared_game_ids = self
+            .shared_library
+            .games
+            .iter()
+            .map(|game| game.storage_key.as_str())
+            .collect::<HashSet<_>>();
+        for profile in self.device_profiles.values_mut() {
+            profile
+                .games
+                .retain(|game_id, _| shared_game_ids.contains(game_id.as_str()));
+        }
+        self.validate()
+    }
+
     /// Join the selected Device Profile with shared and local data for existing
     /// application services that still consume the flat configuration model.
     pub fn assemble_effective(&self) -> Result<EffectiveConfiguration, OwnershipError> {
+        self.validate()?;
         let current_device_id = &self.local_state.current_device_id;
         let current = self
             .device_profiles
@@ -333,6 +417,17 @@ impl ConfigurationOwners {
             ludusavi_meta: shared.ludusavi_meta.clone(),
             device_bindings,
         }
+    }
+}
+
+fn validate_schema(owner: &str, found: u32) -> Result<(), OwnershipError> {
+    if found == V2_CONFIG_SCHEMA_VERSION {
+        Ok(())
+    } else {
+        Err(OwnershipError::UnsupportedSchema {
+            owner: owner.to_string(),
+            found,
+        })
     }
 }
 

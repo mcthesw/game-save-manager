@@ -13,7 +13,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::backup::{Game, GameSnapshots, Snapshot, archive_file_name, remote_archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, path_to_remote_key};
-use crate::config::{Config, get_backup_path, get_config, resolve_backup_path, set_config_local};
+use crate::config::{
+    Config, get_backup_path, get_config, replace_config_local, resolve_backup_path,
+};
 use crate::preclude::*;
 
 #[derive(Debug, Error)]
@@ -434,7 +436,7 @@ pub async fn commit_staged_backup_root(
         return Err(err.into());
     }
 
-    if let Err(err) = set_config_local(remote_config) {
+    if let Err(err) = replace_config_local(remote_config) {
         let _ = fs::remove_dir_all(target_backup_root).await;
         if rollback_root.exists() {
             let _ = fs::rename(&rollback_root, target_backup_root).await;

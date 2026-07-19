@@ -3,13 +3,17 @@ use std::path::PathBuf;
 
 use log::{info, warn};
 
-use crate::app_dirs::resolve_app_path;
+use crate::config::Config;
 
 const MAX_CONFIG_BACKUPS: usize = 5;
 const CONFIG_FILE_NAME: &str = "GameSaveManager.config.json";
 
 fn backup_path(index: usize) -> PathBuf {
-    resolve_app_path(&format!("{CONFIG_FILE_NAME}.backup.{index}"))
+    backup_path_in(crate::app_dirs::get_app_data_dir(), index)
+}
+
+fn backup_path_in(root: &std::path::Path, index: usize) -> PathBuf {
+    root.join(format!("{CONFIG_FILE_NAME}.backup.{index}"))
 }
 
 /// Rotate local config backups before saving.
@@ -17,16 +21,15 @@ fn backup_path(index: usize) -> PathBuf {
 /// Keeps up to `MAX_CONFIG_BACKUPS` copies:
 ///   .backup.0 = most recent, .backup.4 = oldest.
 /// Called before each config write so corruption is recoverable.
-pub fn rotate_config_backups() {
-    let config_path = resolve_app_path(CONFIG_FILE_NAME);
-    if !config_path.is_file() {
-        return;
-    }
+pub fn rotate_config_backups(config: &Config) {
+    rotate_config_backups_in(crate::app_dirs::get_app_data_dir(), config);
+}
 
+fn rotate_config_backups_in(root: &std::path::Path, config: &Config) {
     // Shift existing backups: .backup.4 is dropped, .backup.3 → .backup.4, etc.
     for i in (1..MAX_CONFIG_BACKUPS).rev() {
-        let src = backup_path(i - 1);
-        let dst = backup_path(i);
+        let src = backup_path_in(root, i - 1);
+        let dst = backup_path_in(root, i);
         if src.is_file() {
             // On Windows, fs::rename fails if destination exists; remove first.
             if dst.exists() {
@@ -42,8 +45,15 @@ pub fn rotate_config_backups() {
         }
     }
 
-    // Copy current config to .backup.0
-    if let Err(e) = fs::copy(&config_path, backup_path(0)) {
+    // Store the previous effective Config projection for the existing restore UI.
+    let serialized = match serde_json::to_vec_pretty(config) {
+        Ok(serialized) => serialized,
+        Err(e) => {
+            warn!("Failed to serialize config backup: {e}");
+            return;
+        }
+    };
+    if let Err(e) = fs::write(backup_path_in(root, 0), serialized) {
         warn!("Failed to create config backup: {e}");
     } else {
         info!("Config backup rotated (max {MAX_CONFIG_BACKUPS})");
@@ -58,11 +68,16 @@ pub fn list_config_backups() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Restore config from a specific backup index.
-/// Returns `Ok(())` on success.
-pub fn restore_config_from_backup(index: usize) -> Result<(), std::io::Error> {
-    let src = backup_path(index);
-    let dst = resolve_app_path(CONFIG_FILE_NAME);
+/// Load the effective config projection stored in a specific backup.
+pub fn load_config_from_backup(index: usize) -> Result<Config, std::io::Error> {
+    load_config_from_backup_in(crate::app_dirs::get_app_data_dir(), index)
+}
+
+fn load_config_from_backup_in(
+    root: &std::path::Path,
+    index: usize,
+) -> Result<Config, std::io::Error> {
+    let src = backup_path_in(root, index);
     if !src.is_file() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -71,15 +86,13 @@ pub fn restore_config_from_backup(index: usize) -> Result<(), std::io::Error> {
     }
     // Validate the backup is parseable JSON before restoring
     let content = fs::read_to_string(&src)?;
-    serde_json::from_str::<serde_json::Value>(&content).map_err(|e| {
+    let config = serde_json::from_str::<Config>(&content).map_err(|e| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Backup {index} is corrupt: {e}"),
         )
     })?;
-    fs::copy(&src, &dst)?;
-    info!("Config restored from backup index {index}");
-    Ok(())
+    Ok(config)
 }
 
 #[cfg(test)]
@@ -100,5 +113,20 @@ mod tests {
         // list_config_backups should not panic even when no backup files exist
         let backups = list_config_backups();
         assert!(backups.len() <= MAX_CONFIG_BACKUPS);
+    }
+
+    #[test]
+    fn effective_config_backup_round_trips_without_legacy_file() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let config = Config {
+            backup_path: "device-specific-root".to_string(),
+            ..Default::default()
+        };
+
+        rotate_config_backups_in(root.path(), &config);
+        let restored = load_config_from_backup_in(root.path(), 0).unwrap();
+
+        assert_eq!(restored.backup_path, "device-specific-root");
+        assert!(!root.path().join("GameSaveManager.config.json").exists());
     }
 }

@@ -121,3 +121,71 @@ fn assembly_requires_the_selected_device_profile() {
         Err(OwnershipError::MissingDeviceProfile(id)) if id == windows_id
     ));
 }
+
+#[test]
+fn normal_save_preserves_other_device_private_profile_fields() {
+    let (config, windows_id, deck_id) = dual_device_config();
+    let mut owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    owners
+        .device_profiles
+        .get_mut(&deck_id)
+        .unwrap()
+        .quick_action
+        .quick_action_game_id = Some("deck-only-selection".to_string());
+    owners
+        .device_profiles
+        .get_mut(&deck_id)
+        .unwrap()
+        .behavior
+        .max_extra_backup_count = 37;
+    let mut edited = owners.assemble_effective().unwrap();
+    edited.quick_action.quick_action_game_id = Some("windows-selection".to_string());
+    edited.settings.max_extra_backup_count = 9;
+
+    owners.merge_effective(&edited).unwrap();
+
+    let windows = &owners.device_profiles[&windows_id];
+    let deck = &owners.device_profiles[&deck_id];
+    assert_eq!(
+        windows.quick_action.quick_action_game_id.as_deref(),
+        Some("windows-selection")
+    );
+    assert_eq!(windows.behavior.max_extra_backup_count, 9);
+    assert_eq!(
+        deck.quick_action.quick_action_game_id.as_deref(),
+        Some("deck-only-selection")
+    );
+    assert_eq!(deck.behavior.max_extra_backup_count, 37);
+}
+
+#[test]
+fn normal_save_removes_an_explicitly_deleted_device_profile() {
+    let (config, windows_id, deck_id) = dual_device_config();
+    let mut owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    let mut edited = owners.assemble_effective().unwrap();
+    edited.devices.remove(&deck_id);
+    edited.games[0].game_paths.remove(&deck_id);
+    if let crate::backup::SaveUnitSource::Concrete { paths, .. } =
+        &mut edited.games[0].save_paths[0].source
+    {
+        paths.remove(&deck_id);
+    }
+
+    owners.merge_effective(&edited).unwrap();
+
+    assert!(!owners.device_profiles.contains_key(&deck_id));
+}
+
+#[test]
+fn validation_rejects_unsupported_owner_schema() {
+    let (config, windows_id, _) = dual_device_config();
+    let mut owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    owners.shared_library.schema_version = 99;
+
+    let result = owners.validate();
+
+    assert!(matches!(
+        result,
+        Err(OwnershipError::UnsupportedSchema { found: 99, .. })
+    ));
+}

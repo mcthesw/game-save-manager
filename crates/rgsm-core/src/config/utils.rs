@@ -1,18 +1,19 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex as StdMutex};
 #[cfg(test)]
-use std::sync::LazyLock;
-#[cfg(test)]
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::{Mutex as TokioMutex, MutexGuard};
 
 use crate::app_dirs::resolve_app_path;
-use crate::config::Config;
+use crate::config::owner_store::OwnerStore;
+use crate::config::{Config, backup};
 use crate::preclude::*;
 use crate::updater::update_config;
 use log::info;
 
 #[cfg(test)]
-static CONFIG_FILE_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static CONFIG_FILE_TEST_LOCK: LazyLock<TokioMutex<()>> = LazyLock::new(|| TokioMutex::new(()));
+static CONFIG_STORE_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
 
 #[cfg(test)]
 pub(crate) fn lock_config_test_file() -> MutexGuard<'static, ()> {
@@ -45,6 +46,17 @@ fn init_config() -> Result<(), ConfigError> {
 
 /// Get the current config file
 pub fn get_config() -> Result<Config, ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    get_config_unlocked()
+}
+
+fn get_config_unlocked() -> Result<Config, ConfigError> {
+    let owner_store = OwnerStore::runtime();
+    if owner_store.has_authoritative_state() {
+        return Ok(owner_store.load_effective()?);
+    }
     let config_path = resolve_app_path("GameSaveManager.config.json");
     let content = fs::read_to_string(config_path)?;
     Ok(serde_json::from_str(&content)?)
@@ -52,14 +64,37 @@ pub fn get_config() -> Result<Config, ConfigError> {
 
 /// Replace the config file with a new config struct without triggering cloud sync.
 pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
-    // Rotate backups before overwriting
-    crate::config::backup::rotate_config_backups();
-    let config_path = resolve_app_path("GameSaveManager.config.json");
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
     let mut normalized = config.clone();
     for game in &mut normalized.games {
         game.normalize_save_unit_ids();
     }
-    fs::write(config_path, serde_json::to_string_pretty(&normalized)?)?;
+    if let Ok(previous) = get_config_unlocked() {
+        backup::rotate_config_backups(&previous);
+    }
+    OwnerStore::runtime().merge_effective(&normalized)?;
+    Ok(())
+}
+
+/// Replace every local owner from one effective Config.
+///
+/// This is intentionally narrower than `set_config_local`: only explicit V1
+/// remote acceptance, import, or recovery flows should replace other Devices'
+/// Profiles.
+pub fn replace_config_local(config: &Config) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    let mut normalized = config.clone();
+    for game in &mut normalized.games {
+        game.normalize_save_unit_ids();
+    }
+    if let Ok(previous) = get_config_unlocked() {
+        backup::rotate_config_backups(&previous);
+    }
+    OwnerStore::runtime().replace_effective(&normalized)?;
     Ok(())
 }
 
@@ -74,6 +109,18 @@ pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
 /// if not, then create one
 /// then send the config to the front end
 pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    let owner_store = OwnerStore::runtime();
+    if owner_store.has_authoritative_state() {
+        let config = owner_store.load_effective()?;
+        rust_i18n::set_locale(&config.settings.locale);
+        return Ok(ConfigCheckOutcome {
+            config_migrated: false,
+        });
+    }
+
     let config_path = resolve_app_path("GameSaveManager.config.json");
     info!("Config file path: {}", config_path.display());
 
@@ -82,8 +129,10 @@ pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
     }
     // 执行配置迁移与升级
     let config_migrated = update_config(&config_path)?;
-    // 重新加载配置
-    let config = get_config()?;
+    let content = fs::read_to_string(&config_path)?;
+    let config: Config = serde_json::from_str(&content)?;
+    owner_store.initialize_from_legacy(&config)?;
+    let config = owner_store.load_effective()?;
     // 应用本地化语言
     rust_i18n::set_locale(&config.settings.locale);
     Ok(ConfigCheckOutcome { config_migrated })
