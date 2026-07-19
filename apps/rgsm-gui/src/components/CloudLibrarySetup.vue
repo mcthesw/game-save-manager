@@ -17,6 +17,7 @@ const feedback = useFeedback();
 const status = ref<CloudLibraryStatus | null>(null);
 const inspecting = ref(false);
 const creating = ref(false);
+const joining = ref(false);
 
 const alertType = computed(() => {
   switch (status.value?.kind) {
@@ -51,6 +52,10 @@ const statusText = computed(() => {
 function updateStatus(value: CloudLibraryStatus | null) {
   status.value = value;
   emit('status', value);
+}
+
+function joined(gameCount: number) {
+  updateStatus({ kind: 'active', game_count: gameCount });
 }
 
 async function inspect() {
@@ -140,7 +145,11 @@ watch(
       <ElButton v-if="status?.kind === 'empty'" type="primary" :loading="creating" @click="create">
         {{ $t('sync_settings.library.create') }}
       </ElButton>
+      <ElButton v-if="status?.kind === 'join_required'" type="primary" @click="joining = true">
+        {{ $t('sync_settings.library.join.join_action') }}
+      </ElButton>
     </div>
+    <CloudLibraryJoinDialog v-model="joining" @joined="joined" />
   </section>
 </template>
 

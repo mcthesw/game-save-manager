@@ -94,6 +94,24 @@ pub(crate) fn activate_cloud_namespace_v2(
     Ok(())
 }
 
+pub(crate) fn activate_joined_cloud_library(
+    expected_local_library: &SharedLibrary,
+    expected_local_profile: &DeviceProfile,
+    accepted_library: &SharedLibrary,
+    accepted_profile: &DeviceProfile,
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().activate_join_v2(
+        expected_local_library,
+        expected_local_profile,
+        accepted_library,
+        accepted_profile,
+    )?;
+    Ok(())
+}
+
 fn get_config_unlocked() -> Result<Config, ConfigError> {
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {

@@ -677,7 +677,42 @@
             "create_confirm": "创建并切换",
             "create_failed": "无法创建云端资料库",
             "create_success": "云端资料库已创建",
-            "legacy_disabled": "此设备已切换到新的云端资料库，旧版同步操作已不可用。"
+            "legacy_disabled": "此设备已切换到新的云端资料库，旧版同步操作已不可用。",
+            "join": {
+                "title": "审阅云端资料库",
+                "risk_title": "加入前请先审阅",
+                "risk_description": "加入后，此设备会切换到共享游戏列表。仅存在于本机的游戏不会自动加入，除非你明确选择添加到云端。",
+                "summary": "云端已有 {cloud} 个游戏，另有 {review} 个本机游戏需要你确认。",
+                "games_label": "待审阅游戏",
+                "classification": {
+                    "same": "相同",
+                    "local_only": "仅本机",
+                    "possible_duplicate": "可能重复",
+                    "game_definition_conflict": "定义不同"
+                },
+                "local": "此设备",
+                "cloud": "云端",
+                "game_name": "名称",
+                "save_units": "存档位置",
+                "recognition": "游戏识别信息",
+                "item_count": "{count} 项",
+                "not_in_cloud": "云端没有",
+                "recognition_available": "有",
+                "recognition_unavailable": "无",
+                "no_difference": "可同步的游戏定义完全相同。",
+                "keep_cloud": "保留云端版本",
+                "add_local": "将此游戏加入云端资料库",
+                "replace_cloud": "替换共享游戏定义",
+                "join_action": "加入资料库",
+                "replace_title": "替换共享定义？",
+                "replace_warning": "将替换 {count} 个共享游戏定义，并影响参与同步的设备。设备专属路径不会上传。",
+                "replace_confirm": "替换并加入",
+                "review_failed": "无法准备加入审阅",
+                "join_failed": "无法加入云端资料库",
+                "review_changed": "你审阅期间 {game} 已发生变化，现已重新加载最新版本。",
+                "join_success": "此设备已加入云端资料库",
+                "no_local_games": "没有需要比较的本机游戏。"
+            }
         },
         "operations": {
             "tab": "操作",

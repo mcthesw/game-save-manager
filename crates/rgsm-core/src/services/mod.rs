@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::hooks::HookPipeline;
 
-pub use sync::{CloudLibraryServiceError, CloudLibraryStatus};
+pub use sync::{CloudLibraryJoinOutcome, CloudLibraryServiceError, CloudLibraryStatus};
 
 #[derive(Clone)]
 pub struct ServiceContext {
