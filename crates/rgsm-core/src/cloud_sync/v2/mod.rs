@@ -5,6 +5,9 @@ mod game_comparison;
 mod integrity;
 mod join;
 mod manifest;
+mod materialization;
+#[cfg(test)]
+mod materialization_tests;
 mod namespace;
 mod repository;
 
@@ -28,6 +31,10 @@ pub use join::{
 pub use manifest::{
     CLOUD_MANIFEST_SCHEMA_VERSION, CloudManifest, DeletionKind, GameManifest, LiveSnapshot,
     ManifestError, PendingTombstone, SnapshotNode, SnapshotState,
+};
+pub use materialization::{
+    CloudArchiveGameView, CloudArchiveLibraryView, CloudArchiveMaterializer,
+    CloudArchiveSnapshotView, MaterializationError, MaterializationOutcome, MaterializationPreview,
 };
 pub use namespace::{
     CLOUD_ARCHIVES_PREFIX, CLOUD_MANIFEST_PATH, CloudNamespaceClassification,

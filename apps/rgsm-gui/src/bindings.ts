@@ -244,6 +244,46 @@ async cutoverCloudLibrary(confirmed: boolean) : Promise<Result<CloudLibraryCutov
     else return { status: "error", error: e  as any };
 }
 },
+async getCloudArchiveLibrary() : Promise<Result<CloudArchiveLibraryView, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cloud_archive_library") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async previewMaterializeAll() : Promise<Result<MaterializationPreview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_materialize_all") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async uploadCloudArchive(gameId: string, snapshotId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("upload_cloud_archive", { gameId, snapshotId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async downloadCloudArchive(gameId: string, snapshotId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_cloud_archive", { gameId, snapshotId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("materialize_all_cloud_archives") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cloudUploadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { session }) };
@@ -678,6 +718,9 @@ export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
+export type CloudArchiveGameView = { game_id: string; name: string; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
+export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
+export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[] }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
 export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
@@ -963,6 +1006,8 @@ storeGameIds: StoreGameId[] }
 export type ManifestPathCondition = { os?: PlatformKind | null; store?: StoreKind | null }
 export type ManifestPathConstraints = { alternatives: ManifestPathCondition[] }
 export type ManifestPathPattern = string
+export type MaterializationOutcome = { downloaded: number; remaining: number }
+export type MaterializationPreview = { snapshot_count: number; total_bytes: number }
 export type NotificationLevel = "info" | "warning" | "error"
 export type OpenPathOutcome = { status: "opened" } | { status: "warning"; warning: OpenPathWarning }
 export type OpenPathWarning = "registryOpenUnsupported"

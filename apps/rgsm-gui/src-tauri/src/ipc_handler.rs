@@ -3,7 +3,8 @@ use rgsm_core::backup::{
     CreatedBy, ExtraBackupItem, Game, GameDeviceBinding, GameDraft, GameSnapshots, SaveUnit,
 };
 use rgsm_core::cloud_sync::v2::{
-    CloudLibraryCutoverReview, CloudLibraryJoinReview, JoinGameDecision,
+    CloudArchiveLibraryView, CloudLibraryCutoverReview, CloudLibraryJoinReview, JoinGameDecision,
+    MaterializationOutcome, MaterializationPreview,
 };
 use rgsm_core::cloud_sync::{
     self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudBackendCheckReport,
@@ -675,6 +676,80 @@ pub async fn cutover_cloud_library(
     crate::cloud_library::cutover(&app_handle, confirmed)
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_cloud_archive_library(
+    app_handle: AppHandle,
+) -> Result<CloudArchiveLibraryView, String> {
+    svc(&app_handle)
+        .cloud_archive_library()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_materialize_all(
+    app_handle: AppHandle,
+) -> Result<MaterializationPreview, String> {
+    svc(&app_handle)
+        .preview_materialize_all()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn upload_cloud_archive(
+    game_id: String,
+    snapshot_id: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    svc(&app_handle)
+        .upload_cloud_archive(&game_id, &snapshot_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn download_cloud_archive(
+    game_id: String,
+    snapshot_id: String,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    svc(&app_handle)
+        .download_cloud_archive(&game_id, &snapshot_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn materialize_all_cloud_archives(
+    app_handle: AppHandle,
+) -> Result<MaterializationOutcome, String> {
+    let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
+    let (job_id, token) = manager
+        .begin_manual_job("Downloading all Cloud Snapshots".into())
+        .await;
+    let result = svc(&app_handle)
+        .materialize_all_cloud_archives(&token)
+        .await;
+    let status = if result.is_ok() {
+        cloud_sync::CloudSyncJobStatus::Completed
+    } else if token.is_cancelled() {
+        cloud_sync::CloudSyncJobStatus::Cancelled
+    } else {
+        cloud_sync::CloudSyncJobStatus::Failed
+    };
+    let error = result.as_ref().err().map(ToString::to_string);
+    manager
+        .finish_manual_job(job_id, "Downloading all Cloud Snapshots", status, error)
+        .await;
+    result.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
