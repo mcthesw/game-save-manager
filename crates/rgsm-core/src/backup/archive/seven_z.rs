@@ -455,7 +455,7 @@ fn to_nt_time(time: SystemTime) -> Result<NtTime, CompressError> {
     })
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn open_without_atime(path: &Path) -> std::io::Result<File> {
     use std::fs::OpenOptions;
     use std::os::unix::fs::OpenOptionsExt;
@@ -470,7 +470,7 @@ fn open_without_atime(path: &Path) -> std::io::Result<File> {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(target_os = "linux"))]
 fn open_without_atime(path: &Path) -> std::io::Result<File> {
     File::open(path)
 }
