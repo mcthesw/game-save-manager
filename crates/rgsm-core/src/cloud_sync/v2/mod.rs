@@ -12,6 +12,7 @@ mod materialization;
 mod materialization_tests;
 mod namespace;
 mod profile_repository;
+mod remote_resolution;
 mod repository;
 mod snapshot_sync;
 
@@ -55,6 +56,9 @@ pub use namespace::{
     cloud_archive_path, device_profile_path,
 };
 pub use profile_repository::{DeviceProfileRepository, DeviceProfileRepositoryError};
+pub use remote_resolution::{
+    AcceptRemoteProgressError, PreparedRemoteProgress, V2RemoteProgressResolver,
+};
 pub use repository::{
     CloudManifestRepository, ManifestRepositoryError, ManifestTransport, OpenDalManifestTransport,
 };

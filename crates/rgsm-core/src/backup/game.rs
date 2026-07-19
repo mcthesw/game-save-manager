@@ -730,7 +730,7 @@ impl Game {
         backup_base: &Path,
         preset: crate::backup::CompressionPreset,
         max_extra_backup_count: u32,
-    ) -> Result<(), BackupError> {
+    ) -> Result<String, BackupError> {
         let extra_backup_path = backup_base
             .join(self.backup_dir_name().as_ref())
             .join("extra_backup");
@@ -741,7 +741,7 @@ impl Game {
         let archive_path = extra_backup_path.join(archive_file_name(&date, ArchiveFormat::SevenZ));
         SevenZBackend.compress_capture_plan(plan, &archive_path, preset, None)?;
         cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
-        Ok(())
+        Ok(date)
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
         let mut saves = self.get_game_snapshots_info()?;

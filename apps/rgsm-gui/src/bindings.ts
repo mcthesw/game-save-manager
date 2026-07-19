@@ -268,6 +268,14 @@ async keepV2LocalProgress(gameId: string, manifestRevision: number, localSnapsho
     else return { status: "error", error: e  as any };
 }
 },
+async acceptV2RemoteProgress(gameId: string, manifestRevision: number, expectedLocalSnapshotId: string | null, selectedSnapshotId: string) : Promise<Result<AcceptRemoteProgressOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("accept_v2_remote_progress", { gameId, manifestRevision, expectedLocalSnapshotId, selectedSnapshotId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async previewMaterializeAll() : Promise<Result<MaterializationPreview, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("preview_materialize_all") };
@@ -692,6 +700,7 @@ export const DEFAULT_CONFIG = {"backup_path":"save_data","devices":{},"favorites
 
 /** user-defined types **/
 
+export type AcceptRemoteProgressOutcome = { snapshot_id: string; safety_backup_created: boolean; manifest_revision: number }
 export type AppearanceSettings = { custom_font_enabled?: boolean; ui_font_family?: string }
 /**
  * Container format used by a Snapshot archive.

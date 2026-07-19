@@ -18,6 +18,7 @@ pub enum HookSource {
     QuickActionTray,
     ProcessMonitorAutoBackup,
     CloudSync,
+    CloudConflictResolution,
     Internal,
 }
 
