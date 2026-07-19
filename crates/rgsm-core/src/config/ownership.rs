@@ -1,0 +1,471 @@
+//! Serializable V2 configuration owners and the compatibility projection used
+//! while the application still consumes the legacy flat [`Config`] model.
+
+use std::collections::{HashMap, HashSet};
+
+use serde::{Deserialize, Serialize};
+use specta::Type;
+use thiserror::Error;
+
+use crate::backup::{
+    AutoBackupConfig, CompressionPreset, Game, GameDeviceBinding, LudusaviMeta, SaveUnit,
+    SaveUnitSource, SaveUnitType,
+};
+use crate::cloud_sync::CloudSettings;
+use crate::device::{Device, DeviceId};
+use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
+
+use super::{
+    AppearanceSettings, Config, FavoriteTreeNode, QuickActionsSettings, SaveListExpandBehavior,
+    SaveListSortMode, Settings, SortDirection,
+};
+
+pub const V2_CONFIG_SCHEMA_VERSION: u32 = 2;
+pub type EffectiveConfiguration = Config;
+
+#[derive(Debug, Error)]
+pub enum OwnershipError {
+    #[error("Device Profile not found: {0}")]
+    MissingDeviceProfile(DeviceId),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct ConfigurationOwners {
+    pub schema_version: u32,
+    pub shared_library: SharedLibrary,
+    pub device_profiles: HashMap<DeviceId, DeviceProfile>,
+    pub local_state: LocalState,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct SharedLibrary {
+    pub schema_version: u32,
+    pub games: Vec<SharedGame>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct SharedGame {
+    pub name: String,
+    pub storage_key: String,
+    pub save_units: Vec<SharedSaveUnit>,
+    pub next_save_unit_id: u32,
+    pub ludusavi_meta: Option<LudusaviMeta>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct SharedSaveUnit {
+    pub id: u32,
+    pub source: SharedSaveUnitSource,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SharedSaveUnitSource {
+    Concrete {
+        unit_type: SaveUnitType,
+    },
+    ManifestPattern {
+        pattern: ManifestPathPattern,
+        constraints: ManifestPathConstraints,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct DeviceProfile {
+    pub schema_version: u32,
+    pub device: Device,
+    pub local_archive_root: Option<String>,
+    pub games: HashMap<String, DeviceGameProfile>,
+    pub private_favorites: Vec<FavoriteTreeNode>,
+    pub quick_action: QuickActionsSettings,
+    pub behavior: DeviceBehaviorSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct DeviceGameProfile {
+    pub visible: bool,
+    pub sync_mode: SyncMode,
+    pub game_path: Option<String>,
+    pub binding: Option<GameDeviceBinding>,
+    pub auto_backup: Option<AutoBackupConfig>,
+    pub save_units: HashMap<u32, DeviceSaveUnitSettings>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct DeviceSaveUnitSettings {
+    pub path: Option<String>,
+    pub enabled: bool,
+    pub delete_before_apply: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncMode {
+    Manual,
+    SnapshotSync,
+    LiveSaveSync,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct DeviceBehaviorSettings {
+    pub prompt_when_not_described: bool,
+    pub extra_backup_when_apply: bool,
+    pub confirm_before_apply_latest: bool,
+    pub confirm_before_apply_snapshot: bool,
+    pub prompt_when_auto_backup: bool,
+    pub default_delete_before_apply: bool,
+    pub add_new_to_favorites: bool,
+    pub vn_scan_dirs: Vec<String>,
+    pub max_auto_backup_count: u32,
+    pub max_extra_backup_count: u32,
+    pub compression_preset: CompressionPreset,
+    pub compute_archive_hash: bool,
+    pub verify_archive_before_apply: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct LocalState {
+    pub schema_version: u32,
+    pub legacy_version: String,
+    pub current_device_id: DeviceId,
+    pub interface: LocalInterfaceSettings,
+    pub cloud_settings: CloudSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+pub struct LocalInterfaceSettings {
+    pub show_edit_button: bool,
+    pub exit_to_tray: bool,
+    pub locale: String,
+    pub default_expend_favorites_tree: bool,
+    pub home_page: String,
+    pub log_to_file: bool,
+    pub save_list_expand_behavior: SaveListExpandBehavior,
+    pub save_list_last_expanded: bool,
+    pub save_list_sort_mode: SaveListSortMode,
+    pub save_list_sort_direction: SortDirection,
+    pub appearance: AppearanceSettings,
+}
+
+impl ConfigurationOwners {
+    /// Split a loaded flat configuration into explicit shared, per-device, and
+    /// local owners without consulting process-global device state.
+    pub fn from_legacy(config: &Config, current_device_id: &DeviceId) -> Self {
+        let shared_library = SharedLibrary {
+            schema_version: V2_CONFIG_SCHEMA_VERSION,
+            games: config.games.iter().map(SharedGame::from).collect(),
+        };
+        let behavior = DeviceBehaviorSettings::from(&config.settings);
+        let mut device_ids = config.devices.keys().cloned().collect::<HashSet<_>>();
+        device_ids.insert(current_device_id.clone());
+        for game in &config.games {
+            device_ids.extend(game.game_paths.keys().cloned());
+            device_ids.extend(game.device_bindings.keys().cloned());
+            for save_unit in &game.save_paths {
+                if let Some(paths) = save_unit.paths() {
+                    device_ids.extend(paths.keys().cloned());
+                }
+            }
+        }
+
+        let device_profiles = device_ids
+            .into_iter()
+            .map(|device_id| {
+                let is_current = &device_id == current_device_id;
+                let device = config
+                    .devices
+                    .get(&device_id)
+                    .cloned()
+                    .unwrap_or_else(|| Device {
+                        id: device_id.clone(),
+                        name: device_id.clone(),
+                        resources: Vec::new(),
+                        next_resource_id: 0,
+                    });
+                let games = config
+                    .games
+                    .iter()
+                    .map(|game| {
+                        (
+                            game.storage_key.clone(),
+                            DeviceGameProfile::from_legacy(game, &device_id),
+                        )
+                    })
+                    .collect();
+                let profile = DeviceProfile {
+                    schema_version: V2_CONFIG_SCHEMA_VERSION,
+                    device,
+                    local_archive_root: is_current.then(|| config.backup_path.clone()),
+                    games,
+                    private_favorites: if is_current {
+                        config.favorites.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    quick_action: if is_current {
+                        config.quick_action.clone()
+                    } else {
+                        QuickActionsSettings::default()
+                    },
+                    behavior: behavior.clone(),
+                };
+                (device_id, profile)
+            })
+            .collect();
+
+        Self {
+            schema_version: V2_CONFIG_SCHEMA_VERSION,
+            shared_library,
+            device_profiles,
+            local_state: LocalState {
+                schema_version: V2_CONFIG_SCHEMA_VERSION,
+                legacy_version: config.version.clone(),
+                current_device_id: current_device_id.clone(),
+                interface: LocalInterfaceSettings::from(&config.settings),
+                cloud_settings: config.settings.cloud_settings.clone(),
+            },
+        }
+    }
+
+    /// Join the selected Device Profile with shared and local data for existing
+    /// application services that still consume the flat configuration model.
+    pub fn assemble_effective(&self) -> Result<EffectiveConfiguration, OwnershipError> {
+        let current_device_id = &self.local_state.current_device_id;
+        let current = self
+            .device_profiles
+            .get(current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
+        let games = self
+            .shared_library
+            .games
+            .iter()
+            .map(|shared| self.assemble_game(shared, current_device_id))
+            .collect();
+        let devices = self
+            .device_profiles
+            .iter()
+            .map(|(id, profile)| (id.clone(), profile.device.clone()))
+            .collect();
+
+        Ok(Config {
+            version: self.local_state.legacy_version.clone(),
+            backup_path: current
+                .local_archive_root
+                .clone()
+                .unwrap_or_else(|| "save_data".to_string()),
+            games,
+            settings: Settings::from_owners(&current.behavior, &self.local_state),
+            favorites: current.private_favorites.clone(),
+            quick_action: current.quick_action.clone(),
+            devices,
+        })
+    }
+
+    fn assemble_game(&self, shared: &SharedGame, current_device_id: &DeviceId) -> Game {
+        let current = self
+            .device_profiles
+            .get(current_device_id)
+            .and_then(|profile| profile.games.get(&shared.storage_key));
+        let mut game_paths = HashMap::new();
+        let mut device_bindings = HashMap::new();
+        for (device_id, profile) in &self.device_profiles {
+            if let Some(game) = profile.games.get(&shared.storage_key) {
+                if let Some(path) = &game.game_path {
+                    game_paths.insert(device_id.clone(), path.clone());
+                }
+                if let Some(binding) = &game.binding {
+                    device_bindings.insert(device_id.clone(), binding.clone());
+                }
+            }
+        }
+        let save_paths = shared
+            .save_units
+            .iter()
+            .map(|unit| {
+                let current_settings = current.and_then(|game| game.save_units.get(&unit.id));
+                let source = match &unit.source {
+                    SharedSaveUnitSource::Concrete { unit_type } => {
+                        let paths = self
+                            .device_profiles
+                            .iter()
+                            .filter_map(|(device_id, profile)| {
+                                profile
+                                    .games
+                                    .get(&shared.storage_key)?
+                                    .save_units
+                                    .get(&unit.id)?
+                                    .path
+                                    .as_ref()
+                                    .map(|path| (device_id.clone(), path.clone()))
+                            })
+                            .collect();
+                        SaveUnitSource::Concrete {
+                            unit_type: unit_type.clone(),
+                            paths,
+                        }
+                    }
+                    SharedSaveUnitSource::ManifestPattern {
+                        pattern,
+                        constraints,
+                    } => SaveUnitSource::ManifestPattern {
+                        pattern: pattern.clone(),
+                        constraints: constraints.clone(),
+                    },
+                };
+                SaveUnit {
+                    id: unit.id,
+                    source,
+                    delete_before_apply: current_settings
+                        .is_some_and(|settings| settings.delete_before_apply),
+                    enabled: current_settings.is_none_or(|settings| settings.enabled),
+                }
+            })
+            .collect();
+
+        Game {
+            name: shared.name.clone(),
+            storage_key: shared.storage_key.clone(),
+            save_paths,
+            game_paths,
+            next_save_unit_id: shared.next_save_unit_id,
+            cloud_sync_enabled: current.is_some_and(|game| game.sync_mode != SyncMode::Manual),
+            auto_backup: current.and_then(|game| game.auto_backup.clone()),
+            ludusavi_meta: shared.ludusavi_meta.clone(),
+            device_bindings,
+        }
+    }
+}
+
+impl From<&Game> for SharedGame {
+    fn from(game: &Game) -> Self {
+        Self {
+            name: game.name.clone(),
+            storage_key: game.storage_key.clone(),
+            save_units: game.save_paths.iter().map(SharedSaveUnit::from).collect(),
+            next_save_unit_id: game.next_save_unit_id,
+            ludusavi_meta: game.ludusavi_meta.clone(),
+        }
+    }
+}
+
+impl From<&SaveUnit> for SharedSaveUnit {
+    fn from(unit: &SaveUnit) -> Self {
+        let source = match &unit.source {
+            SaveUnitSource::Concrete { unit_type, .. } => SharedSaveUnitSource::Concrete {
+                unit_type: unit_type.clone(),
+            },
+            SaveUnitSource::ManifestPattern {
+                pattern,
+                constraints,
+            } => SharedSaveUnitSource::ManifestPattern {
+                pattern: pattern.clone(),
+                constraints: constraints.clone(),
+            },
+        };
+        Self {
+            id: unit.id,
+            source,
+        }
+    }
+}
+
+impl DeviceGameProfile {
+    fn from_legacy(game: &Game, device_id: &DeviceId) -> Self {
+        let save_units = game
+            .save_paths
+            .iter()
+            .map(|unit| {
+                (
+                    unit.id,
+                    DeviceSaveUnitSettings {
+                        path: unit.get_path_for_device(device_id).cloned(),
+                        enabled: unit.enabled,
+                        delete_before_apply: unit.delete_before_apply,
+                    },
+                )
+            })
+            .collect();
+        Self {
+            visible: true,
+            sync_mode: if game.cloud_sync_enabled {
+                SyncMode::SnapshotSync
+            } else {
+                SyncMode::Manual
+            },
+            game_path: game.game_paths.get(device_id).cloned(),
+            binding: game.device_bindings.get(device_id).cloned(),
+            auto_backup: game.auto_backup.clone(),
+            save_units,
+        }
+    }
+}
+
+impl From<&Settings> for DeviceBehaviorSettings {
+    fn from(settings: &Settings) -> Self {
+        Self {
+            prompt_when_not_described: settings.prompt_when_not_described,
+            extra_backup_when_apply: settings.extra_backup_when_apply,
+            confirm_before_apply_latest: settings.confirm_before_apply_latest,
+            confirm_before_apply_snapshot: settings.confirm_before_apply_snapshot,
+            prompt_when_auto_backup: settings.prompt_when_auto_backup,
+            default_delete_before_apply: settings.default_delete_before_apply,
+            add_new_to_favorites: settings.add_new_to_favorites,
+            vn_scan_dirs: settings.vn_scan_dirs.clone(),
+            max_auto_backup_count: settings.max_auto_backup_count,
+            max_extra_backup_count: settings.max_extra_backup_count,
+            compression_preset: settings.compression_preset,
+            compute_archive_hash: settings.compute_archive_hash,
+            verify_archive_before_apply: settings.verify_archive_before_apply,
+        }
+    }
+}
+
+impl From<&Settings> for LocalInterfaceSettings {
+    fn from(settings: &Settings) -> Self {
+        Self {
+            show_edit_button: settings.show_edit_button,
+            exit_to_tray: settings.exit_to_tray,
+            locale: settings.locale.clone(),
+            default_expend_favorites_tree: settings.default_expend_favorites_tree,
+            home_page: settings.home_page.clone(),
+            log_to_file: settings.log_to_file,
+            save_list_expand_behavior: settings.save_list_expand_behavior.clone(),
+            save_list_last_expanded: settings.save_list_last_expanded,
+            save_list_sort_mode: settings.save_list_sort_mode,
+            save_list_sort_direction: settings.save_list_sort_direction,
+            appearance: settings.appearance.clone(),
+        }
+    }
+}
+
+impl Settings {
+    fn from_owners(behavior: &DeviceBehaviorSettings, local: &LocalState) -> Self {
+        Self {
+            prompt_when_not_described: behavior.prompt_when_not_described,
+            extra_backup_when_apply: behavior.extra_backup_when_apply,
+            confirm_before_apply_latest: behavior.confirm_before_apply_latest,
+            confirm_before_apply_snapshot: behavior.confirm_before_apply_snapshot,
+            show_edit_button: local.interface.show_edit_button,
+            prompt_when_auto_backup: behavior.prompt_when_auto_backup,
+            exit_to_tray: local.interface.exit_to_tray,
+            cloud_settings: local.cloud_settings.clone(),
+            locale: local.interface.locale.clone(),
+            default_delete_before_apply: behavior.default_delete_before_apply,
+            default_expend_favorites_tree: local.interface.default_expend_favorites_tree,
+            home_page: local.interface.home_page.clone(),
+            log_to_file: local.interface.log_to_file,
+            add_new_to_favorites: behavior.add_new_to_favorites,
+            vn_scan_dirs: behavior.vn_scan_dirs.clone(),
+            save_list_expand_behavior: local.interface.save_list_expand_behavior.clone(),
+            save_list_last_expanded: local.interface.save_list_last_expanded,
+            save_list_sort_mode: local.interface.save_list_sort_mode,
+            save_list_sort_direction: local.interface.save_list_sort_direction,
+            max_auto_backup_count: behavior.max_auto_backup_count,
+            max_extra_backup_count: behavior.max_extra_backup_count,
+            appearance: local.interface.appearance.clone(),
+            compression_preset: behavior.compression_preset,
+            compute_archive_hash: behavior.compute_archive_hash,
+            verify_archive_before_apply: behavior.verify_archive_before_apply,
+        }
+    }
+}

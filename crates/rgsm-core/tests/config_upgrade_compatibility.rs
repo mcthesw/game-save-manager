@@ -295,34 +295,13 @@ fn version_1_4_config_preserves_favorites_and_selected_quick_action_game()
     let config = migrated.config;
     let device_id = config.devices.keys().next().unwrap();
     let game = &config.games[0];
-    let selected = config.quick_action.quick_action_game.as_ref().unwrap();
+    let selected = config.selected_quick_action_game().unwrap();
 
-    assert_eq!(selected.name, game.name);
     assert_eq!(selected.storage_key, game.storage_key);
-    assert_eq!(selected.next_save_unit_id, game.next_save_unit_id);
-    assert_eq!(selected.save_paths.len(), game.save_paths.len());
-    assert_eq!(selected.game_paths, game.game_paths);
-    assert_concrete_unit(
-        &selected.save_paths[0],
-        0,
-        SaveUnitType::File,
-        &[(
-            device_id,
-            "C:/Users/Player/Saved Games/Legacy Adventure/slot1.sav",
-        )],
-        true,
-        true,
-    );
-    assert_concrete_unit(
-        &selected.save_paths[1],
-        1,
-        SaveUnitType::Folder,
-        &[(
-            device_id,
-            "C:/Users/Player/AppData/Local/Legacy Adventure/Saves",
-        )],
-        false,
-        true,
+    assert_eq!(selected.name, game.name);
+    assert_eq!(
+        selected.game_paths.get(device_id),
+        game.game_paths.get(device_id)
     );
 
     let raw = serde_json::to_value(&config)?;
@@ -331,7 +310,7 @@ fn version_1_4_config_preserves_favorites_and_selected_quick_action_game()
         Some(&Value::String("RPG".into()))
     );
     assert_eq!(
-        raw.pointer("/quick_action/quick_action_game/storage_key"),
+        raw.pointer("/quick_action/quick_action_game_id"),
         raw.pointer("/games/0/storage_key")
     );
     Ok(())

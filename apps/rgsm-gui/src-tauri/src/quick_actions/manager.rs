@@ -57,7 +57,7 @@ impl QuickActionManager {
         let (command_tx, command_rx) = mpsc::unbounded_channel();
         let current_game = get_config()
             .ok()
-            .and_then(|cfg| cfg.quick_action.quick_action_game.clone());
+            .and_then(|config| config.selected_quick_action_game().cloned());
 
         let manager = Arc::new(Self {
             app: app.clone(),
@@ -213,7 +213,11 @@ impl QuickActionWorker {
 
     async fn handle_set_current_game(&mut self, game: Game) -> anyhow::Result<()> {
         let mut config = get_config().context("failed to load config")?;
-        config.quick_action.quick_action_game = Some(game.clone());
+        config.quick_action.quick_action_game_id = Some(if game.storage_key.is_empty() {
+            game.name.clone()
+        } else {
+            game.storage_key.clone()
+        });
         set_config(&config)
             .await
             .context("failed to persist quick action game")?;
@@ -230,10 +234,8 @@ impl QuickActionWorker {
     }
 
     async fn handle_reload_current_game(&mut self) -> anyhow::Result<()> {
-        let current_game = get_config()
-            .context("failed to load config")?
-            .quick_action
-            .quick_action_game;
+        let config = get_config().context("failed to load config")?;
+        let current_game = config.selected_quick_action_game().cloned();
         let label = current_game_label(current_game.as_ref());
 
         {

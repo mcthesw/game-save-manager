@@ -185,7 +185,7 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
         QuickActionSoundPreferences::from(&quick_settings);
 
     // 检查游戏是否已选择
-    let game = match quick_settings.quick_action_game.clone() {
+    let game = match quick_settings.selected_game(&config.games).cloned() {
         Some(game) => game,
         None => {
             show_no_game_selected_error(app, &quick_settings, &sound_preferences);
@@ -228,7 +228,7 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
         QuickActionSoundPreferences::from(&quick_settings);
 
     // 检查游戏是否已选择
-    let game = match quick_settings.quick_action_game.clone() {
+    let game = match quick_settings.selected_game(&config.games).cloned() {
         Some(game) => game,
         None => {
             show_no_game_selected_error(app, &quick_settings, &sound_preferences);

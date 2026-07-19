@@ -886,7 +886,8 @@ async function verify_archive_hashes() {
 
 // 设置快速备份，由快捷键和tray触发备份和恢复
 const isQuickBackupGame = computed(() => {
-  return config.value.quick_action?.quick_action_game?.name === game.value.name;
+  const identity = config.value.quick_action?.quick_action_game_id;
+  return identity === game.value.storage_key || identity === game.value.name;
 });
 
 async function set_quick_backup() {
