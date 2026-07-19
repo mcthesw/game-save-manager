@@ -25,7 +25,7 @@ use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus, GameSyncModeOutcome,
-    ServiceContext,
+    LiveSaveSyncOptions, ServiceContext,
 };
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
@@ -806,11 +806,18 @@ pub async fn set_game_sync_mode(
     game_id: String,
     mode: SyncMode,
     initial_catch_up: InitialCatchUpPolicy,
+    live_save: Option<LiveSaveSyncOptions>,
     app_handle: AppHandle,
 ) -> Result<GameSyncModeOutcome, String> {
-    crate::cloud_library::set_game_sync_mode(&app_handle, &game_id, mode, initial_catch_up)
-        .await
-        .map_err(|error| error.to_string())
+    crate::cloud_library::set_game_sync_mode(
+        &app_handle,
+        &game_id,
+        mode,
+        initial_catch_up,
+        live_save,
+    )
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

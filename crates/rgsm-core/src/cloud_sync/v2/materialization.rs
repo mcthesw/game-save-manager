@@ -31,6 +31,8 @@ pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
     pub sync_mode: SyncMode,
+    pub live_save_process_name: Option<String>,
+    pub live_save_snapshot_on_exit: bool,
     pub advertised_head_count: usize,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub local_count: usize,
@@ -147,6 +149,8 @@ impl CloudArchiveMaterializer {
                     .cloned()
                     .unwrap_or_else(|| game_id.clone()),
                 sync_mode: SyncMode::Manual,
+                live_save_process_name: None,
+                live_save_snapshot_on_exit: false,
                 advertised_head_count: game
                     .device_heads
                     .values()

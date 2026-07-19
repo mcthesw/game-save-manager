@@ -308,9 +308,9 @@ async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, str
     else return { status: "error", error: e  as any };
 }
 },
-async setGameSyncMode(gameId: string, mode: SyncMode, initialCatchUp: InitialCatchUpPolicy) : Promise<Result<GameSyncModeOutcome, string>> {
+async setGameSyncMode(gameId: string, mode: SyncMode, initialCatchUp: InitialCatchUpPolicy, liveSave: LiveSaveSyncOptions | null) : Promise<Result<GameSyncModeOutcome, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("set_game_sync_mode", { gameId, mode, initialCatchUp }) };
+    return { status: "ok", data: await TAURI_INVOKE("set_game_sync_mode", { gameId, mode, initialCatchUp, liveSave }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -751,7 +751,7 @@ export type BuildInfo = { version: string; git_hash: string }
 export type CancelCloudSyncResult = "cancelled" | "no_active_operations"
 export type CandidateDimensions = { rootId?: string | null; accountId?: string | null; installationId?: string | null; store?: StoreKind | null }
 export type CandidateExpression = { id: string; expression: string; logicalAnchor: string; dimensions: CandidateDimensions; caseSensitive: boolean }
-export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
+export type CloudArchiveGameView = { game_id: string; name: string; sync_mode: SyncMode; live_save_process_name: string | null; live_save_snapshot_on_exit: boolean; advertised_head_count: number; snapshots: CloudArchiveSnapshotView[]; local_count: number; cloud_count: number }
 export type CloudArchiveLibraryView = { games: CloudArchiveGameView[]; pending_materialization: boolean }
 export type CloudArchiveSnapshotView = { snapshot_id: string; description: string; size: number | null; local_verified: boolean; cloud_verified: boolean; reported_on_devices: string[] }
 export type CloudBackendCheckItem = { step: CloudBackendCheckStep; status: CloudBackendCheckItemStatus; critical: boolean; message: string | null }
@@ -987,6 +987,7 @@ export type IpcNotification = { level: NotificationLevel; title: string; msg: st
 export type JoinGameAction = "keep_cloud" | "add_local" | "replace_cloud"
 export type JoinGameDecision = { local_game_id: string; local_fingerprint: string; cloud_fingerprint: string | null; action: JoinGameAction }
 export type KeepLocalProgressOutcome = { snapshot_id: string; prepared_snapshots: number; uploaded_archives: number; manifest_revision: number }
+export type LiveSaveSyncOptions = { process_name: string; snapshot_on_exit: boolean }
 export type LocalProgressView = { snapshot_id: string; description: string; local_available: boolean; cloud_available: boolean }
 export type LudusaviManifestStatus = {
 /**

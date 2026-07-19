@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use log::{info, warn};
+use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 use tokio::time::{Instant, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
@@ -19,11 +20,11 @@ impl SnapshotSyncRuntimeState {
     }
 }
 
-pub fn setup(state: SnapshotSyncRuntimeState) {
-    tauri::async_runtime::spawn(run(state));
+pub fn setup(app: AppHandle, state: SnapshotSyncRuntimeState) {
+    tauri::async_runtime::spawn(run(app, state));
 }
 
-async fn run(state: SnapshotSyncRuntimeState) {
+async fn run(app: AppHandle, state: SnapshotSyncRuntimeState) {
     let cancellation = CancellationToken::new();
     {
         let _guard = state.operation_lock.lock().await;
@@ -67,7 +68,76 @@ async fn run(state: SnapshotSyncRuntimeState) {
         }
         let _guard = state.operation_lock.lock().await;
         run_reconciliation(&cancellation).await;
+        run_live_save_apply(&app).await;
         last_run = Instant::now();
+    }
+}
+
+async fn run_live_save_apply(app: &AppHandle) {
+    let targets = match rgsm_core::services::v2_live_save_sync_targets() {
+        Ok(targets) => targets,
+        Err(error) => {
+            warn!(
+                target: "rgsm::cloud::v2_live_save_sync",
+                "Failed to read Live Save Sync targets: {error}"
+            );
+            return;
+        }
+    };
+    for target in targets {
+        let processes = match crate::process_util::running_process_names() {
+            Ok(processes) => processes,
+            Err(error) => {
+                warn!(
+                    target: "rgsm::cloud::v2_live_save_sync",
+                    "Skipping Live Save Apply because process detection failed: {error}"
+                );
+                return;
+            }
+        };
+        if crate::process_util::process_is_running(&processes, &target.process_name) {
+            info!(
+                target: "rgsm::cloud::v2_live_save_sync",
+                "Skipping Live Save Apply for {} while its process is running",
+                target.game_id
+            );
+            continue;
+        }
+        let plan = match rgsm_core::services::review_v2_live_save_apply(&target.game_id).await {
+            Ok(Some(plan)) => plan,
+            Ok(None) => continue,
+            Err(error) => {
+                warn!(
+                    target: "rgsm::cloud::v2_live_save_sync",
+                    "Failed to review Live Save progress for {}: {error}",
+                    target.game_id
+                );
+                continue;
+            }
+        };
+        let services = rgsm_core::services::ServiceContext::new(
+            app.state::<crate::hooks::HookPipelineState>().snapshot(),
+        );
+        match services
+            .accept_v2_remote_progress(
+                &plan.game_id,
+                plan.manifest_revision,
+                plan.expected_local_snapshot_id.as_deref(),
+                &plan.selected_snapshot_id,
+            )
+            .await
+        {
+            Ok(_) => info!(
+                target: "rgsm::cloud::v2_live_save_sync",
+                "Applied remote progress for {}",
+                plan.game_id
+            ),
+            Err(error) => warn!(
+                target: "rgsm::cloud::v2_live_save_sync",
+                "Automatic Live Save Apply failed for {}: {error}",
+                plan.game_id
+            ),
+        }
     }
 }
 

@@ -80,6 +80,12 @@ pub struct GameSyncModeOutcome {
     pub downloaded: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct LiveSaveSyncOptions {
+    pub process_name: String,
+    pub snapshot_on_exit: bool,
+}
+
 #[derive(Debug, Error)]
 pub enum CloudLibraryServiceError {
     #[error("Cloud Library creation requires explicit confirmation")]
@@ -114,8 +120,8 @@ pub enum CloudLibraryServiceError {
     DeviceProfile(#[from] DeviceProfileRepositoryError),
     #[error("Game is not configured on this device: {0}")]
     GameProfileNotFound(String),
-    #[error("Live Save Sync is not available yet")]
-    LiveSaveSyncUnavailable,
+    #[error("Live Save Sync requires a process name")]
+    LiveSaveProcessRequired,
     #[error("Choose a local archive folder before downloading or uploading Snapshots")]
     StorageLocationRequired,
     #[error("Cloud Cutover progress identity could not be created: {0}")]
@@ -345,10 +351,11 @@ impl ServiceContext {
             .await
             .map_err(CloudLibraryServiceError::from)?;
         for game in &mut view.games {
-            game.sync_mode = profile
-                .games
-                .get(&game.game_id)
-                .map_or(SyncMode::Manual, |settings| settings.sync_mode);
+            if let Some(settings) = profile.games.get(&game.game_id) {
+                game.sync_mode = settings.sync_mode;
+                game.live_save_process_name = settings.live_save_process_name.clone();
+                game.live_save_snapshot_on_exit = settings.live_save_snapshot_on_exit;
+            }
         }
         Ok(view)
     }
@@ -424,11 +431,22 @@ impl ServiceContext {
         game_id: &str,
         mode: SyncMode,
         initial_catch_up: InitialCatchUpPolicy,
+        live_save: Option<LiveSaveSyncOptions>,
         cancellation: &CancellationToken,
     ) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
-        if mode == SyncMode::LiveSaveSync {
-            return Err(CloudLibraryServiceError::LiveSaveSyncUnavailable);
-        }
+        let live_save = if mode == SyncMode::LiveSaveSync {
+            let options = live_save.ok_or(CloudLibraryServiceError::LiveSaveProcessRequired)?;
+            let process_name = options.process_name.trim();
+            if process_name.is_empty() {
+                return Err(CloudLibraryServiceError::LiveSaveProcessRequired);
+            }
+            Some(LiveSaveSyncOptions {
+                process_name: process_name.to_string(),
+                snapshot_on_exit: options.snapshot_on_exit,
+            })
+        } else {
+            None
+        };
         let (_, expected_profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
@@ -441,8 +459,9 @@ impl ServiceContext {
             .get_mut(game_id)
             .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
 
-        let newly_enabled = mode == SyncMode::SnapshotSync
-            && (settings.sync_mode != SyncMode::SnapshotSync
+        let synchronized = mode != SyncMode::Manual;
+        let newly_enabled = synchronized
+            && (settings.sync_mode == SyncMode::Manual
                 || settings.snapshot_sync_activation_revision.is_none());
         let activation_revision = if newly_enabled {
             Some(materializer.catalog_revision().await?)
@@ -464,21 +483,25 @@ impl ServiceContext {
             settings.snapshot_sync_local_baseline.clone()
         };
         settings.sync_mode = mode;
-        settings.snapshot_sync_activation_revision = if mode == SyncMode::SnapshotSync {
+        settings.snapshot_sync_activation_revision = if synchronized {
             activation_revision
         } else {
             None
         };
-        settings.snapshot_sync_local_baseline = if mode == SyncMode::SnapshotSync {
+        settings.snapshot_sync_local_baseline = if synchronized {
             local_baseline
         } else {
             Default::default()
         };
-        settings.initial_catch_up = if mode == SyncMode::SnapshotSync {
+        settings.initial_catch_up = if synchronized {
             initial_catch_up
         } else {
             InitialCatchUpPolicy::KeepRemote
         };
+        if let Some(options) = live_save {
+            settings.live_save_process_name = Some(options.process_name);
+            settings.live_save_snapshot_on_exit = options.snapshot_on_exit;
+        }
 
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         DeviceProfileRepository::new(session.get_op()?, 3)
@@ -486,19 +509,20 @@ impl ServiceContext {
             .await?;
         replace_current_device_profile(&expected_profile, &accepted_profile)?;
 
-        let downloaded =
-            if newly_enabled && initial_catch_up == InitialCatchUpPolicy::DownloadExisting {
-                materializer
-                    .materialize_game(
-                        game_id,
-                        activation_revision.expect("new Snapshot Sync has an activation revision"),
-                        cancellation,
-                    )
-                    .await?
-                    .downloaded
-            } else {
-                0
-            };
+        let downloaded = if newly_enabled
+            && initial_catch_up == InitialCatchUpPolicy::DownloadExisting
+        {
+            materializer
+                .materialize_game(
+                    game_id,
+                    activation_revision.expect("new synchronized mode has an activation revision"),
+                    cancellation,
+                )
+                .await?
+                .downloaded
+        } else {
+            0
+        };
         Ok(GameSyncModeOutcome { mode, downloaded })
     }
 

@@ -8,6 +8,7 @@ use tokio::time::Instant;
 
 use rgsm_core::backup::{AutoBackupConfig, Game};
 use rgsm_core::config::{GameAutomationSettings, get_config};
+use rgsm_core::services::{LiveSaveSyncTarget, v2_live_save_sync_targets};
 
 use crate::process_util::{process_is_running, process_name_for_game, running_process_names};
 
@@ -48,36 +49,7 @@ impl ProcessMonitor {
 
     pub fn sync_from_config(&self) {
         let entries = match get_config() {
-            Ok(config) => config
-                .quick_action
-                .game_automations
-                .iter()
-                .filter(|automation| automation.has_process_triggers())
-                .filter_map(|automation| {
-                    let game = config
-                        .games
-                        .iter()
-                        .find(|game| automation.references_game(game))?
-                        .clone();
-                    let process_name = match process_name_for_game(&game, automation) {
-                        Some(process_name) => process_name,
-                        None => {
-                            warn!(
-                                target: "rgsm::quick_action::process_monitor",
-                                "Skipping process monitor for '{}' because no process target is configured",
-                                game.name
-                            );
-                            return None;
-                        }
-                    };
-                    Some(MonitoredProcessGame {
-                        key: game_key(&game),
-                        game,
-                        automation: automation.clone(),
-                        process_name,
-                    })
-                })
-                .collect(),
+            Ok(config) => monitored_process_games(&config),
             Err(err) => {
                 warn!(
                     target: "rgsm::quick_action::process_monitor",
@@ -96,6 +68,89 @@ impl ProcessMonitor {
                 "Failed to send process monitor sync command: {err}"
             );
         }
+    }
+}
+
+fn monitored_process_games(config: &rgsm_core::config::Config) -> Vec<MonitoredProcessGame> {
+    let mut entries = config
+        .quick_action
+        .game_automations
+        .iter()
+        .filter(|automation| automation.has_process_triggers())
+        .filter_map(|automation| {
+            let game = config
+                .games
+                .iter()
+                .find(|game| automation.references_game(game))?
+                .clone();
+            let process_name = match process_name_for_game(&game, automation) {
+                Some(process_name) => process_name,
+                None => {
+                    warn!(
+                        target: "rgsm::quick_action::process_monitor",
+                        "Skipping process automation without a process name: {}",
+                        game.name
+                    );
+                    return None;
+                }
+            };
+            Some((
+                game_key(&game),
+                MonitoredProcessGame {
+                    key: game_key(&game),
+                    game,
+                    automation: automation.clone(),
+                    process_name,
+                },
+            ))
+        })
+        .collect::<HashMap<_, _>>();
+
+    match v2_live_save_sync_targets() {
+        Ok(targets) => merge_live_save_exit_targets(&mut entries, config, targets),
+        Err(err) => warn!(
+            target: "rgsm::quick_action::process_monitor",
+            "Failed to load Live Save Sync process targets: {err}"
+        ),
+    }
+    entries.into_values().collect()
+}
+
+fn merge_live_save_exit_targets(
+    entries: &mut HashMap<String, MonitoredProcessGame>,
+    config: &rgsm_core::config::Config,
+    targets: Vec<LiveSaveSyncTarget>,
+) {
+    for target in targets.into_iter().filter(|target| target.snapshot_on_exit) {
+        let Some(game) = config
+            .games
+            .iter()
+            .find(|game| game.storage_key == target.game_id)
+            .cloned()
+        else {
+            continue;
+        };
+        let key = game_key(&game);
+        entries
+            .entry(key.clone())
+            .and_modify(|entry| {
+                entry.process_name = target.process_name.clone();
+                entry.automation.process_name = target.process_name.clone();
+                entry.automation.on_process_exit = true;
+            })
+            .or_insert_with(|| MonitoredProcessGame {
+                key,
+                automation: GameAutomationSettings {
+                    storage_key: game.storage_key.clone(),
+                    game_name: game.name.clone(),
+                    process_name: target.process_name.clone(),
+                    on_process_start: false,
+                    on_process_exit: true,
+                    in_process_interval_secs: None,
+                },
+                game,
+                process_name: target.process_name,
+            });
     }
 }
 
@@ -304,6 +359,61 @@ mod tests {
         assert!(process_backup_retention(&test_game()).is_none());
     }
 
+    #[test]
+    fn live_save_exit_target_adds_process_exit_monitoring() {
+        let mut config = rgsm_core::config::Config::default();
+        config.games.push(test_game());
+        let mut entries = HashMap::new();
+
+        merge_live_save_exit_targets(
+            &mut entries,
+            &config,
+            vec![live_save_target("live-game.exe", true)],
+        );
+
+        let entry = &entries["game"];
+        assert_eq!(entry.process_name, "live-game.exe");
+        assert!(entry.automation.on_process_exit);
+        assert!(!entry.automation.on_process_start);
+        assert_eq!(entry.automation.in_process_interval_secs, None);
+    }
+
+    #[test]
+    fn live_save_exit_target_preserves_other_process_triggers() {
+        let mut config = rgsm_core::config::Config::default();
+        config.games.push(test_game());
+        let mut existing = monitored_game(Some(60));
+        existing.automation.on_process_start = true;
+        let mut entries = HashMap::from([("game".to_string(), existing)]);
+
+        merge_live_save_exit_targets(
+            &mut entries,
+            &config,
+            vec![live_save_target("live-game.exe", true)],
+        );
+
+        let entry = &entries["game"];
+        assert_eq!(entry.process_name, "live-game.exe");
+        assert!(entry.automation.on_process_start);
+        assert!(entry.automation.on_process_exit);
+        assert_eq!(entry.automation.in_process_interval_secs, Some(60));
+    }
+
+    #[test]
+    fn disabled_live_save_exit_target_adds_no_monitor() {
+        let mut config = rgsm_core::config::Config::default();
+        config.games.push(test_game());
+        let mut entries = HashMap::new();
+
+        merge_live_save_exit_targets(
+            &mut entries,
+            &config,
+            vec![live_save_target("live-game.exe", false)],
+        );
+
+        assert!(entries.is_empty());
+    }
+
     fn runtime_games(
         runtime_game: Option<ProcessRuntimeGame>,
     ) -> HashMap<String, ProcessRuntimeGame> {
@@ -345,6 +455,14 @@ mod tests {
             on_process_start: false,
             on_process_exit: false,
             in_process_interval_secs: interval_secs,
+        }
+    }
+
+    fn live_save_target(process_name: &str, snapshot_on_exit: bool) -> LiveSaveSyncTarget {
+        LiveSaveSyncTarget {
+            game_id: "game".to_string(),
+            process_name: process_name.to_string(),
+            snapshot_on_exit,
         }
     }
 

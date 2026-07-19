@@ -101,6 +101,10 @@ pub struct DeviceGameProfile {
     pub snapshot_sync_local_baseline: BTreeSet<String>,
     #[serde(default)]
     pub initial_catch_up: InitialCatchUpPolicy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live_save_process_name: Option<String>,
+    #[serde(default)]
+    pub live_save_snapshot_on_exit: bool,
     pub game_path: Option<String>,
     pub binding: Option<GameDeviceBinding>,
     pub auto_backup: Option<AutoBackupConfig>,
@@ -467,6 +471,8 @@ impl DeviceProfile {
                             snapshot_sync_activation_revision: None,
                             snapshot_sync_local_baseline: BTreeSet::new(),
                             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
+                            live_save_process_name: None,
+                            live_save_snapshot_on_exit: false,
                             game_path: None,
                             binding: None,
                             auto_backup: None,
@@ -591,6 +597,8 @@ impl DeviceGameProfile {
             snapshot_sync_activation_revision: game.cloud_sync_enabled.then_some(0),
             snapshot_sync_local_baseline: BTreeSet::new(),
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
+            live_save_process_name: None,
+            live_save_snapshot_on_exit: false,
             game_path: game.game_paths.get(device_id).cloned(),
             binding: game.device_bindings.get(device_id).cloned(),
             auto_backup: game.auto_backup.clone(),
