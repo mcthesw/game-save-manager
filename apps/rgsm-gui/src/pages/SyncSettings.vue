@@ -5,6 +5,7 @@ import {
   commands,
   type Backend,
   type CloudBackendCheckReport,
+  type CloudLibraryStatus,
   type ConflictResolution,
   type GameSyncState,
   type SyncState,
@@ -68,6 +69,7 @@ const conflictDialogVisible = ref(false);
 const selectedConflictGameName = ref<string | null>(null);
 const checkingBackend = ref(false);
 const backendCheckReport = ref<CloudBackendCheckReport | null>(null);
+const cloudLibraryStatus = ref<CloudLibraryStatus | null>(null);
 const cloud_settings = ref<EditableCloudSettings>(
   toEditableCloudSettings(config.value!.settings.cloud_settings)
 );
@@ -127,6 +129,14 @@ function loadDraftFromConfig() {
 const savedBackendEnabled = computed(
   () => config.value?.settings.cloud_settings?.backend?.type !== 'Disabled'
 );
+const v2LibraryActive = computed(() => cloudLibraryStatus.value?.kind === 'active');
+const savedConnectionKey = computed(() =>
+  JSON.stringify(config.value?.settings.cloud_settings ?? null)
+);
+
+function updateCloudLibraryStatus(status: CloudLibraryStatus | null) {
+  cloudLibraryStatus.value = status;
+}
 
 const hasEnabledGames = computed(() =>
   (config.value?.games ?? []).some((game) => game.cloud_sync_enabled !== false)
@@ -633,11 +643,19 @@ onMounted(async () => {
     <ElTabs v-model="activeTab" class="sync-tabs">
       <!-- Tab 1: Overview -->
       <ElTabPane :label="$t('sync_settings.overview.tab')" name="overview">
+        <ElAlert
+          v-if="v2LibraryActive"
+          type="success"
+          :title="$t('sync_settings.library.legacy_disabled')"
+          :closable="false"
+          show-icon
+          class="section-alert"
+        />
         <div class="overview-toolbar">
           <ElButton
             type="primary"
             :icon="Refresh"
-            :disabled="!savedBackendEnabled || !hasEnabledGames"
+            :disabled="v2LibraryActive || !savedBackendEnabled || !hasEnabledGames"
             @click="syncAllGames"
           >
             {{ $t('sync_settings.overview.sync_all') }}
@@ -680,6 +698,7 @@ onMounted(async () => {
                 v-if="!row.isConfig"
                 v-model="row.cloudSyncEnabled"
                 size="small"
+                :disabled="v2LibraryActive"
                 @change="toggleGameSync(tableRowToGameRow(row))"
               />
               <span v-else class="config-lock-icon">
@@ -708,7 +727,9 @@ onMounted(async () => {
           <ElTableColumn :label="$t('sync_settings.overview.actions')" width="150" align="center">
             <template #default="{ row }">
               <ElButton
-                v-if="row.isConfig && row.status === 'failed' && savedBackendEnabled"
+                v-if="
+                  row.isConfig && row.status === 'failed' && savedBackendEnabled && !v2LibraryActive
+                "
                 :icon="Refresh"
                 size="small"
                 text
@@ -718,7 +739,7 @@ onMounted(async () => {
                 {{ $t('sync_settings.config_retry') }}
               </ElButton>
               <ElButton
-                v-else-if="!row.isConfig && row.status === 'conflict'"
+                v-else-if="!v2LibraryActive && !row.isConfig && row.status === 'conflict'"
                 :icon="Warning"
                 type="warning"
                 size="small"
@@ -728,7 +749,9 @@ onMounted(async () => {
                 {{ $t('sync_settings.conflict.resolve') }}
               </ElButton>
               <ElButton
-                v-else-if="!row.isConfig && row.cloudSyncEnabled && savedBackendEnabled"
+                v-else-if="
+                  !v2LibraryActive && !row.isConfig && row.cloudSyncEnabled && savedBackendEnabled
+                "
                 :icon="Refresh"
                 size="small"
                 text
@@ -839,10 +862,24 @@ onMounted(async () => {
 
           <BackendCheckResult :report="backendCheckReport" :checking="checkingBackend" />
         </div>
+        <CloudLibrarySetup
+          class="library-setup"
+          :enabled="savedBackendEnabled"
+          :connection-key="savedConnectionKey"
+          @status="updateCloudLibraryStatus"
+        />
       </ElTabPane>
 
       <!-- Tab 3: Operations -->
       <ElTabPane :label="$t('sync_settings.operations.tab')" name="operations">
+        <ElAlert
+          v-if="v2LibraryActive"
+          type="success"
+          :title="$t('sync_settings.library.legacy_disabled')"
+          :closable="false"
+          show-icon
+          class="section-alert"
+        />
         <ElAlert type="warning" :closable="false" show-icon style="margin-bottom: 20px">
           {{ $t('sync_settings.operations.warning') }}
         </ElAlert>
@@ -855,7 +892,7 @@ onMounted(async () => {
             <ElButton
               type="danger"
               :icon="Upload"
-              :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
+              :disabled="v2LibraryActive || currentSessionConfig()?.backend.type === 'Disabled'"
               @click="upload_all"
             >
               {{ $t('sync_settings.overwrite_upload') }}
@@ -870,7 +907,7 @@ onMounted(async () => {
             <ElButton
               type="danger"
               :icon="Download"
-              :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
+              :disabled="v2LibraryActive || currentSessionConfig()?.backend.type === 'Disabled'"
               @click="download_all"
             >
               {{ $t('sync_settings.overwrite_download') }}
@@ -931,6 +968,11 @@ onMounted(async () => {
   :deep(.el-tabs__nav-wrap::after) {
     height: 1px;
   }
+}
+
+.section-alert,
+.library-setup {
+  margin-bottom: 20px;
 }
 
 /* Overview tab */

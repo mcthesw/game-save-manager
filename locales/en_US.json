@@ -660,6 +660,25 @@
         "backend_tab": {
             "tab": "Backend"
         },
+        "library": {
+            "title": "Cloud Library",
+            "description": "Save the connection above, then check whether this location can use the new multi-device library.",
+            "backend_disabled": "Enable and save a cloud backend before checking this location.",
+            "not_checked": "This saved location has not been checked yet.",
+            "inspect": "Check library",
+            "inspect_failed": "Could not check the Cloud Library",
+            "empty": "This location is empty and can create a new Cloud Library.",
+            "join_required": "An existing Cloud Library contains {count} games. This device must review and join it.",
+            "cutover_required": "Legacy cloud data for {count} games was found. It must be migrated explicitly.",
+            "active": "This device is using the Cloud Library with {count} games.",
+            "create": "Create library",
+            "create_title": "Create Cloud Library",
+            "create_warning": "Create a new multi-device Cloud Library from this device's game list? This also stops this device from using the legacy cloud format. Other devices must use a compatible version to share future changes.",
+            "create_confirm": "Create and switch",
+            "create_failed": "Could not create the Cloud Library",
+            "create_success": "Cloud Library created",
+            "legacy_disabled": "This device now uses the new Cloud Library. Legacy synchronization controls are unavailable."
+        },
         "operations": {
             "tab": "Operations",
             "warning": "These operations may overwrite data. Use with caution.",

@@ -116,6 +116,14 @@ pub enum SyncMode {
     LiveSaveSync,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum CloudNamespaceGeneration {
+    #[default]
+    LegacyV1,
+    V2,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct DeviceBehaviorSettings {
     pub prompt_when_not_described: bool,
@@ -140,6 +148,8 @@ pub struct LocalState {
     pub current_device_id: DeviceId,
     pub interface: LocalInterfaceSettings,
     pub cloud_settings: CloudSettings,
+    #[serde(default)]
+    pub cloud_namespace_generation: CloudNamespaceGeneration,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
@@ -233,6 +243,7 @@ impl ConfigurationOwners {
                 current_device_id: current_device_id.clone(),
                 interface: LocalInterfaceSettings::from(&config.settings),
                 cloud_settings: config.settings.cloud_settings.clone(),
+                cloud_namespace_generation: CloudNamespaceGeneration::LegacyV1,
             },
         }
     }
@@ -282,6 +293,8 @@ impl ConfigurationOwners {
             .collect::<HashSet<_>>();
 
         self.shared_library = incoming.shared_library;
+        incoming.local_state.cloud_namespace_generation =
+            self.local_state.cloud_namespace_generation;
         self.local_state = incoming.local_state;
         self.device_profiles.retain(|device_id, _| {
             device_id == &current_device_id || incoming_device_ids.contains(device_id)

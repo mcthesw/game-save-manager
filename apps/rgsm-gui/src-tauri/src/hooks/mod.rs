@@ -17,7 +17,7 @@ use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager};
 
 use rgsm_core::cloud_sync::{Backend, CloudSyncTaskManager};
-use rgsm_core::config::Config;
+use rgsm_core::config::{CloudNamespaceGeneration, Config, cloud_namespace_generation};
 
 pub struct HookPipelineState {
     inner: RwLock<Arc<HookPipeline>>,
@@ -79,7 +79,12 @@ pub fn build_builtin_pipeline(
     hooks.push(Box::new(quick_action_sync_hook::QuickActionSyncHook::new(
         quick_action_sync,
     )));
-    if !matches!(config.settings.cloud_settings.backend, Backend::Disabled) {
+    if !matches!(config.settings.cloud_settings.backend, Backend::Disabled)
+        && matches!(
+            cloud_namespace_generation(),
+            Ok(CloudNamespaceGeneration::LegacyV1)
+        )
+    {
         let sync_queue: Arc<dyn SyncJobQueue> = task_manager;
         hooks.push(Box::new(
             rgsm_core::hooks::cloud_sync_hook::CloudSyncEnqueueHook::new(sync_queue),

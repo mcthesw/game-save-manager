@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use futures_util::TryStreamExt;
 use opendal::{ErrorKind, Operator};
@@ -9,6 +11,7 @@ use super::super::V1_CONFIG_PATH;
 use super::super::V1_SAVE_DATA_PREFIX;
 use super::{CloudManifest, ManifestError};
 use crate::config::{Config, OwnershipError, SharedLibrary};
+use crate::device::encode_device_id;
 
 pub const V2_NAMESPACE_SCHEMA_VERSION: u32 = 2;
 pub const V2_NAMESPACE_PREFIX: &str = "v2/";
@@ -18,6 +21,13 @@ pub const V2_DEVICE_PROFILES_PREFIX: &str = "v2/device-profiles/";
 pub const CLOUD_MANIFEST_PATH: &str = "v2/cloud-manifest.json";
 pub const CLOUD_ARCHIVES_PREFIX: &str = "v2/archives/";
 const CLASSIFICATION_ENTRY_SAMPLE_LIMIT: usize = 8;
+
+pub fn device_profile_path(device_id: &str) -> String {
+    format!(
+        "{V2_DEVICE_PROFILES_PREFIX}{}.json",
+        encode_device_id(device_id)
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudNamespaceDescriptor {
@@ -51,8 +61,19 @@ pub trait NamespaceTransport: Send + Sync {
     async fn list_sample(&self, prefix: &str, limit: usize) -> Result<Vec<String>, opendal::Error>;
 }
 
+#[async_trait]
+impl<T: NamespaceTransport + ?Sized> NamespaceTransport for Arc<T> {
+    async fn read(&self, path: &str) -> Result<Option<Vec<u8>>, opendal::Error> {
+        self.as_ref().read(path).await
+    }
+
+    async fn list_sample(&self, prefix: &str, limit: usize) -> Result<Vec<String>, opendal::Error> {
+        self.as_ref().list_sample(prefix, limit).await
+    }
+}
+
 pub struct OpenDalNamespaceTransport {
-    operator: Operator,
+    pub(super) operator: Operator,
 }
 
 impl OpenDalNamespaceTransport {

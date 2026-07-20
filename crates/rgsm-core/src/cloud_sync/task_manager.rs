@@ -20,7 +20,7 @@ use super::sync_state::{
 use crate::backup::GameSnapshots;
 use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::{Backend, session_from_backend, upload_config, upload_game_snapshots};
-use crate::config::get_config;
+use crate::config::{CloudNamespaceGeneration, get_config};
 use crate::hooks::SyncJobQueue;
 use crate::preclude::*;
 
@@ -228,8 +228,12 @@ impl CloudSyncTaskManager {
     pub async fn enqueue_config_upload_if_enabled(
         &self,
         config: &crate::config::Config,
+        generation: CloudNamespaceGeneration,
         context: impl Into<String>,
     ) {
+        if generation != CloudNamespaceGeneration::LegacyV1 {
+            return;
+        }
         let backend = match &config.settings.cloud_settings.backend {
             Backend::Disabled => return,
             backend => backend.clone(),
@@ -273,6 +277,17 @@ impl CloudSyncTaskManager {
         }
     }
 
+    pub async fn cancel_all_and_wait(&self) -> CancelCloudSyncResult {
+        let result = self.cancel_all().await;
+        loop {
+            let idle = self.notify.notified();
+            if self.running_count.load(Ordering::Acquire) == 0 {
+                return result;
+            }
+            idle.await;
+        }
+    }
+
     pub async fn begin_manual_job(&self, description: String) -> (u64, CancellationToken) {
         let (id, token) = {
             let mut state = self.state.lock().await;
@@ -301,6 +316,7 @@ impl CloudSyncTaskManager {
         self.running_count.fetch_sub(1, Ordering::Relaxed);
         self.finish_job(id, description, status, error).await;
         self.emit_full_status(None).await;
+        self.notify.notify_waiters();
     }
 
     async fn emit_full_status(&self, current_description: Option<String>) {
@@ -397,16 +413,17 @@ impl CloudSyncTaskManager {
                 let Some(queued_job) = state.queue.pop_front() else {
                     continue;
                 };
+                self.running_count.fetch_add(1, Ordering::Release);
                 (queued_job, state.queue_cancel_token.child_token())
             };
 
             let permit = semaphore.clone().acquire_owned().await;
             if permit.is_err() {
+                self.running_count.fetch_sub(1, Ordering::Release);
+                self.notify.notify_waiters();
                 return;
             }
             let permit = permit.unwrap();
-
-            self.running_count.fetch_add(1, Ordering::Relaxed);
 
             let job_id = queued_job.id;
             let job = queued_job.job;
@@ -463,6 +480,7 @@ impl CloudSyncTaskManager {
                 }
 
                 me.emit_full_status(None).await;
+                me.notify.notify_waiters();
             });
         }
     }
@@ -759,7 +777,11 @@ mod tests {
         let config = crate::config::Config::default();
 
         manager
-            .enqueue_config_upload_if_enabled(&config, "config_migration")
+            .enqueue_config_upload_if_enabled(
+                &config,
+                CloudNamespaceGeneration::LegacyV1,
+                "config_migration",
+            )
             .await;
 
         let state = manager.state.lock().await;
@@ -777,7 +799,11 @@ mod tests {
         };
 
         manager
-            .enqueue_config_upload_if_enabled(&config, "config_migration")
+            .enqueue_config_upload_if_enabled(
+                &config,
+                CloudNamespaceGeneration::LegacyV1,
+                "config_migration",
+            )
             .await;
 
         let state = manager.state.lock().await;
@@ -792,5 +818,23 @@ mod tests {
             }
             other => panic!("expected config upload job, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn cancel_and_wait_does_not_return_while_a_manual_job_is_running() {
+        let manager = manager();
+        let (id, _) = manager.begin_manual_job("manual".to_string()).await;
+        let finisher = manager.clone();
+        tokio::spawn(async move {
+            tokio::task::yield_now().await;
+            finisher
+                .finish_manual_job(id, "manual", CloudSyncJobStatus::Cancelled, None)
+                .await;
+        });
+
+        let result = manager.cancel_all_and_wait().await;
+
+        assert!(matches!(result, CancelCloudSyncResult::Cancelled));
+        assert_eq!(manager.running_count.load(Ordering::Acquire), 0);
     }
 }

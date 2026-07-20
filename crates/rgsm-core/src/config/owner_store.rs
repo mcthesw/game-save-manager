@@ -7,11 +7,11 @@ use serde::de::DeserializeOwned;
 use thiserror::Error;
 
 use crate::app_dirs::get_app_data_dir;
-use crate::device::{DeviceId, get_current_device_id};
+use crate::device::{DeviceId, encode_device_id, get_current_device_id};
 
 use super::{
-    Config, ConfigurationOwners, DeviceProfile, LocalState, OwnershipError, SharedLibrary,
-    V2_CONFIG_SCHEMA_VERSION,
+    CloudNamespaceGeneration, Config, ConfigurationOwners, DeviceProfile, LocalState,
+    OwnershipError, SharedLibrary, V2_CONFIG_SCHEMA_VERSION,
 };
 
 pub(crate) const OWNER_DIRECTORY_NAME: &str = "GameSaveManager.config.v2";
@@ -33,6 +33,8 @@ pub enum OwnerStoreError {
     DuplicateDeviceProfile(DeviceId),
     #[error("Device Profile file name does not match embedded Device ID: {0}")]
     ProfileFileNameMismatch(DeviceId),
+    #[error("Local configuration changed while Cloud Library creation was in progress")]
+    ActivationInputsChanged,
 }
 
 pub(crate) struct OwnerStore {
@@ -79,18 +81,26 @@ impl OwnerStore {
     }
 
     pub(crate) fn replace_effective(&self, config: &Config) -> Result<Config, OwnerStoreError> {
-        let current_device_id = if self.has_authoritative_state() {
-            self.load()?.local_state.current_device_id
+        let existing = if self.has_authoritative_state() {
+            Some(self.load()?)
         } else {
-            get_current_device_id().clone()
+            None
         };
-        let owners = ConfigurationOwners::from_legacy(config, &current_device_id);
+        let current_device_id = existing.as_ref().map_or_else(
+            || get_current_device_id().clone(),
+            |owners| owners.local_state.current_device_id.clone(),
+        );
+        let mut owners = ConfigurationOwners::from_legacy(config, &current_device_id);
+        if let Some(existing) = existing {
+            owners.local_state.cloud_namespace_generation =
+                existing.local_state.cloud_namespace_generation;
+        }
         let effective = owners.assemble_effective()?;
         self.write(&owners)?;
         Ok(effective)
     }
 
-    fn load(&self) -> Result<ConfigurationOwners, OwnerStoreError> {
+    pub(crate) fn load(&self) -> Result<ConfigurationOwners, OwnerStoreError> {
         self.recover()?;
         let active = self.active_path();
         let shared_library: SharedLibrary = read_json(&active.join(SHARED_LIBRARY_FILE_NAME))?;
@@ -125,6 +135,27 @@ impl OwnerStore {
         };
         owners.validate()?;
         Ok(owners)
+    }
+
+    pub(crate) fn activate_v2(
+        &self,
+        expected_library: &SharedLibrary,
+        expected_profile: &DeviceProfile,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        let current_profile = owners
+            .device_profiles
+            .get(&owners.local_state.current_device_id)
+            .ok_or_else(|| {
+                OwnershipError::MissingDeviceProfile(owners.local_state.current_device_id.clone())
+            })?;
+        if owners.shared_library != *expected_library
+            || serde_json::to_vec(current_profile)? != serde_json::to_vec(expected_profile)?
+        {
+            return Err(OwnerStoreError::ActivationInputsChanged);
+        }
+        owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        self.write(&owners)
     }
 
     fn write(&self, owners: &ConfigurationOwners) -> Result<(), OwnerStoreError> {
@@ -211,17 +242,8 @@ fn remove_dir_if_exists(path: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-/// Encode a Device ID as a path-safe lowercase hexadecimal file stem.
-///
-/// Each UTF-8 byte becomes two characters, so both time and additional space
-/// are O(n) in the Device ID byte length.
 fn profile_file_name(device_id: &str) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(device_id.len() * 2 + 5);
-    for byte in device_id.as_bytes() {
-        encoded.push(HEX[(byte >> 4) as usize] as char);
-        encoded.push(HEX[(byte & 0x0f) as usize] as char);
-    }
+    let mut encoded = encode_device_id(device_id);
     encoded.push_str(".json");
     encoded
 }
@@ -348,6 +370,24 @@ mod tests {
                 .quick_action_game_id
                 .as_deref(),
             Some("deck-only")
+        );
+    }
+
+    #[test]
+    fn effective_saves_preserve_v2_activation() {
+        let (_root, store) = store();
+        let input = config(get_current_device_id(), "before");
+        store.initialize_from_legacy(&input).unwrap();
+        let owners = store.load().unwrap();
+        let profile = &owners.device_profiles[get_current_device_id()];
+        store.activate_v2(&owners.shared_library, profile).unwrap();
+
+        store.merge_effective(&input).unwrap();
+        store.replace_effective(&input).unwrap();
+
+        assert_eq!(
+            store.load().unwrap().local_state.cloud_namespace_generation,
+            CloudNamespaceGeneration::V2
         );
     }
 

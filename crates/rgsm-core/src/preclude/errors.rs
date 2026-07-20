@@ -49,6 +49,8 @@ pub enum BackendError {
     InvalidConflictState(String),
     #[error("Unsupported cloud conflict resolution: {0}")]
     UnsupportedConflictResolution(String),
+    #[error("Legacy cloud synchronization is unavailable after V2 Cloud Library activation")]
+    V2CloudLibraryActive,
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
     #[error("Opendal error: {0:#?}")]

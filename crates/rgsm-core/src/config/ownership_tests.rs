@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::{Config, ConfigurationOwners, OwnershipError, QuickActionsSettings};
+use super::{
+    CloudNamespaceGeneration, Config, ConfigurationOwners, OwnershipError, QuickActionsSettings,
+};
 use crate::backup::{Game, SaveUnit, SaveUnitType};
 use crate::device::{Device, DeviceId};
 
@@ -105,6 +107,24 @@ fn owners_round_trip_back_to_equivalent_effective_config() {
     assert_eq!(
         serde_json::to_value(effective).unwrap(),
         serde_json::to_value(config).unwrap()
+    );
+}
+
+#[test]
+fn legacy_owner_json_defaults_to_v1_generation() {
+    let (config, windows_id, _) = dual_device_config();
+    let owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    let mut persisted = serde_json::to_value(&owners).unwrap();
+    persisted["local_state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("cloud_namespace_generation");
+
+    let reloaded: ConfigurationOwners = serde_json::from_value(persisted).unwrap();
+
+    assert_eq!(
+        reloaded.local_state.cloud_namespace_generation,
+        CloudNamespaceGeneration::LegacyV1
     );
 }
 

@@ -7,7 +7,7 @@ use rust_i18n::{i18n, t};
 i18n!("../../../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use rgsm_core::cloud_sync::SyncEventEmitter;
-use rgsm_core::config::get_config;
+use rgsm_core::config::{cloud_namespace_generation, get_config};
 use tauri::Manager;
 
 use log::{error, info, warn};
@@ -18,6 +18,7 @@ use rgsm_core::config::config_check;
 // GUI-specific modules
 #[cfg(debug_assertions)]
 mod bindings_format;
+mod cloud_library;
 mod hooks;
 mod ipc_handler;
 mod process_util;
@@ -116,6 +117,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::restore_extra_backup,
             ipc_handler::open_extra_backup_folder,
             ipc_handler::check_cloud_backend,
+            ipc_handler::inspect_cloud_library,
+            ipc_handler::create_cloud_library,
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
             ipc_handler::cancel_cloud_sync,
@@ -215,9 +218,15 @@ pub fn run() -> anyhow::Result<()> {
             app.manage(cloud_sync_manager);
             if config_status.config_migrated {
                 let migrated_config = config.clone();
+                let generation =
+                    cloud_namespace_generation().expect("Failed to load Cloud Library generation");
                 tauri::async_runtime::spawn(async move {
                     startup_cloud_sync_manager
-                        .enqueue_config_upload_if_enabled(&migrated_config, "config_migration")
+                        .enqueue_config_upload_if_enabled(
+                            &migrated_config,
+                            generation,
+                            "config_migration",
+                        )
                         .await;
                 });
             }

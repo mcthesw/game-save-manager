@@ -111,8 +111,9 @@ impl App {
         }
 
         let config = rgsm_core::config::get_config()?;
+        let generation = rgsm_core::config::cloud_namespace_generation()?;
         self.cloud_sync_manager
-            .enqueue_config_upload_if_enabled(&config, "config_migration")
+            .enqueue_config_upload_if_enabled(&config, generation, "config_migration")
             .await;
         Ok(())
     }
