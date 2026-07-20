@@ -2,6 +2,7 @@ mod bootstrap;
 mod deletion;
 mod game_comparison;
 mod integrity;
+mod join;
 mod manifest;
 mod namespace;
 mod repository;
@@ -15,6 +16,10 @@ pub use game_comparison::{
     GameJoinCandidate, GameJoinClassification, GameJoinComparisonError, compare_join_libraries,
 };
 pub use integrity::{ArchiveIntegrity, ArchiveIntegrityError};
+pub use join::{
+    CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinItem, CloudLibraryJoinReview,
+    GameDefinitionDifference, JoinGameAction, JoinGameDecision,
+};
 pub use manifest::{
     CLOUD_MANIFEST_SCHEMA_VERSION, CloudManifest, DeletionKind, GameManifest, LiveSnapshot,
     ManifestError, PendingTombstone, SnapshotNode, SnapshotState,

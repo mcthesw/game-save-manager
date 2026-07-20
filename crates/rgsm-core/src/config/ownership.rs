@@ -429,6 +429,52 @@ impl ConfigurationOwners {
     }
 }
 
+impl DeviceProfile {
+    /// Retain only current-Device values that still apply to an accepted
+    /// Shared Library, and provide conservative defaults for newly seen Games.
+    pub fn for_shared_library(&self, library: &SharedLibrary) -> Self {
+        let mut profile = self.clone();
+        profile.games = library
+            .games
+            .iter()
+            .map(|game| {
+                let save_unit_ids = game
+                    .save_units
+                    .iter()
+                    .map(|unit| unit.id)
+                    .collect::<HashSet<_>>();
+                let mut settings =
+                    self.games
+                        .get(&game.storage_key)
+                        .cloned()
+                        .unwrap_or(DeviceGameProfile {
+                            visible: true,
+                            sync_mode: SyncMode::Manual,
+                            game_path: None,
+                            binding: None,
+                            auto_backup: None,
+                            save_units: HashMap::new(),
+                        });
+                settings
+                    .save_units
+                    .retain(|id, _| save_unit_ids.contains(id));
+                for id in save_unit_ids {
+                    settings
+                        .save_units
+                        .entry(id)
+                        .or_insert(DeviceSaveUnitSettings {
+                            path: None,
+                            enabled: true,
+                            delete_before_apply: false,
+                        });
+                }
+                (game.storage_key.clone(), settings)
+            })
+            .collect();
+        profile
+    }
+}
+
 impl SharedLibrary {
     /// Validate remote-portable configuration without requiring Local State or
     /// a current Device Profile.

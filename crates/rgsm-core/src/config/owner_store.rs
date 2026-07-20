@@ -35,6 +35,8 @@ pub enum OwnerStoreError {
     ProfileFileNameMismatch(DeviceId),
     #[error("Local configuration changed while Cloud Library creation was in progress")]
     ActivationInputsChanged,
+    #[error("Local configuration changed while Cloud Library join was in progress")]
+    JoinInputsChanged,
 }
 
 pub(crate) struct OwnerStore {
@@ -154,6 +156,45 @@ impl OwnerStore {
         {
             return Err(OwnerStoreError::ActivationInputsChanged);
         }
+        owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        self.write(&owners)
+    }
+
+    pub(crate) fn activate_join_v2(
+        &self,
+        expected_local_library: &SharedLibrary,
+        expected_local_profile: &DeviceProfile,
+        accepted_library: &SharedLibrary,
+        accepted_profile: &DeviceProfile,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        let current_device_id = owners.local_state.current_device_id.clone();
+        let current_profile = owners
+            .device_profiles
+            .get(&current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1
+            || owners.shared_library != *expected_local_library
+            || serde_json::to_vec(current_profile)? != serde_json::to_vec(expected_local_profile)?
+            || accepted_profile.device.id != current_device_id
+        {
+            return Err(OwnerStoreError::JoinInputsChanged);
+        }
+
+        let accepted_ids = accepted_library
+            .games
+            .iter()
+            .map(|game| game.storage_key.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        for profile in owners.device_profiles.values_mut() {
+            profile
+                .games
+                .retain(|id, _| accepted_ids.contains(id.as_str()));
+        }
+        owners.shared_library = accepted_library.clone();
+        owners
+            .device_profiles
+            .insert(current_device_id, accepted_profile.clone());
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
         self.write(&owners)
     }

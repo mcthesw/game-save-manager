@@ -2,6 +2,7 @@ use crate::{quick_actions, sound};
 use rgsm_core::backup::{
     CreatedBy, ExtraBackupItem, Game, GameDeviceBinding, GameDraft, GameSnapshots, SaveUnit,
 };
+use rgsm_core::cloud_sync::v2::{CloudLibraryJoinReview, JoinGameDecision};
 use rgsm_core::cloud_sync::{
     self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudBackendCheckReport,
     CloudSyncSessionConfig, CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome,
@@ -18,7 +19,7 @@ use rgsm_core::path_pattern::{PathPlaceholder, PathPlaceholderDescriptor};
 use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
-use rgsm_core::services::{CloudLibraryStatus, ServiceContext};
+use rgsm_core::services::{CloudLibraryJoinOutcome, CloudLibraryStatus, ServiceContext};
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
 use rgsm_core::{backup, config, system_fonts};
@@ -623,6 +624,30 @@ pub async fn create_cloud_library(
             error!(target:"rgsm::ipc", "Failed to create Cloud Library: {error:?}");
             error.to_string()
         })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn review_cloud_library_join(
+    app_handle: AppHandle,
+) -> Result<CloudLibraryJoinReview, String> {
+    info!(target:"rgsm::ipc", "Reviewing an existing Cloud Library");
+    crate::cloud_library::review(&app_handle)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn join_cloud_library(
+    decisions: Vec<JoinGameDecision>,
+    confirmed_replacements: bool,
+    app_handle: AppHandle,
+) -> Result<CloudLibraryJoinOutcome, String> {
+    info!(target:"rgsm::ipc", "Joining an existing Cloud Library");
+    crate::cloud_library::join(&app_handle, &decisions, confirmed_replacements)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

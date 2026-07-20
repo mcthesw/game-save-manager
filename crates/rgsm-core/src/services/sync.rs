@@ -5,7 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::backup::Game;
 use crate::cloud_sync::v2::{
-    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudNamespaceClassification,
+    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryJoin, CloudLibraryJoinError,
+    CloudLibraryJoinReview, CloudNamespaceClassification, JoinGameDecision,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -14,8 +15,8 @@ use crate::cloud_sync::{
     sync_game as sync_cloud_game, upload_all_from_session,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, activate_cloud_namespace_v2, cloud_bootstrap_inputs,
-    cloud_namespace_generation, get_config,
+    CloudNamespaceGeneration, Config, activate_cloud_namespace_v2, activate_joined_cloud_library,
+    cloud_bootstrap_inputs, cloud_namespace_generation, get_config,
 };
 use crate::hooks::{HookSource, MetadataChangedCtx};
 use crate::preclude::BackendError;
@@ -52,18 +53,29 @@ pub enum CloudLibraryStatus {
     Active { game_count: usize },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CloudLibraryJoinOutcome {
+    Active { game_count: usize },
+    ReviewChanged { game_name: String },
+}
+
 #[derive(Debug, Error)]
 pub enum CloudLibraryServiceError {
     #[error("Cloud Library creation requires explicit confirmation")]
     ConfirmationRequired,
     #[error("The active V2 Cloud Library no longer matches the saved connection")]
     ActiveLibraryUnavailable,
+    #[error("This installation does not need to join a Cloud Library")]
+    JoinNotRequired,
     #[error(transparent)]
     Config(#[from] crate::preclude::ConfigError),
     #[error(transparent)]
     Backend(#[from] BackendError),
     #[error(transparent)]
     Bootstrap(#[from] CloudLibraryBootstrapError),
+    #[error(transparent)]
+    Join(#[from] CloudLibraryJoinError),
 }
 
 impl ServiceContext {
@@ -167,6 +179,56 @@ impl ServiceContext {
         activate_cloud_namespace_v2(&shared_library, &device_profile)?;
         Ok(CloudLibraryStatus::Active {
             game_count: shared_library.games.len(),
+        })
+    }
+
+    pub async fn review_cloud_library_join(
+        &self,
+    ) -> Result<CloudLibraryJoinReview, CloudLibraryServiceError> {
+        let (local_library, _, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
+            return Err(CloudLibraryServiceError::JoinNotRequired);
+        }
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        Ok(CloudLibraryJoin::new(session.get_op()?, 3)
+            .review(&local_library)
+            .await?)
+    }
+
+    pub async fn join_cloud_library(
+        &self,
+        decisions: &[JoinGameDecision],
+        confirmed_replacements: bool,
+    ) -> Result<CloudLibraryJoinOutcome, CloudLibraryServiceError> {
+        let (local_library, local_profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
+            return Err(CloudLibraryServiceError::JoinNotRequired);
+        }
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        let joined = CloudLibraryJoin::new(session.get_op()?, 3)
+            .join(
+                &local_library,
+                &local_profile,
+                decisions,
+                confirmed_replacements,
+            )
+            .await;
+        let (accepted_library, accepted_profile) = match joined {
+            Ok(joined) => joined,
+            Err(CloudLibraryJoinError::TargetChanged(game_name))
+            | Err(CloudLibraryJoinError::LocalGameChanged(game_name)) => {
+                return Ok(CloudLibraryJoinOutcome::ReviewChanged { game_name });
+            }
+            Err(error) => return Err(error.into()),
+        };
+        activate_joined_cloud_library(
+            &local_library,
+            &local_profile,
+            &accepted_library,
+            &accepted_profile,
+        )?;
+        Ok(CloudLibraryJoinOutcome::Active {
+            game_count: accepted_library.games.len(),
         })
     }
 }

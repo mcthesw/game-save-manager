@@ -677,7 +677,42 @@
             "create_confirm": "Create and switch",
             "create_failed": "Could not create the Cloud Library",
             "create_success": "Cloud Library created",
-            "legacy_disabled": "This device now uses the new Cloud Library. Legacy synchronization controls are unavailable."
+            "legacy_disabled": "This device now uses the new Cloud Library. Legacy synchronization controls are unavailable.",
+            "join": {
+                "title": "Review Cloud Library",
+                "risk_title": "Review before joining",
+                "risk_description": "Joining switches this device to the shared game list. Games kept only on this device are not added unless you select Add to Cloud.",
+                "summary": "The cloud has {cloud} games. {review} local games need your attention.",
+                "games_label": "Games to review",
+                "classification": {
+                    "same": "Same",
+                    "local_only": "Local only",
+                    "possible_duplicate": "Possible duplicate",
+                    "game_definition_conflict": "Different definition"
+                },
+                "local": "This device",
+                "cloud": "Cloud",
+                "game_name": "Name",
+                "save_units": "Save locations",
+                "recognition": "Game recognition",
+                "item_count": "{count} items",
+                "not_in_cloud": "Not in cloud",
+                "recognition_available": "Available",
+                "recognition_unavailable": "Not available",
+                "no_difference": "The portable game definition is the same.",
+                "keep_cloud": "Keep the cloud version",
+                "add_local": "Add this game to Cloud Library",
+                "replace_cloud": "Replace the shared game definition",
+                "join_action": "Join library",
+                "replace_title": "Replace shared definitions?",
+                "replace_warning": "{count} shared game definitions will be replaced for participating devices. Device-specific paths are not uploaded.",
+                "replace_confirm": "Replace and join",
+                "review_failed": "Could not prepare the join review",
+                "join_failed": "Could not join the Cloud Library",
+                "review_changed": "{game} changed while you were reviewing. The latest version has been loaded.",
+                "join_success": "This device joined the Cloud Library",
+                "no_local_games": "There are no local games to compare."
+            }
         },
         "operations": {
             "tab": "Operations",

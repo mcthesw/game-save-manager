@@ -212,6 +212,22 @@ async createCloudLibrary(confirmed: boolean) : Promise<Result<CloudLibraryStatus
     else return { status: "error", error: e  as any };
 }
 },
+async reviewCloudLibraryJoin() : Promise<Result<CloudLibraryJoinReview, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("review_cloud_library_join") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async joinCloudLibrary(decisions: JoinGameDecision[], confirmedReplacements: boolean) : Promise<Result<CloudLibraryJoinOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("join_cloud_library", { decisions, confirmedReplacements }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async cloudUploadAll(session: CloudSyncSessionConfig) : Promise<Result<BatchSyncReport, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cloud_upload_all", { session }) };
@@ -651,6 +667,9 @@ export type CloudBackendCheckItemStatus = "passed" | "warning" | "failed"
 export type CloudBackendCheckOutcome = "available" | "degraded" | "unavailable"
 export type CloudBackendCheckReport = { outcome: CloudBackendCheckOutcome; items: CloudBackendCheckItem[] }
 export type CloudBackendCheckStep = "prepare_backend" | "list_files" | "write_file" | "read_file" | "verify_content" | "delete_file"
+export type CloudLibraryJoinItem = { local_game_id: string; local_name: string; local_fingerprint: string; cloud_names: string[]; cloud_fingerprint: string | null; classification: GameJoinClassification; difference: GameDefinitionDifference }
+export type CloudLibraryJoinOutcome = { kind: "active"; game_count: number } | { kind: "review_changed"; game_name: string }
+export type CloudLibraryJoinReview = { cloud_game_count: number; items: CloudLibraryJoinItem[] }
 export type CloudLibraryStatus = { kind: "empty" } | { kind: "join_required"; game_count: number } | { kind: "cutover_required"; game_count: number } | { kind: "active"; game_count: number }
 export type CloudSettings = {
 /**
@@ -814,6 +833,7 @@ ludusavi_meta?: LudusaviMeta | null;
 device_bindings: Partial<{ [key in string]: GameDeviceBinding }> }
 export type GameAutomationSettings = { storage_key?: string; game_name: string; process_name?: string; on_process_start?: boolean; on_process_exit?: boolean; in_process_interval_secs?: number | null }
 export type GameAutomationSettingsDraft = { process_name?: string; on_process_start?: boolean; on_process_exit?: boolean; in_process_interval_secs?: number | null }
+export type GameDefinitionDifference = { name_changed: boolean; local_save_unit_count: number; cloud_save_unit_count: number; save_units_changed: boolean; local_recognition: boolean; cloud_recognition: boolean; recognition_changed: boolean }
 export type GameDeviceBinding = { rootIds?: number[] | null; accountIds?: number[] | null; installationIds?: number[] | null; restoreMappings: RestoreMappingRule[] }
 /**
  * Frontend/IPC input shape for creating/updating a game.
@@ -824,6 +844,7 @@ export type GameDraft = { name: string; save_paths: SaveUnitDraft[]; game_paths?
  * Metadata from Ludusavi manifest import (optional for manually added games).
  */
 ludusavi_meta?: LudusaviMeta | null; device_bindings: Partial<{ [key in string]: GameDeviceBinding }> }
+export type GameJoinClassification = "same" | "local_only" | "possible_duplicate" | "game_definition_conflict"
 /**
  * A backup list info is a json file in a backup folder for a game.
  * It contains the name of the game,
@@ -873,6 +894,8 @@ isManaged: boolean;
  */
 savePathsCount: number }
 export type IpcNotification = { level: NotificationLevel; title: string; msg: string }
+export type JoinGameAction = "keep_cloud" | "add_local" | "replace_cloud"
+export type JoinGameDecision = { local_game_id: string; local_fingerprint: string; cloud_fingerprint: string | null; action: JoinGameAction }
 export type LudusaviManifestStatus = {
 /**
  * Current manifest source: `local`, `bundled`, or `none`.

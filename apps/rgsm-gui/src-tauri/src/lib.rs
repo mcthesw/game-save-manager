@@ -119,6 +119,8 @@ pub fn run() -> anyhow::Result<()> {
             ipc_handler::check_cloud_backend,
             ipc_handler::inspect_cloud_library,
             ipc_handler::create_cloud_library,
+            ipc_handler::review_cloud_library_join,
+            ipc_handler::join_cloud_library,
             ipc_handler::cloud_upload_all,
             ipc_handler::cloud_download_all,
             ipc_handler::cancel_cloud_sync,
