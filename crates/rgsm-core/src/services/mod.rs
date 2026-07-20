@@ -3,6 +3,7 @@ mod config;
 mod conflict_resolution;
 mod device_game_lifecycle;
 mod game;
+mod game_deletion;
 mod path_resolution;
 mod profile_management;
 mod retention;
@@ -16,6 +17,7 @@ use crate::hooks::HookPipeline;
 
 pub use conflict_resolution::AcceptRemoteProgressOutcome;
 pub use device_game_lifecycle::DeviceGameStatus;
+pub use game_deletion::DeletedCloudGameView;
 pub use profile_management::CloudDeviceProfileView;
 pub use retention::SnapshotRetentionOutcome;
 pub use snapshot_sync::{

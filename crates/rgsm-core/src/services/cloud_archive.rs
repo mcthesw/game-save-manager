@@ -1,4 +1,5 @@
-use crate::cloud_sync::v2::CloudArchiveLibraryView;
+use crate::cloud_sync::CloudSyncSessionConfig;
+use crate::cloud_sync::v2::{CloudArchiveLibraryView, DeletionRegistryRepository};
 use crate::config::cloud_bootstrap_inputs;
 
 use super::{CloudLibraryServiceError, ServiceContext};
@@ -7,8 +8,15 @@ impl ServiceContext {
     pub async fn cloud_archive_library(
         &self,
     ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
+        super::game_deletion::converge_local_deleted_games().await?;
         super::retention::refresh_v2_snapshot_retention().await?;
-        let (library, profile, _) = cloud_bootstrap_inputs()?;
+        let (library, profile, local_state) = cloud_bootstrap_inputs()?;
+        let registry = DeletionRegistryRepository::new(
+            CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?,
+            3,
+        )
+        .load()
+        .await?;
         let game_names = library
             .games
             .iter()
@@ -19,6 +27,8 @@ impl ServiceContext {
             .await?
             .view(&game_names)
             .await?;
+        view.games
+            .retain(|game| !registry.deleted_games.contains_key(&game.game_id));
         for game in &mut view.games {
             if let Some(settings) = profile.games.get(&game.game_id) {
                 game.managed = true;

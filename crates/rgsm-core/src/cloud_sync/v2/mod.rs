@@ -5,6 +5,7 @@ mod cutover;
 mod deletion;
 mod deletion_registry;
 mod game_comparison;
+pub(crate) mod game_deletion;
 mod integrity;
 mod join;
 mod local_eviction;
@@ -46,6 +47,7 @@ pub use deletion_registry::{
 pub use game_comparison::{
     GameJoinCandidate, GameJoinClassification, GameJoinComparisonError, compare_join_libraries,
 };
+pub use game_deletion::{SharedGameDeletion, SharedGameDeletionError, SharedGameDeletionOutcome};
 pub use integrity::{ArchiveIntegrity, ArchiveIntegrityError};
 pub use join::{
     CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinItem, CloudLibraryJoinReview,

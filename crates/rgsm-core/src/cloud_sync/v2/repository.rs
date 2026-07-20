@@ -5,7 +5,7 @@ use opendal::{ErrorKind, Operator};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use super::{CloudManifest, ManifestError};
+use super::{CloudManifest, DeletionRegistryError, DeletionRegistryRepository, ManifestError};
 
 #[async_trait]
 pub trait ManifestTransport: Send + Sync {
@@ -47,16 +47,20 @@ impl ManifestTransport for OpenDalManifestTransport {
 
 pub struct CloudManifestRepository<T: ManifestTransport> {
     transport: Arc<T>,
+    deletion_operator: Option<Operator>,
     writer_lock: Mutex<()>,
     max_attempts: usize,
 }
 
 impl CloudManifestRepository<OpenDalManifestTransport> {
     pub fn new(operator: Operator, object_key: impl Into<String>, max_attempts: usize) -> Self {
-        Self::with_transport(
-            OpenDalManifestTransport::new(operator, object_key),
-            max_attempts,
-        )
+        let transport = OpenDalManifestTransport::new(operator.clone(), object_key);
+        Self {
+            transport: Arc::new(transport),
+            deletion_operator: Some(operator),
+            writer_lock: Mutex::new(()),
+            max_attempts: max_attempts.max(1),
+        }
     }
 }
 
@@ -64,6 +68,7 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
     pub fn with_transport(transport: T, max_attempts: usize) -> Self {
         Self {
             transport: Arc::new(transport),
+            deletion_operator: None,
             writer_lock: Mutex::new(()),
             max_attempts: max_attempts.max(1),
         }
@@ -89,7 +94,10 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
         let _guard = self.writer_lock.lock().await;
         for _ in 0..self.max_attempts {
             let mut manifest = self.load().await?;
+            let previous = manifest.clone();
             mutation(&mut manifest)?;
+            self.reject_deleted_game_changes(&previous, &manifest)
+                .await?;
             manifest.revision = manifest
                 .revision
                 .checked_add(1)
@@ -105,6 +113,31 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
             attempts: self.max_attempts,
         })
     }
+
+    async fn reject_deleted_game_changes(
+        &self,
+        previous: &CloudManifest,
+        accepted: &CloudManifest,
+    ) -> Result<(), ManifestRepositoryError> {
+        let Some(operator) = &self.deletion_operator else {
+            return Ok(());
+        };
+        let registry = DeletionRegistryRepository::new(operator.clone(), self.max_attempts)
+            .load()
+            .await?;
+        for game_id in registry.deleted_games.keys() {
+            match (previous.games.get(game_id), accepted.games.get(game_id)) {
+                (None, Some(_)) => {
+                    return Err(ManifestRepositoryError::DeletedGame(game_id.clone()));
+                }
+                (Some(before), Some(after)) if before != after => {
+                    return Err(ManifestRepositoryError::DeletedGame(game_id.clone()));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Error)]
@@ -119,6 +152,10 @@ pub enum ManifestRepositoryError {
     RevisionOverflow,
     #[error("Cloud Manifest read-back verification failed after {attempts} attempts")]
     RetryExhausted { attempts: usize },
+    #[error("Game {0} has been permanently deleted")]
+    DeletedGame(String),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
 }
 
 #[cfg(test)]

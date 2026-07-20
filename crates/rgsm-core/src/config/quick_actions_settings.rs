@@ -123,13 +123,14 @@ impl QuickActionsSettings {
     }
 
     pub fn remove_deleted_game_reference(&mut self, deleted_game: &Game) -> bool {
+        self.remove_game_reference(&deleted_game.storage_key, &deleted_game.name)
+    }
+
+    pub(crate) fn remove_game_reference(&mut self, game_id: &str, game_name: &str) -> bool {
         let should_clear = self
             .quick_action_game_id
             .as_deref()
-            .is_some_and(|identity| {
-                (!deleted_game.storage_key.is_empty() && identity == deleted_game.storage_key)
-                    || identity == deleted_game.name
-            });
+            .is_some_and(|identity| identity == game_id || identity == game_name);
 
         if should_clear {
             self.quick_action_game_id = None;
@@ -137,9 +138,19 @@ impl QuickActionsSettings {
 
         let before_len = self.game_automations.len();
         self.game_automations
-            .retain(|automation| !automation.references_game(deleted_game));
+            .retain(|automation| !automation.references_game_identity(game_id, game_name));
 
         should_clear || before_len != self.game_automations.len()
+    }
+
+    pub(crate) fn references_game_identity(&self, game_id: &str, game_name: &str) -> bool {
+        self.quick_action_game_id
+            .as_deref()
+            .is_some_and(|identity| identity == game_id || identity == game_name)
+            || self
+                .game_automations
+                .iter()
+                .any(|automation| automation.references_game_identity(game_id, game_name))
     }
 
     pub fn sync_updated_game_reference(&mut self, previous_game: &Game, updated_game: &Game) {
@@ -285,11 +296,14 @@ pub struct GameAutomationSettings {
 
 impl GameAutomationSettings {
     pub fn references_game(&self, game: &Game) -> bool {
-        if !self.storage_key.is_empty() && !game.storage_key.is_empty() {
-            return self.storage_key == game.storage_key;
-        }
+        self.references_game_identity(&game.storage_key, &game.name)
+    }
 
-        self.game_name == game.name
+    fn references_game_identity(&self, game_id: &str, game_name: &str) -> bool {
+        if !self.storage_key.is_empty() && !game_id.is_empty() {
+            return self.storage_key == game_id;
+        }
+        self.game_name == game_name
     }
 
     pub fn has_process_triggers(&self) -> bool {

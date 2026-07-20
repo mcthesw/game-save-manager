@@ -285,6 +285,30 @@ impl OwnerStore {
         self.write(&owners)
     }
 
+    pub(crate) fn remove_shared_game(
+        &self,
+        game_id: &str,
+        game_name: &str,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(OwnerStoreError::SharedLibraryInputsChanged);
+        }
+        let previous_game_count = owners.shared_library.games.len();
+        owners
+            .shared_library
+            .games
+            .retain(|game| game.storage_key != game_id);
+        let mut changed = owners.shared_library.games.len() != previous_game_count;
+        for profile in owners.device_profiles.values_mut() {
+            changed |= profile.remove_game_state(game_id, game_name);
+        }
+        if changed {
+            self.write(&owners)?;
+        }
+        Ok(())
+    }
+
     fn write(&self, owners: &ConfigurationOwners) -> Result<(), OwnerStoreError> {
         owners.validate()?;
         let staging = self.staging_path();
@@ -378,6 +402,7 @@ fn profile_file_name(device_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backup::Game;
     use crate::device::Device;
 
     fn store() -> (temp_dir::TempDir, OwnerStore) {
@@ -498,6 +523,44 @@ mod tests {
                 .as_deref(),
             Some("deck-only")
         );
+    }
+
+    #[test]
+    fn shared_game_removal_cleans_every_local_profile() {
+        let (_root, store) = store();
+        let mut input = config(get_current_device_id(), "before");
+        add_device(&mut input, "steam-deck", "Steam Deck");
+        input.games.push(Game {
+            name: "Example".into(),
+            storage_key: "game".into(),
+            save_paths: Vec::new(),
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: false,
+            auto_backup: None,
+            ludusavi_meta: None,
+            device_bindings: Default::default(),
+        });
+        input.quick_action.quick_action_game_id = Some("game".into());
+        store.initialize_from_legacy(&input).unwrap();
+        let mut owners = store.load().unwrap();
+        owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        owners
+            .device_profiles
+            .get_mut("steam-deck")
+            .unwrap()
+            .quick_action
+            .quick_action_game_id = Some("game".into());
+        store.write(&owners).unwrap();
+
+        store.remove_shared_game("game", "Example").unwrap();
+
+        let stored = store.load().unwrap();
+        assert!(stored.shared_library.games.is_empty());
+        assert!(stored.device_profiles.values().all(|profile| {
+            !profile.games.contains_key("game")
+                && profile.quick_action.quick_action_game_id.is_none()
+        }));
     }
 
     #[test]

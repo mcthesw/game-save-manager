@@ -910,6 +910,30 @@ pub async fn remove_cloud_device_profile(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_deleted_cloud_games(
+    app_handle: AppHandle,
+) -> Result<Vec<rgsm_core::services::DeletedCloudGameView>, String> {
+    svc(&app_handle)
+        .deleted_cloud_games()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn permanently_delete_cloud_game(
+    game_id: String,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<rgsm_core::cloud_sync::v2::SharedGameDeletionOutcome, String> {
+    svc(&app_handle)
+        .permanently_delete_cloud_game(&game_id, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn materialize_all_cloud_archives(
     app_handle: AppHandle,
 ) -> Result<MaterializationOutcome, String> {

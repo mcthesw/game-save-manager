@@ -100,6 +100,23 @@ pub struct DeviceProfile {
     pub behavior: DeviceBehaviorSettings,
 }
 
+impl DeviceProfile {
+    pub(crate) fn remove_game_state(&mut self, game_id: &str, game_name: &str) -> bool {
+        let game_changed = self.games.remove(game_id).is_some();
+        let quick_action_changed = self.quick_action.remove_game_reference(game_id, game_name);
+        let favorites_changed =
+            FavoriteTreeNode::remove_game_leaves(&mut self.private_favorites, game_name);
+        game_changed || quick_action_changed || favorites_changed
+    }
+
+    pub(crate) fn references_game(&self, game_id: &str, game_name: &str) -> bool {
+        self.games.contains_key(game_id)
+            || self
+                .quick_action
+                .references_game_identity(game_id, game_name)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type)]
 pub struct DeviceGameProfile {
     pub visible: bool,
