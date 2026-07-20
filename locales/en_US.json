@@ -736,6 +736,21 @@
                 "remove_incomplete": "Device removal is incomplete; retry remains available",
                 "load_failed": "Could not load cloud Devices"
             },
+            "games": {
+                "danger_title": "Permanent shared Game deletion",
+                "danger_description": "Use this only when the Game and all of its shared history should disappear from every device.",
+                "delete_action": "Delete Game permanently",
+                "delete_title": "Permanently delete shared Game?",
+                "delete_confirm": "Permanently delete “{game}” from this cloud library? Its shared definition, complete Snapshot history, every Device position and per-Game setting, and all available local and cloud Archive copies will be removed. Offline devices will delete their remaining local copies when they next connect. This cannot be undone.",
+                "delete_success": "Shared Game permanently deleted; {snapshots} Snapshot(s) removed",
+                "delete_incomplete": "Shared Game deletion is incomplete; its permanent marker is active and cleanup can be retried",
+                "deleted_title": "Permanently deleted Games",
+                "deleted_description": "Permanent markers prevent offline or stale devices from restoring these Games.",
+                "removed": "Deleted",
+                "incomplete": "Cleanup incomplete",
+                "retry": "Retry cleanup",
+                "load_deleted_failed": "Could not load deleted Games"
+            },
             "evict": {
                 "action": "Remove local copy",
                 "title": "Remove this Device's Archive copy?",

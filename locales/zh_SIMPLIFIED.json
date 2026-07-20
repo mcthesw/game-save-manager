@@ -736,6 +736,21 @@
                 "remove_incomplete": "设备移除尚未完成，仍可直接重试",
                 "load_failed": "无法读取云端设备"
             },
+            "games": {
+                "danger_title": "永久删除共享游戏",
+                "danger_description": "仅当你希望此游戏及其全部共享历史从所有设备消失时使用。",
+                "delete_action": "永久删除游戏",
+                "delete_title": "永久删除共享游戏吗？",
+                "delete_confirm": "确定要从此云端资料库永久删除“{game}”吗？它的共享定义、完整快照历史、所有设备进度位置与游戏设置，以及各设备和云端已有的全部存档文件都会被删除。离线设备下次连接时也会删除残留的本地副本。此操作无法撤销。",
+                "delete_success": "共享游戏已永久删除，并移除 {snapshots} 个快照",
+                "delete_incomplete": "共享游戏删除尚未完成；永久删除标记已生效，可直接重试清理",
+                "deleted_title": "已永久删除的游戏",
+                "deleted_description": "永久删除标记会阻止离线或陈旧设备重新带回这些游戏。",
+                "removed": "已删除",
+                "incomplete": "清理未完成",
+                "retry": "重试清理",
+                "load_deleted_failed": "无法读取已删除游戏"
+            },
             "evict": {
                 "action": "移除本地副本",
                 "title": "移除此设备的存档副本吗？",

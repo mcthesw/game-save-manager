@@ -232,6 +232,7 @@ onMounted(load);
     />
 
     <CloudDeviceProfilesPanel />
+    <CloudDeletedGamesPanel @updated="load" />
 
     <ElEmpty
       v-if="library && library.games.length === 0"
@@ -376,6 +377,7 @@ onMounted(load);
             {{ $t('sync_settings.archives.deletion_waiting') }}
           </span>
         </div>
+        <CloudGameDeletionButton :game-id="game.game_id" :game-name="game.name" @deleted="load" />
       </ElCollapseItem>
     </ElCollapse>
 

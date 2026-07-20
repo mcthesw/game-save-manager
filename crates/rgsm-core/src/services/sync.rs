@@ -12,7 +12,7 @@ use crate::cloud_sync::v2::{
     CloudNamespaceClassification, ConflictReviewError, DeletionRegistryError,
     DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
     JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
-    MaterializationError, MaterializationOutcome, MaterializationPreview,
+    MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
     SharedLibraryRepositoryError, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
@@ -137,6 +137,8 @@ pub enum CloudLibraryServiceError {
     DeletionRegistry(#[from] DeletionRegistryError),
     #[error(transparent)]
     DeviceProfileRemoval(#[from] DeviceProfileRemovalError),
+    #[error(transparent)]
+    SharedGameDeletion(#[from] SharedGameDeletionError),
     #[error("Game is not configured on this device: {0}")]
     GameProfileNotFound(String),
     #[error("Game is not managed on this device: {0}")]
@@ -598,6 +600,7 @@ impl ServiceContext {
     pub(super) async fn converged_materializer(
         &self,
     ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
+        super::game_deletion::converge_local_deleted_games().await?;
         let materializer = self.materializer()?;
         self.converge_local_tombstone_metadata(&materializer)
             .await?;

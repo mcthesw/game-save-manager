@@ -380,6 +380,22 @@ async removeCloudDeviceProfile(deviceId: string, confirmed: boolean) : Promise<R
     else return { status: "error", error: e  as any };
 }
 },
+async getDeletedCloudGames() : Promise<Result<DeletedCloudGameView[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_deleted_cloud_games") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async permanentlyDeleteCloudGame(gameId: string, confirmed: boolean) : Promise<Result<SharedGameDeletionOutcome, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("permanently_delete_cloud_game", { gameId, confirmed }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async materializeAllCloudArchives() : Promise<Result<MaterializationOutcome, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("materialize_all_cloud_archives") };
@@ -953,6 +969,7 @@ export type CreatedBy =
  * Forward-compat catch-all for variants added in future versions.
  */
 "Unknown"
+export type DeletedCloudGameView = { game_id: string; name: string; deletion_incomplete: boolean }
 export type Device = { id: string; name: string; resources?: DeviceResource[]; next_resource_id?: number }
 export type DeviceGameStatus = { game_id: string; managed: boolean; visible: boolean }
 export type DeviceProfileRemovalOutcome = { device_id: string; removed_heads: number }
@@ -1229,6 +1246,7 @@ compute_archive_hash?: boolean;
  * Verify archive hash before applying a snapshot.
  */
 verify_archive_before_apply?: boolean }
+export type SharedGameDeletionOutcome = { game_id: string; removed_snapshots: number; cleaned_profiles: number; removed_cloud_objects: number }
 /**
  * A backup archive containing all data declared by its Save Units.
  * The date is the unique indicator for a backup

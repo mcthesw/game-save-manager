@@ -115,16 +115,20 @@ pub struct FavoriteTreeNode {
 
 impl FavoriteTreeNode {
     fn remove_deleted_game_leaves(nodes: &mut Vec<Self>, deleted_game: &Game) -> bool {
+        Self::remove_game_leaves(nodes, &deleted_game.name)
+    }
+
+    pub(crate) fn remove_game_leaves(nodes: &mut Vec<Self>, game_name: &str) -> bool {
         let mut changed = false;
 
         nodes.retain_mut(|node| {
-            if node.is_leaf && node.label == deleted_game.name {
+            if node.is_leaf && node.label == game_name {
                 changed = true;
                 return false;
             }
 
             if let Some(children) = &mut node.children
-                && Self::remove_deleted_game_leaves(children, deleted_game)
+                && Self::remove_game_leaves(children, game_name)
             {
                 changed = true;
             }

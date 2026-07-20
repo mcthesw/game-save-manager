@@ -31,15 +31,20 @@ impl DeviceProfileRepository {
         acting_device_id: &str,
         profile: &DeviceProfile,
     ) -> Result<(), DeviceProfileRepositoryError> {
-        if DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+        let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
             .load()
-            .await?
-            .deleted_profiles
-            .contains_key(acting_device_id)
-        {
+            .await?;
+        if registry.deleted_profiles.contains_key(acting_device_id) {
             return Err(DeviceProfileRepositoryError::Deleted(
                 acting_device_id.to_string(),
             ));
+        }
+        if let Some(game_id) = profile
+            .games
+            .keys()
+            .find(|game_id| registry.deleted_games.contains_key(*game_id))
+        {
+            return Err(DeviceProfileRepositoryError::DeletedGame(game_id.clone()));
         }
         if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
             return Err(DeviceProfileRepositoryError::UnsupportedSchema(
@@ -110,6 +115,33 @@ impl DeviceProfileRepository {
             attempts: self.max_attempts,
         })
     }
+
+    /// Remove every durably deleted Game from all live Device Profiles.
+    ///
+    /// Cleaning all known markers together keeps overlapping Game deletions
+    /// independently retryable without temporarily republishing another
+    /// deleted Game through a whole-Profile write.
+    pub async fn remove_deleted_game_state(&self) -> Result<usize, DeviceProfileRepositoryError> {
+        let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .load()
+            .await?;
+        let mut changed = 0;
+        for mut profile in self.list().await? {
+            if registry.deleted_profiles.contains_key(&profile.device.id) {
+                continue;
+            }
+            let mut removed = false;
+            for (game_id, deletion) in &registry.deleted_games {
+                removed |= profile.remove_game_state(game_id, &deletion.name);
+            }
+            if removed {
+                let device_id = profile.device.id.clone();
+                self.publish(&device_id, &profile).await?;
+                changed += 1;
+            }
+        }
+        Ok(changed)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -120,6 +152,8 @@ pub enum DeviceProfileRepositoryError {
     WrongDevice { acting: String, profile: String },
     #[error("Device Profile {0} has been permanently removed")]
     Deleted(DeviceId),
+    #[error("Game {0} has been permanently deleted")]
+    DeletedGame(String),
     #[error("Device Profile path {path} does not match embedded Device ID {device_id}")]
     PathIdentityMismatch { path: String, device_id: DeviceId },
     #[error("Device Profile read-back verification failed after {attempts} attempts")]

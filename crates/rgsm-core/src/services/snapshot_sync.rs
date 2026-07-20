@@ -53,6 +53,7 @@ pub fn build_v2_snapshot_sync_hook(
 pub async fn run_v2_snapshot_sync_once(
     cancellation: &CancellationToken,
 ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError> {
+    super::game_deletion::converge_local_deleted_games().await?;
     super::retention::refresh_v2_snapshot_retention().await?;
     let Some(runtime) = load_runtime()? else {
         return Ok(SnapshotReconciliationOutcome::default());
@@ -117,6 +118,7 @@ pub async fn run_v2_snapshot_sync_once(
 pub async fn resume_v2_snapshot_sync(
     cancellation: &CancellationToken,
 ) -> Result<usize, SnapshotSyncServiceError> {
+    super::game_deletion::converge_local_deleted_games().await?;
     let Some(runtime) = load_runtime()? else {
         return Ok(0);
     };

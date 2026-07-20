@@ -3,21 +3,28 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-use super::{ManifestTransport, OpenDalManifestTransport, SHARED_LIBRARY_PATH};
+use super::{
+    DeletionRegistryError, DeletionRegistryRepository, ManifestTransport, OpenDalManifestTransport,
+    SHARED_LIBRARY_PATH,
+};
 use crate::config::{OwnershipError, SharedLibrary};
 
 pub struct SharedLibraryRepository<T: ManifestTransport> {
     transport: Arc<T>,
+    deletion_operator: Option<opendal::Operator>,
     writer_lock: Mutex<()>,
     max_attempts: usize,
 }
 
 impl SharedLibraryRepository<OpenDalManifestTransport> {
     pub fn new(operator: opendal::Operator, max_attempts: usize) -> Self {
-        Self::with_transport(
-            OpenDalManifestTransport::new(operator, SHARED_LIBRARY_PATH),
-            max_attempts,
-        )
+        let transport = OpenDalManifestTransport::new(operator.clone(), SHARED_LIBRARY_PATH);
+        Self {
+            transport: Arc::new(transport),
+            deletion_operator: Some(operator),
+            writer_lock: Mutex::new(()),
+            max_attempts: max_attempts.max(1),
+        }
     }
 }
 
@@ -25,6 +32,7 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
     pub fn with_transport(transport: T, max_attempts: usize) -> Self {
         Self {
             transport: Arc::new(transport),
+            deletion_operator: None,
             writer_lock: Mutex::new(()),
             max_attempts: max_attempts.max(1),
         }
@@ -61,6 +69,7 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
             if current != *expected {
                 return Err(SharedLibraryRepositoryError::Stale);
             }
+            self.reject_deleted_game_changes(&current, accepted).await?;
             self.transport.write(&accepted_bytes).await?;
             if self.transport.read().await?.as_deref() == Some(accepted_bytes.as_slice()) {
                 return Ok(accepted.clone());
@@ -69,6 +78,39 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
         Err(SharedLibraryRepositoryError::RetryExhausted {
             attempts: self.max_attempts,
         })
+    }
+
+    async fn reject_deleted_game_changes(
+        &self,
+        expected: &SharedLibrary,
+        accepted: &SharedLibrary,
+    ) -> Result<(), SharedLibraryRepositoryError> {
+        let Some(operator) = &self.deletion_operator else {
+            return Ok(());
+        };
+        let registry = DeletionRegistryRepository::new(operator.clone(), self.max_attempts)
+            .load()
+            .await?;
+        for game_id in registry.deleted_games.keys() {
+            let previous = expected
+                .games
+                .iter()
+                .find(|game| game.storage_key == *game_id);
+            let next = accepted
+                .games
+                .iter()
+                .find(|game| game.storage_key == *game_id);
+            match (previous, next) {
+                (None, Some(_)) => {
+                    return Err(SharedLibraryRepositoryError::DeletedGame(game_id.clone()));
+                }
+                (Some(before), Some(after)) if before != after => {
+                    return Err(SharedLibraryRepositoryError::DeletedGame(game_id.clone()));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }
 
@@ -86,6 +128,10 @@ pub enum SharedLibraryRepositoryError {
     Serialization(#[from] serde_json::Error),
     #[error(transparent)]
     Ownership(#[from] OwnershipError),
+    #[error("Game {0} has been permanently deleted")]
+    DeletedGame(String),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
 }
 
 #[cfg(test)]

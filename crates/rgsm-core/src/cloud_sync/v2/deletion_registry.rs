@@ -36,6 +36,8 @@ pub struct ProfileDeletion {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameDeletion {
     pub deleted_by: DeviceId,
+    #[serde(default)]
+    pub name: String,
 }
 
 pub struct DeletionRegistryRepository {
@@ -87,6 +89,7 @@ impl DeletionRegistryRepository {
     pub async fn mark_game_deleted(
         &self,
         game_id: &str,
+        game_name: &str,
         acting_device: &str,
     ) -> Result<DeletionRegistry, DeletionRegistryError> {
         self.mutate(|registry| {
@@ -95,6 +98,7 @@ impl DeletionRegistryRepository {
                 .entry(game_id.to_string())
                 .or_insert_with(|| GameDeletion {
                     deleted_by: acting_device.to_string(),
+                    name: game_name.to_string(),
                 });
         })
         .await
@@ -106,7 +110,11 @@ impl DeletionRegistryRepository {
     ) -> Result<DeletionRegistry, DeletionRegistryError> {
         for _ in 0..self.max_attempts {
             let mut accepted = self.load().await?;
+            let previous = accepted.clone();
             change(&mut accepted);
+            if accepted == previous {
+                return Ok(accepted);
+            }
             accepted.revision = accepted.revision.saturating_add(1);
             let bytes = serde_json::to_vec_pretty(&accepted)?;
             self.operator.write(DELETION_REGISTRY_PATH, bytes).await?;
@@ -166,5 +174,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(stored.deleted_profiles["deck"].deleted_by, "pc");
+    }
+
+    #[tokio::test]
+    async fn game_marker_preserves_the_first_name_and_actor() {
+        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let repository = DeletionRegistryRepository::new(operator, 2);
+
+        repository
+            .mark_game_deleted("game", "Original", "pc")
+            .await
+            .unwrap();
+        let stored = repository
+            .mark_game_deleted("game", "Stale", "deck")
+            .await
+            .unwrap();
+
+        assert_eq!(stored.deleted_games["game"].name, "Original");
+        assert_eq!(stored.deleted_games["game"].deleted_by, "pc");
     }
 }
