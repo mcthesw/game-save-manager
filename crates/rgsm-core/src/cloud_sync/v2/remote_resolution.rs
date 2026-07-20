@@ -4,11 +4,13 @@ use std::path::PathBuf;
 use opendal::Operator;
 use thiserror::Error;
 
+use super::materialization::verify_file;
 use super::{
-    CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifestRepository, ManifestError,
-    ManifestRepositoryError, MaterializationError, OpenDalManifestTransport, SnapshotState,
+    CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifestRepository, DeletionRegistryError,
+    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, MaterializationError,
+    OpenDalManifestTransport, SnapshotState,
 };
-use crate::backup::{GameSnapshots, Snapshot, archive_path};
+use crate::backup::{GameSnapshots, Snapshot, archive_path, snapshot_archive_path};
 use crate::device::DeviceId;
 
 pub struct PreparedRemoteProgress {
@@ -70,6 +72,38 @@ impl V2RemoteProgressResolver {
             .get(game_id)
             .ok_or_else(|| AcceptRemoteProgressError::GameNotFound(game_id.to_string()))?;
         ensure_remote_candidate(game, &self.current_device_id, selected_snapshot_id, true)?;
+        let selected = game
+            .snapshots
+            .get(selected_snapshot_id)
+            .ok_or_else(|| ManifestError::MissingSnapshot(selected_snapshot_id.to_string()))?;
+        let SnapshotState::Live(live) = &selected.state else {
+            return Err(AcceptRemoteProgressError::CandidateNoLongerAdvertised(
+                selected_snapshot_id.to_string(),
+            ));
+        };
+        let integrity = live.integrity.clone().ok_or_else(|| {
+            AcceptRemoteProgressError::SelectedArchiveUnavailable(selected_snapshot_id.to_string())
+        })?;
+        let game_archive_root = self.local_archive_root.join(game_id);
+        let local_path = local
+            .backups
+            .iter()
+            .find(|snapshot| snapshot.date == selected_snapshot_id)
+            .map(|snapshot| snapshot_archive_path(&game_archive_root, snapshot))
+            .unwrap_or_else(|| {
+                archive_path(
+                    &game_archive_root,
+                    selected_snapshot_id,
+                    selected.archive_format,
+                )
+            });
+        if tokio::fs::try_exists(&local_path).await?
+            && verify_file(integrity, local_path).await.is_err()
+        {
+            return Err(AcceptRemoteProgressError::LocalArchiveConflict(
+                selected_snapshot_id.to_string(),
+            ));
+        }
 
         CloudArchiveMaterializer::new(
             self.operator.clone(),
@@ -103,6 +137,9 @@ impl V2RemoteProgressResolver {
         game_id: &str,
         selected_snapshot_id: &str,
     ) -> Result<u64, AcceptRemoteProgressError> {
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active(&self.current_device_id, game_id)
+            .await?;
         let game_id = game_id.to_string();
         let selected_snapshot_id = selected_snapshot_id.to_string();
         let current_device_id = self.current_device_id.clone();
@@ -242,6 +279,8 @@ pub enum AcceptRemoteProgressError {
     CandidateNoLongerAdvertised(String),
     #[error("Selected Snapshot Archive is not available in the cloud: {0}")]
     SelectedArchiveUnavailable(String),
+    #[error("A different Local Archive already uses the selected Snapshot identity: {0}")]
+    LocalArchiveConflict(String),
     #[error("Selected progress contains a deleted ancestor: {0}")]
     TombstonedLineage(String),
     #[error("Cloud Snapshot parent cycle contains {0}")]
@@ -252,6 +291,10 @@ pub enum AcceptRemoteProgressError {
     Materialization(#[from] MaterializationError),
     #[error(transparent)]
     Repository(#[from] ManifestRepositoryError),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
+    #[error("Local Archive inspection failed: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 #[cfg(test)]
@@ -365,6 +408,32 @@ mod tests {
             })
         ));
         assert_eq!(resolver.repository().load().await.unwrap().revision, 7);
+    }
+
+    #[tokio::test]
+    async fn conflicting_local_archive_is_not_overwritten() {
+        let (_operator, root, resolver, mut local) = fixture().await;
+        let local_path = root.path().join("relocated/remote.zip");
+        local.backups.push(Snapshot {
+            date: "remote".into(),
+            describe: "local collision".into(),
+            path: local_path.to_string_lossy().into_owned(),
+            archive_format: ArchiveFormat::Zip,
+            size: 6,
+            parent: Some("root".into()),
+            archive_hash: None,
+            device_id: Some("pc".into()),
+            created_by: CreatedBy::Manual,
+        });
+        std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
+        std::fs::write(&local_path, b"local!").unwrap();
+
+        assert!(matches!(
+            resolver.prepare("game", 7, None, "remote", &local).await,
+            Err(AcceptRemoteProgressError::LocalArchiveConflict(snapshot))
+                if snapshot == "remote"
+        ));
+        assert_eq!(std::fs::read(local_path).unwrap(), b"local!");
     }
 
     #[tokio::test]

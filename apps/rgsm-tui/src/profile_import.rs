@@ -2,9 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
-use rgsm_core::config::{Config, set_config_local};
+use rgsm_core::config::{Config, get_config_from_data_dir, set_config_local};
 
 const CONFIG_FILE_NAME: &str = "GameSaveManager.config.json";
+const OWNER_DIRECTORY_NAME: &str = "GameSaveManager.config.v2";
 
 #[derive(Debug, Clone)]
 pub struct ImportReport {
@@ -25,13 +26,10 @@ struct CopyStats {
 
 pub fn import_gui_profile(source: &Path, target_data_dir: &Path) -> Result<ImportReport> {
     let source_config_path = resolve_source_config_path(source)?;
-    let target_config_path = target_data_dir.join(CONFIG_FILE_NAME);
-    reject_same_config(&source_config_path, &target_config_path)?;
-
-    let source_data_dir = source_config_path
-        .parent()
-        .ok_or_else(|| anyhow!("source config has no parent directory"))?;
-    let source_config = read_config(&source_config_path)?;
+    let source_data_dir = source_data_dir(&source_config_path)?;
+    reject_same_profile(source_data_dir, target_data_dir)?;
+    let source_config = get_config_from_data_dir(source_data_dir)
+        .context("failed to read authoritative GUI config")?;
     let target_config = rgsm_core::config::get_config().context("failed to read TUI config")?;
 
     let source_backup_path = resolve_profile_path(source_data_dir, &source_config.backup_path);
@@ -55,9 +53,30 @@ pub fn import_gui_profile(source: &Path, target_data_dir: &Path) -> Result<Impor
     })
 }
 
+fn source_data_dir(config_path: &Path) -> Result<&Path> {
+    let parent = config_path
+        .parent()
+        .ok_or_else(|| anyhow!("source config has no parent directory"))?;
+    if parent
+        .file_name()
+        .is_some_and(|name| name == OWNER_DIRECTORY_NAME)
+    {
+        parent
+            .parent()
+            .ok_or_else(|| anyhow!("source owner store has no parent directory"))
+    } else {
+        Ok(parent)
+    }
+}
+
 fn resolve_source_config_path(source: &Path) -> Result<PathBuf> {
     let path = if source.is_dir() {
-        source.join(CONFIG_FILE_NAME)
+        let owner_path = source.join(OWNER_DIRECTORY_NAME);
+        if owner_path.is_dir() {
+            owner_path.join("local-state.json")
+        } else {
+            source.join(CONFIG_FILE_NAME)
+        }
     } else {
         source.to_path_buf()
     };
@@ -67,25 +86,20 @@ fn resolve_source_config_path(source: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn reject_same_config(source: &Path, target: &Path) -> Result<()> {
+fn reject_same_profile(source: &Path, target: &Path) -> Result<()> {
     let source = source
         .canonicalize()
-        .with_context(|| format!("failed to resolve source config path {}", source.display()))?;
+        .with_context(|| format!("failed to resolve source profile path {}", source.display()))?;
     let target = target
         .canonicalize()
-        .with_context(|| format!("failed to resolve target config path {}", target.display()))?;
+        .with_context(|| format!("failed to resolve target profile path {}", target.display()))?;
     if source == target {
         bail!(
-            "GUI source config and TUI target config are the same file: {}",
+            "GUI source profile and TUI target profile are the same directory: {}",
             source.display()
         );
     }
     Ok(())
-}
-
-fn read_config(path: &Path) -> Result<Config> {
-    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    serde_json::from_slice(&bytes).with_context(|| format!("failed to parse {}", path.display()))
 }
 
 fn resolve_profile_path(data_dir: &Path, path: &str) -> PathBuf {

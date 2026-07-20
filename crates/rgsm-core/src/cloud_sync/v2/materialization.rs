@@ -9,9 +9,9 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveDeletionView,
-    CloudManifest, CloudManifestRepository, ManifestError, ManifestRepositoryError,
-    MaterializationOutcome, MaterializationPreview, SnapshotDeletionLifecycle,
-    SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
+    CloudManifest, CloudManifestRepository, DeletionRegistryError, DeletionRegistryRepository,
+    ManifestError, ManifestRepositoryError, MaterializationOutcome, MaterializationPreview,
+    SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
@@ -209,6 +209,7 @@ impl CloudArchiveMaterializer {
         snapshot_id: &str,
     ) -> Result<(), MaterializationError> {
         self.converge_local_tombstones().await?;
+        self.ensure_active(game_id).await?;
         let manifest = self.repository().load().await?;
         let item = manifest_item(&manifest, game_id, snapshot_id, false)?;
         let local_path = self.local_path(game_id, snapshot_id, item.archive_format);
@@ -239,15 +240,28 @@ impl CloudArchiveMaterializer {
                 snapshot_id: snapshot_id.to_string(),
             });
         }
+        if let Err(error) = self.ensure_active(game_id).await {
+            if matches!(
+                &error,
+                MaterializationError::DeletionRegistry(DeletionRegistryError::GameDeleted(_))
+            ) {
+                self.operator
+                    .delete(&remote_path)
+                    .await
+                    .map_err(BackendError::from)?;
+            }
+            return Err(error);
+        }
         let current_device = self.current_device_id.clone();
-        let game_id = game_id.to_string();
+        let final_game_id = game_id.to_string();
+        let manifest_game_id = final_game_id.clone();
         let snapshot_id = snapshot_id.to_string();
         self.repository()
             .mutate(move |manifest| {
                 let game = manifest
                     .games
-                    .get_mut(&game_id)
-                    .ok_or_else(|| ManifestError::MissingGame(game_id.clone()))?;
+                    .get_mut(&manifest_game_id)
+                    .ok_or_else(|| ManifestError::MissingGame(manifest_game_id.clone()))?;
                 let node = game
                     .snapshots
                     .get_mut(&snapshot_id)
@@ -263,6 +277,18 @@ impl CloudArchiveMaterializer {
                 Ok(())
             })
             .await?;
+        if let Err(error) = self.ensure_active(&final_game_id).await {
+            if matches!(
+                &error,
+                MaterializationError::DeletionRegistry(DeletionRegistryError::GameDeleted(_))
+            ) {
+                self.operator
+                    .delete(&remote_path)
+                    .await
+                    .map_err(BackendError::from)?;
+            }
+            return Err(error);
+        }
         Ok(())
     }
 
@@ -504,15 +530,18 @@ impl CloudArchiveMaterializer {
                 let Some(integrity) = &live.integrity else {
                     continue;
                 };
+                let local_archive_verified = self.is_locally_reported(game, &node.snapshot_id)
+                    && verify_file(
+                        integrity.clone(),
+                        self.local_path(game_id, &node.snapshot_id, node.archive_format),
+                    )
+                    .await
+                    .is_ok();
                 if !live.cloud_archive_verified
                     || max_catalog_revision.is_some_and(|maximum| node.catalog_revision > maximum)
                     || min_catalog_revision_exclusive
                         .is_some_and(|minimum| node.catalog_revision <= minimum)
-                    || (self.is_locally_reported(game, &node.snapshot_id)
-                        && local_size_matches(
-                            &self.local_path(game_id, &node.snapshot_id, node.archive_format),
-                            integrity.size,
-                        ))
+                    || local_archive_verified
                 {
                     continue;
                 }
@@ -566,6 +595,13 @@ impl CloudArchiveMaterializer {
             CLOUD_MANIFEST_PATH,
             self.max_attempts,
         )
+    }
+
+    async fn ensure_active(&self, game_id: &str) -> Result<(), MaterializationError> {
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active(&self.current_device_id, game_id)
+            .await?;
+        Ok(())
     }
 
     fn deletion_lifecycle(&self) -> SnapshotDeletionLifecycle {
@@ -632,7 +668,7 @@ fn manifest_item(
     })
 }
 
-async fn verify_file(
+pub(super) async fn verify_file(
     integrity: ArchiveIntegrity,
     path: PathBuf,
 ) -> Result<(), MaterializationError> {
@@ -686,6 +722,8 @@ pub enum MaterializationError {
     Manifest(#[from] ManifestRepositoryError),
     #[error(transparent)]
     Deletion(#[from] SnapshotDeletionLifecycleError),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
     #[error(transparent)]
     Backend(#[from] BackendError),
     #[error("Materialization I/O error: {0}")]

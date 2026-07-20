@@ -158,7 +158,7 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
 
         let root_entries = self
             .transport
-            .list_sample(".", CLASSIFICATION_ENTRY_SAMPLE_LIMIT)
+            .list_sample("/", CLASSIFICATION_ENTRY_SAMPLE_LIMIT)
             .await?;
         if root_entries.is_empty() {
             Ok(CloudNamespaceClassification::Empty)
@@ -277,7 +277,7 @@ mod tests {
             Ok(self
                 .objects
                 .keys()
-                .filter(|path| prefix == "." || path.starts_with(prefix))
+                .filter(|path| prefix == "/" || path.starts_with(prefix))
                 .take(limit)
                 .cloned()
                 .collect())
@@ -463,7 +463,7 @@ mod tests {
         ));
 
         let failed_root_list = FakeTransport {
-            fail_list: Some(".".into()),
+            fail_list: Some("/".into()),
             ..FakeTransport::default()
         };
         assert!(matches!(

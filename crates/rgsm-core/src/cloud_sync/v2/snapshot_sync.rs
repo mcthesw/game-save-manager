@@ -7,9 +7,10 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer,
-    CloudManifest, CloudManifestRepository, DeletionKind, ManifestError, ManifestRepositoryError,
-    SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotNode,
-    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState,
+    CloudManifest, CloudManifestRepository, DeletionKind, DeletionRegistryError,
+    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
+    SnapshotDeletionLifecycleError, SnapshotNode, SnapshotRetentionPlanner,
+    SnapshotRetentionPlannerError, SnapshotState,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
@@ -66,6 +67,45 @@ impl SnapshotSyncCoordinator {
         activation_revision: u64,
         local_baseline: &BTreeSet<String>,
         cancellation: &CancellationToken,
+    ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
+        self.reconcile_game_inner(
+            game_id,
+            local,
+            activation_revision,
+            local_baseline,
+            cancellation,
+            true,
+        )
+        .await
+    }
+
+    pub async fn publish_local_game(
+        &self,
+        game_id: &str,
+        local: &GameSnapshots,
+        activation_revision: u64,
+        local_baseline: &BTreeSet<String>,
+        cancellation: &CancellationToken,
+    ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
+        self.reconcile_game_inner(
+            game_id,
+            local,
+            activation_revision,
+            local_baseline,
+            cancellation,
+            false,
+        )
+        .await
+    }
+
+    async fn reconcile_game_inner(
+        &self,
+        game_id: &str,
+        local: &GameSnapshots,
+        activation_revision: u64,
+        local_baseline: &BTreeSet<String>,
+        cancellation: &CancellationToken,
+        materialize_remote: bool,
     ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
         let mut manifest = self.repository().load().await?;
         let order = publication_order(&manifest, game_id, local, local_baseline)?;
@@ -135,11 +175,13 @@ impl SnapshotSyncCoordinator {
             outcome.uploaded += 1;
         }
 
-        outcome.downloaded = self
-            .materializer
-            .materialize_game_since(game_id, activation_revision, cancellation)
-            .await?
-            .downloaded;
+        if materialize_remote {
+            outcome.downloaded = self
+                .materializer
+                .materialize_game_since(game_id, activation_revision, cancellation)
+                .await?
+                .downloaded;
+        }
         Ok(outcome)
     }
 
@@ -227,6 +269,9 @@ impl SnapshotSyncCoordinator {
         snapshot: &Snapshot,
         inherited_revision: Option<u64>,
     ) -> Result<(), SnapshotSyncError> {
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active(&self.current_device_id, game_id)
+            .await?;
         let local_path = self.local_path(game_id, snapshot);
         let integrity = if local_path.is_file() {
             let path = local_path.clone();
@@ -288,6 +333,9 @@ impl SnapshotSyncCoordinator {
         let Some(head) = local.head_for_device(&self.current_device_id).cloned() else {
             return Ok(());
         };
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active(&self.current_device_id, game_id)
+            .await?;
         let manifest = self.repository().load().await?;
         let Some(game) = manifest.games.get(game_id) else {
             return Ok(());
@@ -441,6 +489,8 @@ pub enum SnapshotSyncError {
     Retention(#[from] SnapshotRetentionPlannerError),
     #[error(transparent)]
     Deletion(#[from] SnapshotDeletionLifecycleError),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
 }
 
 #[cfg(test)]
@@ -602,6 +652,19 @@ mod tests {
             root.path().join("progress.json"),
             2,
         );
+
+        let publish_only = coordinator
+            .publish_local_game(
+                "game",
+                &GameSnapshots::new("Game"),
+                5,
+                &BTreeSet::new(),
+                &CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(publish_only.downloaded, 0);
+        assert!(!archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).exists());
 
         let outcome = coordinator
             .reconcile_game(

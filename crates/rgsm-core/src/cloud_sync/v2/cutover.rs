@@ -5,7 +5,7 @@ use super::{
     SHARED_LIBRARY_PATH, SnapshotNode, SnapshotState, V2_NAMESPACE_DESCRIPTOR_PATH,
     cloud_archive_path, device_profile_path,
 };
-use crate::backup::{GameSnapshots, Snapshot, archive_path};
+use crate::backup::{GameSnapshots, Snapshot, snapshot_archive_path};
 use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::utils::{
     SyncOperationError, game_cloud_archive_path, load_remote_game_snapshots,
@@ -62,6 +62,7 @@ pub struct CloudLibraryCutover {
     local_archive_root: PathBuf,
     progress_path: PathBuf,
     current_device_id: DeviceId,
+    current_device_profile: DeviceProfile,
     max_attempts: usize,
 }
 impl CloudLibraryCutover {
@@ -70,6 +71,7 @@ impl CloudLibraryCutover {
         local_archive_root: PathBuf,
         progress_path: PathBuf,
         current_device_id: DeviceId,
+        current_device_profile: DeviceProfile,
         max_attempts: usize,
     ) -> Self {
         Self {
@@ -77,6 +79,7 @@ impl CloudLibraryCutover {
             local_archive_root,
             progress_path,
             current_device_id,
+            current_device_profile,
             max_attempts: max_attempts.max(1),
         }
     }
@@ -138,7 +141,12 @@ impl CloudLibraryCutover {
             CloudNamespaceClassification::V1Only { config } => *config,
             _ => return Err(CloudLibraryCutoverError::CutoverUnavailable),
         };
-        let owners = ConfigurationOwners::from_legacy(&config, &self.current_device_id);
+        let mut owners = ConfigurationOwners::from_legacy(&config, &self.current_device_id);
+        owners.device_profiles.insert(
+            self.current_device_id.clone(),
+            self.current_device_profile
+                .for_shared_library(&owners.shared_library),
+        );
         owners.validate()?;
         let mut games = Vec::with_capacity(config.games.len());
         for game in &config.games {
@@ -225,11 +233,7 @@ impl CloudLibraryCutover {
         let verify_staging = staging_root.join(format!("{stem}.verify"));
         remove_path_if_exists(&source_staging).await?;
         remove_path_if_exists(&verify_staging).await?;
-        let local_path = archive_path(
-            &self.local_archive_root.join(game_id),
-            &snapshot.date,
-            snapshot.archive_format,
-        );
+        let local_path = snapshot_archive_path(&self.local_archive_root.join(game_id), snapshot);
         let (source, integrity, local_present) =
             if let Some(integrity) = accepted_legacy_archive(&local_path, snapshot) {
                 (local_path, integrity, true)
@@ -413,7 +417,7 @@ impl CloudLibraryCutover {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error.into()),
         };
-        let plan: CutoverPlan = serde_json::from_slice(&bytes)?;
+        let mut plan: CutoverPlan = serde_json::from_slice(&bytes)?;
         if plan.schema_version != CUTOVER_PROGRESS_SCHEMA_VERSION {
             return Err(CloudLibraryCutoverError::UnsupportedProgressSchema(
                 plan.schema_version,
@@ -436,6 +440,11 @@ impl CloudLibraryCutover {
                 .into());
             }
         }
+        plan.device_profiles.insert(
+            self.current_device_id.clone(),
+            self.current_device_profile
+                .for_shared_library(&plan.shared_library),
+        );
         Ok(Some(plan))
     }
     async fn store_progress(&self, plan: &CutoverPlan) -> Result<(), CloudLibraryCutoverError> {
@@ -591,11 +600,18 @@ mod tests {
         config_bytes
     }
     fn cutover(op: Operator, root: &Path) -> CloudLibraryCutover {
+        let device_id = "current-device".to_string();
+        let mut current_profile = ConfigurationOwners::from_legacy(&Config::default(), &device_id)
+            .device_profiles
+            .remove(&device_id)
+            .unwrap();
+        current_profile.local_archive_root = Some("current-device-private-root".into());
         CloudLibraryCutover::new(
             op,
             root.join("local"),
             root.join("progress.json"),
-            "current-device".into(),
+            device_id,
+            current_profile,
             2,
         )
     }
@@ -604,23 +620,26 @@ mod tests {
         let op = operator();
         let root = temp_dir::TempDir::new().unwrap();
         let local_bytes = b"local archive";
-        let local = snapshot("local", None, local_bytes);
+        let mut local = snapshot("local", None, local_bytes);
+        let local_path = root.path().join("relocated/local.zip");
+        local.path = local_path.to_string_lossy().into_owned();
         let missing = snapshot("missing", Some("local"), b"missing bytes");
         let mut catalog = GameSnapshots::new("test-game");
         catalog.backups = vec![local.clone(), missing];
         catalog.device_heads.insert("deck".into(), "missing".into());
         let v1_config = seed(&op, catalog, &[]).await;
-        let local_path = archive_path(
-            &root.path().join("local/test-game"),
-            &local.date,
-            local.archive_format,
-        );
         std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
         std::fs::write(&local_path, local_bytes).unwrap();
         let runner = cutover(op.clone(), root.path());
         let result = runner.execute().await.unwrap();
         assert_eq!(result.snapshot_count, 2);
         assert_eq!(result.unavailable_archives, 1);
+        assert_eq!(
+            result.device_profiles["current-device"]
+                .local_archive_root
+                .as_deref(),
+            Some("current-device-private-root")
+        );
         assert_eq!(op.read(V1_CONFIG_PATH).await.unwrap().to_vec(), v1_config);
         let manifest: CloudManifest =
             serde_json::from_slice(&op.read(CLOUD_MANIFEST_PATH).await.unwrap().to_vec()).unwrap();

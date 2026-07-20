@@ -13,7 +13,8 @@ use crate::cloud_sync::v2::{
     DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
     JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
     MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
-    SharedLibraryRepositoryError, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
+    SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotSyncError,
+    V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -157,6 +158,8 @@ pub enum CloudLibraryServiceError {
     },
     #[error("Local and Cloud progress disagree about Snapshot identity: {0}")]
     RemoteSnapshotIdentityConflict(String),
+    #[error("Local Snapshot history changed while remote progress was being prepared")]
+    LocalSnapshotHistoryChanged,
 }
 
 impl ServiceContext {
@@ -376,7 +379,15 @@ impl ServiceContext {
             .games
             .into_iter()
             .find(|game| game.storage_key == game_id)
-            .map(|game| game.get_game_snapshots_info())
+            .map(|game| match game.get_game_snapshots_info() {
+                Ok(snapshots) => Ok(snapshots),
+                Err(crate::preclude::BackupError::Io(error))
+                    if error.kind() == std::io::ErrorKind::NotFound =>
+                {
+                    Ok(GameSnapshots::new(game.name))
+                }
+                Err(error) => Err(error),
+            })
             .transpose()?
             .unwrap_or_else(|| GameSnapshots::new(game_name));
         let local_archive_root = profile
@@ -446,10 +457,31 @@ impl ServiceContext {
         snapshot_id: &str,
         confirmed: bool,
     ) -> Result<(), CloudLibraryServiceError> {
+        if !confirmed {
+            return Err(CloudLibraryServiceError::ConfirmationRequired);
+        }
         let materializer = self.converged_materializer().await?;
         let deletion = materializer
             .delete_snapshot(game_id, snapshot_id, confirmed)
             .await;
+        if matches!(
+            deletion,
+            Err(MaterializationError::Deletion(
+                SnapshotDeletionLifecycleError::SnapshotNotFound(_)
+                    | SnapshotDeletionLifecycleError::GameNotFound(_)
+            ))
+        ) {
+            let game = get_config()?
+                .games
+                .into_iter()
+                .find(|game| game.storage_key == game_id)
+                .ok_or_else(|| {
+                    CloudLibraryServiceError::GameProfileNotFound(game_id.to_string())
+                })?;
+            return Ok(self
+                .delete_snapshot(&game, snapshot_id, HookSource::UserManual)
+                .await?);
+        }
         let convergence = self.converge_local_tombstone_metadata(&materializer).await;
         deletion?;
         convergence
@@ -573,6 +605,7 @@ impl ServiceContext {
             archive_root,
             progress_path,
             local_state.current_device_id.clone(),
+            profile.clone(),
             3,
         ))
     }

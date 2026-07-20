@@ -58,7 +58,7 @@ impl LifecycleHook for V2SnapshotSyncHook {
         let _guard = self.operation_lock.lock().await;
         let outcome = self
             .coordinator
-            .reconcile_game(
+            .publish_local_game(
                 game_id.as_ref(),
                 &ctx.snapshots,
                 target.activation_revision,
@@ -71,7 +71,7 @@ impl LifecycleHook for V2SnapshotSyncHook {
                 .coordinator
                 .enforce_retention(game_id.as_ref(), limit)
                 .await?;
-            ctx.game.forget_v2_tombstones(&retention.tombstones)?;
+            ctx.snapshots.forget_v2_tombstones(&retention.tombstones);
             retention.deleted
         } else {
             0

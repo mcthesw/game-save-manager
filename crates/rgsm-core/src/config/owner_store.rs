@@ -56,7 +56,7 @@ impl OwnerStore {
         Self::new(get_app_data_dir().clone())
     }
 
-    fn new(root: PathBuf) -> Self {
+    pub(crate) fn new(root: PathBuf) -> Self {
         Self { root }
     }
 
@@ -228,8 +228,12 @@ impl OwnerStore {
             return Err(OwnerStoreError::CutoverInputsChanged);
         }
 
+        let accepted_current_profile = current_profile.for_shared_library(accepted_library);
         owners.shared_library = accepted_library.clone();
         owners.device_profiles = accepted_profiles.clone();
+        owners
+            .device_profiles
+            .insert(current_device_id, accepted_current_profile);
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
         self.write(&owners)
     }
@@ -626,7 +630,7 @@ mod tests {
         );
         assert_eq!(
             active.device_profiles[get_current_device_id()].device.name,
-            "Migrated Device"
+            expected_profile.device.name
         );
     }
 

@@ -154,6 +154,15 @@ async fn rebuild_pipeline_and_fire_config_saved(
         .await;
 }
 
+async fn reload_pipeline_and_fire_config_saved(
+    app_handle: &AppHandle,
+    source: HookSource,
+) -> Result<(), String> {
+    let config = get_config().map_err(|error| error.to_string())?;
+    rebuild_pipeline_and_fire_config_saved(app_handle, config, source).await;
+    Ok(())
+}
+
 fn batch_report_failed_item(report: &BatchSyncReport) -> Option<String> {
     let mut items = Vec::with_capacity(report.games.len() + 1);
     items.push(&report.config.status);
@@ -727,6 +736,10 @@ pub async fn keep_v2_local_progress(
     local_snapshot_id: String,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::cloud_sync::v2::KeepLocalProgressOutcome, String> {
+    let operation_lock = app_handle
+        .state::<crate::snapshot_sync::SnapshotSyncRuntimeState>()
+        .operation_lock();
+    let _guard = operation_lock.lock().await;
     svc(&app_handle)
         .keep_v2_local_progress(&game_id, manifest_revision, &local_snapshot_id)
         .await
@@ -742,6 +755,10 @@ pub async fn accept_v2_remote_progress(
     selected_snapshot_id: String,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::AcceptRemoteProgressOutcome, String> {
+    let operation_lock = app_handle
+        .state::<crate::snapshot_sync::SnapshotSyncRuntimeState>()
+        .operation_lock();
+    let _guard = operation_lock.lock().await;
     svc(&app_handle)
         .accept_v2_remote_progress(
             &game_id,
@@ -850,10 +867,12 @@ pub async fn set_device_game_visibility(
     visible: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::DeviceGameStatus, String> {
-    svc(&app_handle)
+    let status = svc(&app_handle)
         .set_device_game_visibility(&game_id, visible)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
+    Ok(status)
 }
 
 #[tauri::command]
@@ -864,10 +883,12 @@ pub async fn set_device_game_managed(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::DeviceGameStatus, String> {
-    svc(&app_handle)
+    let status = svc(&app_handle)
         .set_device_game_managed(&game_id, managed, confirmed)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
+    Ok(status)
 }
 
 #[tauri::command]
