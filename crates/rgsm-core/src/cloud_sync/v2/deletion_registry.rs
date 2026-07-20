@@ -70,6 +70,21 @@ impl DeletionRegistryRepository {
         Ok(registry)
     }
 
+    pub async fn ensure_active(
+        &self,
+        device_id: &str,
+        game_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
+        let registry = self.load().await?;
+        if registry.deleted_profiles.contains_key(device_id) {
+            return Err(DeletionRegistryError::ProfileDeleted(device_id.to_string()));
+        }
+        if registry.deleted_games.contains_key(game_id) {
+            return Err(DeletionRegistryError::GameDeleted(game_id.to_string()));
+        }
+        Ok(())
+    }
+
     pub async fn mark_profile_deleted(
         &self,
         device_id: &str,
@@ -134,6 +149,10 @@ pub enum DeletionRegistryError {
     UnsupportedSchema(u32),
     #[error("Deletion registry update was not visible after {attempts} attempts")]
     RetryExhausted { attempts: usize },
+    #[error("Device Profile has been permanently removed: {0}")]
+    ProfileDeleted(DeviceId),
+    #[error("Shared Game has been permanently deleted: {0}")]
+    GameDeleted(String),
     #[error("Deletion registry serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
     #[error("Deletion registry transport failed: {0}")]
@@ -192,5 +211,30 @@ mod tests {
 
         assert_eq!(stored.deleted_games["game"].name, "Original");
         assert_eq!(stored.deleted_games["game"].deleted_by, "pc");
+    }
+
+    #[tokio::test]
+    async fn deleted_profile_and_game_are_rejected_as_writers() {
+        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let repository = DeletionRegistryRepository::new(operator, 2);
+        repository
+            .mark_profile_deleted("removed-device", "pc")
+            .await
+            .unwrap();
+        repository
+            .mark_game_deleted("deleted-game", "Deleted Game", "pc")
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            repository
+                .ensure_active("removed-device", "active-game")
+                .await,
+            Err(DeletionRegistryError::ProfileDeleted(device)) if device == "removed-device"
+        ));
+        assert!(matches!(
+            repository.ensure_active("pc", "deleted-game").await,
+            Err(DeletionRegistryError::GameDeleted(game)) if game == "deleted-game"
+        ));
     }
 }

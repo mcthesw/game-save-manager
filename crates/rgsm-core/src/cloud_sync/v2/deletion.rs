@@ -254,7 +254,11 @@ impl GlobalSnapshotDeletion {
 
         repository
             .mutate(|manifest| {
-                manifest.game_mut(request.game_id).begin_deletion(
+                let game = manifest.game_mut(request.game_id);
+                if request.kind == DeletionKind::Retention {
+                    game.ensure_retention_deletable(request.snapshot_id)?;
+                }
+                game.begin_deletion(
                     request.snapshot_id,
                     request.acting_device,
                     request.kind.clone(),

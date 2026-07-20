@@ -74,6 +74,7 @@ impl ServiceContext {
             .await?;
 
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            game.set_game_snapshots_info(&created.snapshots)?;
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
                 config,
                 source,
@@ -133,6 +134,7 @@ impl ServiceContext {
             )
             .await?;
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            game.set_game_snapshots_info(&created.snapshots)?;
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
                 config,
                 source,

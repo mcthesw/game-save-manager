@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -10,7 +10,7 @@ use crate::device::{DeviceId, get_current_device_id};
 /// A backup list info is a json file in a backup folder for a game.
 /// It contains the name of the game,
 /// and all backups' path
-#[derive(Debug, Serialize, Deserialize, Type, Clone)]
+#[derive(Debug, Serialize, Deserialize, Type, Clone, PartialEq, Eq)]
 pub struct GameSnapshots {
     pub name: String,
     pub backups: Vec<Snapshot>,
@@ -48,6 +48,15 @@ impl GameSnapshots {
             last_sync_device: None,
             last_sync_timestamp: None,
         }
+    }
+
+    pub fn forget_v2_tombstones(&mut self, snapshot_ids: &BTreeSet<String>) -> usize {
+        let previous = self.backups.len();
+        self.backups
+            .retain(|snapshot| !snapshot_ids.contains(&snapshot.date));
+        self.device_heads
+            .retain(|_, head| !snapshot_ids.contains(head));
+        previous - self.backups.len()
     }
 
     pub fn normalize_heads(&mut self) {
@@ -178,5 +187,28 @@ mod tests {
             Some("2025-01-01_00-00-00")
         );
         assert!(snapshots.head_for_device(&"device-b".to_string()).is_none());
+    }
+
+    #[test]
+    fn forgetting_v2_tombstones_clears_only_affected_heads() {
+        let mut snapshots = GameSnapshots::new("TestGame");
+        snapshots.backups = vec![
+            snapshot("deleted", Some("device-a")),
+            snapshot("kept", Some("device-b")),
+        ];
+        snapshots
+            .device_heads
+            .insert("device-a".into(), "deleted".into());
+        snapshots
+            .device_heads
+            .insert("device-b".into(), "kept".into());
+
+        assert_eq!(
+            snapshots.forget_v2_tombstones(&BTreeSet::from(["deleted".into()])),
+            1
+        );
+        assert_eq!(snapshots.backups[0].date, "kept");
+        assert!(!snapshots.device_heads.contains_key("device-a"));
+        assert_eq!(snapshots.device_heads["device-b"], "kept");
     }
 }

@@ -116,6 +116,25 @@ impl GameManifest {
         Ok(true)
     }
 
+    pub fn ensure_retention_deletable(&self, snapshot_id: &str) -> Result<(), ManifestError> {
+        let node = self
+            .snapshots
+            .get(snapshot_id)
+            .ok_or_else(|| ManifestError::MissingSnapshot(snapshot_id.to_string()))?;
+        let SnapshotState::Live(live) = &node.state else {
+            return Err(ManifestError::DeletionConflict(snapshot_id.to_string()));
+        };
+        if live.retention_protected
+            || !live.created_by.is_automatic_backup()
+            || self.device_heads.values().any(|head| head == snapshot_id)
+        {
+            return Err(ManifestError::RetentionNoLongerEligible(
+                snapshot_id.to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn mark_acting_local_removed(
         &mut self,
         snapshot_id: &str,
@@ -434,6 +453,8 @@ pub enum ManifestError {
     DeletionConflict(String),
     #[error("Snapshot deletion is already Final: {0}")]
     DeletionAlreadyFinal(String),
+    #[error("Snapshot is no longer eligible for automatic retention deletion: {0}")]
+    RetentionNoLongerEligible(String),
 }
 
 impl CloudManifest {
@@ -554,6 +575,33 @@ mod tests {
             game.upsert_live(live("snapshot", None)),
             Err(ManifestError::TombstoneResurrection("snapshot".to_string()))
         );
+    }
+
+    #[test]
+    fn retention_rechecks_head_and_protection_before_deletion() {
+        let mut game = GameManifest::new("game");
+        let mut protected = SnapshotNode::live("protected", None, integrity(), CreatedBy::Timer);
+        if let SnapshotState::Live(live) = &mut protected.state {
+            live.retention_protected = true;
+        }
+        game.upsert_live(protected).unwrap();
+        game.upsert_live(SnapshotNode::live(
+            "head",
+            Some("protected".into()),
+            integrity(),
+            CreatedBy::Timer,
+        ))
+        .unwrap();
+        game.set_head("pc".into(), "head".into());
+
+        assert!(matches!(
+            game.ensure_retention_deletable("protected"),
+            Err(ManifestError::RetentionNoLongerEligible(_))
+        ));
+        assert!(matches!(
+            game.ensure_retention_deletable("head"),
+            Err(ManifestError::RetentionNoLongerEligible(_))
+        ));
     }
 
     #[test]

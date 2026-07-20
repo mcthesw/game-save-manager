@@ -131,11 +131,21 @@ fn merge_live_save_exit_targets(
             continue;
         };
         let key = game_key(&game);
+        if let Some(entry) = entries
+            .get_mut(&key)
+            .filter(|entry| entry.process_name == target.process_name)
+        {
+            entry.automation.on_process_exit = true;
+            continue;
+        }
+        let key = if entries.contains_key(&key) {
+            format!("{key}::live-save")
+        } else {
+            key
+        };
         entries
             .entry(key.clone())
             .and_modify(|entry| {
-                entry.process_name = target.process_name.clone();
-                entry.automation.process_name = target.process_name.clone();
                 entry.automation.on_process_exit = true;
             })
             .or_insert_with(|| MonitoredProcessGame {
@@ -379,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn live_save_exit_target_preserves_other_process_triggers() {
+    fn live_save_exit_target_does_not_retarget_other_process_triggers() {
         let mut config = rgsm_core::config::Config::default();
         config.games.push(test_game());
         let mut existing = monitored_game(Some(60));
@@ -392,11 +402,14 @@ mod tests {
             vec![live_save_target("live-game.exe", true)],
         );
 
-        let entry = &entries["game"];
-        assert_eq!(entry.process_name, "live-game.exe");
-        assert!(entry.automation.on_process_start);
-        assert!(entry.automation.on_process_exit);
-        assert_eq!(entry.automation.in_process_interval_secs, Some(60));
+        let existing = &entries["game"];
+        assert_eq!(existing.process_name, "game.exe");
+        assert!(existing.automation.on_process_start);
+        assert!(!existing.automation.on_process_exit);
+        assert_eq!(existing.automation.in_process_interval_secs, Some(60));
+        let live_save = &entries["game::live-save"];
+        assert_eq!(live_save.process_name, "live-game.exe");
+        assert!(live_save.automation.on_process_exit);
     }
 
     #[test]

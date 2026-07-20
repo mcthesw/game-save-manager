@@ -7,9 +7,9 @@ use specta::Type;
 use thiserror::Error;
 
 use super::{
-    CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifestRepository, ManifestError,
-    ManifestRepositoryError, MaterializationError, OpenDalManifestTransport, SnapshotState,
-    SnapshotSyncCoordinator, SnapshotSyncError,
+    CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifestRepository, DeletionRegistryError,
+    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, MaterializationError,
+    OpenDalManifestTransport, SnapshotState, SnapshotSyncCoordinator, SnapshotSyncError,
 };
 use crate::backup::{GameSnapshots, Snapshot};
 use crate::device::DeviceId;
@@ -54,6 +54,9 @@ impl V2ConflictResolver {
         expected_local_snapshot_id: &str,
         local: &GameSnapshots,
     ) -> Result<KeepLocalProgressOutcome, KeepLocalProgressError> {
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active(&self.current_device_id, game_id)
+            .await?;
         let actual_local_head = local.head_for_device(&self.current_device_id).cloned();
         if actual_local_head.as_deref() != Some(expected_local_snapshot_id) {
             return Err(KeepLocalProgressError::LocalPositionChanged {
@@ -130,6 +133,9 @@ impl V2ConflictResolver {
                 expected_local_snapshot_id.to_string(),
             ));
         }
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active(&self.current_device_id, game_id)
+            .await?;
 
         let game_id = game_id.to_string();
         let selected_snapshot_id = expected_local_snapshot_id.to_string();
@@ -231,6 +237,8 @@ pub enum KeepLocalProgressError {
     Materialization(#[from] MaterializationError),
     #[error(transparent)]
     Repository(#[from] ManifestRepositoryError),
+    #[error(transparent)]
+    DeletionRegistry(#[from] DeletionRegistryError),
 }
 
 #[cfg(test)]

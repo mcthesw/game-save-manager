@@ -64,7 +64,7 @@ impl CreatedBy {
 
 /// A backup archive containing all data declared by its Save Units.
 /// The date is the unique indicator for a backup
-#[derive(Debug, Serialize, Deserialize, Type, Clone)]
+#[derive(Debug, Serialize, Deserialize, Type, Clone, PartialEq, Eq)]
 pub struct Snapshot {
     pub date: String,
     pub describe: String,

@@ -97,7 +97,11 @@ impl ServiceContext {
             )
             .await?;
 
-        let mut staged = original.clone();
+        let latest = game.get_game_snapshots_info()?;
+        if latest != original {
+            return Err(CloudLibraryServiceError::LocalSnapshotHistoryChanged);
+        }
+        let mut staged = latest;
         merge_remote_lineage(&mut staged, &prepared.lineage)?;
         let backup_date = match self.capture_plan(&config, &game) {
             Ok(plan) => Some(game.create_overwrite_snapshot_from_capture_plan(

@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex as StdMutex};
 #[cfg(test)]
 use tokio::sync::{Mutex as TokioMutex, MutexGuard};
@@ -52,6 +52,21 @@ pub fn get_config() -> Result<Config, ConfigError> {
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     get_config_unlocked()
+}
+
+/// Load the authoritative effective configuration from another application
+/// data directory, falling back to its legacy file only when no owner store
+/// has ever been activated there.
+pub fn get_config_from_data_dir(data_dir: &Path) -> Result<Config, ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    let owner_store = OwnerStore::new(data_dir.to_path_buf());
+    if owner_store.has_authoritative_state() {
+        return Ok(owner_store.load_effective()?);
+    }
+    let content = fs::read_to_string(data_dir.join("GameSaveManager.config.json"))?;
+    Ok(serde_json::from_str(&content)?)
 }
 
 pub fn cloud_namespace_generation() -> Result<CloudNamespaceGeneration, ConfigError> {
@@ -279,6 +294,30 @@ pub fn resolve_backup_path(backup_path: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn external_config_load_prefers_authoritative_owner_store() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let owner_store = OwnerStore::new(root.path().to_path_buf());
+        let owner_config = Config {
+            backup_path: "owner-backups".into(),
+            ..Config::default()
+        };
+        owner_store.initialize_from_legacy(&owner_config).unwrap();
+        let stale_legacy = Config {
+            backup_path: "stale-legacy-backups".into(),
+            ..Config::default()
+        };
+        fs::write(
+            root.path().join("GameSaveManager.config.json"),
+            serde_json::to_vec_pretty(&stale_legacy).unwrap(),
+        )
+        .unwrap();
+
+        let loaded = get_config_from_data_dir(root.path()).unwrap();
+
+        assert_eq!(loaded.backup_path, "owner-backups");
+    }
 
     #[test]
     fn test_old_config_backup_path_compatibility() {

@@ -92,6 +92,33 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
 }
 
 #[tokio::test]
+async fn same_size_local_corruption_is_planned_for_repair() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"expected", true))
+        .unwrap();
+    game.report_local_archive("pc".into(), "snapshot".into(), true);
+    manifest.games.insert("game".into(), game);
+    let local_path = archive_path(
+        &root.path().join("pc").join("game"),
+        "snapshot",
+        ArchiveFormat::Zip,
+    );
+    std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
+    std::fs::write(&local_path, b"corrupt!").unwrap();
+    write_manifest(&operator, &manifest).await;
+
+    let preview = materializer(operator, root.path(), "pc")
+        .preview_materialize_all()
+        .await
+        .unwrap();
+
+    assert_eq!(preview.snapshot_count, 1);
+}
+
+#[tokio::test]
 async fn local_eviction_keeps_shared_snapshot_and_cloud_archive() {
     let operator = memory_operator();
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");

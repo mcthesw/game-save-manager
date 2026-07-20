@@ -118,6 +118,24 @@ async fn run_live_save_apply(app: &AppHandle) {
         let services = rgsm_core::services::ServiceContext::new(
             app.state::<crate::hooks::HookPipelineState>().snapshot(),
         );
+        let processes = match crate::process_util::running_process_names() {
+            Ok(processes) => processes,
+            Err(error) => {
+                warn!(
+                    target: "rgsm::cloud::v2_live_save_sync",
+                    "Skipping Live Save Apply because the final process check failed: {error}"
+                );
+                continue;
+            }
+        };
+        if crate::process_util::process_is_running(&processes, &target.process_name) {
+            info!(
+                target: "rgsm::cloud::v2_live_save_sync",
+                "Skipping Live Save Apply for {} because its process started during synchronization",
+                target.game_id
+            );
+            continue;
+        }
         match services
             .accept_v2_remote_progress(
                 &plan.game_id,

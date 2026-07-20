@@ -833,20 +833,9 @@ impl Game {
             return Ok(0);
         }
         let mut saves = self.get_game_snapshots_info()?;
-        let previous = saves.backups.len();
-        saves
-            .backups
-            .retain(|snapshot| !snapshot_ids.contains(&snapshot.date));
-        let affected_devices = saves
-            .head_entries()
-            .filter(|(_, head)| snapshot_ids.contains(head.as_str()))
-            .map(|(device_id, _)| device_id.clone())
-            .collect::<Vec<_>>();
-        for device_id in affected_devices {
-            saves.set_head_for_device(device_id, None);
-        }
-        let removed = previous - saves.backups.len();
-        if removed > 0 {
+        let previous_heads = saves.device_heads.clone();
+        let removed = saves.forget_v2_tombstones(snapshot_ids);
+        if removed > 0 || saves.device_heads != previous_heads {
             self.set_game_snapshots_info(&saves)?;
         }
         Ok(removed)

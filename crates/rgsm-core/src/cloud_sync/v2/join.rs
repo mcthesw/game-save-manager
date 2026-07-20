@@ -347,7 +347,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .keys()
-                .filter(|path| prefix == "." || path.starts_with(prefix))
+                .filter(|path| prefix == "/" || path.starts_with(prefix))
                 .take(limit)
                 .cloned()
                 .collect())
