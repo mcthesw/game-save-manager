@@ -1189,6 +1189,26 @@ fn backup_dir_name_uses_storage_key_over_raw_name() {
 }
 
 #[test]
+fn renamed_game_backup_folder_uses_stable_storage_key() {
+    let game = Game {
+        name: "Need for Speed Unbound 极品飞车22：不羁1".to_string(),
+        storage_key: "Need for Speed Unbound".to_string(),
+        save_paths: Vec::new(),
+        game_paths: HashMap::new(),
+        next_save_unit_id: 0,
+        cloud_sync_enabled: true,
+        auto_backup: None,
+        ludusavi_meta: None,
+        device_bindings: HashMap::new(),
+    };
+
+    assert_eq!(
+        game.backup_folder_path(Path::new("save_data")),
+        Path::new("save_data").join("Need for Speed Unbound")
+    );
+}
+
+#[test]
 fn backup_dir_name_fallback_sanitizes_when_storage_key_empty() {
     let game = Game {
         name: "Game: Special <Edition>".to_string(),
