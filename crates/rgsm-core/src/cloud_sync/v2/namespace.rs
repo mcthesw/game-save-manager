@@ -113,6 +113,9 @@ impl NamespaceTransport for OpenDalNamespaceTransport {
             let Some(entry) = lister.try_next().await? else {
                 break;
             };
+            if entry.path() == prefix {
+                continue;
+            }
             paths.push(entry.path().to_string());
         }
         Ok(paths)
@@ -522,5 +525,17 @@ mod tests {
                 .unwrap(),
             CloudNamespaceClassification::V1Only { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn opendal_adapter_ignores_the_listed_directory_itself() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let operator =
+            Operator::new(services::Fs::default().root(root.path().to_string_lossy().as_ref()))
+                .unwrap()
+                .finish();
+        let transport = OpenDalNamespaceTransport::new(operator);
+
+        assert!(transport.list_sample("/", 10).await.unwrap().is_empty());
     }
 }
