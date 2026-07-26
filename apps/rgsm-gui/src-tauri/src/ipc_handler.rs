@@ -550,8 +550,12 @@ pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
         error!(target:"rgsm::ipc", "Failed to get backup path: {:?}", e);
         e.to_string()
     })?;
-    let p = backup_path.join(game.name);
+    let p = game_backup_folder_path(&backup_path, &game);
     Ok(open::that(p).is_ok())
+}
+
+fn game_backup_folder_path(backup_root: &std::path::Path, game: &Game) -> std::path::PathBuf {
+    backup_root.join(game.backup_dir_name().as_ref())
 }
 
 #[tauri::command]
@@ -1726,7 +1730,12 @@ pub async fn sync_config(app_handle: AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod test {
-    use super::{IpcNotification, NotificationLevel};
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    use rgsm_core::backup::Game;
+
+    use super::{IpcNotification, NotificationLevel, game_backup_folder_path};
 
     #[test]
     fn test1() {
@@ -1740,5 +1749,25 @@ mod test {
             a,
             "{\"level\":\"error\",\"title\":\"title1\",\"msg\":\"msg1\"}"
         )
+    }
+
+    #[test]
+    fn renamed_game_backup_folder_uses_stable_storage_key() {
+        let game = Game {
+            name: "Need for Speed Unbound 极品飞车22：不羁1".to_string(),
+            storage_key: "Need for Speed Unbound".to_string(),
+            save_paths: Vec::new(),
+            game_paths: HashMap::new(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+            ludusavi_meta: None,
+            device_bindings: HashMap::new(),
+        };
+
+        assert_eq!(
+            game_backup_folder_path(Path::new("save_data"), &game),
+            Path::new("save_data").join("Need for Speed Unbound")
+        );
     }
 }
