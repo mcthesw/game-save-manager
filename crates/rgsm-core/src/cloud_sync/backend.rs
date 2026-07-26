@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -116,6 +117,11 @@ fn endpoint_host_range(endpoint: &str) -> Option<(usize, usize)> {
 #[serde(tag = "type")]
 pub enum Backend {
     Disabled,
+    /// Local filesystem backend powered by OpenDAL.
+    ///
+    /// The physical root is stored in [`CloudSettings::root_path`] so all
+    /// backends keep using the same operator-construction contract.
+    Fs,
     /// WebDAV 后端
     /// 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
     /// 不支持 blocking
@@ -271,6 +277,15 @@ impl Backend {
     pub fn get_op_with_root(&self, root: &str) -> Result<Operator, BackendError> {
         match self {
             Backend::Disabled => Err(BackendError::Disabled),
+            Backend::Fs => {
+                if !Path::new(root).is_absolute() {
+                    return Err(BackendError::OperatorCheck(
+                        "Local folder backend requires an absolute root path.".to_string(),
+                    ));
+                }
+                let builder = services::Fs::default().root(root);
+                Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
+            }
             Backend::WebDAV {
                 endpoint,
                 username,
@@ -459,6 +474,7 @@ impl Sanitizable for Backend {
     fn sanitize(self) -> Self {
         match self {
             Backend::Disabled => Backend::Disabled,
+            Backend::Fs => Backend::Fs,
             Backend::WebDAV {
                 endpoint,
                 username: _,
@@ -489,9 +505,12 @@ impl Sanitizable for Backend {
 
 #[cfg(test)]
 mod tests {
+    use crate::preclude::Sanitizable;
+
     use super::{
-        CloudBackendCheckItem, CloudBackendCheckOutcome, CloudBackendCheckReport,
-        CloudBackendCheckStep, S3AddressingStyle, normalize_virtual_host_endpoint,
+        Backend, CloudBackendCheckItem, CloudBackendCheckOutcome, CloudBackendCheckReport,
+        CloudBackendCheckStep, CloudSyncSessionConfig, S3AddressingStyle,
+        normalize_virtual_host_endpoint,
     };
 
     #[test]
@@ -565,6 +584,86 @@ mod tests {
         } else {
             panic!("expected S3 backend");
         }
+    }
+
+    #[test]
+    fn fs_backend_round_trips_as_a_fieldless_variant() {
+        let json = serde_json::to_string(&Backend::Fs).unwrap();
+        assert_eq!(json, r#"{"type":"Fs"}"#);
+
+        let backend: Backend = serde_json::from_str(&json).unwrap();
+        assert!(matches!(backend, Backend::Fs));
+        assert!(matches!(backend.sanitize(), Backend::Fs));
+    }
+
+    #[test]
+    fn fs_backend_rejects_a_relative_root_before_writing() {
+        let result = Backend::Fs.get_op_with_root("relative/cloud/root");
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn fs_backend_uses_the_selected_folder_as_its_exact_persistent_root() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let root_path = root.path().to_string_lossy().into_owned();
+        let session = CloudSyncSessionConfig {
+            root_path,
+            max_concurrency: 2,
+            backend: Backend::Fs,
+        };
+
+        let first = session.get_op().unwrap();
+        first
+            .write("snapshot.bin", b"persistent bytes".as_slice())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read(root.path().join("snapshot.bin")).unwrap(),
+            b"persistent bytes"
+        );
+        assert!(!root.path().join("game-save-manager").exists());
+
+        let second = session.get_op().unwrap();
+        assert_eq!(
+            second.read("snapshot.bin").await.unwrap().to_vec(),
+            b"persistent bytes"
+        );
+    }
+
+    #[tokio::test]
+    async fn fs_backend_health_check_succeeds_without_leaving_a_probe_file() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let session = CloudSyncSessionConfig {
+            root_path: root.path().to_string_lossy().into_owned(),
+            max_concurrency: 1,
+            backend: Backend::Fs,
+        };
+
+        let report = session.check_report().await;
+
+        assert_eq!(report.outcome, CloudBackendCheckOutcome::Available);
+        assert!(std::fs::read_dir(root.path()).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn fs_backend_fingerprint_distinguishes_roots_and_backend_types() {
+        let fs = CloudSyncSessionConfig {
+            root_path: r"C:\sync-one".to_string(),
+            max_concurrency: 1,
+            backend: Backend::Fs,
+        };
+        let another_root = CloudSyncSessionConfig {
+            root_path: r"C:\sync-two".to_string(),
+            ..fs.clone()
+        };
+        let disabled = CloudSyncSessionConfig {
+            backend: Backend::Disabled,
+            ..fs.clone()
+        };
+
+        assert_ne!(fs.fingerprint(), another_root.fingerprint());
+        assert_ne!(fs.fingerprint(), disabled.fingerprint());
     }
 
     #[test]

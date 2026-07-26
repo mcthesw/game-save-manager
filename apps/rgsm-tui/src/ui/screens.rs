@@ -510,13 +510,18 @@ fn list_title(base: &str, filter: &str, sort: crate::model::ListSort, count: usi
 
 fn cloud_detail_lines(app: &App) -> Vec<String> {
     let settings = &app.data.config.settings.cloud_settings;
+    let root_label = if matches!(&settings.backend, Backend::Fs) {
+        t!("sync_settings.fs.root")
+    } else {
+        t!("sync_settings.cloud_root")
+    };
     let mut lines = vec![
         format!(
             "{}: {}",
             t!("sync_settings.backend"),
             backend_label(&settings.backend)
         ),
-        format!("{}: {}", t!("sync_settings.cloud_root"), settings.root_path),
+        format!("{}: {}", root_label, settings.root_path),
         format!(
             "{}: {}",
             t!("sync_settings.max_concurrency"),
@@ -526,6 +531,7 @@ fn cloud_detail_lines(app: &App) -> Vec<String> {
     ];
     match &settings.backend {
         Backend::Disabled => lines.push(t!("sync_settings.overview.status_disabled").to_string()),
+        Backend::Fs => {}
         Backend::WebDAV {
             endpoint, username, ..
         } => {

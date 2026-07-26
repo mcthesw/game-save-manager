@@ -829,6 +829,13 @@ max_backup_count?: number | null }
 export type AutoBackupGameStatus = { game_name: string; interval_secs: number }
 export type Backend = { type: "Disabled" } |
 /**
+ * Local filesystem backend powered by OpenDAL.
+ *
+ * The physical root is stored in [`CloudSettings::root_path`] so all
+ * backends keep using the same operator-construction contract.
+ */
+{ type: "Fs" } |
+/**
  * WebDAV 后端
  * 参考：https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html
  * 不支持 blocking

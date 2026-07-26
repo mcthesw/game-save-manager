@@ -55,7 +55,12 @@ interface BatchSyncReportLike {
   games: BatchSyncItemReportLike[];
 }
 
-const backends = ['WebDAV', 'S3', 'Disabled'];
+const backends = [
+  { value: 'WebDAV', label: 'sync_settings.backend_label.webdav' },
+  { value: 'S3', label: 'sync_settings.backend_label.s3' },
+  { value: 'Fs', label: 'sync_settings.backend_label.fs' },
+  { value: 'Disabled', label: 'sync_settings.backend_label.disabled' },
+] as const;
 
 const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
@@ -114,6 +119,7 @@ function loadBackendSettings() {
     case 'S3':
       s3_settings.value = cloneValue(cloud_settings.value.backend as S3);
       break;
+    case 'Fs':
     case 'Disabled':
       break;
     default:
@@ -428,10 +434,20 @@ function currentBackend(): Backend | null {
     trimEndpoint(s3_settings.value);
     return cloneValue(s3_settings.value);
   }
+  if (type === 'Fs') {
+    return { type: 'Fs' } as Backend;
+  }
   if (type === 'Disabled') {
     return { type: 'Disabled' } as Backend;
   }
   return null;
+}
+
+async function chooseFsRoot() {
+  const result = await commands.chooseSaveDir();
+  if (result.status === 'ok') {
+    cloud_settings.value.root_path = result.data;
+  }
 }
 
 function currentSessionConfig(): CloudSyncSessionConfig | null {
@@ -784,7 +800,12 @@ onMounted(async () => {
                 v-model="cloud_settings!.backend!.type"
                 :placeholder="$t('sync_settings.backend')"
               >
-                <ElOption v-for="b in backends" :key="b" :label="b" :value="b" />
+                <ElOption
+                  v-for="backend in backends"
+                  :key="backend.value"
+                  :label="$t(backend.label)"
+                  :value="backend.value"
+                />
               </ElSelect>
             </ElFormItem>
 
@@ -834,7 +855,20 @@ onMounted(async () => {
               </ElFormItem>
             </template>
 
-            <ElFormItem :label="$t('sync_settings.cloud_root')">
+            <ElFormItem
+              v-if="cloud_settings!.backend!.type === 'Fs'"
+              :label="$t('sync_settings.fs.root')"
+            >
+              <ElInput v-model="cloud_settings!.root_path">
+                <template #append>
+                  <ElButton @click="chooseFsRoot">
+                    {{ $t('sync_settings.fs.choose') }}
+                  </ElButton>
+                </template>
+              </ElInput>
+              <span class="field-hint">{{ $t('sync_settings.fs.root_hint') }}</span>
+            </ElFormItem>
+            <ElFormItem v-else :label="$t('sync_settings.cloud_root')">
               <ElInput v-model="cloud_settings!.root_path" />
               <span class="field-hint">{{ $t('sync_settings.cloud_root_hint') }}</span>
             </ElFormItem>

@@ -290,6 +290,7 @@ fn sync_error(state: &GameSyncState) -> Option<&str> {
 fn backend_label(backend: &Backend) -> String {
     match backend {
         Backend::Disabled => t!("sync_settings.backend_label.disabled").to_string(),
+        Backend::Fs => t!("sync_settings.backend_label.fs").to_string(),
         Backend::WebDAV { .. } => t!("sync_settings.backend_label.webdav").to_string(),
         Backend::S3 { .. } => t!("sync_settings.backend_label.s3").to_string(),
     }
