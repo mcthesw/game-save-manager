@@ -8,11 +8,12 @@ operation-level failures and retry mechanics.
 | --- | --- | --- |
 | The selected Fs folder is the exact cloud root | `bootstrap_persists_complete_v2_namespace_across_fresh_operators` | Covered |
 | A complete V2 bootstrap survives a fresh Operator | `bootstrap_persists_complete_v2_namespace_across_fresh_operators` | Covered |
-| Shared Library and Device Profile normal publication | Normal single-device path | Planned in this PR |
-| Snapshot metadata, Device Head, and archive bytes persist | Normal single-device path | Planned in this PR |
-| Reconciliation is idempotent | Normal single-device path | Planned in this PR |
-| Stale Shared Library replacement cannot overwrite newer state | Two-device interleaving | Planned in this PR |
-| Sequential device sync preserves independent Device Heads | Two-device interleaving | Planned in this PR |
+| Shared Library and Device Profile normal publication | `single_device_snapshot_round_trip_survives_fresh_operators` | Covered |
+| Snapshot metadata, Device Head, and archive bytes persist | `single_device_snapshot_round_trip_survives_fresh_operators` | Covered |
+| Local eviction followed by cloud materialization restores exact bytes | `single_device_snapshot_round_trip_survives_fresh_operators` | Covered |
+| Reconciliation is idempotent | `single_device_snapshot_round_trip_survives_fresh_operators` | Covered |
+| Stale Shared Library replacement cannot overwrite newer state | `two_devices_rebase_stale_library_changes_and_preserve_independent_heads` | Covered |
+| Sequential device sync preserves independent Device Heads | `two_devices_rebase_stale_library_changes_and_preserve_independent_heads` | Covered |
 | Conflict review and resolution | Follow-up | Deferred |
 | Retention, deletion, tombstones, and profile removal | Follow-up | Deferred |
 | Corrupt, missing, partial, and resurrected remote objects | Follow-up | Deferred |

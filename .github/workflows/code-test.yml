@@ -71,6 +71,9 @@ jobs:
       - name: Run configuration upgrade compatibility tests
         run: cargo test -p rgsm-core --test config_upgrade_compatibility
 
+      - name: Run Fs cloud sync domain tests
+        run: cargo test -p rgsm-core --test cloud_sync_v2_fs
+
       - name: Run workspace checks
         run: |
           cargo check --workspace
