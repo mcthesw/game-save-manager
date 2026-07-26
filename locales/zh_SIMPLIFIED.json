@@ -545,6 +545,17 @@
         "cloud_root_hint": "不要以/结尾，不要留空",
         "backend": "同步后端",
         "backend_hint": "选择云存档的服务后端",
+        "backend_label": {
+            "disabled": "已禁用",
+            "fs": "本地文件夹",
+            "webdav": "WebDAV",
+            "s3": "S3"
+        },
+        "fs": {
+            "root": "本地文件夹",
+            "root_hint": "同步数据会直接保存在此文件夹中，必须使用绝对路径。",
+            "choose": "选择文件夹"
+        },
         "sync_success": "同步成功",
         "sync_failed": "同步失败",
         "config_retry": "重试",

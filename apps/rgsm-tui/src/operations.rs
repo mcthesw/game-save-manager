@@ -618,6 +618,7 @@ pub fn parse_cloud_settings_draft(input: &str, current: &CloudSettings) -> Resul
 
     settings.backend = match kind.to_ascii_lowercase().as_str() {
         "disabled" | "off" | "none" => Backend::Disabled,
+        "fs" | "filesystem" => Backend::Fs,
         "webdav" => Backend::WebDAV {
             endpoint: field_or_current(
                 &fields,
@@ -811,6 +812,7 @@ pub fn cloud_settings_draft(current: &CloudSettings) -> String {
     let shared = format!("root={} max={}", current.root_path, current.max_concurrency);
     match &current.backend {
         Backend::Disabled => format!("disabled {shared}"),
+        Backend::Fs => format!("fs {shared}"),
         Backend::WebDAV {
             endpoint, username, ..
         } => {
@@ -910,6 +912,24 @@ mod tests {
         } else {
             panic!("expected S3 backend");
         }
+    }
+
+    #[test]
+    fn fs_cloud_settings_draft_round_trips_an_absolute_path_with_spaces() {
+        let current = CloudSettings {
+            root_path: r"C:\Game Save Sync".to_string(),
+            max_concurrency: 2,
+            backend: Backend::Fs,
+            ..Default::default()
+        };
+
+        let draft = cloud_settings_draft(&current);
+        let parsed = parse_cloud_settings_draft(&draft, &CloudSettings::default()).unwrap();
+
+        assert_eq!(draft, r"fs root=C:\Game Save Sync max=2");
+        assert_eq!(parsed.root_path, r"C:\Game Save Sync");
+        assert_eq!(parsed.max_concurrency, 2);
+        assert!(matches!(parsed.backend, Backend::Fs));
     }
 
     #[test]

@@ -545,6 +545,17 @@
         "cloud_root_hint": "Do not end with /, do not leave empty spaces",
         "backend": "Sync backend",
         "backend_hint": "Choose the service backend",
+        "backend_label": {
+            "disabled": "Disabled",
+            "fs": "Local folder",
+            "webdav": "WebDAV",
+            "s3": "S3"
+        },
+        "fs": {
+            "root": "Local folder",
+            "root_hint": "Cloud Sync data is stored directly in this folder. An absolute path is required.",
+            "choose": "Choose folder"
+        },
         "sync_success": "Successfully synced",
         "sync_failed": "Sync failed",
         "config_retry": "Retry",
