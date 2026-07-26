@@ -345,6 +345,11 @@ impl Game {
         }
     }
 
+    /// Resolve this game's local backup folder beneath an explicit backup root.
+    pub fn backup_folder_path(&self, backup_root: &Path) -> PathBuf {
+        backup_root.join(self.backup_dir_name().as_ref())
+    }
+
     /// Return whether two persisted game references identify the same game.
     ///
     /// Current configs use `storage_key` as the stable identity. Legacy configs
