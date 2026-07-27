@@ -6,6 +6,7 @@
     "web:build": "vite build",
     "web:dev": "vite",
     "web:preview": "vite preview",
+    "web:test": "node --test src/utils/cloudNamespace.test.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
     "portable": "node ../../scripts/portable.mjs",

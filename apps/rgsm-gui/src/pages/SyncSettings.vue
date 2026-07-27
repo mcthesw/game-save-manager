@@ -6,6 +6,7 @@ import {
   type Backend,
   type CloudBackendCheckReport,
   type CloudLibraryStatus,
+  type CloudNamespaceGeneration,
   type ConflictResolution,
   type GameSyncState,
   type SyncState,
@@ -14,6 +15,7 @@ import { error } from '@tauri-apps/plugin-log';
 import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
 import CloudArchivePanel from '../components/CloudArchivePanel.vue';
+import { resolveCloudUiMode } from '../utils/cloudNamespace';
 
 interface WebDAV {
   type: 'WebDAV';
@@ -75,7 +77,7 @@ const conflictDialogVisible = ref(false);
 const selectedConflictGameName = ref<string | null>(null);
 const checkingBackend = ref(false);
 const backendCheckReport = ref<CloudBackendCheckReport | null>(null);
-const cloudLibraryStatus = ref<CloudLibraryStatus | null>(null);
+const cloudNamespaceGeneration = ref<CloudNamespaceGeneration | null>(null);
 const cloud_settings = ref<EditableCloudSettings>(
   toEditableCloudSettings(config.value!.settings.cloud_settings)
 );
@@ -136,7 +138,9 @@ function loadDraftFromConfig() {
 const savedBackendEnabled = computed(
   () => config.value?.settings.cloud_settings?.backend?.type !== 'Disabled'
 );
-const v2LibraryActive = computed(() => cloudLibraryStatus.value?.kind === 'active');
+const cloudUiMode = computed(() => resolveCloudUiMode(cloudNamespaceGeneration.value));
+const v2LibraryActive = computed(() => cloudUiMode.value === 'v2');
+const legacyCloudControlsEnabled = computed(() => cloudUiMode.value === 'legacy');
 const snapshotSyncInterval = computed({
   get: () => cloud_settings.value.auto_sync_interval || 5,
   set: (minutes: number) => {
@@ -148,7 +152,9 @@ const savedConnectionKey = computed(() =>
 );
 
 function updateCloudLibraryStatus(status: CloudLibraryStatus | null) {
-  cloudLibraryStatus.value = status;
+  if (status?.kind === 'active') {
+    cloudNamespaceGeneration.value = 'v2';
+  }
 }
 
 const hasEnabledGames = computed(() =>
@@ -262,7 +268,8 @@ function tableRowToGameRow(row: unknown): GameRow {
 }
 
 async function retryConfigSync() {
-  if (!savedBackendEnabled.value || syncingConfig.value) return;
+  if (!legacyCloudControlsEnabled.value || !savedBackendEnabled.value || syncingConfig.value)
+    return;
   syncingConfig.value = true;
   try {
     const result = await commands.syncConfig();
@@ -363,7 +370,12 @@ async function loadSyncState() {
 }
 
 async function syncGame(gameName: string) {
-  if (!savedBackendEnabled.value || syncingGames.value.has(gameName)) return;
+  if (
+    !legacyCloudControlsEnabled.value ||
+    !savedBackendEnabled.value ||
+    syncingGames.value.has(gameName)
+  )
+    return;
   syncingGames.value.add(gameName);
   try {
     const result = await commands.syncGame(gameName);
@@ -391,7 +403,7 @@ async function syncGame(gameName: string) {
 }
 
 async function syncAllGames() {
-  if (!savedBackendEnabled.value) return;
+  if (!legacyCloudControlsEnabled.value || !savedBackendEnabled.value) return;
   const enabledGames = (config.value?.games ?? []).filter(
     (game) => game.cloud_sync_enabled !== false
   );
@@ -551,6 +563,7 @@ function reportWasCancelled(report: BatchSyncReportLike): boolean {
 }
 
 async function upload_all() {
+  if (!legacyCloudControlsEnabled.value) return;
   try {
     await feedback.prompt($t('sync_settings.confirm_upload_all'), $t('home.hint'), {
       confirmButtonText: $t('sync_settings.confirm'),
@@ -590,6 +603,7 @@ async function upload_all() {
 }
 
 async function download_all() {
+  if (!legacyCloudControlsEnabled.value) return;
   try {
     await feedback.prompt($t('sync_settings.confirm_download_all'), $t('home.hint'), {
       confirmButtonText: $t('sync_settings.confirm'),
@@ -650,8 +664,19 @@ async function open_manual() {
   }
 }
 
+async function loadCloudNamespaceGeneration() {
+  const result = await commands.getCloudNamespaceGeneration();
+  if (result.status === 'error') {
+    cloudNamespaceGeneration.value = null;
+    error(`Failed to load Cloud Library generation: ${result.error}`);
+    return;
+  }
+  cloudNamespaceGeneration.value = result.data;
+}
+
 onMounted(async () => {
   await load_config();
+  await loadCloudNamespaceGeneration();
   await loadSyncState();
 });
 </script>
@@ -675,11 +700,11 @@ onMounted(async () => {
           class="section-alert"
         />
         <CloudArchivePanel v-if="v2LibraryActive" />
-        <div v-if="!v2LibraryActive" class="overview-toolbar">
+        <div v-if="legacyCloudControlsEnabled" class="overview-toolbar">
           <ElButton
             type="primary"
             :icon="Refresh"
-            :disabled="v2LibraryActive || !savedBackendEnabled || !hasEnabledGames"
+            :disabled="!savedBackendEnabled || !hasEnabledGames"
             @click="syncAllGames"
           >
             {{ $t('sync_settings.overview.sync_all') }}
@@ -687,7 +712,7 @@ onMounted(async () => {
         </div>
 
         <ElTable
-          v-if="!v2LibraryActive"
+          v-if="legacyCloudControlsEnabled"
           :data="gameRows"
           stripe
           class="game-table"
@@ -723,7 +748,7 @@ onMounted(async () => {
                 v-if="!row.isConfig"
                 v-model="row.cloudSyncEnabled"
                 size="small"
-                :disabled="v2LibraryActive"
+                :disabled="!legacyCloudControlsEnabled"
                 @change="toggleGameSync(tableRowToGameRow(row))"
               />
               <span v-else class="config-lock-icon">
@@ -753,7 +778,10 @@ onMounted(async () => {
             <template #default="{ row }">
               <ElButton
                 v-if="
-                  row.isConfig && row.status === 'failed' && savedBackendEnabled && !v2LibraryActive
+                  row.isConfig &&
+                  row.status === 'failed' &&
+                  savedBackendEnabled &&
+                  legacyCloudControlsEnabled
                 "
                 :icon="Refresh"
                 size="small"
@@ -764,7 +792,7 @@ onMounted(async () => {
                 {{ $t('sync_settings.config_retry') }}
               </ElButton>
               <ElButton
-                v-else-if="!v2LibraryActive && !row.isConfig && row.status === 'conflict'"
+                v-else-if="legacyCloudControlsEnabled && !row.isConfig && row.status === 'conflict'"
                 :icon="Warning"
                 type="warning"
                 size="small"
@@ -775,7 +803,10 @@ onMounted(async () => {
               </ElButton>
               <ElButton
                 v-else-if="
-                  !v2LibraryActive && !row.isConfig && row.cloudSyncEnabled && savedBackendEnabled
+                  legacyCloudControlsEnabled &&
+                  !row.isConfig &&
+                  row.cloudSyncEnabled &&
+                  savedBackendEnabled
                 "
                 :icon="Refresh"
                 size="small"
@@ -944,7 +975,9 @@ onMounted(async () => {
             <ElButton
               type="danger"
               :icon="Upload"
-              :disabled="v2LibraryActive || currentSessionConfig()?.backend.type === 'Disabled'"
+              :disabled="
+                !legacyCloudControlsEnabled || currentSessionConfig()?.backend.type === 'Disabled'
+              "
               @click="upload_all"
             >
               {{ $t('sync_settings.overwrite_upload') }}
@@ -959,7 +992,9 @@ onMounted(async () => {
             <ElButton
               type="danger"
               :icon="Download"
-              :disabled="v2LibraryActive || currentSessionConfig()?.backend.type === 'Disabled'"
+              :disabled="
+                !legacyCloudControlsEnabled || currentSessionConfig()?.backend.type === 'Disabled'
+              "
               @click="download_all"
             >
               {{ $t('sync_settings.overwrite_download') }}

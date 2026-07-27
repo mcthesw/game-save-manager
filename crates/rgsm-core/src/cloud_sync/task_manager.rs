@@ -821,6 +821,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn config_upload_enqueue_skips_v2_generation() {
+        let manager = manager();
+        let mut config = crate::config::Config::default();
+        config.settings.cloud_settings.backend = Backend::WebDAV {
+            endpoint: "https://example.invalid/dav".to_string(),
+            username: "user".to_string(),
+            password: "pass".to_string(),
+        };
+
+        manager
+            .enqueue_config_upload_if_enabled(
+                &config,
+                CloudNamespaceGeneration::V2,
+                "config_migration",
+            )
+            .await;
+
+        assert!(manager.state.lock().await.queue.is_empty());
+    }
+
+    #[tokio::test]
     async fn cancel_and_wait_does_not_return_while_a_manual_job_is_running() {
         let manager = manager();
         let (id, _) = manager.begin_manual_job("manual".to_string()).await;
