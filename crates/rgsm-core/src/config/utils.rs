@@ -232,7 +232,8 @@ pub fn replace_config_local(config: &Config) -> Result<(), ConfigError> {
 /// Replace the config file with a new config struct
 pub async fn set_config(config: &Config) -> Result<(), ConfigError> {
     set_config_local(config)?;
-    // Cloud sync upload is now handled by the hook pipeline (CloudSyncEnqueueHook).
+    // Remote publication is generation-specific. Legacy V1 saves remain local until the
+    // configured cloud root has been inspected and the Cloud Library is explicitly activated.
     Ok(())
 }
 

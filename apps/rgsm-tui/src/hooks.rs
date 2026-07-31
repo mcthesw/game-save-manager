@@ -2,12 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use rgsm_core::backup::{RestoreNotificationLevel, RestoreNotifier};
 use rgsm_core::cloud_sync::{
-    Backend, CloudSyncError, CloudSyncStatus, CloudSyncTaskManager, SyncEventEmitter,
+    CloudSyncError, CloudSyncStatus, CloudSyncTaskManager, SyncEventEmitter,
 };
 use rgsm_core::config::Config;
 use rgsm_core::hooks::{
-    ArchiveHashHook, ArchiveVerifyHook, CloudSyncEnqueueHook, HookPipeline, LifecycleHook,
-    PreRestoreBackupHook, SyncJobQueue,
+    ArchiveHashHook, ArchiveVerifyHook, HookPipeline, LifecycleHook, PreRestoreBackupHook,
 };
 
 use crate::logging::SessionLog;
@@ -70,8 +69,8 @@ impl SyncEventEmitter for TuiSyncEmitter {
 
 pub fn build_pipeline(
     config: &Config,
-    settings: &TuiSettings,
-    cloud_sync_manager: Arc<CloudSyncTaskManager>,
+    _settings: &TuiSettings,
+    _cloud_sync_manager: Arc<CloudSyncTaskManager>,
 ) -> Arc<HookPipeline> {
     let mut hooks: Vec<Box<dyn LifecycleHook>> = Vec::new();
     if config.settings.extra_backup_when_apply {
@@ -83,11 +82,55 @@ pub fn build_pipeline(
     if config.settings.verify_archive_before_apply {
         hooks.push(Box::new(ArchiveVerifyHook));
     }
-    if settings.auto_enqueue_cloud_on_change
-        && !matches!(config.settings.cloud_settings.backend, Backend::Disabled)
-    {
-        let sync_queue: Arc<dyn SyncJobQueue> = cloud_sync_manager;
-        hooks.push(Box::new(CloudSyncEnqueueHook::new(sync_queue)));
-    }
     Arc::new(HookPipeline::new(hooks))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use rgsm_core::cloud_sync::{Backend, CloudSyncTaskManager};
+    use rgsm_core::hooks::{ConfigSavedCtx, HookSource};
+
+    use super::*;
+
+    struct RecordingEmitter {
+        emissions: Arc<AtomicUsize>,
+    }
+
+    impl SyncEventEmitter for RecordingEmitter {
+        fn emit_status(&self, _status: &CloudSyncStatus) {
+            self.emissions.fetch_add(1, Ordering::Relaxed);
+        }
+
+        fn emit_error(&self, _error: &CloudSyncError) {}
+    }
+
+    #[tokio::test]
+    async fn legacy_tui_pipeline_does_not_enqueue_automatic_writes() {
+        let emissions = Arc::new(AtomicUsize::new(0));
+        let manager = CloudSyncTaskManager::new(Arc::new(RecordingEmitter {
+            emissions: Arc::clone(&emissions),
+        }));
+        let mut config = Config::default();
+        config.settings.cloud_settings.backend = Backend::WebDAV {
+            endpoint: "https://example.invalid/dav".into(),
+            username: "user".into(),
+            password: "pass".into(),
+        };
+        let settings = TuiSettings {
+            auto_enqueue_cloud_on_change: true,
+            ..TuiSettings::default()
+        };
+        let pipeline = build_pipeline(&config, &settings, manager);
+
+        pipeline
+            .fire_config_saved(&ConfigSavedCtx {
+                config,
+                source: HookSource::UserManual,
+            })
+            .await;
+
+        assert_eq!(emissions.load(Ordering::Relaxed), 0);
+    }
 }

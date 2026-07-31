@@ -38,8 +38,7 @@ async fn main() -> Result<()> {
     rgsm_core::app_dirs::set_app_data_dir_override(data_dir.clone())
         .context("failed to set RGSM TUI profile directory")?;
 
-    let config_status =
-        rgsm_core::config::config_check().context("failed to initialize RGSM config")?;
+    rgsm_core::config::config_check().context("failed to initialize RGSM config")?;
     if let Some(source) = &options.import_gui_config {
         let report = profile_import::import_gui_profile(source, &data_dir)
             .context("failed to import GUI profile")?;
@@ -61,11 +60,6 @@ async fn main() -> Result<()> {
     let mut app = App::new(data_dir, settings)
         .await
         .context("failed to initialize TUI state")?;
-    if config_status.config_migrated {
-        app.enqueue_config_migration_sync()
-            .await
-            .context("failed to enqueue migrated config cloud sync")?;
-    }
     let mut terminal = TerminalGuard::enter().context("failed to enter terminal UI")?;
 
     while !app.should_quit() {

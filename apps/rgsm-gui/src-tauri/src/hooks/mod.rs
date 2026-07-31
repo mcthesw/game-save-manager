@@ -14,10 +14,10 @@ pub use rgsm_core::hooks::*;
 
 use std::sync::{Arc, RwLock};
 
-use log::warn;
+use log::{info, warn};
 use tauri::{AppHandle, Manager};
 
-use rgsm_core::cloud_sync::{Backend, CloudSyncTaskManager};
+use rgsm_core::cloud_sync::Backend;
 use rgsm_core::config::{CloudNamespaceGeneration, Config, cloud_namespace_generation};
 
 pub struct HookPipelineState {
@@ -45,11 +45,7 @@ impl HookPipelineState {
     }
 }
 
-pub fn build_builtin_pipeline(
-    app: &AppHandle,
-    task_manager: Arc<CloudSyncTaskManager>,
-    config: &Config,
-) -> HookPipeline {
+pub fn build_builtin_pipeline(app: &AppHandle, config: &Config) -> HookPipeline {
     let mut hooks: Vec<Box<dyn LifecycleHook>> = Vec::new();
 
     if config.settings.extra_backup_when_apply {
@@ -82,12 +78,10 @@ pub fn build_builtin_pipeline(
     )));
     if !matches!(config.settings.cloud_settings.backend, Backend::Disabled) {
         match cloud_namespace_generation() {
-            Ok(CloudNamespaceGeneration::LegacyV1) => {
-                let sync_queue: Arc<dyn SyncJobQueue> = task_manager;
-                hooks.push(Box::new(
-                    rgsm_core::hooks::cloud_sync_hook::CloudSyncEnqueueHook::new(sync_queue),
-                ));
-            }
+            Ok(CloudNamespaceGeneration::LegacyV1) => info!(
+                target: "rgsm::hooks::cloud_sync",
+                "Automatic legacy cloud writes are paused until Cloud Library activation"
+            ),
             Ok(CloudNamespaceGeneration::V2) => {
                 let state = app.state::<crate::snapshot_sync::SnapshotSyncRuntimeState>();
                 match rgsm_core::services::build_v2_snapshot_sync_hook(state.operation_lock()) {
@@ -114,6 +108,5 @@ pub fn build_builtin_pipeline(
 
 pub fn rebuild_pipeline(app: &AppHandle, config: &Config) -> Arc<HookPipeline> {
     let pipeline_state = app.state::<HookPipelineState>();
-    let cloud_sync_manager = app.state::<Arc<CloudSyncTaskManager>>().inner().clone();
-    pipeline_state.replace(build_builtin_pipeline(app, cloud_sync_manager, config))
+    pipeline_state.replace(build_builtin_pipeline(app, config))
 }

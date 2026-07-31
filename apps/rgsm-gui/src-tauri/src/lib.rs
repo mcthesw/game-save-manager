@@ -7,7 +7,7 @@ use rust_i18n::{i18n, t};
 i18n!("../../../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use rgsm_core::cloud_sync::SyncEventEmitter;
-use rgsm_core::config::{cloud_namespace_generation, get_config};
+use rgsm_core::config::get_config;
 use tauri::Manager;
 
 use log::{error, info, warn};
@@ -66,7 +66,7 @@ impl SyncEventEmitter for TauriSyncEmitter {
 
 pub fn run() -> anyhow::Result<()> {
     info!("{}", t!("home.hello_world"));
-    let config_status = config_check()?;
+    config_check()?;
 
     // 将 panic 信息记录到日志中
     std::panic::set_hook(Box::new(|panic_info| {
@@ -238,26 +238,10 @@ pub fn run() -> anyhow::Result<()> {
             let config = get_config().expect("Failed to load config while building hooks");
             let snapshot_sync_runtime = snapshot_sync::SnapshotSyncRuntimeState::default();
             app.manage(snapshot_sync_runtime.clone());
-            let pipeline =
-                hooks::build_builtin_pipeline(app.handle(), cloud_sync_manager.clone(), &config);
+            let pipeline = hooks::build_builtin_pipeline(app.handle(), &config);
             app.manage(hooks::HookPipelineState::new(pipeline));
 
-            let startup_cloud_sync_manager = cloud_sync_manager.clone();
             app.manage(cloud_sync_manager);
-            if config_status.config_migrated {
-                let migrated_config = config.clone();
-                let generation =
-                    cloud_namespace_generation().expect("Failed to load Cloud Library generation");
-                tauri::async_runtime::spawn(async move {
-                    startup_cloud_sync_manager
-                        .enqueue_config_upload_if_enabled(
-                            &migrated_config,
-                            generation,
-                            "config_migration",
-                        )
-                        .await;
-                });
-            }
             snapshot_sync::setup(app.handle().clone(), snapshot_sync_runtime);
 
             sound::setup(app).expect("Cannot setup sound manager");
