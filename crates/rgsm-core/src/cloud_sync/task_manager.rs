@@ -20,7 +20,7 @@ use super::sync_state::{
 use crate::backup::GameSnapshots;
 use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::{Backend, session_from_backend, upload_config, upload_game_snapshots};
-use crate::config::{CloudNamespaceGeneration, get_config};
+use crate::config::get_config;
 use crate::hooks::SyncJobQueue;
 use crate::preclude::*;
 
@@ -223,27 +223,6 @@ impl CloudSyncTaskManager {
         self.notify.notify_one();
         self.emit_full_status(Some("Queued cloud sync job".to_string()))
             .await;
-    }
-
-    pub async fn enqueue_config_upload_if_enabled(
-        &self,
-        config: &crate::config::Config,
-        generation: CloudNamespaceGeneration,
-        context: impl Into<String>,
-    ) {
-        if generation != CloudNamespaceGeneration::LegacyV1 {
-            return;
-        }
-        let backend = match &config.settings.cloud_settings.backend {
-            Backend::Disabled => return,
-            backend => backend.clone(),
-        };
-
-        self.enqueue(CloudSyncJob::UploadConfig {
-            backend,
-            context: context.into(),
-        })
-        .await;
     }
 
     pub async fn cancel_all(&self) -> CancelCloudSyncResult {
@@ -769,76 +748,6 @@ mod tests {
 
     fn manager() -> Arc<CloudSyncTaskManager> {
         CloudSyncTaskManager::new(Arc::new(NoopEmitter))
-    }
-
-    #[tokio::test]
-    async fn config_upload_enqueue_skips_disabled_backend() {
-        let manager = manager();
-        let config = crate::config::Config::default();
-
-        manager
-            .enqueue_config_upload_if_enabled(
-                &config,
-                CloudNamespaceGeneration::LegacyV1,
-                "config_migration",
-            )
-            .await;
-
-        let state = manager.state.lock().await;
-        assert!(state.queue.is_empty());
-    }
-
-    #[tokio::test]
-    async fn config_upload_enqueue_uses_config_backend() {
-        let manager = manager();
-        let mut config = crate::config::Config::default();
-        config.settings.cloud_settings.backend = Backend::WebDAV {
-            endpoint: "https://example.invalid/dav".to_string(),
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        };
-
-        manager
-            .enqueue_config_upload_if_enabled(
-                &config,
-                CloudNamespaceGeneration::LegacyV1,
-                "config_migration",
-            )
-            .await;
-
-        let state = manager.state.lock().await;
-        assert_eq!(state.queue.len(), 1);
-        match &state.queue[0].job {
-            CloudSyncJob::UploadConfig {
-                backend: Backend::WebDAV { endpoint, .. },
-                context,
-            } => {
-                assert_eq!(endpoint, "https://example.invalid/dav");
-                assert_eq!(context, "config_migration");
-            }
-            other => panic!("expected config upload job, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn config_upload_enqueue_skips_v2_generation() {
-        let manager = manager();
-        let mut config = crate::config::Config::default();
-        config.settings.cloud_settings.backend = Backend::WebDAV {
-            endpoint: "https://example.invalid/dav".to_string(),
-            username: "user".to_string(),
-            password: "pass".to_string(),
-        };
-
-        manager
-            .enqueue_config_upload_if_enabled(
-                &config,
-                CloudNamespaceGeneration::V2,
-                "config_migration",
-            )
-            .await;
-
-        assert!(manager.state.lock().await.queue.is_empty());
     }
 
     #[tokio::test]
