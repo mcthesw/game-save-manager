@@ -143,3 +143,320 @@ async fn cloud_prefix_has_entries(
     let mut lister = operator.lister(prefix).await?;
     Ok(lister.try_next().await?.is_some())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use crate::backup::{ArchiveFormat, CreatedBy, Game, GameSnapshots, Snapshot, archive_path};
+    use crate::cloud_sync::v2::{
+        CLOUD_MANIFEST_PATH, CloudLibraryBootstrap, CloudManifestRepository,
+        DeletionRegistryRepository, DeviceProfileRepository, SharedGameDeletionError,
+        SharedLibraryRepository, SnapshotSyncCoordinator, cloud_archive_path,
+    };
+    use crate::cloud_sync::{Backend, CloudSettings, CloudSyncSessionConfig};
+    use crate::config::{
+        CloudNamespaceGeneration, Config, ConfigTestStateGuard, ConfigurationOwners, SharedLibrary,
+        activate_cloud_namespace_v2, cloud_bootstrap_inputs, get_config, set_config_local,
+    };
+    use crate::device::get_current_device_id;
+    use crate::hooks::HookPipeline;
+    use tokio_util::sync::CancellationToken;
+
+    use super::*;
+
+    async fn assert_active_cloud_game(
+        config: &Config,
+        local_archive: &Path,
+        cloud_archive: &str,
+        second_device_id: &str,
+    ) {
+        assert!(
+            get_config()
+                .expect("effective configuration should reload")
+                .games
+                .iter()
+                .any(|game| game.storage_key == "example-game")
+        );
+        let (_, active_profile, _) =
+            cloud_bootstrap_inputs().expect("active local profile should reload");
+        assert!(active_profile.games.contains_key("example-game"));
+        assert_eq!(
+            std::fs::read(local_archive).expect("local archive should remain readable"),
+            b"service deletion archive bytes"
+        );
+
+        let operator = CloudSyncSessionConfig::from(&config.settings.cloud_settings)
+            .get_op()
+            .expect("fresh Fs operator should initialize");
+        assert!(
+            SharedLibraryRepository::new(operator.clone(), 2)
+                .load()
+                .await
+                .expect("Shared Library should reload")
+                .games
+                .iter()
+                .any(|game| game.storage_key == "example-game")
+        );
+        let profiles = DeviceProfileRepository::new(operator.clone(), 2)
+            .list()
+            .await
+            .expect("Device Profiles should reload");
+        assert!(
+            profiles
+                .iter()
+                .find(|profile| profile.device.id == second_device_id)
+                .expect("second Device Profile should remain")
+                .games
+                .contains_key("example-game")
+        );
+        assert!(
+            CloudManifestRepository::new(operator.clone(), CLOUD_MANIFEST_PATH, 2)
+                .load()
+                .await
+                .expect("Cloud Manifest should reload")
+                .games
+                .contains_key("example-game")
+        );
+        assert!(
+            operator
+                .exists(cloud_archive)
+                .await
+                .expect("cloud archive should remain")
+        );
+        assert!(
+            !DeletionRegistryRepository::new(operator, 2)
+                .load()
+                .await
+                .expect("Deletion Registry should reload")
+                .deleted_games
+                .contains_key("example-game")
+        );
+    }
+
+    async fn assert_deleted_cloud_game(config: &Config, local_root: &Path, cloud_archive: &str) {
+        assert!(
+            get_config()
+                .expect("effective configuration should reload")
+                .games
+                .iter()
+                .all(|game| game.storage_key != "example-game")
+        );
+        let (_, active_profile, _) =
+            cloud_bootstrap_inputs().expect("active local profile should reload");
+        assert!(!active_profile.games.contains_key("example-game"));
+        assert!(!local_root.join("example-game").exists());
+
+        let operator = CloudSyncSessionConfig::from(&config.settings.cloud_settings)
+            .get_op()
+            .expect("fresh Fs operator should initialize");
+        assert!(
+            SharedLibraryRepository::new(operator.clone(), 2)
+                .load()
+                .await
+                .expect("Shared Library should reload")
+                .games
+                .iter()
+                .all(|game| game.storage_key != "example-game")
+        );
+        assert!(
+            DeviceProfileRepository::new(operator.clone(), 2)
+                .list()
+                .await
+                .expect("Device Profiles should reload")
+                .iter()
+                .all(|profile| !profile.games.contains_key("example-game"))
+        );
+        assert!(
+            !CloudManifestRepository::new(operator.clone(), CLOUD_MANIFEST_PATH, 2)
+                .load()
+                .await
+                .expect("Cloud Manifest should reload")
+                .games
+                .contains_key("example-game")
+        );
+        assert!(
+            !operator
+                .exists(cloud_archive)
+                .await
+                .expect("cloud archive absence should be observable")
+        );
+        assert!(
+            DeletionRegistryRepository::new(operator, 2)
+                .load()
+                .await
+                .expect("Deletion Registry should reload")
+                .deleted_games
+                .contains_key("example-game")
+        );
+    }
+
+    #[test]
+    fn permanently_delete_cloud_game() {
+        let _config_lock = crate::config::lock_config_test_file();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime should initialize");
+        runtime.block_on(async {
+            const GAME_ID: &str = "example-game";
+            const GAME_NAME: &str = "Example Game";
+            const SNAPSHOT_ID: &str = "snapshot-a";
+            const ARCHIVE_BYTES: &[u8] = b"service deletion archive bytes";
+
+            let _ = crate::app_dirs::get_app_data_dir();
+            let cloud_root = temp_dir::TempDir::new().expect("temporary Fs root should initialize");
+            let local_root =
+                temp_dir::TempDir::new().expect("temporary local archive root should initialize");
+            let current_device_id = get_current_device_id();
+            let mut config = Config {
+                backup_path: local_root.path().to_string_lossy().into_owned(),
+                games: vec![Game {
+                    name: GAME_NAME.to_string(),
+                    storage_key: GAME_ID.to_string(),
+                    save_paths: Vec::new(),
+                    game_paths: Default::default(),
+                    next_save_unit_id: 0,
+                    cloud_sync_enabled: true,
+                    auto_backup: None,
+                    ludusavi_meta: None,
+                    device_bindings: Default::default(),
+                }],
+                ..Config::default()
+            };
+            config.settings.cloud_settings = CloudSettings {
+                backend: Backend::Fs,
+                root_path: cloud_root.path().to_string_lossy().into_owned(),
+                max_concurrency: 2,
+                ..CloudSettings::default()
+            };
+            let _config_state =
+                ConfigTestStateGuard::replace_with(&config).expect("config state should isolate");
+            set_config_local(&config).expect("effective V2 configuration should persist");
+            let (library, profile, _) =
+                cloud_bootstrap_inputs().expect("persisted configuration should load");
+            activate_cloud_namespace_v2(&library, &profile)
+                .expect("configuration should activate the V2 namespace");
+            assert_eq!(
+                crate::config::cloud_namespace_generation()
+                    .expect("namespace generation should load"),
+                CloudNamespaceGeneration::V2
+            );
+
+            let operator = CloudSyncSessionConfig::from(&config.settings.cloud_settings)
+                .get_op()
+                .expect("Fs operator should initialize");
+            let empty_library = SharedLibrary {
+                schema_version: library.schema_version,
+                games: Vec::new(),
+            };
+            CloudLibraryBootstrap::new(operator.clone(), 2)
+                .create_empty(&empty_library, &profile)
+                .await
+                .expect("empty Cloud Namespace should bootstrap");
+            SharedLibraryRepository::new(operator.clone(), 2)
+                .compare_replace(&empty_library, &library)
+                .await
+                .expect("Shared Game should publish");
+            DeviceProfileRepository::new(operator.clone(), 2)
+                .publish(current_device_id, &profile)
+                .await
+                .expect("acting Device Profile should publish");
+            let second_device_id = "device-b".to_string();
+            let mut second_profile = ConfigurationOwners::from_legacy(&config, &second_device_id)
+                .device_profiles
+                .remove(&second_device_id)
+                .expect("second Device Profile should initialize");
+            second_profile.local_archive_root = Some(
+                local_root
+                    .path()
+                    .join("device-b")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+            DeviceProfileRepository::new(operator.clone(), 2)
+                .publish(&second_device_id, &second_profile)
+                .await
+                .expect("second Device Profile should publish");
+
+            let snapshot = Snapshot {
+                date: SNAPSHOT_ID.to_string(),
+                describe: "service deletion snapshot".to_string(),
+                path: format!("{SNAPSHOT_ID}.zip"),
+                archive_format: ArchiveFormat::Zip,
+                size: ARCHIVE_BYTES.len() as u64,
+                parent: None,
+                archive_hash: None,
+                device_id: Some(current_device_id.clone()),
+                created_by: CreatedBy::Manual,
+            };
+            let local_archive = archive_path(
+                &local_root.path().join(GAME_ID),
+                SNAPSHOT_ID,
+                ArchiveFormat::Zip,
+            );
+            std::fs::create_dir_all(
+                local_archive
+                    .parent()
+                    .expect("archive path should have parent"),
+            )
+            .expect("archive directory should initialize");
+            std::fs::write(&local_archive, ARCHIVE_BYTES).expect("archive bytes should persist");
+            let mut snapshots = GameSnapshots::new(GAME_NAME);
+            snapshots.backups = vec![snapshot.clone()];
+            snapshots.set_head_for_device(current_device_id.clone(), Some(SNAPSHOT_ID.to_string()));
+            SnapshotSyncCoordinator::new(
+                operator.clone(),
+                local_root.path().to_path_buf(),
+                current_device_id.clone(),
+                local_root.path().join("materialization-progress.json"),
+                2,
+            )
+            .reconcile_game(
+                GAME_ID,
+                &snapshots,
+                0,
+                &Default::default(),
+                &CancellationToken::new(),
+            )
+            .await
+            .expect("verified archive should populate the Cloud Manifest");
+            let cloud_archive = cloud_archive_path(GAME_ID, SNAPSHOT_ID, ArchiveFormat::Zip)
+                .expect("cloud archive path should be valid");
+            assert!(
+                operator
+                    .exists(&cloud_archive)
+                    .await
+                    .expect("cloud archive should exist")
+            );
+
+            let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+            let unconfirmed = service
+                .permanently_delete_cloud_game(GAME_ID, false)
+                .await
+                .expect_err("permanent deletion should require confirmation");
+            assert!(matches!(
+                unconfirmed,
+                CloudLibraryServiceError::SharedGameDeletion(
+                    SharedGameDeletionError::ConfirmationRequired
+                )
+            ));
+            assert_active_cloud_game(&config, &local_archive, &cloud_archive, &second_device_id)
+                .await;
+
+            service
+                .permanently_delete_cloud_game(GAME_ID, true)
+                .await
+                .expect("confirmed deletion should converge every owner");
+
+            assert_deleted_cloud_game(&config, local_root.path(), &cloud_archive).await;
+
+            service
+                .permanently_delete_cloud_game(GAME_ID, true)
+                .await
+                .expect("repeated confirmed deletion should converge idempotently");
+            assert_deleted_cloud_game(&config, local_root.path(), &cloud_archive).await;
+        });
+    }
+}
