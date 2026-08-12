@@ -22,6 +22,92 @@ pub(crate) fn lock_config_test_file() -> MutexGuard<'static, ()> {
     CONFIG_FILE_TEST_LOCK.blocking_lock()
 }
 
+#[cfg(test)]
+pub(crate) struct ConfigTestStateGuard {
+    config_path: PathBuf,
+    original_config: Option<Vec<u8>>,
+    owner_backups: Vec<(PathBuf, Option<PathBuf>)>,
+    _backup_root: temp_dir::TempDir,
+}
+
+#[cfg(test)]
+impl ConfigTestStateGuard {
+    pub(crate) fn replace_with(config: &Config) -> Result<Self, std::io::Error> {
+        let config_path = resolve_app_path("GameSaveManager.config.json");
+        let original_config = fs::read(&config_path).ok();
+        let owner_paths = [
+            crate::config::owner_store::OWNER_DIRECTORY_NAME,
+            crate::config::owner_store::OWNER_STAGING_DIRECTORY_NAME,
+            crate::config::owner_store::OWNER_ROLLBACK_DIRECTORY_NAME,
+        ]
+        .into_iter()
+        .map(resolve_app_path)
+        .collect::<Vec<_>>();
+        let backup_root = temp_dir::TempDir::new()?;
+        let owner_backups = owner_paths
+            .iter()
+            .enumerate()
+            .map(|(index, owner_path)| {
+                if !owner_path.exists() {
+                    return Ok((owner_path.clone(), None));
+                }
+                let backup_path = backup_root.path().join(index.to_string());
+                copy_test_directory(owner_path, &backup_path)?;
+                Ok((owner_path.clone(), Some(backup_path)))
+            })
+            .collect::<Result<Vec<_>, std::io::Error>>()?;
+        for owner_path in &owner_paths {
+            let _ = fs::remove_dir_all(owner_path);
+        }
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(
+            &config_path,
+            serde_json::to_vec_pretty(config).map_err(std::io::Error::other)?,
+        )?;
+
+        Ok(Self {
+            config_path,
+            original_config,
+            owner_backups,
+            _backup_root: backup_root,
+        })
+    }
+}
+
+#[cfg(test)]
+impl Drop for ConfigTestStateGuard {
+    fn drop(&mut self) {
+        for (owner_path, backup_path) in &self.owner_backups {
+            let _ = fs::remove_dir_all(owner_path);
+            if let Some(backup_path) = backup_path {
+                let _ = copy_test_directory(backup_path, owner_path);
+            }
+        }
+        if let Some(contents) = &self.original_config {
+            let _ = fs::write(&self.config_path, contents);
+        } else {
+            let _ = fs::remove_file(&self.config_path);
+        }
+    }
+}
+
+#[cfg(test)]
+fn copy_test_directory(source: &Path, target: &Path) -> Result<(), std::io::Error> {
+    fs::create_dir_all(target)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let target_path = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_test_directory(&entry.path(), &target_path)?;
+        } else {
+            fs::copy(entry.path(), target_path)?;
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConfigCheckOutcome {
     pub config_migrated: bool,

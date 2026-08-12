@@ -20,9 +20,9 @@ operation-level failures and retry mechanics.
 | Retention deletes only expired automatic Snapshots and keeps the live branch | `retention_removes_only_expired_automatic_snapshot_and_keeps_live_branch` | Covered |
 | Device Profile removal preserves other Heads and shared Archive state | `profile_removal_preserves_other_device_head_and_blocks_stale_republication` | Covered |
 | A durable Profile marker blocks stale republication | `profile_removal_preserves_other_device_head_and_blocks_stale_republication` | Covered |
-| Conflict review and resolution | Follow-up | Deferred |
-| Shared Game deletion through its application-service boundary | Follow-up | Deferred |
-| Corrupt, missing, partial, and resurrected remote objects | Follow-up | Deferred |
-| Interrupted publication/deletion and restart recovery | Follow-up | Deferred |
+| Conflict review and resolution | `conflict_review_reports_divergent_device_positions`, `keep_local_publishes_complete_lineage_and_preserves_remote_position`, `accept_remote_materializes_selected_archive_and_moves_only_current_device_position`, `keep_local_rejects_stale_review_without_persisted_change`, `accept_remote_rejects_unavailable_candidate_without_persisted_change` | Covered |
+| Shared Game deletion through its application-service boundary | `permanently_delete_cloud_game` | Covered |
+| Corrupt, missing, partial, and resurrected remote objects | `missing_cloud_archive_fails_without_replacing_local_archive`, `truncated_cloud_archive_fails_without_replacing_local_archive`, `corrupt_cloud_archive_fails_without_replacing_local_archive`, `deleted_game_archive_recreation_cannot_restore_game_state` | Covered |
+| Interrupted publication/deletion and restart recovery | `materialize_all_stops_at_damaged_archive_and_resumes_after_repair`, `game_deletion_recovers_after_marker_written`, `game_deletion_recovers_after_local_archives_removed`, `game_deletion_recovers_after_cloud_archives_removed`, `game_deletion_recovers_after_shared_metadata_cleanup_begins` | Covered |
 | Cross-process Cloud Manifest conditional writes | Missing provider CAS contract | Blocked |
 | S3 and WebDAV compatibility | Issues #480 and #481 | Out of scope |

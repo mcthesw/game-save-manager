@@ -107,6 +107,7 @@ impl SnapshotSyncCoordinator {
         cancellation: &CancellationToken,
         materialize_remote: bool,
     ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
+        self.ensure_active_or_converge_deleted_game(game_id).await?;
         let mut manifest = self.repository().load().await?;
         let order = publication_order(&manifest, game_id, local, local_baseline)?;
         let mut outcome = SnapshotReconciliationOutcome::default();
@@ -269,9 +270,7 @@ impl SnapshotSyncCoordinator {
         snapshot: &Snapshot,
         inherited_revision: Option<u64>,
     ) -> Result<(), SnapshotSyncError> {
-        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
-            .ensure_active(&self.current_device_id, game_id)
-            .await?;
+        self.ensure_active_or_converge_deleted_game(game_id).await?;
         let local_path = self.local_path(game_id, snapshot);
         let integrity = if local_path.is_file() {
             let path = local_path.clone();
@@ -284,6 +283,7 @@ impl SnapshotSyncCoordinator {
             None
         };
         let game_id = game_id.to_string();
+        let cleanup_game_id = game_id.clone();
         let snapshot = snapshot.clone();
         let current_device_id = self.current_device_id.clone();
         self.repository()
@@ -322,6 +322,8 @@ impl SnapshotSyncCoordinator {
                 Ok(())
             })
             .await?;
+        self.ensure_active_or_converge_deleted_game(&cleanup_game_id)
+            .await?;
         Ok(())
     }
 
@@ -333,9 +335,7 @@ impl SnapshotSyncCoordinator {
         let Some(head) = local.head_for_device(&self.current_device_id).cloned() else {
             return Ok(());
         };
-        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
-            .ensure_active(&self.current_device_id, game_id)
-            .await?;
+        self.ensure_active_or_converge_deleted_game(game_id).await?;
         let manifest = self.repository().load().await?;
         let Some(game) = manifest.games.get(game_id) else {
             return Ok(());
@@ -346,6 +346,7 @@ impl SnapshotSyncCoordinator {
             return Ok(());
         }
         let game_id = game_id.to_string();
+        let cleanup_game_id = game_id.clone();
         let current_device_id = self.current_device_id.clone();
         self.repository()
             .mutate(move |manifest| {
@@ -360,7 +361,36 @@ impl SnapshotSyncCoordinator {
                 Ok(())
             })
             .await?;
+        self.ensure_active_or_converge_deleted_game(&cleanup_game_id)
+            .await?;
         Ok(())
+    }
+
+    async fn ensure_active_or_converge_deleted_game(
+        &self,
+        game_id: &str,
+    ) -> Result<(), SnapshotSyncError> {
+        let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts);
+        match registry
+            .ensure_active_and_converge_game_archives(&self.current_device_id, game_id)
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(DeletionRegistryError::GameDeleted(_)) => {
+                let deleted_game_id = game_id.to_string();
+                let manifest_game_id = deleted_game_id.clone();
+                self.repository()
+                    .mutate(move |manifest| {
+                        manifest.games.remove(&manifest_game_id);
+                        Ok(())
+                    })
+                    .await?;
+                Err(SnapshotSyncError::DeletionRegistry(
+                    DeletionRegistryError::GameDeleted(deleted_game_id),
+                ))
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     fn repository(&self) -> CloudManifestRepository<super::OpenDalManifestTransport> {

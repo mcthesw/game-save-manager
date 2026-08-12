@@ -4,7 +4,7 @@ use opendal::{ErrorKind, Operator};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::DELETION_REGISTRY_PATH;
+use super::{CLOUD_ARCHIVES_PREFIX, DELETION_REGISTRY_PATH};
 use crate::device::DeviceId;
 
 pub const DELETION_REGISTRY_SCHEMA_VERSION: u32 = 1;
@@ -83,6 +83,27 @@ impl DeletionRegistryRepository {
             return Err(DeletionRegistryError::GameDeleted(game_id.to_string()));
         }
         Ok(())
+    }
+
+    /// Verify that a Device can write a Game and converge stale Archives when
+    /// its durable deletion marker already exists.
+    pub async fn ensure_active_and_converge_game_archives(
+        &self,
+        device_id: &str,
+        game_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
+        let registry = self.load().await?;
+        if registry.deleted_profiles.contains_key(device_id) {
+            return Err(DeletionRegistryError::ProfileDeleted(device_id.to_string()));
+        }
+        if !registry.deleted_games.contains_key(game_id) {
+            return Ok(());
+        }
+        self.operator
+            .delete_with(&format!("{CLOUD_ARCHIVES_PREFIX}{game_id}/"))
+            .recursive(true)
+            .await?;
+        Err(DeletionRegistryError::GameDeleted(game_id.to_string()))
     }
 
     pub async fn mark_profile_deleted(
