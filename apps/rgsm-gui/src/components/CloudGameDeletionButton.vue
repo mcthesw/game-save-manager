@@ -69,11 +69,7 @@ async function permanentlyDelete() {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin: 16px 10px 8px;
-  padding: 14px 16px;
-  border: 1px solid var(--el-color-danger-light-7);
-  border-radius: 10px;
-  background: var(--el-color-danger-light-9);
+  margin-top: 16px;
 }
 
 .danger-zone p {

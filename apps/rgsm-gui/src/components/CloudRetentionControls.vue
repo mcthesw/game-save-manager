@@ -88,9 +88,6 @@ async function save() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-lighter);
 }
 
 .retention-copy {
