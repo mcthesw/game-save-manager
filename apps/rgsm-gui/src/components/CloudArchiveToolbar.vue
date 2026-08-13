@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, Refresh } from '@element-plus/icons-vue';
+import { Download } from '@element-plus/icons-vue';
 
 import { $t } from '../i18n';
 
@@ -11,16 +11,16 @@ defineProps<{
 }>();
 
 defineEmits<{
-  refresh: [];
   downloadAll: [];
 }>();
 </script>
 
 <template>
-  <div class="archive-toolbar">
+  <section class="copies-row">
     <div>
       <h3>{{ $t('sync_settings.archives.title') }}</h3>
-      <p>
+      <p>{{ $t('sync_settings.archives.purpose') }}</p>
+      <p class="copies-count">
         {{
           $t('sync_settings.archives.summary', {
             local: localSnapshots,
@@ -29,56 +29,49 @@ defineEmits<{
         }}
       </p>
     </div>
-    <div class="toolbar-actions">
-      <ElButton
-        :icon="Refresh"
-        circle
-        :aria-label="$t('common.refresh')"
-        @click="$emit('refresh')"
-      />
-      <ElButton
-        type="primary"
-        :icon="Download"
-        :loading="materializing"
-        @click="$emit('downloadAll')"
-      >
-        {{
-          pendingMaterialization
-            ? $t('sync_settings.archives.resume_download')
-            : $t('sync_settings.archives.download_all')
-        }}
-      </ElButton>
-    </div>
-  </div>
+    <ElButton
+      type="primary"
+      :icon="Download"
+      :loading="materializing"
+      @click="$emit('downloadAll')"
+    >
+      {{
+        pendingMaterialization
+          ? $t('sync_settings.archives.resume_download')
+          : $t('sync_settings.archives.download_all')
+      }}
+    </ElButton>
+  </section>
 </template>
 
 <style scoped>
-.archive-toolbar {
+.copies-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 16px;
+  gap: 24px;
+  padding: 8px 0 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.archive-toolbar h3 {
+.copies-row h3 {
   margin: 0 0 4px;
+  font-size: 0.95rem;
 }
 
-.archive-toolbar p {
+.copies-row p {
   margin: 0;
   color: var(--el-text-color-secondary);
   font-size: 0.82rem;
+  line-height: 1.45;
 }
 
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+.copies-count {
+  margin-top: 4px !important;
 }
 
 @media (max-width: 640px) {
-  .archive-toolbar {
+  .copies-row {
     align-items: flex-start;
     flex-direction: column;
   }

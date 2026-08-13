@@ -14,7 +14,7 @@ import {
 import { error } from '@tauri-apps/plugin-log';
 import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
-import CloudArchivePanel from '../components/CloudArchivePanel.vue';
+import CloudSyncOverview from '../components/CloudSyncOverview.vue';
 import { resolveCloudUiMode } from '../utils/cloudNamespace';
 
 interface WebDAV {
@@ -796,10 +796,11 @@ watch(v2LibraryActive, (active) => {
 onMounted(async () => {
   try {
     await load_config();
-    await cloudLibrarySetup.value?.inspect();
     await loadCloudNamespaceGeneration();
-    await loadSyncState();
-  } finally {
+    updatingCloudSettings.value = false;
+    void cloudLibrarySetup.value?.inspect();
+    void loadSyncState();
+  } catch {
     updatingCloudSettings.value = false;
   }
 });
@@ -814,7 +815,7 @@ onMounted(async () => {
 
     <ElTabs v-model="activeTab" class="sync-tabs">
       <ElTabPane :label="$t('sync_settings.overview.tab')" name="overview">
-        <CloudArchivePanel v-if="v2LibraryActive" />
+        <CloudSyncOverview v-if="v2LibraryActive" />
 
         <div v-if="legacyCloudControlsEnabled && !overviewBlocked" class="overview-toolbar">
           <ElButton
@@ -1326,7 +1327,7 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 28px;
-  align-items: stretch;
+  align-items: start;
 }
 .backend-layout {
   min-width: 0;

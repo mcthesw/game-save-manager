@@ -88,10 +88,6 @@ onMounted(load);
 .deleted-games {
   display: grid;
   gap: 8px;
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
 }
 
 .deleted-games p {
