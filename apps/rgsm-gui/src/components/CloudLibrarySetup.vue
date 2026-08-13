@@ -1,53 +1,56 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Connection } from '@element-plus/icons-vue';
 import { commands, type CloudLibraryStatus } from '~/bindings';
 import { $t } from '~/i18n';
 
+interface InspectOptions {
+  createWhenEmpty?: boolean;
+}
+
 const props = defineProps<{
   enabled: boolean;
-  connectionKey: string;
+  dirty: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'status', value: CloudLibraryStatus | null): void;
+  (event: 'busy', value: boolean): void;
 }>();
 
-const feedback = useFeedback();
 const status = ref<CloudLibraryStatus | null>(null);
 const inspecting = ref(false);
-const creating = ref(false);
-const joining = ref(false);
-const cuttingOver = ref(false);
+const initializing = ref(false);
+const initializationFailed = ref(false);
+const inspectionFailed = ref(false);
 
-const alertType = computed(() => {
-  switch (status.value?.kind) {
-    case 'active':
-      return 'success';
-    case 'empty':
-      return 'info';
-    case 'join_required':
-    case 'cutover_required':
-      return 'warning';
-    default:
-      return 'info';
-  }
-});
+const requiresAction = computed(
+  () =>
+    props.enabled &&
+    !props.dirty &&
+    !inspecting.value &&
+    !initializing.value &&
+    (inspectionFailed.value || (status.value?.kind === 'empty' && initializationFailed.value))
+);
+
+watch(
+  () => inspecting.value || initializing.value,
+  (busy) => emit('busy', busy),
+  { immediate: true }
+);
 
 const statusText = computed(() => {
+  if (inspectionFailed.value) return $t('sync_settings.library.inspect_failed');
   const current = status.value;
-  if (!current) return $t('sync_settings.library.not_checked');
+  if (!current) return '';
   switch (current.kind) {
-    case 'empty':
-      return $t('sync_settings.library.empty');
     case 'join_required':
-      return $t('sync_settings.library.join_required', { count: current.game_count });
     case 'cutover_required':
-      return $t('sync_settings.library.cutover_required', { count: current.game_count });
     case 'active':
-      return $t('sync_settings.library.active', { count: current.game_count });
+      return '';
+    case 'empty':
+      return $t('sync_settings.library.create_failed');
   }
-  return $t('sync_settings.library.not_checked');
+  return '';
 });
 
 function updateStatus(value: CloudLibraryStatus | null) {
@@ -55,145 +58,143 @@ function updateStatus(value: CloudLibraryStatus | null) {
   emit('status', value);
 }
 
-function joined(gameCount: number) {
-  updateStatus({ kind: 'active', game_count: gameCount });
-}
+let inspectionGeneration = 0;
+let activeInspection: Promise<CloudLibraryStatus | null> | null = null;
 
-async function inspect() {
-  if (!props.enabled || inspecting.value) return;
-  inspecting.value = true;
+async function create(requestGeneration?: number): Promise<CloudLibraryStatus | null> {
+  if (initializing.value) return status.value;
+  initializing.value = true;
+  initializationFailed.value = false;
   try {
-    const result = await commands.inspectCloudLibrary();
+    const result = await commands.createCloudLibrary(true);
+    if (
+      requestGeneration !== undefined &&
+      (requestGeneration !== inspectionGeneration || !props.enabled)
+    ) {
+      return null;
+    }
     if (result.status === 'error') {
-      updateStatus(null);
-      notifyError(`${$t('sync_settings.library.inspect_failed')}: ${result.error}`);
-      return;
+      initializationFailed.value = true;
+      notifyError(`${$t('sync_settings.library.create_failed')}: ${result.error}`);
+      return null;
     }
     updateStatus(result.data);
+    notifySuccess($t('sync_settings.library.create_success'));
+    return result.data;
   } catch (reason) {
+    if (requestGeneration !== undefined && requestGeneration !== inspectionGeneration) {
+      return null;
+    }
+    initializationFailed.value = true;
+    notifyError(`${$t('sync_settings.library.create_failed')}: ${String(reason)}`);
+    return null;
+  } finally {
+    initializing.value = false;
+  }
+}
+
+async function performInspection(
+  requestGeneration: number,
+  options: InspectOptions
+): Promise<CloudLibraryStatus | null> {
+  inspecting.value = true;
+  inspectionFailed.value = false;
+  initializationFailed.value = false;
+  try {
+    const result = await commands.inspectCloudLibrary();
+    if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
+    if (result.status === 'error') {
+      inspectionFailed.value = true;
+      updateStatus(null);
+      notifyError(`${$t('sync_settings.library.inspect_failed')}: ${result.error}`);
+      return null;
+    }
+
+    updateStatus(result.data);
+    if (result.data.kind === 'empty' && options.createWhenEmpty) {
+      return await create(requestGeneration);
+    }
+    return result.data;
+  } catch (reason) {
+    if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
+    inspectionFailed.value = true;
     updateStatus(null);
     notifyError(`${$t('sync_settings.library.inspect_failed')}: ${String(reason)}`);
+    return null;
   } finally {
     inspecting.value = false;
   }
 }
 
-async function create() {
-  try {
-    await feedback.confirm(
-      $t('sync_settings.library.create_warning'),
-      $t('sync_settings.library.create_title'),
-      {
-        confirmButtonText: $t('sync_settings.library.create_confirm'),
-        cancelButtonText: $t('sync_settings.cancel'),
-        type: 'warning',
-      }
-    );
-  } catch {
-    return;
+async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus | null> {
+  const requestGeneration = ++inspectionGeneration;
+  if (!props.enabled) {
+    inspectionFailed.value = false;
+    initializationFailed.value = false;
+    updateStatus(null);
+    return null;
   }
 
-  creating.value = true;
+  const previousInspection = activeInspection;
+  if (previousInspection) await previousInspection;
+  if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
+
+  const inspection = performInspection(requestGeneration, options);
+  activeInspection = inspection;
   try {
-    const result = await commands.createCloudLibrary(true);
-    if (result.status === 'error') {
-      notifyError(`${$t('sync_settings.library.create_failed')}: ${result.error}`);
-      await inspect();
-      return;
-    }
-    updateStatus(result.data);
-    notifySuccess($t('sync_settings.library.create_success'));
-  } catch (reason) {
-    notifyError(`${$t('sync_settings.library.create_failed')}: ${String(reason)}`);
+    return await inspection;
   } finally {
-    creating.value = false;
+    if (activeInspection === inspection) activeInspection = null;
   }
 }
 
-watch(
-  () => [props.enabled, props.connectionKey] as const,
-  ([enabled]) => {
-    updateStatus(null);
-    if (enabled) void inspect();
-  },
-  { immediate: true }
-);
+defineExpose({ inspect });
 </script>
-
 <template>
-  <section class="library-card">
-    <div class="library-heading">
-      <div>
-        <h3>{{ $t('sync_settings.library.title') }}</h3>
-        <p>{{ $t('sync_settings.library.description') }}</p>
-      </div>
-      <ElIcon :size="24"><Connection /></ElIcon>
-    </div>
-
-    <ElAlert v-if="enabled" :type="alertType" :title="statusText" :closable="false" show-icon />
-    <ElAlert
-      v-else
-      type="info"
-      :title="$t('sync_settings.library.backend_disabled')"
-      :closable="false"
-      show-icon
-    />
-
-    <div class="library-actions">
-      <ElButton :disabled="!enabled" :loading="inspecting" @click="inspect">
-        {{ $t('sync_settings.library.inspect') }}
-      </ElButton>
-      <ElButton v-if="status?.kind === 'empty'" type="primary" :loading="creating" @click="create">
-        {{ $t('sync_settings.library.create') }}
-      </ElButton>
-      <ElButton v-if="status?.kind === 'join_required'" type="primary" @click="joining = true">
-        {{ $t('sync_settings.library.join.join_action') }}
-      </ElButton>
-      <ElButton
-        v-if="status?.kind === 'cutover_required'"
-        type="primary"
-        @click="cuttingOver = true"
-      >
-        {{ $t('sync_settings.library.cutover.action') }}
-      </ElButton>
-    </div>
-    <CloudLibraryJoinDialog v-model="joining" @joined="joined" />
-    <CloudLibraryCutoverDialog v-model="cuttingOver" @cutover="joined" />
+  <section v-if="requiresAction" class="library-action">
+    <span class="library-status">{{ statusText }}</span>
+    <ElButton v-if="inspectionFailed" type="primary" @click="inspect()">
+      {{ $t('sync_settings.library.inspect') }}
+    </ElButton>
+    <ElButton
+      v-else-if="status?.kind === 'empty'"
+      type="primary"
+      :loading="initializing"
+      @click="create()"
+    >
+      {{ $t('sync_settings.library.retry_create') }}
+    </ElButton>
   </section>
 </template>
 
 <style scoped>
-.library-card {
-  padding: 20px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-fill-color-blank);
-}
-
-.library-heading {
+.library-action {
   display: flex;
-  align-items: flex-start;
+  margin-top: 18px;
+  padding: 16px 0;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.library-status {
+  min-width: 0;
   color: var(--el-text-color-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
-.library-heading h3 {
-  margin: 0 0 6px;
-  font-size: 16px;
+.library-action :deep(.el-button) {
+  flex-shrink: 0;
 }
 
-.library-heading p {
-  margin: 0;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
-}
-
-.library-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
+@media (max-width: 640px) {
+  .library-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>

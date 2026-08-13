@@ -58,7 +58,7 @@ fn ensure_legacy_cloud_sync() -> Result<(), BackendError> {
 pub enum CloudLibraryStatus {
     Empty,
     JoinRequired { game_count: usize },
-    CutoverRequired { game_count: usize },
+    CutoverRequired { game_count: usize, resumable: bool },
     Active { game_count: usize },
 }
 
@@ -240,7 +240,8 @@ impl ServiceContext {
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let bootstrap = CloudLibraryBootstrap::new(session.get_op()?, 3);
         let classification = bootstrap.inspect().await?;
-        map_library_status(generation, classification)
+        let resumable_cutover = cutover_progress_path(&local_state.cloud_settings)?.is_file();
+        map_library_status(generation, classification, resumable_cutover)
     }
 
     pub async fn create_cloud_library(
@@ -592,18 +593,12 @@ impl ServiceContext {
         profile: &crate::config::DeviceProfile,
         local_state: &crate::config::LocalState,
     ) -> Result<CloudLibraryCutover, CloudLibraryServiceError> {
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        let identity =
-            xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(&local_state.cloud_settings)?);
-        let progress_path = crate::app_dirs::get_app_data_dir().join(format!(
-            "GameSaveManager.cloud-cutover.{identity:016x}.json"
-        ));
         let archive_root =
             resolve_backup_path(profile.local_archive_root.as_deref().unwrap_or("save_data"));
         Ok(CloudLibraryCutover::new(
-            session.get_op()?,
+            CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?,
             archive_root,
-            progress_path,
+            cutover_progress_path(&local_state.cloud_settings)?,
             local_state.current_device_id.clone(),
             profile.clone(),
             3,
@@ -658,9 +653,25 @@ impl ServiceContext {
     }
 }
 
+fn cutover_progress_path(
+    cloud_settings: &crate::cloud_sync::CloudSettings,
+) -> Result<std::path::PathBuf, CloudLibraryServiceError> {
+    Ok(crate::app_dirs::get_app_data_dir().join(cutover_progress_file_name(cloud_settings)?))
+}
+
+fn cutover_progress_file_name(
+    cloud_settings: &crate::cloud_sync::CloudSettings,
+) -> Result<String, CloudLibraryServiceError> {
+    let identity = xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(cloud_settings)?);
+    Ok(format!(
+        "GameSaveManager.cloud-cutover.{identity:016x}.json"
+    ))
+}
+
 fn map_library_status(
     generation: CloudNamespaceGeneration,
     classification: CloudNamespaceClassification,
+    resumable_cutover: bool,
 ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
     match (generation, classification) {
         (
@@ -681,6 +692,7 @@ fn map_library_status(
         (CloudNamespaceGeneration::LegacyV1, CloudNamespaceClassification::V1Only { config }) => {
             Ok(CloudLibraryStatus::CutoverRequired {
                 game_count: config.games.len(),
+                resumable: resumable_cutover,
             })
         }
         (CloudNamespaceGeneration::LegacyV1, CloudNamespaceClassification::Empty) => {
@@ -692,8 +704,9 @@ fn map_library_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cloud_sync::CloudSettings;
     use crate::cloud_sync::v2::{CloudManifest, CloudNamespaceDescriptor};
-    use crate::config::{SharedLibrary, V2_CONFIG_SCHEMA_VERSION};
+    use crate::config::{Config, SharedLibrary, V2_CONFIG_SCHEMA_VERSION};
 
     fn supported() -> CloudNamespaceClassification {
         CloudNamespaceClassification::SupportedV2 {
@@ -706,23 +719,44 @@ mod tests {
         }
     }
 
+    fn v1_only() -> CloudNamespaceClassification {
+        CloudNamespaceClassification::V1Only {
+            config: Box::new(Config::default()),
+        }
+    }
+
     #[test]
     fn remote_state_maps_to_explicit_player_actions() {
         assert_eq!(
-            map_library_status(CloudNamespaceGeneration::LegacyV1, supported()).unwrap(),
+            map_library_status(CloudNamespaceGeneration::LegacyV1, supported(), false).unwrap(),
             CloudLibraryStatus::JoinRequired { game_count: 0 }
         );
         assert_eq!(
             map_library_status(
                 CloudNamespaceGeneration::LegacyV1,
-                CloudNamespaceClassification::Empty
+                CloudNamespaceClassification::Empty,
+                false
             )
             .unwrap(),
             CloudLibraryStatus::Empty
         );
         assert_eq!(
-            map_library_status(CloudNamespaceGeneration::V2, supported()).unwrap(),
+            map_library_status(CloudNamespaceGeneration::V2, supported(), false).unwrap(),
             CloudLibraryStatus::Active { game_count: 0 }
+        );
+        assert_eq!(
+            map_library_status(CloudNamespaceGeneration::LegacyV1, v1_only(), false).unwrap(),
+            CloudLibraryStatus::CutoverRequired {
+                game_count: 0,
+                resumable: false,
+            }
+        );
+        assert_eq!(
+            map_library_status(CloudNamespaceGeneration::LegacyV1, v1_only(), true).unwrap(),
+            CloudLibraryStatus::CutoverRequired {
+                game_count: 0,
+                resumable: true,
+            }
         );
     }
 
@@ -731,9 +765,19 @@ mod tests {
         assert!(matches!(
             map_library_status(
                 CloudNamespaceGeneration::V2,
-                CloudNamespaceClassification::Empty
+                CloudNamespaceClassification::Empty,
+                false
             ),
             Err(CloudLibraryServiceError::ActiveLibraryUnavailable)
         ));
+    }
+
+    #[test]
+    fn cutover_progress_file_follows_saved_cloud_settings() {
+        let mut settings = CloudSettings::default();
+        let first = cutover_progress_file_name(&settings).unwrap();
+        assert_eq!(first, cutover_progress_file_name(&settings).unwrap());
+        settings.root_path = "/other-root".into();
+        assert_ne!(first, cutover_progress_file_name(&settings).unwrap());
     }
 }

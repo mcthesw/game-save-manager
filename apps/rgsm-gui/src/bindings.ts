@@ -869,7 +869,7 @@ export type CloudLibraryCutoverReview = { game_count: number; snapshot_count: nu
 export type CloudLibraryJoinItem = { local_game_id: string; local_name: string; local_fingerprint: string; cloud_names: string[]; cloud_fingerprint: string | null; classification: GameJoinClassification; difference: GameDefinitionDifference }
 export type CloudLibraryJoinOutcome = { kind: "active"; game_count: number } | { kind: "review_changed"; game_name: string }
 export type CloudLibraryJoinReview = { cloud_game_count: number; items: CloudLibraryJoinItem[] }
-export type CloudLibraryStatus = { kind: "empty" } | { kind: "join_required"; game_count: number } | { kind: "cutover_required"; game_count: number } | { kind: "active"; game_count: number }
+export type CloudLibraryStatus = { kind: "empty" } | { kind: "join_required"; game_count: number } | { kind: "cutover_required"; game_count: number; resumable: boolean } | { kind: "active"; game_count: number }
 export type CloudNamespaceGeneration = "legacy_v1" | "v2"
 export type CloudSettings = {
 /**

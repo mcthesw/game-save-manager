@@ -20,6 +20,7 @@ pub(crate) const OWNER_ROLLBACK_DIRECTORY_NAME: &str = "GameSaveManager.config.v
 const SHARED_LIBRARY_FILE_NAME: &str = "shared-library.json";
 const LOCAL_STATE_FILE_NAME: &str = "local-state.json";
 const DEVICE_PROFILES_DIRECTORY_NAME: &str = "device-profiles";
+const PENDING_COMMIT_FILE_NAME: &str = ".pending-commit";
 
 #[derive(Debug, Error)]
 pub enum OwnerStoreError {
@@ -159,9 +160,7 @@ impl OwnerStore {
             .ok_or_else(|| {
                 OwnershipError::MissingDeviceProfile(owners.local_state.current_device_id.clone())
             })?;
-        if owners.shared_library != *expected_library
-            || serde_json::to_vec(current_profile)? != serde_json::to_vec(expected_profile)?
-        {
+        if owners.shared_library != *expected_library || current_profile != expected_profile {
             return Err(OwnerStoreError::ActivationInputsChanged);
         }
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
@@ -183,7 +182,7 @@ impl OwnerStore {
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
         if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1
             || owners.shared_library != *expected_local_library
-            || serde_json::to_vec(current_profile)? != serde_json::to_vec(expected_local_profile)?
+            || current_profile != expected_local_profile
             || accepted_profile.device.id != current_device_id
         {
             return Err(OwnerStoreError::JoinInputsChanged);
@@ -222,7 +221,7 @@ impl OwnerStore {
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
         if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1
             || owners.shared_library != *expected_local_library
-            || serde_json::to_vec(current_profile)? != serde_json::to_vec(expected_local_profile)?
+            || current_profile != expected_local_profile
             || !accepted_profiles.contains_key(&current_device_id)
         {
             return Err(OwnerStoreError::CutoverInputsChanged);
@@ -250,7 +249,7 @@ impl OwnerStore {
             .get(&current_device_id)
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
         if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-            || serde_json::to_vec(current)? != serde_json::to_vec(expected)?
+            || current != expected
             || accepted.device.id != current_device_id
         {
             return Err(OwnerStoreError::ProfileInputsChanged);
@@ -320,33 +319,32 @@ impl OwnerStore {
         let rollback = self.rollback_path();
 
         remove_dir_if_exists(&staging)?;
-        fs::create_dir_all(staging.join(DEVICE_PROFILES_DIRECTORY_NAME))?;
-        write_json(
-            &staging.join(SHARED_LIBRARY_FILE_NAME),
-            &owners.shared_library,
-        )?;
-        write_json(&staging.join(LOCAL_STATE_FILE_NAME), &owners.local_state)?;
-        for (device_id, profile) in &owners.device_profiles {
-            write_json(
-                &staging
-                    .join(DEVICE_PROFILES_DIRECTORY_NAME)
-                    .join(profile_file_name(device_id)),
-                profile,
-            )?;
-        }
+        write_store_tree(&staging, owners)?;
 
-        remove_dir_if_exists(&rollback)?;
         if active.exists() {
-            fs::rename(&active, &rollback)?;
-        }
-        if let Err(error) = fs::rename(&staging, &active) {
-            if rollback.exists() {
-                let _ = fs::rename(&rollback, &active);
+            remove_dir_if_exists(&rollback)?;
+            copy_directory(&active, &rollback)?;
+            write_pending_marker(&active)?;
+            if let Err(error) = replace_store_files(&active, &staging) {
+                if restore_store_tree(&active, &rollback).is_ok() {
+                    let _ = remove_pending_marker(&active);
+                }
+                let _ = remove_dir_if_exists(&staging);
+                return Err(error);
             }
-            let _ = remove_dir_if_exists(&staging);
-            return Err(error.into());
+            remove_pending_marker(&active)?;
+            remove_dir_if_exists(&rollback)?;
+        } else {
+            fs::create_dir_all(&active)?;
+            write_pending_marker(&active)?;
+            if let Err(error) = replace_store_files(&active, &staging) {
+                let _ = remove_dir_if_exists(&active);
+                let _ = remove_dir_if_exists(&staging);
+                return Err(error);
+            }
+            remove_pending_marker(&active)?;
         }
-        remove_dir_if_exists(&rollback)?;
+        remove_dir_if_exists(&staging)?;
         Ok(())
     }
 
@@ -354,15 +352,22 @@ impl OwnerStore {
         let active = self.active_path();
         let rollback = self.rollback_path();
         let staging = self.staging_path();
+        if pending_marker_exists(&active) {
+            if rollback.exists() {
+                restore_store_tree(&active, &rollback)?;
+                remove_pending_marker(&active)?;
+                remove_dir_if_exists(&rollback)?;
+            } else {
+                remove_dir_if_exists(&active)?;
+            }
+        } else if !active.exists() && rollback.exists() {
+            copy_directory(&rollback, &active)?;
+            remove_dir_if_exists(&rollback)?;
+        }
         if active.exists() {
             remove_dir_if_exists(&rollback)?;
-            remove_dir_if_exists(&staging)?;
-            return Ok(());
         }
-        if rollback.exists() {
-            remove_dir_if_exists(&staging)?;
-            fs::rename(rollback, active)?;
-        }
+        remove_dir_if_exists(&staging)?;
         Ok(())
     }
 
@@ -385,14 +390,162 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, OwnerStoreError> {
 
 fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), OwnerStoreError> {
     let bytes = serde_json::to_vec_pretty(value)?;
-    fs::write(path, bytes)?;
-    fs::OpenOptions::new().write(true).open(path)?.sync_all()?;
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, bytes)?;
+    replace_file(&tmp, path)?;
     Ok(())
 }
 
+fn write_store_tree(root: &Path, owners: &ConfigurationOwners) -> Result<(), OwnerStoreError> {
+    fs::create_dir_all(root.join(DEVICE_PROFILES_DIRECTORY_NAME))?;
+    write_json(&root.join(SHARED_LIBRARY_FILE_NAME), &owners.shared_library)?;
+    write_json(&root.join(LOCAL_STATE_FILE_NAME), &owners.local_state)?;
+    for (device_id, profile) in &owners.device_profiles {
+        write_json(
+            &root
+                .join(DEVICE_PROFILES_DIRECTORY_NAME)
+                .join(profile_file_name(device_id)),
+            profile,
+        )?;
+    }
+    Ok(())
+}
+
+fn replace_store_files(active: &Path, staging: &Path) -> Result<(), OwnerStoreError> {
+    replace_file(
+        &staging.join(SHARED_LIBRARY_FILE_NAME),
+        &active.join(SHARED_LIBRARY_FILE_NAME),
+    )?;
+    replace_file(
+        &staging.join(LOCAL_STATE_FILE_NAME),
+        &active.join(LOCAL_STATE_FILE_NAME),
+    )?;
+    let active_profiles = active.join(DEVICE_PROFILES_DIRECTORY_NAME);
+    let staging_profiles = staging.join(DEVICE_PROFILES_DIRECTORY_NAME);
+    fs::create_dir_all(&active_profiles)?;
+    let mut keep = std::collections::HashSet::new();
+    for entry in fs::read_dir(&staging_profiles)? {
+        let name = entry?.file_name();
+        keep.insert(name.clone());
+        replace_file(&staging_profiles.join(&name), &active_profiles.join(&name))?;
+    }
+    for entry in fs::read_dir(&active_profiles)? {
+        let entry = entry?;
+        if !keep.contains(&entry.file_name()) {
+            remove_path_if_exists(&entry.path())?;
+        }
+    }
+    Ok(())
+}
+
+fn restore_store_tree(active: &Path, rollback: &Path) -> Result<(), OwnerStoreError> {
+    replace_store_files(active, rollback)
+}
+
+fn pending_marker_path(active: &Path) -> PathBuf {
+    active.join(PENDING_COMMIT_FILE_NAME)
+}
+
+fn pending_marker_exists(active: &Path) -> bool {
+    pending_marker_path(active).exists()
+}
+
+fn write_pending_marker(active: &Path) -> Result<(), OwnerStoreError> {
+    fs::create_dir_all(active)?;
+    fs::write(pending_marker_path(active), b"pending\n")?;
+    Ok(())
+}
+
+fn remove_pending_marker(active: &Path) -> Result<(), OwnerStoreError> {
+    remove_path_if_exists(&pending_marker_path(active)).map_err(Into::into)
+}
+
+fn replace_file(source: &Path, target: &Path) -> Result<(), std::io::Error> {
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::rename(source, target) {
+        Ok(()) => return Ok(()),
+        Err(error) if is_retryable_io(&error) || target.exists() => {}
+        Err(error) => return Err(error),
+    }
+    match retry_io(
+        || fs::rename(source, target),
+        std::io::Error::from_raw_os_error(5),
+    ) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(source, target).map(|_| ())?;
+            let _ = fs::remove_file(source);
+            Ok(())
+        }
+    }
+}
+
+fn retry_io<T>(
+    mut operation: impl FnMut() -> Result<T, std::io::Error>,
+    first: std::io::Error,
+) -> Result<T, std::io::Error> {
+    if !is_retryable_io(&first) {
+        return Err(first);
+    }
+    for attempt in 0..8 {
+        std::thread::sleep(std::time::Duration::from_millis(10 << attempt.min(4)));
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error) if is_retryable_io(&error) => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    operation()
+}
+
+fn is_retryable_io(error: &std::io::Error) -> bool {
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::PermissionDenied
+            | std::io::ErrorKind::TimedOut
+            | std::io::ErrorKind::Interrupted
+    ) || error.raw_os_error() == Some(5)
+        || error.raw_os_error() == Some(32)
+}
+
 fn remove_dir_if_exists(path: &Path) -> Result<(), std::io::Error> {
-    if path.exists() {
-        fs::remove_dir_all(path)?;
+    if !path.exists() {
+        return Ok(());
+    }
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) => retry_io(|| fs::remove_dir_all(path), error),
+    }
+}
+
+fn remove_path_if_exists(path: &Path) -> Result<(), std::io::Error> {
+    if !path.exists() {
+        return Ok(());
+    }
+    if path.is_dir() {
+        return remove_dir_if_exists(path);
+    }
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) => retry_io(|| fs::remove_file(path), error),
+    }
+}
+
+fn copy_directory(source: &Path, target: &Path) -> Result<(), std::io::Error> {
+    fs::create_dir_all(target)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        if entry.file_name() == PENDING_COMMIT_FILE_NAME {
+            continue;
+        }
+        let target_path = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_directory(&entry.path(), &target_path)?;
+        } else {
+            fs::copy(entry.path(), target_path)?;
+        }
     }
     Ok(())
 }
@@ -470,7 +623,17 @@ mod tests {
         let (_root, store) = store();
         let input = config(get_current_device_id(), "before");
         store.initialize_from_legacy(&input).unwrap();
-        fs::rename(store.active_path(), store.rollback_path()).unwrap();
+        copy_directory(&store.active_path(), &store.rollback_path()).unwrap();
+        fs::write(
+            store.active_path().join(PENDING_COMMIT_FILE_NAME),
+            b"pending\n",
+        )
+        .unwrap();
+        fs::write(
+            store.active_path().join(SHARED_LIBRARY_FILE_NAME),
+            b"{broken",
+        )
+        .unwrap();
         fs::create_dir_all(store.staging_path()).unwrap();
         fs::write(store.staging_path().join("partial.json"), b"{}").unwrap();
 
@@ -480,6 +643,22 @@ mod tests {
         assert!(store.active_path().is_dir());
         assert!(!store.rollback_path().exists());
         assert!(!store.staging_path().exists());
+        assert!(!store.active_path().join(PENDING_COMMIT_FILE_NAME).exists());
+    }
+
+    #[test]
+    fn rollback_directory_recovers_when_active_directory_is_missing() {
+        let (_root, store) = store();
+        let input = config(get_current_device_id(), "before");
+        store.initialize_from_legacy(&input).unwrap();
+        copy_directory(&store.active_path(), &store.rollback_path()).unwrap();
+        fs::remove_dir_all(store.active_path()).unwrap();
+
+        let recovered = store.load_effective().unwrap();
+
+        assert_eq!(recovered.backup_path, "before");
+        assert!(store.active_path().is_dir());
+        assert!(!store.rollback_path().exists());
     }
 
     #[test]
@@ -634,6 +813,52 @@ mod tests {
         );
     }
 
+    #[test]
+    fn activation_compare_ignores_device_profile_map_order() {
+        let (_root, store) = store();
+        let mut input = config(get_current_device_id(), "before");
+        input.games.extend([
+            Game {
+                name: "Alpha".into(),
+                storage_key: "alpha".into(),
+                save_paths: Vec::new(),
+                game_paths: Default::default(),
+                next_save_unit_id: 0,
+                cloud_sync_enabled: true,
+                auto_backup: None,
+                ludusavi_meta: None,
+                device_bindings: Default::default(),
+            },
+            Game {
+                name: "Beta".into(),
+                storage_key: "beta".into(),
+                save_paths: Vec::new(),
+                game_paths: Default::default(),
+                next_save_unit_id: 0,
+                cloud_sync_enabled: true,
+                auto_backup: None,
+                ludusavi_meta: None,
+                device_bindings: Default::default(),
+            },
+        ]);
+        store.initialize_from_legacy(&input).unwrap();
+        let before = store.load().unwrap();
+        let stored = before.device_profiles[get_current_device_id()].clone();
+        let mut reordered = stored.clone();
+        let mut games = reordered.games.into_iter().collect::<Vec<_>>();
+        games.sort_by(|left, right| left.0.cmp(&right.0).reverse());
+        reordered.games = games.into_iter().collect();
+        assert_eq!(stored, reordered);
+
+        store
+            .activate_cutover_v2(
+                &before.shared_library,
+                &reordered,
+                &before.shared_library,
+                &before.device_profiles,
+            )
+            .unwrap();
+    }
     #[test]
     fn current_profile_replacement_is_v2_only_and_compare_checked() {
         let (_root, store) = store();

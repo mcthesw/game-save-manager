@@ -105,7 +105,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct FavoriteTreeNode {
     node_id: String,
     label: String,
