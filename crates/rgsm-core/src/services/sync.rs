@@ -13,8 +13,8 @@ use crate::cloud_sync::v2::{
     DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
     JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
     MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
-    SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotSyncError,
-    V2ConflictInspector, V2ConflictReview,
+    SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotSyncCoordinator,
+    SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -422,10 +422,38 @@ impl ServiceContext {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), CloudLibraryServiceError> {
-        Ok(self
-            .converged_materializer()
-            .await?
-            .upload(game_id, snapshot_id)
+        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        let game = get_config()?
+            .games
+            .into_iter()
+            .find(|game| game.storage_key == game_id || game.name == game_id)
+            .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
+        let snapshots = game.get_game_snapshots_info()?;
+        let snapshot = snapshots
+            .backups
+            .into_iter()
+            .find(|item| item.date == snapshot_id)
+            .ok_or_else(|| {
+                CloudLibraryServiceError::GameProfileNotFound(snapshot_id.to_string())
+            })?;
+        let local_archive_root = profile
+            .local_archive_root
+            .as_deref()
+            .map(resolve_app_path)
+            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        let coordinator = SnapshotSyncCoordinator::new(
+            session.get_op()?,
+            local_archive_root,
+            local_state.current_device_id,
+            resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
+            3,
+        );
+        Ok(coordinator
+            .upload_local_snapshot(game_id, &snapshot)
             .await?)
     }
 

@@ -327,6 +327,16 @@ impl SnapshotSyncCoordinator {
         Ok(())
     }
 
+    pub async fn upload_local_snapshot(
+        &self,
+        game_id: &str,
+        snapshot: &Snapshot,
+    ) -> Result<(), SnapshotSyncError> {
+        self.publish_local_node(game_id, snapshot, None).await?;
+        self.materializer.upload(game_id, &snapshot.date).await?;
+        Ok(())
+    }
+
     async fn publish_current_head(
         &self,
         game_id: &str,
@@ -772,6 +782,47 @@ mod tests {
         assert!(
             !operator
                 .exists(&cloud_archive_path("game", "old", ArchiveFormat::Zip).unwrap())
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn unpublished_local_snapshot_can_be_uploaded_after_publish() {
+        let operator = memory_operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let archive_root = root.path().join("pc");
+        let game_root = archive_root.join("game");
+        std::fs::create_dir_all(&game_root).unwrap();
+        std::fs::write(archive_path(&game_root, "new", ArchiveFormat::Zip), b"new").unwrap();
+        let mut manifest = CloudManifest::default();
+        manifest
+            .games
+            .insert("game".into(), GameManifest::new("game"));
+        write_manifest(&operator, &manifest).await;
+        let coordinator = SnapshotSyncCoordinator::new(
+            operator.clone(),
+            archive_root,
+            "pc".into(),
+            root.path().join("progress.json"),
+            2,
+        );
+        let local = snapshot("new", None);
+
+        coordinator
+            .upload_local_snapshot("game", &local)
+            .await
+            .unwrap();
+
+        let stored = coordinator.repository().load().await.unwrap();
+        let SnapshotState::Live(live) = &stored.games["game"].snapshots["new"].state else {
+            panic!("snapshot should be published live");
+        };
+        assert!(live.cloud_archive_verified);
+        assert!(stored.games["game"].local_archives["pc"].contains("new"));
+        assert!(
+            operator
+                .exists(&cloud_archive_path("game", "new", ArchiveFormat::Zip).unwrap())
                 .await
                 .unwrap()
         );
