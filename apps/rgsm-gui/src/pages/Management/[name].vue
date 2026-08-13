@@ -438,6 +438,8 @@ function snapshotLocationLabel(date: string) {
   if (local && cloud) return $t('manage.location_both');
   if (local) return $t('manage.location_local');
   if (cloud) return $t('manage.location_cloud');
+  const elsewhere = cloudSnapshot(date)?.reported_on_devices.length ?? 0;
+  if (elsewhere > 0) return $t('sync_settings.archives.available_other_device');
   return $t('manage.location_missing');
 }
 
@@ -462,6 +464,35 @@ async function transferSnapshot(date: string, upload: boolean) {
         ? $t('sync_settings.archives.upload_success')
         : $t('sync_settings.archives.download_success')
     );
+    await refresh_backups_info();
+  } finally {
+    activeTransfer.value = '';
+  }
+}
+
+async function removeCloudSnapshot(date: string) {
+  const gameId = game.value.storage_key || game.value.name;
+  try {
+    await feedback.confirm(
+      $t('sync_settings.archives.delete_confirm', { snapshot: date }),
+      $t('sync_settings.archives.delete_title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.delete_permanently'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        type: 'error',
+      }
+    );
+  } catch {
+    return;
+  }
+  activeTransfer.value = date;
+  try {
+    const result = await commands.deleteV2Snapshot(gameId, date, true);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
+      return;
+    }
+    notifySuccess($t('sync_settings.archives.delete_success'));
     await refresh_backups_info();
   } finally {
     activeTransfer.value = '';
@@ -506,12 +537,47 @@ const selectedDownloadable = computed(() =>
 const selectedEvictable = computed(() =>
   selected_game_snapshots.value.filter((snapshot) => canEvictSnapshot(snapshot.date))
 );
+const selectedCloudRemovable = computed(() =>
+  selected_game_snapshots.value.filter((snapshot) => isSnapshotInCloud(snapshot.date))
+);
 
 async function batchTransfer(upload: boolean) {
   const rows = upload ? selectedUploadable.value : selectedDownloadable.value;
   for (const snapshot of rows) {
     await transferSnapshot(snapshot.date, upload);
   }
+}
+
+async function batchRemoveCloud() {
+  const rows = selectedCloudRemovable.value;
+  if (rows.length === 0) return;
+  try {
+    await feedback.confirm(
+      $t('manage.batch_cloud_remove_confirm', { count: rows.length }),
+      $t('sync_settings.archives.delete_title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.delete_permanently'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        type: 'error',
+      }
+    );
+  } catch {
+    return;
+  }
+  const gameId = game.value.storage_key || game.value.name;
+  let succeeded = 0;
+  for (const snapshot of rows) {
+    activeTransfer.value = snapshot.date;
+    const result = await commands.deleteV2Snapshot(gameId, snapshot.date, true);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
+      break;
+    }
+    succeeded += 1;
+  }
+  activeTransfer.value = '';
+  notifySuccess($t('manage.batch_cloud_remove_success', { count: succeeded }));
+  await refresh_backups_info();
 }
 
 async function batchEvict() {
@@ -1343,7 +1409,7 @@ const tableColumns = computed(() => [
     key: 'actions',
     dataKey: 'actions',
     title: $t('manage.actions'),
-    width: 168,
+    width: 188,
     align: 'center' as const,
     fixed: TableV2FixedDir.RIGHT,
   },
@@ -1800,15 +1866,6 @@ const syncParticipationLabel = computed(() => {
             />
 
             <el-button
-              v-if="selectedUploadable.length > 0 && viewMode === 'table'"
-              size="small"
-              plain
-              :icon="Upload"
-              @click="batchTransfer(true)"
-            >
-              {{ $t('manage.batch_upload') }}
-            </el-button>
-            <el-button
               v-if="selectedDownloadable.length > 0 && viewMode === 'table'"
               size="small"
               plain
@@ -1825,6 +1882,25 @@ const syncParticipationLabel = computed(() => {
               @click="batchEvict()"
             >
               {{ $t('manage.batch_evict') }}
+            </el-button>
+            <el-button
+              v-if="selectedUploadable.length > 0 && viewMode === 'table'"
+              size="small"
+              plain
+              :icon="Upload"
+              @click="batchTransfer(true)"
+            >
+              {{ $t('manage.batch_upload') }}
+            </el-button>
+            <el-button
+              v-if="selectedCloudRemovable.length > 0 && viewMode === 'table'"
+              size="small"
+              plain
+              type="danger"
+              :icon="Remove"
+              @click="batchRemoveCloud()"
+            >
+              {{ $t('manage.batch_cloud_remove') }}
             </el-button>
             <el-button
               v-if="selected_game_snapshots.length > 0 && viewMode === 'table'"
@@ -1931,116 +2007,147 @@ const syncParticipationLabel = computed(() => {
                   }}</span>
                 </span>
                 <div v-else-if="column.key === 'actions'" class="action-buttons">
-                  <el-tooltip
-                    v-if="canUploadSnapshot(rowData.date)"
-                    :content="$t('sync_settings.archives.upload')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="primary"
-                      :icon="Upload"
-                      :loading="activeTransfer === rowData.date"
-                      @click="transferSnapshot(rowData.date, true)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip
-                    v-else-if="canDownloadSnapshot(rowData.date)"
-                    :content="$t('sync_settings.archives.download')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="primary"
-                      :icon="Download"
-                      :loading="activeTransfer === rowData.date"
-                      @click="transferSnapshot(rowData.date, false)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip
-                    v-else-if="canEvictSnapshot(rowData.date)"
-                    :content="$t('sync_settings.archives.evict.action')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="warning"
-                      :icon="Remove"
-                      :loading="activeTransfer === rowData.date"
-                      @click="evictSnapshot(rowData.date)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip
-                    :content="
-                      canApplySnapshot(rowData.date)
-                        ? $t('manage.apply')
-                        : $t('manage.download_before_apply')
-                    "
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="success"
-                      :icon="VideoPlay"
-                      :disabled="!canApplySnapshot(rowData.date)"
-                      @click="handleApplyClick(rowData.date)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip
-                    v-if="
-                      isAutomaticSnapshot(rowData) && !retentionProtectedDates.has(rowData.date)
-                    "
-                    :content="$t('manage.convert_to_permanent')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="primary"
-                      :icon="Lock"
-                      @click="convertToPermanent(rowData.date)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip
-                    v-else
-                    :content="$t('manage.change_describe')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <el-button
-                      link
-                      type="warning"
-                      :icon="Edit"
-                      @click="change_describe(rowData.date)"
-                    />
-                  </el-tooltip>
-                  <el-tooltip
-                    :content="$t('manage.delete')"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <span>
-                      <el-popconfirm
-                        :title="$t('manage.confirm_delete_prompt')"
-                        @confirm="del_save(rowData.date)"
-                      >
-                        <template #reference>
-                          <el-button link type="danger" :icon="Delete" />
-                        </template>
-                      </el-popconfirm>
-                    </span>
-                  </el-tooltip>
+                  <span class="action-slot">
+                    <el-tooltip
+                      v-if="cloudGame && isSnapshotOnDevice(rowData.date)"
+                      :content="$t('manage.local_remove')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="warning"
+                        :icon="Remove"
+                        :disabled="!canEvictSnapshot(rowData.date)"
+                        :loading="activeTransfer === rowData.date"
+                        @click="evictSnapshot(rowData.date)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
+                      v-else-if="cloudGame && !isSnapshotOnDevice(rowData.date)"
+                      :content="
+                        canDownloadSnapshot(rowData.date)
+                          ? $t('manage.local_download')
+                          : $t('manage.local_unavailable')
+                      "
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="primary"
+                        :icon="Download"
+                        :disabled="!canDownloadSnapshot(rowData.date)"
+                        :loading="activeTransfer === rowData.date"
+                        @click="transferSnapshot(rowData.date, false)"
+                      />
+                    </el-tooltip>
+                  </span>
+                  <span class="action-slot">
+                    <el-tooltip
+                      v-if="cloudGame && canUploadSnapshot(rowData.date)"
+                      :content="$t('manage.cloud_upload')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="primary"
+                        :icon="Upload"
+                        :loading="activeTransfer === rowData.date"
+                        @click="transferSnapshot(rowData.date, true)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
+                      v-else-if="cloudGame && isSnapshotInCloud(rowData.date)"
+                      :content="$t('manage.cloud_remove')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="danger"
+                        :icon="Remove"
+                        :loading="activeTransfer === rowData.date"
+                        @click="removeCloudSnapshot(rowData.date)"
+                      />
+                    </el-tooltip>
+                  </span>
+                  <span class="action-slot">
+                    <el-tooltip
+                      :content="
+                        canApplySnapshot(rowData.date)
+                          ? $t('manage.apply')
+                          : $t('manage.download_before_apply')
+                      "
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="success"
+                        :icon="VideoPlay"
+                        :disabled="!canApplySnapshot(rowData.date)"
+                        @click="handleApplyClick(rowData.date)"
+                      />
+                    </el-tooltip>
+                  </span>
+                  <span class="action-slot">
+                    <el-tooltip
+                      v-if="
+                        isAutomaticSnapshot(rowData) && !retentionProtectedDates.has(rowData.date)
+                      "
+                      :content="$t('manage.convert_to_permanent')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="primary"
+                        :icon="Lock"
+                        @click="convertToPermanent(rowData.date)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
+                      v-else
+                      :content="$t('manage.change_describe')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="warning"
+                        :icon="Edit"
+                        @click="change_describe(rowData.date)"
+                      />
+                    </el-tooltip>
+                  </span>
+                  <span class="action-slot">
+                    <el-tooltip
+                      :content="$t('manage.delete')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <span>
+                        <el-popconfirm
+                          :title="$t('manage.confirm_delete_prompt')"
+                          @confirm="del_save(rowData.date)"
+                        >
+                          <template #reference>
+                            <el-button link type="danger" :icon="Delete" />
+                          </template>
+                        </el-popconfirm>
+                      </span>
+                    </el-tooltip>
+                  </span>
                 </div>
               </template>
             </el-table-v2>
@@ -2369,10 +2476,20 @@ const syncParticipationLabel = computed(() => {
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: 2px;
+  align-items: center;
+  gap: 0;
+}
+
+.action-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
 }
 
 .action-buttons .el-button {
+  margin: 0;
   font-size: 16px;
 }
 
