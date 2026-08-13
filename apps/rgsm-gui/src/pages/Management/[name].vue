@@ -35,6 +35,7 @@ import {
   Download,
   Lock,
   Upload,
+  Remove,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 import {
@@ -405,14 +406,39 @@ function cloudSnapshot(date: string): CloudArchiveSnapshotView | null {
   return cloudGame.value?.snapshots.find((snapshot) => snapshot.snapshot_id === date) ?? null;
 }
 
-function canUploadSnapshot(date: string) {
+function isSnapshotOnDevice(date: string) {
   const snapshot = cloudSnapshot(date);
-  return Boolean(snapshot?.local_verified && !snapshot.cloud_verified);
+  return !snapshot || snapshot.local_verified;
+}
+
+function isSnapshotInCloud(date: string) {
+  return Boolean(cloudSnapshot(date)?.cloud_verified);
+}
+
+function canUploadSnapshot(date: string) {
+  if (!cloudGame.value) return false;
+  const snapshot = cloudSnapshot(date);
+  if (!snapshot) return true;
+  return snapshot.local_verified && !snapshot.cloud_verified;
 }
 
 function canDownloadSnapshot(date: string) {
   const snapshot = cloudSnapshot(date);
   return Boolean(snapshot?.cloud_verified && !snapshot.local_verified);
+}
+
+function canEvictSnapshot(date: string) {
+  const snapshot = cloudSnapshot(date);
+  return Boolean(snapshot?.local_verified && snapshot.cloud_verified);
+}
+
+function snapshotLocationLabel(date: string) {
+  const local = isSnapshotOnDevice(date);
+  const cloud = isSnapshotInCloud(date);
+  if (local && cloud) return $t('manage.location_both');
+  if (local) return $t('manage.location_local');
+  if (cloud) return $t('manage.location_cloud');
+  return $t('manage.location_missing');
 }
 
 function canApplySnapshot(date: string) {
@@ -440,6 +466,82 @@ async function transferSnapshot(date: string, upload: boolean) {
   } finally {
     activeTransfer.value = '';
   }
+}
+
+async function evictSnapshot(date: string) {
+  const gameId = game.value.storage_key || game.value.name;
+  try {
+    await feedback.confirm(
+      $t('sync_settings.archives.evict.confirm', { snapshot: date }),
+      $t('sync_settings.archives.evict.title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.evict.action'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+  activeTransfer.value = date;
+  try {
+    const result = await commands.evictLocalArchive(gameId, date, true);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.evict.failed'), result.error);
+      return;
+    }
+    notifySuccess($t('sync_settings.archives.evict.success'));
+    await refresh_backups_info();
+  } finally {
+    activeTransfer.value = '';
+  }
+}
+
+const selectedUploadable = computed(() =>
+  selected_game_snapshots.value.filter((snapshot) => canUploadSnapshot(snapshot.date))
+);
+const selectedDownloadable = computed(() =>
+  selected_game_snapshots.value.filter((snapshot) => canDownloadSnapshot(snapshot.date))
+);
+const selectedEvictable = computed(() =>
+  selected_game_snapshots.value.filter((snapshot) => canEvictSnapshot(snapshot.date))
+);
+
+async function batchTransfer(upload: boolean) {
+  const rows = upload ? selectedUploadable.value : selectedDownloadable.value;
+  for (const snapshot of rows) {
+    await transferSnapshot(snapshot.date, upload);
+  }
+}
+
+async function batchEvict() {
+  const rows = selectedEvictable.value;
+  if (rows.length === 0) return;
+  try {
+    await feedback.confirm(
+      $t('manage.batch_evict_confirm', { count: rows.length }),
+      $t('sync_settings.archives.evict.title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.evict.action'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+  const gameId = game.value.storage_key || game.value.name;
+  for (const snapshot of rows) {
+    activeTransfer.value = snapshot.date;
+    const result = await commands.evictLocalArchive(gameId, snapshot.date, true);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.evict.failed'), result.error);
+      break;
+    }
+  }
+  activeTransfer.value = '';
+  notifySuccess($t('manage.batch_evict_success', { count: rows.length }));
+  await refresh_backups_info();
 }
 
 function backupSuccessMessage() {
@@ -1236,12 +1338,12 @@ const tableColumns = computed(() => [
     minWidth: 220,
     flexGrow: 1,
   },
-  { key: 'size', dataKey: 'size', title: $t('manage.size'), width: 120 },
+  { key: 'size', dataKey: 'size', title: $t('manage.location_and_size'), width: 128 },
   {
     key: 'actions',
     dataKey: 'actions',
     title: $t('manage.actions'),
-    width: 232,
+    width: 168,
     align: 'center' as const,
     fixed: TableV2FixedDir.RIGHT,
   },
@@ -1698,6 +1800,33 @@ const syncParticipationLabel = computed(() => {
             />
 
             <el-button
+              v-if="selectedUploadable.length > 0 && viewMode === 'table'"
+              size="small"
+              plain
+              :icon="Upload"
+              @click="batchTransfer(true)"
+            >
+              {{ $t('manage.batch_upload') }}
+            </el-button>
+            <el-button
+              v-if="selectedDownloadable.length > 0 && viewMode === 'table'"
+              size="small"
+              plain
+              :icon="Download"
+              @click="batchTransfer(false)"
+            >
+              {{ $t('manage.batch_download') }}
+            </el-button>
+            <el-button
+              v-if="selectedEvictable.length > 0 && viewMode === 'table'"
+              size="small"
+              plain
+              :icon="Remove"
+              @click="batchEvict()"
+            >
+              {{ $t('manage.batch_evict') }}
+            </el-button>
+            <el-button
               v-if="selected_game_snapshots.length > 0 && viewMode === 'table'"
               type="danger"
               size="small"
@@ -1772,28 +1901,34 @@ const syncParticipationLabel = computed(() => {
                 <span v-else-if="column.key === 'date'" class="font-mono text-sm">
                   {{ rowData.date }}
                 </span>
-                <el-tooltip
-                  v-else-if="column.key === 'describe'"
-                  :content="rowData.describe"
-                  placement="top"
-                  :show-after="300"
-                  popper-class="action-tooltip"
-                >
-                  <span class="table-cell-describe">
-                    <el-tag
-                      v-if="snapshotSourceTag(rowData)"
-                      type="info"
-                      size="small"
-                      effect="plain"
-                      round
-                      class="source-tag"
-                      >{{ snapshotSourceTag(rowData) }}</el-tag
-                    >
+                <span v-else-if="column.key === 'describe'" class="table-cell-describe">
+                  <el-tag
+                    v-if="snapshotSourceTag(rowData)"
+                    type="info"
+                    size="small"
+                    effect="plain"
+                    round
+                    class="source-tag"
+                    >{{ snapshotSourceTag(rowData) }}</el-tag
+                  >
+                  <el-tooltip
+                    v-if="rowData.describe"
+                    :content="rowData.describe"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
                     <span class="table-cell-ellipsis">{{ rowData.describe }}</span>
-                  </span>
-                </el-tooltip>
-                <span v-else-if="column.key === 'size'" class="text-gray-500 text-xs">
-                  {{ rowData.size ? formatFileSize(rowData.size) : '-' }}
+                  </el-tooltip>
+                  <span v-else class="table-cell-ellipsis table-cell-empty">{{
+                    $t('manage.no_description')
+                  }}</span>
+                </span>
+                <span v-else-if="column.key === 'size'" class="size-cell">
+                  <span class="location-mark">{{ snapshotLocationLabel(rowData.date) }}</span>
+                  <span class="text-gray-500 text-xs">{{
+                    rowData.size ? formatFileSize(rowData.size) : '-'
+                  }}</span>
                 </span>
                 <div v-else-if="column.key === 'actions'" class="action-buttons">
                   <el-tooltip
@@ -1824,6 +1959,21 @@ const syncParticipationLabel = computed(() => {
                       :icon="Download"
                       :loading="activeTransfer === rowData.date"
                       @click="transferSnapshot(rowData.date, false)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip
+                    v-else-if="canEvictSnapshot(rowData.date)"
+                    :content="$t('sync_settings.archives.evict.action')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <el-button
+                      link
+                      type="warning"
+                      :icon="Remove"
+                      :loading="activeTransfer === rowData.date"
+                      @click="evictSnapshot(rowData.date)"
                     />
                   </el-tooltip>
                   <el-tooltip
@@ -2025,6 +2175,22 @@ const syncParticipationLabel = computed(() => {
   flex-shrink: 0;
 }
 
+.size-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.location-mark {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.table-cell-empty {
+  color: var(--el-text-color-placeholder);
+}
+
 .quick-actions-content {
   display: flex;
   align-items: center;
@@ -2203,7 +2369,7 @@ const syncParticipationLabel = computed(() => {
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 2px;
 }
 
 .action-buttons .el-button {
