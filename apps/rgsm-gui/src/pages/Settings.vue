@@ -25,7 +25,7 @@ import type {
   LudusaviManifestStatus,
 } from '~/bindings';
 import { error, info } from '@tauri-apps/plugin-log';
-import type { Device } from '../bindings';
+import type { CloudNamespaceGeneration, Device } from '../bindings';
 import { saveUnitPaths } from '../utils/saveUnit';
 
 const isDark = useDark();
@@ -39,6 +39,8 @@ const currentQuickActionGame = computed(() => {
   return config.value.games.find((game) => game.storage_key === identity || game.name === identity);
 });
 const activeTab = ref('general');
+const cloudNamespaceGeneration = ref<CloudNamespaceGeneration | null>(null);
+const v2LibraryActive = computed(() => cloudNamespaceGeneration.value === 'v2');
 const hotkeysChanged = ref(false);
 const gameOrderChanged = ref(false);
 const { withLoading } = useGlobalLoading();
@@ -858,6 +860,10 @@ onMounted(async () => {
   await load_config();
   await refreshLudusaviManifestStatus();
   fetchSystemFonts(); // Load in background, no await needed
+  const generation = await commands.getCloudNamespaceGeneration();
+  if (generation.status === 'ok') {
+    cloudNamespaceGeneration.value = generation.data;
+  }
 });
 
 watch(
@@ -1369,6 +1375,8 @@ const { linksWithGames: router_list } = useNavigationLinks();
               {{ $t('settings.game_installation_add') }}
             </el-button>
           </div>
+
+          <CloudDeviceProfilesPanel v-if="v2LibraryActive" class="setting-box" />
 
           <!-- 其他设备列表 -->
           <div class="setting-box">

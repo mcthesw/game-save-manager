@@ -211,9 +211,7 @@ async function copyError(message: string, key: string) {
 <style scoped>
 .check-result-card {
   display: flex;
-  min-height: 390px;
-  height: 100%;
-  padding: 18px 0 18px 20px;
+  padding: 0 0 0 20px;
   flex-direction: column;
   border-left: 1px solid var(--el-border-color-lighter);
   background: transparent;
@@ -355,8 +353,7 @@ async function copyError(message: string, key: string) {
 }
 
 .check-footer {
-  margin-top: auto;
-  padding-top: 18px;
+  margin-top: 18px;
 }
 
 .check-footer :deep(.el-button) {

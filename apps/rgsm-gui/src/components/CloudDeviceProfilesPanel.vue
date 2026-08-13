@@ -113,10 +113,8 @@ onMounted(load);
 
 <style scoped>
 .profiles-panel {
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
+  padding: 8px 0 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .profiles-heading,
