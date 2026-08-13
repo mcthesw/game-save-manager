@@ -72,6 +72,7 @@ The repository is split into workspace apps and crates.
 
 - **Future integration crates**
   - `apps/rgsm-cli/`: CLI app placeholder.
+  - `apps/rgsm-tui/`: TUI app placeholder.
   - `crates/rgsm-ffi/`: FFI crate placeholder.
 
 - **Shared assets**
