@@ -393,8 +393,8 @@ function canDismiss(entry: ActivityEntry) {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  min-width: 340px;
-  max-width: 460px;
+  min-width: 380px;
+  max-width: 560px;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -616,9 +616,12 @@ function canDismiss(entry: ActivityEntry) {
 
 .activity-item-title {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--el-text-color-regular);
+  white-space: normal;
+  word-break: break-word;
 }
 
 .activity-item-count {

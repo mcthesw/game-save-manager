@@ -5,6 +5,7 @@ import { $t } from '~/i18n';
 
 interface InspectOptions {
   createWhenEmpty?: boolean;
+  silent?: boolean;
 }
 
 const props = defineProps<{
@@ -33,7 +34,7 @@ const requiresAction = computed(
 );
 
 watch(
-  () => inspecting.value || initializing.value,
+  () => initializing.value,
   (busy) => emit('busy', busy),
   { immediate: true }
 );
