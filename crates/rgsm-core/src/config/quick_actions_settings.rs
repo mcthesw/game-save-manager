@@ -27,7 +27,7 @@ where
     )
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct QuickActionHotkeys {
     pub apply: Vec<String>,
     pub backup: Vec<String>,
@@ -42,7 +42,7 @@ impl Default for QuickActionHotkeys {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, Default, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum QuickActionSoundSource {
     #[default]
@@ -52,7 +52,7 @@ pub enum QuickActionSoundSource {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Type, PartialEq, Eq)]
 pub struct QuickActionSoundSlots {
     #[serde(default)]
     pub success: QuickActionSoundSource,
@@ -60,7 +60,7 @@ pub struct QuickActionSoundSlots {
     pub failure: QuickActionSoundSource,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 pub struct QuickActionSoundPreferences {
     #[serde(default = "default_value::default_true")]
     pub enable_sound: bool,
@@ -77,7 +77,7 @@ impl Default for QuickActionSoundPreferences {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 pub struct QuickActionsSettings {
     #[serde(
         default = "default_value::default_none",
@@ -279,7 +279,7 @@ impl From<&QuickActionsSettings> for QuickActionSoundPreferences {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
 pub struct GameAutomationSettings {
     #[serde(default)]
     pub storage_key: String,

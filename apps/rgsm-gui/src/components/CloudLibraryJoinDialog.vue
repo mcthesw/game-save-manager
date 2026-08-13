@@ -42,6 +42,9 @@ const replacementCount = computed(
 const changedCount = computed(
   () => review.value?.items.filter((item) => item.classification !== 'same').length ?? 0
 );
+const reviewItems = computed(
+  () => review.value?.items.filter((item) => item.classification !== 'same') ?? []
+);
 
 function classificationLabel(item: CloudLibraryJoinItem) {
   return $t(`sync_settings.library.join.classification.${item.classification}`);
@@ -148,132 +151,140 @@ watch(
   }
 );
 </script>
-
 <template>
   <ElDialog
     v-model="visible"
-    :title="$t('sync_settings.library.join.title')"
-    width="min(920px, 94vw)"
+    :title="
+      changedCount
+        ? $t('sync_settings.library.join.title')
+        : $t('sync_settings.library.join.confirm_title')
+    "
+    :width="changedCount ? 'min(920px, 94vw)' : 'min(560px, 94vw)'"
     destroy-on-close
     class="join-dialog"
     :z-index="LAYER.dialog"
   >
-    <div v-loading="loading" class="join-body">
-      <ElAlert
-        type="warning"
-        :title="$t('sync_settings.library.join.risk_title')"
-        :description="$t('sync_settings.library.join.risk_description')"
-        :closable="false"
-        show-icon
-      />
+    <div v-loading="loading || joining" class="join-body">
+      <template v-if="review && !changedCount">
+        <p class="join-story">{{ $t('sync_settings.library.join.confirm_story') }}</p>
+      </template>
+      <template v-else>
+        <ElAlert
+          type="warning"
+          :title="$t('sync_settings.library.join.risk_title')"
+          :description="$t('sync_settings.library.join.risk_description')"
+          :closable="false"
+          show-icon
+        />
 
-      <template v-if="review">
-        <p class="join-summary">
-          {{
-            $t('sync_settings.library.join.summary', {
-              cloud: review.cloud_game_count,
-              review: changedCount,
-            })
-          }}
-        </p>
+        <template v-if="review">
+          <p class="join-summary">
+            {{
+              $t('sync_settings.library.join.summary', {
+                cloud: review.cloud_game_count,
+                review: changedCount,
+              })
+            }}
+          </p>
 
-        <div v-if="review.items.length" class="join-grid">
-          <nav class="game-list" :aria-label="$t('sync_settings.library.join.games_label')">
-            <ElButton
-              v-for="item in review.items"
-              :key="item.local_game_id"
-              :type="selectedId === item.local_game_id ? 'primary' : 'default'"
-              plain
-              class="game-item"
-              @click="selectedId = item.local_game_id"
-            >
-              <span class="game-name">{{ item.local_name }}</span>
-              <ElTag :type="classificationType(item)" size="small">
-                {{ classificationLabel(item) }}
-              </ElTag>
-            </ElButton>
-          </nav>
-
-          <section v-if="selected" class="game-review">
-            <div class="game-review-heading">
-              <h4>{{ selected.local_name }}</h4>
-              <ElTag :type="classificationType(selected)">
-                {{ classificationLabel(selected) }}
-              </ElTag>
-            </div>
-
-            <div class="difference-table">
-              <div class="difference-head">
-                <span></span>
-                <strong>{{ $t('sync_settings.library.join.local') }}</strong>
-                <strong>{{ $t('sync_settings.library.join.cloud') }}</strong>
-              </div>
-              <div v-if="selected.difference.name_changed || !selected.cloud_names.length">
-                <span>{{ $t('sync_settings.library.join.game_name') }}</span>
-                <span>{{ selected.local_name }}</span>
-                <span>{{ cloudName(selected) }}</span>
-              </div>
-              <div v-if="selected.difference.save_units_changed">
-                <span>{{ $t('sync_settings.library.join.save_units') }}</span>
-                <span>
-                  {{
-                    $t('sync_settings.library.join.item_count', {
-                      count: selected.difference.local_save_unit_count,
-                    })
-                  }}
-                </span>
-                <span>
-                  {{
-                    $t('sync_settings.library.join.item_count', {
-                      count: selected.difference.cloud_save_unit_count,
-                    })
-                  }}
-                </span>
-              </div>
-              <div v-if="selected.difference.recognition_changed">
-                <span>{{ $t('sync_settings.library.join.recognition') }}</span>
-                <span>{{ recognitionLabel(selected.difference.local_recognition) }}</span>
-                <span>{{ recognitionLabel(selected.difference.cloud_recognition) }}</span>
-              </div>
-              <p
-                v-if="
-                  !selected.difference.name_changed &&
-                  !selected.difference.save_units_changed &&
-                  !selected.difference.recognition_changed
-                "
-                class="no-difference"
+          <div v-if="reviewItems.length" class="join-grid">
+            <nav class="game-list" :aria-label="$t('sync_settings.library.join.games_label')">
+              <ElButton
+                v-for="item in reviewItems"
+                :key="item.local_game_id"
+                :type="selectedId === item.local_game_id ? 'primary' : 'default'"
+                plain
+                class="game-item"
+                @click="selectedId = item.local_game_id"
               >
-                {{ $t('sync_settings.library.join.no_difference') }}
-              </p>
-            </div>
+                <span class="game-name">{{ item.local_name }}</span>
+                <ElTag :type="classificationType(item)" size="small">
+                  {{ classificationLabel(item) }}
+                </ElTag>
+              </ElButton>
+            </nav>
 
-            <ElRadioGroup
-              v-if="selected.classification !== 'same'"
-              v-model="actions[selected.local_game_id]"
-              class="decision-group"
-            >
-              <ElRadio value="keep_cloud">
-                {{ $t('sync_settings.library.join.keep_cloud') }}
-              </ElRadio>
-              <ElRadio
-                v-if="
-                  selected.classification === 'local_only' ||
-                  selected.classification === 'possible_duplicate'
-                "
-                value="add_local"
+            <section v-if="selected" class="game-review">
+              <div class="game-review-heading">
+                <h4>{{ selected.local_name }}</h4>
+                <ElTag :type="classificationType(selected)">
+                  {{ classificationLabel(selected) }}
+                </ElTag>
+              </div>
+
+              <div class="difference-table">
+                <div class="difference-head">
+                  <span></span>
+                  <strong>{{ $t('sync_settings.library.join.local') }}</strong>
+                  <strong>{{ $t('sync_settings.library.join.cloud') }}</strong>
+                </div>
+                <div v-if="selected.difference.name_changed || !selected.cloud_names.length">
+                  <span>{{ $t('sync_settings.library.join.game_name') }}</span>
+                  <span>{{ selected.local_name }}</span>
+                  <span>{{ cloudName(selected) }}</span>
+                </div>
+                <div v-if="selected.difference.save_units_changed">
+                  <span>{{ $t('sync_settings.library.join.save_units') }}</span>
+                  <span>
+                    {{
+                      $t('sync_settings.library.join.item_count', {
+                        count: selected.difference.local_save_unit_count,
+                      })
+                    }}
+                  </span>
+                  <span>
+                    {{
+                      $t('sync_settings.library.join.item_count', {
+                        count: selected.difference.cloud_save_unit_count,
+                      })
+                    }}
+                  </span>
+                </div>
+                <div v-if="selected.difference.recognition_changed">
+                  <span>{{ $t('sync_settings.library.join.recognition') }}</span>
+                  <span>{{ recognitionLabel(selected.difference.local_recognition) }}</span>
+                  <span>{{ recognitionLabel(selected.difference.cloud_recognition) }}</span>
+                </div>
+                <p
+                  v-if="
+                    !selected.difference.name_changed &&
+                    !selected.difference.save_units_changed &&
+                    !selected.difference.recognition_changed
+                  "
+                  class="no-difference"
+                >
+                  {{ $t('sync_settings.library.join.no_difference') }}
+                </p>
+              </div>
+
+              <ElRadioGroup
+                v-if="selected.classification !== 'same'"
+                v-model="actions[selected.local_game_id]"
+                class="decision-group"
               >
-                {{ $t('sync_settings.library.join.add_local') }}
-              </ElRadio>
-              <ElRadio
-                v-if="selected.classification === 'game_definition_conflict'"
-                value="replace_cloud"
-              >
-                {{ $t('sync_settings.library.join.replace_cloud') }}
-              </ElRadio>
-            </ElRadioGroup>
-          </section>
-        </div>
-        <ElEmpty v-else :description="$t('sync_settings.library.join.no_local_games')" />
+                <ElRadio value="keep_cloud">
+                  {{ $t('sync_settings.library.join.keep_cloud') }}
+                </ElRadio>
+                <ElRadio
+                  v-if="
+                    selected.classification === 'local_only' ||
+                    selected.classification === 'possible_duplicate'
+                  "
+                  value="add_local"
+                >
+                  {{ $t('sync_settings.library.join.add_local') }}
+                </ElRadio>
+                <ElRadio
+                  v-if="selected.classification === 'game_definition_conflict'"
+                  value="replace_cloud"
+                >
+                  {{ $t('sync_settings.library.join.replace_cloud') }}
+                </ElRadio>
+              </ElRadioGroup>
+            </section>
+          </div>
+          <ElEmpty v-else :description="$t('sync_settings.library.join.no_local_games')" />
+        </template>
       </template>
     </div>
 
@@ -300,7 +311,13 @@ watch(
 }
 
 .join-body {
-  min-height: 260px;
+  min-height: 120px;
+}
+
+.join-story {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  line-height: 1.55;
 }
 
 .join-summary {

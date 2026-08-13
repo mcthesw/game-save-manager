@@ -5,6 +5,7 @@
 
 GameSaveManager.config.json
 GameSaveManager.config.v2/
+GameSaveManager.cloud-cutover.*.json
 *.bak
 save_data/
 

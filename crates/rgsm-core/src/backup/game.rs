@@ -55,7 +55,7 @@ impl LudusaviMeta {
 
 /// Per-game auto-backup configuration.
 /// Presence (`Some`) enables the timer; absence (`None`) disables it.
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct AutoBackupConfig {
     /// Interval between auto-backups in seconds.
     pub interval_secs: u32,

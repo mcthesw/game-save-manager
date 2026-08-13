@@ -89,7 +89,7 @@ pub enum SharedSaveUnitSource {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct DeviceProfile {
     pub schema_version: u32,
     pub device: Device,
@@ -117,7 +117,7 @@ impl DeviceProfile {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct DeviceGameProfile {
     pub visible: bool,
     pub sync_mode: SyncMode,
@@ -137,7 +137,7 @@ pub struct DeviceGameProfile {
     pub save_units: HashMap<u32, DeviceSaveUnitSettings>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct DeviceSaveUnitSettings {
     pub path: Option<String>,
     pub enabled: bool,
@@ -168,7 +168,7 @@ pub enum CloudNamespaceGeneration {
     V2,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
 pub struct DeviceBehaviorSettings {
     pub prompt_when_not_described: bool,
     pub extra_backup_when_apply: bool,
