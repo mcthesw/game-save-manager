@@ -75,4 +75,4 @@ The technologies used in this project:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=mcthesw/game-save-manager&type=Date)](https://star-history.com/#mcthesw/game-save-manager&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=mcthesw/game-save-manager&type=Date)](https://star-history.dera.page/#mcthesw/game-save-manager&Date)
