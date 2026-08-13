@@ -769,19 +769,6 @@ async function download_all() {
   }
 }
 
-async function cancelSync() {
-  const result = await commands.cancelCloudSync();
-  if (result.status === 'error') {
-    notifyError(result.error);
-    error(`Cancel sync error: ${result.error}`);
-    return;
-  }
-
-  if (result.data === 'cancelled') {
-    notifyInfo($t('cloud_sync.cancelled'), undefined, { silent: true });
-  }
-}
-
 async function open_manual() {
   const result = await commands.openUrl('https://help.sworld.club/docs/extras/cloud');
   if (result.status === 'error') {
@@ -799,6 +786,12 @@ async function loadCloudNamespaceGeneration() {
   }
   cloudNamespaceGeneration.value = result.data;
 }
+
+watch(v2LibraryActive, (active) => {
+  if (active && activeTab.value === 'operations') {
+    activeTab.value = 'overview';
+  }
+});
 
 onMounted(async () => {
   try {
@@ -1137,15 +1130,11 @@ onMounted(async () => {
         </div>
       </ElTabPane>
 
-      <ElTabPane :label="$t('sync_settings.console.danger_tab')" name="operations">
-        <ElAlert
-          v-if="v2LibraryActive"
-          type="success"
-          :title="$t('sync_settings.library.legacy_disabled')"
-          :closable="false"
-          show-icon
-          class="section-alert"
-        />
+      <ElTabPane
+        v-if="!v2LibraryActive"
+        :label="$t('sync_settings.console.danger_tab')"
+        name="operations"
+      >
         <div class="operations-list">
           <ElAlert
             type="warning"
@@ -1184,16 +1173,6 @@ onMounted(async () => {
               @click="download_all"
             >
               {{ $t('sync_settings.overwrite_download') }}
-            </ElButton>
-          </div>
-          <ElDivider />
-          <div class="op-item">
-            <div class="op-info">
-              <h4>{{ $t('sync_settings.operations.cancel_sync') }}</h4>
-              <p class="op-desc">{{ $t('sync_settings.operations.cancel_sync_desc') }}</p>
-            </div>
-            <ElButton type="warning" @click="cancelSync">
-              {{ $t('sync_settings.operations.cancel_sync') }}
             </ElButton>
           </div>
         </div>
