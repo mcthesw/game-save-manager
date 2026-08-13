@@ -1,12 +1,21 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onBeforeUnmount, onMounted, h } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { commands, events } from '../../bindings';
+import {
+  commands,
+  events,
+  type CandidateDimensions,
+  type CloudArchiveGameView,
+  type CloudArchiveSnapshotView,
+  type Device,
+  type Game,
+  type GameSnapshots,
+  type Snapshot,
+} from '../../bindings';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
 import AutoSaveSettingsDrawer from '../../components/AutoSaveSettingsDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
 import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
-import type { CandidateDimensions, Game, GameSnapshots, Snapshot, Device } from '../../bindings';
 import { $t } from '../../i18n';
 import { error, info } from '@tauri-apps/plugin-log';
 import {
@@ -23,7 +32,9 @@ import {
   AlarmClock,
   Edit,
   CircleCheck,
+  Download,
   Lock,
+  Upload,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 import {
@@ -51,7 +62,8 @@ const viewMode = ref<'table' | 'branch'>('table');
 
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
-const extraBackupDrawer = ref(false); // 是否显示额外备份抽屉
+const extraBackupDrawer = ref(false);
+const deleteChoiceVisible = ref(false); // 是否显示额外备份抽屉
 const autoSaveSettingsDrawer = ref(false); // 是否显示自动保存设置抽屉
 
 const table_data = ref<Snapshot[]>([]);
@@ -62,6 +74,8 @@ const tableSortBy = ref<{ key: string; order: TableV2SortOrder }>({
 });
 const selectedDates = ref<Set<string>>(new Set());
 const retentionProtectedDates = ref<Set<string>>(new Set());
+const cloudGame = ref<CloudArchiveGameView | null>(null);
+const activeTransfer = ref('');
 
 // Game snapshots info including HEAD
 const gameSnapshots = ref<GameSnapshots | null>(null);
@@ -343,11 +357,88 @@ async function refresh_backups_info() {
   const result = await commands.getGameSnapshotsInfo(game.value);
   if (result.status === 'error') {
     notifyError(result.error);
-  } else {
-    gameSnapshots.value = result.data;
-    table_data.value = result.data.backups;
-    table_data_desc.value = [...result.data.backups].reverse();
-    selectedDates.value = new Set();
+    return;
+  }
+  const cloud = await loadCloudGame();
+  const merged = mergeCloudOnlySnapshots(result.data.backups, cloud);
+  gameSnapshots.value = { ...result.data, backups: merged };
+  table_data.value = merged;
+  table_data_desc.value = [...merged].reverse();
+  selectedDates.value = new Set();
+}
+
+async function loadCloudGame() {
+  const gameId = game.value.storage_key || game.value.name;
+  if (!gameId) {
+    cloudGame.value = null;
+    return null;
+  }
+  const result = await commands.getCloudArchiveLibrary();
+  if (result.status === 'error') {
+    cloudGame.value = null;
+    return null;
+  }
+  const next = result.data.games.find((item) => item.game_id === gameId) ?? null;
+  cloudGame.value = next;
+  return next;
+}
+
+function mergeCloudOnlySnapshots(
+  local: Snapshot[],
+  cloud: CloudArchiveGameView | null
+): Snapshot[] {
+  if (!cloud) return local;
+  const known = new Set(local.map((snapshot) => snapshot.date));
+  const extras = cloud.snapshots
+    .filter((snapshot) => !known.has(snapshot.snapshot_id))
+    .map((snapshot) => ({
+      date: snapshot.snapshot_id,
+      describe: snapshot.description,
+      path: '',
+      size: snapshot.size ?? 0,
+      created_by: snapshot.created_by,
+    }));
+  return [...local, ...extras].sort((left, right) => left.date.localeCompare(right.date));
+}
+
+function cloudSnapshot(date: string): CloudArchiveSnapshotView | null {
+  return cloudGame.value?.snapshots.find((snapshot) => snapshot.snapshot_id === date) ?? null;
+}
+
+function canUploadSnapshot(date: string) {
+  const snapshot = cloudSnapshot(date);
+  return Boolean(snapshot?.local_verified && !snapshot.cloud_verified);
+}
+
+function canDownloadSnapshot(date: string) {
+  const snapshot = cloudSnapshot(date);
+  return Boolean(snapshot?.cloud_verified && !snapshot.local_verified);
+}
+
+function canApplySnapshot(date: string) {
+  const snapshot = cloudSnapshot(date);
+  return !snapshot || snapshot.local_verified;
+}
+
+async function transferSnapshot(date: string, upload: boolean) {
+  const gameId = game.value.storage_key || game.value.name;
+  activeTransfer.value = date;
+  try {
+    const result = upload
+      ? await commands.uploadCloudArchive(gameId, date)
+      : await commands.downloadCloudArchive(gameId, date);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.transfer_failed'), result.error);
+      return;
+    }
+    notifySuccess(
+      upload
+        ? $t('sync_settings.archives.upload_success')
+        : $t('sync_settings.archives.download_success')
+    );
+    await refresh_backups_info();
+  } finally {
+    activeTransfer.value = '';
   }
 }
 
@@ -621,6 +712,10 @@ async function del_save(date: string) {
 }
 
 async function handleApplyClick(date: string) {
+  if (!canApplySnapshot(date)) {
+    notifyError($t('manage.download_before_apply'));
+    return;
+  }
   await confirmAndRun('snapshot', () => apply_save(date));
 }
 
@@ -868,9 +963,9 @@ async function change_describe(date: string) {
 }
 
 async function load_latest_save() {
-  // 数组是正序的，最后一个是最新的，而展示用的filter_table是倒序的
-  const lastIndex = table_data.value.length - 1;
-  const lastBackup = lastIndex >= 0 ? table_data.value[lastIndex] : undefined;
+  const lastBackup = [...table_data.value]
+    .reverse()
+    .find((snapshot) => canApplySnapshot(snapshot.date));
 
   if (lastBackup?.date) {
     await confirmAndRun('latest', () => apply_save(lastBackup.date));
@@ -879,30 +974,40 @@ async function load_latest_save() {
   }
 }
 
+async function permanentlyDeleteSharedGame() {
+  const gameId = cloudGame.value?.game_id ?? game.value.storage_key ?? game.value.name;
+  try {
+    await feedback.confirm(
+      $t('sync_settings.archives.games.delete_confirm', { game: game.value.name }),
+      $t('sync_settings.archives.games.delete_title'),
+      {
+        confirmButtonText: $t('sync_settings.archives.games.delete_action'),
+        cancelButtonText: $t('manage.cancel'),
+        type: 'error',
+      }
+    );
+  } catch {
+    notifyInfo($t('manage.operation_canceled'));
+    return;
+  }
+  const result = await commands.permanentlyDeleteCloudGame(gameId, true);
+  if (result.status === 'error') {
+    notifyError($t('sync_settings.archives.games.delete_incomplete'), result.error);
+    return;
+  }
+  notifySuccess(
+    $t('sync_settings.archives.games.delete_success', {
+      snapshots: result.data.removed_snapshots,
+    })
+  );
+  await refreshConfig();
+  router.back();
+}
+
 async function del_cur() {
   const cloud = await commands.inspectCloudLibrary();
   if (cloud.status === 'ok' && cloud.data.kind === 'active') {
-    try {
-      await feedback.confirm($t('manage.stop_managing_confirm'), $t('manage.stop_managing_title'), {
-        confirmButtonText: $t('manage.stop_managing_action'),
-        cancelButtonText: $t('manage.cancel'),
-        type: 'warning',
-      });
-    } catch {
-      notifyInfo($t('manage.operation_canceled'));
-      return;
-    }
-    const result = await commands.setDeviceGameManaged(
-      game.value.storage_key || game.value.name,
-      false,
-      true
-    );
-    if (result.status === 'error') {
-      notifyError($t('manage.stop_managing_failed'), result.error);
-      return;
-    }
-    await refreshConfig();
-    router.back();
+    deleteChoiceVisible.value = true;
     return;
   }
   try {
@@ -912,7 +1017,6 @@ async function del_cur() {
       inputPattern: /yes/,
       inputErrorMessage: $t('manage.invalid_input_error'),
     });
-
     if (value === 'yes') {
       const result = await commands.deleteGame(game.value);
       if (result.status === 'error') {
@@ -927,6 +1031,26 @@ async function del_cur() {
   } catch {
     notifyInfo($t('manage.operation_canceled'));
   }
+}
+
+async function stopManagingHere() {
+  deleteChoiceVisible.value = false;
+  const result = await commands.setDeviceGameManaged(
+    game.value.storage_key || game.value.name,
+    false,
+    true
+  );
+  if (result.status === 'error') {
+    notifyError($t('manage.stop_managing_failed'), result.error);
+    return;
+  }
+  await refreshConfig();
+  router.back();
+}
+
+async function choosePermanentDelete() {
+  deleteChoiceVisible.value = false;
+  await permanentlyDeleteSharedGame();
 }
 
 async function open_backup_folder() {
@@ -1117,7 +1241,7 @@ const tableColumns = computed(() => [
     key: 'actions',
     dataKey: 'actions',
     title: $t('manage.actions'),
-    width: 180,
+    width: 232,
     align: 'center' as const,
     fixed: TableV2FixedDir.RIGHT,
   },
@@ -1452,13 +1576,25 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
     tooltip: entry.fullText,
   }))
 );
+
+const syncParticipationLabel = computed(() => {
+  const next = cloudGame.value;
+  if (!next) return '';
+  if (!next.managed) return $t('sync_settings.overview.unmanaged');
+  if (next.sync_mode === 'live_save_sync') return $t('sync_settings.overview.mode_live');
+  if (next.sync_mode === 'snapshot_sync') return $t('sync_settings.overview.mode_snapshot');
+  return $t('sync_settings.overview.mode_manual');
+});
 </script>
 
 <template>
   <div class="manage-container">
     <!-- Page Header -->
     <div class="page-header">
-      <h2 class="page-title">{{ game.name }}</h2>
+      <div class="title-stack">
+        <h2 class="page-title">{{ game.name }}</h2>
+        <span v-if="cloudGame" class="sync-mark">{{ syncParticipationLabel }}</span>
+      </div>
       <div class="header-actions">
         <el-tooltip :content="$t('manage.launch_game')" placement="bottom">
           <el-button circle :icon="VideoPlay" type="success" @click="launch_game" />
@@ -1661,7 +1797,41 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                 </span>
                 <div v-else-if="column.key === 'actions'" class="action-buttons">
                   <el-tooltip
-                    :content="$t('manage.apply')"
+                    v-if="canUploadSnapshot(rowData.date)"
+                    :content="$t('sync_settings.archives.upload')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <el-button
+                      link
+                      type="primary"
+                      :icon="Upload"
+                      :loading="activeTransfer === rowData.date"
+                      @click="transferSnapshot(rowData.date, true)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip
+                    v-else-if="canDownloadSnapshot(rowData.date)"
+                    :content="$t('sync_settings.archives.download')"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="action-tooltip"
+                  >
+                    <el-button
+                      link
+                      type="primary"
+                      :icon="Download"
+                      :loading="activeTransfer === rowData.date"
+                      @click="transferSnapshot(rowData.date, false)"
+                    />
+                  </el-tooltip>
+                  <el-tooltip
+                    :content="
+                      canApplySnapshot(rowData.date)
+                        ? $t('manage.apply')
+                        : $t('manage.download_before_apply')
+                    "
                     placement="top"
                     :show-after="300"
                     popper-class="action-tooltip"
@@ -1670,6 +1840,7 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
                       link
                       type="success"
                       :icon="VideoPlay"
+                      :disabled="!canApplySnapshot(rowData.date)"
                       @click="handleApplyClick(rowData.date)"
                     />
                   </el-tooltip>
@@ -1758,8 +1929,26 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
       v-if="game"
       v-model="autoSaveSettingsDrawer"
       :game="game"
+      :cloud-game="cloudGame"
       @saved="onAutoSaveSettingsSaved"
     />
+    <ElDialog
+      v-model="deleteChoiceVisible"
+      :title="$t('manage.delete_choice_title')"
+      width="min(460px, 92vw)"
+      align-center
+    >
+      <p class="delete-choice-copy">{{ $t('manage.delete_choice_confirm') }}</p>
+      <template #footer>
+        <ElButton @click="deleteChoiceVisible = false">{{ $t('manage.cancel') }}</ElButton>
+        <ElButton type="warning" @click="stopManagingHere">
+          {{ $t('manage.stop_managing_action') }}
+        </ElButton>
+        <ElButton type="danger" @click="choosePermanentDelete">
+          {{ $t('sync_settings.archives.games.delete_action') }}
+        </ElButton>
+      </template>
+    </ElDialog>
   </div>
 </template>
 
@@ -1783,16 +1972,32 @@ const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
   min-width: 0;
 }
 
+.title-stack {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .page-title {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--el-text-color-primary);
-  flex: 1 1 auto;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.delete-choice-copy {
+  margin: 0;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+}
+
+.sync-mark {
+  display: block;
+  margin-top: 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 .header-actions {

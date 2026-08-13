@@ -2,13 +2,19 @@
 import { computed, reactive, ref, watch } from 'vue';
 import ProcessSelect from './ProcessSelect.vue';
 import { commands } from '../bindings';
-import type { AutoBackupConfig, Game, RunningProcessOption } from '../bindings';
+import type {
+  AutoBackupConfig,
+  CloudArchiveGameView,
+  Game,
+  RunningProcessOption,
+} from '../bindings';
 import { $t } from '../i18n';
 import { error } from '@tauri-apps/plugin-log';
 
 const props = defineProps<{
   modelValue: boolean;
   game: Game;
+  cloudGame?: CloudArchiveGameView | null;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const { config, refreshConfig } = useConfig();
+const feedback = useFeedback();
 
 const visible = computed({
   get: () => props.modelValue,
@@ -50,6 +57,8 @@ const draft = reactive({
   intervalEnabled: false,
   processIntervalSecs: 300,
 });
+const sharedRetentionEnabled = ref(false);
+const sharedRetentionLimit = ref(10);
 
 function gameIdentity(game: Game): string {
   return game.storage_key || game.name;
@@ -74,6 +83,8 @@ function syncDraft() {
   draft.onExit = automation?.on_process_exit ?? true;
   draft.intervalEnabled = automation?.in_process_interval_secs != null;
   draft.processIntervalSecs = automation?.in_process_interval_secs ?? 300;
+  sharedRetentionEnabled.value = props.cloudGame?.retention_limit != null;
+  sharedRetentionLimit.value = props.cloudGame?.retention_limit ?? 10;
 }
 
 async function refreshTargets() {
@@ -122,6 +133,29 @@ async function saveDraft() {
           max_backup_count: draft.timerMaxCount ?? null,
         }
       : null;
+    let nextRetention: number | null = null;
+    let riskyRetention = false;
+    if (props.cloudGame) {
+      nextRetention = sharedRetentionEnabled.value ? Math.max(1, sharedRetentionLimit.value) : null;
+      const previous = props.cloudGame.retention_limit;
+      riskyRetention = nextRetention !== null && (previous === null || nextRetention < previous);
+      if (riskyRetention) {
+        try {
+          await feedback.confirm(
+            $t('sync_settings.archives.retention.confirm', { count: nextRetention }),
+            $t('sync_settings.archives.retention.confirm_title'),
+            {
+              confirmButtonText: $t('sync_settings.archives.retention.enable'),
+              cancelButtonText: $t('sync_settings.cancel'),
+              type: 'warning',
+            }
+          );
+        } catch {
+          return;
+        }
+      }
+    }
+
     const result = await commands.setGameAutoSaveSettings(
       gameIdentity(props.game),
       timerConfig,
@@ -130,6 +164,18 @@ async function saveDraft() {
     if (result.status === 'error') {
       notifyError(result.error);
       return;
+    }
+
+    if (props.cloudGame) {
+      const retention = await commands.setSharedSnapshotRetention(
+        props.cloudGame.game_id,
+        nextRetention,
+        riskyRetention
+      );
+      if (retention.status === 'error') {
+        notifyError($t('sync_settings.archives.retention.save_failed'), retention.error);
+        return;
+      }
     }
 
     await refreshConfig();
@@ -215,6 +261,24 @@ watch(
             class="number-control"
             :placeholder="$t('manage.auto_backup_max_count_hint')"
           />
+        </div>
+        <div v-if="cloudGame" class="shared-retention">
+          <div class="panel-heading">
+            <h3>{{ $t('manage.shared_retention_limit') }}</h3>
+            <span>{{ $t('manage.shared_retention_hint') }}</span>
+          </div>
+          <div class="retention-field">
+            <el-switch v-model="sharedRetentionEnabled" />
+            <el-input-number
+              v-if="sharedRetentionEnabled"
+              v-model="sharedRetentionLimit"
+              :min="1"
+              :max="1000"
+              :step="1"
+              size="small"
+              class="number-control"
+            />
+          </div>
         </div>
       </section>
 
@@ -363,6 +427,33 @@ watch(
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px 12px;
+}
+
+.cloud-policy {
+  display: grid;
+  gap: 16px;
+}
+
+.shared-retention {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.retention-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.field-hint {
+  grid-column: 1 / -1;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .drawer-footnote {
