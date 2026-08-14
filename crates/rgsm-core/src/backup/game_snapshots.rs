@@ -10,7 +10,7 @@ use crate::device::{DeviceId, get_current_device_id};
 /// A backup list info is a json file in a backup folder for a game.
 /// It contains the name of the game,
 /// and all backups' path
-#[derive(Debug, Serialize, Deserialize, Type, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Type, utoipa::ToSchema, Clone, PartialEq, Eq)]
 pub struct GameSnapshots {
     pub name: String,
     pub backups: Vec<Snapshot>,

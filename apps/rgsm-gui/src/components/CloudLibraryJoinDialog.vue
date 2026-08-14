@@ -6,7 +6,7 @@ import {
   type CloudLibraryJoinReview,
   type JoinGameAction,
   type JoinGameDecision,
-} from '~/bindings';
+} from '~/api/commands';
 import { $t } from '~/i18n';
 import { LAYER } from '~/ui/layers';
 

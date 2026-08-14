@@ -2,7 +2,7 @@
 import { Lock, Unlock } from '@element-plus/icons-vue';
 import { ref } from 'vue';
 
-import { commands, type CloudArchiveSnapshotView } from '../bindings';
+import { commands, type CloudArchiveSnapshotView } from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 

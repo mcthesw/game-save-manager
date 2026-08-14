@@ -21,14 +21,16 @@ pub fn encode_device_id(device_id: &str) -> String {
     encoded
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Type)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Type, utoipa::ToSchema,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum DeviceResourceSource {
     Manual,
     Detected,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum DeviceResourceKind {
     GameRoot {
@@ -56,7 +58,7 @@ pub enum DeviceResourceKind {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type, utoipa::ToSchema)]
 pub struct DeviceResource {
     pub id: DeviceResourceId,
     pub source: DeviceResourceSource,
@@ -64,7 +66,7 @@ pub struct DeviceResource {
 }
 
 // 设备信息结构体
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type, utoipa::ToSchema)]
 pub struct Device {
     pub id: DeviceId,
     pub name: String,

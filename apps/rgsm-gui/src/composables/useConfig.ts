@@ -1,9 +1,14 @@
-import { error } from '@tauri-apps/plugin-log';
-import { commands, DEFAULT_CONFIG, events, type Config, type DeviceGameStatus } from '../bindings';
+import { error } from '../utils/logger';
+import {
+  commands,
+  DEFAULT_CONFIG,
+  events,
+  type Config,
+  type DeviceGameStatus,
+} from '../api/commands';
 import { $t } from '../i18n';
 
-const defaultConfig: Config = DEFAULT_CONFIG as unknown as Config;
-const config = ref(defaultConfig);
+const config = ref<Config>(structuredClone(DEFAULT_CONFIG));
 const deviceGameStatuses = ref<DeviceGameStatus[]>([]);
 const isLoading = ref(false);
 
@@ -28,7 +33,7 @@ async function refreshConfig(): Promise<boolean> {
   } catch (e) {
     error(`Failed to load config: ${e}`);
     notifyError($t('error.config_load_failed'));
-    config.value = defaultConfig;
+    config.value = structuredClone(DEFAULT_CONFIG);
     return false;
   } finally {
     isLoading.value = false;

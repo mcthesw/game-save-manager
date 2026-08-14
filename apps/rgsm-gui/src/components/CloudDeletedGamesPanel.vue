@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
 
-import { commands, type DeletedCloudGameView } from '../bindings';
+import { commands, type DeletedCloudGameView } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { commands } from '~/bindings';
+import { commands } from '~/api/commands';
 import { $t } from '../i18n';
-import { debug } from '@tauri-apps/plugin-log';
+import { debug } from '../utils/logger';
 
 const { config } = useConfig();
 

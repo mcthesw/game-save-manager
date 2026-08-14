@@ -39,7 +39,7 @@ pub enum ResolveError {
 }
 
 /// Result of checking a single path
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum PathCheckResult {
     /// Path resolved and exists on filesystem

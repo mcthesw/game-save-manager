@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 const CUTOVER_PROGRESS_SCHEMA_VERSION: u32 = 1;
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudLibraryCutoverReview {
     pub game_count: usize,
     pub snapshot_count: usize,

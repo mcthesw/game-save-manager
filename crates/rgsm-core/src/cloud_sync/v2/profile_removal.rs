@@ -10,7 +10,7 @@ use super::{
 };
 use crate::device::DeviceId;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct DeviceProfileRemovalOutcome {
     pub device_id: DeviceId,
     pub removed_heads: usize,

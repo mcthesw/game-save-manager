@@ -162,9 +162,9 @@ import {
   type SavePath,
   type PathCheckResult,
   type StoreUserIdCandidate,
-} from '../bindings';
-import { error } from '@tauri-apps/plugin-log';
-import type { ManifestPathConstraints } from '../bindings';
+} from '../api/commands';
+import { error } from '../utils/logger';
+import type { ManifestPathConstraints } from '../api/commands';
 
 /** Check if a path is a Windows registry path (not supported for backup) */
 function isRegistryPath(path: string): boolean {

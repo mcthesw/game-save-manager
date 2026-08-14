@@ -145,8 +145,8 @@ import {
   type SavePath,
   type PathCheckResult,
   type StoreUserIdCandidate,
-} from '../bindings';
-import { error } from '@tauri-apps/plugin-log';
+} from '../api/commands';
+import { error } from '../utils/logger';
 import PathVariableInput from './PathVariableInput.vue';
 
 interface CustomizeData {

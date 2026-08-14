@@ -14,7 +14,7 @@ use super::{
 use crate::backup::{GameSnapshots, Snapshot};
 use crate::device::DeviceId;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct KeepLocalProgressOutcome {
     pub snapshot_id: String,
     pub prepared_snapshots: usize,

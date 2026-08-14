@@ -7,7 +7,7 @@ import {
   type ProgressRelation,
   type RemoteProgressCandidate,
   type V2ConflictReview,
-} from '../bindings';
+} from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 

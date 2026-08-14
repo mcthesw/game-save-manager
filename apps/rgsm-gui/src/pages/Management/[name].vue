@@ -11,13 +11,13 @@ import {
   type Game,
   type GameSnapshots,
   type Snapshot,
-} from '../../bindings';
+} from '../../api/commands';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
 import AutoSaveSettingsDrawer from '../../components/AutoSaveSettingsDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
 import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
 import { $t } from '../../i18n';
-import { error, info } from '@tauri-apps/plugin-log';
+import { error, info } from '../../utils/logger';
 import {
   List,
   Share,
@@ -55,7 +55,7 @@ const { config, refreshConfig, saveConfig } = useConfig();
 const { confirmAndRun } = useApplyConfirmation();
 const { markGamePlayed } = useSaveListSort();
 const { withLoading } = useGlobalLoading();
-const { startCollecting, stopCollecting } = useIpcNotificationCollector();
+const { startCollecting, stopCollecting } = useHostNotificationCollector();
 const { preview: previewSaveUnit, rememberRestoreMapping } = usePathResolution();
 const router = useRouter();
 const route = useRoute();

@@ -91,8 +91,8 @@ import { ArrowDown, Check } from '@element-plus/icons-vue';
 import { usePreferredReducedMotion } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { Ref } from 'vue';
-import { error } from '@tauri-apps/plugin-log';
-import { commands } from '../bindings';
+import { error } from '../utils/logger';
+import { commands } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { $t, getSupportedLanguages, i18n } from '../i18n';
 // 与应用图标同源,避免在前端复制一份 logo 资产

@@ -5,7 +5,7 @@ import {
   type CloudArchiveGameView,
   type InitialCatchUpPolicy,
   type SyncMode,
-} from '../bindings';
+} from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 import {

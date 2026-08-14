@@ -40,7 +40,7 @@ declare global {
   const useConfig: (typeof import('../composables/useConfig'))['useConfig'];
   const useFeedback: (typeof import('../composables/useFeedback'))['useFeedback'];
   const useGlobalLoading: (typeof import('../composables/useGlobalLoading'))['useGlobalLoading'];
-  const useIpcNotificationCollector: (typeof import('../composables/useIpcNotificationCollector'))['useIpcNotificationCollector'];
+  const useHostNotificationCollector: (typeof import('../composables/useHostNotificationCollector'))['useHostNotificationCollector'];
   const useNavigationLinks: (typeof import('../composables/useNavigationLinks'))['useNavigationLinks'];
   const useSaveListExpandBehavior: (typeof import('../composables/useSaveListExpandBehavior'))['useSaveListExpandBehavior'];
   const useSaveListSort: (typeof import('../composables/useSaveListSort'))['useSaveListSort'];

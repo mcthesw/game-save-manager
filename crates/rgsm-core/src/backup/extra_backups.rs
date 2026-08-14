@@ -13,7 +13,7 @@ use crate::preclude::*;
 
 use super::Game;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct ExtraBackupItem {
     /// Filename without extension, e.g. `Overwrite_2025-12-22_12-34-56`.
     pub date: String,

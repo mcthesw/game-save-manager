@@ -24,7 +24,7 @@ use crate::preclude::*;
 ///
 /// These fields are **device-independent** (directory names and IDs, not paths)
 /// and are safe to persist in config and sync across devices.
-#[derive(Debug, Serialize, Deserialize, Clone, Type, Default, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LudusaviMeta {
     /// Install directory names from the manifest's `installDir` field.
@@ -37,7 +37,7 @@ pub struct LudusaviMeta {
     pub store_game_ids: Vec<StoreGameId>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreGameId {
     pub store: StoreKind,
@@ -55,7 +55,7 @@ impl LudusaviMeta {
 
 /// Per-game auto-backup configuration.
 /// Presence (`Some`) enables the timer; absence (`None`) disables it.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct AutoBackupConfig {
     /// Interval between auto-backups in seconds.
     pub interval_secs: u32,
@@ -65,7 +65,7 @@ pub struct AutoBackupConfig {
 }
 
 /// A game struct contains the save units and the game's launcher
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct Game {
     pub name: String,
     /// Filesystem-safe identifier used for local backup directories and remote
@@ -100,9 +100,9 @@ pub struct Game {
     pub device_bindings: HashMap<DeviceId, GameDeviceBinding>,
 }
 
-/// Frontend/IPC input shape for creating/updating a game.
+/// Frontend/API input shape for creating or updating a game.
 /// Save-unit IDs are assigned and normalized in backend domain logic.
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct GameDraft {
     pub name: String,
     pub save_paths: Vec<SaveUnitDraft>,

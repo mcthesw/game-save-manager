@@ -12,7 +12,7 @@ import type {
   CloudBackendCheckItem,
   CloudBackendCheckReport,
   CloudBackendCheckStep,
-} from '../bindings';
+} from '../api/commands';
 
 type CheckOutcome = CloudBackendCheckReport['outcome'];
 type CheckItemStatus = CloudBackendCheckItem['status'];
@@ -88,7 +88,9 @@ const currentOutcome = computed<UiOutcome>(() => {
 const checkItems = computed<UiCheckItem[]>(() =>
   STEPS.map((step) => {
     const item = props.report?.items.find((candidate) => candidate.step === step);
-    return item ?? { step, status: 'pending', message: null };
+    return item
+      ? { ...item, message: item.message ?? null }
+      : { step, status: 'pending', message: null };
   })
 );
 

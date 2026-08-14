@@ -53,7 +53,7 @@ fn ensure_legacy_cloud_sync() -> Result<(), BackendError> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CloudLibraryStatus {
     Empty,
@@ -62,27 +62,27 @@ pub enum CloudLibraryStatus {
     Active { game_count: usize },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CloudLibraryJoinOutcome {
     Active { game_count: usize },
     ReviewChanged { game_name: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudLibraryCutoverOutcome {
     pub game_count: usize,
     pub snapshot_count: usize,
     pub unavailable_archives: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct GameSyncModeOutcome {
     pub mode: SyncMode,
     pub downloaded: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct LiveSaveSyncOptions {
     pub process_name: String,
     pub snapshot_on_exit: bool,

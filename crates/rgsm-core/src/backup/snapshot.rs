@@ -5,7 +5,9 @@ use crate::default_value;
 use crate::device::DeviceId;
 
 /// Container format used by a Snapshot archive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ArchiveFormat {
     /// Historical ZIP Archive Legacy/V1/V2/V3.
@@ -28,7 +30,7 @@ impl ArchiveFormat {
 ///
 /// Forward-compatible: unknown variants from future versions deserialize
 /// as `Unknown` — these are never auto-deleted by cleanup logic.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default)]
 pub enum CreatedBy {
     /// User-created snapshot (manual backup, IPC call, etc.)
     #[default]
@@ -64,7 +66,7 @@ impl CreatedBy {
 
 /// A backup archive containing all data declared by its Save Units.
 /// The date is the unique indicator for a backup
-#[derive(Debug, Serialize, Deserialize, Type, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Type, utoipa::ToSchema, Clone, PartialEq, Eq)]
 pub struct Snapshot {
     pub date: String,
     pub describe: String,

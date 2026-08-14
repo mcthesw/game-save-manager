@@ -4,7 +4,7 @@ use specta::Type;
 use crate::device::DeviceResourceId;
 use crate::path_resolution::CandidateDimensions;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreMappingRule {
     pub save_unit_id: u32,
@@ -12,7 +12,7 @@ pub struct RestoreMappingRule {
     pub target_candidate_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GameDeviceBinding {
     #[serde(default, skip_serializing_if = "Option::is_none")]

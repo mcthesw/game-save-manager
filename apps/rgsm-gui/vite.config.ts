@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import VueRouter from 'vue-router/vite';
@@ -8,6 +9,15 @@ import { defineConfig } from 'vite';
 
 const appRoot = dirname(fileURLToPath(import.meta.url));
 const sourcePath = (path: string) => resolve(appRoot, path).replace(/\\/g, '/');
+type HostConfig = { port: number; api_token: string };
+let hostConfig: HostConfig | undefined;
+try {
+  hostConfig = JSON.parse(
+    readFileSync(resolve(appRoot, '../../.rgsm-dev/app-data/GameSaveManager.host.json'), 'utf8')
+  ) as HostConfig;
+} catch {
+  // Tauri starts its embedded Host after Vite; the WebView receives a direct runtime URL.
+}
 const kebabCase = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 const elementPlusModuleByComponent: Record<string, string> = {
   ElAside: 'container',
@@ -65,7 +75,7 @@ const viteOptimizationEntries = [
   './src/components/**/*.vue',
   './src/composables/**/*.ts',
   './src/i18n.ts',
-  './src/bindings.ts',
+  './src/api/generated/sdk.gen.ts',
 ].map(sourcePath);
 
 const elementPlusOptimizationEntries = [
@@ -231,6 +241,21 @@ export default defineConfig({
     watch: {
       ignored: generatedFilePatterns,
     },
+    proxy: hostConfig
+      ? {
+          '/api/v1': {
+            target: `http://127.0.0.1:${hostConfig.port}`,
+            changeOrigin: true,
+            configure(proxy) {
+              proxy.on('proxyReq', (request) => {
+                if (!request.hasHeader('Authorization')) {
+                  request.setHeader('Authorization', `Bearer ${hostConfig.api_token}`);
+                }
+              });
+            },
+          },
+        }
+      : undefined,
   },
   build: {
     outDir: 'dist',
@@ -241,10 +266,6 @@ export default defineConfig({
     include: [
       'dayjs',
       'uuid',
-      '@tauri-apps/plugin-log',
-      '@tauri-apps/api/event',
-      '@tauri-apps/api/core',
-      '@tauri-apps/api/webviewWindow',
       '@element-plus/icons-vue',
       'dayjs/plugin/*.js',
       'vuedraggable',

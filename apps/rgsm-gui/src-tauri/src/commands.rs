@@ -38,43 +38,40 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, Window};
-use tauri_plugin_dialog::DialogExt;
-use tauri_specta::Event;
+use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::hooks::HookPipelineState;
 
-/// Adapter: emits restore progress as IpcNotification events via Tauri.
-struct TauriRestoreNotifier {
+pub mod http_commands;
+
+/// Adapter: emits restore progress as HostNotification events through the Host event stream.
+struct HostRestoreNotifier {
     app: AppHandle,
 }
 
-impl RestoreNotifier for TauriRestoreNotifier {
+impl RestoreNotifier for HostRestoreNotifier {
     fn notify(&self, level: RestoreNotificationLevel, title: &str, msg: &str) {
         let notification_level = match level {
             RestoreNotificationLevel::Info => NotificationLevel::info,
             RestoreNotificationLevel::Warning => NotificationLevel::warning,
         };
-        if let Err(err) = (IpcNotification {
+        let event = HostNotification {
             level: notification_level,
             title: title.to_string(),
             msg: msg.to_string(),
-        })
-        .emit(&self.app)
-        {
-            warn!(target: "rgsm::ipc", "Failed to emit restore notification: {err:?}");
-        }
+        };
+        crate::http::emit(&self.app, "notification", &event);
     }
 }
 
 /// Helper to create a notifier from an AppHandle
-fn notifier(app: &AppHandle) -> TauriRestoreNotifier {
-    TauriRestoreNotifier { app: app.clone() }
+fn notifier(app: &AppHandle) -> HostRestoreNotifier {
+    HostRestoreNotifier { app: app.clone() }
 }
 
 /// Typed error for restore operations, allowing the frontend to
 /// pattern-match on specific failure modes without string parsing.
-#[derive(Debug, Serialize, Deserialize, Clone, Type, thiserror::Error)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, thiserror::Error)]
 #[serde(tag = "type")]
 pub enum RestoreError {
     #[error("Integrity check failed: expected {expected}, got {actual}")]
@@ -199,48 +196,48 @@ fn summarize_batch_result(
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub enum NotificationLevel {
     info,
     warning,
     error,
 }
-#[derive(Debug, Serialize, Deserialize, Clone, Type, Event)]
-pub struct IpcNotification {
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
+pub struct HostNotification {
     pub level: NotificationLevel,
     pub title: String,
     pub msg: String,
 }
 
-/// Tauri Event wrapper for CloudSyncStatus (core type has no Event derive)
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+/// Transport payload for a cloud synchronization status update
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudSyncStatusEvent {
     pub active_jobs: usize,
     pub current_description: Option<String>,
     pub jobs: Vec<cloud_sync::CloudSyncJobInfo>,
 }
 
-/// Tauri Event wrapper for CloudSyncError (core type has no Event derive)
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+/// Transport payload for a cloud synchronization failure
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudSyncErrorEvent {
     pub game_name: Option<String>,
     pub error: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct BuildInfo {
     pub version: String,
     pub git_hash: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum OpenPathOutcome {
     Opened,
     Warning { warning: OpenPathWarning },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum OpenPathWarning {
     RegistryOpenUnsupported,
@@ -259,18 +256,14 @@ impl From<OpenManagedLocationOutcome> for OpenPathOutcome {
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn open_url(url: String) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Opening url: {}", url);
+    info!(target:"rgsm::commands", "Opening url: {}", url);
     open::that(url).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to open url: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to open url: {:?}", e);
         e.to_string()
     })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_build_info() -> BuildInfo {
     BuildInfo {
         version: rgsm_core::version().to_string(),
@@ -278,126 +271,111 @@ pub async fn get_build_info() -> BuildInfo {
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn open_file_or_folder(path: String) -> Result<OpenPathOutcome, String> {
-    info!(target:"rgsm::ipc", "Opening file or folder: {}", path);
+    info!(target:"rgsm::commands", "Opening file or folder: {}", path);
 
     let config = get_config().map_err(|e| e.to_string())?;
     rgsm_core::path_launcher::open_managed_location(&path, None, &config)
         .map(OpenPathOutcome::from)
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to open file or folder: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to open file or folder: {:?}", e);
             e.to_string()
         })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_app_log_dir(app: AppHandle) -> Result<String, String> {
-    info!(target:"rgsm::ipc", "Getting app log directory");
+    info!(target:"rgsm::commands", "Getting app log directory");
 
     let log_dir = app.path().app_log_dir().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get app log directory: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to get app log directory: {:?}", e);
         e.to_string()
     })?;
 
-    debug!(target:"rgsm::ipc", "Log directory: {}", log_dir.display());
+    debug!(target:"rgsm::commands", "Log directory: {}", log_dir.display());
     Ok(log_dir.to_string_lossy().to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn choose_save_file(app: AppHandle) -> Result<String, String> {
-    info!(target:"rgsm::ipc", "Opening file dialog.");
-    if let Some(path) = app.dialog().file().blocking_pick_file() {
-        info!(target:"rgsm::ipc","Successfully picked file: {:#?}",path);
-        Ok(path.to_string())
+pub async fn choose_save_file(_app: AppHandle) -> Result<String, String> {
+    info!(target:"rgsm::commands", "Opening file dialog.");
+    if let Some(path) = rfd::FileDialog::new().pick_file() {
+        info!(target:"rgsm::commands","Successfully picked file: {:#?}",path);
+        Ok(path.to_string_lossy().into_owned())
     } else {
-        warn!(target:"rgsm::ipc", "Failed to open dialog or user close the dialog.");
+        warn!(target:"rgsm::commands", "Failed to open dialog or user close the dialog.");
         Err("Failed to open dialog.".to_string())
     }
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn choose_save_dir(app: AppHandle) -> Result<String, String> {
-    info!(target:"rgsm::ipc","Opening folder dialog.");
-    if let Some(path) = app.dialog().file().blocking_pick_folder() {
-        info!(target:"rgsm::ipc","Successfully picked folder: {:#?}",path);
-        Ok(path.to_string())
+pub async fn choose_save_dir(_app: AppHandle) -> Result<String, String> {
+    info!(target:"rgsm::commands","Opening folder dialog.");
+    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+        info!(target:"rgsm::commands","Successfully picked folder: {:#?}",path);
+        Ok(path.to_string_lossy().into_owned())
     } else {
-        warn!(target:"rgsm::ipc", "Failed to open dialog or user close the dialog.");
+        warn!(target:"rgsm::commands", "Failed to open dialog or user close the dialog.");
         Err("Failed to open dialog.".to_string())
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_local_config() -> Result<Config, String> {
-    info!(target:"rgsm::ipc", "Getting local config.");
+    info!(target:"rgsm::commands", "Getting local config.");
     get_config().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Adding game draft: {:?}", game);
+    info!(target:"rgsm::commands", "Adding game draft: {:?}", game);
     svc(&app_handle)
         .add_game(&game, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to add game: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to add game: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully added game draft: {:?}", game.name);
+    info!(target:"rgsm::commands", "Successfully added game draft: {:?}", game.name);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn update_game(
     storage_key: String,
     game: GameDraft,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Updating game (storage_key={}): {:?}", storage_key, game);
+    info!(target:"rgsm::commands", "Updating game (storage_key={}): {:?}", storage_key, game);
     svc(&app_handle)
         .update_game(&storage_key, &game, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to update game: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to update game: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully updated game: {:?}", game.name);
+    info!(target:"rgsm::commands", "Successfully updated game: {:?}", game.name);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn restore_snapshot(
     game: Game,
     date: String,
     app: AppHandle,
 ) -> Result<(), RestoreError> {
-    info!(target:"rgsm::ipc", "Applying backup: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Applying backup: {:?} for game: {:?}", date, game);
     let n = notifier(&app);
     svc(&app)
         .restore_snapshot(&game, &date, HookSource::UserManual, Some(&n))
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to apply backup: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to apply backup: {:?}", e);
             RestoreError::from(e)
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully applied backup: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Successfully applied backup: {:?} for game: {:?}", date, game);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
+pub const ACTIVE_CLOUD_LIBRARY_DELETION_REQUIRES_PERMANENT: &str =
+    "Use permanent V2 Snapshot deletion for an active Cloud Library";
+
 pub async fn delete_snapshot(
     game: Game,
     date: String,
@@ -406,23 +384,21 @@ pub async fn delete_snapshot(
     if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
         == CloudNamespaceGeneration::V2
     {
-        return Err("Use permanent V2 Snapshot deletion for an active Cloud Library".into());
+        return Err(ACTIVE_CLOUD_LIBRARY_DELETION_REQUIRES_PERMANENT.into());
     }
-    info!(target:"rgsm::ipc", "Deleting backup: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Deleting backup: {:?} for game: {:?}", date, game);
     svc(&app_handle)
         .delete_snapshot(&game, &date, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to delete backup: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to delete backup: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully deleted backup: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Successfully deleted backup: {:?} for game: {:?}", date, game);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn batch_delete_snapshots(
     game: Game,
     dates: Vec<String>,
@@ -431,54 +407,48 @@ pub async fn batch_delete_snapshots(
     if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
         == CloudNamespaceGeneration::V2
     {
-        return Err("Use permanent V2 Snapshot deletion for an active Cloud Library".into());
+        return Err(ACTIVE_CLOUD_LIBRARY_DELETION_REQUIRES_PERMANENT.into());
     }
-    info!(target:"rgsm::ipc", "Batch deleting {} snapshots for game: {:?}", dates.len(), game.name);
+    info!(target:"rgsm::commands", "Batch deleting {} snapshots for game: {:?}", dates.len(), game.name);
     svc(&app_handle)
         .batch_delete_snapshots(&game, &dates, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to batch delete snapshots: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to batch delete snapshots: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully batch deleted {} snapshots for game: {:?}", dates.len(), game.name);
+    info!(target:"rgsm::commands", "Successfully batch deleted {} snapshots for game: {:?}", dates.len(), game.name);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn get_cloud_namespace_generation() -> Result<CloudNamespaceGeneration, String> {
     rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Deleting game: {:?}", game);
+    info!(target:"rgsm::commands", "Deleting game: {:?}", game);
     svc(&app_handle)
         .delete_game(&game, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to delete game: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to delete game: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully deleted game: {:?}", game);
+    info!(target:"rgsm::commands", "Successfully deleted game: {:?}", game);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String> {
-    info!(target:"rgsm::ipc", "Getting backup list info for game: {:?}", game);
+    info!(target:"rgsm::commands", "Getting backup list info for game: {:?}", game);
     match game.get_game_snapshots_info() {
         Ok(snapshots) => Ok(snapshots),
         Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
             Ok(GameSnapshots::new(game.name))
         }
         Err(error) => {
-            error!(target:"rgsm::ipc", "Failed to get backup list info: {:?}", error);
+            error!(target:"rgsm::commands", "Failed to get backup list info: {:?}", error);
             Err(error.to_string())
         }
     }
@@ -486,8 +456,6 @@ pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String
 
 /// Verify archive integrity by comparing the stored hash against a freshly computed one.
 /// Returns `true` if the hash matches (or no stored hash exists), `false` if mismatched.
-#[tauri::command]
-#[specta::specta]
 pub async fn verify_archive_integrity(
     archive_path: String,
     expected_hash: Option<String>,
@@ -498,45 +466,39 @@ pub async fn verify_archive_integrity(
         return Ok(true);
     };
     let actual = compute_file_hash(std::path::Path::new(&archive_path)).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to compute archive hash: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to compute archive hash: {:?}", e);
         e.to_string()
     })?;
     Ok(actual == expected)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
-    debug!(target:"rgsm::ipc", "Setting config: {:?}", config.clone().sanitize());
+    debug!(target:"rgsm::commands", "Setting config: {:?}", config.clone().sanitize());
     svc(&app_handle).save_config(&config).await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to set config: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to set config: {:?}", e);
         e.to_string()
     })?;
     rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn reset_settings(app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Resetting settings.");
+    info!(target:"rgsm::commands", "Resetting settings.");
     let config = svc(&app_handle).reset_settings().await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to reset settings: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to reset settings: {:?}", e);
         e.to_string()
     })?;
     rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn create_snapshot(
     game: Game,
     describe: String,
-    window: Window,
+    window: WebviewWindow,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Backing up save for game: {:?}", game);
+    info!(target:"rgsm::commands", "Backing up save for game: {:?}", game);
     handle_backup_err(
         svc(&app_handle)
             .create_snapshot(&game, &describe, HookSource::UserManual)
@@ -544,85 +506,73 @@ pub async fn create_snapshot(
         window,
     )?;
 
-    info!(target:"rgsm::ipc", "Successfully backed up save for game: {:?}", game);
+    info!(target:"rgsm::commands", "Successfully backed up save for game: {:?}", game);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn open_backup_folder(game: Game) -> Result<bool, String> {
-    info!(target:"rgsm::ipc", "Opening backup folder for game: {:?}", game);
+    info!(target:"rgsm::commands", "Opening backup folder for game: {:?}", game);
     let backup_path = get_backup_path().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get backup path: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to get backup path: {:?}", e);
         e.to_string()
     })?;
     let p = game.backup_folder_path(&backup_path);
     Ok(open::that(p).is_ok())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_game_extra_backups(game: Game) -> Result<Vec<ExtraBackupItem>, String> {
-    info!(target:"rgsm::ipc", "Getting extra backups for game: {:?}", game);
+    info!(target:"rgsm::commands", "Getting extra backups for game: {:?}", game);
     backup::list_extra_backups(&game).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to list extra backups: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to list extra backups: {:?}", e);
         e.to_string()
     })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn delete_extra_backup(game: Game, date: String) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Deleting extra backup: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Deleting extra backup: {:?} for game: {:?}", date, game);
     backup::delete_extra_backup(&game, &date).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to delete extra backup: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to delete extra backup: {:?}", e);
         e.to_string()
     })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn restore_extra_backup(game: Game, date: String, app: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Restoring extra backup: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Restoring extra backup: {:?} for game: {:?}", date, game);
     let n = notifier(&app);
     svc(&app)
         .restore_extra_backup(&game, &date, Some(&n))
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to restore extra backup: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to restore extra backup: {:?}", e);
             e.to_string()
         })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn open_extra_backup_folder(game: Game) -> Result<bool, String> {
-    info!(target:"rgsm::ipc", "Opening extra backup folder for game: {:?}", game);
+    info!(target:"rgsm::commands", "Opening extra backup folder for game: {:?}", game);
     let p = backup::extra_backup_folder_path(&game).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get extra backup path: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to get extra backup path: {:?}", e);
         e.to_string()
     })?;
     Ok(open::that(p).is_ok())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn check_cloud_backend(
     session: CloudSyncSessionConfig,
     app_handle: AppHandle,
 ) -> Result<CloudBackendCheckReport, String> {
-    info!(target:"rgsm::ipc", "Checking cloud backend: {:?}", session.backend.clone().sanitize());
+    info!(target:"rgsm::commands", "Checking cloud backend: {:?}", session.backend.clone().sanitize());
     match svc(&app_handle).check_cloud_backend(&session).await {
         Ok(report) => {
             if report.is_usable() {
                 info!(
-                    target:"rgsm::ipc",
+                    target:"rgsm::commands",
                     "Checked cloud backend with outcome {:?}: {:?}",
                     report.outcome,
                     session.backend.sanitize()
                 );
             } else {
                 warn!(
-                    target:"rgsm::ipc",
+                    target:"rgsm::commands",
                     "Cloud backend check reported unusable backend: {:?}",
                     session.backend.sanitize()
                 );
@@ -630,89 +580,75 @@ pub async fn check_cloud_backend(
             Ok(report)
         }
         Err(e) => {
-            error!(target:"rgsm::ipc", "Failed to check cloud backend: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to check cloud backend: {:?}", e);
             Err(e.to_string())
         }
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn inspect_cloud_library(app_handle: AppHandle) -> Result<CloudLibraryStatus, String> {
-    info!(target:"rgsm::ipc", "Inspecting the saved Cloud Library");
+    info!(target:"rgsm::commands", "Inspecting the saved Cloud Library");
     svc(&app_handle)
         .inspect_cloud_library()
         .await
         .map_err(|error| {
-            error!(target:"rgsm::ipc", "Failed to inspect Cloud Library: {error:?}");
+            error!(target:"rgsm::commands", "Failed to inspect Cloud Library: {error:?}");
             error.to_string()
         })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn create_cloud_library(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<CloudLibraryStatus, String> {
-    info!(target:"rgsm::ipc", "Creating a new Cloud Library");
+    info!(target:"rgsm::commands", "Creating a new Cloud Library");
     crate::cloud_library::create(&app_handle, confirmed)
         .await
         .map_err(|error| {
-            error!(target:"rgsm::ipc", "Failed to create Cloud Library: {error:?}");
+            error!(target:"rgsm::commands", "Failed to create Cloud Library: {error:?}");
             error.to_string()
         })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn review_cloud_library_join(
     app_handle: AppHandle,
 ) -> Result<CloudLibraryJoinReview, String> {
-    info!(target:"rgsm::ipc", "Reviewing an existing Cloud Library");
+    info!(target:"rgsm::commands", "Reviewing an existing Cloud Library");
     crate::cloud_library::review(&app_handle)
         .await
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn join_cloud_library(
     decisions: Vec<JoinGameDecision>,
     confirmed_replacements: bool,
     app_handle: AppHandle,
 ) -> Result<CloudLibraryJoinOutcome, String> {
-    info!(target:"rgsm::ipc", "Joining an existing Cloud Library");
+    info!(target:"rgsm::commands", "Joining an existing Cloud Library");
     crate::cloud_library::join(&app_handle, &decisions, confirmed_replacements)
         .await
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn review_cloud_library_cutover(
     app_handle: AppHandle,
 ) -> Result<CloudLibraryCutoverReview, String> {
-    info!(target:"rgsm::ipc", "Reviewing legacy Cloud Library Cutover");
+    info!(target:"rgsm::commands", "Reviewing legacy Cloud Library Cutover");
     crate::cloud_library::review_cutover(&app_handle)
         .await
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn cutover_cloud_library(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<CloudLibraryCutoverOutcome, String> {
-    info!(target:"rgsm::ipc", "Cutting over legacy Cloud Library");
+    info!(target:"rgsm::commands", "Cutting over legacy Cloud Library");
     crate::cloud_library::cutover(&app_handle, confirmed)
         .await
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_cloud_archive_library(
     app_handle: AppHandle,
 ) -> Result<CloudArchiveLibraryView, String> {
@@ -722,8 +658,6 @@ pub async fn get_cloud_archive_library(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn review_v2_game_progress(
     game_id: String,
     app_handle: AppHandle,
@@ -734,8 +668,6 @@ pub async fn review_v2_game_progress(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn keep_v2_local_progress(
     game_id: String,
     manifest_revision: u64,
@@ -752,8 +684,6 @@ pub async fn keep_v2_local_progress(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn accept_v2_remote_progress(
     game_id: String,
     manifest_revision: u64,
@@ -776,8 +706,6 @@ pub async fn accept_v2_remote_progress(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn preview_materialize_all(
     app_handle: AppHandle,
 ) -> Result<MaterializationPreview, String> {
@@ -787,8 +715,6 @@ pub async fn preview_materialize_all(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn upload_cloud_archive(
     game_id: String,
     snapshot_id: String,
@@ -800,8 +726,6 @@ pub async fn upload_cloud_archive(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn download_cloud_archive(
     game_id: String,
     snapshot_id: String,
@@ -813,8 +737,6 @@ pub async fn download_cloud_archive(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn delete_v2_snapshot(
     game_id: String,
     snapshot_id: String,
@@ -827,8 +749,6 @@ pub async fn delete_v2_snapshot(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_shared_snapshot_retention(
     game_id: String,
     limit: Option<u32>,
@@ -841,8 +761,6 @@ pub async fn set_shared_snapshot_retention(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_snapshot_retention_protected(
     game_id: String,
     snapshot_id: String,
@@ -856,8 +774,6 @@ pub async fn set_snapshot_retention_protected(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn get_current_device_game_statuses(
     app_handle: AppHandle,
 ) -> Result<Vec<rgsm_core::services::DeviceGameStatus>, String> {
@@ -866,8 +782,6 @@ pub fn get_current_device_game_statuses(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_device_game_visibility(
     game_id: String,
     visible: bool,
@@ -881,8 +795,6 @@ pub async fn set_device_game_visibility(
     Ok(status)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_device_game_managed(
     game_id: String,
     managed: bool,
@@ -897,8 +809,6 @@ pub async fn set_device_game_managed(
     Ok(status)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn evict_local_archive(
     game_id: String,
     snapshot_id: String,
@@ -911,8 +821,6 @@ pub async fn evict_local_archive(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_cloud_device_profiles(
     app_handle: AppHandle,
 ) -> Result<Vec<rgsm_core::services::CloudDeviceProfileView>, String> {
@@ -922,8 +830,6 @@ pub async fn get_cloud_device_profiles(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn remove_cloud_device_profile(
     device_id: String,
     confirmed: bool,
@@ -935,8 +841,6 @@ pub async fn remove_cloud_device_profile(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_deleted_cloud_games(
     app_handle: AppHandle,
 ) -> Result<Vec<rgsm_core::services::DeletedCloudGameView>, String> {
@@ -946,8 +850,6 @@ pub async fn get_deleted_cloud_games(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn permanently_delete_cloud_game(
     game_id: String,
     confirmed: bool,
@@ -959,8 +861,6 @@ pub async fn permanently_delete_cloud_game(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn materialize_all_cloud_archives(
     app_handle: AppHandle,
 ) -> Result<MaterializationOutcome, String> {
@@ -985,8 +885,6 @@ pub async fn materialize_all_cloud_archives(
     result.map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_game_sync_mode(
     game_id: String,
     mode: SyncMode,
@@ -1005,8 +903,6 @@ pub async fn set_game_sync_mode(
     .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn cloud_upload_all(
     session: CloudSyncSessionConfig,
     app_handle: AppHandle,
@@ -1030,8 +926,6 @@ pub async fn cloud_upload_all(
     result.map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn cloud_download_all(
     session: CloudSyncSessionConfig,
     app_handle: AppHandle,
@@ -1062,7 +956,7 @@ pub async fn cloud_download_all(
             }
             Err(err) => {
                 warn!(
-                    target: "rgsm::ipc",
+                    target: "rgsm::commands",
                     "Failed to reload config after cloud download: {err:?}"
                 );
             }
@@ -1076,113 +970,101 @@ pub async fn cloud_download_all(
     result.map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_snapshot_description(
     game: Game,
     date: String,
     describe: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Setting backup describe for game: {:?}", game);
+    info!(target:"rgsm::commands", "Setting backup describe for game: {:?}", game);
     svc(&app_handle)
         .set_snapshot_description(&game, &date, &describe, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to set backup describe: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to set backup describe: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully set backup {} describe for game: {:?}", date,game);
+    info!(target:"rgsm::commands", "Successfully set backup {} describe for game: {:?}", date,game);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc","Backing up all games.");
+    info!(target:"rgsm::commands","Backing up all games.");
     svc(&app_handle)
         .backup_all(HookSource::BatchOperation)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to backup all games: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to backup all games: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc","Successfully backed up all games.");
+    info!(target:"rgsm::commands","Successfully backed up all games.");
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn apply_all(app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc","Applying all backups.");
+    info!(target:"rgsm::commands","Applying all backups.");
     let n = notifier(&app_handle);
     svc(&app_handle)
         .apply_all(HookSource::BatchOperation, Some(&n))
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to apply all backups: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to apply all backups: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc","Successfully applied all backups.");
+    info!(target:"rgsm::commands","Successfully applied all backups.");
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<(), String> {
-    info!(target:"rgsm::ipc","Setting quick backup game to: {:?}", game);
+    info!(target:"rgsm::commands","Setting quick backup game to: {:?}", game);
     let manager_state: tauri::State<Arc<quick_actions::QuickActionManager>> = app_handle.state();
     let manager = Arc::clone(manager_state.inner());
     manager
         .set_quick_backup_game(game.clone())
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to set quick backup game: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to set quick backup game: {:?}", e);
             e.to_string()
         })?;
-    info!(target:"rgsm::ipc","Successfully set quick backup game to: {:?}", game);
+    info!(target:"rgsm::commands","Successfully set quick backup game to: {:?}", game);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_game_auto_backup(
     app_handle: AppHandle,
     game_name: String,
     auto_backup: Option<backup::AutoBackupConfig>,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Setting auto-backup for '{}': {:?}", game_name, auto_backup);
+    info!(target:"rgsm::commands", "Setting auto-backup for '{}': {:?}", game_name, auto_backup);
     svc(&app_handle)
         .set_game_auto_backup(&game_name, auto_backup, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to save config for auto-backup: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to save config for auto-backup: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully set auto-backup for '{}'", game_name);
+    info!(target:"rgsm::commands", "Successfully set auto-backup for '{}'", game_name);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_game_automation(
     app_handle: AppHandle,
     storage_key: String,
     automation: Option<GameAutomationSettingsDraft>,
 ) -> Result<(), String> {
     info!(
-        target:"rgsm::ipc",
+        target:"rgsm::commands",
         "Setting game automation for '{}': {:?}",
         storage_key,
         automation
     );
     if let Some(automation) = &automation {
         quick_actions::validate_game_automation_target(&storage_key, automation).map_err(|e| {
-            error!(target:"rgsm::ipc", "Invalid game automation target: {:?}", e);
+            error!(target:"rgsm::commands", "Invalid game automation target: {:?}", e);
             e.to_string()
         })?;
     }
@@ -1190,16 +1072,14 @@ pub async fn set_game_automation(
         .set_game_automation(&storage_key, automation, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to save game automation: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to save game automation: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully set game automation for '{}'", storage_key);
+    info!(target:"rgsm::commands", "Successfully set game automation for '{}'", storage_key);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_game_auto_save_settings(
     app_handle: AppHandle,
     storage_key: String,
@@ -1207,7 +1087,7 @@ pub async fn set_game_auto_save_settings(
     automation: Option<GameAutomationSettingsDraft>,
 ) -> Result<(), String> {
     info!(
-        target:"rgsm::ipc",
+        target:"rgsm::commands",
         "Setting auto-save settings for '{}': auto_backup={:?}, automation={:?}",
         storage_key,
         auto_backup,
@@ -1215,7 +1095,7 @@ pub async fn set_game_auto_save_settings(
     );
     if let Some(automation) = &automation {
         quick_actions::validate_game_automation_target(&storage_key, automation).map_err(|e| {
-            error!(target:"rgsm::ipc", "Invalid game automation target: {:?}", e);
+            error!(target:"rgsm::commands", "Invalid game automation target: {:?}", e);
             e.to_string()
         })?;
     }
@@ -1229,16 +1109,14 @@ pub async fn set_game_auto_save_settings(
         )
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to save auto-save settings: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to save auto-save settings: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully set auto-save settings for '{}'", storage_key);
+    info!(target:"rgsm::commands", "Successfully set auto-save settings for '{}'", storage_key);
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_snapshot_created_by(
     app_handle: AppHandle,
     game_name: String,
@@ -1253,7 +1131,7 @@ pub async fn set_snapshot_created_by(
         );
     }
     info!(
-        target:"rgsm::ipc",
+        target:"rgsm::commands",
         "Setting created_by for '{game_name}' snapshot '{snapshot_date}' to {created_by:?}"
     );
     svc(&app_handle)
@@ -1265,19 +1143,17 @@ pub async fn set_snapshot_created_by(
         )
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to save snapshots after setting created_by: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to save snapshots after setting created_by: {:?}", e);
             e.to_string()
         })
         .inspect(|_| {
             info!(
-                target:"rgsm::ipc",
+                target:"rgsm::commands",
                 "Successfully set created_by for '{game_name}' snapshot '{snapshot_date}'"
             );
         })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn get_auto_backup_status(
     app_handle: AppHandle,
 ) -> Result<Vec<quick_actions::AutoBackupGameStatus>, String> {
@@ -1285,14 +1161,10 @@ pub async fn get_auto_backup_status(
     Ok(scheduler.get_status().await)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn list_running_processes() -> Result<Vec<crate::process_util::RunningProcessOption>, String> {
     crate::process_util::list_running_processes().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn toggle_quick_action_sound_preview(
     app: AppHandle,
     preferences: QuickActionSoundPreferences,
@@ -1308,8 +1180,6 @@ pub async fn toggle_quick_action_sound_preview(
         })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn stop_sound_playback(app: AppHandle) -> Result<(), String> {
     let manager = app.state::<sound::SoundManager>();
     manager.stop().await.map_err(|err| {
@@ -1318,8 +1188,6 @@ pub async fn stop_sound_playback(app: AppHandle) -> Result<(), String> {
     })
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn choose_quick_action_sound_file(app: AppHandle) -> Result<String, String> {
     sound::choose_quick_action_sound_file(&app)
 }
@@ -1327,40 +1195,36 @@ pub async fn choose_quick_action_sound_file(app: AppHandle) -> Result<String, St
 /// Resolves a path string containing variables to an actual filesystem path
 ///
 /// This command allows the frontend to resolve paths with variables like <home>, <winAppData>, etc.
-#[tauri::command]
-#[specta::specta]
 pub async fn resolve_path(path: String) -> Result<String, String> {
-    info!(target:"rgsm::ipc", "Resolving path: {}", path);
+    info!(target:"rgsm::commands", "Resolving path: {}", path);
 
     let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to get config: {:?}", e);
         e.to_string()
     })?;
 
     let resolved_path = path_resolver::resolve_path(&path, None, &config).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to resolve path: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to resolve path: {:?}", e);
         e.to_string()
     })?;
 
     let path_str = resolved_path.to_str().ok_or_else(|| {
         let err = "Failed to convert resolved path to string";
-        error!(target:"rgsm::ipc", "{}", err);
+        error!(target:"rgsm::commands", "{}", err);
         err.to_string()
     })?;
 
-    info!(target:"rgsm::ipc", "Successfully resolved path: {} -> {}", path, path_str);
+    info!(target:"rgsm::commands", "Successfully resolved path: {} -> {}", path, path_str);
     Ok(path_str.to_string())
 }
 
 /// Returns the current device, if not found, returns a default device
-#[tauri::command]
-#[specta::specta]
 pub async fn get_current_device_info() -> Result<Device, String> {
-    info!(target:"rgsm::ipc", "Getting current device info");
+    info!(target:"rgsm::commands", "Getting current device info");
 
     let device_id = get_current_device_id();
     let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to get config: {:?}", e);
         e.to_string()
     })?;
 
@@ -1369,58 +1233,52 @@ pub async fn get_current_device_info() -> Result<Device, String> {
 
 /// Set the HEAD pointer to a specific snapshot
 /// This changes which snapshot new snapshots will branch from
-#[tauri::command]
-#[specta::specta]
 pub async fn set_snapshot_head(
     game: Game,
     date: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
     svc(&app_handle)
         .set_snapshot_head(&game, &date, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to set game snapshots info: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to set game snapshots info: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully set HEAD to: {:?}", date);
+    info!(target:"rgsm::commands", "Successfully set HEAD to: {:?}", date);
     Ok(())
 }
 
 /// Detach a snapshot from its parent, making it a new root node
-#[tauri::command]
-#[specta::specta]
 pub async fn detach_snapshot(
     game: Game,
     date: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Detaching snapshot: {:?} for game: {:?}", date, game);
+    info!(target:"rgsm::commands", "Detaching snapshot: {:?} for game: {:?}", date, game);
     svc(&app_handle)
         .detach_snapshot(&game, &date, HookSource::UserManual)
         .await
         .map_err(|e| {
-            error!(target:"rgsm::ipc", "Failed to detach snapshot: {:?}", e);
+            error!(target:"rgsm::commands", "Failed to detach snapshot: {:?}", e);
             e.to_string()
         })?;
 
-    info!(target:"rgsm::ipc", "Successfully detached snapshot: {:?}", date);
+    info!(target:"rgsm::commands", "Successfully detached snapshot: {:?}", date);
     Ok(())
 }
 
 /// Create a new snapshot, optionally branching from a specific parent snapshot
-#[tauri::command]
-#[specta::specta]
 pub async fn create_snapshot_at(
     game: Game,
     describe: String,
     parent_date: Option<String>,
-    window: Window,
+    window: WebviewWindow,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
+    info!(target:"rgsm::commands", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
     handle_backup_err(
         svc(&app_handle)
             .create_snapshot_at(
@@ -1436,34 +1294,33 @@ pub async fn create_snapshot_at(
     Ok(())
 }
 
-fn handle_backup_err<T>(res: Result<T, BackupError>, window: Window) -> Result<T, String> {
+fn handle_backup_err<T>(res: Result<T, BackupError>, window: WebviewWindow) -> Result<T, String> {
     match res {
         Ok(value) => Ok(value),
         Err(e) => {
             match &e {
                 BackupError::Compress(CompressError::Multiple(files)) => {
                     files.iter().for_each(|file| {
-                        error!(target:"rgsm::ipc","{}",file);
+                        error!(target:"rgsm::commands","{}",file);
                         if let BackupFileError::NotExists(path) = file {
-                            window
-                                .emit(
-                                    "Notification",
-                                    IpcNotification {
-                                        level: NotificationLevel::error,
-                                        title: "ERROR".to_string(),
-                                        msg: t!(
-                                            "backend.backup.backup_file_not_exist",
-                                            name = path.to_str().unwrap_or("Cannot get path")
-                                        )
-                                        .to_string(),
-                                    },
-                                )
-                                .unwrap(); // safe: ipc方法通过前端调用，此时window必然存在
+                            crate::http::emit(
+                                window.app_handle(),
+                                "notification",
+                                &HostNotification {
+                                    level: NotificationLevel::error,
+                                    title: "ERROR".to_string(),
+                                    msg: t!(
+                                        "backend.backup.backup_file_not_exist",
+                                        name = path.to_str().unwrap_or("Cannot get path")
+                                    )
+                                    .to_string(),
+                                },
+                            );
                         }
                     });
                 }
                 other => {
-                    error!(target:"rgsm::ipc","{}",other);
+                    error!(target:"rgsm::commands","{}",other);
                 }
             }
             Err(format!("{}", e))
@@ -1471,22 +1328,18 @@ fn handle_backup_err<T>(res: Result<T, BackupError>, window: Window) -> Result<T
     }
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn cancel_cloud_sync(app_handle: AppHandle) -> Result<CancelCloudSyncResult, String> {
     let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
     Ok(Arc::clone(manager_state.inner()).cancel_all().await)
 }
 
 /// Fetches the list of importable games from the ludusavi manifest
-#[tauri::command]
-#[specta::specta]
 pub async fn fetch_ludusavi_games(filter_local_only: bool) -> Result<Vec<ImportableGame>, String> {
-    info!(target:"rgsm::ipc", "Fetching ludusavi games (filter_local_only: {})", filter_local_only);
+    info!(target:"rgsm::commands", "Fetching ludusavi games (filter_local_only: {})", filter_local_only);
 
     // Get the current managed games
     let config = get_config().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get config: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to get config: {:?}", e);
         e.to_string()
     })?;
 
@@ -1494,7 +1347,7 @@ pub async fn fetch_ludusavi_games(filter_local_only: bool) -> Result<Vec<Importa
 
     // Fetch and parse the manifest
     let manifest = ludusavi_manifest::fetch_manifest().await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to fetch manifest: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to fetch manifest: {:?}", e);
         e.to_string()
     })?;
 
@@ -1505,48 +1358,42 @@ pub async fn fetch_ludusavi_games(filter_local_only: bool) -> Result<Vec<Importa
         &config,
     );
 
-    info!(target:"rgsm::ipc", "Successfully fetched {} games from ludusavi manifest", games.len());
+    info!(target:"rgsm::commands", "Successfully fetched {} games from ludusavi manifest", games.len());
 
     Ok(games)
 }
 
 /// Gets detailed save paths for a specific game from the ludusavi manifest
-#[tauri::command]
-#[specta::specta]
 pub async fn get_game_save_paths(game_name: String) -> Result<Vec<SavePath>, String> {
-    info!(target:"rgsm::ipc", "Getting save paths for game: {}", game_name);
+    info!(target:"rgsm::commands", "Getting save paths for game: {}", game_name);
 
     // Fetch the manifest
     let manifest = ludusavi_manifest::fetch_manifest().await.map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to fetch manifest: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to fetch manifest: {:?}", e);
         e.to_string()
     })?;
 
     // Find the game in the manifest
     let game_data = manifest.get(&game_name).ok_or_else(|| {
-        warn!(target:"rgsm::ipc", "Game not found in manifest: {}", game_name);
+        warn!(target:"rgsm::commands", "Game not found in manifest: {}", game_name);
         format!("Game '{}' not found in manifest", game_name)
     })?;
 
     // Extract save paths
     let paths = ludusavi_manifest::extract_save_paths(&game_name, game_data).map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to extract save paths: {:?}", e);
+        error!(target:"rgsm::commands", "Failed to extract save paths: {:?}", e);
         e.to_string()
     })?;
 
-    info!(target:"rgsm::ipc", "Found {} save paths for game: {}", paths.len(), game_name);
+    info!(target:"rgsm::commands", "Found {} save paths for game: {}", paths.len(), game_name);
 
     Ok(paths)
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn get_path_placeholder_catalog() -> Vec<PathPlaceholderDescriptor> {
     PathPlaceholder::catalog()
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn preview_save_unit_resolution(
     game: Game,
     save_unit: SaveUnit,
@@ -1556,8 +1403,6 @@ pub fn preview_save_unit_resolution(
     Ok(svc(&app_handle).resolve_save_unit(&config, &game, &save_unit))
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn set_game_device_binding(
     identity: String,
     binding: GameDeviceBinding,
@@ -1569,8 +1414,6 @@ pub async fn set_game_device_binding(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn save_restore_mapping(
     identity: String,
     save_unit_id: u32,
@@ -1590,28 +1433,20 @@ pub async fn save_restore_mapping(
         .map_err(|error| error.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn get_ludusavi_manifest_status() -> Result<LudusaviManifestStatus, String> {
     Ok(ludusavi_manifest::get_manifest_status())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn update_ludusavi_manifest() -> Result<LudusaviManifestStatus, String> {
     ludusavi_manifest::update_manifest_from_remote()
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub fn reset_ludusavi_manifest_to_bundled() -> Result<LudusaviManifestStatus, String> {
     ludusavi_manifest::reset_manifest_to_bundled().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn check_paths(
     paths: Vec<String>,
     store_user_id: Option<String>,
@@ -1630,47 +1465,35 @@ pub async fn check_paths(
     ))
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn detect_game_roots() -> Result<Vec<String>, String> {
-    info!(target:"rgsm::ipc", "Detecting game root directories");
+    info!(target:"rgsm::commands", "Detecting game root directories");
     steam::detect_game_roots().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-#[specta::specta]
 pub async fn detect_store_user_ids() -> Result<Vec<steam::StoreUserIdCandidate>, String> {
-    info!(target:"rgsm::ipc", "Detecting Steam user IDs");
+    info!(target:"rgsm::commands", "Detecting Steam user IDs");
     steam::detect_steam_user_ids().map_err(|e| e.to_string())
 }
 
 /// Gets a list of system font family names
-#[tauri::command]
-#[specta::specta]
 pub fn get_system_fonts() -> Vec<String> {
-    info!(target:"rgsm::ipc", "Getting system fonts");
+    info!(target:"rgsm::commands", "Getting system fonts");
     system_fonts::get_system_fonts()
 }
 
 /// Get the local sync state (device-specific, never uploaded).
-#[tauri::command]
-#[specta::specta]
 pub fn get_sync_state() -> Result<cloud_sync::SyncState, String> {
-    info!(target:"rgsm::ipc", "Getting sync state");
+    info!(target:"rgsm::commands", "Getting sync state");
     cloud_sync::sync_state::load_sync_state().map_err(|e| e.to_string())
 }
 
 /// Scan given directories for visual novels (e.g. Kirikiri2) and return them as GameDrafts.
-#[tauri::command]
-#[specta::specta]
 pub fn scan_vns(dirs: Vec<String>) -> Result<Vec<GameDraft>, String> {
-    info!(target:"rgsm::ipc", "Scanning directories for visual novels: {:?}", dirs);
+    info!(target:"rgsm::commands", "Scanning directories for visual novels: {:?}", dirs);
     Ok(vn_scanner::scan_games(&dirs))
 }
 
 /// List available config backup files (newest first).
-#[tauri::command]
-#[specta::specta]
 pub fn list_config_backups() -> Vec<String> {
     config::backup::list_config_backups()
         .into_iter()
@@ -1679,10 +1502,8 @@ pub fn list_config_backups() -> Vec<String> {
 }
 
 /// Restore config from a backup by index (0 = most recent).
-#[tauri::command]
-#[specta::specta]
 pub async fn restore_config_backup(index: usize, app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Restoring config from backup index {}", index);
+    info!(target:"rgsm::commands", "Restoring config from backup index {}", index);
     let config = svc(&app_handle)
         .restore_config_backup(index)
         .map_err(|e| e.to_string())?;
@@ -1691,13 +1512,11 @@ pub async fn restore_config_backup(index: usize, app_handle: AppHandle) -> Resul
 }
 
 /// Sync one game by comparing local and remote snapshots.
-#[tauri::command]
-#[specta::specta]
 pub async fn sync_game(
     game_name: String,
     app_handle: AppHandle,
 ) -> Result<SyncGameOutcome, String> {
-    info!(target:"rgsm::ipc", "Syncing game: {}", game_name);
+    info!(target:"rgsm::commands", "Syncing game: {}", game_name);
     svc(&app_handle)
         .sync_game(&game_name)
         .await
@@ -1705,14 +1524,12 @@ pub async fn sync_game(
 }
 
 /// Resolve a user-visible cloud sync conflict for one game.
-#[tauri::command]
-#[specta::specta]
 pub async fn resolve_game_sync_conflict(
     game_name: String,
     resolution: ConflictResolution,
     app_handle: AppHandle,
 ) -> Result<ConflictResolutionOutcome, String> {
-    info!(target:"rgsm::ipc", "Resolving cloud sync conflict for game: {}", game_name);
+    info!(target:"rgsm::commands", "Resolving cloud sync conflict for game: {}", game_name);
     svc(&app_handle)
         .resolve_game_conflict(&game_name, resolution)
         .await
@@ -1720,10 +1537,8 @@ pub async fn resolve_game_sync_conflict(
 }
 
 /// Retry syncing the shared configuration to the configured cloud backend.
-#[tauri::command]
-#[specta::specta]
 pub async fn sync_config(app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::ipc", "Syncing cloud config");
+    info!(target:"rgsm::commands", "Syncing cloud config");
     svc(&app_handle)
         .sync_config()
         .await
@@ -1732,11 +1547,11 @@ pub async fn sync_config(app_handle: AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod test {
-    use super::{IpcNotification, NotificationLevel};
+    use super::{HostNotification, NotificationLevel};
 
     #[test]
     fn test1() {
-        let a = serde_json::to_string(&IpcNotification {
+        let a = serde_json::to_string(&HostNotification {
             level: NotificationLevel::error,
             title: "title1".to_string(),
             msg: "msg1".to_string(),

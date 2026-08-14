@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { $t } from '../i18n';
-import type { ConflictResolution, GameSyncState } from '../bindings';
+import type { ConflictResolution, GameSyncState } from '../api/commands';
 
 const props = defineProps<{
   modelValue: boolean;

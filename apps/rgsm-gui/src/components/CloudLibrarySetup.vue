@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { commands, type CloudLibraryStatus } from '~/bindings';
+import { commands, type CloudLibraryStatus } from '~/api/commands';
 import { $t } from '~/i18n';
 
 interface InspectOptions {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RefreshRight } from '@element-plus/icons-vue';
-import type { RunningProcessOption } from '../bindings';
+import type { RunningProcessOption } from '../api/commands';
 import { $t } from '../i18n';
 
 defineProps<{

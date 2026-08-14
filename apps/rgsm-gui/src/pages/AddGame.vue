@@ -16,10 +16,10 @@ import {
   type ImportableGame,
   type SavePath,
   type PathCheckResult,
-} from '../bindings';
+} from '../api/commands';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
-import { error } from '@tauri-apps/plugin-log';
+import { error } from '../utils/logger';
 import PathVariableInput from '../components/PathVariableInput.vue';
 import GameImportDialog from '../components/GameImportDialog.vue';
 import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
@@ -101,7 +101,7 @@ const activeSteamId = computed(
   () =>
     pendingLudusaviMeta.value?.steamId ??
     (Number(
-      editingGame.value?.ludusavi_meta?.storeGameIds.find((entry) => entry.store === 'steam')?.id
+      editingGame.value?.ludusavi_meta?.storeGameIds?.find((entry) => entry.store === 'steam')?.id
     ) ||
       null)
 );
@@ -721,7 +721,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
             : undefined,
       };
       if (accountResourceId !== null && currentDevice.value) {
-        newGame.device_bindings[currentDevice.value.id] = {
+        newGame.device_bindings![currentDevice.value.id] = {
           accountIds: [accountResourceId],
           restoreMappings: [],
         };
@@ -817,6 +817,7 @@ async function save() {
         : undefined,
   };
   if (accountResourceId !== null && currentDevice.value) {
+    game.device_bindings ??= {};
     const existingBinding = game.device_bindings[currentDevice.value.id];
     game.device_bindings[currentDevice.value.id] = {
       ...existingBinding,

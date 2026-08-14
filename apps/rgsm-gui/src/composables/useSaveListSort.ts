@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue';
-import type { Game } from '../bindings';
+import type { Game } from '../api/commands';
 
 export type SaveListSortMode = 'saved_order' | 'last_played' | 'name';
 export type SaveListSortDirection = 'asc' | 'desc';

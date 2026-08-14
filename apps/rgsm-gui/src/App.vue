@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import 'element-plus/theme-chalk/dark/css-vars.css';
 
-import { listen } from '@tauri-apps/api/event';
 import { Loading } from '@element-plus/icons-vue';
 import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
-import { commands } from './bindings';
-import type { Device } from './bindings';
+import { commands, events } from './api/commands';
+import type { Device } from './api/commands';
 import { notifyInfo, notifyWarning, notifyError } from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
 import { useGlobalLoading } from './composables/useGlobalLoading';
-import { useIpcNotificationCollector } from './composables/useIpcNotificationCollector';
+import { useHostNotificationCollector } from './composables/useHostNotificationCollector';
 import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
 import { computed, provide, ref, watch } from 'vue';
@@ -21,7 +20,7 @@ const { config, refreshConfig, saveConfig } = useConfig();
 useDark();
 
 const { isLoading, loadingMessage, loadingDetail } = useGlobalLoading();
-const { addIfCollecting } = useIpcNotificationCollector();
+const { addIfCollecting } = useHostNotificationCollector();
 const sidebarWidth = ref(240);
 
 provide('sidebarWidth', sidebarWidth);
@@ -169,24 +168,18 @@ async function initializeApp() {
 }
 
 void initializeApp();
-type NotificationPayload = {
-  level: 'info' | 'warning' | 'error';
-  msg: string;
-  title?: string;
-};
-
-listen<NotificationPayload>('Notification', (event) => {
+events.ipcNotification.listen((event) => {
   const ev = event.payload;
   if (addIfCollecting(ev)) return;
-  switch (ev.level.toLowerCase()) {
+  switch (ev.level) {
     case 'info':
-      notifyInfo(ev.title ?? $t('misc.info'), ev.msg);
+      notifyInfo(ev.title || $t('misc.info'), ev.msg);
       break;
     case 'warning':
-      notifyWarning(ev.title ?? $t('misc.warning'), ev.msg);
+      notifyWarning(ev.title || $t('misc.warning'), ev.msg);
       break;
     case 'error':
-      notifyError(ev.title ?? $t('misc.error'), ev.msg);
+      notifyError(ev.title || $t('misc.error'), ev.msg);
       break;
   }
 });

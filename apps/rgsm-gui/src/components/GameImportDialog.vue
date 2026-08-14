@@ -96,7 +96,7 @@ import { Search } from '@element-plus/icons-vue';
 import { $t } from '../i18n';
 
 // Import the type from bindings
-import type { ImportableGame } from '../bindings';
+import type { ImportableGame } from '../api/commands';
 
 const props = defineProps({
   modelValue: {

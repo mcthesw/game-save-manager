@@ -16,7 +16,7 @@ use crate::preclude::*;
 /// The software's configuration
 /// include the version, backup's location path, games'info,
 /// and the settings
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct Config {
     pub version: String,
     pub backup_path: String,
@@ -105,11 +105,12 @@ impl Config {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct FavoriteTreeNode {
     node_id: String,
     label: String,
     is_leaf: bool,
+    #[schema(no_recursion)]
     children: Option<Vec<Self>>,
 }
 

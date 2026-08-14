@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { commands, type CloudLibraryCutoverReview } from '~/bindings';
+import { commands, type CloudLibraryCutoverReview } from '~/api/commands';
 import { $t } from '~/i18n';
 import { LAYER } from '~/ui/layers';
 

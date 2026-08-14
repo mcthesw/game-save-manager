@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { error } from '@tauri-apps/plugin-log';
+import { error } from '../utils/logger';
 import { $t } from '../i18n';
 import type {
   Device,
@@ -9,8 +9,8 @@ import type {
   OpenPathWarning,
   SaveUnit,
   SaveUnitType,
-} from '../bindings';
-import { commands } from '../bindings';
+} from '../api/commands';
+import { commands } from '../api/commands';
 import { useConfig } from '../composables/useConfig';
 import { usePathResolution } from '../composables/usePathResolution';
 import PathVariableInput from './PathVariableInput.vue';
@@ -78,7 +78,7 @@ function updateResourceIds(kind: 'rootIds' | 'accountIds' | 'installationIds', i
 }
 
 function removeRestoreMapping(index: number) {
-  currentBinding().restoreMappings.splice(index, 1);
+  (currentBinding().restoreMappings ??= []).splice(index, 1);
   hasUnsavedChanges.value = true;
 }
 

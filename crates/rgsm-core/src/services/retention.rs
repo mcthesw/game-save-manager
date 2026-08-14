@@ -15,7 +15,7 @@ use crate::config::{
 use super::ServiceContext;
 use super::sync::CloudLibraryServiceError;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct SnapshotRetentionOutcome {
     pub limit: Option<u32>,
     pub deleted: usize,

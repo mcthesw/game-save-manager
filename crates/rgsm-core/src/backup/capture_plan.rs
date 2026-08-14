@@ -9,7 +9,7 @@ use crate::path_resolution::{
     ResolvedLocationKind,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum CaptureSourceKind {
     File,
@@ -43,7 +43,7 @@ pub struct SaveUnitCaptureInput {
     pub report: ResolutionReport,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CapturePreflightFailure {
     pub save_unit_id: u32,

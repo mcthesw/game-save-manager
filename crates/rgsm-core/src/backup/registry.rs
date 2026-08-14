@@ -36,7 +36,7 @@ pub struct RegistryKeyEntry {
 /// A typed registry value.
 ///
 /// The `name` field is the value name; an empty string represents the default value.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RegistryValue {
     Sz { name: String, data: String },

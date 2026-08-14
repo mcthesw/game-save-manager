@@ -10,8 +10,8 @@ import {
   type ConflictResolution,
   type GameSyncState,
   type SyncState,
-} from '../bindings';
-import { error } from '@tauri-apps/plugin-log';
+} from '../api/commands';
+import { error } from '../utils/logger';
 import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
 import CloudSyncOverview from '../components/CloudSyncOverview.vue';

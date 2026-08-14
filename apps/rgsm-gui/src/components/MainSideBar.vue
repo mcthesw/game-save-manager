@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import FavoriteSideBar from './FavoriteSideBar.vue';
 import { Files, Search, Star, Menu } from '@element-plus/icons-vue';
 import { $t } from '../i18n';
-import { debug } from '@tauri-apps/plugin-log';
+import { debug } from '../utils/logger';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { useSidebarResize } from '../composables/useSidebarResize';

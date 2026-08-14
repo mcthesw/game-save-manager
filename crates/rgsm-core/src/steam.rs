@@ -317,7 +317,7 @@ pub fn find_game_install_path(
 }
 
 /// A candidate Steam user ID with metadata for UI display.
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreUserIdCandidate {
     pub user_id: String,

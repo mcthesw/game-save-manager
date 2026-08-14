@@ -41,7 +41,7 @@ pub enum OwnershipError {
     InvalidSnapshotRetention(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct ConfigurationOwners {
     pub schema_version: u32,
     pub shared_library: SharedLibrary,
@@ -49,13 +49,13 @@ pub struct ConfigurationOwners {
     pub local_state: LocalState,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 pub struct SharedLibrary {
     pub schema_version: u32,
     pub games: Vec<SharedGame>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 pub struct SharedGame {
     pub name: String,
     pub storage_key: String,
@@ -66,18 +66,18 @@ pub struct SharedGame {
     pub snapshot_retention: Option<SharedSnapshotRetentionPolicy>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, PartialEq, Eq)]
 pub struct SharedSnapshotRetentionPolicy {
     pub automatic_snapshots_per_branch: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 pub struct SharedSaveUnit {
     pub id: u32,
     pub source: SharedSaveUnitSource,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SharedSaveUnitSource {
     Concrete {
@@ -89,7 +89,7 @@ pub enum SharedSaveUnitSource {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct DeviceProfile {
     pub schema_version: u32,
     pub device: Device,
@@ -117,7 +117,7 @@ impl DeviceProfile {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct DeviceGameProfile {
     pub visible: bool,
     pub sync_mode: SyncMode,
@@ -137,14 +137,14 @@ pub struct DeviceGameProfile {
     pub save_units: HashMap<u32, DeviceSaveUnitSettings>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct DeviceSaveUnitSettings {
     pub path: Option<String>,
     pub enabled: bool,
     pub delete_before_apply: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncMode {
     Manual,
@@ -152,7 +152,9 @@ pub enum SyncMode {
     LiveSaveSync,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
+#[derive(
+    Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum InitialCatchUpPolicy {
     #[default]
@@ -160,7 +162,9 @@ pub enum InitialCatchUpPolicy {
     DownloadExisting,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type)]
+#[derive(
+    Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Type, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CloudNamespaceGeneration {
     #[default]
@@ -168,7 +172,7 @@ pub enum CloudNamespaceGeneration {
     V2,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct DeviceBehaviorSettings {
     pub prompt_when_not_described: bool,
     pub extra_backup_when_apply: bool,
@@ -185,7 +189,7 @@ pub struct DeviceBehaviorSettings {
     pub verify_archive_before_apply: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct LocalState {
     pub schema_version: u32,
     pub legacy_version: String,
@@ -196,7 +200,7 @@ pub struct LocalState {
     pub cloud_namespace_generation: CloudNamespaceGeneration,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct LocalInterfaceSettings {
     pub show_edit_button: bool,
     pub exit_to_tray: bool,

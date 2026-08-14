@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Delete } from '@element-plus/icons-vue';
 
-import { commands } from '../bindings';
+import { commands } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 

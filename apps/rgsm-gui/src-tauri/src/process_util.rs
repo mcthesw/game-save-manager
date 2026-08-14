@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunningProcessOption {
     pub name: String,

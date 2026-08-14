@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
-import type { Snapshot } from '../bindings';
+import type { Snapshot } from '../api/commands';
 import { $t } from '../i18n';
 import dayjs from 'dayjs';
 import { Delete, Edit, Flag, Scissor, Share, VideoPlay } from '@element-plus/icons-vue';

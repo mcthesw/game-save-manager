@@ -1,4 +1,9 @@
-import type { ManifestPathConstraints, SaveUnit, SaveUnitDraft, SaveUnitType } from '../bindings';
+import type {
+  ManifestPathConstraints,
+  SaveUnit,
+  SaveUnitDraft,
+  SaveUnitType,
+} from '../api/commands';
 
 type Unit = SaveUnit | SaveUnitDraft;
 

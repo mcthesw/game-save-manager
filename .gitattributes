@@ -37,3 +37,8 @@
 *.dll binary
 *.so binary
 *.dylib binary
+
+# Collapse generated frontend API artifacts in GitHub diffs
+apps/rgsm-gui/src/api/generated/** linguist-generated=true
+apps/rgsm-gui/src/api/defaultConfig.generated.ts linguist-generated=true
+apps/rgsm-gui/typed-router.d.ts linguist-generated=true

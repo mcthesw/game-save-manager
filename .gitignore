@@ -61,3 +61,6 @@ auto-imports.d.ts
 
 # Local cloud fixture used by scripts/local-cloud.mjs
 tmp/local-cloud/
+
+# Local RGSM development workspace
+.rgsm-dev/

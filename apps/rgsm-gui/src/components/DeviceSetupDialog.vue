@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { $t } from '../i18n';
-import type { Device } from '../bindings';
+import type { Device } from '../api/commands';
 
 const props = defineProps({
   modelValue: {

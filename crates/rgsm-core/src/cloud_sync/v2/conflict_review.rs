@@ -13,7 +13,7 @@ use super::{
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct V2ConflictReview {
     pub game_id: String,
     pub manifest_revision: u64,
@@ -22,7 +22,7 @@ pub struct V2ConflictReview {
     pub requires_choice: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct LocalProgressView {
     pub snapshot_id: String,
     pub description: String,
@@ -30,7 +30,7 @@ pub struct LocalProgressView {
     pub cloud_available: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct RemoteProgressCandidate {
     pub snapshot_id: String,
     pub description: String,
@@ -43,7 +43,7 @@ pub struct RemoteProgressCandidate {
     pub cloud_available: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ProgressRelation {
     Same,

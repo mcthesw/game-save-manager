@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Delete, Refresh } from '@element-plus/icons-vue';
 
-import { commands, type CloudDeviceProfileView } from '../bindings';
+import { commands, type CloudDeviceProfileView } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 
