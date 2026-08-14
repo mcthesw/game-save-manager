@@ -33,14 +33,14 @@ sudo apt install libwebkit2gtk-4.1-dev \
 - `pnpm install`: Install workspace dependencies and run `nuxt prepare` for `apps/rgsm-gui`.
 - `pnpm dev`: Run the Tauri GUI app in development mode.
 - `pnpm build`: Build the Tauri GUI app for production.
-- `pnpm web:dev`: Run the Nuxt frontend only.
+- `pnpm web:dev`: Run the Rust HTTP Host and Vite frontend for browser-based development using isolated data under `.rgsm-dev/app-data`.
 - `pnpm web:lint`: Run the frontend ESLint checks.
 - `pnpm web:typecheck`: Run the frontend typecheck.
 - `pnpm portable`: Create a Windows portable build from the workspace root.
 
 ## Tauri UI Debugging
 
-- Use `pnpm dev` when validating frontend behavior that depends on Tauri IPC. `pnpm web:dev` only serves the Nuxt frontend in a normal browser context and does not provide the Tauri IPC bridge.
+- Use `pnpm web:dev` for frontend and business-flow debugging in a normal browser. It starts the same versioned HTTP API and SSE event transport used by the desktop app, without requiring Tauri IPC or WebView tooling.
 - On Windows, agents can expose the Tauri WebView2 DevTools Protocol endpoint without changing repo config:
 
 ```powershell
@@ -48,9 +48,9 @@ $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
 pnpm dev
 ```
 
-- After the Tauri window is running, inspect `http://127.0.0.1:9222/json/list` and attach to the page target whose URL is the configured `devUrl` (usually `http://localhost:3000/`). This validates the actual Tauri WebView with IPC available, not a separate browser tab.
+- After the Tauri window is running, inspect `http://127.0.0.1:9222/json/list` and attach to the page target whose URL is the configured `devUrl` (usually `http://localhost:5173/`). This validates WebView-specific behavior against the actual desktop shell.
 - For quick manual inspection inside the Tauri window, use the WebView inspector (`Ctrl+Shift+i` on Windows/Linux) or call `open_devtools()` in debug-only setup code.
-- Do not claim a GUI feature is verified from `pnpm web:dev` alone if the feature depends on Tauri commands, events, app config, or WebView-specific behavior.
+- Use `pnpm dev`, not browser-only verification, for behavior owned by the desktop shell itself: window state, tray, global hotkeys, single-instance handling, and other WebView-specific integrations.
 
 ## Project Structure & Module Organization
 
@@ -58,15 +58,15 @@ The repository is split into workspace apps and crates.
 
 - **GUI app (`apps/rgsm-gui/`)**: Nuxt 3 frontend plus the Tauri host.
   - `src/`: Routed Vue UI (`pages/`, `components/`, `composables/`, `assets/`).
-  - `src/bindings.ts`: Auto-generated TypeScript bindings for Rust `#[tauri::command]` APIs. **Never edit it manually.**
+  - `src/api/generated/`: Auto-generated TypeScript SDK from the Rust OpenAPI contract. **Never edit it manually.**
   - `src-tauri/src/lib.rs`: Tauri bootstrap and state wiring.
-  - `src-tauri/src/ipc_handler.rs`: **Thin export layer only.** Commands should stay 1-3 lines and delegate to services/domain modules.
+  - `src-tauri/src/commands.rs`: **Thin export layer only.** Commands should stay 1-3 lines and delegate to services/domain modules; HTTP route adapters live under `commands/`.
   - `src-tauri/src/hooks/`: GUI-only hooks such as notifications and scheduler sync.
   - `src-tauri/src/quick_actions/`: GUI-only tray, hotkey, and timer integrations.
 
 - **Core library (`crates/rgsm-core/`)**: Pure Rust business logic with no Tauri dependency.
   - `backup/`, `config/`, `cloud_sync/`: Domain modules.
-  - `services/`: Orchestration entry points used by IPC/CLI/FFI layers.
+  - `services/`: Orchestration entry points used by HTTP/CLI/FFI layers.
   - `hooks/`: `LifecycleHook`, contexts, DI traits, and `HookPipeline`.
   - `path_resolver.rs`, `app_dirs.rs`, `device.rs`, etc.: Shared infrastructure.
 
@@ -92,7 +92,7 @@ The repository is split into workspace apps and crates.
   - **Overlay & z-index**:
     - Do not introduce scattered z-index magic numbers.
     - Use `src/ui/layers.ts` (`LAYER.*`) for any overlay/notification/dialog layering decisions.
-  - Never use tauri's `invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T>`, you can use `pnpm dev` to launch app so that `src/bindings.ts` will be updated.
+  - Never import Tauri APIs in the frontend or call `invoke`; add or update the Rust HTTP contract, then run `pnpm web:generate-api` to refresh `src/api/generated/`.
 
 - **Backend (Rust)**:
   - Modules/Files: `snake_case` (e.g., `cloud_sync.rs`).
