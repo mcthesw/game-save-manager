@@ -1,4 +1,4 @@
-import type { CloudNamespaceGeneration } from '../bindings';
+import type { CloudNamespaceGeneration } from '../api/commands';
 
 export type CloudUiMode = 'loading' | 'legacy' | 'v2';
 

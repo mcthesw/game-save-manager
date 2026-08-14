@@ -15,13 +15,13 @@ use crate::config::{DeviceProfile, OwnershipError, SharedGame, SharedLibrary};
 
 static JOIN_WRITER_LOCK: Mutex<()> = Mutex::const_new(());
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudLibraryJoinReview {
     pub cloud_game_count: usize,
     pub items: Vec<CloudLibraryJoinItem>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudLibraryJoinItem {
     pub local_game_id: String,
     pub local_name: String,
@@ -32,7 +32,7 @@ pub struct CloudLibraryJoinItem {
     pub difference: GameDefinitionDifference,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct GameDefinitionDifference {
     pub name_changed: bool,
     pub local_save_unit_count: usize,
@@ -43,7 +43,7 @@ pub struct GameDefinitionDifference {
     pub recognition_changed: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JoinGameAction {
     KeepCloud,
@@ -51,7 +51,7 @@ pub enum JoinGameAction {
     ReplaceCloud,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct JoinGameDecision {
     pub local_game_id: String,
     pub local_fingerprint: String,

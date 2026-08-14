@@ -49,6 +49,7 @@ futures-util = "0.3.32"
 specta.workspace = true
 rust-i18n.workspace = true
 keyvalues-serde = "0.2"
+utoipa = "5"
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true

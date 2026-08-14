@@ -67,6 +67,13 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Verify generated HTTP API client
+        run: |
+          pnpm --dir apps/rgsm-gui web:generate-api
+          git diff --exit-code -- \
+            apps/rgsm-gui/src/api/generated \
+            apps/rgsm-gui/src/api/defaultConfig.generated.ts
+
       - name: Check Rust formatting
         run: cargo fmt --check
 

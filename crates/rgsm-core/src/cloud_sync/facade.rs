@@ -21,7 +21,7 @@ use crate::backup::GameSnapshots;
 use crate::config::{get_backup_path, get_config};
 use crate::preclude::BackendError;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncGameOutcome {
     AlreadyInSync,
@@ -31,7 +31,7 @@ pub enum SyncGameOutcome {
     Conflict,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BatchSyncItemStatus {
     Success,
@@ -39,13 +39,13 @@ pub enum BatchSyncItemStatus {
     Failed(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct BatchSyncItemReport {
     pub name: String,
     pub status: BatchSyncItemStatus,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct BatchSyncReport {
     pub config: BatchSyncItemReport,
     pub games: Vec<BatchSyncItemReport>,

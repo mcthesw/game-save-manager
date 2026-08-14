@@ -10,7 +10,7 @@ use crate::config::{
 
 use super::{CloudLibraryServiceError, ServiceContext};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct DeviceGameStatus {
     pub game_id: String,
     pub managed: bool,

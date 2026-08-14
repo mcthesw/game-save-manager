@@ -17,7 +17,7 @@ use crate::preclude::*;
 /// - `PathStyle`: `https://endpoint/bucket/key` (default, works for most generic S3-compatible services)
 /// - `VirtualHostedStyle`: `https://bucket.endpoint/key` (required by Tencent COS, Alibaba OSS, etc.)
 /// - `Auto`: detect by endpoint host suffix; falls back to virtual-hosted-style for known providers
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq, Default)]
 pub enum S3AddressingStyle {
     #[default]
     PathStyle,
@@ -113,7 +113,7 @@ fn endpoint_host_range(endpoint: &str) -> Option<(usize, usize)> {
     Some((start, start + host_len))
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum Backend {
     Disabled,
@@ -145,14 +145,14 @@ pub enum Backend {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct CloudSyncSessionConfig {
     pub root_path: String,
     pub max_concurrency: usize,
     pub backend: Backend,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CloudBackendCheckOutcome {
     Available,
@@ -160,7 +160,7 @@ pub enum CloudBackendCheckOutcome {
     Unavailable,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CloudBackendCheckStep {
     PrepareBackend,
@@ -171,7 +171,7 @@ pub enum CloudBackendCheckStep {
     DeleteFile,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CloudBackendCheckItemStatus {
     Passed,
@@ -179,7 +179,7 @@ pub enum CloudBackendCheckItemStatus {
     Failed,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 pub struct CloudBackendCheckItem {
     pub step: CloudBackendCheckStep,
     pub status: CloudBackendCheckItemStatus,
@@ -220,7 +220,7 @@ impl CloudBackendCheckItem {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, PartialEq, Eq)]
 pub struct CloudBackendCheckReport {
     pub outcome: CloudBackendCheckOutcome,
     pub items: Vec<CloudBackendCheckItem>,

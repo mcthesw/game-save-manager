@@ -6,7 +6,7 @@ use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::preclude::*;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct AppearanceSettings {
     #[serde(default = "default_value::default_false")]
     pub custom_font_enabled: bool,
@@ -24,7 +24,7 @@ impl Default for AppearanceSettings {
 }
 
 /// Settings that can be configured by user
-#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SaveListExpandBehavior {
     AlwaysOpen,
@@ -33,7 +33,7 @@ pub enum SaveListExpandBehavior {
     RememberLast,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SaveListSortMode {
     #[default]
@@ -42,7 +42,7 @@ pub enum SaveListSortMode {
     Name,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SortDirection {
     #[default]
@@ -50,7 +50,7 @@ pub enum SortDirection {
     Desc,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct Settings {
     #[serde(default = "default_value::default_true")]
     pub prompt_when_not_described: bool,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { commands, type CloudArchiveLibraryView } from '../bindings';
+import { commands, type CloudArchiveLibraryView } from '../api/commands';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 import { formatCloudArchiveBytes as formatBytes } from '../utils/cloudArchivePresentation';

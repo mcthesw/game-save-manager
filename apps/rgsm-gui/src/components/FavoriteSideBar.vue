@@ -4,7 +4,7 @@ import { computed, ref, toRaw } from 'vue';
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import type { AllowDropType, NodeDropType } from 'element-plus/es/components/tree/src/tree.type';
-import type { FavoriteTreeNode, Game } from '~/bindings';
+import type { FavoriteTreeNode, Game } from '~/api/commands';
 import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import type { MessageBoxInputData } from '../ui/elementPlus/messageBox';

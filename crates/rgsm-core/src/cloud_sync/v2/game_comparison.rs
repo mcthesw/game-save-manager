@@ -8,7 +8,7 @@ use xxhash_rust::xxh3::Xxh3;
 
 use crate::config::{OwnershipError, SharedGame, SharedLibrary, SharedSaveUnitSource};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GameJoinClassification {
     Same,
@@ -17,7 +17,7 @@ pub enum GameJoinClassification {
     GameDefinitionConflict,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct GameJoinCandidate {
     pub local: SharedGame,
     pub cloud_candidates: Vec<SharedGame>,

@@ -8,7 +8,7 @@ use crate::config::Config;
 
 /// Describes *why* the lifecycle event was triggered so downstream hooks can
 /// adjust behaviour (for example, only playing sounds for quick actions).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HookSource {
     UserManual,

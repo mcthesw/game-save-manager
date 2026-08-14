@@ -9,7 +9,7 @@ use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
 use crate::path_resolver::PathContext;
 use crate::preclude::BackupFileError;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub enum SaveUnitType {
     File,
     Folder,
@@ -17,7 +17,7 @@ pub enum SaveUnitType {
     WinRegistry,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum SaveUnitSource {
     Concrete {
@@ -36,7 +36,7 @@ pub enum SaveUnitSource {
 /// A save unit declares one concrete per-Device location or one portable
 /// Manifest Path Pattern. Dynamic patterns deliberately do not guess whether
 /// their future matches will be files or directories.
-#[derive(Debug, Serialize, Clone, Type)]
+#[derive(Debug, Serialize, Clone, Type, utoipa::ToSchema)]
 pub struct SaveUnit {
     #[serde(default)]
     pub id: u32,
@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for SaveUnit {
     }
 }
 
-#[derive(Debug, Serialize, Clone, Type)]
+#[derive(Debug, Serialize, Clone, Type, utoipa::ToSchema)]
 pub struct SaveUnitDraft {
     #[serde(default)]
     pub id: Option<u32>,

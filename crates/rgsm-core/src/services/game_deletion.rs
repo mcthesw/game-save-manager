@@ -13,7 +13,7 @@ use crate::config::{CloudNamespaceGeneration, cloud_bootstrap_inputs, remove_sha
 
 use super::{CloudLibraryServiceError, ServiceContext};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct DeletedCloudGameView {
     pub game_id: String,
     pub name: String,

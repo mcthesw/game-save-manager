@@ -22,13 +22,13 @@ use crate::preclude::BackendError;
 
 const MATERIALIZATION_PROGRESS_SCHEMA_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct CloudArchiveLibraryView {
     pub games: Vec<CloudArchiveGameView>,
     pub pending_materialization: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
@@ -46,7 +46,7 @@ pub struct CloudArchiveGameView {
     pub cloud_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct CloudArchiveSnapshotView {
     pub snapshot_id: String,
     pub description: String,

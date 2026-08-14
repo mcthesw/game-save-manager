@@ -5,7 +5,7 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm web:dev",
+    "beforeDevCommand": "pnpm web:tauri-dev",
     "beforeBuildCommand": "pnpm web:build"
   },
   "app": {

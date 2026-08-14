@@ -14,7 +14,7 @@ use crate::hooks::HookSource;
 
 use super::{CloudLibraryServiceError, ServiceContext};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct AcceptRemoteProgressOutcome {
     pub snapshot_id: String,
     pub safety_backup_created: bool,

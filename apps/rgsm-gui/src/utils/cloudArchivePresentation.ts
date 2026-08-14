@@ -1,4 +1,4 @@
-import type { CloudArchiveGameView, CloudArchiveSnapshotView } from '../bindings';
+import type { CloudArchiveGameView, CloudArchiveSnapshotView } from '../api/commands';
 import { $t } from '../i18n';
 
 export function formatCloudArchiveBytes(bytes: number | null | undefined) {

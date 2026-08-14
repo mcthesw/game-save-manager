@@ -6,7 +6,7 @@ import {
   type CloudArchiveGameView,
   type CloudArchiveLibraryView,
   type SyncMode,
-} from '../bindings';
+} from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { $t } from '../i18n';

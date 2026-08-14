@@ -4,7 +4,7 @@ import {
   type DeviceResource,
   type Game,
   type SaveUnit,
-} from '~/bindings';
+} from '~/api/commands';
 
 export function usePathResolution() {
   async function preview(game: Game, unit: SaveUnit) {

@@ -1,16 +1,16 @@
 import { ref } from 'vue';
 
 /**
- * IPC notification payload matching the Tauri backend `IpcNotification` event.
+ * Notification payload emitted by the Rust Host.
  */
-export interface IpcNotificationPayload {
+export interface HostNotificationPayload {
   level: 'info' | 'warning' | 'error';
   msg: string;
   title?: string;
 }
 
 /**
- * Whether IPC notifications are being collected instead of shown.
+ * Whether Host notifications are being collected instead of shown.
  *
  * NOTE: Module-level state is intentional — the UI enforces that only one
  * backup/restore operation can run at a time (via button locks), so
@@ -19,22 +19,21 @@ export interface IpcNotificationPayload {
 const collecting = ref(false);
 
 /**
- * Collected IPC notifications during an operation.
+ * Collected Host notifications during an operation.
  */
-const collected = ref<IpcNotificationPayload[]>([]);
+const collected = ref<HostNotificationPayload[]>([]);
 
 /**
- * Composable that allows temporarily collecting IPC notifications
- * (e.g. restore-time warnings) instead of displaying them immediately,
- * so they can be consolidated into a single result notification.
+ * Temporarily collects Host notifications (for example restore-time warnings)
+ * so the caller can consolidate them into one result notification.
  */
-export function useIpcNotificationCollector() {
+export function useHostNotificationCollector() {
   function startCollecting() {
     collecting.value = true;
     collected.value = [];
   }
 
-  function stopCollecting(): IpcNotificationPayload[] {
+  function stopCollecting(): HostNotificationPayload[] {
     const result = [...collected.value];
     collecting.value = false;
     collected.value = [];
@@ -45,7 +44,7 @@ export function useIpcNotificationCollector() {
     return collecting.value;
   }
 
-  function addIfCollecting(payload: IpcNotificationPayload): boolean {
+  function addIfCollecting(payload: HostNotificationPayload): boolean {
     if (collecting.value) {
       collected.value.push(payload);
       return true;

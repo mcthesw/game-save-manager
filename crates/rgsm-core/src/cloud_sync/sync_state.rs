@@ -14,7 +14,7 @@ use crate::device::{DeviceId, get_current_device_id};
 const SCHEMA_VERSION: u32 = 1;
 const SYNC_STATE_FILE: &str = "sync_state.json";
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncResult {
     Success,
@@ -23,7 +23,7 @@ pub enum SyncResult {
     Cancelled,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum PendingAction {
     #[default]
@@ -32,7 +32,7 @@ pub enum PendingAction {
     UserDecisionRequired,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema, Default)]
 pub struct GameSyncState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_known_local_head: Option<String>,
@@ -46,7 +46,7 @@ pub struct GameSyncState {
     pub pending_action: PendingAction,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct SyncState {
     pub schema_version: u32,
     #[serde(default)]

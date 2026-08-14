@@ -17,7 +17,7 @@ use crate::backup::{Game, GameSnapshots};
 use crate::config::Config;
 use crate::preclude::BackendError;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictResolutionOutcome {
     KeptLocal,

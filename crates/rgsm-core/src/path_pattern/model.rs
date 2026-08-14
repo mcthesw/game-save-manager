@@ -2,7 +2,18 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Type,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    Type,
+    utoipa::ToSchema,
 )]
 #[serde(rename_all = "camelCase")]
 pub enum PlatformKind {
@@ -24,7 +35,18 @@ impl PlatformKind {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Type,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    Type,
+    utoipa::ToSchema,
 )]
 #[serde(rename_all = "camelCase")]
 pub enum StoreKind {
@@ -35,7 +57,9 @@ pub enum StoreKind {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Type, utoipa::ToSchema,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum PathPlaceholder {
     Root,
@@ -120,7 +144,7 @@ impl PathPlaceholder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PathPlaceholderDescriptor {
     pub placeholder: PathPlaceholder,
@@ -128,7 +152,7 @@ pub struct PathPlaceholderDescriptor {
     pub windows_applicable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(transparent)]
 pub struct ManifestPathPattern(String);
 
@@ -142,14 +166,14 @@ impl ManifestPathPattern {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ManifestPathConstraints {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alternatives: Vec<ManifestPathCondition>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ManifestPathCondition {
     #[serde(default, skip_serializing_if = "Option::is_none")]

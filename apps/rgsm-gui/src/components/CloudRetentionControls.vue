@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 
-import { commands, type CloudArchiveGameView } from '../bindings';
+import { commands, type CloudArchiveGameView } from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 
@@ -23,7 +23,7 @@ watch(
 async function save() {
   const next = enabled.value ? Math.max(1, limit.value) : null;
   const risky =
-    next !== null && (props.game.retention_limit === null || next < props.game.retention_limit);
+    next !== null && (props.game.retention_limit == null || next < props.game.retention_limit);
   if (risky) {
     try {
       await feedback.confirm(

@@ -7,7 +7,7 @@ use crate::backup::GameSnapshots;
 use crate::device::{DeviceId, get_current_device_id};
 
 /// Describes the relationship between local and remote snapshot trees.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncRelation {
     /// Both sides already describe the same snapshot graph and per-device heads.
@@ -28,7 +28,7 @@ pub enum SyncRelation {
 }
 
 /// What the user chose to do when a conflict is detected.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictResolution {
     KeepLocal,

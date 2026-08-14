@@ -1,4 +1,4 @@
-import type { Config, Game, GameAutomationSettings } from '../bindings';
+import type { Config, Game, GameAutomationSettings } from '../api/commands';
 
 /**
  * Whether a stored automation entry refers to the given game. Prefers the stable

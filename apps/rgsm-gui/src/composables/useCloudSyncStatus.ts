@@ -1,7 +1,6 @@
-import { listen } from '@tauri-apps/api/event';
 import { computed, ref, shallowRef } from 'vue';
 
-import { commands } from '../bindings';
+import { commands, events } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifyInfo } from './useActivityCenter';
 
@@ -18,11 +17,6 @@ type CloudSyncStatusPayload = {
   active_jobs: number;
   current_description?: string | null;
   jobs: CloudSyncJobInfo[];
-};
-
-type CloudSyncErrorPayload = {
-  game_name?: string | null;
-  error: string;
 };
 
 const activeJobs = ref(0);
@@ -44,33 +38,37 @@ function initListeners() {
 
   initialized.value = true;
 
-  listen<CloudSyncStatusPayload>('cloud-sync-status', (event) => {
-    applyStatus(event.payload);
-  }).catch((err) => {
-    notifyError($t('cloud_sync.listen_failed'), String(err));
-  });
+  events.cloudSyncStatusEvent
+    .listen((event) => {
+      applyStatus(event.payload);
+    })
+    .catch((err) => {
+      notifyError($t('cloud_sync.listen_failed'), String(err));
+    });
 
-  listen<CloudSyncErrorPayload>('cloud-sync-error', (event) => {
-    const payload = event.payload;
-    const gameName = payload.game_name?.trim();
-    if (gameName) {
+  events.cloudSyncErrorEvent
+    .listen((event) => {
+      const payload = event.payload;
+      const gameName = payload.game_name?.trim();
+      if (gameName) {
+        notifyError(
+          $t('cloud_sync.failed_with_game', {
+            game: gameName,
+            error: payload.error,
+          })
+        );
+        return;
+      }
+
       notifyError(
-        $t('cloud_sync.failed_with_game', {
-          game: gameName,
+        $t('cloud_sync.failed', {
           error: payload.error,
         })
       );
-      return;
-    }
-
-    notifyError(
-      $t('cloud_sync.failed', {
-        error: payload.error,
-      })
-    );
-  }).catch((err) => {
-    notifyError($t('cloud_sync.listen_failed'), String(err));
-  });
+    })
+    .catch((err) => {
+      notifyError($t('cloud_sync.listen_failed'), String(err));
+    });
 }
 
 export function useCloudSyncStatus() {

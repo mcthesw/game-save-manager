@@ -13,7 +13,7 @@ use super::{
 };
 use crate::device::DeviceId;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct SharedGameDeletionOutcome {
     pub game_id: String,
     pub removed_snapshots: usize,

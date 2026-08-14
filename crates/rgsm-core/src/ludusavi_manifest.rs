@@ -41,7 +41,7 @@ lazy_static::lazy_static! {
     static ref MANIFEST_CACHE: Arc<Mutex<Option<ManifestCache>>> = Arc::new(Mutex::new(None));
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LudusaviManifestStatus {
     /// Current manifest source: `local`, `bundled`, or `none`.
@@ -71,7 +71,7 @@ struct ManifestMeta {
 /// Represents a single game entry in the ludusavi manifest
 /// Currently unused but kept for future expansions
 #[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ManifestGame {
     /// Game name (used as the key in the manifest)
@@ -85,7 +85,7 @@ pub struct ManifestGame {
 }
 
 /// Represents a save file path with its conditions
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SavePath {
     /// The path pattern
@@ -97,7 +97,7 @@ pub struct SavePath {
 }
 
 /// Simplified game info for the import dialog
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportableGame {
     /// Game name

@@ -4,7 +4,7 @@ import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background, BackgroundVariant } from '@vue-flow/background';
 import type { Edge, Node } from '@vue-flow/core';
 import SnapshotNode from './SnapshotNode.vue';
-import type { Snapshot } from '../bindings';
+import type { Snapshot } from '../api/commands';
 import { $t } from '../i18n';
 import { Aim, FullScreen } from '@element-plus/icons-vue';
 

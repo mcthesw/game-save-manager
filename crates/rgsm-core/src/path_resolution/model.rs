@@ -85,7 +85,7 @@ impl Default for ResolutionContext {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CandidateDimensions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -98,7 +98,7 @@ pub struct CandidateDimensions {
     pub store: Option<StoreKind>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CandidateExpression {
     pub id: String,
@@ -108,7 +108,7 @@ pub struct CandidateExpression {
     pub case_sensitive: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum ResolutionSelectionState {
     Missing,
@@ -127,7 +127,7 @@ pub enum ResolutionSelectionState {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum ResolutionDiagnosticKind {
     UnknownPlaceholder,
@@ -140,7 +140,7 @@ pub enum ResolutionDiagnosticKind {
     MultipleMatches,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolutionDiagnostic {
     pub kind: ResolutionDiagnosticKind,
@@ -176,7 +176,7 @@ impl ResolutionPlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum ResolvedLocationKind {
     File,
@@ -184,7 +184,7 @@ pub enum ResolvedLocationKind {
     Registry,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedSaveLocation {
     pub path: String,
@@ -194,7 +194,7 @@ pub struct ResolvedSaveLocation {
     pub dimensions: CandidateDimensions,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolutionReport {
     pub raw_pattern: String,

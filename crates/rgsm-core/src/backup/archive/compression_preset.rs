@@ -7,7 +7,9 @@ use specta::Type;
 ///
 /// Each preset maps to a specific `zip::CompressionMethod` and compression level.
 /// Old archives using BZip2 remain fully readable regardless of the current preset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default,
+)]
 pub enum CompressionPreset {
     /// No compression — fastest backup, largest file size.
     Store,

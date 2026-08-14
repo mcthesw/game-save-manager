@@ -11,7 +11,6 @@ use rodio::{
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
-use tauri_plugin_dialog::DialogExt;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     oneshot,
@@ -21,7 +20,7 @@ use rgsm_core::config::{
     QuickActionSoundPreferences, QuickActionSoundSlots, QuickActionSoundSource,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub enum QuickActionSoundEffect {
     Success,
     Failure,
@@ -338,13 +337,12 @@ pub fn play_quick_action_sound(
 }
 
 pub fn choose_quick_action_sound_file(app: &AppHandle) -> Result<String, String> {
-    match app
-        .dialog()
-        .file()
+    let _ = app;
+    match rfd::FileDialog::new()
         .add_filter("Audio", &["mp3", "wav", "flac", "ogg"])
-        .blocking_pick_file()
+        .pick_file()
     {
-        Some(path) => Ok(path.to_string()),
+        Some(path) => Ok(path.to_string_lossy().into_owned()),
         None => Err("Failed to open dialog.".to_string()),
     }
 }

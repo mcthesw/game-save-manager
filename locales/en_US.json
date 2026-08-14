@@ -154,7 +154,19 @@
         "game_roots_detected": "Detected {count} new game root(s)",
         "game_roots_detect_failed": "Failed to detect game roots",
         "confirm_before_apply_latest": "Confirm before the top Apply latest button",
-        "confirm_before_apply_snapshot": "Confirm before snapshot table Apply buttons"
+        "confirm_before_apply_snapshot": "Confirm before snapshot table Apply buttons",
+        "local_api": "Local API",
+        "local_api_hint": "The desktop UI and local tools use this loopback endpoint. Keep the token private.",
+        "local_api_endpoint": "Endpoint",
+        "local_api_token": "API token",
+        "local_api_copy_token": "Copy token",
+        "local_api_token_copied": "API token copied",
+        "local_api_regenerate": "Regenerate token",
+        "local_api_regenerate_title": "Regenerate API token?",
+        "local_api_regenerate_warning": "Existing local clients will lose access and must reconnect with the new token.",
+        "local_api_regenerated": "API token regenerated",
+        "local_api_regenerate_failed": "Failed to regenerate API token",
+        "local_api_load_failed": "Failed to load local API settings"
     },
     "home": {
         "name": "Game save manager",

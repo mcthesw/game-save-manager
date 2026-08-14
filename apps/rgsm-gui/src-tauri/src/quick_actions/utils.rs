@@ -11,9 +11,8 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
-use tauri_specta::Event;
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub enum QuickActionType {
     Timer,
     Tray,
@@ -70,20 +69,20 @@ impl QuickActionType {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub enum QuickActionOperation {
     Backup,
     Apply,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub enum QuickActionStatus {
     Success,
     Failure,
     SkippedUnchanged,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct QuickActionCompleted {
     pub operation: QuickActionOperation,
     pub status: QuickActionStatus,
@@ -98,19 +97,13 @@ pub fn emit_quick_action_event(
     status: QuickActionStatus,
     game_name: Option<String>,
 ) {
-    if let Err(err) = (QuickActionCompleted {
+    let event = QuickActionCompleted {
         operation,
         status,
         trigger,
         game_name,
-    })
-    .emit(app)
-    {
-        warn!(
-            target: "rgsm::quick_action",
-            "Failed to emit quick action event: {err:?}"
-        );
-    }
+    };
+    crate::http::emit(app, "quick-action-completed", &event);
 }
 
 pub fn notify_backup_skipped_unchanged(

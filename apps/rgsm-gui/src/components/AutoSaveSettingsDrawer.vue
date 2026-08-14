@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import ProcessSelect from './ProcessSelect.vue';
-import { commands } from '../bindings';
+import { commands } from '../api/commands';
 import type {
   AutoBackupConfig,
   CloudArchiveGameView,
   Game,
   RunningProcessOption,
-} from '../bindings';
+} from '../api/commands';
 import { $t } from '../i18n';
-import { error } from '@tauri-apps/plugin-log';
+import { error } from '../utils/logger';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -137,7 +137,7 @@ async function saveDraft() {
     let riskyRetention = false;
     if (props.cloudGame) {
       nextRetention = sharedRetentionEnabled.value ? Math.max(1, sharedRetentionLimit.value) : null;
-      const previous = props.cloudGame.retention_limit;
+      const previous = props.cloudGame.retention_limit ?? null;
       riskyRetention = nextRetention !== null && (previous === null || nextRetention < previous);
       if (riskyRetention) {
         try {

@@ -16,16 +16,16 @@ import {
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
-import { commands } from '~/bindings';
+import { commands } from '~/api/commands';
 import type {
   QuickActionSoundPreferences,
   QuickActionSoundSlots,
   QuickActionSoundSource,
   QuickActionsSettings,
   LudusaviManifestStatus,
-} from '~/bindings';
-import { error, info } from '@tauri-apps/plugin-log';
-import type { CloudNamespaceGeneration, Device } from '../bindings';
+} from '~/api/commands';
+import { error, info } from '../utils/logger';
+import type { CloudNamespaceGeneration, Device } from '../api/commands';
 import { saveUnitPaths } from '../utils/saveUnit';
 
 const isDark = useDark();
@@ -38,6 +38,58 @@ const currentQuickActionGame = computed(() => {
   if (!identity) return undefined;
   return config.value.games.find((game) => game.storage_key === identity || game.name === identity);
 });
+const httpHostBaseUrl = ref('');
+const httpApiToken = ref('');
+const rotatingHttpApiToken = ref(false);
+
+async function loadHttpHostInfo() {
+  try {
+    const result = await commands.getHttpHostInfo();
+    if (result.status === 'error') {
+      notifyError($t('settings.local_api_load_failed'), result.error);
+      return;
+    }
+    httpHostBaseUrl.value = result.data.baseUrl;
+    httpApiToken.value = result.data.token;
+  } catch (reason) {
+    notifyError($t('settings.local_api_load_failed'), String(reason));
+  }
+}
+
+async function copyHttpApiToken() {
+  await navigator.clipboard.writeText(httpApiToken.value);
+  notifySuccess($t('settings.local_api_token_copied'));
+}
+
+async function regenerateHttpApiToken() {
+  try {
+    await feedback.confirm(
+      $t('settings.local_api_regenerate_warning'),
+      $t('settings.local_api_regenerate_title'),
+      {
+        confirmButtonText: $t('settings.local_api_regenerate'),
+        cancelButtonText: $t('settings.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+
+  rotatingHttpApiToken.value = true;
+  try {
+    const result = await commands.regenerateHttpApiToken();
+    if (result.status === 'error') {
+      notifyError($t('settings.local_api_regenerate_failed'), result.error);
+      return;
+    }
+    httpApiToken.value = result.data.token;
+    notifySuccess($t('settings.local_api_regenerated'));
+  } finally {
+    rotatingHttpApiToken.value = false;
+  }
+}
+
 const activeTab = ref('general');
 const cloudNamespaceGeneration = ref<CloudNamespaceGeneration | null>(null);
 const v2LibraryActive = computed(() => cloudNamespaceGeneration.value === 'v2');
@@ -857,6 +909,7 @@ watch(
 
 // 页面加载时刷新配置与设备信息，避免其它页面更新配置后这里显示旧数据
 onMounted(async () => {
+  void loadHttpHostInfo();
   await load_config();
   await refreshLudusaviManifestStatus();
   fetchSystemFonts(); // Load in background, no await needed
@@ -981,6 +1034,40 @@ const { linksWithGames: router_list } = useNavigationLinks();
           <div class="setting-box">
             <ElSwitch v-model="config.settings.log_to_file" />
             <span class="setting-label">{{ $t('settings.log_to_file') }}*</span>
+          </div>
+
+          <el-divider content-position="left">
+            <el-icon><Unlock /></el-icon>
+            <span class="tab-title">{{ $t('settings.local_api') }}</span>
+          </el-divider>
+          <div class="manifest-box">
+            <el-alert type="info" :closable="false" class="manifest-hint">
+              {{ $t('settings.local_api_hint') }}
+            </el-alert>
+            <el-descriptions :column="1" size="small" border>
+              <el-descriptions-item :label="$t('settings.local_api_endpoint')">
+                {{ httpHostBaseUrl }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="$t('settings.local_api_token')">
+                <el-input :model-value="httpApiToken" type="password" readonly show-password>
+                  <template #append>
+                    <el-button @click="copyHttpApiToken">
+                      {{ $t('settings.local_api_copy_token') }}
+                    </el-button>
+                  </template>
+                </el-input>
+              </el-descriptions-item>
+            </el-descriptions>
+            <div class="manifest-actions">
+              <div />
+              <el-button
+                type="danger"
+                :loading="rotatingHttpApiToken"
+                @click="regenerateHttpApiToken"
+              >
+                {{ $t('settings.local_api_regenerate') }}
+              </el-button>
+            </div>
           </div>
 
           <el-divider content-position="left">

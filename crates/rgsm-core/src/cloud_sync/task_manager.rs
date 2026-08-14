@@ -123,7 +123,7 @@ impl CloudSyncJob {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub enum CloudSyncJobStatus {
     Queued,
     Running,
@@ -132,7 +132,7 @@ pub enum CloudSyncJobStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudSyncJobInfo {
     pub id: u64,
     pub description: String,
@@ -140,20 +140,20 @@ pub struct CloudSyncJobInfo {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudSyncStatus {
     pub active_jobs: usize,
     pub current_description: Option<String>,
     pub jobs: Vec<CloudSyncJobInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudSyncError {
     pub game_name: Option<String>,
     pub error: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CancelCloudSyncResult {
     Cancelled,

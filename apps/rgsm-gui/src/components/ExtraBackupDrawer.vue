@@ -2,10 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import dayjs from 'dayjs';
 import { Delete, FolderOpened, Refresh, VideoPlay } from '@element-plus/icons-vue';
-import { error as logError } from '@tauri-apps/plugin-log';
+import { error as logError } from '../utils/logger';
 
 import { $t } from '../i18n';
-import { commands, type ExtraBackupItem, type Game } from '../bindings';
+import { commands, type ExtraBackupItem, type Game } from '../api/commands';
 import { useApplyConfirmation } from '../composables/useApplyConfirmation';
 import { useFeedback } from '../composables/useFeedback';
 import { useGlobalLoading } from '../composables/useGlobalLoading';

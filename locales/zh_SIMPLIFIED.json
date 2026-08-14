@@ -154,7 +154,19 @@
         "game_roots_detected": "检测到 {count} 个新的游戏根目录",
         "game_roots_detect_failed": "检测游戏根目录失败",
         "confirm_before_apply_latest": "点击顶部「应用最新快照」前确认",
-        "confirm_before_apply_snapshot": "点击快照表格「应用」前确认"
+        "confirm_before_apply_snapshot": "点击快照表格「应用」前确认",
+        "local_api": "本机 API",
+        "local_api_hint": "桌面界面和本机工具通过此回环地址访问应用。请勿泄露 Token。",
+        "local_api_endpoint": "访问地址",
+        "local_api_token": "API Token",
+        "local_api_copy_token": "复制 Token",
+        "local_api_token_copied": "API Token 已复制",
+        "local_api_regenerate": "重新生成 Token",
+        "local_api_regenerate_title": "重新生成 API Token？",
+        "local_api_regenerate_warning": "现有本机客户端将立即失去访问权限，必须使用新 Token 重新连接。",
+        "local_api_regenerated": "API Token 已重新生成",
+        "local_api_regenerate_failed": "无法重新生成 API Token",
+        "local_api_load_failed": "无法读取本机 API 设置"
     },
     "home": {
         "name": "游戏存档管理器",

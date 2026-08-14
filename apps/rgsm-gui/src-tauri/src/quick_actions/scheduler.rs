@@ -26,7 +26,7 @@ pub enum SchedulerCommand {
 }
 
 /// Status of one game's auto-backup timer, returned by `GetStatus`.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct AutoBackupGameStatus {
     pub game_name: String,
     pub interval_secs: u32,

@@ -1,6 +1,6 @@
 import { defineComponent, h, ref } from 'vue';
 import { $t } from '../i18n';
-import type { Settings } from '../bindings';
+import type { Settings } from '../api/commands';
 import { ElCheckbox } from '../ui/elementPlus/checkbox';
 import { useConfig } from './useConfig';
 import { useFeedback } from './useFeedback';

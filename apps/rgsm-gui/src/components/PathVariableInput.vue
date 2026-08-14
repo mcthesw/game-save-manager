@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { $t } from '../i18n';
-import { commands } from '../bindings';
+import { commands } from '../api/commands';
 import { LAYER } from '../ui/layers';
 
 type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
