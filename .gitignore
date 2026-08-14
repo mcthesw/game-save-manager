@@ -58,3 +58,6 @@ auto-imports.d.ts
 .aider*
 .cursor*
 .windsurf*
+
+# Local cloud fixture used by scripts/local-cloud.mjs
+tmp/local-cloud/
