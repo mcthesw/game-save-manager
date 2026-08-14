@@ -1,0 +1,5 @@
+# Use loopback HTTP for frontend transport
+
+**Status:** accepted
+
+The frontend communicates with the Rust application host exclusively through a versioned loopback HTTP API and a single server-sent event stream, rather than Tauri commands and events. Rust DTOs and handlers define an OpenAPI contract from which the TypeScript client is generated. The desktop shell injects its host URL and bearer token at runtime; browser development uses a Vite proxy backed by an isolated `.rgsm-dev/app-data` profile. The host binds only to `127.0.0.1`, authenticates every API and event request, validates the browser origin, and persists its random port and token outside synchronized application configuration. This keeps normal browser tooling usable for the complete frontend while retaining Tauri only as the production window and operating-system integration shell; a custom RPC protocol or a shared unrestricted external API would add coupling and a larger attack surface without improving the local debugging workflow.
