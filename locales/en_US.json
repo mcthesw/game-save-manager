@@ -157,22 +157,18 @@
         "confirm_before_apply_snapshot": "Confirm before snapshot table Apply buttons"
     },
     "home": {
-        "hello_world": "Hello world",
-        "simple": "Simple",
-        "simple_explained": "No useless features like promotions or banner ads, ensuring that the interface primarily serves functionality",
-        "safe": "Safe",
-        "safe_explained": "This software does not upload your data to my server. You can configure your own WebDAV or other cloud services to achieve cloud save functionality",
-        "free": "Free",
-        "free_explained": "This software belongs to the open-source world, and you can easily access its source code. Skilled individuals can contribute code to it",
-        "import_game": "Import game",
-        "jump_to_page": "Jump to page",
+        "name": "Game save manager",
+        "greeting": "Hello",
         "hint": "Hint",
-        "start_backup": "Start backup",
-        "change_locale": "Change language",
-        "go_game_manage_hint": "Please click on Save Management on the left",
-        "go_backup_hint": "Please click on the game name under the Save Management section, and manage your saves in the new page",
         "wrong_homepage": "The page does not exist, please reset the homepage",
-        "name": "Game save manager"
+        "status_games": "Games",
+        "status_cloud": "Cloud sync",
+        "status_auto_backup": "Auto backup",
+        "cloud_not_configured": "Not configured",
+        "cloud_local": "Local folder",
+        "add_first_game": "Add games",
+        "choose_language": "Choose language",
+        "help_translate": "Help translate"
     },
     "manage": {
         "choose_restore_location": "Choose restore location",

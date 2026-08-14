@@ -64,22 +64,10 @@
         "game_order_saved": "L'ordre du jeu a été mis à jour"
     },
     "home": {
-        "hello_world": "Vos Excellences",
-        "simple": "Simplicité",
-        "simple_explained": "Les fonctions de non-utilisation telles que l'extension, la remise, etc. ne sont pas ajoutées pour assurer, dans la mesure du possible, que les interfaces sont fonctionnelles",
-        "safe": "Sécurité",
-        "safe_explained": "Le logiciel n'est pas en ligne, et vous pouvez archiver leurs propres archives à travers un nuage de noix pour effectuer la fonction de “archivage de nuage”",
-        "free": "Liberté",
-        "free_explained": "Le logiciel est un monde ouvert, et vous pouvez facilement visiter son code source, et ceux qui peuvent y contribuer",
-        "import_game": "Introduction",
-        "jump_to_page": "Exchange",
+        "name": "Service de gestion du jeu",
+        "greeting": "Bonjour",
         "hint": "Indicative",
-        "start_backup": "Sauvegarde initiale",
-        "change_locale": "Remplacement de la langue",
-        "go_game_manage_hint": "S'il vous plaît unir la gauche “gestion d'archive”",
-        "go_backup_hint": "Sous la colonne « gestion de l’archive », le nom de jeu devrait être détaché pour la gestion des archives dans la nouvelle interface",
-        "wrong_homepage": "Aucune page n'est disponible et la page d'accueil devrait être rouverte",
-        "name": "Service de gestion du jeu"
+        "wrong_homepage": "Aucune page n'est disponible et la page d'accueil devrait être rouverte"
     },
     "manage": {
         "create_new_save": "Création d'une nouvelle voie rapide",

@@ -1,5 +1,8 @@
 {
     "about": {
         "active_translator": "Aktiv oversetter"
+    },
+    "home": {
+        "greeting": "Hei"
     }
 }
