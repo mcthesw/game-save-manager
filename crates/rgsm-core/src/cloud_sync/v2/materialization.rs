@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 use opendal::Operator;
@@ -12,8 +12,9 @@ use super::{
     CloudManifest, CloudManifestRepository, DeletionRegistryError, DeletionRegistryRepository,
     ManifestError, ManifestRepositoryError, MaterializationOutcome, MaterializationPreview,
     SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
+    progress_requires_choice,
 };
-use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
+use crate::backup::{ArchiveFormat, CreatedBy, Snapshot, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
 use crate::config::SyncMode;
 use crate::device::{DeviceId, encode_device_id};
@@ -38,6 +39,7 @@ pub struct CloudArchiveGameView {
     pub managed: bool,
     pub visible: bool,
     pub advertised_head_count: usize,
+    pub requires_choice: bool,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub pending_deletions: Vec<CloudArchiveDeletionView>,
     pub local_count: usize,
@@ -54,6 +56,7 @@ pub struct CloudArchiveSnapshotView {
     pub reported_on_devices: Vec<DeviceId>,
     pub created_by: CreatedBy,
     pub retention_protected: bool,
+    pub parent: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +106,7 @@ impl CloudArchiveMaterializer {
     pub async fn view(
         &self,
         game_names: &BTreeMap<String, String>,
+        local_heads: &BTreeMap<String, Option<String>>,
     ) -> Result<CloudArchiveLibraryView, MaterializationError> {
         self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
@@ -147,6 +151,7 @@ impl CloudArchiveMaterializer {
                     reported_on_devices,
                     created_by: live.created_by.clone(),
                     retention_protected: live.retention_protected,
+                    parent: node.parent.clone(),
                 });
             }
             snapshots.reverse();
@@ -167,6 +172,19 @@ impl CloudArchiveMaterializer {
                     .values()
                     .collect::<std::collections::BTreeSet<_>>()
                     .len(),
+                requires_choice: {
+                    let mut advertised = BTreeMap::<String, BTreeSet<DeviceId>>::new();
+                    for (device, head) in &game.device_heads {
+                        advertised
+                            .entry(head.clone())
+                            .or_default()
+                            .insert(device.clone());
+                    }
+                    progress_requires_choice(
+                        local_heads.get(game_id).and_then(|head| head.as_deref()),
+                        &advertised,
+                    )
+                },
                 local_count: snapshots
                     .iter()
                     .filter(|snapshot| snapshot.local_verified)
@@ -296,11 +314,83 @@ impl CloudArchiveMaterializer {
         &self,
         game_id: &str,
         snapshot_id: &str,
-    ) -> Result<(), MaterializationError> {
+    ) -> Result<Vec<Snapshot>, MaterializationError> {
         self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
         let item = manifest_item(&manifest, game_id, snapshot_id, true)?;
-        self.download_item(&item).await
+        self.download_item(&item).await?;
+        self.imported_lineage(&manifest, game_id, snapshot_id)
+    }
+
+    pub fn imported_lineage(
+        &self,
+        manifest: &CloudManifest,
+        game_id: &str,
+        snapshot_id: &str,
+    ) -> Result<Vec<Snapshot>, MaterializationError> {
+        let game = manifest
+            .games
+            .get(game_id)
+            .ok_or_else(|| MaterializationError::GameNotFound(game_id.to_string()))?;
+        let mut lineage = Vec::new();
+        let mut visited = HashSet::new();
+        let mut cursor = snapshot_id;
+        loop {
+            if !visited.insert(cursor.to_string()) {
+                return Err(MaterializationError::SnapshotUnavailable(
+                    cursor.to_string(),
+                ));
+            }
+            let node = game
+                .snapshots
+                .get(cursor)
+                .ok_or_else(|| MaterializationError::SnapshotNotFound(cursor.to_string()))?;
+            let SnapshotState::Live(live) = &node.state else {
+                return Err(MaterializationError::SnapshotUnavailable(
+                    cursor.to_string(),
+                ));
+            };
+            lineage.push(Snapshot {
+                date: node.snapshot_id.clone(),
+                describe: node.description.clone(),
+                path: self
+                    .local_path(game_id, &node.snapshot_id, node.archive_format)
+                    .to_string_lossy()
+                    .into_owned(),
+                archive_format: node.archive_format,
+                size: live.integrity.as_ref().map_or(0, |value| value.size),
+                parent: node.parent.clone(),
+                archive_hash: live.integrity.as_ref().map(|value| value.xxh3_64.clone()),
+                device_id: None,
+                created_by: live.created_by.clone(),
+            });
+            let Some(parent) = node.parent.as_deref() else {
+                break;
+            };
+            cursor = parent;
+        }
+        lineage.reverse();
+        Ok(lineage)
+    }
+
+    pub async fn imported_local_catalog(
+        &self,
+    ) -> Result<BTreeMap<String, Vec<Snapshot>>, MaterializationError> {
+        let manifest = self.repository().load().await?;
+        let mut imported = BTreeMap::new();
+        for (game_id, game) in &manifest.games {
+            let Some(reported) = game.local_archives.get(&self.current_device_id) else {
+                continue;
+            };
+            let mut snapshots = Vec::new();
+            for snapshot_id in reported {
+                snapshots.extend(self.imported_lineage(&manifest, game_id, snapshot_id)?);
+            }
+            if !snapshots.is_empty() {
+                imported.insert(game_id.clone(), snapshots);
+            }
+        }
+        Ok(imported)
     }
 
     pub async fn materialize_all(

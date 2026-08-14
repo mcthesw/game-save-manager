@@ -434,8 +434,9 @@ impl ServiceContext {
         let snapshots = game.get_game_snapshots_info()?;
         let snapshot = snapshots
             .backups
-            .into_iter()
+            .iter()
             .find(|item| item.date == snapshot_id)
+            .cloned()
             .ok_or_else(|| {
                 CloudLibraryServiceError::GameProfileNotFound(snapshot_id.to_string())
             })?;
@@ -453,7 +454,7 @@ impl ServiceContext {
             3,
         );
         Ok(coordinator
-            .upload_local_snapshot(game_id, &snapshot)
+            .upload_local_snapshot(game_id, &snapshot, &snapshots)
             .await?)
     }
 
@@ -462,22 +463,23 @@ impl ServiceContext {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), CloudLibraryServiceError> {
-        Ok(self
+        let lineage = self
             .converged_materializer()
             .await?
             .download(game_id, snapshot_id)
-            .await?)
+            .await?;
+        import_downloaded_lineage(game_id, &lineage)?;
+        Ok(())
     }
 
     pub async fn materialize_all_cloud_archives(
         &self,
         cancellation: &CancellationToken,
     ) -> Result<MaterializationOutcome, CloudLibraryServiceError> {
-        Ok(self
-            .converged_materializer()
-            .await?
-            .materialize_all(cancellation)
-            .await?)
+        let materializer = self.converged_materializer().await?;
+        let outcome = materializer.materialize_all(cancellation).await;
+        import_local_verified_catalog(&materializer).await?;
+        Ok(outcome?)
     }
 
     pub async fn delete_v2_snapshot(
@@ -486,9 +488,6 @@ impl ServiceContext {
         snapshot_id: &str,
         confirmed: bool,
     ) -> Result<(), CloudLibraryServiceError> {
-        if !confirmed {
-            return Err(CloudLibraryServiceError::ConfirmationRequired);
-        }
         let materializer = self.converged_materializer().await?;
         let deletion = materializer
             .delete_snapshot(game_id, snapshot_id, confirmed)
@@ -500,6 +499,9 @@ impl ServiceContext {
                     | SnapshotDeletionLifecycleError::GameNotFound(_)
             ))
         ) {
+            if !confirmed {
+                return Err(CloudLibraryServiceError::ConfirmationRequired);
+            }
             let game = get_config()?
                 .games
                 .into_iter()
@@ -602,14 +604,15 @@ impl ServiceContext {
         let downloaded = if newly_enabled
             && initial_catch_up == InitialCatchUpPolicy::DownloadExisting
         {
-            materializer
+            let outcome = materializer
                 .materialize_game(
                     game_id,
                     activation_revision.expect("new synchronized mode has an activation revision"),
                     cancellation,
                 )
-                .await?
-                .downloaded
+                .await;
+            import_local_verified_catalog(&materializer).await?;
+            outcome?.downloaded
         } else {
             0
         };
@@ -727,6 +730,42 @@ fn map_library_status(
             Ok(CloudLibraryStatus::Empty)
         }
     }
+}
+
+fn import_downloaded_lineage(
+    game_id: &str,
+    lineage: &[crate::backup::Snapshot],
+) -> Result<(), CloudLibraryServiceError> {
+    if lineage.is_empty() {
+        return Ok(());
+    }
+    let game = get_config()?
+        .games
+        .into_iter()
+        .find(|game| game.storage_key == game_id || game.name == game_id)
+        .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
+    let mut local = match game.get_game_snapshots_info() {
+        Ok(snapshots) => snapshots,
+        Err(crate::preclude::BackupError::Io(error))
+            if error.kind() == std::io::ErrorKind::NotFound =>
+        {
+            GameSnapshots::new(game.name.clone())
+        }
+        Err(error) => return Err(error.into()),
+    };
+    super::conflict_resolution::merge_remote_lineage(&mut local, lineage)?;
+    game.set_game_snapshots_info(&local)?;
+    Ok(())
+}
+
+pub(crate) async fn import_local_verified_catalog(
+    materializer: &CloudArchiveMaterializer,
+) -> Result<(), CloudLibraryServiceError> {
+    let catalog = materializer.imported_local_catalog().await?;
+    for (game_id, lineage) in catalog {
+        import_downloaded_lineage(&game_id, &lineage)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

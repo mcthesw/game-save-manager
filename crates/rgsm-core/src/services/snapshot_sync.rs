@@ -93,7 +93,11 @@ pub async fn run_v2_snapshot_sync_once(
                 &target.local_baseline,
                 cancellation,
             )
-            .await?;
+            .await;
+        let import =
+            super::sync::import_local_verified_catalog(runtime.coordinator.materializer()).await;
+        let outcome = outcome?;
+        import?;
         total.published += outcome.published;
         total.uploaded += outcome.uploaded;
         total.downloaded += outcome.downloaded;
@@ -122,7 +126,12 @@ pub async fn resume_v2_snapshot_sync(
     let Some(runtime) = load_runtime()? else {
         return Ok(0);
     };
-    Ok(runtime.coordinator.resume_pending(cancellation).await?)
+    let downloaded = runtime.coordinator.resume_pending(cancellation).await;
+    let import =
+        super::sync::import_local_verified_catalog(runtime.coordinator.materializer()).await;
+    let downloaded = downloaded?;
+    import?;
+    Ok(downloaded)
 }
 
 pub fn v2_snapshot_sync_poll_minutes() -> Result<Option<u64>, SnapshotSyncServiceError> {

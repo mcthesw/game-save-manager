@@ -29,7 +29,7 @@ pub use conflict_resolution::{
 };
 pub use conflict_review::{
     ConflictReviewError, LocalProgressView, ProgressRelation, RemoteProgressCandidate,
-    V2ConflictInspector, V2ConflictReview,
+    V2ConflictInspector, V2ConflictReview, progress_requires_choice,
 };
 pub use cutover::{
     CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverResult,

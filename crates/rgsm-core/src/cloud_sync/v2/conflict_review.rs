@@ -140,11 +140,7 @@ impl V2ConflictInspector {
                 .or_default()
                 .insert(device.clone());
         }
-        let requires_choice = grouped_heads.len() > 1
-            || local_head
-                .as_ref()
-                .is_some_and(|head| !grouped_heads.contains_key(head))
-            || (local_head.is_none() && !grouped_heads.is_empty());
+        let requires_choice = progress_requires_choice(local_head.as_deref(), &grouped_heads);
         let mut candidates = Vec::with_capacity(grouped_heads.len());
         for (snapshot_id, devices) in grouped_heads {
             let node = game
@@ -198,6 +194,15 @@ impl V2ConflictInspector {
                 integrity.size,
             )
     }
+}
+
+pub fn progress_requires_choice(
+    local_head: Option<&str>,
+    advertised_heads: &BTreeMap<String, BTreeSet<DeviceId>>,
+) -> bool {
+    advertised_heads.len() > 1
+        || local_head.is_some_and(|head| !advertised_heads.contains_key(head))
+        || (local_head.is_none() && !advertised_heads.is_empty())
 }
 
 fn cloud_available(node: &super::SnapshotNode) -> bool {

@@ -258,6 +258,7 @@
         "batch_evict": "从本机移除",
         "batch_evict_confirm": "要从本机移除选中的 {count} 个快照副本吗，云端仍会保留",
         "batch_evict_success": "已从本机移除 {count} 个快照副本",
+        "batch_evict_partial": "从本机移除了 {succeeded} 个快照，{failed} 个失败",
         "location_local": "本机",
         "location_cloud": "云端",
         "location_both": "本机 · 云端",
