@@ -34,8 +34,10 @@ import {
   CircleCheck,
   Download,
   Lock,
+  Unlock,
   Upload,
   Remove,
+  Refresh,
 } from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 import {
@@ -76,6 +78,7 @@ const tableSortBy = ref<{ key: string; order: TableV2SortOrder }>({
 const selectedDates = ref<Set<string>>(new Set());
 const retentionProtectedDates = ref<Set<string>>(new Set());
 const cloudGame = ref<CloudArchiveGameView | null>(null);
+const localCatalogDates = ref<Set<string>>(new Set());
 const activeTransfer = ref('');
 
 // Game snapshots info including HEAD
@@ -209,6 +212,14 @@ function isAutomaticSnapshot(snapshot: Snapshot): boolean {
     snapshot.created_by === 'ProcessInterval'
   );
 }
+
+function isRetentionProtected(date: string) {
+  return (
+    retentionProtectedDates.value.has(date) || Boolean(cloudSnapshot(date)?.retention_protected)
+  );
+}
+
+const pendingDeletions = computed(() => cloudGame.value?.pending_deletions ?? []);
 async function batch_delete() {
   try {
     const generation = await commands.getCloudNamespaceGeneration();
@@ -284,27 +295,44 @@ async function convertToPermanent(snapshotDate: string) {
       return;
     }
     if (generation.data === 'v2') {
-      await feedback.confirm(
-        $t('manage.protect_from_retention_confirm'),
-        $t('manage.convert_to_permanent'),
-        {
-          confirmButtonText: $t('manage.convert_to_permanent'),
-          cancelButtonText: $t('manage.cancel'),
-          type: 'info',
-        }
-      );
+      const nextProtected = !isRetentionProtected(snapshotDate);
+      if (nextProtected) {
+        await feedback.confirm(
+          $t('manage.protect_from_retention_confirm'),
+          $t('manage.convert_to_permanent'),
+          {
+            confirmButtonText: $t('manage.convert_to_permanent'),
+            cancelButtonText: $t('manage.cancel'),
+            type: 'info',
+          }
+        );
+      } else {
+        await feedback.confirm(
+          $t('sync_settings.archives.retention.unprotect_confirm'),
+          $t('sync_settings.archives.retention.unprotect_title'),
+          {
+            confirmButtonText: $t('sync_settings.archives.retention.unprotect'),
+            cancelButtonText: $t('manage.cancel'),
+            type: 'warning',
+          }
+        );
+      }
       const result = await commands.setSnapshotRetentionProtected(
         game.value.storage_key || game.value.name,
         snapshotDate,
-        true,
-        false
+        nextProtected,
+        !nextProtected
       );
       if (result.status === 'error') {
-        notifyError($t('manage.protect_from_retention_failed'), result.error);
+        notifyError($t('sync_settings.archives.retention.protection_failed'), result.error);
         return;
       }
-      retentionProtectedDates.value = new Set([...retentionProtectedDates.value, snapshotDate]);
-      notifySuccess($t('manage.protect_from_retention_success'));
+      notifySuccess(
+        nextProtected
+          ? $t('manage.protect_from_retention_success')
+          : $t('sync_settings.archives.retention.unprotected')
+      );
+      await refresh_backups_info();
       return;
     }
     const snapshot = table_data.value.find((x) => x.date === snapshotDate);
@@ -362,10 +390,16 @@ async function refresh_backups_info() {
   }
   const cloud = await loadCloudGame();
   const merged = mergeCloudOnlySnapshots(result.data.backups, cloud);
+  localCatalogDates.value = new Set(result.data.backups.map((snapshot) => snapshot.date));
   gameSnapshots.value = { ...result.data, backups: merged };
   table_data.value = merged;
   table_data_desc.value = [...merged].reverse();
   selectedDates.value = new Set();
+  retentionProtectedDates.value = new Set(
+    cloud?.snapshots
+      .filter((snapshot) => snapshot.retention_protected)
+      .map((snapshot) => snapshot.snapshot_id) ?? []
+  );
 }
 
 async function loadCloudGame() {
@@ -398,6 +432,7 @@ function mergeCloudOnlySnapshots(
       path: '',
       size: snapshot.size ?? 0,
       created_by: snapshot.created_by,
+      parent: snapshot.parent,
     }));
   return [...local, ...extras].sort((left, right) => left.date.localeCompare(right.date));
 }
@@ -444,6 +479,7 @@ function snapshotLocationLabel(date: string) {
 }
 
 function canApplySnapshot(date: string) {
+  if (!localCatalogDates.value.has(date)) return false;
   const snapshot = cloudSnapshot(date);
   return !snapshot || snapshot.local_verified;
 }
@@ -464,6 +500,23 @@ async function transferSnapshot(date: string, upload: boolean) {
         ? $t('sync_settings.archives.upload_success')
         : $t('sync_settings.archives.download_success')
     );
+    await refresh_backups_info();
+  } finally {
+    activeTransfer.value = '';
+  }
+}
+
+async function retryPendingDeletion(snapshotId: string, retryable: boolean) {
+  if (!retryable) return;
+  const gameId = game.value.storage_key || game.value.name;
+  activeTransfer.value = snapshotId;
+  try {
+    const result = await commands.deleteV2Snapshot(gameId, snapshotId, false);
+    if (result.status === 'error') {
+      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
+      return;
+    }
+    notifySuccess($t('sync_settings.archives.delete_success'));
     await refresh_backups_info();
   } finally {
     activeTransfer.value = '';
@@ -576,7 +629,16 @@ async function batchRemoveCloud() {
     succeeded += 1;
   }
   activeTransfer.value = '';
-  notifySuccess($t('manage.batch_cloud_remove_success', { count: succeeded }));
+  if (succeeded === rows.length) {
+    notifySuccess($t('manage.batch_cloud_remove_success', { count: succeeded }));
+  } else if (succeeded > 0) {
+    notifyError(
+      $t('manage.batch_delete_partial', {
+        succeeded,
+        failed: rows.length - succeeded,
+      })
+    );
+  }
   await refresh_backups_info();
 }
 
@@ -597,6 +659,7 @@ async function batchEvict() {
     return;
   }
   const gameId = game.value.storage_key || game.value.name;
+  let succeeded = 0;
   for (const snapshot of rows) {
     activeTransfer.value = snapshot.date;
     const result = await commands.evictLocalArchive(gameId, snapshot.date, true);
@@ -604,9 +667,19 @@ async function batchEvict() {
       notifyError($t('sync_settings.archives.evict.failed'), result.error);
       break;
     }
+    succeeded += 1;
   }
   activeTransfer.value = '';
-  notifySuccess($t('manage.batch_evict_success', { count: rows.length }));
+  if (succeeded === rows.length) {
+    notifySuccess($t('manage.batch_evict_success', { count: succeeded }));
+  } else if (succeeded > 0) {
+    notifyError(
+      $t('manage.batch_evict_partial', {
+        succeeded,
+        failed: rows.length - succeeded,
+      })
+    );
+  }
   await refresh_backups_info();
 }
 
@@ -1107,6 +1180,7 @@ async function undo_last_apply() {
 }
 
 async function change_describe(date: string) {
+  if (!localCatalogDates.value.has(date)) return;
   try {
     const snapshot = table_data.value.find((x) => x.date == date);
     const { value } = await feedback.prompt(
@@ -1938,6 +2012,33 @@ const syncParticipationLabel = computed(() => {
         </div>
       </template>
 
+      <div v-if="pendingDeletions.length" class="pending-deletions">
+        <div
+          v-for="deletion in pendingDeletions"
+          :key="deletion.snapshot_id"
+          class="pending-deletion"
+        >
+          <div class="pending-deletion-copy">
+            <strong>{{ deletion.description || deletion.snapshot_id }}</strong>
+            <span>{{ $t('sync_settings.archives.deletion_pending') }}</span>
+          </div>
+          <el-button
+            v-if="deletion.retryable"
+            size="small"
+            plain
+            type="warning"
+            :icon="Refresh"
+            :loading="activeTransfer === deletion.snapshot_id"
+            @click="retryPendingDeletion(deletion.snapshot_id, deletion.retryable)"
+          >
+            {{ $t('sync_settings.archives.retry_delete') }}
+          </el-button>
+          <span v-else class="pending-deletion-wait">{{
+            $t('sync_settings.archives.deletion_waiting')
+          }}</span>
+        </div>
+      </div>
+
       <!-- Table View -->
       <div v-if="viewMode === 'table'" class="view-container table-view">
         <el-empty v-if="filter_table.length === 0" :description="$t('manage.no_snapshots')" />
@@ -2099,9 +2200,7 @@ const syncParticipationLabel = computed(() => {
                   </span>
                   <span class="action-slot">
                     <el-tooltip
-                      v-if="
-                        isAutomaticSnapshot(rowData) && !retentionProtectedDates.has(rowData.date)
-                      "
+                      v-if="isAutomaticSnapshot(rowData) && !isRetentionProtected(rowData.date)"
                       :content="$t('manage.convert_to_permanent')"
                       placement="top"
                       :show-after="300"
@@ -2115,8 +2214,26 @@ const syncParticipationLabel = computed(() => {
                       />
                     </el-tooltip>
                     <el-tooltip
+                      v-else-if="isAutomaticSnapshot(rowData) && isRetentionProtected(rowData.date)"
+                      :content="$t('sync_settings.archives.retention.unprotect')"
+                      placement="top"
+                      :show-after="300"
+                      popper-class="action-tooltip"
+                    >
+                      <el-button
+                        link
+                        type="primary"
+                        :icon="Unlock"
+                        @click="convertToPermanent(rowData.date)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
                       v-else
-                      :content="$t('manage.change_describe')"
+                      :content="
+                        localCatalogDates.has(rowData.date)
+                          ? $t('manage.change_describe')
+                          : $t('manage.download_before_apply')
+                      "
                       placement="top"
                       :show-after="300"
                       popper-class="action-tooltip"
@@ -2125,6 +2242,7 @@ const syncParticipationLabel = computed(() => {
                         link
                         type="warning"
                         :icon="Edit"
+                        :disabled="!localCatalogDates.has(rowData.date)"
                         @click="change_describe(rowData.date)"
                       />
                     </el-tooltip>
@@ -2162,6 +2280,7 @@ const syncParticipationLabel = computed(() => {
           :snapshots="table_data"
           :current-head="currentHead"
           :device-heads="branchDeviceHeads"
+          :editable-dates="[...localCatalogDates]"
           @apply="handleApplyClick"
           @delete="del_save"
           @change-description="change_describe"
@@ -2491,6 +2610,37 @@ const syncParticipationLabel = computed(() => {
 .action-buttons .el-button {
   margin: 0;
   font-size: 16px;
+}
+
+.pending-deletions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pending-deletion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--el-color-warning-light-5);
+  border-radius: 8px;
+  background: var(--el-color-warning-light-9);
+}
+
+.pending-deletion-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pending-deletion-copy span,
+.pending-deletion-wait {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 :deep(.head-tooltip),

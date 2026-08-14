@@ -35,7 +35,7 @@ const modeOptions = computed(() => [
 ]);
 
 function needsProgressChoice(game: CloudArchiveGameView) {
-  return game.managed && game.advertised_head_count > 1;
+  return game.managed && game.requires_choice;
 }
 
 function tableRow(row: unknown): CloudArchiveGameView {
@@ -44,7 +44,7 @@ function tableRow(row: unknown): CloudArchiveGameView {
 
 function syncStatus(game: CloudArchiveGameView) {
   if (!game.managed) return 'disabled';
-  if (game.advertised_head_count > 1) return 'conflict';
+  if (game.requires_choice) return 'conflict';
   return 'synced';
 }
 

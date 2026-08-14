@@ -75,7 +75,10 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
     write_manifest(&operator, &manifest).await;
 
     let view = materializer(operator, root.path(), "pc")
-        .view(&BTreeMap::from([("game".into(), "Example".into())]))
+        .view(
+            &BTreeMap::from([("game".into(), "Example".into())]),
+            &BTreeMap::new(),
+        )
         .await
         .unwrap();
 
@@ -89,6 +92,7 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
     assert!(!deck_only.local_verified);
     assert!(!deck_only.cloud_verified);
     assert_eq!(deck_only.reported_on_devices, vec!["deck"]);
+    assert_eq!(deck_only.parent, None);
 }
 
 #[tokio::test]
@@ -248,7 +252,10 @@ async fn observing_pending_tombstone_removes_this_devices_local_copy() {
 
     let pc = materializer(operator.clone(), root.path(), "pc");
     let view = pc
-        .view(&BTreeMap::from([("game".into(), "Example".into())]))
+        .view(
+            &BTreeMap::from([("game".into(), "Example".into())]),
+            &BTreeMap::new(),
+        )
         .await
         .unwrap();
 
@@ -326,10 +333,13 @@ async fn upload_and_download_publish_availability_only_after_hash_verification()
         .upload("game", "snapshot")
         .await
         .unwrap();
-    materializer(operator.clone(), root.path(), "deck")
+    let lineage = materializer(operator.clone(), root.path(), "deck")
         .download("game", "snapshot")
         .await
         .unwrap();
+    assert_eq!(lineage.len(), 1);
+    assert_eq!(lineage[0].date, "snapshot");
+    assert_eq!(lineage[0].parent, None);
 
     let deck_path = archive_path(
         &root.path().join("deck").join("game"),
@@ -347,6 +357,52 @@ async fn upload_and_download_publish_availability_only_after_hash_verification()
     assert!(live.cloud_archive_verified);
     assert!(game.local_archives["pc"].contains("snapshot"));
     assert!(game.local_archives["deck"].contains("snapshot"));
+}
+
+#[tokio::test]
+async fn download_returns_parent_preserving_lineage() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let parent_bytes = b"parent archive";
+    let child_bytes = b"child archive";
+    let mut parent = live("root", parent_bytes, true);
+    parent.description = "root snapshot".into();
+    let mut child = live("child", child_bytes, true);
+    child.parent = Some("root".into());
+    child.description = "child snapshot".into();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(parent).unwrap();
+    game.upsert_live(child).unwrap();
+    let mut manifest = CloudManifest::default();
+    manifest.games.insert("game".into(), game);
+    write_manifest(&operator, &manifest).await;
+    operator
+        .write(
+            &cloud_archive_path("game", "root", ArchiveFormat::Zip).unwrap(),
+            parent_bytes.to_vec(),
+        )
+        .await
+        .unwrap();
+    operator
+        .write(
+            &cloud_archive_path("game", "child", ArchiveFormat::Zip).unwrap(),
+            child_bytes.to_vec(),
+        )
+        .await
+        .unwrap();
+
+    let lineage = materializer(operator, root.path(), "deck")
+        .download("game", "child")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        lineage
+            .iter()
+            .map(|snapshot| (snapshot.date.as_str(), snapshot.parent.as_deref()))
+            .collect::<Vec<_>>(),
+        vec![("root", None), ("child", Some("root"))]
+    );
 }
 
 #[tokio::test]

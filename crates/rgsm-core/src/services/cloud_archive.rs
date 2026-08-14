@@ -1,6 +1,7 @@
+use crate::backup::GameSnapshots;
 use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{CloudArchiveLibraryView, DeletionRegistryRepository};
-use crate::config::cloud_bootstrap_inputs;
+use crate::config::{cloud_bootstrap_inputs, get_config};
 
 use super::{CloudLibraryServiceError, ServiceContext};
 
@@ -22,10 +23,38 @@ impl ServiceContext {
             .iter()
             .map(|game| (game.storage_key.clone(), game.name.clone()))
             .collect();
+        let current_device = local_state.current_device_id.clone();
+        let local_heads = get_config()?
+            .games
+            .into_iter()
+            .filter_map(|game| {
+                let game_id = if game.storage_key.is_empty() {
+                    game.name.clone()
+                } else {
+                    game.storage_key.clone()
+                };
+                match game.get_game_snapshots_info() {
+                    Ok(snapshots) => {
+                        Some((game_id, snapshots.head_for_device(&current_device).cloned()))
+                    }
+                    Err(crate::preclude::BackupError::Io(error))
+                        if error.kind() == std::io::ErrorKind::NotFound =>
+                    {
+                        Some((
+                            game_id,
+                            GameSnapshots::new(game.name)
+                                .head_for_device(&current_device)
+                                .cloned(),
+                        ))
+                    }
+                    Err(_) => None,
+                }
+            })
+            .collect();
         let mut view = self
             .converged_materializer()
             .await?
-            .view(&game_names)
+            .view(&game_names, &local_heads)
             .await?;
         view.games
             .retain(|game| !registry.deleted_games.contains_key(&game.game_id));

@@ -258,6 +258,7 @@
         "batch_evict": "Remove from this device",
         "batch_evict_confirm": "Remove {count} selected snapshot copies from this device? Cloud copies stay",
         "batch_evict_success": "Removed {count} snapshot copies from this device",
+        "batch_evict_partial": "Removed {succeeded} snapshot copies from this device, {failed} failed",
         "location_local": "This device",
         "location_cloud": "Cloud",
         "location_both": "Here · Cloud",

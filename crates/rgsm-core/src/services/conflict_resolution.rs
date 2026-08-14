@@ -157,7 +157,7 @@ impl ServiceContext {
     }
 }
 
-fn merge_remote_lineage(
+pub(crate) fn merge_remote_lineage(
     local: &mut GameSnapshots,
     lineage: &[Snapshot],
 ) -> Result<(), CloudLibraryServiceError> {

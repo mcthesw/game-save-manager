@@ -186,6 +186,10 @@ impl SnapshotSyncCoordinator {
         Ok(outcome)
     }
 
+    pub fn materializer(&self) -> &CloudArchiveMaterializer {
+        &self.materializer
+    }
+
     pub async fn resume_pending(
         &self,
         cancellation: &CancellationToken,
@@ -331,8 +335,31 @@ impl SnapshotSyncCoordinator {
         &self,
         game_id: &str,
         snapshot: &Snapshot,
+        local: &GameSnapshots,
     ) -> Result<(), SnapshotSyncError> {
-        self.publish_local_node(game_id, snapshot, None).await?;
+        let manifest = self.repository().load().await?;
+        let mut visiting = HashSet::new();
+        let mut emitted = manifest
+            .games
+            .get(game_id)
+            .map(|game| game.snapshots.keys().cloned().collect())
+            .unwrap_or_default();
+        let snapshots = local
+            .backups
+            .iter()
+            .map(|item| (item.date.clone(), item))
+            .collect();
+        let mut order = Vec::new();
+        visit_snapshot(
+            &snapshot.date,
+            &snapshots,
+            &mut visiting,
+            &mut emitted,
+            &mut order,
+        )?;
+        for ancestor in order {
+            self.publish_local_node(game_id, &ancestor, None).await?;
+        }
         self.materializer.upload(game_id, &snapshot.date).await?;
         Ok(())
     }
@@ -807,10 +834,12 @@ mod tests {
             root.path().join("progress.json"),
             2,
         );
-        let local = snapshot("new", None);
+        let mut local = GameSnapshots::new("game");
+        let snapshot = snapshot("new", None);
+        local.backups.push(snapshot.clone());
 
         coordinator
-            .upload_local_snapshot("game", &local)
+            .upload_local_snapshot("game", &snapshot, &local)
             .await
             .unwrap();
 
@@ -823,6 +852,73 @@ mod tests {
         assert!(
             operator
                 .exists(&cloud_archive_path("game", "new", ArchiveFormat::Zip).unwrap())
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn upload_publishes_missing_ancestors_before_selected_snapshot() {
+        let operator = memory_operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let archive_root = root.path().join("pc");
+        let game_root = archive_root.join("game");
+        std::fs::create_dir_all(&game_root).unwrap();
+        std::fs::write(
+            archive_path(&game_root, "root", ArchiveFormat::Zip),
+            b"root",
+        )
+        .unwrap();
+        std::fs::write(
+            archive_path(&game_root, "child", ArchiveFormat::Zip),
+            b"child",
+        )
+        .unwrap();
+        let mut manifest = CloudManifest::default();
+        manifest
+            .games
+            .insert("game".into(), GameManifest::new("game"));
+        write_manifest(&operator, &manifest).await;
+        let coordinator = SnapshotSyncCoordinator::new(
+            operator.clone(),
+            archive_root,
+            "pc".into(),
+            root.path().join("progress.json"),
+            2,
+        );
+        let mut local = GameSnapshots::new("game");
+        let root_snapshot = snapshot("root", None);
+        let child = snapshot("child", Some("root"));
+        local.backups.push(root_snapshot);
+        local.backups.push(child.clone());
+
+        coordinator
+            .upload_local_snapshot("game", &child, &local)
+            .await
+            .unwrap();
+
+        let stored = coordinator.repository().load().await.unwrap();
+        let game = &stored.games["game"];
+        assert!(game.snapshots["root"].state.is_live());
+        assert!(game.snapshots["child"].state.is_live());
+        assert_eq!(game.snapshots["child"].parent.as_deref(), Some("root"));
+        let SnapshotState::Live(child_live) = &game.snapshots["child"].state else {
+            panic!("child should be live");
+        };
+        let SnapshotState::Live(root_live) = &game.snapshots["root"].state else {
+            panic!("root should be live");
+        };
+        assert!(child_live.cloud_archive_verified);
+        assert!(!root_live.cloud_archive_verified);
+        assert!(
+            operator
+                .exists(&cloud_archive_path("game", "child", ArchiveFormat::Zip).unwrap())
+                .await
+                .unwrap()
+        );
+        assert!(
+            !operator
+                .exists(&cloud_archive_path("game", "root", ArchiveFormat::Zip).unwrap())
                 .await
                 .unwrap()
         );

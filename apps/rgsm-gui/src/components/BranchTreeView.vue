@@ -23,6 +23,7 @@ interface Props {
   snapshots: Snapshot[];
   currentHead: string | null;
   deviceHeads: DeviceHeadMarker[];
+  editableDates?: string[];
 }
 
 const props = defineProps<Props>();
@@ -164,6 +165,8 @@ function buildTreeLayout(snapshots: Snapshot[]): { nodes: Node[]; edges: Edge[] 
         isCurrentHead: node.snapshot.date === props.currentHead,
         isRoot: node.parent === null,
         headMarkers,
+        canEditDescription:
+          !props.editableDates || props.editableDates.includes(node.snapshot.date),
       },
     });
 

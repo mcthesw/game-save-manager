@@ -472,10 +472,16 @@ pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String
 #[specta::specta]
 pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String> {
     info!(target:"rgsm::ipc", "Getting backup list info for game: {:?}", game);
-    game.get_game_snapshots_info().map_err(|e| {
-        error!(target:"rgsm::ipc", "Failed to get backup list info: {:?}", e);
-        e.to_string()
-    })
+    match game.get_game_snapshots_info() {
+        Ok(snapshots) => Ok(snapshots),
+        Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(GameSnapshots::new(game.name))
+        }
+        Err(error) => {
+            error!(target:"rgsm::ipc", "Failed to get backup list info: {:?}", error);
+            Err(error.to_string())
+        }
+    }
 }
 
 /// Verify archive integrity by comparing the stored hash against a freshly computed one.

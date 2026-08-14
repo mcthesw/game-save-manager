@@ -20,6 +20,7 @@ interface Props {
     isCurrentHead: boolean;
     isRoot: boolean;
     headMarkers: HeadMarker[];
+    canEditDescription?: boolean;
   };
   selected: boolean;
 }
@@ -143,6 +144,7 @@ function formatFileSize(bytes: number): string {
             size="small"
             :icon="Edit"
             class="action-btn"
+            :disabled="data.canEditDescription === false"
             @click="emit('changeDescription', data.snapshot.date)"
           >
             {{ $t('manage.change_describe') }}
