@@ -64,22 +64,10 @@
         "game_order_saved": "게임의 순서가 업데이트되었습니다"
     },
     "home": {
-        "hello_world": "당신의 Excellencies",
-        "simple": "단순성",
-        "simple_explained": "연장, 할인, 등과 같은 비 타화 기능은 할 수 있는 범위에, 그 공용영역은 기능적 추가하지 않습니다",
-        "safe": "보안",
-        "safe_explained": "소프트웨어는 온라인이 아니며, 당신은 \"클라우드 아카이브\"의 기능을 달성하기 위해 너트 클라우드에 의해 자신의 레코드를 아카이브 할 수 있습니다",
-        "free": "지원하다",
-        "free_explained": "이 소프트웨어는 오픈 세계이며, 소스 코드를 쉽게 방문 할 수 있으며, 기여 할 수있는 사람들",
-        "import_game": "제품정보",
-        "jump_to_page": "계정 만들기",
+        "name": "Play 관리 서비스",
+        "greeting": "안녕하세요",
         "hint": "“archive management” 란의 밑에, 놀이 이름은 새로운 공용영역에 있는 archive 관리를 위해 단식되어야 합니다",
-        "start_backup": "초기 백업",
-        "change_locale": "언어 교체",
-        "go_game_manage_hint": "왼쪽 \"archive management\"를 골라주세요",
-        "go_backup_hint": "“archive management” 란의 밑에, 놀이 이름은 새로운 공용영역에 있는 archive 관리를 위해 단식되어야 합니다",
-        "wrong_homepage": "페이지를 사용할 수 없으며 홈 페이지가 다시 열어야합니다",
-        "name": "Play 관리 서비스"
+        "wrong_homepage": "페이지를 사용할 수 없으며 홈 페이지가 다시 열어야합니다"
     },
     "manage": {
         "create_new_save": "새로운 빠른 추적의 창조",

@@ -1,317 +1,656 @@
 <template>
-  <ElContainer class="home-container" direction="vertical">
-    <div class="hero-section">
-      <h2 class="welcome-title">{{ $t('home.hello_world') }}</h2>
-      <div class="intro-box">
-        <div class="intro-content">
-          <h3 class="intro-title">{{ $t('home.name') }}</h3>
-          <p class="intro-text">{{ $t('home.simple_explained') }}</p>
-          <div class="feature-pills">
-            <div class="feature-pill">
-              <el-icon>
-                <Check />
-              </el-icon>
-              <span>{{ $t('home.simple') }}</span>
-            </div>
-            <div class="feature-pill">
-              <el-icon>
-                <Lock />
-              </el-icon>
-              <span>{{ $t('home.safe') }}</span>
-            </div>
-            <div class="feature-pill">
-              <el-icon>
-                <Star />
-              </el-icon>
-              <span>{{ $t('home.free') }}</span>
-            </div>
-          </div>
+  <div class="home-container">
+    <button type="button" class="lang-chip" @click="langVisible = !langVisible">
+      🌍 {{ currentLanguageName }}
+      <el-icon class="lang-chip-arrow"><ArrowDown /></el-icon>
+    </button>
+
+    <div class="marquee-field" aria-hidden="true">
+      <div
+        v-for="(row, r) in wallRows"
+        :key="r"
+        class="marquee-row"
+        :class="[row.tone, { reverse: row.reverse }]"
+        :style="{
+          '--dur': `${row.duration}s`,
+          '--off': `${row.offset}s`,
+          '--size': row.size,
+          '--r': r,
+        }"
+      >
+        <div class="marquee-track">
+          <span v-for="copy in 2" :key="copy" class="marquee-copy">
+            <span
+              v-for="(word, w) in row.words"
+              :key="w"
+              class="marquee-word"
+              :style="{ opacity: wordOpacity(r, w) }"
+              >{{ word }}</span
+            >
+          </span>
         </div>
       </div>
     </div>
 
-    <div class="features-grid">
-      <div class="feature-card" @click="go_add_game()">
-        <el-icon class="feature-icon">
-          <Edit />
-        </el-icon>
-        <h3>{{ $t('home.import_game') }}</h3>
-        <el-button type="primary" text>{{ $t('home.jump_to_page') }}</el-button>
-      </div>
-
-      <div class="feature-card" @click="go_settings()">
-        <div class="feature-icon language-icon">
-          <span class="language-icon-text">A</span>
-          <span class="language-icon-arrow">/</span>
-          <span class="language-icon-text">文</span>
-        </div>
-        <div class="language-carousel-container">
-          <transition name="fade" mode="out-in">
-            <div :key="currentLanguageIndex" class="language-name">
-              {{ displayedLanguageName }}
-            </div>
-          </transition>
-        </div>
-        <el-button type="primary" text>{{ $t('home.jump_to_page') }}</el-button>
-      </div>
-
-      <div class="feature-card" @click="go_backup()">
-        <el-icon class="feature-icon">
-          <Upload />
-        </el-icon>
-        <h3>{{ $t('home.start_backup') }}</h3>
-        <el-button type="primary" text>{{ $t('home.hint') }}</el-button>
-      </div>
+    <div class="focal-scrim"></div>
+    <div class="focal">
+      <img class="focal-logo" :src="appLogo" alt="" />
+      <p class="focal-name">{{ $t('home.name') }}</p>
+      <button v-if="appVersion" type="button" class="focal-version" @click="goAbout">
+        v{{ appVersion }}
+      </button>
     </div>
-  </ElContainer>
+
+    <section class="status-row">
+      <button type="button" class="status-cell status-link" @click="goAddGame">
+        <span class="status-value" :class="{ 'is-guide': gameCount === 0 }">
+          {{ gameCount === 0 ? $t('home.add_first_game') : displayGameCount }}
+        </span>
+        <span class="status-label">{{ $t('home.status_games') }}</span>
+      </button>
+      <button type="button" class="status-cell status-link" @click="goSync">
+        <span class="status-value" :class="{ 'is-guide': cloudBackend === 'Disabled' }">
+          {{ cloudText }}
+        </span>
+        <span class="status-label">{{ $t('home.status_cloud') }}</span>
+      </button>
+      <button type="button" class="status-cell status-link" @click="goAutoBackup">
+        <span class="status-value">{{ displayAutoBackupCount }}</span>
+        <span class="status-label">{{ $t('home.status_auto_backup') }}</span>
+      </button>
+    </section>
+
+    <div v-if="langVisible" class="lang-overlay" @click="langVisible = false"></div>
+    <Transition name="lang-pop">
+      <div v-if="langVisible" class="lang-panel" @click.stop>
+        <p class="lang-title">{{ $t('home.choose_language') }}</p>
+        <ul class="lang-list">
+          <li
+            v-for="lang in languages"
+            :key="lang.code"
+            class="lang-item"
+            :class="{ active: lang.code === currentLocale }"
+            @click="chooseLanguage(lang.code)"
+          >
+            <span>{{ lang.name }}</span>
+            <el-icon v-if="lang.code === currentLocale"><Check /></el-icon>
+          </li>
+        </ul>
+        <div class="lang-footer">
+          <span class="translate-link" @click="openTranslate">
+            🌍 {{ $t('home.help_translate') }}
+          </span>
+        </div>
+      </div>
+    </Transition>
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { Edit, Upload, Check, Lock, Star } from '@element-plus/icons-vue';
+import { ArrowDown, Check } from '@element-plus/icons-vue';
+import { usePreferredReducedMotion } from '@vueuse/core';
+import { computed, onMounted, ref, watch } from 'vue';
+import type { Ref } from 'vue';
+import { error } from '@tauri-apps/plugin-log';
+import { commands } from '../bindings';
+import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { $t, getSupportedLanguages, i18n } from '../i18n';
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+// 与应用图标同源,避免在前端复制一份 logo 资产
+import appLogo from '../../src-tauri/icons/icon.png';
 
-// 语言轮播相关代码
+const { config, saveConfig } = useConfig();
+
 const languages = getSupportedLanguages();
+const currentLocale = computed(() => i18n.global.locale.value);
+const langVisible = ref(false);
 
-const currentLanguageIndex = ref(0);
-const intervalId = ref<number | null>(null);
+type LocaleMessages = { home?: { greeting?: string } };
+const allMessages = i18n.global.messages.value as Record<string, LocaleMessages>;
 
-const displayedLanguageName = computed(() => {
-  const lang = languages[currentLanguageIndex.value];
-  return lang ? lang.name : '';
+function greetingOf(code: string, fallback: string): string {
+  return allMessages[code]?.home?.greeting || fallback;
+}
+
+// ——— 问候流场(环境纹理)———
+// 14 行无缝跑马灯铺满整页,混排 8 种语言的问候词;行向/速度/起点错落,
+// 词级透明度抖动去栅格感。它只是背景的「风」,不可点击,交互入口在右上角。
+const ROW_COUNT = 14;
+const CYCLES = 5;
+
+// 0.82 → 1.0 → 0.82 的浅正弦梯度,整体保持均匀低幅
+const ROW_SIZES = Array.from(
+  { length: ROW_COUNT },
+  (_, r) => Math.round((0.82 + 0.18 * Math.sin((Math.PI * r) / (ROW_COUNT - 1))) * 100) / 100
+);
+
+type RowTone = 'dim' | 'mid';
+interface WallRow {
+  words: string[];
+  tone: RowTone;
+  size: number;
+  duration: number;
+  offset: number;
+  reverse: boolean;
+}
+
+const greetings = computed(() =>
+  languages.map((l) => greetingOf(l.code, l.name)).filter((g) => g.length > 0)
+);
+
+const currentLanguageName = computed(() => {
+  const lang = languages.find((l) => l.code === currentLocale.value);
+  return lang?.name ?? currentLocale.value;
 });
 
-// 启动轮播
-const startCarousel = () => {
-  intervalId.value = window.setInterval(() => {
-    currentLanguageIndex.value = (currentLanguageIndex.value + 1) % languages.length;
-  }, 2000); // 每2秒切换一次
-};
+const appVersion = computed(() => config.value?.version ?? '');
 
-// 停止轮播
-const stopCarousel = () => {
-  if (intervalId.value !== null) {
-    clearInterval(intervalId.value);
-    intervalId.value = null;
+function rowWords(rowIndex: number, words: string[]): string[] {
+  const n = words.length;
+  if (n === 0) return [];
+  const out: string[] = [];
+  for (let c = 0; c < CYCLES; c++) {
+    for (let i = 0; i < n; i++) {
+      // 每行错 3 位、每循环再错 1 位,打乱相邻关系
+      out.push(words[(i + c + rowIndex * 3) % n] ?? '');
+    }
   }
-};
+  return out;
+}
 
-// 组件挂载时启动轮播
+// 确定性伪随机:同一位置每次渲染得到相同透明度
+function wordOpacity(row: number, col: number): number {
+  return 0.55 + ((row * 31 + col * 17) % 5) * 0.11;
+}
+
+const wallRows = computed<WallRow[]>(() =>
+  ROW_SIZES.map((size, r) => ({
+    words: rowWords(r, greetings.value),
+    tone: r % 5 === 2 ? 'mid' : 'dim',
+    size,
+    duration: 40 + ((r * 13) % 31),
+    offset: -((r * 7.3) % 40), // 负延时让各行起始位置错开
+    reverse: r % 2 === 1,
+  }))
+);
+
+// ——— 状态行 ———
+const displayGameCount = ref(0);
+const displayAutoBackupCount = ref(0);
+const gameCount = computed(() => config.value?.games?.length ?? 0);
+
+const reducedMotion = usePreferredReducedMotion();
+const motionOff = computed(() => reducedMotion.value === 'reduce');
+
+function countUp(target: number, out: Ref<number>) {
+  if (motionOff.value) {
+    out.value = target;
+    return;
+  }
+  const from = out.value;
+  const duration = 700;
+  const t0 = performance.now();
+  const tick = (t: number) => {
+    const p = Math.min(1, (t - t0) / duration);
+    out.value = Math.round(from + (target - from) * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+const cloudBackend = computed(
+  () => config.value?.settings?.cloud_settings?.backend?.type ?? 'Disabled'
+);
+const cloudText = computed(() => {
+  switch (cloudBackend.value) {
+    case 'WebDAV':
+      return 'WebDAV';
+    case 'S3':
+      return 'S3';
+    case 'Fs':
+      return $t('home.cloud_local');
+    default:
+      return $t('home.cloud_not_configured');
+  }
+});
+
 onMounted(() => {
-  // 找到当前语言的索引作为起始点
-  const currentLocale = i18n.global.locale.value;
-  const index = languages.findIndex((lang) => lang.code === currentLocale);
-  if (index !== -1) {
-    currentLanguageIndex.value = index;
+  countUp(gameCount.value, displayGameCount);
+  void commands.getAutoBackupStatus().then((res) => {
+    if (res.status === 'ok') countUp(res.data.length, displayAutoBackupCount);
+  });
+});
+
+watch(gameCount, (v) => countUp(v, displayGameCount));
+
+async function chooseLanguage(code: string) {
+  langVisible.value = false;
+  if (code === currentLocale.value) return;
+  i18n.global.locale.value = code as typeof i18n.global.locale.value;
+  config.value.settings.locale = code;
+  await saveConfig();
+  notifyInfo($t('settings.locale_changed'));
+}
+
+// 与设置页同入口:引导到贡献指南
+async function openTranslate() {
+  try {
+    await commands.openUrl(
+      'https://github.com/mcthesw/game-save-manager/blob/main/CONTRIBUTING.md'
+    );
+  } catch (e) {
+    error(`open translate website error: ${e}`);
+    notifyError($t('error.open_url_failed'));
   }
+}
 
-  startCarousel();
-});
-
-// 组件卸载前停止轮播
-onBeforeUnmount(() => {
-  stopCarousel();
-});
-
-function go_add_game() {
+function goAddGame() {
   navigateTo('/AddGame');
 }
-function go_settings() {
-  navigateTo('/Settings');
+function goSync() {
+  navigateTo('/SyncSettings');
 }
-function go_backup() {
-  notifyInfo($t('home.go_backup_hint'));
+function goAutoBackup() {
+  // 定时备份是按游戏配置的:有游戏去第一个游戏的管理页,没有则引导先导入
+  const first = config.value?.games?.[0];
+  if (first) {
+    navigateTo(getGameManagementPath(first.name));
+  } else {
+    navigateTo('/AddGame');
+  }
+}
+function goAbout() {
+  navigateTo('/About');
 }
 </script>
 
 <style scoped>
-.hero-section {
-  padding: 2rem 0;
-  text-align: center;
-  background: linear-gradient(135deg, var(--el-bg-color), var(--el-bg-color-overlay));
-  border-radius: 20px;
-  margin: 0 2rem;
+.home-container {
   position: relative;
-}
-
-.welcome-title {
-  font-size: 2.8em;
-  margin-bottom: 1.5rem;
-  background: linear-gradient(45deg, var(--el-color-primary), var(--el-color-success));
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.intro-box {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.logo-container {
-  margin-bottom: 1.5rem;
-}
-
-.intro-icon {
-  font-size: 3rem;
-  color: var(--el-color-primary);
-  padding: 1rem;
-  border-radius: 50%;
-  background: var(--el-bg-color);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
-
-.intro-title {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-  color: var(--el-text-color-primary);
-}
-
-.intro-text {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  color: var(--el-text-color-regular);
-  margin-bottom: 2rem;
-}
-
-.feature-pills {
   display: flex;
-  justify-content: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.feature-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: var(--el-bg-color);
-  border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  color: var(--el-text-color-primary);
-}
-
-.feature-pill .el-icon {
-  color: var(--el-color-primary);
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
-  padding: 3rem 2rem;
-}
-
-.feature-card {
-  background: var(--el-bg-color);
-  border-radius: 16px;
-  padding: 2rem;
-  text-align: center;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;
+  flex-direction: column;
+  /* ElScrollbar__view 是自动高度,min-height:100% 会塌缩;
+     直接抵消 el-main 默认 20px padding 并占满视口高度 */
+  height: 100vh;
+  margin: -20px;
   overflow: hidden;
 }
 
-.feature-card::before {
-  content: '';
+/* 右上角语言芯片:语言切换与「帮助翻译」的可见入口 */
+.lang-chip {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-success));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-}
-
-.feature-card:hover::before {
-  opacity: 1;
-}
-
-.feature-icon {
-  font-size: 2.5rem;
-  color: var(--el-color-primary);
-  margin-bottom: 1rem;
-}
-
-.language-icon {
+  top: 1.2rem;
+  right: 1.5rem;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid color-mix(in srgb, var(--el-border-color-light) 65%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--el-bg-color) 62%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  transition:
+    transform 0.25s ease,
+    background-color 0.25s ease;
 }
 
-.language-icon-text {
-  font-size: 1.8rem;
-  font-weight: bold;
-  margin-top: 3px;
-  margin-bottom: 17px;
-}
-
-.language-icon-arrow {
+.lang-chip:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--el-bg-color) 85%, transparent);
   color: var(--el-color-primary);
-  font-size: 1.5rem;
 }
 
-.feature-card h3 {
-  font-size: 1.4rem;
-  margin-bottom: 0.8rem;
+.lang-chip:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.lang-chip-arrow {
+  font-size: 12px;
+}
+
+/* ——— 问候流场:环境纹理,铺满整页 ——— */
+.marquee-field {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  user-select: none;
+}
+
+.marquee-row {
+  overflow: hidden;
+  font-size: calc(var(--size) * 1rem);
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--el-text-color-secondary);
+  opacity: 0.38;
+  transition: opacity 0.35s ease;
+  animation: row-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation-delay: calc(var(--r) * 55ms);
+}
+
+/* 悬停某行:该行暂停并提亮,可凑近看清 */
+.marquee-row:hover {
+  opacity: 0.62;
+}
+
+.marquee-row.mid {
+  color: var(--el-color-primary-light-5);
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--dur) linear infinite;
+  animation-delay: var(--off);
+}
+
+.marquee-row.reverse .marquee-track {
+  animation-direction: reverse;
+}
+
+.marquee-row:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.marquee-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 0 1.3em;
+  flex-shrink: 0;
+  padding-right: 1.3em;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+}
+
+/* 中央焦点:图标 + 软件名 + 版本号,整体缓浮;不挡行悬停,仅版本号可点 */
+.focal-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 38% 30% at 50% 46%,
+    var(--el-bg-color) 0%,
+    color-mix(in srgb, var(--el-bg-color) 72%, transparent) 55%,
+    transparent 82%
+  );
+  pointer-events: none;
+}
+
+.focal {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  pointer-events: none;
+  animation:
+    focal-in 0.7s 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.15) both,
+    focal-float 7s ease-in-out 1.1s infinite;
+}
+
+.focal-logo {
+  width: 88px;
+}
+
+.focal-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: var(--el-text-color-primary);
 }
 
-.language-carousel-container {
-  margin: 1rem 0;
-}
-
-.language-name {
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  min-height: 1.8rem;
-}
-
-/* 过渡动画 */
-.fade-enter-active,
-.fade-leave-active {
-  transition:
-    opacity 0.5s ease,
-    transform 0.5s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.feature-card p {
+.focal-version {
+  margin: 0;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
   color: var(--el-text-color-secondary);
-  margin-bottom: 1.5rem;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 0.2s ease;
+}
+
+.focal-version:hover {
+  color: var(--el-color-primary);
+}
+
+.focal-version:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 1px;
+}
+
+@keyframes focal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes focal-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(-5px);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(5px);
+  }
+}
+
+/* ——— 状态行:纯文字,直接坐在流场上 ——— */
+.status-row {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem 4rem;
+  padding: 2.5rem 1rem;
+}
+
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.7rem 1.7rem;
+  border: none;
+  border-radius: 14px;
+  /* 无边框玻璃片:与流动文字软隔离 */
+  background: color-mix(in srgb, var(--el-bg-color) 58%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font: inherit;
+}
+
+.status-link {
+  cursor: pointer;
+  transition:
+    transform 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.status-link:hover {
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--el-bg-color) 82%, transparent);
+}
+
+.status-link:hover .status-value,
+.status-link:hover .status-label {
+  color: var(--el-color-primary);
+}
+
+.status-link:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.status-value {
+  font-size: 1.9rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--el-text-color-primary);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.25s ease;
+}
+
+.status-value.is-guide {
+  color: var(--el-color-primary);
+}
+
+.status-label {
+  font-size: 0.85rem;
+  color: var(--el-text-color-secondary);
+  transition: color 0.25s ease;
+}
+
+/* ——— 语言选择面板 ——— */
+.lang-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.lang-panel {
+  position: absolute;
+  right: 1.5rem;
+  top: 4.3rem;
+  z-index: 11;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 12px;
+  background: var(--el-bg-color-overlay);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.lang-pop-enter-active,
+.lang-pop-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+
+.lang-pop-enter-from,
+.lang-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.97);
+}
+
+.lang-title {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  color: var(--el-text-color-secondary);
+}
+
+.lang-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lang-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--el-text-color-primary);
+}
+
+.lang-item:hover {
+  background-color: var(--el-fill-color-light);
+}
+
+.lang-item.active {
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+
+.lang-footer {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  text-align: center;
+}
+
+.translate-link {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--el-color-primary);
+}
+
+.translate-link:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-row,
+  .marquee-track,
+  .focal {
+    animation: none;
+  }
+
+  .marquee-row {
+    opacity: 0.45;
+    transition: none;
+  }
+
+  .status-link:hover {
+    transform: none;
+  }
+
+  .lang-pop-enter-active,
+  .lang-pop-leave-active {
+    transition: none;
+  }
 }
 
 @media (max-width: 768px) {
-  .hero-section {
-    margin: 0 1rem;
-    padding: 1.5rem 0;
+  .marquee-row {
+    font-size: calc(var(--size) * 0.8rem);
   }
 
-  .welcome-title {
-    font-size: 2.2em;
+  .focal-logo {
+    width: 72px;
   }
 
-  .features-grid {
-    grid-template-columns: 1fr;
-    padding: 2rem 1rem;
+  .status-row {
+    gap: 0.8rem 1.2rem;
   }
 }
 </style>
