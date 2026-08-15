@@ -5,9 +5,16 @@ import { Loading } from '@element-plus/icons-vue';
 import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
+import KFeedbackHost from './ui/kit/KFeedbackHost.vue';
+import KToaster from './ui/kit/KToaster.vue';
 import { commands, events } from './api/commands';
 import type { Device } from './api/commands';
-import { notifyInfo, notifyWarning, notifyError } from './composables/useActivityCenter';
+import {
+  notifyInfo,
+  notifyWarning,
+  notifyError,
+  routeStageUpdate,
+} from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
 import { useGlobalLoading } from './composables/useGlobalLoading';
 import { useHostNotificationCollector } from './composables/useHostNotificationCollector';
@@ -171,6 +178,8 @@ void initializeApp();
 events.ipcNotification.listen((event) => {
   const ev = event.payload;
   if (addIfCollecting(ev)) return;
+  // Backend stage text enriches the running drawer entry instead of toasting.
+  if (ev.level === 'info' && routeStageUpdate(ev.title, ev.msg)) return;
   switch (ev.level) {
     case 'info':
       notifyInfo(ev.title || $t('misc.info'), ev.msg);
@@ -243,6 +252,8 @@ if (typeof window !== 'undefined') {
     </Transition>
 
     <ActivityDrawer />
+    <KToaster />
+    <KFeedbackHost />
   </div>
 </template>
 

@@ -1,4 +1,6 @@
 import { ref, computed } from 'vue';
+import { $t } from '../i18n';
+import { pushToast } from './useToast';
 
 export type ActivityStatus = 'pending' | 'running' | 'info' | 'success' | 'warning' | 'error';
 
@@ -11,6 +13,8 @@ export interface ActivityEntry {
   updatedAt: number;
   autoDismissMs: number;
   count: number;
+  /** Running entries opt in to receiving backend stage text as live description. */
+  acceptsStageUpdates?: boolean;
 }
 
 // No auto-dismiss — entries persist until the user dismisses them manually
@@ -39,7 +43,7 @@ function isActive(status: ActivityStatus) {
   return status === 'pending' || status === 'running';
 }
 
-function isTerminal(status: ActivityStatus) {
+function isTerminal(status: ActivityStatus): status is 'info' | 'success' | 'warning' | 'error' {
   return !isActive(status);
 }
 
@@ -103,6 +107,7 @@ export function addActivity(opts: {
   status?: ActivityStatus;
   autoDismissMs?: number;
   silent?: boolean;
+  acceptsStageUpdates?: boolean;
 }): string {
   const status = opts.status ?? 'pending';
   const autoDismissMs =
@@ -120,6 +125,10 @@ export function addActivity(opts: {
     last.updatedAt = now;
     if (!opts.silent) {
       activityAddSignal.value++;
+      // Repeated identical events (e.g. hotkey backups) still toast each time.
+      if (isTerminal(status)) {
+        pushToast({ tone: status, title: opts.title, description: opts.description });
+      }
     }
     applyTimerPolicy(last);
     return last.id;
@@ -135,10 +144,16 @@ export function addActivity(opts: {
     updatedAt: now,
     autoDismissMs,
     count: 1,
+    acceptsStageUpdates: opts.acceptsStageUpdates,
   };
   activities.value.push(entry);
   if (!opts.silent) {
     activityAddSignal.value++;
+    // Terminal states are events: foreground toast. Active states are tasks:
+    // they live in the drawer only, progress arrives via stage updates.
+    if (isTerminal(status)) {
+      pushToast({ tone: status, title: entry.title, description: entry.description });
+    }
   }
   evict();
   applyTimerPolicy(entry);
@@ -162,11 +177,39 @@ export function updateActivity(
   const updated: ActivityEntry = {
     ...entry,
     ...patch,
+    // Stage text is progress noise; it must not survive into the final state.
+    description:
+      patch.description !== undefined
+        ? patch.description
+        : isActive(entry.status) && isTerminal(newStatus) && entry.acceptsStageUpdates
+          ? undefined
+          : entry.description,
     autoDismissMs: newAutoDismissMs,
     updatedAt: Date.now(),
   };
   activities.value[idx] = updated;
+  // A task finishing is an event: surface it as a toast with its final title.
+  if (isActive(entry.status) && isTerminal(updated.status)) {
+    pushToast({ tone: updated.status, title: updated.title, description: updated.description });
+  }
   applyTimerPolicy(updated);
+}
+
+/**
+ * Route a backend stage notification into the description of the running
+ * entry that opted in via `acceptsStageUpdates`. Returns false (caller falls
+ * back to a normal notification) when the payload is not a stage update.
+ * Stage payloads without a live entry are dropped — they are pure progress
+ * text and meaningless outside an in-flight operation.
+ */
+export function routeStageUpdate(title: string, msg: string): boolean {
+  if (title !== $t('backend.stage.title')) return false;
+  const target = [...activities.value]
+    .reverse()
+    .find((entry) => entry.acceptsStageUpdates && isActive(entry.status));
+  if (!target) return true;
+  updateActivity(target.id, { description: msg });
+  return true;
 }
 
 export function dismissActivity(id: string) {

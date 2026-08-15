@@ -852,13 +852,21 @@ async function send_save_to_background() {
   backup_button_time_limit = false;
   backup_button_backup_limit = false;
 
-  const activityId = addActivity({ title: $t('manage.creating_backup'), status: 'running' });
+  const activityId = addActivity({
+    title: $t('manage.creating_backup'),
+    status: 'running',
+    acceptsStageUpdates: true,
+  });
   try {
     await withLoading(
       async () => {
         const result = await commands.createSnapshotAt(game.value, describe.value, parentDate);
         if (result.status === 'error') {
-          updateActivity(activityId, { status: 'error', description: result.error });
+          updateActivity(activityId, {
+            status: 'error',
+            title: $t('error.backup_failed'),
+            description: result.error,
+          });
         } else {
           updateActivity(activityId, { status: 'success', title: backupSuccessMessage() });
         }
@@ -867,7 +875,7 @@ async function send_save_to_background() {
       $t('manage.wait_for_prompt_hint')
     );
   } catch {
-    updateActivity(activityId, { status: 'error' });
+    updateActivity(activityId, { status: 'error', title: $t('error.backup_failed') });
   }
   backup_button_backup_limit = true;
   refresh_backups_info();
@@ -879,20 +887,8 @@ async function send_save_to_background() {
 }
 
 async function create_new_save() {
-  if (config.value.settings.prompt_when_not_described && !describe.value) {
-    try {
-      await feedback.confirm($t('manage.no_description_warning'), $t('manage.warning'), {
-        confirmButtonText: $t('manage.confirm_save'),
-        cancelButtonText: $t('manage.cancel'),
-        type: 'warning',
-      });
-      send_save_to_background();
-    } catch {
-      info('User cancelled the save operation.');
-    }
-  } else {
-    send_save_to_background();
-  }
+  // Description is optional; the main path must stay one click.
+  send_save_to_background();
 }
 
 async function launch_game() {
@@ -994,7 +990,11 @@ async function apply_save(date: string) {
     sourceDimensions: CandidateDimensions;
   } | null = null;
 
-  const activityId = addActivity({ title: $t('manage.restoring_backup'), status: 'running' });
+  const activityId = addActivity({
+    title: $t('manage.restoring_backup'),
+    status: 'running',
+    acceptsStageUpdates: true,
+  });
   startCollecting();
   try {
     await withLoading(
@@ -1039,7 +1039,7 @@ async function apply_save(date: string) {
     );
   } catch {
     stopCollecting();
-    updateActivity(activityId, { status: 'error' });
+    updateActivity(activityId, { status: 'error', title: $t('manage.recover_failed') });
     apply_button_apply_limit = true;
     refresh_backups_info();
     return;
@@ -1155,7 +1155,7 @@ async function undo_last_apply() {
     await withLoading(async () => {
       const result = await commands.restoreExtraBackup(game.value, extraBackupDate);
       if (result.status === 'error') {
-        updateActivity(activityId, { status: 'error', description: $t('manage.undo_failed') });
+        updateActivity(activityId, { status: 'error', title: $t('manage.undo_failed') });
         return;
       }
 
@@ -1173,7 +1173,7 @@ async function undo_last_apply() {
       updateActivity(activityId, { status: 'success', title: $t('manage.undo_success') });
     }, $t('manage.restoring_backup'));
   } catch {
-    updateActivity(activityId, { status: 'error' });
+    updateActivity(activityId, { status: 'error', title: $t('manage.undo_failed') });
   }
 
   refresh_backups_info();
@@ -1328,7 +1328,7 @@ async function verify_archive_hashes() {
       }
     }, $t('manage.verifying_archives'));
   } catch {
-    updateActivity(activityId, { status: 'error' });
+    updateActivity(activityId, { status: 'error', title: $t('manage.verify_failed_title') });
     return;
   }
 

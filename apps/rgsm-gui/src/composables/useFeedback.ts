@@ -1,41 +1,106 @@
-import type { VNode } from 'vue';
-import { ElMessageBox } from '../ui/elementPlus/messageBox';
-import { LAYER } from '../ui/layers';
+import { ref, type VNode } from 'vue';
 
-// A small, centralized façade for user feedback patterns.
-// - Keep business code focused on intent (confirm/prompt) instead of UI library details.
-// - Provide consistent defaults (e.g. z-index), without changing copy/text.
+/**
+ * Centralized confirm/prompt/alert façade on the kit dialog.
+ * Call sites keep the ElMessageBox-era call shapes: options use
+ * `type`/`confirmButtonText`/`inputPattern`/etc., prompt resolves `{ value }`,
+ * and cancellation rejects with 'cancel'.
+ */
+export type FeedbackTone = 'info' | 'warning' | 'error';
 
-type ConfirmOptions = Parameters<typeof ElMessageBox.confirm>[2];
-type PromptOptions = Parameters<typeof ElMessageBox.prompt>[2];
-type AlertOptions = Parameters<typeof ElMessageBox.alert>[2];
-
-function withDefaults(options: ConfirmOptions): ConfirmOptions {
-  if (!options) {
-    return { zIndex: LAYER.messageBox } as unknown as ConfirmOptions;
-  }
-  // Avoid overriding user-provided values; only fill in missing fields.
-  if ('zIndex' in options) return options;
-  return { ...options, zIndex: LAYER.messageBox } as unknown as ConfirmOptions;
+export interface FeedbackOptions {
+  confirmButtonText?: string;
+  cancelButtonText?: string;
+  type?: FeedbackTone;
+  closeOnClickModal?: boolean;
+  closeOnPressEscape?: boolean;
 }
 
-function withPromptDefaults(options: PromptOptions): PromptOptions {
-  if (!options) {
-    return { zIndex: LAYER.messageBox } as unknown as PromptOptions;
+export interface PromptOptions extends FeedbackOptions {
+  inputValue?: string;
+  inputPlaceholder?: string;
+  inputPattern?: RegExp;
+  inputErrorMessage?: string;
+}
+
+/** Resolution shape of prompt(); mirrors what call sites destructure today. */
+export interface PromptResult {
+  value: string;
+}
+
+export interface FeedbackRequest {
+  kind: 'alert' | 'confirm' | 'prompt';
+  title: string;
+  message: string | VNode;
+  tone: FeedbackTone;
+  confirmText?: string;
+  cancelText?: string;
+  inputValue?: string;
+  inputPlaceholder?: string;
+  inputPattern?: RegExp;
+  inputErrorMessage?: string;
+  dismissable: boolean;
+  resolve: (result: PromptResult | undefined) => void;
+  reject: (reason: 'cancel') => void;
+}
+
+const feedbackQueue = ref<FeedbackRequest[]>([]);
+
+export function useFeedbackQueue() {
+  return { feedbackQueue };
+}
+
+function enqueue(
+  kind: FeedbackRequest['kind'],
+  message: string | VNode,
+  title: string,
+  options?: PromptOptions
+): Promise<PromptResult | undefined> {
+  const { promise, resolve, reject } = Promise.withResolvers<PromptResult | undefined>();
+  feedbackQueue.value.push({
+    kind,
+    title,
+    message,
+    tone: options?.type ?? 'info',
+    confirmText: options?.confirmButtonText,
+    cancelText: options?.cancelButtonText,
+    inputValue: options?.inputValue,
+    inputPlaceholder: options?.inputPlaceholder,
+    inputPattern: options?.inputPattern,
+    inputErrorMessage: options?.inputErrorMessage,
+    dismissable: options?.closeOnClickModal !== false && options?.closeOnPressEscape !== false,
+    resolve,
+    reject,
+  });
+  return promise;
+}
+
+/** Called by the feedback host when the user confirms or dismisses a request. */
+export function settleFeedback(
+  request: FeedbackRequest,
+  confirmed: boolean,
+  result?: PromptResult
+) {
+  const index = feedbackQueue.value.indexOf(request);
+  if (index !== -1) {
+    feedbackQueue.value.splice(index, 1);
   }
-  if ('zIndex' in options) return options;
-  return { ...options, zIndex: LAYER.messageBox } as unknown as PromptOptions;
+  if (confirmed) {
+    request.resolve(result);
+  } else {
+    request.reject('cancel');
+  }
 }
 
 export function useFeedback() {
   return {
-    alert: (message: string | VNode, title: string, options?: AlertOptions) =>
-      ElMessageBox.alert(message, title, withDefaults(options)),
+    alert: (message: string | VNode, title: string, options?: FeedbackOptions) =>
+      enqueue('alert', message, title, options).then(() => undefined),
 
-    confirm: (message: string | VNode, title: string, options?: ConfirmOptions) =>
-      ElMessageBox.confirm(message, title, withDefaults(options)),
+    confirm: (message: string | VNode, title: string, options?: FeedbackOptions) =>
+      enqueue('confirm', message, title, options).then(() => undefined),
 
     prompt: (message: string, title: string, options?: PromptOptions) =>
-      ElMessageBox.prompt(message, title, withPromptDefaults(options)),
+      enqueue('prompt', message, title, options) as Promise<PromptResult>,
   };
 }

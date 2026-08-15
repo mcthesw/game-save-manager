@@ -21,7 +21,6 @@
         "abort_change": "放弃修改",
         "reset_settings": "重置设置",
         "confirm_reset": "确认重置?",
-        "prompt_when_not_described": "当未描述存档时，弹出提示",
         "prompt_when_auto_backup": "当自动备份时，弹出提示",
         "max_auto_backup_count": "保留最新自动备份数量（0=不限制）",
         "max_auto_backup_count_hint": "这是全局默认值，各游戏可在其定时备份设置中单独覆盖。",
@@ -197,16 +196,14 @@
         "extra_backups_hint": "在应用快照前自动创建，用于覆盖出错时找回。",
         "show_drawer": "查看受管理文件",
         "error_info": "这是一条错误信息，正常情况不会出现",
-        "wait_for_prompt_hint": "当该游戏存档大时操作会很久，请等提示成功后再进行其他操作",
+        "wait_for_prompt_hint": "大型存档需要一些时间，可在右下角活动面板查看实时进度",
         "save_too_fast_error": "无法在一秒内进行多次存档",
         "last_backup_unfinished_error": "上次备份还未完成，请等待",
         "last_overwrite_unfinished_error": "上次覆盖还未完成，请等待",
         "backup_success": "备份成功",
         "backup_success_with_sync": "备份成功，云端同步将在后台继续",
         "creating_backup": "正在创建备份...",
-        "no_description_warning": "你没有给这个快照提供描述，继续吗？",
         "warning": "警告",
-        "confirm_save": "坚持保存",
         "cancel": "取消",
         "no_launch_path_error": "您并没有储存过该游戏的启动方式",
         "delete_success": "删除成功",
@@ -1059,6 +1056,12 @@
         "import_paths_failed": "导入路径失败"
     },
     "backend": {
+        "stage": {
+            "title": "处理中",
+            "scan": "正在扫描存档文件…",
+            "compress": "正在压缩 %{count} 个存档单元…",
+            "finalize": "正在校验并收尾…"
+        },
         "config": {
             "updating_config_title": "更新配置文件",
             "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
