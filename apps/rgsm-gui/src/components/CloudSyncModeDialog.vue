@@ -8,6 +8,8 @@ import {
 } from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
+import { CheckCircle2 } from '@lucide/vue';
+import { KAlert, KButton, KDialog, KInput, KSwitch } from '../ui/kit';
 import {
   cloudArchiveCatchUpPreview as catchUpPreview,
   formatCloudArchiveBytes as formatBytes,
@@ -44,6 +46,22 @@ watch(
     liveSaveSnapshotOnExit.value = game?.live_save_snapshot_on_exit ?? false;
   }
 );
+
+const catchUpOptions = computed(() => [
+  {
+    value: 'keep_remote' as const,
+    title: $t('sync_settings.archives.keep_remote'),
+    desc: $t('sync_settings.archives.keep_remote_description'),
+  },
+  {
+    value: 'download_existing' as const,
+    title: $t('sync_settings.archives.download_existing'),
+    desc: $t('sync_settings.archives.download_existing_description', {
+      count: catchUpPreview(props.game).count,
+      size: formatBytes(catchUpPreview(props.game).size),
+    }),
+  },
+]);
 
 async function confirm() {
   const game = props.game;
@@ -83,28 +101,24 @@ async function confirm() {
 </script>
 
 <template>
-  <ElDialog
-    v-model="visible"
+  <KDialog
+    v-model:open="visible"
     :title="
       isLive
         ? $t('sync_settings.archives.enable_live_save_sync')
         : $t('sync_settings.archives.enable_snapshot_sync')
     "
-    width="min(480px, 92vw)"
-    :close-on-click-modal="!changingMode"
-    :show-close="!changingMode"
+    :width="480"
+    :dismissable="!changingMode"
   >
-    <ElAlert
-      type="warning"
-      show-icon
-      :closable="false"
-      :title="
+    <KAlert tone="warning" class="mb-3">
+      {{
         isLive
           ? $t('sync_settings.archives.live_save_sync_risk')
           : $t('sync_settings.archives.snapshot_sync_risk')
-      "
-    />
-    <ul class="mode-points">
+      }}
+    </KAlert>
+    <ul class="mb-4 list-disc pl-5 text-sm leading-relaxed text-text-dim">
       <li>
         {{
           isLive
@@ -123,122 +137,78 @@ async function confirm() {
         {{ $t('sync_settings.archives.live_save_sync_description_3') }}
       </li>
     </ul>
-    <div v-if="isLive" class="live-save-options">
-      <label>
-        <span>{{ $t('sync_settings.archives.live_save_process') }}</span>
-        <ElInput
+
+    <div v-if="isLive" class="mb-4 flex flex-col gap-3">
+      <div>
+        <div class="mb-1 block text-xs text-text-dim">
+          {{ $t('sync_settings.archives.live_save_process') }}
+        </div>
+        <KInput
           v-model="liveSaveProcessName"
+          class="w-full"
+          mono
           :placeholder="$t('sync_settings.archives.live_save_process_placeholder')"
+          :aria-label="$t('sync_settings.archives.live_save_process')"
         />
-      </label>
-      <div class="snapshot-exit-option">
-        <span>
-          <strong>{{ $t('sync_settings.archives.snapshot_on_exit') }}</strong>
-          <small>{{ $t('sync_settings.archives.snapshot_on_exit_description') }}</small>
-        </span>
-        <ElSwitch v-model="liveSaveSnapshotOnExit" />
+      </div>
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-sm text-text">{{ $t('sync_settings.archives.snapshot_on_exit') }}</div>
+          <div class="text-xs text-text-dim">
+            {{ $t('sync_settings.archives.snapshot_on_exit_description') }}
+          </div>
+        </div>
+        <KSwitch v-model="liveSaveSnapshotOnExit" />
       </div>
     </div>
-    <p class="catch-up-title">{{ $t('sync_settings.archives.catch_up_title') }}</p>
-    <ElRadioGroup v-model="catchUpPolicy" class="catch-up-options">
-      <ElRadio value="keep_remote" border>
-        <span class="option-copy">
-          <strong>{{ $t('sync_settings.archives.keep_remote') }}</strong>
-          <small>{{ $t('sync_settings.archives.keep_remote_description') }}</small>
+
+    <p class="mb-2 text-sm font-medium text-text">
+      {{ $t('sync_settings.archives.catch_up_title') }}
+    </p>
+    <div class="flex flex-col gap-2">
+      <button
+        v-for="option in catchUpOptions"
+        :key="option.value"
+        type="button"
+        class="flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+        :class="
+          catchUpPolicy === option.value
+            ? 'border-accent bg-accent-soft'
+            : 'border-border bg-surface hover:border-border-strong'
+        "
+        :aria-pressed="catchUpPolicy === option.value"
+        @click="catchUpPolicy = option.value"
+      >
+        <CheckCircle2
+          v-if="catchUpPolicy === option.value"
+          :size="15"
+          class="mt-0.5 shrink-0 text-accent"
+          aria-hidden="true"
+        />
+        <span
+          v-else
+          class="mt-0.5 inline-block h-[15px] w-[15px] shrink-0 rounded-full border border-border-strong"
+          aria-hidden="true"
+        />
+        <span class="min-w-0">
+          <span class="block text-sm font-medium text-text">{{ option.title }}</span>
+          <span class="mt-0.5 block text-xs leading-relaxed text-text-dim">{{ option.desc }}</span>
         </span>
-      </ElRadio>
-      <ElRadio value="download_existing" border>
-        <span class="option-copy">
-          <strong>{{ $t('sync_settings.archives.download_existing') }}</strong>
-          <small>
-            {{
-              $t('sync_settings.archives.download_existing_description', {
-                count: catchUpPreview(game).count,
-                size: formatBytes(catchUpPreview(game).size),
-              })
-            }}
-          </small>
-        </span>
-      </ElRadio>
-    </ElRadioGroup>
+      </button>
+    </div>
+
     <template #footer>
-      <ElButton :disabled="changingMode" @click="visible = false">
+      <KButton :disabled="changingMode" @click="visible = false">
         {{ $t('sync_settings.cancel') }}
-      </ElButton>
-      <ElButton
-        type="primary"
+      </KButton>
+      <KButton
+        variant="primary"
         :disabled="isLive && !liveSaveProcessName.trim()"
         :loading="changingMode"
         @click="confirm"
       >
         {{ $t('sync_settings.archives.enable') }}
-      </ElButton>
+      </KButton>
     </template>
-  </ElDialog>
+  </KDialog>
 </template>
-
-<style scoped>
-.mode-points {
-  margin: 12px 0 16px;
-  padding-left: 18px;
-  color: var(--el-text-color-regular);
-  line-height: 1.55;
-}
-
-.live-save-options {
-  display: grid;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-.live-save-options label,
-.snapshot-exit-option span {
-  display: grid;
-  gap: 5px;
-}
-
-.snapshot-exit-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.snapshot-exit-option small {
-  color: var(--el-text-color-secondary);
-}
-
-.catch-up-title {
-  margin: 0 0 8px;
-  color: var(--el-text-color-regular);
-  font-weight: 600;
-}
-
-.catch-up-options {
-  display: grid;
-  gap: 10px;
-}
-
-.catch-up-options :deep(.el-radio) {
-  width: 100%;
-  height: auto;
-  min-height: 60px;
-  margin: 0;
-  padding: 12px 16px;
-}
-
-.catch-up-options :deep(.el-radio__label) {
-  min-width: 0;
-  white-space: normal;
-}
-
-.option-copy {
-  display: grid;
-  gap: 4px;
-}
-
-.option-copy small {
-  color: var(--el-text-color-secondary);
-  line-height: 1.4;
-}
-</style>

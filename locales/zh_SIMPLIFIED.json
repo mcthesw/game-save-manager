@@ -873,7 +873,8 @@
         "accept_remote_success_with_backup": "已创建安全备份并应用所选进度。",
         "resolve_failed": "无法解决进度冲突",
         "load_failed": "无法比较设备进度"
-      }
+      },
+      "manual_sync_description": "只保留在本机,不自动同步"
     },
     "conflict": {
       "title": "解决云同步冲突",
