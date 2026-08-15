@@ -1,0 +1,99 @@
+/*
+ * RGSM design tokens — the single source of truth for the visual language.
+ *
+ * Rules:
+ * - Element Plus is being removed; new UI MUST reference these tokens,
+ *   never `--el-*` variables.
+ * - Accent (amber) is reserved for the "current position" (HEAD) marker and
+ *   primary actions only. Do not spend it on decoration.
+ * - Preflight is intentionally NOT imported: unmigrated Element Plus pages
+ *   rely on UA defaults during the coexistence period, and kit components
+ *   ship their own styles.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  --bg: #faf9f7;
+  --surface: #ffffff;
+  --surface-2: #f2f1ee;
+  --text: #1c1d21;
+  --text-dim: #6e6a61;
+  --border: color-mix(in oklab, var(--text) 14%, transparent);
+  --border-strong: color-mix(in oklab, var(--text) 24%, transparent);
+
+  --accent: #b97f1f;
+  --accent-contrast: #ffffff;
+  --accent-soft: color-mix(in oklab, var(--accent) 14%, transparent);
+
+  --success: #237b4b;
+  --warning: #8f6a00;
+  --danger: #c24e1f;
+  --danger-soft: color-mix(in oklab, var(--danger) 12%, transparent);
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+
+  --shadow-overlay: 0 12px 34px rgb(0 0 0 / 0.18), 0 2px 8px rgb(0 0 0 / 0.1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --bg: #181a1f;
+  --surface: #1f2229;
+  --surface-2: #272b33;
+  --text: #e8e6e1;
+  --text-dim: #9b978e;
+  --border: color-mix(in oklab, var(--text) 14%, transparent);
+  --border-strong: color-mix(in oklab, var(--text) 26%, transparent);
+
+  --accent: #e0a13e;
+  --accent-contrast: #1c1d21;
+
+  --success: #4caf7d;
+  --warning: #e3b341;
+  --danger: #d9622b;
+
+  --shadow-overlay: 0 12px 34px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.3);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+
+  --shadow-overlay: var(--shadow-overlay);
+
+  /*
+   * `--rgsm-ui-font-family` is set at runtime by App.vue when the user
+   * overrides the UI font in Settings; it already contains a full fallback
+   * stack. Keep this indirection intact.
+   */
+  --font-sans:
+    var(--rgsm-ui-font-family, 'IBM Plex Sans'), system-ui, -apple-system, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-mono:
+    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'PingFang SC',
+    'Microsoft YaHei', monospace;
+}
