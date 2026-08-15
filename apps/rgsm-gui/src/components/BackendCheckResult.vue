@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  CircleCloseFilled,
-  CopyDocument,
-  Loading,
-  SuccessFilled,
-  WarningFilled,
-} from '@element-plus/icons-vue';
+import { CheckCircle2, Copy, LoaderCircle, TriangleAlert, XCircle } from '@lucide/vue';
 import { $t } from '../i18n';
 import type {
   CloudBackendCheckItem,
   CloudBackendCheckReport,
   CloudBackendCheckStep,
 } from '../api/commands';
+import { KButton, KPopover } from '../ui/kit';
 
 type CheckOutcome = CloudBackendCheckReport['outcome'];
 type CheckItemStatus = CloudBackendCheckItem['status'];
@@ -85,6 +80,20 @@ const currentOutcome = computed<UiOutcome>(() => {
   return props.report?.outcome ?? 'unknown';
 });
 
+const indicatorColor = computed(() => {
+  if (props.checking) return 'var(--accent)';
+  switch (currentOutcome.value) {
+    case 'available':
+      return 'var(--success)';
+    case 'degraded':
+      return 'var(--warning)';
+    case 'unavailable':
+      return 'var(--danger)';
+    default:
+      return 'var(--text-dim)';
+  }
+});
+
 const checkItems = computed<UiCheckItem[]>(() =>
   STEPS.map((step) => {
     const item = props.report?.items.find((candidate) => candidate.step === step);
@@ -132,70 +141,91 @@ async function copyError(message: string, key: string) {
 </script>
 
 <template>
-  <section
-    class="check-result-card"
-    :class="[`is-${currentOutcome}`, { 'is-checking': checking }]"
-    aria-live="polite"
-  >
-    <div class="check-summary">
-      <span class="check-indicator" />
-      <div class="check-summary-text">
-        <span class="check-title">{{ $t(titleKey) }}</span>
-        <span v-if="descriptionKey" class="check-desc">{{ $t(descriptionKey) }}</span>
+  <section class="flex flex-col border-l border-border pl-5" aria-live="polite">
+    <div class="flex items-start gap-2.5">
+      <span
+        class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+        :style="{ background: indicatorColor }"
+        aria-hidden="true"
+      />
+      <div class="min-w-0 flex-1">
+        <span class="block text-sm font-semibold leading-snug text-text">{{ $t(titleKey) }}</span>
+        <span v-if="descriptionKey" class="mt-1 block text-xs leading-relaxed text-text-dim">{{
+          $t(descriptionKey)
+        }}</span>
       </div>
-      <ElIcon v-if="checking" class="icon-spin"><Loading /></ElIcon>
+      <LoaderCircle v-if="checking" :size="15" class="shrink-0 animate-spin text-accent" />
     </div>
 
-    <div class="check-steps">
-      <div
-        v-for="item in checkItems"
-        :key="item.step"
-        class="check-step"
-        :class="`is-${item.status}`"
-      >
-        <span v-if="item.status === 'pending'" class="step-placeholder" />
-        <ElIcon v-else class="step-icon">
-          <SuccessFilled v-if="item.status === 'passed'" />
-          <CircleCloseFilled v-else-if="item.status === 'failed'" />
-          <WarningFilled v-else />
-        </ElIcon>
-        <span class="step-label">{{ $t(STEP_LABELS[item.step]) }}</span>
-        <ElPopover v-if="item.message" trigger="click" placement="bottom-start" :width="360">
-          <template #reference>
-            <ElButton text size="small" class="step-error-btn">
-              {{ $t('sync_settings.check_result.view_error') }}
-            </ElButton>
-          </template>
-          <div class="error-popover">
-            <p class="error-category">{{ categorizeError(item.message) }}</p>
-            <pre class="error-raw">{{ truncate(item.message, 500) }}</pre>
-            <ElButton size="small" @click="copyError(item.message, item.step)">
-              <ElIcon class="copy-icon"><CopyDocument /></ElIcon>
+    <div class="mt-4 flex flex-col gap-2.5 border-t border-border pt-3.5">
+      <div v-for="item in checkItems" :key="item.step" class="flex items-center gap-2">
+        <span
+          v-if="item.status === 'pending'"
+          class="h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] border-border"
+          aria-hidden="true"
+        />
+        <CheckCircle2
+          v-else-if="item.status === 'passed'"
+          :size="14"
+          class="shrink-0 text-success"
+          aria-hidden="true"
+        />
+        <XCircle
+          v-else-if="item.status === 'failed'"
+          :size="14"
+          class="shrink-0 text-danger"
+          aria-hidden="true"
+        />
+        <TriangleAlert v-else :size="14" class="shrink-0 text-warning" aria-hidden="true" />
+        <span
+          class="min-w-0 flex-1 text-[13px]"
+          :class="item.status === 'pending' ? 'text-text-dim/70' : 'text-text'"
+        >
+          {{ $t(STEP_LABELS[item.step]) }}
+        </span>
+        <KPopover v-if="item.message" side="bottom" align="start" :width="360">
+          <KButton variant="ghost" size="sm">
+            {{ $t('sync_settings.check_result.view_error') }}
+          </KButton>
+          <template #content>
+            <p class="mb-2 text-[13px] font-semibold text-danger">
+              {{ categorizeError(item.message) }}
+            </p>
+            <pre
+              class="mb-2.5 max-h-52 overflow-auto rounded-sm border border-border bg-surface-2 p-2 text-xs leading-relaxed whitespace-pre-wrap break-all text-text-dim"
+              >{{ truncate(item.message, 500) }}</pre
+            >
+            <KButton size="sm" @click="copyError(item.message ?? '', item.step)">
+              <template #icon><Copy :size="12" aria-hidden="true" /></template>
               {{
                 copiedStep === item.step
                   ? $t('sync_settings.check_result.copied')
                   : $t('sync_settings.check_result.copy_error')
               }}
-            </ElButton>
-          </div>
-        </ElPopover>
+            </KButton>
+          </template>
+        </KPopover>
       </div>
     </div>
 
-    <div v-if="error" class="command-error">
+    <div
+      v-if="error"
+      class="mt-3.5 flex items-center justify-between gap-2 rounded-md bg-danger-soft px-3 py-2.5 text-[13px] text-danger"
+    >
       <span>{{ categorizeError(error) }}</span>
-      <ElButton text size="small" @click="copyError(error, 'command')">
+      <KButton variant="ghost" size="sm" class="text-danger" @click="copyError(error, 'command')">
         {{
           copiedStep === 'command'
             ? $t('sync_settings.check_result.copied')
             : $t('sync_settings.check_result.copy_error')
         }}
-      </ElButton>
+      </KButton>
     </div>
 
-    <footer class="check-footer">
-      <ElButton
-        type="primary"
+    <footer class="mt-4">
+      <KButton
+        variant="primary"
+        class="w-full"
         :loading="checking"
         :disabled="disabled || checking"
         @click="emit('test')"
@@ -205,191 +235,7 @@ async function copyError(message: string, key: string) {
             ? $t('sync_settings.check_result.retest')
             : $t('sync_settings.test_button')
         }}
-      </ElButton>
+      </KButton>
     </footer>
   </section>
 </template>
-
-<style scoped>
-.check-result-card {
-  display: flex;
-  padding: 0 0 0 20px;
-  flex-direction: column;
-  border-left: 1px solid var(--el-border-color-lighter);
-  background: transparent;
-  box-sizing: border-box;
-}
-
-.check-summary {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.check-indicator {
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--el-text-color-placeholder);
-}
-
-.is-available .check-indicator {
-  background: var(--el-color-success);
-}
-
-.is-degraded .check-indicator {
-  background: var(--el-color-warning);
-}
-
-.is-unavailable .check-indicator {
-  background: var(--el-color-danger);
-}
-
-.is-checking .check-indicator {
-  background: var(--el-color-primary);
-}
-
-.check-summary-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.check-title {
-  display: block;
-  color: var(--el-text-color-primary);
-  font-size: 0.92rem;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.check-desc {
-  display: block;
-  margin-top: 4px;
-  color: var(--el-text-color-secondary);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-.icon-spin {
-  flex-shrink: 0;
-  color: var(--el-color-primary);
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.check-steps {
-  display: flex;
-  margin-top: 18px;
-  padding-top: 14px;
-  flex-direction: column;
-  gap: 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.check-step {
-  display: flex;
-  min-height: 26px;
-  align-items: center;
-  gap: 8px;
-}
-
-.step-icon,
-.step-placeholder {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.step-placeholder {
-  border: 1.5px solid var(--el-border-color);
-  border-radius: 50%;
-  box-sizing: border-box;
-}
-
-.check-step.is-passed .step-icon {
-  color: var(--el-color-success);
-}
-
-.check-step.is-warning .step-icon {
-  color: var(--el-color-warning);
-}
-
-.check-step.is-failed .step-icon {
-  color: var(--el-color-danger);
-}
-
-.step-label {
-  min-width: 0;
-  flex: 1;
-  color: var(--el-text-color-regular);
-  font-size: 0.82rem;
-}
-
-.check-step.is-pending .step-label {
-  color: var(--el-text-color-placeholder);
-}
-
-.step-error-btn {
-  flex-shrink: 0;
-  font-size: 0.75rem !important;
-}
-
-.command-error {
-  display: flex;
-  margin-top: 14px;
-  padding: 10px 12px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-radius: 6px;
-  background: var(--el-color-danger-light-8);
-  color: var(--el-color-danger);
-  font-size: 0.8rem;
-}
-
-.check-footer {
-  margin-top: 18px;
-}
-
-.check-footer :deep(.el-button) {
-  width: 100%;
-}
-
-.copy-icon {
-  margin-right: 4px;
-}
-
-.error-popover .error-category {
-  margin: 0 0 8px;
-  color: var(--el-color-danger);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.error-popover .error-raw {
-  max-height: 200px;
-  margin: 0 0 10px;
-  padding: 8px;
-  overflow: auto;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-  font-size: 0.75rem;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .icon-spin {
-    animation: none;
-  }
-}
-</style>

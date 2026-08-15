@@ -10,6 +10,7 @@ import {
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { $t } from '../i18n';
+import { KButton, KInput, KSegmented, KSwitch, KTag } from '../ui/kit';
 
 const router = useRouter();
 const feedback = useFeedback();
@@ -48,10 +49,10 @@ function syncStatus(game: CloudArchiveGameView) {
   return 'synced';
 }
 
-function statusType(status: ReturnType<typeof syncStatus>) {
-  if (status === 'synced') return 'success';
-  if (status === 'conflict') return 'warning';
-  return 'info';
+function statusTone(status: ReturnType<typeof syncStatus>) {
+  if (status === 'synced') return 'success' as const;
+  if (status === 'conflict') return 'warning' as const;
+  return 'neutral' as const;
 }
 
 function statusLabel(status: ReturnType<typeof syncStatus>) {
@@ -125,71 +126,79 @@ function openGame(game: CloudArchiveGameView) {
 </script>
 
 <template>
-  <section class="sync-overview">
+  <section>
     <CloudArchivePanel ref="fleet" @loaded="onLibraryLoaded" />
 
-    <ElInput
+    <KInput
       v-model="search"
-      clearable
+      class="mb-3 w-72"
       :placeholder="$t('sync_settings.overview.search')"
-      class="overview-search"
+      :aria-label="$t('sync_settings.overview.search')"
     />
 
-    <ElTable
-      :data="games"
-      class="game-table"
-      :empty-text="
-        library && library.games.length === 0
-          ? $t('sync_settings.overview.no_games')
-          : $t('sync_settings.overview.no_matches')
-      "
-    >
-      <ElTableColumn :label="$t('sync_settings.overview.game_name')" min-width="220">
-        <template #default="{ row }">
-          <div class="game-copy">
-            <button type="button" class="game-name" @click="openGame(tableRow(row))">
-              {{ tableRow(row).name }}
-            </button>
-            <button
-              v-if="needsProgressChoice(tableRow(row))"
-              type="button"
-              class="game-note"
-              @click="progressGame = tableRow(row)"
-            >
-              {{ $t('sync_settings.overview.progress_needed') }}
-            </button>
-          </div>
-        </template>
-      </ElTableColumn>
-      <ElTableColumn :label="$t('sync_settings.overview.status')" width="110" align="center">
-        <template #default="{ row }">
-          <ElTag :type="statusType(syncStatus(tableRow(row)))" size="small" effect="plain" round>
-            {{ statusLabel(syncStatus(tableRow(row))) }}
-          </ElTag>
-        </template>
-      </ElTableColumn>
-      <ElTableColumn :label="$t('sync_settings.overview.mode')" width="360">
-        <template #default="{ row }">
-          <ElSegmented
-            :model-value="tableRow(row).sync_mode"
-            :options="modeOptions"
-            :disabled="!tableRow(row).managed"
-            size="small"
-            class="mode-switch"
-            @change="changeMode(tableRow(row), $event)"
+    <div class="rounded-md border border-border">
+      <div
+        class="grid grid-cols-[minmax(0,1fr)_6.5rem_21rem_6rem] items-center gap-3 border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
+      >
+        <span>{{ $t('sync_settings.overview.game_name') }}</span>
+        <span class="text-center">{{ $t('sync_settings.overview.status') }}</span>
+        <span>{{ $t('sync_settings.overview.mode') }}</span>
+        <span class="text-center">{{ $t('sync_settings.overview.local_sync') }}</span>
+      </div>
+
+      <div v-if="games.length === 0" class="px-3 py-8 text-center text-sm text-text-dim">
+        {{
+          library && library.games.length === 0
+            ? $t('sync_settings.overview.no_games')
+            : $t('sync_settings.overview.no_matches')
+        }}
+      </div>
+
+      <div
+        v-for="game in games"
+        :key="game.game_id"
+        class="grid grid-cols-[minmax(0,1fr)_6.5rem_21rem_6rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
+      >
+        <div class="min-w-0">
+          <button
+            type="button"
+            class="block max-w-full cursor-pointer truncate border-none bg-transparent p-0 text-left text-sm font-medium text-text transition-colors hover:text-accent"
+            @click="openGame(game)"
+          >
+            {{ game.name }}
+          </button>
+          <button
+            v-if="needsProgressChoice(game)"
+            type="button"
+            class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs text-warning transition-colors hover:brightness-110"
+            @click="progressGame = game"
+          >
+            {{ $t('sync_settings.overview.progress_needed') }}
+          </button>
+        </div>
+
+        <div class="flex justify-center">
+          <KTag :tone="statusTone(syncStatus(game))">{{ statusLabel(syncStatus(game)) }}</KTag>
+        </div>
+
+        <KSegmented
+          :model-value="game.sync_mode"
+          :options="modeOptions"
+          :aria-label="$t('sync_settings.overview.mode')"
+          class="w-full"
+          :class="{ 'pointer-events-none opacity-50': !game.managed }"
+          @update:model-value="changeMode(game, $event)"
+        />
+
+        <div class="flex justify-center">
+          <KSwitch
+            :model-value="game.managed"
+            :aria-label="$t('sync_settings.overview.local_sync')"
+            @update:model-value="setManaged(game, Boolean($event))"
           />
-        </template>
-      </ElTableColumn>
-      <ElTableColumn :label="$t('sync_settings.overview.local_sync')" width="104" align="center">
-        <template #default="{ row }">
-          <ElSwitch
-            :model-value="tableRow(row).managed"
-            :loading="busyGameId === tableRow(row).game_id"
-            @change="setManaged(tableRow(row), Boolean($event))"
-          />
-        </template>
-      </ElTableColumn>
-    </ElTable>
+        </div>
+      </div>
+    </div>
 
     <V2ConflictReviewDialog
       v-if="progressGame"
@@ -205,67 +214,3 @@ function openGame(game: CloudArchiveGameView) {
     <CloudSyncModeDialog v-model:game="modeGame" :mode="pendingMode" @updated="reload" />
   </section>
 </template>
-
-<style scoped>
-.overview-search {
-  width: 300px;
-  margin-bottom: 12px;
-}
-
-.game-table {
-  width: 100%;
-
-  :deep(.el-table__inner-wrapper::before) {
-    display: none;
-  }
-
-  :deep(.el-table__header th) {
-    background: transparent;
-    font-weight: 600;
-    color: var(--el-text-color-regular);
-  }
-
-  :deep(.el-table__cell) {
-    padding: 14px 0;
-  }
-}
-
-.game-copy {
-  min-width: 0;
-}
-
-.game-name,
-.game-note {
-  display: block;
-  overflow: hidden;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.game-name {
-  color: var(--el-text-color-primary);
-  font-weight: 500;
-}
-
-.game-name:hover,
-.game-note:hover {
-  color: var(--el-text-color-regular);
-}
-
-.game-note {
-  margin-top: 4px;
-  color: var(--el-text-color-secondary);
-  font-size: 0.8rem;
-}
-
-.mode-switch {
-  --el-border-radius-base: 8px;
-}
-</style>
