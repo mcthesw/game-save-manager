@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { commands, type CloudArchiveLibraryView } from '../api/commands';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
+import { KAlert } from '../ui/kit';
 import { formatCloudArchiveBytes as formatBytes } from '../utils/cloudArchivePresentation';
 
 const emit = defineEmits<{
@@ -88,7 +89,7 @@ onMounted(load);
 </script>
 
 <template>
-  <section v-loading="loading" class="fleet-status">
+  <section class="mb-4 flex flex-col gap-3">
     <CloudArchiveToolbar
       :local-snapshots="localSnapshots"
       :total-snapshots="totalSnapshots"
@@ -96,26 +97,9 @@ onMounted(load);
       :pending-materialization="library?.pending_materialization ?? false"
       @download-all="materializeAll"
     />
-    <ElAlert
-      v-if="library?.pending_materialization"
-      type="info"
-      :closable="false"
-      show-icon
-      :title="$t('sync_settings.archives.resume_hint')"
-      class="resume-alert"
-    />
+    <KAlert v-if="library?.pending_materialization" tone="info">
+      {{ $t('sync_settings.archives.resume_hint') }}
+    </KAlert>
     <CloudDeletedGamesPanel @updated="load" />
   </section>
 </template>
-
-<style scoped>
-.fleet-status {
-  display: grid;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.resume-alert {
-  margin: 0;
-}
-</style>

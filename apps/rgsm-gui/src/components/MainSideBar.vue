@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { Home, Info, Plus, Settings, Star } from '@lucide/vue';
+import { Cloud, Home, Info, Plus, Settings, Star } from '@lucide/vue';
 import { v4 as uuidv4 } from 'uuid';
 import { $t } from '../i18n';
 import { error } from '../utils/logger';
@@ -25,9 +25,10 @@ const { open: openAddGame } = useAddGameDrawer();
 const route = useRoute();
 const searchQuery = ref('');
 
-// ——— 导航（主页/设置/关于）———
+// ——— 导航（主页/云同步/设置/关于）———
 const navLinks = computed(() => [
   { text: $t('sidebar.homepage'), link: '/', icon: Home },
+  { text: $t('sidebar.sync_settings'), link: '/SyncSettings', icon: Cloud },
   { text: $t('sidebar.settings'), link: '/Settings', icon: Settings },
   { text: $t('sidebar.about'), link: '/About', icon: Info },
 ]);

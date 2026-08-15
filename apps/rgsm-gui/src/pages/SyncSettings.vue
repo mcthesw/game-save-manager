@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, type Ref } from 'vue';
+import { ref, computed, onMounted, watch, type Component, type Ref } from 'vue';
 import { $t } from '../i18n';
 import {
   commands,
@@ -12,7 +12,25 @@ import {
   type SyncState,
 } from '../api/commands';
 import { error } from '../utils/logger';
-import { Download, Lock, Refresh, Upload, Warning } from '@element-plus/icons-vue';
+import {
+  Cable,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Layers,
+  Lock,
+  RefreshCw,
+  TriangleAlert,
+  Upload,
+} from '@lucide/vue';
+import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '../ui/kit';
+import CloudLibraryCutoverDialog from '../components/CloudLibraryCutoverDialog.vue';
+import CloudLibraryJoinDialog from '../components/CloudLibraryJoinDialog.vue';
+import CloudLibrarySetup from '../components/CloudLibrarySetup.vue';
+import CloudLibraryUpgradeCard from '../components/CloudLibraryUpgradeCard.vue';
+import CloudLibraryUpgradeGate from '../components/CloudLibraryUpgradeGate.vue';
+import SyncConflictDialog from '../components/SyncConflictDialog.vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
 import CloudSyncOverview from '../components/CloudSyncOverview.vue';
 import { resolveCloudUiMode } from '../utils/cloudNamespace';
@@ -65,6 +83,40 @@ interface BatchSyncReportLike {
   games: BatchSyncItemReportLike[];
 }
 
+const showWebdavPassword = ref(false);
+const showS3Secret = ref(false);
+
+const maxConcurrency = computed({
+  get: () => cloud_settings.value.max_concurrency,
+  set: (value: number | undefined) => {
+    cloud_settings.value.max_concurrency = Math.max(1, value ?? 1);
+  },
+});
+
+const navItems = computed(() => {
+  const items: { key: 'overview' | 'backend' | 'operations'; icon: Component; label: string }[] = [
+    { key: 'overview', icon: Layers, label: $t('sync_settings.overview.tab') },
+    { key: 'backend', icon: Cable, label: $t('sync_settings.console.connection_tab') },
+  ];
+  if (!v2LibraryActive.value) {
+    items.push({
+      key: 'operations',
+      icon: TriangleAlert,
+      label: $t('sync_settings.console.danger_tab'),
+    });
+  }
+  return items;
+});
+
+const backendOptions = computed(() =>
+  backends.map((backend) => ({ value: backend.value, label: $t(backend.label) }))
+);
+const addressingOptions = computed(() => [
+  { value: 'PathStyle', label: $t('sync_settings.s3.addressing_style_path') },
+  { value: 'VirtualHostedStyle', label: $t('sync_settings.s3.addressing_style_virtual') },
+  { value: 'Auto', label: $t('sync_settings.s3.addressing_style_auto') },
+]);
+
 const backends = [
   { value: 'WebDAV', label: 'sync_settings.backend_label.webdav' },
   { value: 'S3', label: 'sync_settings.backend_label.s3' },
@@ -76,7 +128,7 @@ const { config, refreshConfig, saveConfig } = useConfig();
 const { withLoading } = useGlobalLoading();
 const feedback = useFeedback();
 
-const activeTab = ref('overview');
+const activeTab = ref<'overview' | 'backend' | 'operations'>('overview');
 const syncState = ref<SyncState | null>(null);
 const syncingGames = ref<Set<string>>(new Set());
 const syncingConfig = ref(false);
@@ -167,8 +219,8 @@ const overviewBlocked = computed(
 );
 const snapshotSyncInterval = computed({
   get: () => cloud_settings.value.auto_sync_interval || 5,
-  set: (minutes: number) => {
-    cloud_settings.value.auto_sync_interval = minutes;
+  set: (minutes: number | undefined) => {
+    cloud_settings.value.auto_sync_interval = minutes ?? 5;
   },
 });
 const savedConnectionKey = computed(() =>
@@ -285,23 +337,25 @@ const gameRows = computed<GameRow[]>(() => {
   return [configRow, ...rows];
 });
 
-type TagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
 type StatusKey = GameRow['status'];
-const STATUS_META: Record<StatusKey, { type: TagType; labelKey: string }> = {
-  synced: { type: 'success', labelKey: 'sync_settings.overview.status_synced' },
-  pending: { type: 'warning', labelKey: 'sync_settings.overview.status_pending' },
-  failed: { type: 'danger', labelKey: 'sync_settings.overview.status_failed' },
-  disabled: { type: 'info', labelKey: 'sync_settings.overview.status_disabled' },
-  conflict: { type: 'warning', labelKey: 'sync_settings.overview.status_conflict' },
-  unknown: { type: 'info', labelKey: 'sync_settings.overview.status_unknown' },
+const STATUS_META: Record<
+  StatusKey,
+  { tone: 'success' | 'warning' | 'danger' | 'neutral'; labelKey: string }
+> = {
+  synced: { tone: 'success', labelKey: 'sync_settings.overview.status_synced' },
+  pending: { tone: 'warning', labelKey: 'sync_settings.overview.status_pending' },
+  failed: { tone: 'danger', labelKey: 'sync_settings.overview.status_failed' },
+  disabled: { tone: 'neutral', labelKey: 'sync_settings.overview.status_disabled' },
+  conflict: { tone: 'warning', labelKey: 'sync_settings.overview.status_conflict' },
+  unknown: { tone: 'neutral', labelKey: 'sync_settings.overview.status_unknown' },
 };
 
 function statusLabel(status: StatusKey) {
   return $t(STATUS_META[status]?.labelKey ?? status);
 }
 
-function statusType(status: StatusKey): TagType {
-  return STATUS_META[status]?.type ?? 'info';
+function statusTone(status: StatusKey) {
+  return STATUS_META[status]?.tone ?? 'neutral';
 }
 
 const selectedConflictRow = computed(
@@ -315,10 +369,6 @@ function openConflictDialog(row: GameRow) {
   if (row.isConfig || row.status !== 'conflict') return;
   selectedConflictGameName.value = row.name;
   conflictDialogVisible.value = true;
-}
-
-function tableRowToGameRow(row: unknown): GameRow {
-  return row as GameRow;
 }
 
 async function retryConfigSync() {
@@ -807,320 +857,374 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="sync-page">
-    <header class="page-header">
-      <h2 class="page-title">{{ $t('sync_settings.title') }}</h2>
-      <ElLink type="primary" @click="open_manual">{{ $t('sync_settings.manual_link') }}</ElLink>
-    </header>
-
-    <ElTabs v-model="activeTab" class="sync-tabs">
-      <ElTabPane :label="$t('sync_settings.overview.tab')" name="overview">
-        <CloudSyncOverview v-if="v2LibraryActive" />
-
-        <div v-if="legacyCloudControlsEnabled && !overviewBlocked" class="overview-toolbar">
-          <ElButton
-            type="primary"
-            :icon="Refresh"
-            :disabled="!savedBackendEnabled || !hasEnabledGames"
-            @click="syncAllGames"
+  <div class="h-full overflow-y-auto">
+    <div class="mx-auto flex max-w-[1080px] gap-10 px-6 py-6">
+      <aside class="sticky top-6 w-44 shrink-0 self-start">
+        <div class="mb-4 flex items-center justify-between px-2">
+          <h1 class="text-lg font-semibold text-text">{{ $t('sync_settings.title') }}</h1>
+          <KButton
+            variant="ghost"
+            size="sm"
+            :aria-label="$t('sync_settings.manual_link')"
+            @click="open_manual"
           >
-            {{ $t('sync_settings.overview.sync_all') }}
-          </ElButton>
+            <template #icon><ExternalLink :size="14" aria-hidden="true" /></template>
+          </KButton>
         </div>
-
-        <section v-if="legacyCloudControlsEnabled || overviewBlocked" class="game-sync-panel">
-          <CloudLibraryUpgradeGate
-            :blocked="overviewBlocked"
-            :title="
-              joinRequired
-                ? $t('sync_settings.library.join.gate_title')
-                : $t('sync_settings.library.cutover.gate_title')
+        <nav class="flex flex-col gap-0.5" :aria-label="$t('sync_settings.title')">
+          <button
+            v-for="item in navItems"
+            :key="item.key"
+            type="button"
+            class="flex cursor-pointer items-center gap-2 rounded-sm border-none bg-transparent px-2 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+            :class="
+              activeTab === item.key
+                ? 'bg-surface-2 font-semibold text-text'
+                : 'text-text-dim hover:bg-surface-2/60 hover:text-text'
             "
-            :action="
-              joinRequired
-                ? $t('sync_settings.library.join.gate_action')
-                : $t('sync_settings.library.cutover.gate_action')
-            "
-            @upgrade="openLibraryAction"
+            @click="activeTab = item.key"
           >
-            <ElTable
-              :data="gameRows"
-              stripe
-              class="game-table"
-              :empty-text="$t('sync_settings.overview.no_games')"
+            <component :is="item.icon" :size="14" aria-hidden="true" />
+            {{ item.label }}
+          </button>
+        </nav>
+      </aside>
+
+      <div class="min-w-0 max-w-[820px] flex-1 pb-16">
+        <!-- 概览 -->
+        <div v-if="activeTab === 'overview'" class="flex flex-col gap-4">
+          <CloudSyncOverview v-if="v2LibraryActive" />
+
+          <div v-if="legacyCloudControlsEnabled && !overviewBlocked" class="flex gap-2">
+            <KButton
+              variant="primary"
+              :disabled="!savedBackendEnabled || !hasEnabledGames"
+              @click="syncAllGames"
             >
-              <ElTableColumn
-                prop="name"
-                :label="$t('sync_settings.overview.game_name')"
-                min-width="180"
-              >
-                <template #default="{ row }">
-                  <div class="game-name-cell">
-                    <div class="game-name-stack">
-                      <div class="game-title-line">
-                        <span class="game-name">{{ row.name }}</span>
-                        <ElTag v-if="row.isConfig" size="small" type="info" round effect="plain">
-                          <ElIcon :size="12" class="tag-icon"><Lock /></ElIcon>
-                          {{ $t('sync_settings.overview.always_synced') }}
-                        </ElTag>
-                      </div>
-                      <span v-if="row.detail" class="row-detail">{{ row.detail }}</span>
+              <template #icon><RefreshCw :size="14" aria-hidden="true" /></template>
+              {{ $t('sync_settings.overview.sync_all') }}
+            </KButton>
+          </div>
+
+          <section v-if="legacyCloudControlsEnabled || overviewBlocked">
+            <CloudLibraryUpgradeGate
+              :blocked="overviewBlocked"
+              :title="
+                joinRequired
+                  ? $t('sync_settings.library.join.gate_title')
+                  : $t('sync_settings.library.cutover.gate_title')
+              "
+              :action="
+                joinRequired
+                  ? $t('sync_settings.library.join.gate_action')
+                  : $t('sync_settings.library.cutover.gate_action')
+              "
+              @upgrade="openLibraryAction"
+            >
+              <div class="rounded-md border border-border">
+                <div
+                  class="grid grid-cols-[minmax(0,1fr)_5.5rem_7rem_10rem_8rem] items-center gap-3 border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
+                >
+                  <span>{{ $t('sync_settings.overview.game_name') }}</span>
+                  <span class="text-center">{{ $t('sync_settings.overview.cloud_sync') }}</span>
+                  <span class="text-center">{{ $t('sync_settings.overview.status') }}</span>
+                  <span class="text-center">{{ $t('sync_settings.overview.last_sync') }}</span>
+                  <span class="text-center">{{ $t('sync_settings.overview.actions') }}</span>
+                </div>
+                <div
+                  v-if="gameRows.length === 0"
+                  class="px-3 py-8 text-center text-sm text-text-dim"
+                >
+                  {{ $t('sync_settings.overview.no_games') }}
+                </div>
+                <div
+                  v-for="row in gameRows"
+                  :key="row.name"
+                  class="grid grid-cols-[minmax(0,1fr)_5.5rem_7rem_10rem_8rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
+                >
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="truncate text-sm font-medium text-text">{{ row.name }}</span>
+                      <KTag v-if="row.isConfig">
+                        <Lock :size="10" aria-hidden="true" />
+                        {{ $t('sync_settings.overview.always_synced') }}
+                      </KTag>
+                    </div>
+                    <div v-if="row.detail" class="mt-0.5 truncate text-xs text-danger">
+                      {{ row.detail }}
                     </div>
                   </div>
-                </template>
-              </ElTableColumn>
-              <ElTableColumn
-                :label="$t('sync_settings.overview.cloud_sync')"
-                width="100"
-                align="center"
-              >
-                <template #default="{ row }">
-                  <ElSwitch
-                    v-if="!row.isConfig"
-                    v-model="row.cloudSyncEnabled"
-                    size="small"
-                    :disabled="!legacyCloudControlsEnabled"
-                    @change="toggleGameSync(tableRowToGameRow(row))"
-                  />
-                  <span v-else class="config-lock-icon">
-                    <ElIcon><Lock /></ElIcon>
-                  </span>
-                </template>
-              </ElTableColumn>
-              <ElTableColumn
-                :label="$t('sync_settings.overview.status')"
-                width="120"
-                align="center"
-              >
-                <template #default="{ row }">
-                  <ElTag
-                    :type="statusType(row.status)"
-                    size="small"
-                    effect="light"
-                    round
-                    disable-transitions
-                  >
-                    {{ statusLabel(row.status) }}
-                  </ElTag>
-                </template>
-              </ElTableColumn>
-              <ElTableColumn
-                :label="$t('sync_settings.overview.last_sync')"
-                width="180"
-                align="center"
-              >
-                <template #default="{ row }">
-                  <span class="time-text">{{ formatTime(row.lastSyncAt) }}</span>
-                </template>
-              </ElTableColumn>
-              <ElTableColumn
-                :label="$t('sync_settings.overview.actions')"
-                width="150"
-                align="center"
-              >
-                <template #default="{ row }">
-                  <ElButton
-                    v-if="
-                      row.isConfig &&
-                      row.status === 'failed' &&
-                      savedBackendEnabled &&
-                      legacyCloudControlsEnabled
-                    "
-                    :icon="Refresh"
-                    size="small"
-                    text
-                    :loading="syncingConfig"
-                    @click="retryConfigSync"
-                  >
-                    {{ $t('sync_settings.config_retry') }}
-                  </ElButton>
-                  <ElButton
-                    v-else-if="
-                      legacyCloudControlsEnabled && !row.isConfig && row.status === 'conflict'
-                    "
-                    :icon="Warning"
-                    type="warning"
-                    size="small"
-                    text
-                    @click="openConflictDialog(tableRowToGameRow(row))"
-                  >
-                    {{ $t('sync_settings.conflict.resolve') }}
-                  </ElButton>
-                  <ElButton
-                    v-else-if="
-                      legacyCloudControlsEnabled &&
-                      !row.isConfig &&
-                      row.cloudSyncEnabled &&
-                      savedBackendEnabled
-                    "
-                    :icon="Refresh"
-                    size="small"
-                    text
-                    :loading="syncingGames.has(row.name)"
-                    @click="syncGame(row.name)"
-                  >
-                    {{ $t('sync_settings.console.sync_now') }}
-                  </ElButton>
-                </template>
-              </ElTableColumn>
-            </ElTable>
-          </CloudLibraryUpgradeGate>
-        </section>
-      </ElTabPane>
-
-      <ElTabPane :label="$t('sync_settings.console.connection_tab')" name="backend">
-        <CloudLibraryUpgradeCard
-          v-if="cutoverRequired && cloudLibraryStatus?.kind === 'cutover_required'"
-          :kicker="
-            cloudLibraryStatus.resumable
-              ? $t('sync_settings.library.cutover.card_resume')
-              : $t('sync_settings.library.cutover.card_kicker')
-          "
-          :title="
-            $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
-          "
-          :hint="$t('sync_settings.library.cutover.card_hint')"
-          :action="
-            cloudLibraryStatus.resumable
-              ? $t('sync_settings.library.cutover.resume_action')
-              : $t('sync_settings.library.cutover.action')
-          "
-          @action="cuttingOver = true"
-        />
-        <CloudLibraryUpgradeCard
-          v-else-if="joinRequired && cloudLibraryStatus?.kind === 'join_required'"
-          :kicker="$t('sync_settings.library.join.card_kicker')"
-          :title="$t('sync_settings.library.join.card', { count: cloudLibraryStatus.game_count })"
-          :hint="$t('sync_settings.library.join.card_hint')"
-          :action="$t('sync_settings.library.join.action')"
-          @action="joiningLibrary = true"
-        />
-        <ElAlert
-          type="warning"
-          :closable="false"
-          show-icon
-          class="connection-warning"
-          :title="$t('sync_settings.warning')"
-        />
-
-        <div class="backend-workspace">
-          <div class="backend-layout">
-            <ElForm label-position="left" :label-width="160" class="backend-form">
-              <ElFormItem :label="$t('sync_settings.backend')">
-                <ElSelect
-                  v-model="cloud_settings!.backend!.type"
-                  :placeholder="$t('sync_settings.backend')"
-                >
-                  <ElOption
-                    v-for="backend in backends"
-                    :key="backend.value"
-                    :label="$t(backend.label)"
-                    :value="backend.value"
-                  />
-                </ElSelect>
-              </ElFormItem>
-
-              <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
-                <ElFormItem :label="$t('sync_settings.webdav.endpoint')">
-                  <ElInput v-model="webdav_settings.endpoint" />
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.webdav.username')">
-                  <ElInput v-model="webdav_settings.username" />
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.webdav.password')">
-                  <ElInput v-model="webdav_settings.password" type="password" show-password />
-                </ElFormItem>
-              </template>
-
-              <template v-if="cloud_settings!.backend!.type === 'S3'">
-                <ElFormItem :label="$t('sync_settings.s3.endpoint')">
-                  <ElInput v-model="s3_settings.endpoint" />
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.s3.bucket')">
-                  <ElInput v-model="s3_settings.bucket" />
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.s3.region')">
-                  <ElInput v-model="s3_settings.region" />
-                  <span class="field-hint">{{ $t('sync_settings.s3.region_hint') }}</span>
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.s3.access_key_id')">
-                  <ElInput v-model="s3_settings.access_key_id" />
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.s3.secret_access_key')">
-                  <ElInput v-model="s3_settings.secret_access_key" type="password" show-password />
-                </ElFormItem>
-                <ElFormItem :label="$t('sync_settings.s3.addressing_style')">
-                  <ElSelect v-model="s3_settings.addressing_style">
-                    <ElOption
-                      value="PathStyle"
-                      :label="$t('sync_settings.s3.addressing_style_path')"
+                  <div class="flex justify-center">
+                    <KSwitch
+                      v-if="!row.isConfig"
+                      v-model="row.cloudSyncEnabled"
+                      :disabled="!legacyCloudControlsEnabled"
+                      :aria-label="$t('sync_settings.overview.cloud_sync')"
+                      @update:model-value="toggleGameSync(row)"
                     />
-                    <ElOption
-                      value="VirtualHostedStyle"
-                      :label="$t('sync_settings.s3.addressing_style_virtual')"
-                    />
-                    <ElOption value="Auto" :label="$t('sync_settings.s3.addressing_style_auto')" />
-                  </ElSelect>
-                </ElFormItem>
-              </template>
-
-              <ElFormItem
-                v-if="cloud_settings!.backend!.type === 'Fs'"
-                :label="$t('sync_settings.fs.root')"
-              >
-                <ElInput v-model="cloud_settings!.root_path">
-                  <template #append>
-                    <ElButton @click="chooseFsRoot">
-                      {{ $t('sync_settings.fs.choose') }}
-                    </ElButton>
-                  </template>
-                </ElInput>
-                <span class="field-hint">{{ $t('sync_settings.fs.root_hint') }}</span>
-              </ElFormItem>
-              <ElFormItem v-else :label="$t('sync_settings.cloud_root')">
-                <ElInput v-model="cloud_settings!.root_path" />
-                <span class="field-hint">{{ $t('sync_settings.cloud_root_hint') }}</span>
-              </ElFormItem>
-              <ElFormItem :label="$t('sync_settings.max_concurrency')">
-                <ElInputNumber
-                  v-model="cloud_settings!.max_concurrency"
-                  :value-on-clear="1"
-                  :step="1"
-                  :step-strictly="true"
-                  :min="1"
-                  :max="32"
-                />
-                <span class="field-hint">{{ $t('sync_settings.max_concurrency_hint') }}</span>
-              </ElFormItem>
-              <ElFormItem v-if="v2LibraryActive" :label="$t('sync_settings.auto_sync_interval')">
-                <ElInputNumber
-                  v-model="snapshotSyncInterval"
-                  :step="1"
-                  :step-strictly="true"
-                  :min="1"
-                  :max="1440"
-                />
-              </ElFormItem>
-
-              <ElFormItem>
-                <div class="button-group">
-                  <ElButton type="primary" :disabled="cloudSettingsActionBusy" @click="save">
-                    {{ $t('sync_settings.save_button') }}
-                  </ElButton>
-                  <ElButton :disabled="cloudSettingsActionBusy" @click="abort_change">
-                    {{ $t('sync_settings.abort_button') }}
-                  </ElButton>
+                    <Lock v-else :size="14" class="text-text-dim" aria-hidden="true" />
+                  </div>
+                  <div class="flex justify-center">
+                    <KTag :tone="statusTone(row.status)">{{ statusLabel(row.status) }}</KTag>
+                  </div>
+                  <div class="text-center font-mono text-xs text-text-dim">
+                    {{ formatTime(row.lastSyncAt) }}
+                  </div>
+                  <div class="flex justify-end">
+                    <KButton
+                      v-if="
+                        row.isConfig &&
+                        row.status === 'failed' &&
+                        savedBackendEnabled &&
+                        legacyCloudControlsEnabled
+                      "
+                      variant="ghost"
+                      size="sm"
+                      :loading="syncingConfig"
+                      @click="retryConfigSync"
+                    >
+                      <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
+                      {{ $t('sync_settings.config_retry') }}
+                    </KButton>
+                    <KButton
+                      v-else-if="
+                        legacyCloudControlsEnabled && !row.isConfig && row.status === 'conflict'
+                      "
+                      variant="ghost"
+                      size="sm"
+                      class="text-warning"
+                      @click="openConflictDialog(row)"
+                    >
+                      <template #icon><TriangleAlert :size="13" aria-hidden="true" /></template>
+                      {{ $t('sync_settings.conflict.resolve') }}
+                    </KButton>
+                    <KButton
+                      v-else-if="
+                        legacyCloudControlsEnabled &&
+                        !row.isConfig &&
+                        row.cloudSyncEnabled &&
+                        savedBackendEnabled
+                      "
+                      variant="ghost"
+                      size="sm"
+                      :loading="syncingGames.has(row.name)"
+                      @click="syncGame(row.name)"
+                    >
+                      <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
+                      {{ $t('sync_settings.console.sync_now') }}
+                    </KButton>
+                  </div>
                 </div>
-              </ElFormItem>
-            </ElForm>
-            <CloudLibrarySetup
-              ref="cloudLibrarySetup"
-              :enabled="savedBackendEnabled"
-              :dirty="hasUnsavedCloudSettings || updatingCloudSettings"
-              @status="updateCloudLibraryStatus"
-              @busy="cloudLibraryBusy = $event"
-            />
+              </div>
+            </CloudLibraryUpgradeGate>
+          </section>
+        </div>
+
+        <!-- 连接 -->
+        <div v-else-if="activeTab === 'backend'" class="flex flex-col gap-4">
+          <CloudLibraryUpgradeCard
+            v-if="cutoverRequired && cloudLibraryStatus?.kind === 'cutover_required'"
+            :kicker="
+              cloudLibraryStatus.resumable
+                ? $t('sync_settings.library.cutover.card_resume')
+                : $t('sync_settings.library.cutover.card_kicker')
+            "
+            :title="
+              $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
+            "
+            :hint="$t('sync_settings.library.cutover.card_hint')"
+            :action="
+              cloudLibraryStatus.resumable
+                ? $t('sync_settings.library.cutover.resume_action')
+                : $t('sync_settings.library.cutover.action')
+            "
+            @action="cuttingOver = true"
+          />
+          <CloudLibraryUpgradeCard
+            v-else-if="joinRequired && cloudLibraryStatus?.kind === 'join_required'"
+            :kicker="$t('sync_settings.library.join.card_kicker')"
+            :title="$t('sync_settings.library.join.card', { count: cloudLibraryStatus.game_count })"
+            :hint="$t('sync_settings.library.join.card_hint')"
+            :action="$t('sync_settings.library.join.action')"
+            @action="joiningLibrary = true"
+          />
+          <KAlert tone="warning">{{ $t('sync_settings.warning') }}</KAlert>
+
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="w-40 shrink-0 text-sm text-text">{{ $t('sync_settings.backend') }}</span>
+              <KSelect
+                v-model="cloud_settings!.backend!.type"
+                class="w-56"
+                :options="backendOptions"
+                :placeholder="$t('sync_settings.backend')"
+                :aria-label="$t('sync_settings.backend')"
+              />
+            </div>
+
+            <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.webdav.endpoint')
+                }}</span>
+                <KInput v-model="webdav_settings.endpoint" class="w-full" mono />
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.webdav.username')
+                }}</span>
+                <KInput v-model="webdav_settings.username" class="w-full" />
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.webdav.password')
+                }}</span>
+                <div class="flex min-w-0 flex-1 items-center gap-1">
+                  <KInput
+                    v-model="webdav_settings.password"
+                    class="w-full"
+                    :type="showWebdavPassword ? 'text' : 'password'"
+                    mono
+                  />
+                  <KButton
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="showWebdavPassword ? 'hide' : 'show'"
+                    @click="showWebdavPassword = !showWebdavPassword"
+                  >
+                    <template #icon>
+                      <EyeOff v-if="showWebdavPassword" :size="14" aria-hidden="true" />
+                      <Eye v-else :size="14" aria-hidden="true" />
+                    </template>
+                  </KButton>
+                </div>
+              </div>
+            </template>
+
+            <template v-if="cloud_settings!.backend!.type === 'S3'">
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.s3.endpoint')
+                }}</span>
+                <KInput v-model="s3_settings.endpoint" class="w-full" mono />
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.s3.bucket')
+                }}</span>
+                <KInput v-model="s3_settings.bucket" class="w-full" mono />
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.s3.region')
+                }}</span>
+                <div class="min-w-0 flex-1">
+                  <KInput v-model="s3_settings.region" class="w-full" mono />
+                  <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.s3.region_hint') }}</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.s3.access_key_id')
+                }}</span>
+                <KInput v-model="s3_settings.access_key_id" class="w-full" mono />
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.s3.secret_access_key')
+                }}</span>
+                <div class="flex min-w-0 flex-1 items-center gap-1">
+                  <KInput
+                    v-model="s3_settings.secret_access_key"
+                    class="w-full"
+                    :type="showS3Secret ? 'text' : 'password'"
+                    mono
+                  />
+                  <KButton
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="showS3Secret ? 'hide' : 'show'"
+                    @click="showS3Secret = !showS3Secret"
+                  >
+                    <template #icon>
+                      <EyeOff v-if="showS3Secret" :size="14" aria-hidden="true" />
+                      <Eye v-else :size="14" aria-hidden="true" />
+                    </template>
+                  </KButton>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.s3.addressing_style')
+                }}</span>
+                <KSelect
+                  v-model="s3_settings.addressing_style"
+                  class="w-56"
+                  :options="addressingOptions"
+                  :aria-label="$t('sync_settings.s3.addressing_style')"
+                />
+              </div>
+            </template>
+
+            <div
+              v-if="cloud_settings!.backend!.type === 'Fs'"
+              class="flex items-center justify-between gap-4 py-1.5"
+            >
+              <span class="w-40 shrink-0 text-sm text-text">{{ $t('sync_settings.fs.root') }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1">
+                  <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
+                  <KButton variant="ghost" size="sm" @click="chooseFsRoot">
+                    {{ $t('sync_settings.fs.choose') }}
+                  </KButton>
+                </div>
+                <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.fs.root_hint') }}</p>
+              </div>
+            </div>
+            <div v-else class="flex items-center justify-between gap-4 py-1.5">
+              <span class="w-40 shrink-0 text-sm text-text">{{
+                $t('sync_settings.cloud_root')
+              }}</span>
+              <div class="min-w-0 flex-1">
+                <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
+                <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.cloud_root_hint') }}</p>
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="w-40 shrink-0 text-sm text-text">{{
+                $t('sync_settings.max_concurrency')
+              }}</span>
+              <div class="min-w-0 flex-1">
+                <KNumberInput v-model="maxConcurrency" :min="1" :max="32" class="w-28" />
+                <p class="mt-1 text-xs text-text-dim">
+                  {{ $t('sync_settings.max_concurrency_hint') }}
+                </p>
+              </div>
+            </div>
+            <div v-if="v2LibraryActive" class="flex items-center justify-between gap-4 py-1.5">
+              <span class="w-40 shrink-0 text-sm text-text">{{
+                $t('sync_settings.auto_sync_interval')
+              }}</span>
+              <KNumberInput v-model="snapshotSyncInterval" :min="1" :max="1440" class="w-28" />
+            </div>
+
+            <div class="mt-3 flex gap-2 border-t border-border pt-4">
+              <KButton variant="primary" :disabled="cloudSettingsActionBusy" @click="save">
+                {{ $t('sync_settings.save_button') }}
+              </KButton>
+              <KButton :disabled="cloudSettingsActionBusy" @click="abort_change">
+                {{ $t('sync_settings.abort_button') }}
+              </KButton>
+            </div>
           </div>
+
+          <CloudLibrarySetup
+            ref="cloudLibrarySetup"
+            :enabled="savedBackendEnabled"
+            :dirty="hasUnsavedCloudSettings || updatingCloudSettings"
+            @status="updateCloudLibraryStatus"
+            @busy="cloudLibraryBusy = $event"
+          />
           <BackendCheckResult
             :report="backendCheckReport"
             :error="backendCheckError"
@@ -1129,56 +1233,53 @@ onMounted(async () => {
             @test="check"
           />
         </div>
-      </ElTabPane>
 
-      <ElTabPane
-        v-if="!v2LibraryActive"
-        :label="$t('sync_settings.console.danger_tab')"
-        name="operations"
-      >
-        <div class="operations-list">
-          <ElAlert
-            type="warning"
-            :closable="false"
-            show-icon
-            :title="$t('sync_settings.operations.warning')"
-          />
-          <div class="op-item">
-            <div class="op-info">
-              <h4>{{ $t('sync_settings.overwrite_upload') }}</h4>
-              <p class="op-desc">{{ $t('sync_settings.operations.upload_desc') }}</p>
+        <!-- 危险操作(v1) -->
+        <div v-else-if="activeTab === 'operations'" class="flex flex-col gap-4">
+          <KAlert tone="warning">{{ $t('sync_settings.operations.warning') }}</KAlert>
+          <div class="flex items-center justify-between gap-4 border-b border-border pb-4">
+            <div class="min-w-0">
+              <h4 class="text-sm font-medium text-text">
+                {{ $t('sync_settings.overwrite_upload') }}
+              </h4>
+              <p class="mt-0.5 text-xs leading-relaxed text-text-dim">
+                {{ $t('sync_settings.operations.upload_desc') }}
+              </p>
             </div>
-            <ElButton
-              type="danger"
-              :icon="Upload"
+            <KButton
+              variant="danger"
               :disabled="
                 !legacyCloudControlsEnabled || currentSessionConfig()?.backend.type === 'Disabled'
               "
               @click="upload_all"
             >
+              <template #icon><Upload :size="14" aria-hidden="true" /></template>
               {{ $t('sync_settings.overwrite_upload') }}
-            </ElButton>
+            </KButton>
           </div>
-          <ElDivider />
-          <div class="op-item">
-            <div class="op-info">
-              <h4>{{ $t('sync_settings.overwrite_download') }}</h4>
-              <p class="op-desc">{{ $t('sync_settings.operations.download_desc') }}</p>
+          <div class="flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <h4 class="text-sm font-medium text-text">
+                {{ $t('sync_settings.overwrite_download') }}
+              </h4>
+              <p class="mt-0.5 text-xs leading-relaxed text-text-dim">
+                {{ $t('sync_settings.operations.download_desc') }}
+              </p>
             </div>
-            <ElButton
-              type="danger"
-              :icon="Download"
+            <KButton
+              variant="danger"
               :disabled="
                 !legacyCloudControlsEnabled || currentSessionConfig()?.backend.type === 'Disabled'
               "
               @click="download_all"
             >
+              <template #icon><Download :size="14" aria-hidden="true" /></template>
               {{ $t('sync_settings.overwrite_download') }}
-            </ElButton>
+            </KButton>
           </div>
         </div>
-      </ElTabPane>
-    </ElTabs>
+      </div>
+    </div>
 
     <CloudLibraryCutoverDialog
       v-model="cuttingOver"
@@ -1196,204 +1297,3 @@ onMounted(async () => {
     />
   </div>
 </template>
-
-<style scoped>
-.sync-page {
-  padding: 0 8px 28px;
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.page-title {
-  margin: 0;
-  font-size: 1.4em;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.sync-tabs {
-  :deep(.el-tabs__header) {
-    margin-bottom: 16px;
-  }
-
-  :deep(.el-tabs__nav-wrap::after) {
-    height: 1px;
-  }
-}
-
-.section-alert {
-  margin-bottom: 20px;
-}
-
-.overview-toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.connection-warning {
-  margin-bottom: 20px;
-}
-
-.game-sync-panel {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.game-table {
-  :deep(.el-table__inner-wrapper::before) {
-    display: none;
-  }
-
-  :deep(.el-table__header th) {
-    background-color: var(--el-fill-color-light);
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-  }
-
-  :deep(.el-table__row) {
-    transition: background-color 0.2s ease;
-  }
-
-  :deep(.el-table__row:hover > td) {
-    background-color: var(--el-fill-color-light) !important;
-  }
-
-  :deep(.el-table__body tr:first-child td) {
-    background-color: var(--el-fill-color-lighter);
-  }
-
-  :deep(.el-table__body tr:first-child:hover td) {
-    background-color: var(--el-fill-color-light) !important;
-  }
-
-  :deep(.el-table__empty-block) {
-    min-height: 120px;
-  }
-
-  :deep(.el-tag) {
-    font-weight: 500;
-    letter-spacing: 0.02em;
-  }
-}
-
-.game-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.game-title-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.game-name {
-  font-weight: 500;
-}
-
-.tag-icon {
-  margin-right: 2px;
-}
-
-.row-detail {
-  color: var(--el-text-color-secondary);
-  font-size: 0.78em;
-  line-height: 1.35;
-  word-break: break-word;
-}
-
-.config-lock-icon {
-  color: var(--el-text-color-secondary);
-}
-
-.time-text {
-  color: var(--el-text-color-secondary);
-  font-size: 0.85em;
-  font-variant-numeric: tabular-nums;
-}
-
-.backend-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 28px;
-  align-items: start;
-}
-.backend-layout {
-  min-width: 0;
-}
-
-.backend-form .el-input,
-.backend-form .el-select {
-  width: 100%;
-}
-
-.field-hint {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
-  color: var(--el-text-color-placeholder);
-  font-size: 0.85em;
-  line-height: 1.4;
-}
-
-.button-group {
-  display: flex;
-  gap: 12px;
-  padding-top: 8px;
-}
-
-.operations-list {
-  max-width: 760px;
-}
-
-.operations-list :deep(.el-alert) {
-  margin-bottom: 18px;
-}
-
-.op-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.op-item :deep(.el-button) {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.op-info h4 {
-  margin: 0 0 4px;
-  font-size: 0.95em;
-}
-
-.op-desc {
-  margin: 0;
-  color: var(--el-text-color-secondary);
-  font-size: 0.85em;
-  line-height: 1.4;
-}
-
-@media (max-width: 960px) {
-  .backend-workspace {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .button-group {
-    flex-wrap: wrap;
-  }
-}
-</style>

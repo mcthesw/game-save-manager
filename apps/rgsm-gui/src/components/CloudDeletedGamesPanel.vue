@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Refresh } from '@element-plus/icons-vue';
+import { LoaderCircle, RefreshCw } from '@lucide/vue';
 
 import { commands, type DeletedCloudGameView } from '../api/commands';
 import { $t } from '../i18n';
+import { KButton, KTag } from '../ui/kit';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 
 const emit = defineEmits<{
@@ -51,78 +52,47 @@ onMounted(load);
 </script>
 
 <template>
-  <section v-if="loading || games.length > 0" v-loading="loading" class="deleted-games">
+  <section v-if="loading || games.length > 0" class="flex flex-col gap-2">
     <div>
-      <strong>{{ $t('sync_settings.archives.games.deleted_title') }}</strong>
-      <p>{{ $t('sync_settings.archives.games.deleted_description') }}</p>
+      <strong class="text-sm font-medium text-text">{{
+        $t('sync_settings.archives.games.deleted_title')
+      }}</strong>
+      <p class="mt-1 text-xs leading-relaxed text-text-dim">
+        {{ $t('sync_settings.archives.games.deleted_description') }}
+      </p>
     </div>
-    <div v-for="game in games" :key="game.game_id" class="deleted-row">
-      <span>
-        <strong>{{ game.name }}</strong>
-        <small>{{ game.game_id }}</small>
-      </span>
-      <div>
-        <ElTag :type="game.deletion_incomplete ? 'warning' : 'info'" effect="plain">
+    <div v-if="loading" class="flex justify-center py-2 text-text-dim">
+      <LoaderCircle :size="16" class="animate-spin" aria-hidden="true" />
+    </div>
+    <div
+      v-for="game in games"
+      :key="game.game_id"
+      class="flex items-center justify-between gap-3 border-t border-border pt-2"
+    >
+      <div class="flex min-w-0 flex-col">
+        <strong class="truncate text-sm text-text">{{ game.name }}</strong>
+        <small class="truncate font-mono text-[11px] text-text-dim">{{ game.game_id }}</small>
+      </div>
+      <div class="flex shrink-0 items-center gap-1.5">
+        <KTag :tone="game.deletion_incomplete ? 'warning' : 'neutral'">
           {{
             game.deletion_incomplete
               ? $t('sync_settings.archives.games.incomplete')
               : $t('sync_settings.archives.games.removed')
           }}
-        </ElTag>
-        <ElButton
+        </KTag>
+        <KButton
           v-if="game.deletion_incomplete"
-          :icon="Refresh"
-          text
-          type="warning"
+          variant="ghost"
+          size="sm"
+          class="text-warning"
           :loading="retrying === game.game_id"
           @click="retry(game)"
         >
+          <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
           {{ $t('sync_settings.archives.games.retry') }}
-        </ElButton>
+        </KButton>
       </div>
     </div>
   </section>
 </template>
-
-<style scoped>
-.deleted-games {
-  display: grid;
-  gap: 8px;
-}
-
-.deleted-games p {
-  margin: 4px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 0.82rem;
-}
-
-.deleted-row,
-.deleted-row > span,
-.deleted-row > div {
-  display: flex;
-}
-
-.deleted-row {
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.deleted-row > span {
-  min-width: 0;
-  flex-direction: column;
-}
-
-.deleted-row small {
-  overflow: hidden;
-  color: var(--el-text-color-secondary);
-  text-overflow: ellipsis;
-}
-
-.deleted-row > div {
-  align-items: center;
-  gap: 6px;
-}
-</style>
