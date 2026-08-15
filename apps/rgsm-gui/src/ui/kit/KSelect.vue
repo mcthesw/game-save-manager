@@ -42,6 +42,11 @@ const props = withDefaults(
 
 const model = defineModel<string | number>();
 
+// Reka SelectRoot is renderless: class/style fallthrough never reaches the
+// trigger unless we bind it explicitly. Width comes from consumers only —
+// no internal w-full, so consumer widths never fight it.
+defineOptions({ inheritAttrs: false });
+
 function clear(event: Event) {
   event.stopPropagation();
   model.value = undefined;
@@ -51,8 +56,9 @@ function clear(event: Event) {
 <template>
   <SelectRoot v-model="model" :disabled="disabled">
     <SelectTrigger
+      v-bind="$attrs"
       :aria-label="ariaLabel"
-      class="relative box-border inline-flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm border border-border bg-surface px-3 text-left text-sm text-text transition-colors duration-150 focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-text-dim"
+      class="relative box-border inline-flex cursor-pointer items-center justify-between gap-2 rounded-sm border border-border bg-surface px-3 text-left text-sm text-text transition-colors duration-150 focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-text-dim"
       :class="size === 'sm' ? 'h-7 text-xs' : 'h-9'"
     >
       <SelectValue :placeholder="placeholder" />

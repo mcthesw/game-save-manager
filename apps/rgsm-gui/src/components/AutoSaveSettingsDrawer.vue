@@ -237,6 +237,7 @@ watch(
             v-model="draft.timerPreset"
             :options="presetOptions"
             size="sm"
+            class="w-full"
             :aria-label="$t('manage.auto_backup_interval')"
             @update:model-value="onTimerPresetChange(String($event))"
           />

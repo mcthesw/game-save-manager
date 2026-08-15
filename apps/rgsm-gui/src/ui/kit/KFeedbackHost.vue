@@ -68,6 +68,7 @@ function asRenderable(message: string | VNode) {
       <div v-if="current.kind === 'prompt'" class="mt-3">
         <KInput
           v-model="inputText"
+          class="w-full"
           :placeholder="current.inputPlaceholder"
           :aria-label="current.title"
           @keyup.enter="onConfirm"

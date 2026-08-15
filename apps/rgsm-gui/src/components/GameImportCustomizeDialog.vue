@@ -11,7 +11,11 @@
       <!-- Game name input -->
       <div>
         <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
-        <KInput v-model="form.gameName" :placeholder="$t('addgame.input_game_name_prompt')" />
+        <KInput
+          v-model="form.gameName"
+          class="w-full"
+          :placeholder="$t('addgame.input_game_name_prompt')"
+        />
       </div>
 
       <!-- Steam User ID selector -->
@@ -23,6 +27,7 @@
           <div class="w-72">
             <KInput
               v-model="storeUserIdInput"
+              class="w-full"
               :placeholder="$t('game_batch_import.store_user_id_placeholder')"
               aria-label="Steam user ID"
               list="customize-user-id-candidates"

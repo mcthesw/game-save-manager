@@ -541,6 +541,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         <div class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</div>
         <KInput
           v-model="tempGame.name"
+          class="w-full"
           :placeholder="$t('addgame.game_name')"
           :aria-label="$t('addgame.game_name')"
           @update:model-value="hasUnsavedChanges = true"

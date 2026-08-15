@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { Delete, Refresh } from '@element-plus/icons-vue';
+import { RefreshCw, Trash2 } from '@lucide/vue';
 
 import { commands, type CloudDeviceProfileView } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
+import { KButton, KTag } from '../ui/kit';
 
 const feedback = useFeedback();
 const profiles = ref<CloudDeviceProfileView[]>([]);
@@ -63,116 +64,70 @@ onMounted(load);
 </script>
 
 <template>
-  <section v-loading="loading" class="profiles-panel">
-    <div class="profiles-heading">
-      <div>
-        <strong>{{ $t('sync_settings.archives.profiles.title') }}</strong>
-        <p>{{ $t('sync_settings.archives.profiles.description') }}</p>
+  <section>
+    <div class="flex items-start justify-between gap-4">
+      <div class="min-w-0">
+        <h3 class="text-sm font-medium text-text">
+          {{ $t('sync_settings.archives.profiles.title') }}
+        </h3>
+        <p class="mt-1 text-xs leading-relaxed text-text-dim">
+          {{ $t('sync_settings.archives.profiles.description') }}
+        </p>
       </div>
-      <ElButton :icon="Refresh" circle :aria-label="$t('common.refresh')" @click="load" />
+      <KButton
+        variant="ghost"
+        size="sm"
+        :aria-label="$t('common.refresh')"
+        :loading="loading"
+        @click="load"
+      >
+        <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
+      </KButton>
     </div>
-    <div class="profile-list">
-      <div v-for="profile in profiles" :key="profile.device_id" class="profile-row">
-        <div class="profile-name">
-          <strong>{{ profile.name }}</strong>
-          <small>{{ profile.device_id }}</small>
+    <div class="mt-3 flex flex-col">
+      <div
+        v-for="profile in profiles"
+        :key="profile.device_id"
+        class="flex items-center justify-between gap-3 border-t border-border py-2.5"
+      >
+        <div class="min-w-0">
+          <div class="truncate text-sm font-medium text-text">{{ profile.name }}</div>
+          <div class="truncate font-mono text-[11px] text-text-dim">{{ profile.device_id }}</div>
         </div>
-        <div class="profile-state">
-          <ElTag v-if="profile.current" type="primary" effect="plain">
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          <KTag v-if="profile.current" tone="accent">
             {{ $t('sync_settings.archives.profiles.current') }}
-          </ElTag>
-          <ElTag v-if="profile.deleted" type="info" effect="plain">
+          </KTag>
+          <KTag v-if="profile.deleted">
             {{
               profile.deletion_incomplete
                 ? $t('sync_settings.archives.profiles.incomplete')
                 : $t('sync_settings.archives.profiles.removed')
             }}
-          </ElTag>
-          <ElTag v-if="profile.head_count > 0" effect="plain">
+          </KTag>
+          <KTag v-if="profile.head_count > 0">
             {{ $t('sync_settings.archives.profiles.heads', { count: profile.head_count }) }}
-          </ElTag>
-          <ElButton
+          </KTag>
+          <KButton
             v-if="!profile.current && (!profile.deleted || profile.deletion_incomplete)"
-            :icon="profile.deleted ? Refresh : Delete"
-            text
-            type="danger"
+            variant="ghost"
+            size="sm"
+            class="text-danger"
             :loading="removing === profile.device_id"
             @click="remove(profile)"
           >
+            <template #icon>
+              <RefreshCw v-if="profile.deleted" :size="13" aria-hidden="true" />
+              <Trash2 v-else :size="13" aria-hidden="true" />
+            </template>
             {{
               profile.deleted
                 ? $t('sync_settings.archives.profiles.retry')
                 : $t('sync_settings.archives.profiles.remove_action')
             }}
-          </ElButton>
+          </KButton>
         </div>
       </div>
     </div>
   </section>
 </template>
-
-<style scoped>
-.profiles-panel {
-  padding: 8px 0 18px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.profiles-heading,
-.profile-row,
-.profile-state {
-  display: flex;
-  align-items: center;
-}
-
-.profiles-heading {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.profiles-heading p {
-  margin: 4px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 0.82rem;
-}
-
-.profile-list {
-  display: grid;
-  margin-top: 10px;
-}
-
-.profile-row {
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.profile-name {
-  display: grid;
-  min-width: 0;
-}
-
-.profile-name small {
-  overflow: hidden;
-  color: var(--el-text-color-secondary);
-  text-overflow: ellipsis;
-}
-
-.profile-state {
-  justify-content: flex-end;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 640px) {
-  .profile-row {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 8px 0;
-  }
-
-  .profile-state {
-    justify-content: flex-start;
-  }
-}
-</style>

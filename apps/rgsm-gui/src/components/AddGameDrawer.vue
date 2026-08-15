@@ -862,7 +862,11 @@ function deleteRow(index: number) {
         <div class="flex min-w-0 flex-1 flex-col gap-4">
           <div>
             <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
-            <KInput v-model="game_name" :placeholder="$t('addgame.input_game_name_prompt')" />
+            <KInput
+              v-model="game_name"
+              class="w-full"
+              :placeholder="$t('addgame.input_game_name_prompt')"
+            />
           </div>
           <div>
             <label class="mb-1 block text-xs text-text-dim">{{

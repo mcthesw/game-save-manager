@@ -1,18 +1,37 @@
 <script lang="ts" setup>
 // TODO:调整日志设置，比如删除日
 import { computed, nextTick, ref, watch, onMounted } from 'vue';
-import { $t, i18n } from '../i18n';
+import { $t, getSupportedLanguages, i18n } from '../i18n';
 import draggable from 'vuedraggable';
 import {
-  Setting,
-  Document,
-  Unlock,
-  Moon,
-  Tools,
-  Search,
-  FolderOpened,
-  Close,
-} from '@element-plus/icons-vue';
+  Archive,
+  BookText,
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  FolderSearch,
+  FolderOpen,
+  GripVertical,
+  Keyboard,
+  KeyRound,
+  ListOrdered,
+  LoaderCircle,
+  MonitorSmartphone,
+  Palette,
+  Package,
+  PanelsTopLeft,
+  Play,
+  Plus,
+  RefreshCw,
+  ScanSearch,
+  Settings,
+  Users,
+  X,
+  Zap,
+} from '@lucide/vue';
+import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '../ui/kit';
+import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -31,8 +50,6 @@ import { saveUnitPaths } from '../utils/saveUnit';
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
 const feedback = useFeedback();
-const locale_message = i18n.global.messages;
-const locale_names = i18n.global.availableLocales;
 const currentQuickActionGame = computed(() => {
   const identity = config.value.quick_action?.quick_action_game_id;
   if (!identity) return undefined;
@@ -90,7 +107,6 @@ async function regenerateHttpApiToken() {
   }
 }
 
-const activeTab = ref('general');
 const cloudNamespaceGeneration = ref<CloudNamespaceGeneration | null>(null);
 const v2LibraryActive = computed(() => cloudNamespaceGeneration.value === 'v2');
 const hotkeysChanged = ref(false);
@@ -255,6 +271,19 @@ async function load_config() {
   await fetchDeviceInfo();
 }
 
+async function confirmResetSettings() {
+  try {
+    await feedback.confirm($t('settings.confirm_reset'), $t('settings.reset_settings'), {
+      confirmButtonText: $t('settings.reset_settings'),
+      cancelButtonText: $t('settings.cancel'),
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  await reset_settings();
+}
+
 async function reset_settings() {
   try {
     await commands.resetSettings();
@@ -357,18 +386,6 @@ async function saveGameOrder() {
   } catch (e) {
     error(`save game order error: ${e}`);
     notifyError($t('error.set_config_failed'));
-  }
-}
-
-// 翻译网站
-async function translate_website() {
-  try {
-    await commands.openUrl(
-      'https://github.com/mcthesw/game-save-manager/blob/main/CONTRIBUTING.md'
-    );
-  } catch (e) {
-    error(`open translate website error: ${e}`);
-    notifyError($t('error.open_url_failed'));
   }
 }
 
@@ -962,161 +979,272 @@ const confirmBeforeApplySnapshot = computed({
   },
 });
 
+const localeOptions = getSupportedLanguages().map((lang) => ({
+  value: lang.code,
+  label: `${lang.name} - ${lang.code}`,
+}));
+const homePageOptions = computed(() =>
+  router_list.value.map((route) => ({ value: route.link, label: route.text }))
+);
+const compressionOptions = [
+  { label: 'Store', value: 'Store' },
+  { label: 'Fast (Deflate)', value: 'Fast' },
+  { label: 'Standard (Zstd)', value: 'Standard' },
+  { label: 'Best (Zstd L19)', value: 'Best' },
+];
+const expandBehaviorOptions = computed(() => [
+  { label: $t('settings.save_list_expand_behavior_default_open'), value: 'always_open' },
+  { label: $t('settings.save_list_expand_behavior_default_closed'), value: 'always_closed' },
+  { label: $t('settings.save_list_expand_behavior_remember_last'), value: 'remember_last' },
+]);
+const sortModeOptions = computed(() => [
+  { label: $t('settings.save_list_sort_saved_order'), value: 'saved_order' },
+  { label: $t('settings.save_list_sort_last_played'), value: 'last_played' },
+  { label: $t('settings.save_list_sort_name'), value: 'name' },
+]);
+const sortDirectionOptions = computed(() => [
+  { label: $t('settings.save_list_sort_ascending'), value: 'asc' },
+  { label: $t('settings.save_list_sort_descending'), value: 'desc' },
+]);
+const storeOptions = computed(() => [
+  { label: 'Steam', value: 'steam' },
+  { label: 'GOG', value: 'gog' },
+  { label: 'Microsoft', value: 'microsoft' },
+  { label: 'Ubisoft', value: 'uplay' },
+  { label: $t('settings.store_other'), value: 'other' },
+]);
+const soundModeOptions = computed(() => [
+  { label: $t('settings.quick_action_sound_mode_default'), value: 'default' },
+  { label: $t('settings.quick_action_sound_mode_custom'), value: 'file' },
+]);
+const rootResourceOptions = computed(() =>
+  gameRootResources.value.map((root) => ({
+    value: root.id,
+    label: root.kind.type === 'gameRoot' ? root.kind.path : String(root.id),
+  }))
+);
+
+/** Number settings: 0 is meaningful, empty field maps to 0 via bridge. */
+const maxAutoBackupCount = computed({
+  get: () => config.value.settings.max_auto_backup_count,
+  set: (value: number | undefined) => {
+    config.value.settings.max_auto_backup_count = value ?? 0;
+  },
+});
+const maxExtraBackupCount = computed({
+  get: () => config.value.settings.max_extra_backup_count,
+  set: (value: number | undefined) => {
+    config.value.settings.max_extra_backup_count = value ?? 0;
+  },
+});
+
+const showHttpToken = ref(false);
+const fontListId = `font-options-${Math.random().toString(36).slice(2, 8)}`;
+
+type SettingsSection = 'general' | 'scan' | 'backup' | 'ui' | 'device' | 'hotkeys' | 'order';
+const activeSection = ref<SettingsSection>('general');
+const sectionNav = computed(() => [
+  { key: 'general' as const, icon: Settings, label: $t('settings.general') },
+  { key: 'scan' as const, icon: ScanSearch, label: $t('settings.section_auto_scan') },
+  { key: 'backup' as const, icon: Archive, label: $t('settings.backup_settings') },
+  { key: 'ui' as const, icon: Palette, label: $t('settings.ui_appearance') },
+  { key: 'device' as const, icon: MonitorSmartphone, label: $t('settings.device_settings') },
+  { key: 'hotkeys' as const, icon: Zap, label: $t('settings.section_quick_action') },
+  { key: 'order' as const, icon: ListOrdered, label: $t('settings.game_order') },
+]);
+
 const { linksWithGames: router_list } = useNavigationLinks();
 </script>
 
 <template>
-  <el-container class="setting" direction="vertical">
-    <el-card>
-      <h1>{{ $t('settings.customizable_settings') }}</h1>
-      <div class="button-bar">
-        <el-button @click="open_log_folder()">{{ $t('settings.open_log_folder') }}</el-button>
-        <el-popconfirm :title="$t('settings.confirm_reset')" :on-confirm="reset_settings">
-          <template #reference>
-            <el-button type="danger">{{ $t('settings.reset_settings') }}</el-button>
-          </template>
-        </el-popconfirm>
-        <el-button type="danger" @click="backup_all">
-          {{ $t('settings.backup_all') }}
-        </el-button>
-        <el-button type="danger" @click="apply_all">
-          {{ $t('settings.apply_all') }}
-        </el-button>
-      </div>
-
-      <el-tabs v-model="activeTab" type="border-card" class="settings-tabs">
-        <!-- 通用设置 -->
-        <el-tab-pane :label="$t('settings.general')" name="general">
-          <el-divider content-position="left">
-            <el-icon>
-              <Setting />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.general') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <ElSelect v-model="config.settings.locale">
-              <ElOption
-                v-for="locale in locale_names"
-                :key="locale"
-                :label="
-                  ((locale_message as any)[locale]?.settings?.locale_name || locale) +
-                  ' - ' +
-                  locale
-                "
-                :value="locale"
+  <div class="h-full overflow-y-auto">
+    <div class="mx-auto flex max-w-[960px] gap-10 px-6 py-6">
+      <aside class="sticky top-6 w-44 shrink-0 self-start">
+        <h1 class="mb-4 px-2 text-lg font-semibold text-text">
+          {{ $t('settings.customizable_settings') }}
+        </h1>
+        <nav class="flex flex-col gap-0.5" :aria-label="$t('settings.customizable_settings')">
+          <button
+            v-for="item in sectionNav"
+            :key="item.key"
+            type="button"
+            class="flex cursor-pointer items-center gap-2 rounded-sm border-none bg-transparent px-2 py-1.5 text-left text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+            :class="
+              activeSection === item.key
+                ? 'bg-surface-2 font-semibold text-text'
+                : 'text-text-dim hover:bg-surface-2/60 hover:text-text'
+            "
+            @click="activeSection = item.key"
+          >
+            <component :is="item.icon" :size="14" aria-hidden="true" />
+            {{ item.label }}
+          </button>
+        </nav>
+      </aside>
+      <div class="min-w-0 max-w-[640px] flex-1 pb-16">
+        <div v-if="activeSection === 'general'" class="flex flex-col gap-8">
+          <!-- 通用 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <Settings :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.general') }}</h2>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('home.choose_language') }}</span>
+              <div class="flex items-center gap-2">
+                <KSelect
+                  v-model="config.settings.locale"
+                  class="w-56"
+                  :options="localeOptions"
+                  :aria-label="$t('home.choose_language')"
+                />
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.homepage') }}</span>
+              <KSelect
+                v-model="config.settings.home_page"
+                class="w-56"
+                :options="homePageOptions"
+                :aria-label="$t('settings.homepage')"
               />
-            </ElSelect>
-            <span class="setting-label translate-website" @click="translate_website"
-              >🌍 Languages - Click me to translate!</span
-            >
-          </div>
-          <div class="setting-box">
-            <ElSelect v-model="config.settings.home_page">
-              <ElOption
-                v-for="route_info in router_list"
-                :key="route_info.text"
-                :label="route_info.text"
-                :value="route_info.link"
-              >
-                <div class="home-option-box">
-                  <component :is="route_info.icon" class="home-box-icon" />
-                  {{ route_info.text }}
-                </div>
-              </ElOption>
-            </ElSelect>
-            <span class="setting-label">🏠 {{ $t('settings.homepage') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.exit_to_tray" />
-            <span class="setting-label">{{ $t('settings.exit_to_tray') }}*</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.log_to_file" />
-            <span class="setting-label">{{ $t('settings.log_to_file') }}*</span>
-          </div>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.exit_to_tray') }}</span>
+              <KSwitch v-model="config.settings.exit_to_tray" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.log_to_file') }}</span>
+              <KSwitch v-model="config.settings.log_to_file" />
+            </div>
+            <div class="mt-3 flex items-center gap-2 border-t border-border pt-4">
+              <KButton size="sm" @click="open_log_folder()">
+                <template #icon><FolderOpen :size="13" aria-hidden="true" /></template>
+                {{ $t('settings.open_log_folder') }}
+              </KButton>
+              <KButton size="sm" variant="danger" @click="confirmResetSettings">
+                {{ $t('settings.reset_settings') }}
+              </KButton>
+            </div>
+          </section>
 
-          <el-divider content-position="left">
-            <el-icon><Unlock /></el-icon>
-            <span class="tab-title">{{ $t('settings.local_api') }}</span>
-          </el-divider>
-          <div class="manifest-box">
-            <el-alert type="info" :closable="false" class="manifest-hint">
-              {{ $t('settings.local_api_hint') }}
-            </el-alert>
-            <el-descriptions :column="1" size="small" border>
-              <el-descriptions-item :label="$t('settings.local_api_endpoint')">
-                {{ httpHostBaseUrl }}
-              </el-descriptions-item>
-              <el-descriptions-item :label="$t('settings.local_api_token')">
-                <el-input :model-value="httpApiToken" type="password" readonly show-password>
-                  <template #append>
-                    <el-button @click="copyHttpApiToken">
-                      {{ $t('settings.local_api_copy_token') }}
-                    </el-button>
+          <!-- 本机 API -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <KeyRound :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.local_api') }}</h2>
+            </div>
+            <KAlert tone="info" class="mb-3">{{ $t('settings.local_api_hint') }}</KAlert>
+            <div class="flex items-start justify-between gap-4 py-1">
+              <span class="shrink-0 text-xs text-text-dim">{{
+                $t('settings.local_api_endpoint')
+              }}</span>
+              <span class="break-all text-right font-mono text-xs text-text">{{
+                httpHostBaseUrl
+              }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1">
+              <span class="shrink-0 text-xs text-text-dim">{{
+                $t('settings.local_api_token')
+              }}</span>
+              <div class="flex min-w-0 items-center gap-1">
+                <KInput
+                  :model-value="httpApiToken"
+                  class="w-64"
+                  :type="showHttpToken ? 'text' : 'password'"
+                  readonly
+                  mono
+                  :aria-label="$t('settings.local_api_token')"
+                />
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="showHttpToken ? 'hide' : 'show'"
+                  @click="showHttpToken = !showHttpToken"
+                >
+                  <template #icon>
+                    <EyeOff v-if="showHttpToken" :size="14" aria-hidden="true" />
+                    <Eye v-else :size="14" aria-hidden="true" />
                   </template>
-                </el-input>
-              </el-descriptions-item>
-            </el-descriptions>
-            <div class="manifest-actions">
-              <div />
-              <el-button
-                type="danger"
+                </KButton>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('settings.local_api_copy_token')"
+                  @click="copyHttpApiToken"
+                >
+                  <template #icon><Copy :size="14" aria-hidden="true" /></template>
+                </KButton>
+              </div>
+            </div>
+            <div class="mt-3 flex justify-end">
+              <KButton
+                size="sm"
+                variant="danger"
                 :loading="rotatingHttpApiToken"
                 @click="regenerateHttpApiToken"
               >
                 {{ $t('settings.local_api_regenerate') }}
-              </el-button>
+              </KButton>
             </div>
-          </div>
-
-          <el-divider content-position="left">
-            <el-icon>
-              <Document />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.ludusavi_manifest') }}</span>
-          </el-divider>
-
-          <div v-loading="ludusaviManifestLoading" class="manifest-box">
-            <el-alert type="info" :closable="false" class="manifest-hint">
-              {{ $t('settings.ludusavi_manifest_hint') }}
-            </el-alert>
-            <el-alert
-              v-if="!hasBundledManifest"
-              type="warning"
-              :closable="false"
-              class="manifest-hint"
-            >
+          </section>
+        </div>
+        <div v-else-if="activeSection === 'scan'" class="flex flex-col gap-8">
+          <!-- Ludusavi 清单 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <BookText :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">
+                {{ $t('settings.ludusavi_manifest') }}
+              </h2>
+            </div>
+            <KAlert tone="info" class="mb-2">{{ $t('settings.ludusavi_manifest_hint') }}</KAlert>
+            <KAlert v-if="!hasBundledManifest" tone="warning" class="mb-3">
               {{ $t('settings.ludusavi_manifest_slim_hint') }}
-            </el-alert>
-            <el-descriptions :column="1" size="small" border>
-              <el-descriptions-item :label="$t('settings.manifest_source')">
-                {{ formatManifestSource(ludusaviManifest?.source) }}
-              </el-descriptions-item>
-              <el-descriptions-item :label="$t('settings.manifest_updated_at')">
-                {{ ludusaviManifest?.updatedAt || '-' }}
-              </el-descriptions-item>
-              <el-descriptions-item :label="$t('settings.manifest_etag')">
-                {{ formatManifestEtag(ludusaviManifest?.etag) }}
-              </el-descriptions-item>
-            </el-descriptions>
-            <div class="manifest-actions">
-              <div class="manifest-actions-left">
-                <el-button @click="refreshLudusaviManifestStatus">
-                  {{ $t('settings.manifest_refresh') }}
-                </el-button>
+            </KAlert>
+            <div class="relative rounded-md bg-surface-2 p-3">
+              <div
+                v-if="ludusaviManifestLoading"
+                class="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-surface-2/70"
+              >
+                <LoaderCircle :size="20" class="animate-spin text-text-dim" aria-hidden="true" />
               </div>
-              <div class="manifest-actions-right">
-                <el-button
-                  type="primary"
+              <div class="flex items-start justify-between gap-4 py-1">
+                <span class="text-xs text-text-dim">{{ $t('settings.manifest_source') }}</span>
+                <span class="font-mono text-xs text-text">{{
+                  formatManifestSource(ludusaviManifest?.source)
+                }}</span>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-1">
+                <span class="text-xs text-text-dim">{{ $t('settings.manifest_updated_at') }}</span>
+                <span class="font-mono text-xs text-text">{{
+                  ludusaviManifest?.updatedAt || '-'
+                }}</span>
+              </div>
+              <div class="flex items-start justify-between gap-4 py-1">
+                <span class="text-xs text-text-dim">{{ $t('settings.manifest_etag') }}</span>
+                <span class="font-mono text-xs text-text">{{
+                  formatManifestEtag(ludusaviManifest?.etag)
+                }}</span>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+              <KButton size="sm" @click="refreshLudusaviManifestStatus">
+                <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
+                {{ $t('settings.manifest_refresh') }}
+              </KButton>
+              <div class="flex gap-2">
+                <KButton
+                  size="sm"
+                  variant="primary"
                   :loading="ludusaviManifestUpdating"
                   @click="updateLudusaviManifest"
                 >
                   {{ $t('settings.manifest_update') }}
-                </el-button>
-                <el-button
-                  type="danger"
-                  plain
+                </KButton>
+                <KButton
+                  size="sm"
+                  variant="danger"
                   :loading="ludusaviManifestResetting"
                   @click="resetLudusaviManifest"
                 >
@@ -1125,734 +1253,620 @@ const { linksWithGames: router_list } = useNavigationLinks();
                       ? $t('settings.manifest_reset')
                       : $t('settings.manifest_clear_local')
                   }}
-                </el-button>
+                </KButton>
               </div>
             </div>
-          </div>
-        </el-tab-pane>
-
-        <!-- 备份设置 -->
-        <el-tab-pane :label="$t('settings.backup_settings')" name="backup">
-          <el-divider content-position="left">
-            <el-icon>
-              <Document />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.backup_settings') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.prompt_when_auto_backup" />
-            <span class="setting-label">{{ $t('settings.prompt_when_auto_backup') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElInputNumber
-              v-model="config.settings.max_auto_backup_count"
-              :min="0"
-              :max="999"
-              :step="1"
-            />
-            <span class="setting-label">{{ $t('settings.max_auto_backup_count') }}</span>
-          </div>
-          <div class="setting-hint">
-            <span>{{ $t('settings.max_auto_backup_count_hint') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.extra_backup_when_apply" />
-            <span class="setting-label">{{ $t('settings.extra_backup_when_apply') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElInputNumber
-              v-model="config.settings.max_extra_backup_count"
-              :min="0"
-              :max="999"
-              :step="1"
-              :disabled="!config.settings.extra_backup_when_apply"
-            />
-            <span class="setting-label">{{ $t('settings.max_extra_backup_count') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.default_delete_before_apply" />
-            <span class="setting-label">{{ $t('settings.default_delete_before_apply') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="confirmBeforeApplyLatest" />
-            <span class="setting-label">{{ $t('settings.confirm_before_apply_latest') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="confirmBeforeApplySnapshot" />
-            <span class="setting-label">{{ $t('settings.confirm_before_apply_snapshot') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSelect v-model="config.settings.compression_preset" style="width: 160px">
-              <ElOption label="Store" value="Store" />
-              <ElOption label="Fast (Deflate)" value="Fast" />
-              <ElOption label="Standard (Zstd)" value="Standard" />
-              <ElOption label="Best (Zstd L19)" value="Best" />
-            </ElSelect>
-            <span class="setting-label">{{ $t('settings.compression_preset') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.add_new_to_favorites" />
-            <span class="setting-label">{{ $t('settings.add_new_to_favorites') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.compute_archive_hash" />
-            <span class="setting-label">{{ $t('settings.compute_archive_hash') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch
-              v-model="config.settings.verify_archive_before_apply"
-              :disabled="!config.settings.compute_archive_hash"
-            />
-            <span class="setting-label">{{ $t('settings.verify_archive_before_apply') }}</span>
-          </div>
-
-          <el-divider content-position="left">
-            <el-icon>
-              <Search />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.vn_scanner') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <span class="setting-label">{{ $t('settings.vn_scan_dirs') }}</span>
-            <el-button size="small" type="primary" @click="addVnScanDir">
-              {{ $t('settings.add_scan_dir') }}
-            </el-button>
-          </div>
-          <div class="setting-box">
-            <template v-if="(config.settings.vn_scan_dirs ?? []).length > 0">
-              <el-tag
-                v-for="dir in config.settings.vn_scan_dirs ?? []"
-                :key="dir"
-                closable
-                class="scan-dir-tag"
-                @close="removeVnScanDir(dir)"
-              >
-                {{ dir }}
-              </el-tag>
-            </template>
-            <span v-else class="setting-hint">{{ $t('settings.no_scan_dirs') }}</span>
-          </div>
-        </el-tab-pane>
-
-        <!-- 界面设置 -->
-        <el-tab-pane :label="$t('settings.ui_settings')" name="ui">
-          <el-divider content-position="left">
-            <el-icon>
-              <Moon />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.ui_settings') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <ElSelect v-model="config.settings.save_list_expand_behavior">
-              <ElOption
-                :label="$t('settings.save_list_expand_behavior_default_open')"
-                value="always_open"
-              />
-              <ElOption
-                :label="$t('settings.save_list_expand_behavior_default_closed')"
-                value="always_closed"
-              />
-              <ElOption
-                :label="$t('settings.save_list_expand_behavior_remember_last')"
-                value="remember_last"
-              />
-            </ElSelect>
-            <span class="setting-label">{{ $t('settings.save_list_expand_behavior') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.default_expend_favorites_tree" />
-            <span class="setting-label">{{ $t('settings.default_expend_favorites_tree') }}</span>
-          </div>
-        </el-tab-pane>
-
-        <!-- 外观设置 -->
-        <el-tab-pane :label="$t('settings.appearance_settings')" name="appearance">
-          <el-divider content-position="left">
-            <el-icon>
-              <Moon />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.appearance_settings') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <ElSwitch v-model="isDark" />
-            <span class="setting-label">{{ $t('settings.enable_dark_mode') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSwitch v-model="config.settings.appearance!.custom_font_enabled" />
-            <span class="setting-label">{{ $t('settings.custom_font_enabled') }}</span>
-          </div>
-          <div class="setting-box">
-            <ElSelect
-              v-model="config.settings.appearance!.ui_font_family"
-              class="font-select"
-              filterable
-              allow-create
-              default-first-option
-              clearable
-              :loading="systemFontsLoading"
-              :disabled="!config.settings.appearance?.custom_font_enabled"
-              :placeholder="$t('settings.ui_font_family_placeholder')"
-            >
-              <ElOption v-for="font in fontOptions" :key="font" :label="font" :value="font" />
-            </ElSelect>
-            <span class="setting-label">{{ $t('settings.ui_font_family') }}</span>
-          </div>
-          <el-alert type="info" :closable="false" class="manifest-hint">
-            {{ $t('settings.custom_font_hint') }}
-          </el-alert>
-        </el-tab-pane>
-
-        <!-- 设备管理 -->
-        <el-tab-pane :label="$t('settings.device_settings')" name="device">
-          <el-divider content-position="left">
-            <el-icon>
-              <Tools />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.device_settings') }}</span>
-          </el-divider>
-
-          <!-- 当前设备信息 -->
-          <div class="setting-box">
-            <h3>{{ $t('settings.current_device') }}</h3>
-            <div class="device-info">
-              <el-form :model="currentDevice" label-position="top">
-                <el-form-item :label="$t('settings.device_name')">
-                  <el-input v-model="currentDevice.name" @change="updateDeviceInfo" />
-                </el-form-item>
-                <el-form-item :label="$t('settings.device_id')">
-                  <el-input v-model="currentDevice.id" disabled />
-                </el-form-item>
-              </el-form>
-            </div>
-          </div>
+          </section>
 
           <!-- 游戏根目录 -->
-          <div class="setting-box">
-            <h3>{{ $t('settings.game_roots_title') }}</h3>
-            <p class="setting-hint">{{ $t('settings.game_roots_hint') }}</p>
-            <div class="game-roots-list">
-              <div v-for="(root, index) in gameRootResources" :key="root.id" class="game-root-item">
-                <el-select
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <FolderSearch :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.game_roots_title') }}</h2>
+            </div>
+            <p class="mb-2 text-xs leading-relaxed text-text-dim">
+              {{ $t('settings.game_roots_hint') }}
+            </p>
+            <div class="flex flex-col gap-2">
+              <div
+                v-for="(root, index) in gameRootResources"
+                :key="root.id"
+                class="flex items-center gap-2"
+              >
+                <KSelect
                   v-if="root.kind.type === 'gameRoot'"
                   v-model="root.kind.store"
-                  style="width: 140px"
-                  @change="saveGameRoots"
-                >
-                  <el-option label="Steam" value="steam" />
-                  <el-option label="GOG" value="gog" />
-                  <el-option label="Microsoft" value="microsoft" />
-                  <el-option label="Ubisoft" value="uplay" />
-                  <el-option :label="$t('settings.store_other')" value="other" />
-                </el-select>
-                <el-input
+                  class="w-32 shrink-0"
+                  :options="storeOptions"
+                  aria-label="store"
+                  @update:model-value="saveGameRoots"
+                />
+                <KInput
+                  class="w-full"
                   :model-value="root.kind.type === 'gameRoot' ? root.kind.path : ''"
+                  mono
                   :placeholder="$t('settings.game_roots_path_placeholder')"
-                  @update:model-value="(val: string) => updateGameRoot(index, val)"
+                  :aria-label="$t('settings.game_roots_path_placeholder')"
+                  @update:model-value="updateGameRoot(index, String($event ?? ''))"
                   @change="saveGameRoots"
                 />
-                <el-button text @click="pickGameRoot(index)">
-                  <el-icon><FolderOpened /></el-icon>
-                </el-button>
-                <el-button text type="danger" @click="removeGameRoot(index)">
-                  <el-icon><Close /></el-icon>
-                </el-button>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('save_location_drawer.pick_path')"
+                  @click="pickGameRoot(index)"
+                >
+                  <template #icon><FolderOpen :size="14" aria-hidden="true" /></template>
+                </KButton>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  class="text-danger"
+                  :aria-label="$t('addgame.remove')"
+                  @click="removeGameRoot(index)"
+                >
+                  <template #icon><X :size="14" aria-hidden="true" /></template>
+                </KButton>
               </div>
             </div>
-            <div class="game-roots-actions">
-              <el-button size="small" @click="addGameRoot">
+            <div class="mt-2 flex gap-2">
+              <KButton size="sm" @click="addGameRoot">
+                <template #icon><Plus :size="13" aria-hidden="true" /></template>
                 {{ $t('settings.game_roots_add') }}
-              </el-button>
-              <el-button
-                size="small"
-                type="primary"
+              </KButton>
+              <KButton
+                size="sm"
+                variant="primary"
                 :loading="detectingGameRoots"
                 @click="autoDetectGameRoots"
               >
-                <el-icon><Search /></el-icon>
+                <template #icon><ScanSearch :size="13" aria-hidden="true" /></template>
                 {{ $t('settings.game_roots_auto_detect') }}
-              </el-button>
+              </KButton>
             </div>
-          </div>
+          </section>
 
-          <div class="setting-box">
-            <h3>{{ $t('settings.store_accounts_title') }}</h3>
-            <p class="setting-hint">{{ $t('settings.store_accounts_hint') }}</p>
-            <div class="game-roots-list">
+          <!-- 商店账号 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <Users :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">
+                {{ $t('settings.store_accounts_title') }}
+              </h2>
+            </div>
+            <p class="mb-2 text-xs leading-relaxed text-text-dim">
+              {{ $t('settings.store_accounts_hint') }}
+            </p>
+            <div class="flex flex-col gap-2">
               <div
                 v-for="account in storeAccountResources"
                 :key="account.id"
-                class="game-root-item"
+                class="flex items-center gap-2"
               >
                 <template v-if="account.kind.type === 'storeAccount'">
-                  <el-select
+                  <KSelect
                     v-model="account.kind.store"
-                    style="width: 140px"
-                    @change="persistDeviceInfo(false)"
-                  >
-                    <el-option label="Steam" value="steam" />
-                    <el-option label="GOG" value="gog" />
-                    <el-option label="Microsoft" value="microsoft" />
-                    <el-option label="Ubisoft" value="uplay" />
-                    <el-option :label="$t('settings.store_other')" value="other" />
-                  </el-select>
-                  <el-input
+                    class="w-32 shrink-0"
+                    :options="storeOptions"
+                    aria-label="store"
+                    @update:model-value="persistDeviceInfo(false)"
+                  />
+                  <KInput
                     v-model="account.kind.user_id"
+                    class="w-full"
+                    mono
                     :placeholder="$t('settings.store_account_id_placeholder')"
+                    :aria-label="$t('settings.store_account_id_placeholder')"
                     @change="persistDeviceInfo(false)"
                   />
-                  <el-button text type="danger" @click="removeStoreAccount(account.id)">
-                    <el-icon><Close /></el-icon>
-                  </el-button>
+                  <KButton
+                    variant="ghost"
+                    size="sm"
+                    class="text-danger"
+                    :aria-label="$t('addgame.remove')"
+                    @click="removeStoreAccount(account.id)"
+                  >
+                    <template #icon><X :size="14" aria-hidden="true" /></template>
+                  </KButton>
                 </template>
               </div>
             </div>
-            <el-button size="small" @click="addStoreAccount">
-              {{ $t('settings.store_account_add') }}
-            </el-button>
-          </div>
+            <div class="mt-2">
+              <KButton size="sm" @click="addStoreAccount">
+                <template #icon><Plus :size="13" aria-hidden="true" /></template>
+                {{ $t('settings.store_account_add') }}
+              </KButton>
+            </div>
+          </section>
 
-          <div class="setting-box">
-            <h3>{{ $t('settings.game_installations_title') }}</h3>
-            <p class="setting-hint">{{ $t('settings.game_installations_hint') }}</p>
-            <div class="game-roots-list">
+          <!-- 游戏安装位置 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <Package :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">
+                {{ $t('settings.game_installations_title') }}
+              </h2>
+            </div>
+            <p class="mb-2 text-xs leading-relaxed text-text-dim">
+              {{ $t('settings.game_installations_hint') }}
+            </p>
+            <div class="flex flex-col gap-2">
               <div
                 v-for="installation in installationResources"
                 :key="installation.id"
-                class="game-root-item installation-item"
+                class="flex flex-wrap items-center gap-2"
               >
                 <template v-if="installation.kind.type === 'gameInstallation'">
-                  <el-select
+                  <KSelect
                     v-model="installation.kind.root_id"
+                    class="w-44 shrink-0"
+                    :options="rootResourceOptions"
                     :placeholder="$t('settings.game_installation_root')"
-                    style="width: 180px"
-                    @change="persistDeviceInfo(false)"
-                  >
-                    <el-option
-                      v-for="root in gameRootResources"
-                      :key="root.id"
-                      :label="root.kind.type === 'gameRoot' ? root.kind.path : String(root.id)"
-                      :value="root.id"
-                    />
-                  </el-select>
-                  <el-input
+                    :aria-label="$t('settings.game_installation_root')"
+                    @update:model-value="persistDeviceInfo(false)"
+                  />
+                  <KInput
                     v-model="installation.kind.install_dir"
+                    class="min-w-32 flex-1"
                     :placeholder="$t('settings.game_installation_name')"
+                    :aria-label="$t('settings.game_installation_name')"
                     @change="persistDeviceInfo(false)"
                   />
-                  <el-input
+                  <KInput
                     v-model="installation.kind.path"
+                    mono
+                    class="min-w-40 flex-1"
                     :placeholder="$t('settings.game_installation_path')"
+                    :aria-label="$t('settings.game_installation_path')"
                     @change="persistDeviceInfo(false)"
                   />
-                  <el-button text type="danger" @click="removeGameInstallation(installation.id)">
-                    <el-icon><Close /></el-icon>
-                  </el-button>
+                  <KButton
+                    variant="ghost"
+                    size="sm"
+                    class="text-danger"
+                    :aria-label="$t('addgame.remove')"
+                    @click="removeGameInstallation(installation.id)"
+                  >
+                    <template #icon><X :size="14" aria-hidden="true" /></template>
+                  </KButton>
                 </template>
               </div>
             </div>
-            <el-button size="small" @click="addGameInstallation">
-              {{ $t('settings.game_installation_add') }}
-            </el-button>
-          </div>
-
-          <CloudDeviceProfilesPanel v-if="v2LibraryActive" class="setting-box" />
-
-          <!-- 其他设备列表 -->
-          <div class="setting-box">
-            <h3>{{ $t('settings.other_devices') }}</h3>
-            <el-table :data="otherDevices" style="width: 100%">
-              <el-table-column prop="name" :label="$t('settings.device_name')" />
-              <el-table-column prop="id" :label="$t('settings.device_id')" width="220" />
-              <el-table-column :label="$t('settings.actions')" width="220">
-                <template #default="scope">
-                  <el-button type="primary" size="small" @click="importFromDevice(scope.row.id)">
-                    {{ $t('settings.import_paths') }}
-                  </el-button>
-                  <el-button type="danger" size="small" plain @click="deleteDevice(scope.row.id)">
-                    {{ $t('settings.delete_device') }}
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </el-tab-pane>
-
-        <!-- 快捷键设置 -->
-        <el-tab-pane :label="$t('settings.hotkey_settings')" name="hotkeys">
-          <el-divider content-position="left">
-            <el-icon>
-              <Unlock />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.hotkey_settings') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <div>
-              <strong v-if="currentQuickActionGame">
-                {{ $t('setting.current_quick_action_game') }} :
-                {{ currentQuickActionGame.name }}
-              </strong>
+            <div class="mt-2">
+              <KButton size="sm" @click="addGameInstallation">
+                <template #icon><Plus :size="13" aria-hidden="true" /></template>
+                {{ $t('settings.game_installation_add') }}
+              </KButton>
             </div>
-            <div class="quick-action-row">
-              <ElSwitch v-model="config.quick_action!.enable_sound" />
-              <span class="setting-label">{{ $t('settings.quick_action_enable_sound') }}</span>
-            </div>
-            <div class="quick-action-row">
-              <ElSwitch v-model="config.quick_action!.enable_notification" />
-              <span class="setting-label">{{
-                $t('settings.quick_action_enable_notification')
-              }}</span>
-            </div>
-            <div class="quick-action-row">
-              <ElSwitch v-model="config.quick_action!.notify_when_unchanged" />
-              <span class="setting-label">{{
-                $t('settings.quick_action_notify_when_unchanged')
-              }}</span>
-            </div>
-            <div class="sound-setting">
-              <h3>{{ $t('settings.quick_action_sound_title') }}</h3>
-              <div class="sound-row">
-                <span class="sound-label">{{ $t('settings.quick_action_sound_success') }}</span>
-                <ElSelect v-model="successSoundMode" class="sound-mode-select">
-                  <ElOption
-                    :label="$t('settings.quick_action_sound_mode_default')"
-                    value="default"
-                  />
-                  <ElOption :label="$t('settings.quick_action_sound_mode_custom')" value="file" />
-                </ElSelect>
-                <template v-if="successSoundMode === 'file'">
-                  <ElInput
-                    v-model="successSoundPath"
-                    class="sound-path-input"
-                    :placeholder="$t('settings.quick_action_sound_file_placeholder')"
-                  />
-                  <ElButton @click="chooseSoundFile('success')">
-                    {{ $t('settings.quick_action_sound_choose') }}
-                  </ElButton>
-                </template>
-                <ElButton class="sound-preview-button" @click="togglePreview('success')">
-                  {{ $t('settings.quick_action_sound_preview_button') }}
-                </ElButton>
-              </div>
-              <div class="sound-row">
-                <span class="sound-label">{{ $t('settings.quick_action_sound_failure') }}</span>
-                <ElSelect v-model="failureSoundMode" class="sound-mode-select">
-                  <ElOption
-                    :label="$t('settings.quick_action_sound_mode_default')"
-                    value="default"
-                  />
-                  <ElOption :label="$t('settings.quick_action_sound_mode_custom')" value="file" />
-                </ElSelect>
-                <template v-if="failureSoundMode === 'file'">
-                  <ElInput
-                    v-model="failureSoundPath"
-                    class="sound-path-input"
-                    :placeholder="$t('settings.quick_action_sound_file_placeholder')"
-                  />
-                  <ElButton @click="chooseSoundFile('failure')">
-                    {{ $t('settings.quick_action_sound_choose') }}
-                  </ElButton>
-                </template>
-                <ElButton class="sound-preview-button" @click="togglePreview('failure')">
-                  {{ $t('settings.quick_action_sound_preview_button') }}
-                </ElButton>
-              </div>
-            </div>
-            <HotkeySelector v-model="config.quick_action!.hotkeys" />
-            <div class="setting-action">
-              <el-button type="primary" :disabled="!hotkeysChanged" @click="saveHotkeys">
-                {{ $t('settings.save_hotkeys') }}
-              </el-button>
-              <el-tag v-if="hotkeysChanged" type="warning">{{
-                $t('settings.unsaved_changes')
-              }}</el-tag>
-            </div>
-          </div>
-        </el-tab-pane>
+          </section>
 
-        <!-- 游戏排序 -->
-        <el-tab-pane :label="$t('settings.game_order')" name="gameOrder">
-          <el-divider content-position="left">
-            <el-icon>
-              <Tools />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.save_list_sort_settings') }}</span>
-          </el-divider>
-
-          <div class="setting-box">
-            <div class="sort-settings-row">
-              <ElSelect
-                v-model="config.settings.save_list_sort_mode"
-                style="width: 180px"
-                @change="onSaveListSortModeChange"
+          <!-- VN 扫描 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <ScanSearch :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.vn_scanner') }}</h2>
+            </div>
+            <p class="mb-3 text-xs leading-relaxed text-text-dim">
+              {{ $t('settings.vn_scanner_hint') }}
+            </p>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.vn_scan_dirs') }}</span>
+              <KButton size="sm" variant="primary" @click="addVnScanDir">
+                <template #icon><Plus :size="13" aria-hidden="true" /></template>
+                {{ $t('settings.add_scan_dir') }}
+              </KButton>
+            </div>
+            <div
+              v-if="(config.settings.vn_scan_dirs ?? []).length > 0"
+              class="flex flex-col gap-1.5"
+            >
+              <div
+                v-for="dir in config.settings.vn_scan_dirs ?? []"
+                :key="dir"
+                class="flex items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5"
               >
-                <ElOption :label="$t('settings.save_list_sort_saved_order')" value="saved_order" />
-                <ElOption :label="$t('settings.save_list_sort_last_played')" value="last_played" />
-                <ElOption :label="$t('settings.save_list_sort_name')" value="name" />
-              </ElSelect>
-              <span class="setting-label">{{ $t('settings.save_list_sort_mode') }}</span>
+                <span class="truncate font-mono text-xs text-text">{{ dir }}</span>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('addgame.remove')"
+                  @click="removeVnScanDir(dir)"
+                >
+                  <template #icon><X :size="13" aria-hidden="true" /></template>
+                </KButton>
+              </div>
             </div>
-            <div class="sort-settings-row">
-              <ElSelect v-model="config.settings.save_list_sort_direction" style="width: 180px">
-                <ElOption :label="$t('settings.save_list_sort_ascending')" value="asc" />
-                <ElOption :label="$t('settings.save_list_sort_descending')" value="desc" />
-              </ElSelect>
-              <span class="setting-label">{{ $t('settings.save_list_sort_direction') }}</span>
+            <p v-else class="py-1 text-xs text-text-dim">{{ $t('settings.no_scan_dirs') }}</p>
+          </section>
+        </div>
+        <div v-else-if="activeSection === 'backup'" class="flex flex-col gap-8">
+          <!-- 备份设置 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <Archive :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.backup_settings') }}</h2>
             </div>
-          </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.prompt_when_auto_backup')
+              }}</span>
+              <KSwitch v-model="config.settings.prompt_when_auto_backup" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <div class="min-w-0 shrink-0">
+                <span class="text-sm text-text">{{ $t('settings.max_auto_backup_count') }}</span>
+                <p class="mt-0.5 text-xs leading-relaxed text-text-dim">
+                  {{ $t('settings.max_auto_backup_count_hint') }}
+                </p>
+              </div>
+              <KNumberInput v-model="maxAutoBackupCount" :min="0" :max="999" class="w-28" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.extra_backup_when_apply')
+              }}</span>
+              <KSwitch v-model="config.settings.extra_backup_when_apply" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.max_extra_backup_count')
+              }}</span>
+              <KNumberInput
+                v-model="maxExtraBackupCount"
+                :min="0"
+                :max="999"
+                class="w-28"
+                :disabled="!config.settings.extra_backup_when_apply"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.default_delete_before_apply')
+              }}</span>
+              <KSwitch v-model="config.settings.default_delete_before_apply" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.confirm_before_apply_latest')
+              }}</span>
+              <KSwitch v-model="confirmBeforeApplyLatest" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.confirm_before_apply_snapshot')
+              }}</span>
+              <KSwitch v-model="confirmBeforeApplySnapshot" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.compression_preset')
+              }}</span>
+              <KSelect
+                v-model="config.settings.compression_preset"
+                class="w-44"
+                :options="compressionOptions"
+                :aria-label="$t('settings.compression_preset')"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.add_new_to_favorites')
+              }}</span>
+              <KSwitch v-model="config.settings.add_new_to_favorites" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.compute_archive_hash')
+              }}</span>
+              <KSwitch v-model="config.settings.compute_archive_hash" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.verify_archive_before_apply')
+              }}</span>
+              <KSwitch
+                v-model="config.settings.verify_archive_before_apply"
+                :disabled="!config.settings.compute_archive_hash"
+              />
+            </div>
+            <div class="mt-3 flex items-center gap-2 border-t border-border pt-4">
+              <KButton size="sm" @click="backup_all">
+                {{ $t('settings.backup_all') }}
+              </KButton>
+              <KButton size="sm" variant="danger" @click="apply_all">
+                {{ $t('settings.apply_all') }}
+              </KButton>
+            </div>
+          </section>
+        </div>
+        <div v-else-if="activeSection === 'ui'" class="flex flex-col gap-8">
+          <!-- 界面 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <PanelsTopLeft :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.ui_settings') }}</h2>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.save_list_expand_behavior')
+              }}</span>
+              <KSelect
+                v-model="config.settings.save_list_expand_behavior"
+                class="w-56"
+                :options="expandBehaviorOptions"
+                :aria-label="$t('settings.save_list_expand_behavior')"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.default_expend_favorites_tree')
+              }}</span>
+              <KSwitch v-model="config.settings.default_expend_favorites_tree" />
+            </div>
+          </section>
 
-          <el-divider content-position="left">
-            <el-icon>
-              <Tools />
-            </el-icon>
-            <span class="tab-title">{{ $t('settings.edit_default_game_order') }}</span>
-          </el-divider>
+          <!-- 外观 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <Palette :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">
+                {{ $t('settings.appearance_settings') }}
+              </h2>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.enable_dark_mode') }}</span>
+              <KSwitch v-model="isDark" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.custom_font_enabled')
+              }}</span>
+              <KSwitch v-model="config.settings.appearance!.custom_font_enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.ui_font_family') }}</span>
+              <KInput
+                v-model="config.settings.appearance!.ui_font_family"
+                class="w-72"
+                :list="fontListId"
+                :disabled="!config.settings.appearance?.custom_font_enabled"
+                :placeholder="$t('settings.ui_font_family_placeholder')"
+                :aria-label="$t('settings.ui_font_family')"
+              />
+              <datalist :id="fontListId">
+                <option v-for="font in fontOptions" :key="font" :value="font" />
+              </datalist>
+            </div>
+            <KAlert tone="info" class="mt-2">{{ $t('settings.custom_font_hint') }}</KAlert>
+          </section>
+        </div>
 
-          <div class="setting-box drag-game-box">
-            <!-- 移除handle属性，恢复原有的拖拽功能 -->
-            <draggable v-model="config.games" item-key="name" :force-fallback="true">
+        <div v-else-if="activeSection === 'order'" class="flex flex-col gap-8">
+          <!-- 游戏排序 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <ListOrdered :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">
+                {{ $t('settings.save_list_sort_settings') }}
+              </h2>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.save_list_sort_mode')
+              }}</span>
+              <KSelect
+                v-model="config.settings.save_list_sort_mode"
+                class="w-44"
+                :options="sortModeOptions"
+                :aria-label="$t('settings.save_list_sort_mode')"
+                @update:model-value="onSaveListSortModeChange(String($event))"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.save_list_sort_direction')
+              }}</span>
+              <KSelect
+                v-model="config.settings.save_list_sort_direction"
+                class="w-44"
+                :options="sortDirectionOptions"
+                :aria-label="$t('settings.save_list_sort_direction')"
+              />
+            </div>
+
+            <h3 class="mb-2 mt-4 text-xs font-medium text-text">
+              {{ $t('settings.edit_default_game_order') }}
+            </h3>
+            <draggable
+              v-model="config.games"
+              item-key="name"
+              class="max-w-md"
+              :force-fallback="true"
+            >
               <template #item="{ element }">
-                <div class="game-order-box">
-                  {{ element.name }}
+                <div
+                  class="mb-1.5 flex cursor-move select-none items-center gap-2 rounded-sm border border-border bg-surface px-3 py-2 text-sm text-text transition-colors hover:bg-surface-2"
+                >
+                  <GripVertical :size="14" class="shrink-0 text-text-dim" aria-hidden="true" />
+                  <span class="truncate">{{ element.name }}</span>
                 </div>
               </template>
             </draggable>
-            <div class="setting-action">
-              <el-button type="primary" :disabled="!gameOrderChanged" @click="saveGameOrder">
+            <div class="mt-3 flex items-center gap-2">
+              <KButton
+                variant="primary"
+                size="sm"
+                :disabled="!gameOrderChanged"
+                @click="saveGameOrder"
+              >
                 {{ $t('settings.save_game_order') }}
-              </el-button>
-              <el-tag v-if="gameOrderChanged" type="warning">{{
+              </KButton>
+              <KTag v-if="gameOrderChanged" tone="warning">{{
                 $t('settings.unsaved_changes')
-              }}</el-tag>
+              }}</KTag>
             </div>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
-  </el-container>
+          </section>
+        </div>
+        <div v-else-if="activeSection === 'device'" class="flex flex-col gap-8">
+          <!-- 设备 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <MonitorSmartphone :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.device_settings') }}</h2>
+            </div>
+
+            <h3 class="mb-2 text-xs font-medium text-text">{{ $t('settings.current_device') }}</h3>
+            <div class="mb-1">
+              <div class="mb-1 block text-xs text-text-dim">{{ $t('settings.device_name') }}</div>
+              <KInput
+                v-model="currentDevice.name"
+                class="w-full"
+                :aria-label="$t('settings.device_name')"
+                @change="updateDeviceInfo"
+              />
+            </div>
+            <div class="mb-4">
+              <div class="mb-1 block text-xs text-text-dim">{{ $t('settings.device_id') }}</div>
+              <KInput
+                v-model="currentDevice.id"
+                class="w-full"
+                mono
+                disabled
+                :aria-label="$t('settings.device_id')"
+              />
+            </div>
+
+            <CloudDeviceProfilesPanel v-if="v2LibraryActive" class="mt-5" />
+
+            <h3 class="mb-2 mt-5 text-xs font-medium text-text">
+              {{ $t('settings.other_devices') }}
+            </h3>
+            <div class="flex flex-col">
+              <div
+                v-for="device in otherDevices"
+                :key="device.id"
+                class="flex items-center justify-between gap-3 border-t border-border py-2"
+              >
+                <div class="min-w-0">
+                  <div class="truncate text-sm text-text">{{ device.name }}</div>
+                  <div class="truncate font-mono text-[11px] text-text-dim">{{ device.id }}</div>
+                </div>
+                <div class="flex shrink-0 gap-1.5">
+                  <KButton size="sm" @click="importFromDevice(device.id)">
+                    <template #icon><Download :size="13" aria-hidden="true" /></template>
+                    {{ $t('settings.import_paths') }}
+                  </KButton>
+                  <KButton size="sm" variant="danger" @click="deleteDevice(device.id)">
+                    {{ $t('settings.delete_device') }}
+                  </KButton>
+                </div>
+              </div>
+              <p v-if="otherDevices.length === 0" class="py-2 text-xs text-text-dim">-</p>
+            </div>
+          </section>
+        </div>
+        <div v-else-if="activeSection === 'hotkeys'" class="flex flex-col gap-8">
+          <!-- 快捷键 -->
+          <section>
+            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
+              <Keyboard :size="15" class="text-text-dim" aria-hidden="true" />
+              <h2 class="text-sm font-semibold text-text">{{ $t('settings.hotkey_settings') }}</h2>
+            </div>
+            <p v-if="currentQuickActionGame" class="mb-2 text-xs text-text-dim">
+              {{ $t('setting.current_quick_action_game') }} :
+              <span class="font-medium text-text">{{ currentQuickActionGame.name }}</span>
+            </p>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.quick_action_enable_sound')
+              }}</span>
+              <KSwitch v-model="config.quick_action!.enable_sound" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.quick_action_enable_notification')
+              }}</span>
+              <KSwitch v-model="config.quick_action!.enable_notification" />
+            </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{
+                $t('settings.quick_action_notify_when_unchanged')
+              }}</span>
+              <KSwitch v-model="config.quick_action!.notify_when_unchanged" />
+            </div>
+
+            <div class="mt-3 rounded-md bg-surface-2 p-3">
+              <h3 class="mb-2 text-xs font-medium text-text">
+                {{ $t('settings.quick_action_sound_title') }}
+              </h3>
+              <div class="flex flex-wrap items-center gap-2 py-1">
+                <span class="w-28 shrink-0 text-xs text-text">{{
+                  $t('settings.quick_action_sound_success')
+                }}</span>
+                <KSelect
+                  v-model="successSoundMode"
+                  class="w-36"
+                  :options="soundModeOptions"
+                  :aria-label="$t('settings.quick_action_sound_success')"
+                />
+                <template v-if="successSoundMode === 'file'">
+                  <KInput
+                    v-model="successSoundPath"
+                    mono
+                    class="min-w-40 flex-1"
+                    :placeholder="$t('settings.quick_action_sound_file_placeholder')"
+                    :aria-label="$t('settings.quick_action_sound_file_placeholder')"
+                  />
+                  <KButton size="sm" @click="chooseSoundFile('success')">
+                    {{ $t('settings.quick_action_sound_choose') }}
+                  </KButton>
+                </template>
+                <KButton size="sm" variant="ghost" @click="togglePreview('success')">
+                  <template #icon><Play :size="13" aria-hidden="true" /></template>
+                  {{ $t('settings.quick_action_sound_preview_button') }}
+                </KButton>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 py-1">
+                <span class="w-28 shrink-0 text-xs text-text">{{
+                  $t('settings.quick_action_sound_failure')
+                }}</span>
+                <KSelect
+                  v-model="failureSoundMode"
+                  class="w-36"
+                  :options="soundModeOptions"
+                  :aria-label="$t('settings.quick_action_sound_failure')"
+                />
+                <template v-if="failureSoundMode === 'file'">
+                  <KInput
+                    v-model="failureSoundPath"
+                    mono
+                    class="min-w-40 flex-1"
+                    :placeholder="$t('settings.quick_action_sound_file_placeholder')"
+                    :aria-label="$t('settings.quick_action_sound_file_placeholder')"
+                  />
+                  <KButton size="sm" @click="chooseSoundFile('failure')">
+                    {{ $t('settings.quick_action_sound_choose') }}
+                  </KButton>
+                </template>
+                <KButton size="sm" variant="ghost" @click="togglePreview('failure')">
+                  <template #icon><Play :size="13" aria-hidden="true" /></template>
+                  {{ $t('settings.quick_action_sound_preview_button') }}
+                </KButton>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <HotkeySelector v-model="config.quick_action!.hotkeys" />
+            </div>
+            <div class="mt-3 flex items-center gap-2">
+              <KButton variant="primary" size="sm" :disabled="!hotkeysChanged" @click="saveHotkeys">
+                {{ $t('settings.save_hotkeys') }}
+              </KButton>
+              <KTag v-if="hotkeysChanged" tone="warning">{{ $t('settings.unsaved_changes') }}</KTag>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
-
-<style scoped>
-.el-button {
-  margin-right: 10px;
-  margin-top: 5px;
-}
-
-.el-button + .el-button {
-  margin-left: 0 !important;
-}
-
-.el-card {
-  overflow-y: auto;
-  height: 100%;
-}
-
-.el-switch {
-  margin-right: 20px;
-}
-
-.setting-box {
-  margin-top: 15px;
-  padding: 10px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-
-.setting-box:hover {
-  background-color: var(--el-fill-color-light);
-}
-
-.setting-hint {
-  margin-left: 10px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.manifest-box {
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 4px;
-  background-color: var(--el-fill-color-light);
-}
-
-.manifest-actions {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.manifest-actions-left,
-.manifest-actions-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.manifest-actions-right {
-  margin-left: auto;
-}
-
-.manifest-actions :deep(.el-button) {
-  margin: 0;
-}
-
-.manifest-hint {
-  margin-bottom: 12px;
-}
-
-.manifest-box :deep(.el-descriptions__table) {
-  table-layout: auto;
-}
-
-.manifest-box :deep(.el-descriptions__label) {
-  width: 1%;
-  white-space: nowrap;
-}
-
-.game-roots-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0;
-}
-
-.game-root-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.game-roots-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.setting-label {
-  margin-left: 10px;
-  vertical-align: middle;
-}
-
-.quick-action-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.sound-setting {
-  margin-top: 15px;
-  padding: 10px;
-  border-radius: 4px;
-  background-color: var(--el-fill-color-light);
-}
-
-.sound-setting h3 {
-  margin: 0 0 10px 0;
-}
-
-.sound-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.sound-label {
-  min-width: 120px;
-  font-weight: 500;
-}
-
-.sound-mode-select {
-  width: 160px;
-}
-
-.sound-path-input {
-  flex: 1;
-  min-width: 220px;
-}
-
-.sound-preview-button {
-  white-space: nowrap;
-}
-
-.setting-action {
-  margin-top: 15px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.tab-title {
-  margin-left: 8px;
-  font-weight: 600;
-}
-
-/** 以下是排序盒子样式 */
-.game-order-box {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: medium;
-  margin-top: 10px;
-  padding: 10px;
-  cursor: move;
-  /* 更改游戏排序盒子的光标为move，提示可拖动 */
-  transition: all 0.3s ease;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-}
-
-.game-order-box:hover {
-  box-shadow: var(--el-box-shadow-light);
-  transform: translateY(-2px);
-}
-
-/** 以下是首页选择样式 */
-.home-option-box {
-  display: flex;
-  align-items: center;
-}
-
-.home-box-icon {
-  height: 1em;
-  width: 1em;
-  margin-right: 10px;
-}
-
-.drag-game-box {
-  user-select: none;
-}
-
-.sort-settings-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.el-select {
-  max-width: 200px;
-}
-
-.el-select.font-select {
-  max-width: 360px;
-}
-
-.settings-tabs {
-  margin-top: 20px;
-}
-
-.translate-website {
-  cursor: pointer;
-  color: var(--el-color-primary);
-  text-decoration: none;
-}
-</style>
