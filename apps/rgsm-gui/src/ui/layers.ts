@@ -21,6 +21,12 @@ export const LAYER = {
 
   // Unified activity drawer for all background operations and notifications.
   activityDrawer: 9100,
+
+  // Kit popovers (select dropdowns, tooltips) — must float above kit dialogs.
+  kitPopover: 3300,
+
+  // Transient toasts — foreground, above the activity drawer.
+  toast: 9200,
 } as const;
 
 export type LayerToken = keyof typeof LAYER;

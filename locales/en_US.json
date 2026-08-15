@@ -1154,6 +1154,7 @@
         "save_failed": "save failed",
         "confirm": "confirm",
         "refresh": "Refresh",
+        "close": "Close",
         "operation_in_progress": "Working on it...",
         "minutes_ago": "{n} min ago",
         "hours_ago": "{n} hr ago",
