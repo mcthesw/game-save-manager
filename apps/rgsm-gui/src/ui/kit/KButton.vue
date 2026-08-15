@@ -41,15 +41,16 @@ if (import.meta.env.DEV && !hasText.value && !props.ariaLabel) {
 const classes = computed(() => {
   const base = [
     'inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-1.5',
-    'rounded-sm font-medium transition-colors duration-150',
+    'rounded-sm border font-medium transition-colors duration-150',
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
     'disabled:cursor-not-allowed disabled:opacity-50',
   ];
   const variants = {
-    primary: 'bg-accent text-accent-contrast hover:brightness-110 active:brightness-95',
-    default: 'border border-border bg-surface text-text hover:bg-surface-2',
-    danger: 'bg-danger text-white hover:brightness-110 active:brightness-95',
-    ghost: 'text-text hover:bg-surface-2',
+    primary:
+      'border-transparent bg-accent text-accent-contrast hover:brightness-110 active:brightness-95',
+    default: 'border-border bg-surface text-text hover:bg-surface-2',
+    danger: 'border-transparent bg-danger text-white hover:brightness-110 active:brightness-95',
+    ghost: 'border-transparent bg-transparent text-text hover:bg-surface-2',
   } as const;
   const sizes = {
     sm: hasText.value ? 'h-7 px-2.5 text-xs' : 'h-7 w-7 text-xs',

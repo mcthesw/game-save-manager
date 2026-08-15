@@ -54,7 +54,7 @@ function onEscape(event: KeyboardEvent) {
             <button
               type="button"
               :aria-label="$t('common.close')"
-              class="ml-auto inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm text-text-dim transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+              class="ml-auto inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-transparent bg-transparent text-text-dim transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
             >
               <X :size="15" aria-hidden="true" />
             </button>

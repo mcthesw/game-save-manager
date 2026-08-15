@@ -522,7 +522,10 @@
         "add_game": "添加游戏",
         "sync_settings": "同步",
         "settings": "设置",
-        "about": "关于"
+        "about": "关于",
+        "games": "游戏",
+        "all_games": "全部",
+        "auto_backup_on": "已启用自动备份"
     },
     "save_location_drawer": {
         "device_location": "此设备上的位置",
@@ -1105,6 +1108,7 @@
         "choose_game_add": "选择加入收藏的游戏（可以重复）",
         "add_to_favorite": "添加到收藏",
         "remove_success": "成功删除节点",
+        "confirm_remove_folder": "文件夹内含 {count} 个收藏游戏，删除文件夹会将它们一并移出收藏夹",
         "add_success": "成功添加节点",
         "game_not_found": "建议删除该收藏，因为游戏不存在：",
         "enable_edit": "启用编辑：可以直接拖拽项目进行排序",

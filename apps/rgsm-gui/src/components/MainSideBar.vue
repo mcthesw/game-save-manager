@@ -1,157 +1,210 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
-import FavoriteSideBar from './FavoriteSideBar.vue';
-import { Files, Search, Star, Menu } from '@element-plus/icons-vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Home, Info, Plus, Settings, Star } from '@lucide/vue';
+import { v4 as uuidv4 } from 'uuid';
 import { $t } from '../i18n';
-import { debug } from '../utils/logger';
-import { useNavigationLinks } from '../composables/useNavigationLinks';
+import { error } from '../utils/logger';
+import { commands, type FavoriteTreeNode, type Game } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { useSidebarResize } from '../composables/useSidebarResize';
-import { useSaveListExpandBehavior } from '../composables/useSaveListExpandBehavior';
-import type { MenuInstance } from '../ui/elementPlus/menu';
+import KButton from '../ui/kit/KButton.vue';
+import KInput from '../ui/kit/KInput.vue';
+import FavoriteTree from './FavoriteTree.vue';
+import { collectLeafNames } from './favoriteTreeContext';
 
-const { config, isGameVisible } = useConfig();
-const { baseLinks } = useNavigationLinks();
+const { config, isGameVisible, saveConfig } = useConfig();
 const { sortedGames } = useSaveListSort();
 const { isResizing, startResize } = useSidebarResize({
   minWidth: 200,
   maxWidth: 400,
 });
 
-const games = computed(() => {
-  return sortedGames(
-    config.value.games.filter((game) => isGameVisible(game.storage_key, game.name))
-  );
-});
-
 const router = useRouter();
 const route = useRoute();
-const show_favorite = ref(false);
 const searchQuery = ref('');
 
-const menuRef = ref<MenuInstance>();
-const saveListMenuIndex = 'save-list';
+// ——— 导航（主页/设置/关于）———
+const navLinks = computed(() => [
+  { text: $t('sidebar.homepage'), link: '/', icon: Home },
+  { text: $t('sidebar.settings'), link: '/Settings', icon: Settings },
+  { text: $t('sidebar.about'), link: '/About', icon: Info },
+]);
 
-// 过滤菜单项
-const filteredGames = computed(() => {
+// ——— 游戏列表（「全部」视图） ———
+const games = computed(() =>
+  sortedGames(config.value.games.filter((game) => isGameVisible(game.storage_key, game.name)))
+);
+
+const visibleGames = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   if (!query) return games.value;
   return games.value.filter((game) => game.name.toLowerCase().includes(query));
 });
 
-// 过滤常规菜单
-const filteredLinks = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase();
-  if (!query) return baseLinks.value;
-  return baseLinks.value.filter((link) => link.text.toLowerCase().includes(query));
-});
+// 收藏叶子集合：「全部」视图的星标状态；树本身的组织在 FavoriteTree 内
+const favoriteNames = computed(() => collectLeafNames(config.value?.favorites));
 
-const { saveListDefaultOpeneds, handleMenuOpen, handleMenuClose } = useSaveListExpandBehavior({
-  menuRef,
-  filteredGames,
-  showFavorite: show_favorite,
-  searchQuery,
-});
+function removeFavoriteLeaf(nodes: FavoriteTreeNode[], name: string): boolean {
+  const index = nodes.findIndex((node) => node.is_leaf && node.label === name);
+  if (index >= 0) {
+    nodes.splice(index, 1);
+    return true;
+  }
+  for (const node of nodes) {
+    if (!node.is_leaf && node.children && removeFavoriteLeaf(node.children, name)) return true;
+  }
+  return false;
+}
 
-function select_handler(key: string, keyPath: string) {
-  const targetPath = keyPath[keyPath.length - 1];
-  debug(`${$t('misc.navigate_to')} ${targetPath}`);
-  if (targetPath) {
-    router.push(targetPath);
+async function toggleFavorite(game: Game) {
+  if (!config.value) return;
+  const favorites = [...(config.value.favorites ?? [])];
+  if (favoriteNames.value.has(game.name)) {
+    removeFavoriteLeaf(favorites, game.name);
+  } else {
+    favorites.push({
+      label: game.name,
+      is_leaf: true,
+      children: null,
+      node_id: uuidv4(),
+    });
+  }
+  config.value.favorites = favorites;
+  await saveConfig();
+}
+
+// ——— 视图切换：收藏夹 / 全部。无收藏的用户默认落在「全部」 ———
+// config 初值是同步 DEFAULT_CONFIG（空），必须等真实配置到达再判断
+const viewMode = ref<'favorites' | 'all'>('favorites');
+let viewInitialized = false;
+watch(
+  () => config.value,
+  (cfg) => {
+    if (viewInitialized || !cfg) return;
+    if (cfg.games.length === 0 && collectLeafNames(cfg.favorites).size === 0) return;
+    viewInitialized = true;
+    if (collectLeafNames(cfg.favorites).size === 0) viewMode.value = 'all';
+  },
+  { immediate: true }
+);
+
+// ——— 状态：自动备份圆点 ———
+const autoBackupGames = ref<Set<string>>(new Set());
+
+async function refreshAutoBackup() {
+  try {
+    const result = await commands.getAutoBackupStatus();
+    if (result.status === 'ok') {
+      autoBackupGames.value = new Set(result.data.map((row) => row.game_name));
+    }
+  } catch (e) {
+    error(`refresh auto-backup status error: ${e}`);
   }
 }
 
-// 清除搜索
-function clearSearch() {
-  searchQuery.value = '';
+onMounted(refreshAutoBackup);
+watch(() => config.value?.games?.length, refreshAutoBackup);
+
+function isActive(path: string): boolean {
+  return route.path === path;
+}
+
+function goGame(game: Game) {
+  router.push(getGameManagementPath(game.name));
 }
 </script>
 
 <template>
   <div class="sidebar-wrapper">
-    <ElContainer class="main-side-bar">
-      <!-- 顶部搜索和切换区域 -->
-      <div class="sidebar-header">
-        <div class="view-toggle">
-          <el-tooltip
-            :content="show_favorite ? $t('misc.menu') : $t('misc.favorites')"
-            placement="top"
-          >
-            <el-button
-              circle
-              size="small"
-              :type="show_favorite ? 'primary' : 'default'"
-              @click="show_favorite = !show_favorite"
-            >
-              <el-icon>
-                <component :is="show_favorite ? Star : Menu" />
-              </el-icon>
-            </el-button>
-          </el-tooltip>
-        </div>
-        <div class="search-container">
-          <el-input
-            v-model="searchQuery"
-            :placeholder="$t('misc.search')"
-            clearable
-            size="small"
-            @clear="clearSearch"
-          >
-            <template #prefix>
-              <el-icon>
-                <Search />
-              </el-icon>
-            </template>
-          </el-input>
-        </div>
+    <aside class="sidebar">
+      <div class="sidebar-search">
+        <KInput v-model="searchQuery" size="sm" :placeholder="$t('misc.search')" />
       </div>
 
-      <!-- 内容区域 -->
-      <ElScrollbar always>
-        <ElRow class="main-menu-container">
-          <el-menu
-            v-if="!show_favorite"
-            ref="menuRef"
-            class="menu-item"
-            :default-active="route.path"
-            :select="select_handler"
-            :router="true"
-            :collapse-transition="false"
-            :default-openeds="saveListDefaultOpeneds"
-            @open="handleMenuOpen"
-            @close="handleMenuClose"
+      <nav class="sidebar-nav">
+        <button
+          v-for="link in navLinks"
+          :key="link.link"
+          type="button"
+          class="side-row nav-row"
+          :class="{ active: isActive(link.link) }"
+          @click="router.push(link.link)"
+        >
+          <component :is="link.icon" :size="15" class="row-icon" />
+          <span class="row-text">{{ link.text }}</span>
+        </button>
+      </nav>
+
+      <div class="games-head">
+        <span class="games-title">{{ $t('sidebar.games') }}</span>
+        <KButton size="sm" variant="primary" @click="router.push('/AddGame')">
+          <template #icon><Plus :size="13" /></template>
+          {{ $t('sidebar.add_game') }}
+        </KButton>
+      </div>
+
+      <div class="seg" role="tablist" :aria-label="$t('sidebar.games')">
+        <button
+          type="button"
+          role="tab"
+          class="seg-btn"
+          :class="{ active: viewMode === 'favorites' }"
+          :aria-selected="viewMode === 'favorites'"
+          @click="viewMode = 'favorites'"
+        >
+          {{ $t('misc.favorites') }}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="seg-btn"
+          :class="{ active: viewMode === 'all' }"
+          :aria-selected="viewMode === 'all'"
+          @click="viewMode = 'all'"
+        >
+          {{ $t('sidebar.all_games') }}
+        </button>
+      </div>
+
+      <div class="games-scroll">
+        <FavoriteTree v-show="viewMode === 'favorites'" :search-query="searchQuery" />
+
+        <div v-show="viewMode === 'all'" class="all-list">
+          <button
+            v-for="game in visibleGames"
+            :key="game.name"
+            type="button"
+            class="side-row game-row"
+            :class="{ active: isActive(getGameManagementPath(game.name)) }"
+            :title="game.name"
+            @click="goGame(game)"
           >
-            <!-- 存档栏 -->
-            <el-sub-menu
-              v-if="filteredGames.length > 0 || !searchQuery.trim()"
-              :index="saveListMenuIndex"
+            <span
+              class="game-dot"
+              :class="{ on: autoBackupGames.has(game.name) }"
+              :title="autoBackupGames.has(game.name) ? $t('sidebar.auto_backup_on') : undefined"
+            />
+            <span class="row-text">{{ game.name }}</span>
+            <span
+              class="game-star"
+              :class="{ faved: favoriteNames.has(game.name) }"
+              role="button"
+              :aria-label="
+                favoriteNames.has(game.name)
+                  ? $t('favorite.remove')
+                  : $t('favorite.add_to_favorite')
+              "
+              @click.stop="toggleFavorite(game)"
             >
-              <template #title>
-                <el-icon>
-                  <Files />
-                </el-icon>
-                <span>{{ $t('misc.save_manage') }}</span>
-              </template>
-              <el-menu-item
-                v-for="game in filteredGames"
-                :key="game.name"
-                :index="getGameManagementPath(game.name)"
-              >
-                {{ game.name }}
-              </el-menu-item>
-            </el-sub-menu>
-            <!-- 常规按钮 -->
-            <el-menu-item v-for="link in filteredLinks" :key="link.link" :index="link.link">
-              <el-icon>
-                <component :is="link.icon" />
-              </el-icon>
-              <span>{{ link.text }}</span>
-            </el-menu-item>
-          </el-menu>
-          <FavoriteSideBar v-else :search-query="searchQuery" />
-        </ElRow>
-      </ElScrollbar>
-    </ElContainer>
+              <Star :size="13" :fill="favoriteNames.has(game.name) ? 'currentColor' : 'none'" />
+            </span>
+          </button>
+          <p v-if="visibleGames.length === 0 && searchQuery.trim()" class="empty-hint">
+            {{ $t('misc.no_search_results') }}
+          </p>
+        </div>
+      </div>
+    </aside>
     <!-- 拖动调整大小的区域 -->
     <div class="resize-handle" :class="{ active: isResizing }" @mousedown="startResize" />
   </div>
@@ -160,73 +213,196 @@ function clearSearch() {
 <style scoped>
 .sidebar-wrapper {
   position: relative;
-  height: 100%;
   display: flex;
+  height: 100%;
 }
 
-.main-side-bar {
-  height: 100%;
+.sidebar {
+  display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--el-border-color);
-  overflow: hidden;
-  transition: width 0.2s ease;
-  background-color: var(--el-bg-color);
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  /* 禁止横向滚动 */
-  overflow-x: hidden;
-}
-
-/**
-由于el-menu-item的默认样式会导致文字溢出，所以需要手动设置
-*/
-.el-menu-item {
-  white-space: normal !important;
-  line-height: normal !important;
-  padding: 12px 20px !important;
-  height: auto !important;
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-  /* 确保文本换行且不会导致横向滚动 */
-  word-break: break-word;
-  overflow-wrap: break-word;
-  max-width: 100%;
-}
-
-.el-menu {
-  border: none;
-}
-
-.menu-item {
   width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  font-family: var(--font-sans-stack);
 }
 
-.main-menu-container {
+.sidebar-search {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-nav {
+  display: flex;
   flex-direction: column;
-  flex-grow: 1;
-  padding: 0 8px;
+  gap: 2px;
+  padding: 8px 8px 4px;
 }
 
-/* 顶部搜索和切换区域样式 */
-.sidebar-header {
+.side-row {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  gap: 10px;
-  background-color: var(--el-bg-color-overlay);
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.search-container {
-  flex-grow: 1;
+.side-row:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
-.view-toggle {
+.side-row.active {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.side-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.row-icon {
+  flex-shrink: 0;
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.games-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 6px;
 }
 
-/* 拖动调整大小的区域样式 */
+.games-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.seg {
+  display: flex;
+  gap: 2px;
+  margin: 0 12px 8px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.seg-btn {
+  flex: 1;
+  padding: 3px 0;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.active {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.seg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.games-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8px 12px;
+}
+
+.all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.game-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+}
+
+.game-dot.on {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.game-star {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+.game-row:hover .game-star,
+.game-star.faved {
+  opacity: 1;
+}
+
+.game-star.faved {
+  color: var(--text);
+}
+
+.game-star:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.empty-hint {
+  margin: 12px 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* 拖动调整大小的区域 */
 .resize-handle {
   position: absolute;
   top: 0;
@@ -241,57 +417,6 @@ function clearSearch() {
 
 .resize-handle:hover,
 .resize-handle.active {
-  background-color: var(--el-color-primary);
-}
-
-/* 优化子菜单样式 */
-:deep(.el-sub-menu__title) {
-  height: auto !important;
-  min-height: 50px;
-  line-height: normal !important;
-  padding: 12px 20px !important;
-  /* 确保文本换行且不会导致横向滚动 */
-  word-break: break-word;
-  overflow-wrap: break-word;
-  max-width: 100%;
-  /* 增加主菜单的视觉区分度 */
-  font-weight: 600;
-  background-color: var(--el-bg-color-overlay);
-  border-radius: 6px;
-}
-
-/* 优化菜单项图标与文字间距 */
-:deep(.el-menu-item .el-icon),
-:deep(.el-sub-menu__title .el-icon) {
-  margin-right: 10px;
-  flex-shrink: 0;
-}
-
-/* 增加子菜单项的视觉区分度 */
-:deep(.el-menu-item) {
-  margin: 4px 0;
-  border-radius: 6px;
-}
-
-:deep(.el-menu-item:hover) {
-  background-color: var(--el-fill-color-light);
-}
-
-:deep(.el-menu-item.is-active) {
-  background-color: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  border-left: 3px solid var(--el-color-primary);
-}
-
-/* 优化菜单项文字溢出处理 - 允许完整显示长文本 */
-:deep(.el-menu-item span),
-:deep(.el-sub-menu__title span) {
-  overflow: visible;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.4;
-  /* 确保文本不会导致横向滚动 */
-  max-width: 100%;
-  display: inline-block;
+  background-color: var(--border-strong);
 }
 </style>
