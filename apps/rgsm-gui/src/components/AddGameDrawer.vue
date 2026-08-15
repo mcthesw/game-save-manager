@@ -1,13 +1,6 @@
 <script lang="ts" setup>
-import {
-  DocumentAdd,
-  Check,
-  RefreshRight,
-  Download,
-  InfoFilled,
-  Search,
-} from '@element-plus/icons-vue';
-import { computed, reactive, ref, watchEffect } from 'vue';
+import { Check, Download, FilePlus2, RotateCcw, Search, Trash2 } from '@lucide/vue';
+import { computed, reactive, ref, watch } from 'vue';
 import {
   commands,
   type GameDraft,
@@ -20,43 +13,17 @@ import {
 import { $t } from '../i18n';
 import { v4 as uuidv4 } from 'uuid';
 import { error } from '../utils/logger';
-import PathVariableInput from '../components/PathVariableInput.vue';
-import GameImportDialog from '../components/GameImportDialog.vue';
-import GameImportCustomizeDialog from '../components/GameImportCustomizeDialog.vue';
-import GameBatchImportDialog from '../components/GameBatchImportDialog.vue';
+import PathVariableInput from './PathVariableInput.vue';
+import GameImportDialog from './GameImportDialog.vue';
+import GameImportCustomizeDialog from './GameImportCustomizeDialog.vue';
+import GameBatchImportDialog from './GameBatchImportDialog.vue';
+import { KAlert, KButton, KDrawer, KInput, KTag, KTagInput } from '../ui/kit';
 import { concreteSaveUnit, manifestSaveUnit, saveUnitPaths, saveUnitType } from '../utils/saveUnit';
-
-const route = useRoute();
-const router = useRouter();
+import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
-const buttons = [
-  {
-    text: $t('addgame.search_local'),
-    type: 'primary',
-    icon: Download,
-    method: search_local,
-  },
-  {
-    text: $t('addgame.scan_vns'),
-    type: 'primary',
-    icon: Search,
-    method: scan_vns,
-  },
-  {
-    text: $t('addgame.save_current_profile'),
-    type: 'success',
-    icon: Check,
-    method: save,
-  },
-  {
-    text: $t('addgame.reset_current_profile'),
-    type: 'danger',
-    icon: RefreshRight,
-    method: reset_info,
-  },
-] as const;
+const { visible, editGameName, close } = useAddGameDrawer();
 
 const game_name = ref(''); // 写入游戏名
 const save_paths = reactive<SaveUnitDraft[]>([]); // 选择游戏存档目录
@@ -153,32 +120,40 @@ async function fetchCurrentDevice() {
     notifyError($t('error.get_device_info_failed'));
   }
 }
+
 // 在组件挂载时获取当前设备信息
 fetchCurrentDevice();
 
-// init info when navigate from GameManage.vue
-watchEffect(() => {
-  const gameName = 'name' in route.params ? route.params.name : undefined;
-  if (gameName) {
-    const gameConfig = config.value?.games.find((game) => game.name === gameName);
-    if (gameConfig) {
-      is_editing.value = true;
-      editing_storage_key.value = gameConfig.storage_key ?? '';
-      game_name.value = gameConfig.name;
-      save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
-      manualInstallDirs.value = [...(gameConfig.ludusavi_meta?.installDirs ?? [])];
+// 抽屉每次打开时初始化表单：编辑模式装载既有游戏，创建模式清空
+watch(visible, (isOpen) => {
+  if (!isOpen) return;
+  const gameName = editGameName.value;
+  if (!gameName) {
+    is_editing.value = false;
+    editing_storage_key.value = '';
+    reset_info(false);
+    return;
+  }
+  const gameConfig = config.value?.games.find((game) => game.name === gameName);
+  if (gameConfig) {
+    is_editing.value = true;
+    editing_storage_key.value = gameConfig.storage_key ?? '';
+    game_name.value = gameConfig.name;
+    save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
+    manualInstallDirs.value = [...(gameConfig.ludusavi_meta?.installDirs ?? [])];
+    pendingLudusaviMeta.value = null;
+    pendingStoreUserId.value = null;
 
-      // 获取当前设备的游戏路径
-      if (gameConfig.game_paths && currentDevice.value) {
-        const deviceId = currentDevice.value.id;
-        game_path.value = gameConfig.game_paths[deviceId] || '';
-      } else {
-        game_path.value = '';
-      }
+    // 获取当前设备的游戏路径
+    if (gameConfig.game_paths && currentDevice.value) {
+      const deviceId = currentDevice.value.id;
+      game_path.value = gameConfig.game_paths[deviceId] || '';
     } else {
-      notifyError($t('addgame.change_target_not_exists_error') + gameName);
-      router.back();
+      game_path.value = '';
     }
+  } else {
+    notifyError($t('addgame.change_target_not_exists_error') + gameName);
+    close();
   }
 });
 
@@ -225,15 +200,15 @@ function generate_save_unit(
   return saveUnit;
 }
 
-function saveUnitDisplayPath(row: unknown): string {
-  const unit = row as SaveUnitDraft;
+function saveUnitDisplayPath(row: SaveUnitDraft): string {
+  const unit = row;
   if (unit.source.type === 'manifestPattern') return unit.source.pattern;
   if (!currentDevice.value) return Object.values(unit.source.paths ?? {})[0] ?? '';
   return unit.source.paths?.[currentDevice.value.id] ?? '';
 }
 
-function updateSaveUnitPath(row: unknown, value: string) {
-  const unit = row as SaveUnitDraft;
+function updateSaveUnitPath(row: SaveUnitDraft, value: string) {
+  const unit = row;
   if (unit.source.type === 'manifestPattern') {
     unit.source.pattern = value;
   } else if (currentDevice.value) {
@@ -305,11 +280,6 @@ async function choose_executable_file() {
     error(`Error choosing executable file: ${e}`);
     notifyError($t('error.choose_executable_file_error'));
   }
-}
-
-function submit_handler(button_method: () => void) {
-  // 映射按钮的ID和他们要触发的方法
-  button_method();
 }
 
 async function search_local() {
@@ -835,7 +805,6 @@ async function save() {
       await commands.updateGame(editing_storage_key.value, game);
       is_editing.value = false;
       notifySuccess($t('addgame.add_game_success'));
-      router.back();
     } else {
       await commands.addGame(game);
       if (config.value?.settings.add_new_to_favorites) {
@@ -852,6 +821,7 @@ async function save() {
     }
     reset_info(false);
     await refreshConfig();
+    close();
   } catch (e) {
     error(`Error saving game: ${e}`);
     notifyError($t('error.add_game_failed'));
@@ -865,7 +835,6 @@ function reset_info(show_notification: boolean = true) {
   manualInstallDirs.value = [];
   pendingLudusaviMeta.value = null;
   pendingStoreUserId.value = null;
-  // TODO:This is a first occurrence of a i18n text duplication. How to handle this?
   if (show_notification) {
     notifySuccess($t('settings.reset_success'));
   }
@@ -877,258 +846,162 @@ function deleteRow(index: number) {
 </script>
 
 <template>
-  <div class="page">
-    <el-card class="form-card">
-      <!-- Top: icon + fields -->
-      <div class="top-row">
-        <img class="game-icon" :src="game_icon_src" alt="" />
-
-        <div class="fields">
-          <el-form label-position="top" class="field-form">
-            <el-form-item :label="$t('addgame.game_name')">
-              <el-input v-model="game_name" :placeholder="$t('addgame.input_game_name_prompt')" />
-            </el-form-item>
-
-            <el-form-item :label="$t('addgame.game_launch_path')">
-              <path-variable-input
-                v-model="game_path"
-                :show-status="true"
-                :install-dirs="manualInstallDirs"
-                :steam-id="activeSteamId"
-                :store-user-id="activeStoreUserId"
-              >
-                <template #append>
-                  <el-button text @click="choose_executable_file()">
-                    <el-icon><DocumentAdd /></el-icon>
-                  </el-button>
-                </template>
-              </path-variable-input>
-            </el-form-item>
-
-            <el-form-item v-if="needsInstallDirectoryNames" :label="$t('addgame.install_dirs')">
-              <el-select
-                v-model="manualInstallDirs"
-                multiple
-                filterable
-                allow-create
-                default-first-option
-                clearable
-                collapse-tags
-                collapse-tags-tooltip
-                class="install-dirs-select"
-                :placeholder="$t('addgame.install_dirs_placeholder')"
-              />
-              <div class="install-dirs-hint">
-                {{ $t('addgame.install_dirs_hint') }}
-              </div>
-            </el-form-item>
-          </el-form>
-        </div>
-      </div>
-    </el-card>
-
-    <el-card class="form-card">
-      <!-- Toolbar -->
-      <div class="table-toolbar">
-        <div class="toolbar-left">
-          <el-button type="primary" @click="add_save_directory">
-            {{ $t('addgame.add_save_directory') }}
-          </el-button>
-          <el-button @click="add_save_file">
-            {{ $t('addgame.add_save_file') }}
-          </el-button>
-          <el-button @click="add_registry_key">
-            {{ $t('addgame.add_registry_key') }}
-          </el-button>
-        </div>
-        <div class="toolbar-hint">
-          <el-icon><InfoFilled /></el-icon>
-          <span>{{ $t('addgame.path_variable_hint') }}</span>
-        </div>
-      </div>
-
-      <!-- Save paths table -->
-      <el-table :data="save_paths" style="width: 100%">
-        <el-table-column :label="$t('addgame.type')" width="110">
-          <template #default="scope">
-            {{
-              scope.row.source.type === 'manifestPattern'
-                ? $t('addgame.dynamic_path')
-                : scope.row.source.unit_type
-            }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('addgame.path')" min-width="300">
-          <template #default="scope">
-            <path-variable-input
-              :model-value="saveUnitDisplayPath(scope.row)"
-              status-mode="below"
+  <KDrawer
+    v-model:open="visible"
+    :title="is_editing ? $t('addgame.drawer_title_edit') : $t('addgame.drawer_title_add')"
+    :width="700"
+  >
+    <div class="flex flex-col gap-6">
+      <!-- 基本信息 -->
+      <section class="flex gap-4">
+        <img
+          class="h-14 w-14 shrink-0 rounded-md border border-border object-cover"
+          :src="game_icon_src"
+          alt=""
+        />
+        <div class="flex min-w-0 flex-1 flex-col gap-4">
+          <div>
+            <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
+            <KInput v-model="game_name" :placeholder="$t('addgame.input_game_name_prompt')" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs text-text-dim">{{
+              $t('addgame.game_launch_path')
+            }}</label>
+            <PathVariableInput
+              v-model="game_path"
+              :show-status="true"
               :install-dirs="manualInstallDirs"
               :steam-id="activeSteamId"
               :store-user-id="activeStoreUserId"
-              @update:model-value="(value) => updateSaveUnitPath(scope.row, value)"
+            >
+              <template #append>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('addgame.input_game_launch_path_prompt')"
+                  @click="choose_executable_file()"
+                >
+                  <FilePlus2 :size="14" aria-hidden="true" />
+                </KButton>
+              </template>
+            </PathVariableInput>
+          </div>
+          <div v-if="needsInstallDirectoryNames">
+            <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.install_dirs') }}</label>
+            <KTagInput
+              v-model="manualInstallDirs"
+              :placeholder="$t('addgame.install_dirs_placeholder')"
             />
-          </template>
-        </el-table-column>
-        <el-table-column v-if="currentDevice" :label="$t('addgame.device_info')" width="180">
-          <template #default>
-            <el-tag size="small" type="info">{{ currentDevice?.name }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('addgame.operations')" width="100" align="center">
-          <template #default="scope">
-            <el-button link type="danger" size="small" @click.prevent="deleteRow(scope.$index)">
-              {{ $t('addgame.remove') }}
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+            <p class="mt-1 text-xs leading-relaxed text-text-dim">
+              {{ $t('addgame.install_dirs_hint') }}
+            </p>
+          </div>
+        </div>
+      </section>
 
-    <!-- Actions -->
-    <div class="actions">
-      <el-tooltip
-        v-for="button in buttons"
-        :key="button.text"
-        :content="button.text"
-        placement="top"
-      >
-        <el-button :type="button.type" circle @click="submit_handler(button.method)">
-          <el-icon><component :is="button.icon" /></el-icon>
-        </el-button>
-      </el-tooltip>
+      <!-- 存档位置 -->
+      <section>
+        <div class="mb-2 flex flex-wrap items-center gap-2">
+          <span class="text-sm font-medium text-text">{{ $t('addgame.save_paths_section') }}</span>
+          <div class="ml-auto flex flex-wrap items-center gap-1.5">
+            <KButton size="sm" variant="primary" @click="add_save_directory">
+              {{ $t('addgame.add_save_directory') }}
+            </KButton>
+            <KButton size="sm" @click="add_save_file">
+              {{ $t('addgame.add_save_file') }}
+            </KButton>
+            <KButton size="sm" @click="add_registry_key">
+              {{ $t('addgame.add_registry_key') }}
+            </KButton>
+          </div>
+        </div>
+        <KAlert tone="info" class="mb-3">{{ $t('addgame.path_variable_hint') }}</KAlert>
+
+        <div class="rounded-sm border border-border">
+          <div
+            v-for="(row, index) in save_paths"
+            :key="index"
+            class="flex items-center gap-2 border-b border-border px-3 py-2 last:border-b-0"
+          >
+            <KTag class="w-20 shrink-0 justify-center text-center">
+              {{
+                row.source.type === 'manifestPattern'
+                  ? $t('addgame.dynamic_path')
+                  : row.source.unit_type
+              }}
+            </KTag>
+            <div class="min-w-0 flex-1">
+              <PathVariableInput
+                :model-value="saveUnitDisplayPath(row)"
+                status-mode="below"
+                :install-dirs="manualInstallDirs"
+                :steam-id="activeSteamId"
+                :store-user-id="activeStoreUserId"
+                @update:model-value="(value: string) => updateSaveUnitPath(row, value)"
+              />
+            </div>
+            <KTag v-if="currentDevice" class="shrink-0">{{ currentDevice.name }}</KTag>
+            <KButton
+              variant="ghost"
+              size="sm"
+              :aria-label="$t('addgame.remove')"
+              class="shrink-0 text-danger hover:bg-danger-soft"
+              @click="deleteRow(index)"
+            >
+              <Trash2 :size="14" aria-hidden="true" />
+            </KButton>
+          </div>
+          <div v-if="save_paths.length === 0" class="px-3 py-6 text-center text-sm text-text-dim">
+            {{ $t('addgame.no_save_paths') }}
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- Dialogs -->
-    <game-import-dialog
-      v-model="showImportDialog"
-      :games="importableGames"
-      :loading="importDialogLoading"
-      @import="handleImportGames"
-      @toggle-local="handleLocalToggle"
-    />
-    <game-import-customize-dialog
-      v-model="showCustomizeDialog"
-      :game-name="customizingGame?.name || ''"
-      :save-paths="customizingSavePaths"
-      :install-dirs="customizingGame?.installDirs || []"
-      :steam-id="customizingGame?.steamId ?? null"
-      :loading="customizeDialogLoading"
-      @confirm="handleCustomizeConfirm"
-    />
-    <game-batch-import-dialog
-      v-model="showBatchImportDialog"
-      :games="batchImportGames"
-      :game-paths="batchGamePaths"
-      :loading="batchImportLoading"
-      @confirm="handleBatchImportConfirm"
-    />
-  </div>
+    <template #footer>
+      <KButton size="sm" @click="search_local()">
+        <Download :size="13" aria-hidden="true" />
+        {{ $t('addgame.search_local') }}
+      </KButton>
+      <KButton size="sm" @click="scan_vns()">
+        <Search :size="13" aria-hidden="true" />
+        {{ $t('addgame.scan_vns') }}
+      </KButton>
+      <KButton size="sm" variant="ghost" @click="reset_info()">
+        <RotateCcw :size="13" aria-hidden="true" />
+        {{ $t('addgame.reset_current_profile') }}
+      </KButton>
+      <div class="flex-1" />
+      <KButton variant="primary" @click="save()">
+        <Check :size="14" aria-hidden="true" />
+        {{ $t('common.save') }}
+      </KButton>
+    </template>
+  </KDrawer>
+
+  <!-- 导入流程对话框（teleport 到 body，与抽屉层级互不干扰） -->
+  <GameImportDialog
+    v-model="showImportDialog"
+    :games="importableGames"
+    :loading="importDialogLoading"
+    @import="handleImportGames"
+    @toggle-local="handleLocalToggle"
+  />
+  <GameImportCustomizeDialog
+    v-model="showCustomizeDialog"
+    :game-name="customizingGame?.name || ''"
+    :save-paths="customizingSavePaths"
+    :install-dirs="customizingGame?.installDirs || []"
+    :steam-id="customizingGame?.steamId ?? null"
+    :loading="customizeDialogLoading"
+    @confirm="handleCustomizeConfirm"
+  />
+  <GameBatchImportDialog
+    v-model="showBatchImportDialog"
+    :games="batchImportGames"
+    :game-paths="batchGamePaths"
+    :loading="batchImportLoading"
+    @confirm="handleBatchImportConfirm"
+  />
 </template>
-
-<style scoped>
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-bottom: 24px;
-}
-
-.form-card {
-  width: 100%;
-}
-
-.top-row {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.game-icon {
-  flex-shrink: 0;
-  width: 120px;
-  height: 120px;
-  border-radius: var(--el-border-radius-base);
-  object-fit: cover;
-  border: 1px solid var(--el-border-color-light);
-}
-
-.fields {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.field-form {
-  margin: 0;
-}
-
-.field-form :deep(.el-form-item) {
-  margin-bottom: 0;
-}
-
-.field-form :deep(.el-form-item + .el-form-item) {
-  margin-top: 12px;
-}
-
-.install-dirs-select {
-  width: 100%;
-}
-
-.install-dirs-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.table-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.toolbar-left {
-  display: flex;
-  gap: 8px;
-}
-
-.toolbar-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  max-width: 100%;
-}
-
-.toolbar-hint span {
-  min-width: 0;
-}
-
-.page :deep(.el-table__body .el-table__cell) {
-  vertical-align: top;
-}
-
-@media (max-width: 980px) {
-  .top-row {
-    grid-template-columns: 1fr;
-  }
-
-  .game-icon {
-    width: 96px;
-    height: 96px;
-  }
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-</style>

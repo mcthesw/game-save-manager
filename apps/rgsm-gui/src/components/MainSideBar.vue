@@ -6,6 +6,7 @@ import { $t } from '../i18n';
 import { error } from '../utils/logger';
 import { commands, type FavoriteTreeNode, type Game } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
+import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
 import KButton from '../ui/kit/KButton.vue';
 import KInput from '../ui/kit/KInput.vue';
@@ -20,6 +21,7 @@ const { isResizing, startResize } = useSidebarResize({
 });
 
 const router = useRouter();
+const { open: openAddGame } = useAddGameDrawer();
 const route = useRoute();
 const searchQuery = ref('');
 
@@ -137,7 +139,7 @@ function goGame(game: Game) {
 
       <div class="games-head">
         <span class="games-title">{{ $t('sidebar.games') }}</span>
-        <KButton size="sm" variant="primary" @click="router.push('/AddGame')">
+        <KButton size="sm" variant="primary" @click="openAddGame()">
           <template #icon><Plus :size="13" /></template>
           {{ $t('sidebar.add_game') }}
         </KButton>

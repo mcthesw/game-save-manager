@@ -1,144 +1,147 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
+  <KDialog
+    v-model:open="dialogVisible"
     :title="$t('game_import_customize.title', { name: gameName })"
-    width="70%"
-    top="5vh"
-    :close-on-click-modal="false"
-    append-to-body
+    :width="920"
+    :dismissable="false"
   >
-    <div v-loading="loading" class="customize-dialog-content">
+    <div
+      class="relative flex max-h-[70vh] min-h-80 flex-col gap-4 overflow-x-hidden overflow-y-auto"
+    >
       <!-- Game name input -->
-      <el-form :model="form" label-position="top">
-        <el-form-item :label="$t('addgame.game_name')">
-          <el-input v-model="form.gameName" :placeholder="$t('addgame.input_game_name_prompt')" />
-        </el-form-item>
+      <div>
+        <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
+        <KInput v-model="form.gameName" :placeholder="$t('addgame.input_game_name_prompt')" />
+      </div>
 
-        <!-- Steam User ID selector -->
-        <el-form-item :label="$t('game_batch_import.store_user_id')">
-          <el-select
-            v-model="selectedStoreUserId"
-            filterable
-            allow-create
-            clearable
-            :placeholder="$t('game_batch_import.store_user_id_placeholder')"
-            class="store-user-id-select"
-            :loading="loadingUserIds"
-            @change="handleStoreUserIdChange"
-          >
-            <el-option
-              v-for="c in userIdCandidates"
-              :key="c.userId"
-              :label="formatUserIdLabel(c)"
-              :value="c.userId"
+      <!-- Steam User ID selector -->
+      <div>
+        <label class="mb-1 block text-xs text-text-dim">{{
+          $t('game_batch_import.store_user_id')
+        }}</label>
+        <div class="flex items-center gap-2">
+          <div class="w-72">
+            <KInput
+              v-model="storeUserIdInput"
+              :placeholder="$t('game_batch_import.store_user_id_placeholder')"
+              aria-label="Steam user ID"
+              list="customize-user-id-candidates"
+              mono
+              @blur="handleStoreUserIdChange"
             />
-          </el-select>
-          <span class="store-user-id-hint">{{ $t('game_batch_import.store_user_id_hint') }}</span>
-        </el-form-item>
-
-        <!-- Save paths table -->
-        <el-form-item :label="$t('game_import_customize.save_paths')">
-          <div class="verify-row">
-            <el-button size="small" :loading="isChecking" @click="checkAllPaths()">
-              {{ $t('game_import_customize.verify_paths') }}
-            </el-button>
-            <el-button size="small" @click="selectAllSupported">
-              {{ $t('game_import_customize.select_all_supported') }}
-            </el-button>
-            <el-button size="small" type="primary" @click="selectByCheck">
-              {{ $t('game_import_customize.select_by_check') }}
-            </el-button>
+            <datalist id="customize-user-id-candidates">
+              <option
+                v-for="c in userIdCandidates"
+                :key="c.userId"
+                :value="c.userId"
+                :label="formatUserIdLabel(c)"
+              />
+            </datalist>
           </div>
-          <el-table
-            ref="tableRef"
-            :data="form.savePaths"
-            stripe
-            @selection-change="handleSelectionChange"
-          >
-            <el-table-column type="selection" width="55" :selectable="isRowSelectable" />
-            <el-table-column :label="$t('game_import_customize.path')" prop="path" min-width="300">
-              <template #default="{ row }">
-                <div class="path-cell">
-                  <path-variable-input
-                    v-model="row.path"
-                    class="path-input"
-                    status-mode="below"
-                    :store-user-id="selectedStoreUserId"
-                    :install-dirs="props.installDirs"
-                    :steam-id="props.steamId"
-                  />
-                  <el-tag
-                    v-if="isRegistryPath(row.path)"
-                    type="info"
-                    size="small"
-                    class="registry-tag"
-                  >
-                    {{ $t('game_import_customize.registry') }}
-                  </el-tag>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column :label="$t('game_import_customize.type')" width="110">
-              <template #default="{ row, $index }">
-                <el-tag :type="getPathKindTagType(tableRowToSavePath(row), $index)" size="small">
-                  {{ getPathKindLabel(tableRowToSavePath(row), $index) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="$t('game_import_customize.tags')" width="150">
-              <template #default="{ row }">
-                <el-tag v-for="tag in row.tags" :key="tag" size="small" class="tag-item">
-                  {{ tag }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="$t('game_import_customize.resolution')" min-width="220">
-              <template #default="{ $index }">
-                <div v-if="pathChecks[$index]" class="resolution-cell">
-                  <template v-if="pathChecks[$index]?.error">
-                    <el-tooltip :content="pathChecks[$index]?.error" placement="top">
-                      <el-tag type="danger" size="small">
-                        {{ $t('game_import_customize.status_error') }}
-                      </el-tag>
-                    </el-tooltip>
-                  </template>
-                  <template v-else>
-                    <el-tag :type="pathChecks[$index]?.exists ? 'success' : 'warning'" size="small">
-                      {{
-                        pathChecks[$index]?.exists
-                          ? $t('game_import_customize.status_exists')
-                          : $t('game_import_customize.status_missing')
-                      }}
-                    </el-tag>
-                  </template>
-                </div>
-                <el-tag v-else type="info" size="small">
-                  {{ $t('game_import_customize.status_unchecked') }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-form-item>
+          <span class="text-xs text-text-dim">{{
+            $t('game_batch_import.store_user_id_hint')
+          }}</span>
+        </div>
+      </div>
 
-        <el-alert type="info" :closable="false" class="path-hint">
-          {{ $t('game_import_customize.path_hint') }}
-        </el-alert>
-      </el-form>
+      <!-- Save paths -->
+      <div>
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <label class="text-xs text-text-dim">{{ $t('game_import_customize.save_paths') }}</label>
+          <div class="flex items-center gap-1.5">
+            <KButton size="sm" :disabled="isChecking" @click="checkAllPaths()">
+              <LoaderCircle v-if="isChecking" :size="12" class="animate-spin" aria-hidden="true" />
+              {{ $t('game_import_customize.verify_paths') }}
+            </KButton>
+            <KButton size="sm" @click="selectAllSupported">
+              {{ $t('game_import_customize.select_all_supported') }}
+            </KButton>
+            <KButton size="sm" variant="primary" @click="selectByCheck">
+              {{ $t('game_import_customize.select_by_check') }}
+            </KButton>
+          </div>
+        </div>
+
+        <div class="rounded-sm border border-border">
+          <div
+            v-for="(row, index) in form.savePaths"
+            :key="index"
+            class="flex items-start gap-2 border-b border-border px-3 py-2 last:border-b-0"
+          >
+            <KCheckbox
+              :model-value="isRowSelected(row)"
+              :aria-label="row.path"
+              class="mt-2"
+              @update:model-value="toggleRow(row)"
+            />
+            <div class="flex min-w-0 flex-1 items-start gap-2">
+              <PathVariableInput
+                v-model="row.path"
+                class="min-w-0 flex-1"
+                status-mode="below"
+                :store-user-id="selectedStoreUserId"
+                :install-dirs="props.installDirs"
+                :steam-id="props.steamId"
+              />
+              <KTag v-if="isRegistryPath(row.path)" class="mt-1.5 shrink-0">
+                {{ $t('game_import_customize.registry') }}
+              </KTag>
+            </div>
+            <KTag
+              class="mt-1.5 w-16 shrink-0 justify-center"
+              :tone="getPathKindTagTone(row, index)"
+            >
+              {{ getPathKindLabel(row, index) }}
+            </KTag>
+            <div class="mt-1.5 flex w-24 shrink-0 flex-wrap gap-1">
+              <KTag v-for="tag in row.tags" :key="tag">{{ tag }}</KTag>
+            </div>
+            <div class="mt-1.5 w-20 shrink-0">
+              <template v-if="pathChecks[index]">
+                <KTooltip v-if="pathChecks[index]?.error" :content="pathChecks[index]!.error!">
+                  <KTag tone="danger">{{ $t('game_import_customize.status_error') }}</KTag>
+                </KTooltip>
+                <KTag v-else :tone="pathChecks[index]?.exists ? 'success' : 'warning'">
+                  {{
+                    pathChecks[index]?.exists
+                      ? $t('game_import_customize.status_exists')
+                      : $t('game_import_customize.status_missing')
+                  }}
+                </KTag>
+              </template>
+              <KTag v-else>{{ $t('game_import_customize.status_unchecked') }}</KTag>
+            </div>
+          </div>
+          <div
+            v-if="form.savePaths.length === 0"
+            class="px-3 py-6 text-center text-sm text-text-dim"
+          >
+            {{ $t('common.no_data') }}
+          </div>
+        </div>
+      </div>
+
+      <KAlert tone="info">{{ $t('game_import_customize.path_hint') }}</KAlert>
+
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center gap-2 bg-surface/70 text-sm text-text-dim"
+      >
+        <LoaderCircle :size="16" class="animate-spin" aria-hidden="true" />
+        {{ $t('common.operation_in_progress') }}
+      </div>
     </div>
 
     <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleConfirm">
-          {{ $t('common.confirm') }}
-        </el-button>
-      </div>
+      <KButton @click="handleCancel">{{ $t('common.cancel') }}</KButton>
+      <KButton variant="primary" @click="handleConfirm">{{ $t('common.confirm') }}</KButton>
     </template>
-  </el-dialog>
+  </KDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
+import { LoaderCircle } from '@lucide/vue';
 import { $t } from '../i18n';
 import {
   commands,
@@ -148,6 +151,7 @@ import {
 } from '../api/commands';
 import { error } from '../utils/logger';
 import PathVariableInput from './PathVariableInput.vue';
+import { KAlert, KButton, KCheckbox, KDialog, KInput, KTag, KTooltip } from '../ui/kit';
 
 interface CustomizeData {
   gameName: string;
@@ -192,11 +196,6 @@ const dialogVisible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 });
 
-type ElTableLike = {
-  clearSelection?: () => void;
-  toggleRowSelection?: (row: SavePath, selected: boolean) => void;
-};
-
 type PathKind = 'file' | 'folder' | 'registry' | 'unknown';
 type PathCheckState = {
   resolvedPath?: string;
@@ -205,7 +204,6 @@ type PathCheckState = {
   kind?: PathKind;
 };
 
-const tableRef = ref<ElTableLike | null>(null);
 const selectedPaths = ref<SavePath[]>([]);
 const isChecking = ref(false);
 const pathChecks = ref<Array<PathCheckState | null>>([]);
@@ -216,10 +214,17 @@ const form = ref<CustomizeData>({
   storeUserId: null,
 });
 
-// Store user ID selection
+// Store user ID selection (datalist: 候选补全 + 允许任意输入)
 const selectedStoreUserId = ref<string | null>(null);
 const userIdCandidates = ref<StoreUserIdCandidate[]>([]);
 const loadingUserIds = ref(false);
+
+const storeUserIdInput = computed({
+  get: () => selectedStoreUserId.value ?? '',
+  set: (value: string) => {
+    selectedStoreUserId.value = value.trim() === '' ? null : value.trim();
+  },
+});
 
 async function loadUserIdCandidates() {
   loadingUserIds.value = true;
@@ -265,10 +270,6 @@ function getPathKind(row: SavePath, index: number): PathKind {
   return pathChecks.value[index]?.kind ?? 'unknown';
 }
 
-function tableRowToSavePath(row: unknown): SavePath {
-  return row as SavePath;
-}
-
 function getPathKindLabel(row: SavePath, index: number): string {
   switch (getPathKind(row, index)) {
     case 'file':
@@ -282,24 +283,28 @@ function getPathKindLabel(row: SavePath, index: number): string {
   }
 }
 
-function getPathKindTagType(row: SavePath, index: number): 'success' | 'warning' | 'info' {
+function getPathKindTagTone(row: SavePath, index: number): 'success' | 'warning' | 'neutral' {
   switch (getPathKind(row, index)) {
     case 'file':
       return 'warning';
     case 'folder':
       return 'success';
     default:
-      return 'info';
+      return 'neutral';
   }
 }
 
-function isRowSelectable(_row: SavePath) {
-  // Row selection itself is always enabled; checked/existing-path logic controls effective picks.
-  return true;
+// 行选择（对象引用，form.savePaths 在 watch 中整体克隆，引用稳定）
+function isRowSelected(row: SavePath) {
+  return selectedPaths.value.includes(row);
 }
 
-function handleSelectionChange(selection: SavePath[]) {
-  selectedPaths.value = selection;
+function toggleRow(row: SavePath) {
+  if (isRowSelected(row)) {
+    selectedPaths.value = selectedPaths.value.filter((item) => item !== row);
+  } else {
+    selectedPaths.value = [...selectedPaths.value, row];
+  }
 }
 
 // Watch for props changes to update form
@@ -361,32 +366,14 @@ function handleConfirm() {
 }
 
 function selectAllSupported() {
-  try {
-    tableRef.value?.clearSelection?.();
-    for (const row of form.value.savePaths) {
-      if (isRowSelectable(row)) {
-        tableRef.value?.toggleRowSelection?.(row, true);
-      }
-    }
-  } catch {
-    // ignore selection errors
-  }
+  selectedPaths.value = [...form.value.savePaths];
 }
 
 function applySelectionByCheck() {
-  try {
-    tableRef.value?.clearSelection?.();
-    form.value.savePaths.forEach((row, index) => {
-      const check = pathChecks.value[index];
-      const selectable = isRowSelectable(row);
-      const shouldSelect = selectable && !!check && !check.error && check.exists === true;
-      if (selectable) {
-        tableRef.value?.toggleRowSelection?.(row, shouldSelect);
-      }
-    });
-  } catch {
-    // ignore selection errors
-  }
+  selectedPaths.value = form.value.savePaths.filter((row, index) => {
+    const check = pathChecks.value[index];
+    return !!check && !check.error && check.exists === true;
+  });
 }
 
 async function checkAllPaths(applySelection: boolean = false) {
@@ -456,61 +443,3 @@ async function selectByCheck() {
   applySelectionByCheck();
 }
 </script>
-
-<style scoped>
-.customize-dialog-content {
-  height: 70vh;
-  min-height: 320px;
-  overflow-y: auto;
-}
-
-.store-user-id-select {
-  width: 280px;
-}
-
-.store-user-id-hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-left: 8px;
-}
-
-.verify-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.path-cell {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.path-input {
-  flex: 1;
-}
-
-.registry-tag {
-  flex-shrink: 0;
-  margin-top: 6px;
-}
-
-.resolution-cell {
-  display: flex;
-  align-items: center;
-}
-
-.tag-item {
-  margin-right: 4px;
-}
-
-.path-hint {
-  margin-top: 16px;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-</style>

@@ -4,6 +4,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css';
 import { LoaderCircle } from '@lucide/vue';
 import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
+import AddGameDrawer from './components/AddGameDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
 import KFeedbackHost from './ui/kit/KFeedbackHost.vue';
 import KToaster from './ui/kit/KToaster.vue';
@@ -248,6 +249,7 @@ if (typeof window !== 'undefined') {
     </Transition>
 
     <ActivityDrawer />
+    <AddGameDrawer />
     <KToaster />
     <KFeedbackHost />
   </div>

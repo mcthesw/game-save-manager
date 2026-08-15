@@ -1,99 +1,139 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
+  <KDialog
+    v-model:open="dialogVisible"
     :title="$t('game_import.title')"
-    width="80%"
-    top="5vh"
-    :close-on-click-modal="false"
-    append-to-body
-    @close="handleClose"
+    :width="880"
+    :dismissable="false"
   >
-    <div v-loading="loading" class="import-dialog-content">
+    <div class="relative flex h-[70vh] min-h-80 flex-col gap-3 overflow-hidden">
       <!-- Search and filter bar -->
-      <div class="filter-bar">
-        <el-input
-          v-model="searchText"
-          :placeholder="$t('game_import.search_placeholder')"
-          clearable
-          class="search-input"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        <el-checkbox v-model="hideManaged" class="hide-managed-checkbox">
-          {{ $t('game_import.hide_managed') }}
-        </el-checkbox>
-        <el-checkbox v-model="localOnly" class="local-only-checkbox">
-          {{ $t('game_import.local_only') }}
-        </el-checkbox>
-        <div class="stats">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div class="relative max-w-96 min-w-48 flex-1">
+          <Search
+            :size="14"
+            class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim"
+            aria-hidden="true"
+          />
+          <KInput
+            v-model="searchText"
+            :placeholder="$t('game_import.search_placeholder')"
+            :aria-label="$t('game_import.search_placeholder')"
+            class="pl-8"
+          />
+        </div>
+        <KCheckbox v-model="hideManaged" class="shrink-0 whitespace-nowrap">{{
+          $t('game_import.hide_managed')
+        }}</KCheckbox>
+        <KCheckbox v-model="localOnly" class="shrink-0 whitespace-nowrap">{{
+          $t('game_import.local_only')
+        }}</KCheckbox>
+        <div class="ml-auto text-sm text-text-dim">
           {{ $t('game_import.total_games', { count: filteredGames.length }) }}
         </div>
       </div>
 
-      <el-alert type="info" :closable="false" class="about-alert">
-        {{ $t('game_import.description') }}
-      </el-alert>
+      <KAlert tone="info">{{ $t('game_import.description') }}</KAlert>
 
       <!-- Game list -->
-      <el-table
-        ref="tableRef"
-        :data="paginatedGames"
-        height="100%"
-        stripe
-        class="game-table"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" :selectable="checkSelectable" />
-        <el-table-column :label="$t('game_import.game_name')" prop="name" min-width="300">
-          <template #default="{ row }">
-            <div class="game-name-cell">
-              <span>{{ row.name }}</span>
-              <el-tag v-if="row.isManaged" type="info" size="small" class="managed-tag">
-                {{ $t('game_import.managed') }}
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('game_import.steam_id')" prop="steamId" width="120">
-          <template #default="{ row }">
-            {{ row.steamId || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          :label="$t('game_import.save_paths_count')"
-          prop="savePathsCount"
-          width="150"
-        />
-      </el-table>
+      <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-sm border border-border">
+        <div
+          class="sticky top-0 flex items-center gap-3 border-b border-border bg-surface-2 px-3 py-2 text-xs text-text-dim"
+        >
+          <KCheckbox
+            v-model="selectAllState"
+            :aria-label="$t('game_import.select_all')"
+            :disabled="selectableNames.size === 0"
+          />
+          <span class="min-w-0 flex-1">{{ $t('game_import.game_name') }}</span>
+          <span class="w-28 shrink-0">{{ $t('game_import.steam_id') }}</span>
+          <span class="w-24 shrink-0 text-right">{{ $t('game_import.save_paths_count') }}</span>
+        </div>
+        <div
+          v-for="game in paginatedGames"
+          :key="game.name"
+          class="flex items-center gap-3 border-b border-border px-3 py-1.5 last:border-b-0"
+          :class="game.isManaged ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2'"
+          @click="toggleRow(game)"
+        >
+          <KCheckbox
+            :model-value="isSelected(game)"
+            :disabled="!checkSelectable(game)"
+            :aria-label="game.name"
+            @click.stop
+            @update:model-value="toggleRow(game)"
+          />
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <span class="truncate text-sm text-text">{{ game.name }}</span>
+            <KTag v-if="game.isManaged" class="shrink-0">{{ $t('game_import.managed') }}</KTag>
+          </div>
+          <span class="w-28 shrink-0 font-mono text-xs text-text-dim">
+            {{ game.steamId || '-' }}
+          </span>
+          <span class="w-24 shrink-0 text-right text-xs text-text-dim">
+            {{ game.savePathsCount }}
+          </span>
+        </div>
+        <div
+          v-if="paginatedGames.length === 0 && !loading"
+          class="px-3 py-8 text-center text-sm text-text-dim"
+        >
+          {{ $t('common.no_data') }}
+        </div>
+      </div>
 
       <!-- Pagination -->
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[50, 100, 200, 500]"
-        :total="filteredGames.length"
-        layout="total, sizes, prev, pager, next"
-        class="pagination"
-      />
+      <div class="flex items-center justify-end gap-2 text-xs text-text-dim">
+        <KSelect
+          v-model="pageSizeModel"
+          size="sm"
+          :options="pageSizeOptions"
+          :aria-label="$t('game_import.per_page', { count: pageSize })"
+          class="w-28"
+        />
+        <span class="whitespace-nowrap font-mono">{{ pageRangeText }}</span>
+        <KButton
+          variant="ghost"
+          size="sm"
+          :disabled="currentPage <= 1"
+          :aria-label="$t('common.prev_page')"
+          @click="currentPage--"
+        >
+          <ChevronLeft :size="14" aria-hidden="true" />
+        </KButton>
+        <KButton
+          variant="ghost"
+          size="sm"
+          :disabled="currentPage >= pageCount"
+          :aria-label="$t('common.next_page')"
+          @click="currentPage++"
+        >
+          <ChevronRight :size="14" aria-hidden="true" />
+        </KButton>
+      </div>
+
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center gap-2 bg-surface/70 text-sm text-text-dim"
+      >
+        <LoaderCircle :size="16" class="animate-spin" aria-hidden="true" />
+        {{ $t('common.operation_in_progress') }}
+      </div>
     </div>
 
     <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :disabled="selectedGames.length === 0" @click="handleImport">
-          {{ $t('game_import.import_selected', { count: selectedGames.length }) }}
-        </el-button>
-      </div>
+      <KButton @click="handleClose">{{ $t('common.cancel') }}</KButton>
+      <KButton variant="primary" :disabled="selectedGames.length === 0" @click="handleImport">
+        {{ $t('game_import.import_selected', { count: selectedGames.length }) }}
+      </KButton>
     </template>
-  </el-dialog>
+  </KDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Search } from '@element-plus/icons-vue';
+import { ChevronLeft, ChevronRight, LoaderCircle, Search } from '@lucide/vue';
 import { $t } from '../i18n';
+import { KAlert, KButton, KCheckbox, KDialog, KInput, KSelect, KTag } from '../ui/kit';
 
 // Import the type from bindings
 import type { ImportableGame } from '../api/commands';
@@ -139,6 +179,18 @@ watch(localOnly, (newValue) => {
 const currentPage = ref(1);
 const pageSize = ref(100);
 
+const pageSizeOptions = [50, 100, 200, 500].map((size) => ({
+  value: String(size),
+  label: $t('game_import.per_page', { count: size }),
+}));
+const pageSizeModel = computed({
+  get: () => String(pageSize.value),
+  set: (value: string) => {
+    pageSize.value = Number(value) || 100;
+    currentPage.value = 1;
+  },
+});
+
 // Filtered games based on search and hide managed
 const filteredGames = computed(() => {
   let result = props.games;
@@ -158,10 +210,20 @@ const filteredGames = computed(() => {
 });
 
 // Paginated games
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(filteredGames.value.length / pageSize.value))
+);
 const paginatedGames = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
   return filteredGames.value.slice(start, end);
+});
+const pageRangeText = computed(() => {
+  const total = filteredGames.value.length;
+  if (total === 0) return '0-0 / 0';
+  const start = (currentPage.value - 1) * pageSize.value + 1;
+  const end = Math.min(total, currentPage.value * pageSize.value);
+  return `${start}-${end} / ${total}`;
 });
 
 // Reset to first page when filters change
@@ -174,10 +236,48 @@ function checkSelectable(row: ImportableGame) {
   return !row.isManaged;
 }
 
-// Handle selection change
-function handleSelectionChange(selection: ImportableGame[]) {
-  selectedGames.value = selection;
+// Selection handling (replaces el-table selection column)
+const selectedNames = computed(() => new Set(selectedGames.value.map((game) => game.name)));
+
+const selectableNames = computed(
+  () =>
+    new Set(filteredGames.value.filter((game) => checkSelectable(game)).map((game) => game.name))
+);
+
+function isSelected(game: ImportableGame) {
+  return selectedNames.value.has(game.name);
 }
+
+function toggleRow(game: ImportableGame) {
+  if (!checkSelectable(game)) return;
+  if (isSelected(game)) {
+    selectedGames.value = selectedGames.value.filter((item) => item.name !== game.name);
+  } else {
+    selectedGames.value = [...selectedGames.value, game];
+  }
+}
+
+const selectAllState = computed<boolean | 'indeterminate'>({
+  get: () => {
+    const selectable = selectableNames.value;
+    if (selectable.size === 0) return false;
+    const selected = [...selectable].filter((name) => selectedNames.value.has(name)).length;
+    if (selected === 0) return false;
+    return selected === selectable.size ? true : 'indeterminate';
+  },
+  set: (value) => {
+    if (value === true) {
+      const toAdd = filteredGames.value.filter(
+        (game) => checkSelectable(game) && !selectedNames.value.has(game.name)
+      );
+      selectedGames.value = [...selectedGames.value, ...toAdd];
+    } else {
+      selectedGames.value = selectedGames.value.filter(
+        (game) => !selectableNames.value.has(game.name)
+      );
+    }
+  },
+});
 
 // Handle close
 function handleClose() {
@@ -189,65 +289,3 @@ function handleImport() {
   emit('import', selectedGames.value);
 }
 </script>
-
-<style scoped>
-.import-dialog-content {
-  height: 70vh;
-  display: flex;
-  flex-direction: column;
-  min-height: 320px;
-  overflow: hidden;
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.about-alert {
-  margin-bottom: 12px;
-}
-
-.search-input {
-  flex: 1;
-  max-width: 400px;
-}
-
-.hide-managed-checkbox {
-  white-space: nowrap;
-}
-
-.stats {
-  margin-left: auto;
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-}
-
-.game-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.managed-tag {
-  flex-shrink: 0;
-}
-
-.pagination {
-  margin-top: 16px;
-  justify-content: flex-end;
-}
-
-.game-table {
-  flex: 1;
-  min-height: 0;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-</style>
