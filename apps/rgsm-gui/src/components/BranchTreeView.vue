@@ -6,7 +6,8 @@ import type { Edge, Node } from '@vue-flow/core';
 import SnapshotNode from './SnapshotNode.vue';
 import type { Snapshot } from '../api/commands';
 import { $t } from '../i18n';
-import { Aim, FullScreen } from '@element-plus/icons-vue';
+import { Crosshair, Inbox, Maximize } from '@lucide/vue';
+import { KButton, KTooltip } from '../ui/kit';
 
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
@@ -171,16 +172,18 @@ function buildTreeLayout(snapshots: Snapshot[]): { nodes: Node[]; edges: Edge[] 
     });
 
     if (node.parent) {
+      const isHeadEdge = node.snapshot.date === props.currentHead;
       edges.push({
         id: `${node.snapshot.date}-${node.parent.snapshot.date}`,
         source: node.snapshot.date,
         target: node.parent.snapshot.date,
         type: 'smoothstep',
         style: {
-          stroke: 'var(--el-color-primary)',
-          strokeWidth: 2,
+          // 琥珀只给 HEAD 路径,其余边用中性 hairline
+          stroke: isHeadEdge ? 'var(--accent)' : 'var(--border-strong)',
+          strokeWidth: isHeadEdge ? 2 : 1.5,
         },
-        animated: node.snapshot.date === props.currentHead,
+        animated: isHeadEdge,
       });
     }
 
@@ -240,8 +243,12 @@ function onFlowReady() {
 
 <template>
   <div class="branch-tree-view">
-    <div v-if="snapshots.length === 0" class="empty-state">
-      <el-empty :description="$t('manage.no_snapshots')" />
+    <div
+      v-if="snapshots.length === 0"
+      class="flex h-full min-h-[300px] flex-col items-center justify-center gap-2 text-text-dim"
+    >
+      <Inbox :size="28" aria-hidden="true" />
+      <p class="text-sm">{{ $t('manage.no_snapshots') }}</p>
     </div>
     <VueFlow
       v-else
@@ -276,12 +283,16 @@ function onFlowReady() {
       />
 
       <div class="custom-controls">
-        <el-tooltip :content="$t('manage.focus_head')" placement="left">
-          <el-button :icon="Aim" class="control-btn" @click="focusOnHead" />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.fit_view')" placement="left">
-          <el-button :icon="FullScreen" class="control-btn" @click="fitViewAll" />
-        </el-tooltip>
+        <KTooltip :content="$t('manage.focus_head')" side="left">
+          <KButton :aria-label="$t('manage.focus_head')" @click="focusOnHead">
+            <Crosshair :size="15" aria-hidden="true" />
+          </KButton>
+        </KTooltip>
+        <KTooltip :content="$t('manage.fit_view')" side="left">
+          <KButton :aria-label="$t('manage.fit_view')" @click="fitViewAll">
+            <Maximize :size="15" aria-hidden="true" />
+          </KButton>
+        </KTooltip>
       </div>
     </VueFlow>
   </div>
@@ -291,66 +302,29 @@ function onFlowReady() {
 .branch-tree-view {
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   position: relative;
-}
-
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 300px;
-  background: var(--el-bg-color);
 }
 
 .vue-flow-wrapper {
   width: 100%;
   height: 100%;
-  background: var(--el-bg-color);
-}
-
-:deep(.vue-flow-background) {
-  background-color: var(--el-bg-color);
+  background: transparent;
 }
 
 :deep(.vue-flow__background pattern circle) {
-  fill: var(--el-border-color-lighter);
+  fill: var(--border);
 }
 
 .custom-controls {
   position: absolute;
-  bottom: 24px;
-  right: 24px;
+  bottom: 20px;
+  right: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   z-index: 10;
-}
-
-.custom-controls .control-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  font-size: 18px;
-  margin: 0;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
-  box-shadow: var(--el-box-shadow-light);
-  transition: all 0.2s;
-}
-
-.custom-controls .control-btn:hover {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-  transform: scale(1.05);
-}
-
-:deep(.vue-flow__edge-path) {
-  stroke: var(--el-color-primary);
-  stroke-width: 2;
 }
 
 :deep(.vue-flow__edge.animated path) {
