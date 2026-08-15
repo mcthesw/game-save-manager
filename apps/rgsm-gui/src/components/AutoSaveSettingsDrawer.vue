@@ -10,6 +10,7 @@ import type {
 } from '../api/commands';
 import { $t } from '../i18n';
 import { error } from '../utils/logger';
+import { KButton, KCheckbox, KDrawer, KNumberInput, KSelect, KSwitch } from '../ui/kit';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -45,9 +46,14 @@ const intervalPresets = [
   { label: () => $t('manage.preset_1h'), value: 3600 },
 ];
 
+const presetOptions = computed(() => [
+  ...intervalPresets.map((preset) => ({ value: String(preset.value), label: preset.label() })),
+  { value: 'custom', label: $t('manage.auto_backup_custom_interval') },
+]);
+
 const draft = reactive({
   timerEnabled: false,
-  timerIntervalSecs: 300,
+  timerIntervalSecs: 300 as number | undefined,
   timerMaxCount: undefined as number | undefined,
   timerPreset: '300',
   processEnabled: false,
@@ -55,10 +61,10 @@ const draft = reactive({
   onStart: false,
   onExit: true,
   intervalEnabled: false,
-  processIntervalSecs: 300,
+  processIntervalSecs: 300 as number | undefined,
 });
 const sharedRetentionEnabled = ref(false);
-const sharedRetentionLimit = ref(10);
+const sharedRetentionLimit = ref<number | undefined>(10);
 
 function gameIdentity(game: Game): string {
   return game.storage_key || game.name;
@@ -120,7 +126,7 @@ function buildAutomation() {
     on_process_start: draft.processEnabled && draft.onStart,
     on_process_exit: draft.processEnabled && draft.onExit,
     in_process_interval_secs:
-      draft.processEnabled && draft.intervalEnabled ? draft.processIntervalSecs : null,
+      draft.processEnabled && draft.intervalEnabled ? (draft.processIntervalSecs ?? 300) : null,
   };
 }
 
@@ -129,14 +135,16 @@ async function saveDraft() {
   try {
     const timerConfig: AutoBackupConfig | null = draft.timerEnabled
       ? {
-          interval_secs: draft.timerIntervalSecs,
+          interval_secs: draft.timerIntervalSecs ?? 300,
           max_backup_count: draft.timerMaxCount ?? null,
         }
       : null;
     let nextRetention: number | null = null;
     let riskyRetention = false;
     if (props.cloudGame) {
-      nextRetention = sharedRetentionEnabled.value ? Math.max(1, sharedRetentionLimit.value) : null;
+      nextRetention = sharedRetentionEnabled.value
+        ? Math.max(1, sharedRetentionLimit.value ?? 1)
+        : null;
       const previous = props.cloudGame.retention_limit ?? null;
       riskyRetention = nextRetention !== null && (previous === null || nextRetention < previous);
       if (riskyRetention) {
@@ -208,91 +216,91 @@ watch(
 </script>
 
 <template>
-  <el-drawer
-    v-model="visible"
-    :title="$t('manage.auto_save_settings')"
-    size="520px"
-    append-to-body
-    destroy-on-close
-  >
-    <div class="auto-save-drawer">
-      <section class="settings-panel">
-        <div class="panel-header">
-          <div class="panel-heading">
-            <h3>{{ $t('manage.auto_backup') }}</h3>
-            <span>{{ $t('manage.auto_backup_timer_summary') }}</span>
+  <KDrawer v-model:open="visible" :title="$t('manage.auto_save_settings')" :width="520">
+    <div class="flex flex-col gap-3.5">
+      <section class="rounded-md border border-border bg-surface p-4">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-text">{{ $t('manage.auto_backup') }}</h3>
+            <p class="mt-1 text-xs leading-relaxed text-text-dim">
+              {{ $t('manage.auto_backup_timer_summary') }}
+            </p>
           </div>
-          <el-switch v-model="draft.timerEnabled" />
+          <KSwitch v-model="draft.timerEnabled" />
         </div>
-        <div v-if="draft.timerEnabled" class="panel-grid">
-          <span class="field-label">{{ $t('manage.auto_backup_interval') }}</span>
-          <el-select
+        <div
+          v-if="draft.timerEnabled"
+          class="mt-3.5 grid grid-cols-[8.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5"
+        >
+          <span class="text-xs text-text-dim">{{ $t('manage.auto_backup_interval') }}</span>
+          <KSelect
             v-model="draft.timerPreset"
-            size="small"
-            class="field-control"
-            @change="onTimerPresetChange"
-          >
-            <el-option
-              v-for="preset in intervalPresets"
-              :key="preset.value"
-              :label="preset.label()"
-              :value="String(preset.value)"
-            />
-            <el-option :label="$t('manage.auto_backup_custom_interval')" value="custom" />
-          </el-select>
+            :options="presetOptions"
+            size="sm"
+            :aria-label="$t('manage.auto_backup_interval')"
+            @update:model-value="onTimerPresetChange(String($event))"
+          />
           <template v-if="draft.timerPreset === 'custom'">
-            <span class="field-label">{{ $t('manage.process_monitor_interval_secs') }}</span>
-            <el-input-number
+            <span class="text-xs text-text-dim">{{
+              $t('manage.process_monitor_interval_secs')
+            }}</span>
+            <KNumberInput
               v-model="draft.timerIntervalSecs"
               :min="1"
               :max="86400"
-              :step="1"
-              size="small"
-              class="number-control"
+              class="w-36"
+              :aria-label="$t('manage.process_monitor_interval_secs')"
             />
           </template>
-          <span class="field-label">{{ $t('manage.auto_backup_max_count') }}</span>
-          <el-input-number
+          <span class="text-xs text-text-dim">{{ $t('manage.auto_backup_max_count') }}</span>
+          <KNumberInput
             v-model="draft.timerMaxCount"
             :min="0"
             :max="9999"
-            :step="1"
-            size="small"
-            class="number-control"
+            class="w-36"
             :placeholder="$t('manage.auto_backup_max_count_hint')"
+            :aria-label="$t('manage.auto_backup_max_count')"
           />
         </div>
-        <div v-if="cloudGame" class="shared-retention">
-          <div class="panel-heading">
-            <h3>{{ $t('manage.shared_retention_limit') }}</h3>
-            <span>{{ $t('manage.shared_retention_hint') }}</span>
+        <div
+          v-if="cloudGame"
+          class="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4"
+        >
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-text">
+              {{ $t('manage.shared_retention_limit') }}
+            </h3>
+            <p class="mt-1 text-xs leading-relaxed text-text-dim">
+              {{ $t('manage.shared_retention_hint') }}
+            </p>
           </div>
-          <div class="retention-field">
-            <el-switch v-model="sharedRetentionEnabled" />
-            <el-input-number
+          <div class="flex shrink-0 items-center gap-2.5">
+            <KSwitch v-model="sharedRetentionEnabled" />
+            <KNumberInput
               v-if="sharedRetentionEnabled"
               v-model="sharedRetentionLimit"
               :min="1"
               :max="1000"
-              :step="1"
-              size="small"
-              class="number-control"
+              class="w-24"
+              :aria-label="$t('manage.shared_retention_limit')"
             />
           </div>
         </div>
       </section>
 
-      <section class="settings-panel">
-        <div class="panel-header">
-          <div class="panel-heading">
-            <h3>{{ $t('manage.process_monitor') }}</h3>
-            <span>{{ $t('manage.process_monitor_summary') }}</span>
+      <section class="rounded-md border border-border bg-surface p-4">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-text">{{ $t('manage.process_monitor') }}</h3>
+            <p class="mt-1 text-xs leading-relaxed text-text-dim">
+              {{ $t('manage.process_monitor_summary') }}
+            </p>
           </div>
-          <el-switch v-model="draft.processEnabled" />
+          <KSwitch v-model="draft.processEnabled" />
         </div>
-        <div v-if="draft.processEnabled" class="panel-stack">
-          <div class="field-row">
-            <span class="field-label">{{ $t('manage.process_monitor_name') }}</span>
+        <div v-if="draft.processEnabled" class="mt-3.5 flex flex-col gap-3">
+          <div class="grid grid-cols-[8.75rem_minmax(0,1fr)] items-center gap-3">
+            <span class="text-xs text-text-dim">{{ $t('manage.process_monitor_name') }}</span>
             <ProcessSelect
               v-model="draft.processName"
               :options="processOptions"
@@ -301,171 +309,45 @@ watch(
               @refresh="refreshTargets"
             />
           </div>
-          <div class="trigger-strip">
-            <el-checkbox v-model="draft.onStart">{{
+          <div class="grid grid-cols-3 gap-2">
+            <KCheckbox v-model="draft.onStart">{{
               $t('manage.process_monitor_on_start')
-            }}</el-checkbox>
-            <el-checkbox v-model="draft.onExit">{{
-              $t('manage.process_monitor_on_exit')
-            }}</el-checkbox>
-            <el-checkbox v-model="draft.intervalEnabled">
+            }}</KCheckbox>
+            <KCheckbox v-model="draft.onExit">{{ $t('manage.process_monitor_on_exit') }}</KCheckbox>
+            <KCheckbox v-model="draft.intervalEnabled">
               {{ $t('manage.process_monitor_interval') }}
-            </el-checkbox>
+            </KCheckbox>
           </div>
-          <div v-if="draft.intervalEnabled" class="field-row compact">
-            <span class="field-label">{{ $t('manage.process_monitor_interval_secs') }}</span>
-            <el-input-number
+          <div
+            v-if="draft.intervalEnabled"
+            class="grid max-w-80 grid-cols-[8.75rem_minmax(0,1fr)] items-center gap-3"
+          >
+            <span class="text-xs text-text-dim">{{
+              $t('manage.process_monitor_interval_secs')
+            }}</span>
+            <KNumberInput
               v-model="draft.processIntervalSecs"
               :min="1"
               :max="86400"
-              :step="1"
-              size="small"
-              class="number-control"
+              class="w-36"
+              :aria-label="$t('manage.process_monitor_interval_secs')"
             />
           </div>
         </div>
       </section>
 
-      <p class="drawer-footnote">{{ $t('manage.auto_save_feedback_hint') }}</p>
+      <p class="text-xs leading-relaxed text-text-dim">
+        {{ $t('manage.auto_save_feedback_hint') }}
+      </p>
     </div>
+
     <template #footer>
-      <div class="drawer-footer">
-        <el-button @click="visible = false">{{ $t('manage.cancel') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="saveDraft">
+      <div class="flex justify-end gap-2.5">
+        <KButton @click="visible = false">{{ $t('manage.cancel') }}</KButton>
+        <KButton variant="primary" :loading="saving" @click="saveDraft">
           {{ $t('manage.save_settings') }}
-        </el-button>
+        </KButton>
       </div>
     </template>
-  </el-drawer>
+  </KDrawer>
 </template>
-
-<style scoped>
-.auto-save-drawer {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.settings-panel {
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
-  padding: 16px;
-  background: var(--el-bg-color);
-  transition: border-color 0.2s ease;
-}
-
-.settings-panel:hover {
-  border-color: var(--el-border-color);
-}
-
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.panel-heading {
-  min-width: 0;
-}
-
-.panel-heading h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 650;
-  line-height: 1.35;
-}
-
-.panel-heading span {
-  display: block;
-  margin-top: 4px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.panel-grid {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px 12px;
-  margin-top: 14px;
-}
-
-.panel-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.field-row {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-}
-
-.field-row.compact {
-  max-width: 330px;
-}
-
-.field-label {
-  color: var(--el-text-color-regular);
-  font-size: 13px;
-}
-
-.field-control {
-  width: 100%;
-}
-
-.number-control {
-  width: 150px;
-}
-
-.trigger-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
-}
-
-.cloud-policy {
-  display: grid;
-  gap: 16px;
-}
-
-.shared-retention {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.retention-field {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.field-hint {
-  grid-column: 1 / -1;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.drawer-footnote {
-  margin: 0;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.drawer-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-</style>

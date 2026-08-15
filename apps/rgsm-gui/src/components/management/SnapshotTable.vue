@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import {
   ArrowDown,
   ArrowUp,
-  CloudOff,
+  CloudCheck,
   Download,
   FolderMinus,
   Inbox,
@@ -49,7 +49,6 @@ const emit = defineEmits<{
   evict: [date: string];
   download: [date: string];
   upload: [date: string];
-  removeCloud: [date: string];
 }>();
 
 const GRID_COLS = 'grid-cols-[2.25rem_11.5rem_minmax(0,1fr)_8rem_11.75rem]';
@@ -194,7 +193,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :loading="activeTransfer === snapshot.date"
                 @click="emit('evict', snapshot.date)"
               >
-                <FolderMinus :size="15" aria-hidden="true" />
+                <template #icon><FolderMinus :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
             <KTooltip
@@ -213,11 +212,12 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :loading="activeTransfer === snapshot.date"
                 @click="emit('download', snapshot.date)"
               >
-                <Download :size="15" aria-hidden="true" />
+                <template #icon><Download :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
           </span>
 
+          <!-- 云端槽:可上传时是上传按钮;已在云端时是被动状态标(云副本删除走行尾「删除」) -->
           <span class="inline-flex h-7 w-7 items-center justify-center">
             <KTooltip
               v-if="cloudGame && canUpload(snapshot.date)"
@@ -230,23 +230,16 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :loading="activeTransfer === snapshot.date"
                 @click="emit('upload', snapshot.date)"
               >
-                <Upload :size="15" aria-hidden="true" />
+                <template #icon><Upload :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
-            <KTooltip
+            <span
               v-else-if="cloudGame && isInCloud(snapshot.date)"
-              :content="$t('manage.cloud_remove')"
+              class="inline-flex items-center justify-center"
+              :title="locationLabel(snapshot.date)"
             >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('manage.cloud_remove')"
-                :loading="activeTransfer === snapshot.date"
-                @click="emit('removeCloud', snapshot.date)"
-              >
-                <CloudOff :size="15" aria-hidden="true" />
-              </KButton>
-            </KTooltip>
+              <CloudCheck :size="15" class="text-text-dim" aria-hidden="true" />
+            </span>
           </span>
 
           <span class="inline-flex h-7 w-7 items-center justify-center">
@@ -263,7 +256,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :disabled="!canApply(snapshot.date)"
                 @click="emit('apply', snapshot.date)"
               >
-                <Play :size="15" aria-hidden="true" />
+                <template #icon><Play :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
           </span>
@@ -279,7 +272,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :aria-label="$t('manage.convert_to_permanent')"
                 @click="emit('convertPermanent', snapshot.date)"
               >
-                <Lock :size="15" aria-hidden="true" />
+                <template #icon><Lock :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
             <KTooltip
@@ -292,7 +285,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :aria-label="$t('sync_settings.archives.retention.unprotect')"
                 @click="emit('convertPermanent', snapshot.date)"
               >
-                <LockOpen :size="15" aria-hidden="true" />
+                <template #icon><LockOpen :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
             <KTooltip
@@ -310,7 +303,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :disabled="!localCatalogDates.has(snapshot.date)"
                 @click="emit('changeDescribe', snapshot.date)"
               >
-                <Pencil :size="15" aria-hidden="true" />
+                <template #icon><Pencil :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
           </span>
@@ -324,7 +317,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                 :aria-label="$t('manage.delete')"
                 @click="emit('remove', snapshot.date)"
               >
-                <Trash2 :size="15" aria-hidden="true" />
+                <template #icon><Trash2 :size="15" aria-hidden="true" /></template>
               </KButton>
             </KTooltip>
           </span>

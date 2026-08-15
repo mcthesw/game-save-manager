@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import dayjs from 'dayjs';
-import { Delete, FolderOpened, Refresh, VideoPlay } from '@element-plus/icons-vue';
+import { FolderOpen, Inbox, LoaderCircle, Play, RefreshCw, Trash2 } from '@lucide/vue';
 import { error as logError } from '../utils/logger';
 
 import { $t } from '../i18n';
@@ -9,6 +9,7 @@ import { commands, type ExtraBackupItem, type Game } from '../api/commands';
 import { useApplyConfirmation } from '../composables/useApplyConfirmation';
 import { useFeedback } from '../composables/useFeedback';
 import { useGlobalLoading } from '../composables/useGlobalLoading';
+import { KButton, KDrawer } from '../ui/kit';
 
 const props = defineProps<{
   game: Game;
@@ -26,6 +27,11 @@ const { withLoading } = useGlobalLoading();
 const loading = ref(false);
 const items = ref<ExtraBackupItem[]>([]);
 
+const open = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emit('update:modelValue', value),
+});
+
 const countText = computed(() => {
   if (loading.value) return '';
   return items.value.length > 0 ? String(items.value.length) : '';
@@ -33,8 +39,8 @@ const countText = computed(() => {
 
 watch(
   () => props.modelValue,
-  (open) => {
-    if (open) refresh();
+  (visible) => {
+    if (visible) refresh();
   }
 );
 
@@ -133,151 +139,72 @@ async function del(date: string) {
 </script>
 
 <template>
-  <el-drawer
-    :model-value="modelValue"
-    :title="$t('manage.extra_backups')"
-    size="580px"
-    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
-  >
-    <div class="drawer-body">
+  <KDrawer v-model:open="open" :title="$t('manage.extra_backups')" :width="580">
+    <div class="flex h-full flex-col gap-4">
       <!-- Toolbar -->
-      <div class="toolbar">
-        <div class="hint">{{ $t('manage.extra_backups_hint') }}</div>
-        <div class="toolbar-actions">
-          <el-button text :icon="Refresh" :loading="loading" @click="refresh">
+      <div class="flex items-center justify-between gap-4 border-b border-border pb-3">
+        <p class="flex-1 text-xs leading-relaxed text-text-dim">
+          {{ $t('manage.extra_backups_hint') }}
+        </p>
+        <div class="flex shrink-0 gap-1">
+          <KButton variant="ghost" size="sm" :loading="loading" @click="refresh">
+            <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
             {{ $t('common.refresh') }}
-          </el-button>
-          <el-button text :icon="FolderOpened" @click="openFolder">
+          </KButton>
+          <KButton variant="ghost" size="sm" @click="openFolder">
+            <template #icon><FolderOpen :size="13" aria-hidden="true" /></template>
             {{ $t('manage.open_extra_backup_folder') }}
-          </el-button>
+          </KButton>
         </div>
       </div>
 
+      <!-- Loading -->
+      <div v-if="loading" class="flex flex-1 items-center justify-center text-text-dim">
+        <LoaderCircle :size="22" class="animate-spin" aria-hidden="true" />
+      </div>
+
       <!-- Empty State -->
-      <el-empty
-        v-if="!loading && items.length === 0"
-        :description="$t('manage.no_extra_backups')"
-      />
+      <div
+        v-else-if="items.length === 0"
+        class="flex flex-1 flex-col items-center justify-center gap-2 text-text-dim"
+      >
+        <Inbox :size="28" aria-hidden="true" />
+        <p class="text-sm">{{ $t('manage.no_extra_backups') }}</p>
+      </div>
 
       <!-- Backup List -->
-      <div v-else v-loading="loading" class="backup-list">
-        <div v-for="item in items" :key="item.date" class="backup-item">
-          <div class="backup-main">
-            <div class="backup-time">{{ formatTime(item) }}</div>
-            <div class="backup-size">{{ formatFileSize(item.size) }}</div>
+      <div
+        v-else
+        class="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border border-border"
+      >
+        <div
+          v-for="item in items"
+          :key="item.date"
+          class="flex items-center justify-between gap-4 border-b border-border px-3.5 py-3 last:border-b-0"
+        >
+          <div class="min-w-0">
+            <div class="font-mono text-xs text-text">{{ formatTime(item) }}</div>
+            <div class="mt-0.5 font-mono text-[11px] text-text-dim">
+              {{ formatFileSize(item.size) }}
+            </div>
           </div>
-          <div class="backup-actions">
-            <el-button text type="primary" :icon="VideoPlay" @click="restore(item.date)">
+          <div class="flex shrink-0 gap-1">
+            <KButton variant="ghost" size="sm" class="text-success" @click="restore(item.date)">
+              <template #icon><Play :size="13" aria-hidden="true" /></template>
               {{ $t('manage.apply') }}
-            </el-button>
-            <el-button text type="danger" :icon="Delete" @click="del(item.date)">
+            </KButton>
+            <KButton variant="ghost" size="sm" class="text-danger" @click="del(item.date)">
+              <template #icon><Trash2 :size="13" aria-hidden="true" /></template>
               {{ $t('manage.delete') }}
-            </el-button>
+            </KButton>
           </div>
         </div>
       </div>
 
       <!-- Footer Stats -->
-      <div v-if="!loading && countText" class="footer">
-        <span class="count-text">{{ $t('manage.extra_backups') }}: {{ countText }}</span>
+      <div v-if="!loading && countText" class="shrink-0 text-xs text-text-dim">
+        {{ $t('manage.extra_backups') }}: {{ countText }}
       </div>
     </div>
-  </el-drawer>
+  </KDrawer>
 </template>
-
-<style scoped>
-.drawer-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  height: 100%;
-}
-
-/* Toolbar */
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.hint {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-  flex: 1;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-/* Backup List */
-.backup-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  background: var(--el-border-color-lighter);
-  border-radius: 8px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-.backup-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  background: var(--el-bg-color);
-  transition: background-color 0.2s;
-}
-
-.backup-item:hover {
-  background: var(--el-fill-color-light);
-}
-
-.backup-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-
-.backup-time {
-  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-
-.backup-size {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-}
-
-.backup-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-/* Footer */
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.count-text {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-}
-</style>

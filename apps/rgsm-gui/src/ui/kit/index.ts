@@ -7,6 +7,7 @@ export { default as KFormRow } from './KFormRow.vue';
 export { default as KInput } from './KInput.vue';
 export { default as KMenu } from './KMenu.vue';
 export type { KMenuEntry } from './KMenu.vue';
+export { default as KNumberInput } from './KNumberInput.vue';
 export { default as KPopover } from './KPopover.vue';
 export { default as KSegmented } from './KSegmented.vue';
 export type { KSegmentedOption } from './KSegmented.vue';

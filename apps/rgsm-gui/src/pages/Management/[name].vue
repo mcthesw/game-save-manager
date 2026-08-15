@@ -321,13 +321,10 @@ const {
   selectedUploadable,
   selectedDownloadable,
   selectedEvictable,
-  selectedCloudRemovable,
   transferSnapshot,
   retryPendingDeletion,
-  removeCloudSnapshot,
   evictSnapshot,
   batchTransfer,
-  batchRemoveCloud,
   batchEvict,
   convertToPermanent,
 } = useSnapshotTransfers({
@@ -1417,7 +1414,7 @@ const viewModeOptions = computed(() => [
           @select="onHeaderMenuSelect"
         >
           <KButton variant="ghost" :aria-label="$t('manage.more_actions')">
-            <Ellipsis :size="16" aria-hidden="true" />
+            <template #icon><Ellipsis :size="16" aria-hidden="true" /></template>
           </KButton>
         </KMenu>
       </div>
@@ -1450,7 +1447,7 @@ const viewModeOptions = computed(() => [
           :disabled="!canUndo"
           @click="undo_last_apply"
         >
-          <Undo2 :size="15" aria-hidden="true" />
+          <template #icon><Undo2 :size="15" aria-hidden="true" /></template>
         </KButton>
       </KTooltip>
     </section>
@@ -1485,14 +1482,6 @@ const viewModeOptions = computed(() => [
           <KButton v-if="selectedUploadable.length > 0" size="sm" @click="batchTransfer(true)">
             <template #icon><Upload :size="13" aria-hidden="true" /></template>
             {{ $t('manage.batch_upload') }}
-          </KButton>
-          <KButton
-            v-if="selectedCloudRemovable.length > 0"
-            size="sm"
-            variant="danger"
-            @click="batchRemoveCloud()"
-          >
-            {{ $t('manage.batch_cloud_remove') }}
           </KButton>
           <KButton
             v-if="selected_game_snapshots.length > 0"
@@ -1577,7 +1566,6 @@ const viewModeOptions = computed(() => [
           @evict="evictSnapshot"
           @download="transferSnapshot($event, false)"
           @upload="transferSnapshot($event, true)"
-          @remove-cloud="removeCloudSnapshot"
         />
       </div>
 

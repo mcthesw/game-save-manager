@@ -22,6 +22,7 @@ import {
   type ActivityStatus,
 } from '../composables/useActivityCenter';
 import { LAYER } from '../ui/layers';
+import { overlayDepth } from '../ui/overlayDepth';
 
 const { activeJobs, isSyncing, isCancelling, jobs, cancelSync } = useCloudSyncStatus();
 const { activities, activityAddSignal, dismissActivity, dismissAll, notifyError } =
@@ -221,6 +222,7 @@ function canDismiss(entry: ActivityEntry) {
 
 <template>
   <div
+    v-show="overlayDepth === 0"
     class="activity-drawer"
     :class="{ 'is-ghost-tab': isGhostTab }"
     role="status"

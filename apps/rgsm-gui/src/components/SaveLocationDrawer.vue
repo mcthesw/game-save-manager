@@ -14,23 +14,33 @@ import { commands } from '../api/commands';
 import { useConfig } from '../composables/useConfig';
 import { usePathResolution } from '../composables/usePathResolution';
 import PathVariableInput from './PathVariableInput.vue';
+import ResourceMultiSelect from './ResourceMultiSelect.vue';
 import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
+import { KAlert, KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } from '../ui/kit';
 
 const { config } = useConfig();
 const feedback = useFeedback();
 const { resourceLabel } = usePathResolution();
 
-const props = defineProps({
-  game: {
-    type: Object as () => Game,
-    required: true,
-  },
-});
+const props = defineProps<{
+  game: Game;
+  modelValue: boolean;
+}>();
 
 const emits = defineEmits<{
+  (event: 'update:modelValue', value: boolean): void;
   (event: 'closed'): void;
   (event: 'saveChanges', game: Game): void;
 }>();
+
+const open = computed({
+  get: () => props.modelValue,
+  set: (value: boolean) => emits('update:modelValue', value),
+});
+
+watch(open, (visible) => {
+  if (!visible) emits('closed');
+});
 
 const currentDevice = ref<Device | null>(null);
 const availableDevices = ref<Device[]>([]);
@@ -60,6 +70,14 @@ const installationResources = computed(() =>
 const savedRestoreMappings = computed(
   () => tempGame.value.device_bindings?.[selectedDeviceId.value]?.restoreMappings ?? []
 );
+
+const deviceOptions = computed(() =>
+  availableDevices.value.map((device) => ({ value: device.id, label: device.name }))
+);
+
+function resourceOptions(resources: Device['resources'] | undefined) {
+  return (resources ?? []).map((item) => ({ value: item.id, label: resourceLabel(item) }));
+}
 
 function currentBinding(): GameDeviceBinding {
   tempGame.value.device_bindings ??= {};
@@ -509,504 +527,290 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
 </script>
 
 <template>
-  <el-drawer
-    :title="$t('save_location_drawer.drawer_title')"
-    size="70%"
-    :on-closed="
-      () => {
-        $emit('closed');
-      }
-    "
-  >
-    <template #header>
-      <div class="drawer-header">
-        <span class="drawer-title">
-          {{ $t('save_location_drawer.drawer_title') }}
-          <span v-if="hasUnsavedChanges" class="unsaved-indicator">●</span>
-        </span>
-        <div class="drawer-actions">
-          <el-button
-            type="primary"
-            size="small"
-            :disabled="!hasUnsavedChanges"
-            @click="saveChanges"
-          >
-            {{ $t('common.save') }}
-          </el-button>
-          <el-button size="small" :disabled="!hasUnsavedChanges" @click="cancelChanges">
-            {{ $t('common.cancel') }}
-          </el-button>
-        </div>
-      </div>
+  <KDrawer v-model:open="open" :width="720">
+    <template #title>
+      <span class="inline-flex items-center gap-1.5">
+        {{ $t('save_location_drawer.drawer_title') }}
+        <span v-if="hasUnsavedChanges" class="text-xs text-warning" aria-hidden="true">●</span>
+      </span>
     </template>
 
-    <div class="drawer-body">
+    <div class="flex flex-col gap-3.5">
       <!-- Game name section -->
-      <div class="section">
-        <div class="section-header">
-          <div class="section-label">{{ $t('addgame.game_name') }}</div>
-        </div>
-        <el-input
+      <section>
+        <div class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</div>
+        <KInput
           v-model="tempGame.name"
           :placeholder="$t('addgame.game_name')"
-          @input="hasUnsavedChanges = true"
+          :aria-label="$t('addgame.game_name')"
+          @update:model-value="hasUnsavedChanges = true"
         />
-      </div>
+      </section>
 
       <!-- Device selector section -->
-      <div class="section">
-        <div class="section-header">
-          <div class="section-label">{{ $t('save_location_drawer.select_device') }}</div>
+      <section>
+        <div class="mb-1 block text-xs text-text-dim">
+          {{ $t('save_location_drawer.select_device') }}
         </div>
-        <div class="device-selector-row">
-          <el-select
+        <div class="flex items-center gap-2">
+          <KSelect
             v-model="selectedDeviceId"
+            class="min-w-56 flex-1"
+            :options="deviceOptions"
             :placeholder="$t('save_location_drawer.select_device')"
-            style="flex: 1; min-width: 220px"
-          >
-            <el-option
-              v-for="device in availableDevices"
-              :key="device.id"
-              :label="device.name"
-              :value="device.id"
-            />
-          </el-select>
-          <el-tag
+            :aria-label="$t('save_location_drawer.select_device')"
+          />
+          <KTag
             v-if="currentDevice && selectedDeviceId === currentDevice.id"
-            type="success"
-            style="flex-shrink: 0"
+            tone="success"
+            class="shrink-0"
           >
             {{ $t('save_location_drawer.current_device') }}
-          </el-tag>
+          </KTag>
         </div>
-      </div>
+      </section>
 
-      <div v-if="selectedDeviceResources.length" class="section">
-        <div class="section-header">
-          <div class="section-label">{{ $t('save_location_drawer.device_location') }}</div>
+      <!-- Device resources section -->
+      <section v-if="selectedDeviceResources.length">
+        <div class="mb-1 block text-xs text-text-dim">
+          {{ $t('save_location_drawer.device_location') }}
         </div>
-        <p class="section-hint">{{ $t('save_location_drawer.device_location_hint') }}</p>
-        <el-select
-          v-if="rootResources.length > 1"
-          :model-value="selectedResourceIds('rootIds')"
-          multiple
-          clearable
-          :placeholder="$t('save_location_drawer.choose_libraries')"
-          @update:model-value="(ids: number[]) => updateResourceIds('rootIds', ids)"
-        >
-          <el-option
-            v-for="item in rootResources"
-            :key="item.id"
-            :label="resourceLabel(item)"
-            :value="item.id"
+        <p class="mb-2 text-xs leading-relaxed text-text-dim">
+          {{ $t('save_location_drawer.device_location_hint') }}
+        </p>
+        <div class="flex flex-col gap-2">
+          <ResourceMultiSelect
+            v-if="rootResources.length > 1"
+            :model-value="selectedResourceIds('rootIds')"
+            :options="resourceOptions(rootResources)"
+            :placeholder="$t('save_location_drawer.choose_libraries')"
+            @update:model-value="updateResourceIds('rootIds', $event)"
           />
-        </el-select>
-        <el-select
-          v-if="accountResources.length > 1"
-          :model-value="selectedResourceIds('accountIds')"
-          multiple
-          clearable
-          :placeholder="$t('save_location_drawer.choose_accounts')"
-          @update:model-value="(ids: number[]) => updateResourceIds('accountIds', ids)"
-        >
-          <el-option
-            v-for="item in accountResources"
-            :key="item.id"
-            :label="resourceLabel(item)"
-            :value="item.id"
+          <ResourceMultiSelect
+            v-if="accountResources.length > 1"
+            :model-value="selectedResourceIds('accountIds')"
+            :options="resourceOptions(accountResources)"
+            :placeholder="$t('save_location_drawer.choose_accounts')"
+            @update:model-value="updateResourceIds('accountIds', $event)"
           />
-        </el-select>
-        <el-select
-          v-if="installationResources.length > 1"
-          :model-value="selectedResourceIds('installationIds')"
-          multiple
-          clearable
-          :placeholder="$t('save_location_drawer.choose_installations')"
-          @update:model-value="(ids: number[]) => updateResourceIds('installationIds', ids)"
-        >
-          <el-option
-            v-for="item in installationResources"
-            :key="item.id"
-            :label="resourceLabel(item)"
-            :value="item.id"
+          <ResourceMultiSelect
+            v-if="installationResources.length > 1"
+            :model-value="selectedResourceIds('installationIds')"
+            :options="resourceOptions(installationResources)"
+            :placeholder="$t('save_location_drawer.choose_installations')"
+            @update:model-value="updateResourceIds('installationIds', $event)"
           />
-        </el-select>
-        <div v-if="savedRestoreMappings.length" class="mapping-list">
+        </div>
+        <div v-if="savedRestoreMappings.length" class="mt-2 flex flex-col gap-1">
           <div
             v-for="(mapping, index) in savedRestoreMappings"
             :key="`${mapping.saveUnitId}-${index}`"
-            class="mapping-row"
+            class="flex items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5"
           >
-            <span>{{
+            <span class="text-xs text-text-dim">{{
               $t('save_location_drawer.saved_restore_choice', { id: mapping.saveUnitId })
             }}</span>
-            <el-button text type="danger" @click="removeRestoreMapping(index)">
+            <KButton
+              variant="ghost"
+              size="sm"
+              class="text-danger"
+              @click="removeRestoreMapping(index)"
+            >
               {{ $t('save_location_drawer.forget_restore_choice') }}
-            </el-button>
+            </KButton>
           </div>
         </div>
-      </div>
+      </section>
 
       <!-- Launch path -->
-      <div class="section">
-        <div class="section-header">
-          <div class="section-label">{{ $t('save_location_drawer.launch_path') }}</div>
-          <div class="section-actions">
-            <el-button
-              text
-              size="small"
+      <section>
+        <div class="mb-1.5 flex items-center justify-between gap-2">
+          <div class="text-sm font-medium text-text">
+            {{ $t('save_location_drawer.launch_path') }}
+          </div>
+          <div class="flex gap-1">
+            <KButton
+              variant="ghost"
+              size="sm"
               :disabled="launcherPathEmpty"
               @click="openPath(getGameLaunchPath(selectedDeviceId))"
             >
               {{ $t('save_location_drawer.open') }}
-            </el-button>
-            <el-button type="primary" text size="small" @click="chooseLaunchPath">
+            </KButton>
+            <KButton variant="ghost" size="sm" @click="chooseLaunchPath">
               {{ $t('save_location_drawer.pick_path') }}
-            </el-button>
+            </KButton>
           </div>
         </div>
-        <path-variable-input
+        <PathVariableInput
           :model-value="getGameLaunchPath(selectedDeviceId)"
           status-mode="below"
-          @update:model-value="(value) => updateGameLaunchPath(selectedDeviceId, value)"
+          @update:model-value="updateGameLaunchPath(selectedDeviceId, String($event ?? ''))"
         />
-      </div>
+      </section>
 
       <!-- Save locations toolbar -->
-      <div class="section">
-        <div class="section-header">
-          <div class="section-label">{{ $t('save_location_drawer.save_locations') }}</div>
-          <div class="section-actions">
-            <el-button type="primary" size="small" @click="addSaveDirectory">
+      <section>
+        <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div class="text-sm font-medium text-text">
+            {{ $t('save_location_drawer.save_locations') }}
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <KButton variant="primary" size="sm" @click="addSaveDirectory">
               {{ $t('addgame.add_save_directory') }}
-            </el-button>
-            <el-button size="small" @click="addSaveFile">
+            </KButton>
+            <KButton size="sm" @click="addSaveFile">
               {{ $t('addgame.add_save_file') }}
-            </el-button>
-            <el-button size="small" @click="addRegistryKey">
+            </KButton>
+            <KButton size="sm" @click="addRegistryKey">
               {{ $t('addgame.add_registry_key') }}
-            </el-button>
+            </KButton>
           </div>
         </div>
 
-        <el-alert
-          v-if="activePathsMissing"
-          type="info"
-          show-icon
-          :closable="false"
-          class="section-alert"
-        >
+        <KAlert v-if="activePathsMissing" tone="info" class="mt-2">
           {{ $t('save_location_drawer.device_paths_empty') }}
-        </el-alert>
-      </div>
+        </KAlert>
+      </section>
 
       <!-- Active save units -->
-      <div v-if="activeSaveUnits.length > 0" class="unit-list">
+      <div v-if="activeSaveUnits.length > 0" class="rounded-md border border-border">
         <div
           v-for="(unit, index) in activeSaveUnits"
           :key="unit.id ?? `active-${index}`"
-          class="unit-card"
+          class="flex flex-col gap-2 border-b border-border p-3 last:border-b-0"
         >
-          <div class="unit-card-top">
-            <div class="unit-card-tags">
-              <el-tag size="small">{{ formatUnitType(unit) }}</el-tag>
-              <el-tag v-if="hasPersistentId(unit)" type="info" size="small">#{{ unit.id }}</el-tag>
-              <el-tag v-else type="success" size="small">{{
-                $t('save_location_drawer.new_path')
-              }}</el-tag>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <KTag>{{ formatUnitType(unit) }}</KTag>
+              <KTag v-if="hasPersistentId(unit)">#{{ unit.id }}</KTag>
+              <KTag v-else tone="success">{{ $t('save_location_drawer.new_path') }}</KTag>
             </div>
-            <div class="unit-card-actions">
-              <el-tooltip :content="openTooltip(unit)" placement="top">
-                <el-button
-                  text
-                  size="small"
+            <div class="flex gap-1">
+              <KTooltip :content="openTooltip(unit)">
+                <KButton
+                  variant="ghost"
+                  size="sm"
                   :disabled="!getDevicePath(unit, selectedDeviceId)"
-                  @click="
-                    (e: MouseEvent) =>
-                      handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)
-                  "
+                  @click="handleOpenPath($event, getDevicePath(unit, selectedDeviceId), unit)"
                 >
                   {{ $t('save_location_drawer.open') }}
-                </el-button>
-              </el-tooltip>
-              <el-button text size="small" @click="chooseUnitPath(unit)">
+                </KButton>
+              </KTooltip>
+              <KButton variant="ghost" size="sm" @click="chooseUnitPath(unit)">
                 {{ $t('save_location_drawer.pick_path') }}
-              </el-button>
-              <el-button
+              </KButton>
+              <KButton
                 v-if="!hasPersistentId(unit)"
-                text
-                size="small"
-                type="danger"
+                variant="ghost"
+                size="sm"
+                class="text-danger"
                 @click="removeNewSaveUnit(unit)"
               >
                 {{ $t('addgame.remove') }}
-              </el-button>
+              </KButton>
             </div>
           </div>
 
-          <path-variable-input
+          <PathVariableInput
             :model-value="getDevicePath(unit, selectedDeviceId)"
             status-mode="tooltip"
-            @update:model-value="(value: string) => updateDevicePath(unit, selectedDeviceId, value)"
+            @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
           />
 
-          <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="path-hint">
+          <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="text-xs text-warning">
             {{ $t('save_location_drawer.path_missing_for_device') }}
           </div>
 
-          <div class="toggle-row">
-            <label v-if="hasPersistentId(unit)" class="toggle-item">
+          <div class="flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-2">
+            <label
+              v-if="hasPersistentId(unit)"
+              class="inline-flex cursor-pointer items-center gap-2 text-xs text-text"
+            >
               <span>{{ $t('save_location_drawer.backup_enabled') }}</span>
-              <el-switch
+              <KSwitch
                 :model-value="isUnitEnabled(unit)"
-                @change="(value: string | number | boolean) => setUnitEnabled(unit, Boolean(value))"
+                @update:model-value="setUnitEnabled(unit, Boolean($event))"
               />
             </label>
-            <label class="toggle-item">
+            <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-text">
               <span>{{ $t('save_location_drawer.delete_before_apply') }}</span>
-              <el-switch
-                v-model="unit.delete_before_apply"
-                @change="switchDeleteBeforeApply(unit)"
+              <KSwitch
+                :model-value="unit.delete_before_apply"
+                @update:model-value="
+                  unit.delete_before_apply = Boolean($event);
+                  switchDeleteBeforeApply(unit);
+                "
               />
             </label>
           </div>
         </div>
       </div>
 
-      <div v-else class="empty-state">
+      <div v-else class="py-6 text-center text-sm text-text-dim">
         {{ $t('save_location_drawer.no_active_paths') }}
       </div>
 
       <!-- Disabled save units -->
       <template v-if="disabledSaveUnits.length > 0">
-        <div class="section-label disabled-section-heading">
+        <div class="flex items-center gap-2 text-xs font-medium text-text-dim">
           {{ $t('save_location_drawer.disabled_paths') }}
-          <el-tag type="info" size="small" class="disabled-count">{{
-            disabledSaveUnits.length
-          }}</el-tag>
+          <KTag>{{ disabledSaveUnits.length }}</KTag>
         </div>
 
-        <div class="unit-list">
+        <div class="rounded-md border border-border">
           <div
             v-for="(unit, index) in disabledSaveUnits"
             :key="unit.id ?? `disabled-${index}`"
-            class="unit-card unit-card--disabled"
+            class="flex flex-col gap-2 border-b border-border p-3 opacity-70 last:border-b-0"
           >
-            <div class="unit-card-top">
-              <div class="unit-card-tags">
-                <el-tag type="info" size="small">{{ formatUnitType(unit) }}</el-tag>
-                <el-tag v-if="hasPersistentId(unit)" type="info" size="small"
-                  >#{{ unit.id }}</el-tag
-                >
-                <el-tag type="warning" size="small">{{
-                  $t('save_location_drawer.disabled')
-                }}</el-tag>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5">
+                <KTag>{{ formatUnitType(unit) }}</KTag>
+                <KTag v-if="hasPersistentId(unit)">#{{ unit.id }}</KTag>
+                <KTag tone="warning">{{ $t('save_location_drawer.disabled') }}</KTag>
               </div>
-              <div class="unit-card-actions">
-                <el-button text size="small" @click="chooseUnitPath(unit)">
+              <div class="flex gap-1">
+                <KButton variant="ghost" size="sm" @click="chooseUnitPath(unit)">
                   {{ $t('save_location_drawer.pick_path') }}
-                </el-button>
-                <el-tooltip :content="openTooltip(unit)" placement="top">
-                  <el-button
-                    text
-                    size="small"
+                </KButton>
+                <KTooltip :content="openTooltip(unit)">
+                  <KButton
+                    variant="ghost"
+                    size="sm"
                     :disabled="!getDevicePath(unit, selectedDeviceId)"
-                    @click="
-                      (e: MouseEvent) =>
-                        handleOpenPath(e, getDevicePath(unit, selectedDeviceId), unit)
-                    "
+                    @click="handleOpenPath($event, getDevicePath(unit, selectedDeviceId), unit)"
                   >
                     {{ $t('save_location_drawer.open') }}
-                  </el-button>
-                </el-tooltip>
-                <el-button type="primary" size="small" plain @click="setUnitEnabled(unit, true)">
+                  </KButton>
+                </KTooltip>
+                <KButton size="sm" @click="setUnitEnabled(unit, true)">
                   {{ $t('save_location_drawer.restore') }}
-                </el-button>
+                </KButton>
               </div>
             </div>
 
-            <path-variable-input
+            <PathVariableInput
               :model-value="getDevicePath(unit, selectedDeviceId)"
               status-mode="tooltip"
-              @update:model-value="(value) => updateDevicePath(unit, selectedDeviceId, value)"
+              @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
             />
 
-            <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="path-hint">
+            <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="text-xs text-warning">
               {{ $t('save_location_drawer.path_missing_for_device') }}
             </div>
           </div>
         </div>
       </template>
     </div>
-  </el-drawer>
+
+    <template #footer>
+      <KButton :disabled="!hasUnsavedChanges" @click="cancelChanges">
+        {{ $t('common.cancel') }}
+      </KButton>
+      <KButton variant="primary" :disabled="!hasUnsavedChanges" @click="saveChanges">
+        {{ $t('common.save') }}
+      </KButton>
+    </template>
+  </KDrawer>
 </template>
-
-<style scoped>
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  width: 100%;
-}
-
-.drawer-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  display: flex;
-  align-items: center;
-  line-height: 1.3;
-  min-width: 0;
-}
-
-.unsaved-indicator {
-  color: var(--el-color-warning);
-  font-size: 11px;
-  margin-left: 6px;
-  line-height: 1;
-}
-
-.drawer-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.drawer-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.device-selector-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.mapping-list {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.mapping-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--el-text-color-regular);
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.section-label {
-  color: var(--el-text-color-secondary);
-  border-left: 3px solid var(--el-color-primary-light-5);
-  padding-left: 8px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.section-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.section-alert {
-  margin-bottom: 12px;
-}
-
-.unit-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.unit-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: var(--el-bg-color);
-}
-
-.unit-card--disabled {
-  border-style: dashed;
-  opacity: 0.72;
-}
-
-.unit-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.unit-card-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.unit-card-actions {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.path-hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.toggle-row {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.toggle-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 80px;
-  border: 1px dashed var(--el-border-color-light);
-  border-radius: 8px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-
-.disabled-section-heading {
-  margin-top: 8px;
-}
-
-.disabled-count {
-  margin-left: 8px;
-}
-</style>
