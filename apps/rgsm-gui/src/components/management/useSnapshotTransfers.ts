@@ -6,7 +6,6 @@ import {
   canEvictSnapshot,
   canUploadSnapshot,
   isRetentionProtectedDate,
-  isSnapshotInCloud,
 } from './snapshotAvailability';
 
 /**
@@ -46,9 +45,6 @@ export function useSnapshotTransfers(deps: {
   const selectedEvictable = computed(() =>
     selected().filter((snapshot) => canEvictSnapshot(cloudGame.value, snapshot.date))
   );
-  const selectedCloudRemovable = computed(() =>
-    selected().filter((snapshot) => isSnapshotInCloud(cloudGame.value, snapshot.date))
-  );
 
   function gameId() {
     return game.value.storage_key || game.value.name;
@@ -80,34 +76,6 @@ export function useSnapshotTransfers(deps: {
     activeTransfer.value = snapshotId;
     try {
       const result = await commands.deleteV2Snapshot(gameId(), snapshotId, false);
-      if (result.status === 'error') {
-        notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
-        return;
-      }
-      notifySuccess($t('sync_settings.archives.delete_success'));
-      await refresh();
-    } finally {
-      activeTransfer.value = '';
-    }
-  }
-
-  async function removeCloudSnapshot(date: string) {
-    try {
-      await feedback.confirm(
-        $t('sync_settings.archives.delete_confirm', { snapshot: date }),
-        $t('sync_settings.archives.delete_title'),
-        {
-          confirmButtonText: $t('sync_settings.archives.delete_permanently'),
-          cancelButtonText: $t('sync_settings.cancel'),
-          type: 'error',
-        }
-      );
-    } catch {
-      return;
-    }
-    activeTransfer.value = date;
-    try {
-      const result = await commands.deleteV2Snapshot(gameId(), date, true);
       if (result.status === 'error') {
         notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
         return;
@@ -152,46 +120,6 @@ export function useSnapshotTransfers(deps: {
     for (const snapshot of rows) {
       await transferSnapshot(snapshot.date, upload);
     }
-  }
-
-  async function batchRemoveCloud() {
-    const rows = selectedCloudRemovable.value;
-    if (rows.length === 0) return;
-    try {
-      await feedback.confirm(
-        $t('manage.batch_cloud_remove_confirm', { count: rows.length }),
-        $t('sync_settings.archives.delete_title'),
-        {
-          confirmButtonText: $t('sync_settings.archives.delete_permanently'),
-          cancelButtonText: $t('sync_settings.cancel'),
-          type: 'error',
-        }
-      );
-    } catch {
-      return;
-    }
-    let succeeded = 0;
-    for (const snapshot of rows) {
-      activeTransfer.value = snapshot.date;
-      const result = await commands.deleteV2Snapshot(gameId(), snapshot.date, true);
-      if (result.status === 'error') {
-        notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
-        break;
-      }
-      succeeded += 1;
-    }
-    activeTransfer.value = '';
-    if (succeeded === rows.length) {
-      notifySuccess($t('manage.batch_cloud_remove_success', { count: succeeded }));
-    } else if (succeeded > 0) {
-      notifyError(
-        $t('manage.batch_delete_partial', {
-          succeeded,
-          failed: rows.length - succeeded,
-        })
-      );
-    }
-    await refresh();
   }
 
   async function batchEvict() {
@@ -319,13 +247,10 @@ export function useSnapshotTransfers(deps: {
     selectedUploadable,
     selectedDownloadable,
     selectedEvictable,
-    selectedCloudRemovable,
     transferSnapshot,
     retryPendingDeletion,
-    removeCloudSnapshot,
     evictSnapshot,
     batchTransfer,
-    batchRemoveCloud,
     batchEvict,
     convertToPermanent,
   };

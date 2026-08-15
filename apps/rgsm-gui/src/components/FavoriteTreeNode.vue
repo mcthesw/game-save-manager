@@ -66,6 +66,9 @@ const dropClass = computed(() => {
   align-items: center;
   gap: 4px;
   width: 100%;
+  /* preflight 关闭期:必须 border-box,否则 width:100%+padding 横向溢出,
+     嵌套层级越深 × 按钮被裁掉越多(depth≥1 时完全不可见) */
+  box-sizing: border-box;
   padding: 5px 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);

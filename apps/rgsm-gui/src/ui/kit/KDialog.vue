@@ -11,6 +11,7 @@ import {
 import { X } from '@lucide/vue';
 import { $t } from '../../i18n';
 import { LAYER } from '../layers';
+import { useOverlayDepth } from '../overlayDepth';
 
 const props = withDefaults(
   defineProps<{
@@ -24,6 +25,7 @@ const props = withDefaults(
 );
 
 const open = defineModel<boolean>('open', { required: true });
+useOverlayDepth(open);
 
 function onInteractOutside(event: Event) {
   if (!props.dismissable) event.preventDefault();
