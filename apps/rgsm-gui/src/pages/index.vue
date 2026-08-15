@@ -1,8 +1,9 @@
 <template>
   <div class="home-container">
     <button type="button" class="lang-chip" @click="langVisible = !langVisible">
-      🌍 {{ currentLanguageName }}
-      <el-icon class="lang-chip-arrow"><ArrowDown /></el-icon>
+      <Languages :size="14" />
+      {{ currentLanguageName }}
+      <ChevronDown :size="13" class="lang-chip-arrow" />
     </button>
 
     <div class="marquee-field" aria-hidden="true">
@@ -73,12 +74,12 @@
             @click="chooseLanguage(lang.code)"
           >
             <span>{{ lang.name }}</span>
-            <el-icon v-if="lang.code === currentLocale"><Check /></el-icon>
+            <Check v-if="lang.code === currentLocale" :size="14" />
           </li>
         </ul>
         <div class="lang-footer">
           <span class="translate-link" @click="openTranslate">
-            🌍 {{ $t('home.help_translate') }}
+            {{ $t('home.help_translate') }}
           </span>
         </div>
       </div>
@@ -87,7 +88,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ArrowDown, Check } from '@element-plus/icons-vue';
+import { Check, ChevronDown, Languages } from '@lucide/vue';
 import { usePreferredReducedMotion } from '@vueuse/core';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { Ref } from 'vue';
@@ -268,6 +269,7 @@ function goAbout() {
   position: relative;
   display: flex;
   flex-direction: column;
+  font-family: var(--font-sans-stack);
   /* ElScrollbar__view 是自动高度,min-height:100% 会塌缩;
      直接抵消 el-main 默认 20px padding 并占满视口高度 */
   height: 100vh;
@@ -285,14 +287,14 @@ function goAbout() {
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  border: 1px solid color-mix(in srgb, var(--el-border-color-light) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--el-bg-color) 62%, transparent);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   font: inherit;
   font-size: 0.85rem;
-  color: var(--el-text-color-primary);
+  color: var(--text);
   cursor: pointer;
   transition:
     transform 0.25s ease,
@@ -301,12 +303,12 @@ function goAbout() {
 
 .lang-chip:hover {
   transform: translateY(-1px);
-  background: color-mix(in srgb, var(--el-bg-color) 85%, transparent);
-  color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  color: var(--text);
 }
 
 .lang-chip:focus-visible {
-  outline: 2px solid var(--el-color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -329,7 +331,7 @@ function goAbout() {
   font-size: calc(var(--size) * 1rem);
   line-height: 1.25;
   white-space: nowrap;
-  color: var(--el-text-color-secondary);
+  color: color-mix(in oklab, var(--text-dim) 75%, transparent);
   opacity: 0.38;
   transition: opacity 0.35s ease;
   animation: row-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
@@ -342,7 +344,7 @@ function goAbout() {
 }
 
 .marquee-row.mid {
-  color: var(--el-color-primary-light-5);
+  color: var(--text-dim);
 }
 
 .marquee-track {
@@ -390,8 +392,8 @@ function goAbout() {
   inset: 0;
   background: radial-gradient(
     ellipse 38% 30% at 50% 46%,
-    var(--el-bg-color) 0%,
-    color-mix(in srgb, var(--el-bg-color) 72%, transparent) 55%,
+    var(--bg) 0%,
+    color-mix(in srgb, var(--bg) 72%, transparent) 55%,
     transparent 82%
   );
   pointer-events: none;
@@ -421,29 +423,29 @@ function goAbout() {
   font-size: 1.05rem;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--el-text-color-primary);
+  color: var(--text);
 }
 
 .focal-version {
   margin: 0;
   padding: 2px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
-  font: inherit;
+  font-family: var(--font-mono-stack);
   font-size: 0.8rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   cursor: pointer;
   pointer-events: auto;
   transition: color 0.2s ease;
 }
 
 .focal-version:hover {
-  color: var(--el-color-primary);
+  color: var(--text);
 }
 
 .focal-version:focus-visible {
-  outline: 2px solid var(--el-color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -487,9 +489,9 @@ function goAbout() {
   gap: 0.35rem;
   padding: 0.7rem 1.7rem;
   border: none;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   /* 无边框玻璃片:与流动文字软隔离 */
-  background: color-mix(in srgb, var(--el-bg-color) 58%, transparent);
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   font: inherit;
@@ -504,35 +506,36 @@ function goAbout() {
 
 .status-link:hover {
   transform: translateY(-2px);
-  background: color-mix(in srgb, var(--el-bg-color) 82%, transparent);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
 }
 
 .status-link:hover .status-value,
 .status-link:hover .status-label {
-  color: var(--el-color-primary);
+  color: var(--text);
 }
 
 .status-link:focus-visible {
-  outline: 2px solid var(--el-color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 .status-value {
+  font-family: var(--font-mono-stack);
   font-size: 1.9rem;
   font-weight: 650;
   line-height: 1.2;
-  color: var(--el-text-color-primary);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   transition: color 0.25s ease;
 }
 
 .status-value.is-guide {
-  color: var(--el-color-primary);
+  color: var(--accent);
 }
 
 .status-label {
   font-size: 0.85rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   transition: color 0.25s ease;
 }
 
@@ -550,10 +553,10 @@ function goAbout() {
   z-index: 11;
   min-width: 220px;
   padding: 10px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 12px;
-  background: var(--el-bg-color-overlay);
-  box-shadow: var(--el-box-shadow-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
 }
 
 .lang-pop-enter-active,
@@ -572,7 +575,7 @@ function goAbout() {
 .lang-title {
   margin: 0 0 6px;
   font-size: 0.8rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
 }
 
 .lang-list {
@@ -587,34 +590,35 @@ function goAbout() {
   justify-content: space-between;
   gap: 12px;
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--el-text-color-primary);
+  color: var(--text);
 }
 
 .lang-item:hover {
-  background-color: var(--el-fill-color-light);
+  background-color: var(--surface-2);
 }
 
 .lang-item.active {
-  color: var(--el-color-primary);
+  color: var(--text);
   font-weight: 600;
 }
 
 .lang-footer {
   margin-top: 6px;
   padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--border);
   text-align: center;
 }
 
 .translate-link {
   cursor: pointer;
   font-size: 0.85rem;
-  color: var(--el-color-primary);
+  color: var(--text-dim);
 }
 
 .translate-link:hover {
+  color: var(--text);
   text-decoration: underline;
 }
 

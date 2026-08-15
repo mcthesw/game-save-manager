@@ -281,10 +281,6 @@ body {
 }
 
 /* Custom font family - applied globally when user enables custom font */
-:root {
-  --rgsm-ui-font-family: var(--el-font-family);
-}
-
 body,
 button,
 input,
@@ -306,7 +302,7 @@ textarea,
 .el-alert,
 .el-tag,
 [class^='el-'] {
-  font-family: var(--rgsm-ui-font-family) !important;
+  font-family: var(--rgsm-ui-font-family, var(--font-sans-stack)) !important;
 }
 
 .global-loading-overlay {
