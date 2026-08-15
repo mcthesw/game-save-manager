@@ -16,9 +16,9 @@
           />
           <KInput
             v-model="searchText"
+            class="w-full pl-8"
             :placeholder="$t('game_import.search_placeholder')"
             :aria-label="$t('game_import.search_placeholder')"
-            class="pl-8"
           />
         </div>
         <KCheckbox v-model="hideManaged" class="shrink-0 whitespace-nowrap">{{

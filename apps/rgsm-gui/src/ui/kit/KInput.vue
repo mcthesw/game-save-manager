@@ -23,8 +23,10 @@ const props = withDefaults(
 
 const model = defineModel<string>();
 
+// Width comes from consumers only (same contract as KSelect) — bare KInput
+// is content-sized; pass class="w-full" for block layout.
 const classes = computed(() => [
-  'box-border w-full rounded-sm border border-border bg-surface px-3 text-text transition-colors duration-150',
+  'box-border rounded-sm border border-border bg-surface px-3 text-text transition-colors duration-150',
   'placeholder:text-text-dim focus:border-accent focus:outline-none',
   'disabled:cursor-not-allowed disabled:opacity-50',
   props.mono ? 'font-mono' : '',

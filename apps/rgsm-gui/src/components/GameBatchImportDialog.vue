@@ -18,6 +18,7 @@
         <div class="w-72">
           <KInput
             v-model="storeUserIdInput"
+            class="w-full"
             size="sm"
             :placeholder="$t('game_batch_import.store_user_id_placeholder')"
             aria-label="Steam user ID"
@@ -42,6 +43,7 @@
         <div class="w-56">
           <KInput
             v-model="searchText"
+            class="w-full"
             size="sm"
             :placeholder="$t('game_batch_import.search_placeholder')"
             :aria-label="$t('game_batch_import.search_placeholder')"
@@ -109,7 +111,7 @@
           >
             <div>
               <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
-              <KInput v-model="game.customName" size="sm" :placeholder="game.name" />
+              <KInput v-model="game.customName" size="sm" class="w-full" :placeholder="game.name" />
             </div>
             <div>
               <label class="mb-1 block text-xs text-text-dim">{{

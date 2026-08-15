@@ -6,7 +6,7 @@
     "store_account_add": "Add account",
     "store_other": "Other",
     "game_installations_title": "Game installations",
-    "game_installations_hint": "Advanced device-specific locations for stores that are not detected automatically.",
+    "game_installations_hint": "When a game's install location cannot be auto-detected, register it here (e.g. the game folder inside a Steam library) so path variables resolve",
     "game_installation_root": "Game library",
     "game_installation_name": "Directory name",
     "game_installation_path": "Full installation path",
@@ -97,8 +97,11 @@
     "quick_action_sound_file_placeholder": "Enter an audio file path",
     "hotkey": {
       "quick_backup": "Quick backup",
-      "hint": "Note that the settings here are the same as other settings with an asterisk. They need to be saved and restarted to take effect. Setting it to empty will disable this function.",
-      "quick_apply": "Quick file reading"
+      "hint": "Hotkeys here must be saved (button below) and take effect after a restart. Leave all keys empty to disable quick actions.",
+      "quick_apply": "Quick file reading",
+      "capturing": "Press the key combo… (Esc to cancel)",
+      "not_set": "Not set",
+      "clear": "Clear"
     },
     "general": "General",
     "backup_settings": "Backup settings",
@@ -144,8 +147,8 @@
     "delete_device_confirm_message": "Deleting this device will remove all save path mappings and game-specific overrides associated with it. This action cannot be undone. Continue?",
     "delete_device_success": "Device removed successfully",
     "delete_device_failed": "Failed to remove device",
-    "game_roots_title": "Game Root Directories",
-    "game_roots_hint": "Directories where games are installed. Used to resolve the <root> path variable. When empty, auto-detected Steam library paths are used as fallback.",
+    "game_roots_title": "Game Library Roots",
+    "game_roots_hint": "Library folders like SteamLibrary, used to resolve the <root> path variable; Steam libraries are auto-detected when empty",
     "game_roots_path_placeholder": "e.g. D:\\Steam",
     "game_roots_add": "Add Root",
     "game_roots_auto_detect": "Auto-detect",
@@ -165,7 +168,11 @@
     "local_api_regenerate_warning": "Existing local clients will lose access and must reconnect with the new token.",
     "local_api_regenerated": "API token regenerated",
     "local_api_regenerate_failed": "Failed to regenerate API token",
-    "local_api_load_failed": "Failed to load local API settings"
+    "local_api_load_failed": "Failed to load local API settings",
+    "section_auto_scan": "Auto Scan",
+    "ui_appearance": "Interface & Appearance",
+    "section_quick_action": "Quick Actions",
+    "vn_scanner_hint": "Supports Ren'Py, RPG Maker and common visual novel engines; pick parent folders whose direct subfolders each count as one game"
   },
   "home": {
     "name": "Game save manager",
