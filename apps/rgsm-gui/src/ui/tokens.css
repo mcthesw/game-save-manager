@@ -101,3 +101,36 @@
   --font-sans: var(--font-sans-stack);
   --font-mono: var(--font-mono-stack);
 }
+
+/*
+ * Thin, token-tinted scrollbars everywhere. Cosmetic only (no layout shift
+ * beyond the narrower gutter), so it is safe for unmigrated EP pages too.
+ * Note: the no-preflight decision above means UA `box-sizing: content-box`;
+ * kit controls that set width + padding MUST opt into `box-border` themselves
+ * (see KInput/KSelect/KTagInput).
+ */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}

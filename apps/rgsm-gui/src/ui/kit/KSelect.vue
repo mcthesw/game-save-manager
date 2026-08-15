@@ -52,7 +52,7 @@ function clear(event: Event) {
   <SelectRoot v-model="model" :disabled="disabled">
     <SelectTrigger
       :aria-label="ariaLabel"
-      class="relative inline-flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm border border-border bg-surface px-3 text-left text-sm text-text transition-colors duration-150 focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-text-dim"
+      class="relative box-border inline-flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm border border-border bg-surface px-3 text-left text-sm text-text transition-colors duration-150 focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-text-dim"
       :class="size === 'sm' ? 'h-7 text-xs' : 'h-9'"
     >
       <SelectValue :placeholder="placeholder" />

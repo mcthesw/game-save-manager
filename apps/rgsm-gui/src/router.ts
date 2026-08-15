@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { routes, handleHotUpdate } from 'vue-router/auto-routes';
 import { useConfig } from './composables/useConfig';
 
-const knownPages = new Set(['/', '/About', '/AddGame', '/Settings', '/SyncSettings']);
+const knownPages = new Set(['/', '/About', '/Settings', '/SyncSettings']);
 
 export const router = createRouter({
   history: createWebHistory(),

@@ -1,160 +1,190 @@
 <template>
-  <el-dialog
-    v-model="dialogVisible"
+  <KDialog
+    v-model:open="dialogVisible"
     :title="$t('game_batch_import.title', { count: games.length })"
-    width="80%"
-    top="5vh"
-    :close-on-click-modal="false"
-    append-to-body
+    :width="960"
+    :dismissable="false"
   >
-    <div v-loading="loading" class="batch-dialog-content">
-      <el-alert type="info" :closable="false" class="info-alert">
-        {{ $t('game_batch_import.hint') }}
-      </el-alert>
+    <div
+      class="relative flex max-h-[70vh] min-h-80 flex-col gap-3 overflow-x-hidden overflow-y-auto"
+    >
+      <KAlert tone="info">{{ $t('game_batch_import.hint') }}</KAlert>
 
       <!-- Steam User ID selector -->
-      <div class="store-user-id-row">
-        <span class="store-user-id-label">{{ $t('game_batch_import.store_user_id') }}</span>
-        <el-select
-          v-model="selectedStoreUserId"
-          size="small"
-          filterable
-          allow-create
-          clearable
-          :placeholder="$t('game_batch_import.store_user_id_placeholder')"
-          class="store-user-id-select"
-          :loading="loadingUserIds"
-          @change="handleStoreUserIdChange"
-        >
-          <el-option
-            v-for="c in userIdCandidates"
-            :key="c.userId"
-            :label="formatUserIdLabel(c)"
-            :value="c.userId"
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium text-text">{{
+          $t('game_batch_import.store_user_id')
+        }}</span>
+        <div class="w-72">
+          <KInput
+            v-model="storeUserIdInput"
+            size="sm"
+            :placeholder="$t('game_batch_import.store_user_id_placeholder')"
+            aria-label="Steam user ID"
+            list="batch-user-id-candidates"
+            mono
+            @blur="handleStoreUserIdChange"
           />
-        </el-select>
-        <span class="store-user-id-hint">{{ $t('game_batch_import.store_user_id_hint') }}</span>
+          <datalist id="batch-user-id-candidates">
+            <option
+              v-for="c in userIdCandidates"
+              :key="c.userId"
+              :value="c.userId"
+              :label="formatUserIdLabel(c)"
+            />
+          </datalist>
+        </div>
+        <span class="text-xs text-text-dim">{{ $t('game_batch_import.store_user_id_hint') }}</span>
       </div>
 
-      <div class="toolbar">
-        <el-input
-          v-model="searchText"
-          size="small"
-          clearable
-          class="search-input"
-          :placeholder="$t('game_batch_import.search_placeholder')"
-        />
-        <el-checkbox v-model="onlySelected" class="only-selected-checkbox">
-          {{ $t('game_batch_import.only_selected') }}
-        </el-checkbox>
-        <el-tag size="small" type="info" class="summary-tag">
+      <!-- Toolbar -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="w-56">
+          <KInput
+            v-model="searchText"
+            size="sm"
+            :placeholder="$t('game_batch_import.search_placeholder')"
+            :aria-label="$t('game_batch_import.search_placeholder')"
+          />
+        </div>
+        <KCheckbox v-model="onlySelected">{{ $t('game_batch_import.only_selected') }}</KCheckbox>
+        <KTag>
           {{
             $t('game_batch_import.selected_summary', {
               games: selectedCount,
               paths: selectedPathsCount,
             })
           }}
-        </el-tag>
-        <div class="toolbar-actions">
-          <el-button size="small" :loading="isChecking" @click="checkAllPaths()">
+        </KTag>
+        <div class="ml-auto flex flex-wrap items-center gap-1.5">
+          <KButton size="sm" :disabled="isChecking" @click="checkAllPaths()">
+            <LoaderCircle v-if="isChecking" :size="12" class="animate-spin" aria-hidden="true" />
             {{ $t('game_batch_import.verify_paths') }}
-          </el-button>
-          <el-button size="small" @click="selectAllSupported">
+          </KButton>
+          <KButton size="sm" @click="selectAllSupported">
             {{ $t('game_batch_import.select_all_supported') }}
-          </el-button>
-          <el-button size="small" type="primary" @click="selectByCheck">
+          </KButton>
+          <KButton size="sm" variant="primary" @click="selectByCheck">
             {{ $t('game_batch_import.select_by_check') }}
-          </el-button>
-          <el-button size="small" @click="expandAll">
+          </KButton>
+          <KButton size="sm" variant="ghost" @click="expandAll">
             {{ $t('game_batch_import.expand_all') }}
-          </el-button>
-          <el-button size="small" @click="collapseAll">
+          </KButton>
+          <KButton size="sm" variant="ghost" @click="collapseAll">
             {{ $t('game_batch_import.collapse_all') }}
-          </el-button>
+          </KButton>
         </div>
       </div>
 
       <!-- Games list with expand/collapse -->
-      <el-collapse v-model="activeGames" class="games-list">
-        <el-collapse-item v-for="game in filteredGameConfigs" :key="game.name" :name="game.name">
-          <template #title>
-            <div class="game-header">
-              <el-checkbox v-model="game.selected" class="game-checkbox" @click.stop />
-              <span class="game-name">{{ game.name }}</span>
-              <el-tag size="small" class="path-count">
-                {{ countSelectedPaths(game) }}/{{ game.paths.length }}
-                {{ $t('game_batch_import.paths') }}
-              </el-tag>
+      <div class="rounded-sm border border-border">
+        <div
+          v-for="game in filteredGameConfigs"
+          :key="game.name"
+          class="border-b border-border last:border-b-0"
+        >
+          <div
+            class="flex cursor-pointer select-none items-center gap-2 px-3 py-2 hover:bg-surface-2"
+            @click="toggleGameExpanded(game.name)"
+          >
+            <ChevronRight
+              :size="14"
+              class="shrink-0 text-text-dim transition-transform duration-150"
+              :class="{ 'rotate-90': activeGames.includes(game.name) }"
+              aria-hidden="true"
+            />
+            <KCheckbox v-model="game.selected" :aria-label="game.name" @click.stop />
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-text">
+              {{ game.name }}
+            </span>
+            <KTag class="shrink-0">
+              {{ countSelectedPaths(game) }}/{{ game.paths.length }}
+              {{ $t('game_batch_import.paths') }}
+            </KTag>
+          </div>
+
+          <div
+            v-if="activeGames.includes(game.name)"
+            class="flex flex-col gap-3 border-t border-border px-3 py-3 pl-9"
+          >
+            <div>
+              <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
+              <KInput v-model="game.customName" size="sm" :placeholder="game.name" />
             </div>
-          </template>
-
-          <!-- Game name editor -->
-          <el-form-item :label="$t('addgame.game_name')">
-            <el-input v-model="game.customName" :placeholder="game.name" />
-          </el-form-item>
-
-          <!-- Save paths list -->
-          <el-form-item :label="$t('game_batch_import.save_paths')">
-            <div v-for="(path, pathIndex) in game.paths" :key="pathIndex" class="path-item">
-              <el-checkbox v-model="path.selected" class="path-checkbox" />
-              <el-input
-                v-model="path.path"
-                size="small"
-                class="path-input"
-                :disabled="!path.selected"
-              />
-              <el-tag v-if="path.isRegistry" type="info" size="small" class="path-tag registry-tag">
-                {{ $t('game_batch_import.registry') }}
-              </el-tag>
-              <template v-else>
-                <el-tooltip v-if="path.check?.error" :content="path.check?.error" placement="top">
-                  <el-tag type="danger" size="small" class="path-tag">
-                    {{ $t('game_batch_import.status_error') }}
-                  </el-tag>
-                </el-tooltip>
-                <el-tooltip
-                  v-else-if="path.check?.resolvedPath"
-                  :content="path.check?.resolvedPath"
-                  placement="top"
+            <div>
+              <label class="mb-1 block text-xs text-text-dim">{{
+                $t('game_batch_import.save_paths')
+              }}</label>
+              <div class="flex flex-col gap-1.5">
+                <div
+                  v-for="(path, pathIndex) in game.paths"
+                  :key="pathIndex"
+                  class="flex items-center gap-2"
                 >
-                  <el-tag
-                    :type="path.check?.exists ? 'success' : 'warning'"
-                    size="small"
-                    class="path-tag"
-                  >
-                    {{
-                      path.check?.exists
-                        ? $t('game_batch_import.status_exists')
-                        : $t('game_batch_import.status_missing')
-                    }}
-                  </el-tag>
-                </el-tooltip>
-                <el-tag v-else type="info" size="small" class="path-tag">
-                  {{ $t('game_batch_import.status_unchecked') }}
-                </el-tag>
-              </template>
-              <el-tag v-for="tag in path.tags" :key="tag" size="small" class="path-tag">
-                {{ tag }}
-              </el-tag>
+                  <KCheckbox v-model="path.selected" :aria-label="path.path" />
+                  <KInput
+                    v-model="path.path"
+                    size="sm"
+                    mono
+                    :disabled="!path.selected"
+                    class="min-w-0 flex-1"
+                  />
+                  <KTag v-if="path.isRegistry" class="shrink-0">
+                    {{ $t('game_batch_import.registry') }}
+                  </KTag>
+                  <template v-else>
+                    <KTooltip v-if="path.check?.error" :content="path.check.error">
+                      <KTag tone="danger">{{ $t('game_batch_import.status_error') }}</KTag>
+                    </KTooltip>
+                    <KTooltip
+                      v-else-if="path.check?.resolvedPath"
+                      :content="path.check.resolvedPath"
+                    >
+                      <KTag :tone="path.check.exists ? 'success' : 'warning'">
+                        {{
+                          path.check.exists
+                            ? $t('game_batch_import.status_exists')
+                            : $t('game_batch_import.status_missing')
+                        }}
+                      </KTag>
+                    </KTooltip>
+                    <KTag v-else>{{ $t('game_batch_import.status_unchecked') }}</KTag>
+                  </template>
+                  <KTag v-for="tag in path.tags" :key="tag" class="shrink-0">{{ tag }}</KTag>
+                </div>
+              </div>
             </div>
-          </el-form-item>
-        </el-collapse-item>
-      </el-collapse>
+          </div>
+        </div>
+        <div
+          v-if="filteredGameConfigs.length === 0"
+          class="px-3 py-6 text-center text-sm text-text-dim"
+        >
+          {{ $t('common.no_data') }}
+        </div>
+      </div>
+
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center gap-2 bg-surface/70 text-sm text-text-dim"
+      >
+        <LoaderCircle :size="16" class="animate-spin" aria-hidden="true" />
+        {{ $t('common.operation_in_progress') }}
+      </div>
     </div>
 
     <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleConfirm">
-          {{ $t('game_batch_import.import_selected', { count: selectedCount }) }}
-        </el-button>
-      </div>
+      <KButton @click="handleCancel">{{ $t('common.cancel') }}</KButton>
+      <KButton variant="primary" @click="handleConfirm">
+        {{ $t('game_batch_import.import_selected', { count: selectedCount }) }}
+      </KButton>
     </template>
-  </el-dialog>
+  </KDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { ChevronRight, LoaderCircle } from '@lucide/vue';
 import { $t } from '../i18n';
 import {
   commands,
@@ -165,6 +195,7 @@ import {
 } from '../api/commands';
 import { error } from '../utils/logger';
 import type { ManifestPathConstraints } from '../api/commands';
+import { KAlert, KButton, KCheckbox, KDialog, KInput, KTag, KTooltip } from '../ui/kit';
 
 /** Check if a path is a Windows registry path (not supported for backup) */
 function isRegistryPath(path: string): boolean {
@@ -224,10 +255,17 @@ const searchText = ref('');
 const onlySelected = ref(false);
 const autoCheckedOnce = ref(false);
 
-// Store user ID selection
+// Store user ID selection (datalist: 候选补全 + 允许任意输入)
 const selectedStoreUserId = ref<string | null>(null);
 const userIdCandidates = ref<StoreUserIdCandidate[]>([]);
 const loadingUserIds = ref(false);
+
+const storeUserIdInput = computed({
+  get: () => selectedStoreUserId.value ?? '',
+  set: (value: string) => {
+    selectedStoreUserId.value = value.trim() === '' ? null : value.trim();
+  },
+});
 
 async function loadUserIdCandidates() {
   loadingUserIds.value = true;
@@ -339,6 +377,14 @@ const filteredGameConfigs = computed(() => {
 
 function countSelectedPaths(game: GameConfig) {
   return game.paths.filter((p) => p.selected).length;
+}
+
+function toggleGameExpanded(name: string) {
+  if (activeGames.value.includes(name)) {
+    activeGames.value = activeGames.value.filter((item) => item !== name);
+  } else {
+    activeGames.value = [...activeGames.value, name];
+  }
 }
 
 function expandAll() {
@@ -457,119 +503,3 @@ async function selectByCheck() {
   applySelectionByCheck();
 }
 </script>
-
-<style scoped>
-.batch-dialog-content {
-  height: 70vh;
-  min-height: 320px;
-  overflow-y: auto;
-}
-
-.info-alert {
-  margin-bottom: 16px;
-}
-
-.store-user-id-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.store-user-id-label {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.store-user-id-select {
-  width: 280px;
-}
-
-.store-user-id-hint {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.search-input {
-  flex: 1;
-  min-width: 240px;
-}
-
-.only-selected-checkbox {
-  white-space: nowrap;
-}
-
-.summary-tag {
-  white-space: nowrap;
-}
-
-.toolbar-actions {
-  margin-left: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.games-list {
-  margin-top: 16px;
-}
-
-.game-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.game-checkbox {
-  flex-shrink: 0;
-}
-
-.game-name {
-  flex: 1;
-  font-weight: 500;
-}
-
-.path-count {
-  flex-shrink: 0;
-}
-
-.path-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.path-checkbox {
-  flex-shrink: 0;
-}
-
-.path-input {
-  flex: 1;
-}
-
-.path-tag {
-  flex-shrink: 0;
-  margin-left: 4px;
-}
-
-.registry-tag {
-  margin-left: 0;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-</style>

@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { X } from '@lucide/vue';
+import { CheckCircle2, Info, TriangleAlert, X, XCircle, type Component } from '@lucide/vue';
 import { $t } from '../../i18n';
 import { LAYER } from '../layers';
 import { dismissToast, useToast, type ToastTone } from '../../composables/useToast';
 
 const { toasts } = useToast();
 
-const toneBar: Record<ToastTone, string> = {
+const toneIcon: Record<ToastTone, Component> = {
+  success: CheckCircle2,
+  info: Info,
+  warning: TriangleAlert,
+  error: XCircle,
+};
+
+const toneColor: Record<ToastTone, string> = {
   success: 'var(--success)',
   info: 'var(--text-dim)',
   warning: 'var(--warning)',
@@ -16,7 +23,7 @@ const toneBar: Record<ToastTone, string> = {
 
 <template>
   <div
-    class="pointer-events-none fixed bottom-20 right-5 flex w-80 flex-col gap-2"
+    class="pointer-events-none fixed right-5 top-5 flex w-[340px] flex-col gap-3"
     :style="{ zIndex: LAYER.toast }"
     aria-live="polite"
   >
@@ -24,18 +31,20 @@ const toneBar: Record<ToastTone, string> = {
       <div
         v-for="toast in toasts"
         :key="toast.id"
-        class="k-toast-item pointer-events-auto flex gap-2.5 rounded-md border border-border bg-surface p-3 shadow-overlay"
+        class="k-toast-item pointer-events-auto relative flex gap-3 rounded-md border border-border bg-surface p-3.5 pr-9 shadow-overlay"
       >
-        <span
-          class="w-0.5 shrink-0 self-stretch rounded-full"
-          :style="{ background: toneBar[toast.tone] }"
+        <component
+          :is="toneIcon[toast.tone]"
+          :size="20"
+          class="mt-px shrink-0"
+          :style="{ color: toneColor[toast.tone] }"
           aria-hidden="true"
         />
         <div class="min-w-0 flex-1">
-          <div class="text-sm font-medium leading-5 text-text">{{ toast.title }}</div>
+          <div class="text-sm font-semibold leading-5 text-text">{{ toast.title }}</div>
           <div
             v-if="toast.description"
-            class="mt-0.5 break-words text-xs leading-relaxed text-text-dim"
+            class="mt-1 break-words text-[13px] leading-relaxed text-text-dim"
           >
             {{ toast.description }}
           </div>
@@ -43,10 +52,10 @@ const toneBar: Record<ToastTone, string> = {
         <button
           type="button"
           :aria-label="$t('common.close')"
-          class="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent bg-transparent text-text-dim transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+          class="absolute right-2.5 top-2.5 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border border-transparent bg-transparent text-text-dim transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
           @click="dismissToast(toast.id)"
         >
-          <X :size="12" aria-hidden="true" />
+          <X :size="13" aria-hidden="true" />
         </button>
       </div>
     </TransitionGroup>
@@ -57,15 +66,15 @@ const toneBar: Record<ToastTone, string> = {
 .k-toast-enter-active,
 .k-toast-leave-active {
   transition:
-    opacity 150ms ease,
-    transform 150ms ease;
+    opacity 180ms ease,
+    transform 180ms ease;
 }
 .k-toast-enter-from,
 .k-toast-leave-to {
   opacity: 0;
-  transform: translateX(12px);
+  transform: translateX(24px);
 }
 .k-toast-move {
-  transition: transform 150ms ease;
+  transition: transform 180ms ease;
 }
 </style>

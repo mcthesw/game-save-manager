@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { $t } from '../i18n';
 import { commands } from '../api/commands';
 import { LAYER } from '../ui/layers';
+import { KTooltip } from '../ui/kit';
 
 type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 
@@ -569,24 +570,17 @@ watch(
           @keydown="onKeydown"
           @paste="onPaste"
         />
-        <el-tooltip
-          v-if="!$slots.append"
-          :content="$t('path_variable.editor_badge_tooltip')"
-          placement="top"
-          :show-after="200"
-        >
+        <KTooltip v-if="!$slots.append" :content="$t('path_variable.editor_badge_tooltip')">
           <span class="pvi-editor-badge">&lt;/&gt;</span>
-        </el-tooltip>
+        </KTooltip>
       </div>
       <!-- Compact status dot for tooltip mode -->
-      <el-tooltip
+      <KTooltip
         v-if="effectiveStatusMode === 'tooltip' && modelValue"
         :content="resolvedPathText || $t('path_variable.resolving')"
-        placement="top"
-        :show-after="200"
       >
         <span class="pvi-status-dot-compact" :class="`pvi-status--${pathStatus}`" />
-      </el-tooltip>
+      </KTooltip>
       <div v-if="$slots.append" class="pvi-append">
         <slot name="append" :insert-at-cursor="insertAtCursor" />
       </div>
@@ -630,10 +624,10 @@ watch(
 .pvi-tag {
   display: inline-flex;
   align-items: center;
-  background: var(--el-color-warning-light-9);
-  color: var(--el-color-warning-dark-2);
+  background: color-mix(in oklab, var(--warning) 12%, transparent);
+  color: var(--warning);
   border-radius: 4px;
-  border: 1px solid var(--el-color-warning-light-5);
+  border: 1px solid color-mix(in oklab, var(--warning) 35%, transparent);
   padding: 0 6px;
   height: 20px;
   margin: 0 1px;
@@ -646,10 +640,10 @@ watch(
 }
 
 .pvi-suggestions {
-  background: var(--el-bg-color-overlay);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: var(--el-border-radius-base);
-  box-shadow: var(--el-box-shadow-light);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-overlay);
   max-height: 200px;
   overflow-y: auto;
 }
@@ -665,13 +659,13 @@ watch(
 
 .pvi-suggestion-item:hover,
 .pvi-suggestion-item.active {
-  background: var(--el-fill-color-light);
+  background: var(--surface-2);
 }
 
 .pvi-suggestion-var {
   display: inline-block;
-  background: var(--el-color-warning-light-9);
-  color: var(--el-color-warning-dark-2);
+  background: color-mix(in oklab, var(--warning) 12%, transparent);
+  color: var(--warning);
   border-radius: 3px;
   padding: 0 6px;
   font-size: 12px;
@@ -680,7 +674,7 @@ watch(
 }
 
 .pvi-suggestion-label {
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -708,9 +702,9 @@ watch(
   align-items: stretch;
   width: 100%;
   min-height: 34px;
-  box-shadow: 0 0 0 1px var(--el-border-color) inset;
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-fill-color-blank);
+  box-shadow: 0 0 0 1px var(--border) inset;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   transition: box-shadow 0.2s;
   font-size: 12px;
   line-height: 24px;
@@ -718,13 +712,13 @@ watch(
 }
 
 .pvi-root:hover {
-  box-shadow: 0 0 0 1px var(--el-border-color-hover) inset;
+  box-shadow: 0 0 0 1px var(--border-strong) inset;
 }
 
 .pvi-root:focus-within {
   box-shadow:
-    0 0 0 1px var(--el-color-primary) inset,
-    0 0 0 3px var(--el-color-primary-light-8);
+    0 0 0 1px var(--accent) inset,
+    0 0 0 3px var(--accent-soft);
 }
 
 .pvi-wrapper {
@@ -752,7 +746,7 @@ watch(
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  color: var(--el-text-color-regular);
+  color: var(--text);
 }
 
 .pvi-editor--with-badge {
@@ -764,7 +758,7 @@ watch(
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--el-text-color-placeholder);
+  color: var(--text-dim);
   font-size: 10px;
   font-family: monospace;
   pointer-events: auto;
@@ -784,7 +778,7 @@ watch(
   padding: 0 4px 0 0;
   background: transparent;
   border-left: none;
-  border-radius: 0 var(--el-border-radius-base) var(--el-border-radius-base) 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 /* Compact status dot inside the editor (tooltip mode) */
@@ -796,7 +790,7 @@ watch(
   flex-shrink: 0;
   margin: auto 6px;
   cursor: default;
-  background: var(--el-color-info-light-5);
+  background: var(--border-strong);
   transition: background 0.2s;
 }
 
@@ -805,18 +799,18 @@ watch(
 }
 
 .pvi-status-dot-compact.pvi-status--ok {
-  background: var(--el-color-success);
+  background: var(--success);
 }
 
 .pvi-status-dot-compact.pvi-status--not-found,
 .pvi-status-dot-compact.pvi-status--error {
-  background: var(--el-color-danger);
+  background: var(--danger);
 }
 
 /* Placeholder text via pseudo-element */
 .pvi-editor:empty::before {
   content: attr(data-placeholder);
-  color: var(--el-text-color-placeholder);
+  color: var(--text-dim);
   pointer-events: none;
   white-space: nowrap;
 }
@@ -839,32 +833,32 @@ watch(
 }
 
 .pvi-status--idle .pvi-status-dot {
-  background: var(--el-color-info-light-5);
+  background: var(--border-strong);
 }
 
 .pvi-status--resolving .pvi-status-dot {
-  background: var(--el-color-info-light-5);
+  background: var(--border-strong);
   animation: pvi-pulse 1s infinite;
 }
 
 .pvi-status--ok .pvi-status-dot {
-  background: var(--el-color-success);
+  background: var(--success);
 }
 
 .pvi-status--not-found .pvi-status-dot,
 .pvi-status--error .pvi-status-dot {
-  background: var(--el-color-danger);
+  background: var(--danger);
 }
 
 .pvi-status-text {
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pvi-status--error .pvi-status-text {
-  color: var(--el-color-danger);
+  color: var(--danger);
 }
 
 @keyframes pvi-pulse {

@@ -95,11 +95,13 @@ import type { Ref } from 'vue';
 import { error } from '../utils/logger';
 import { commands } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
+import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { $t, getSupportedLanguages, i18n } from '../i18n';
 // 与应用图标同源,避免在前端复制一份 logo 资产
 import appLogo from '../../src-tauri/icons/icon.png';
 
 const { config, saveConfig } = useConfig();
+const { open: openAddGame } = useAddGameDrawer();
 
 const languages = getSupportedLanguages();
 const currentLocale = computed(() => i18n.global.locale.value);
@@ -245,7 +247,7 @@ async function openTranslate() {
 }
 
 function goAddGame() {
-  navigateTo('/AddGame');
+  openAddGame();
 }
 function goSync() {
   navigateTo('/SyncSettings');
@@ -256,7 +258,7 @@ function goAutoBackup() {
   if (first) {
     navigateTo(getGameManagementPath(first.name));
   } else {
-    navigateTo('/AddGame');
+    openAddGame();
   }
 }
 function goAbout() {

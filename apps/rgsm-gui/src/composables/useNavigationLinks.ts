@@ -1,12 +1,5 @@
 import { computed, type Component } from 'vue';
-import {
-  DocumentAdd,
-  HotWater,
-  InfoFilled,
-  MostlyCloudy,
-  Setting,
-  SwitchFilled,
-} from '@element-plus/icons-vue';
+import { Cloud, Gamepad2, Home, Info, Settings } from '@lucide/vue';
 import { $t } from '../i18n';
 import { getGameManagementPath } from './useGameManagementRoute';
 
@@ -25,17 +18,16 @@ const { config } = useConfig();
  */
 export function useNavigationLinks() {
   const baseLinks = computed<NavigationLink[]>(() => [
-    { text: $t('sidebar.homepage'), link: '/', icon: HotWater },
-    { text: $t('sidebar.add_game'), link: '/AddGame', icon: DocumentAdd },
-    { text: $t('sidebar.sync_settings'), link: '/SyncSettings', icon: MostlyCloudy },
-    { text: $t('sidebar.settings'), link: '/Settings', icon: Setting },
-    { text: $t('sidebar.about'), link: '/About', icon: InfoFilled },
+    { text: $t('sidebar.homepage'), link: '/', icon: Home },
+    { text: $t('sidebar.sync_settings'), link: '/SyncSettings', icon: Cloud },
+    { text: $t('sidebar.settings'), link: '/Settings', icon: Settings },
+    { text: $t('sidebar.about'), link: '/About', icon: Info },
   ]);
 
   const linksWithGames = computed<NavigationLink[]>(() => {
     const list = [...baseLinks.value];
     config.value?.games.forEach((game) => {
-      list.push({ text: game.name, link: getGameManagementPath(game.name), icon: SwitchFilled });
+      list.push({ text: game.name, link: getGameManagementPath(game.name), icon: Gamepad2 });
     });
     return list;
   });
