@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import VueRouter from 'vue-router/vite';
+import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import AutoImport from 'unplugin-auto-import/vite';
 import Components from 'unplugin-vue-components/vite';
@@ -199,6 +200,7 @@ export default defineConfig({
   clearScreen: false,
   publicDir: 'src/public',
   plugins: [
+    tailwindcss(),
     VueRouter({
       routesFolder: 'src/pages',
       dts: 'typed-router.d.ts',
