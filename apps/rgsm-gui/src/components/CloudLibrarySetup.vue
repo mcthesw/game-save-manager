@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { commands, type CloudLibraryStatus } from '~/api/commands';
 import { $t } from '~/i18n';
+import { KButton } from '../ui/kit';
 
 interface InspectOptions {
   createWhenEmpty?: boolean;
@@ -152,50 +153,22 @@ async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus
 defineExpose({ inspect });
 </script>
 <template>
-  <section v-if="requiresAction" class="library-action">
-    <span class="library-status">{{ statusText }}</span>
-    <ElButton v-if="inspectionFailed" type="primary" @click="inspect()">
+  <section
+    v-if="requiresAction"
+    class="mt-4 flex flex-wrap items-center justify-between gap-4 border-y border-border py-3"
+  >
+    <span class="min-w-0 text-sm font-medium leading-relaxed text-text">{{ statusText }}</span>
+    <KButton v-if="inspectionFailed" variant="primary" size="sm" @click="inspect()">
       {{ $t('sync_settings.library.inspect') }}
-    </ElButton>
-    <ElButton
+    </KButton>
+    <KButton
       v-else-if="status?.kind === 'empty'"
-      type="primary"
+      variant="primary"
+      size="sm"
       :loading="initializing"
       @click="create()"
     >
       {{ $t('sync_settings.library.retry_create') }}
-    </ElButton>
+    </KButton>
   </section>
 </template>
-
-<style scoped>
-.library-action {
-  display: flex;
-  margin-top: 18px;
-  padding: 16px 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.library-status {
-  min-width: 0;
-  color: var(--el-text-color-primary);
-  font-size: 0.9rem;
-  font-weight: 500;
-  line-height: 1.45;
-}
-
-.library-action :deep(.el-button) {
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .library-action {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-</style>

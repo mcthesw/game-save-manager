@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { LAYER } from '~/ui/layers';
+import { KButton } from '../ui/kit';
 
 defineProps<{
   blocked: boolean;
@@ -18,9 +19,7 @@ const emit = defineEmits<{
     <div v-if="blocked" class="upgrade-gate">
       <div class="upgrade-gate-card">
         <p>{{ title }}</p>
-        <ElButton type="primary" @click="emit('upgrade')">
-          {{ action }}
-        </ElButton>
+        <KButton variant="primary" @click="emit('upgrade')">{{ action }}</KButton>
       </div>
     </div>
   </div>
@@ -44,23 +43,23 @@ const emit = defineEmits<{
   justify-content: center;
   padding: 28px 20px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background:
     linear-gradient(
       180deg,
-      var(--el-bg-color) 0%,
+      var(--surface) 0%,
       transparent 26%,
       transparent 78%,
-      var(--el-bg-color) 100%
+      var(--surface) 100%
     ),
     linear-gradient(
       90deg,
-      var(--el-bg-color) 0%,
+      var(--surface) 0%,
       transparent 14%,
       transparent 88%,
-      var(--el-bg-color) 100%
+      var(--surface) 100%
     ),
-    color-mix(in oklab, var(--el-bg-color) 38%, transparent);
+    color-mix(in oklab, var(--surface) 38%, transparent);
 }
 
 .upgrade-gate::before {
@@ -79,6 +78,7 @@ const emit = defineEmits<{
   mask-composite: intersect;
   pointer-events: none;
 }
+
 .upgrade-gate-card {
   position: relative;
   z-index: 1;
@@ -93,7 +93,7 @@ const emit = defineEmits<{
 
 .upgrade-gate-card p {
   margin: 0;
-  color: var(--el-text-color-primary);
+  color: var(--text);
   font-size: 0.98rem;
   font-weight: 600;
   line-height: 1.5;
