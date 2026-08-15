@@ -6,7 +6,6 @@ import {
   events,
   type CandidateDimensions,
   type CloudArchiveGameView,
-  type CloudArchiveSnapshotView,
   type Device,
   type Game,
   type GameSnapshots,
@@ -16,29 +15,32 @@ import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
 import AutoSaveSettingsDrawer from '../../components/AutoSaveSettingsDrawer.vue';
 import BranchTreeView from '../../components/BranchTreeView.vue';
 import ExtraBackupDrawer from '../../components/ExtraBackupDrawer.vue';
+import SnapshotTable from '../../components/management/SnapshotTable.vue';
+import { canApplySnapshot } from '../../components/management/snapshotAvailability';
+import { useDeviceHeads, type DeviceHeadEntry } from '../../components/management/useDeviceHeads';
+import { useSnapshotTransfers } from '../../components/management/useSnapshotTransfers';
 import { $t } from '../../i18n';
 import { error, info } from '../../utils/logger';
 import {
-  List,
-  Share,
-  VideoPlay,
-  Folder,
-  DocumentCopy,
-  Setting,
-  Delete,
-  Back,
-  Plus,
-  Lightning,
-  AlarmClock,
-  Edit,
-  CircleCheck,
+  Copy,
   Download,
-  Lock,
-  Unlock,
+  Ellipsis,
+  FolderCog,
+  FolderMinus,
+  FolderOpen,
+  GitBranch,
+  List,
+  Play,
+  Plus,
+  RotateCcw,
+  RotateCw,
+  ShieldCheck,
+  Timer,
+  Trash2,
+  Undo2,
   Upload,
-  Remove,
-  Refresh,
-} from '@element-plus/icons-vue';
+  Zap,
+} from '@lucide/vue';
 import dayjs from 'dayjs';
 import {
   getGameManagementPath,
@@ -46,8 +48,17 @@ import {
 } from '../../composables/useGameManagementRoute';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
 import { usePathResolution } from '../../composables/usePathResolution';
-import { TableV2FixedDir, TableV2SortOrder } from '../../ui/elementPlus/tableV2';
 import { saveUnitPaths } from '../../utils/saveUnit';
+import {
+  KButton,
+  KDialog,
+  KInput,
+  KMenu,
+  KSegmented,
+  KTag,
+  KTooltip,
+  type KMenuEntry,
+} from '../../ui/kit';
 
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
@@ -66,15 +77,12 @@ const viewMode = ref<'table' | 'branch'>('table');
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
 const extraBackupDrawer = ref(false);
-const deleteChoiceVisible = ref(false); // 是否显示额外备份抽屉
+const deleteChoiceVisible = ref(false); // 删除游戏方式选择对话框
 const autoSaveSettingsDrawer = ref(false); // 是否显示自动保存设置抽屉
 
 const table_data = ref<Snapshot[]>([]);
 const table_data_desc = ref<Snapshot[]>([]);
-const tableSortBy = ref<{ key: string; order: TableV2SortOrder }>({
-  key: 'date',
-  order: TableV2SortOrder.DESC,
-});
+const sortDesc = ref(true);
 const selectedDates = ref<Set<string>>(new Set());
 const retentionProtectedDates = ref<Set<string>>(new Set());
 const cloudGame = ref<CloudArchiveGameView | null>(null);
@@ -94,29 +102,6 @@ const game: Ref<Game> = ref({
 
 // 当前设备信息
 const currentDevice = ref<Device | null>(null);
-
-type GameSnapshotsWithDeviceHeads = GameSnapshots & {
-  device_heads?: Record<string, string | null | undefined>;
-};
-
-interface DeviceHeadEntry {
-  deviceId: string;
-  deviceName: string;
-  label: string;
-  date: string;
-  description: string;
-  shortTime: string;
-  fullText: string;
-  isCurrentDevice: boolean;
-}
-
-interface BranchDeviceHeadMarker {
-  deviceId: string;
-  date: string;
-  label: string;
-  isCurrentDevice: boolean;
-  tooltip: string;
-}
 
 // 获取当前设备信息
 async function fetchCurrentDevice() {
@@ -184,41 +169,6 @@ onBeforeUnmount(() => {
   }
 });
 
-// 格式化文件大小显示
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function snapshotSourceTag(snapshot: Snapshot): string | null {
-  if (snapshot.created_by === 'Timer') return $t('manage.snapshot_source_timer');
-  if (snapshot.created_by === 'Tray') return $t('manage.snapshot_source_tray');
-  if (snapshot.created_by === 'Hotkey') return $t('manage.snapshot_source_hotkey');
-  if (snapshot.created_by === 'ProcessStart') return $t('manage.snapshot_source_process_start');
-  if (snapshot.created_by === 'ProcessExit') return $t('manage.snapshot_source_process_exit');
-  if (snapshot.created_by === 'ProcessInterval')
-    return $t('manage.snapshot_source_process_interval');
-  return null;
-}
-
-function isAutomaticSnapshot(snapshot: Snapshot): boolean {
-  return (
-    snapshot.created_by === 'Timer' ||
-    snapshot.created_by === 'ProcessStart' ||
-    snapshot.created_by === 'ProcessExit' ||
-    snapshot.created_by === 'ProcessInterval'
-  );
-}
-
-function isRetentionProtected(date: string) {
-  return (
-    retentionProtectedDates.value.has(date) || Boolean(cloudSnapshot(date)?.retention_protected)
-  );
-}
-
 const pendingDeletions = computed(() => cloudGame.value?.pending_deletions ?? []);
 async function batch_delete() {
   try {
@@ -285,83 +235,6 @@ async function onAutoSaveSettingsSaved() {
     game.value = latestGame;
   }
   await refresh_backups_info();
-}
-
-async function convertToPermanent(snapshotDate: string) {
-  try {
-    const generation = await commands.getCloudNamespaceGeneration();
-    if (generation.status === 'error') {
-      notifyError(generation.error);
-      return;
-    }
-    if (generation.data === 'v2') {
-      const nextProtected = !isRetentionProtected(snapshotDate);
-      if (nextProtected) {
-        await feedback.confirm(
-          $t('manage.protect_from_retention_confirm'),
-          $t('manage.convert_to_permanent'),
-          {
-            confirmButtonText: $t('manage.convert_to_permanent'),
-            cancelButtonText: $t('manage.cancel'),
-            type: 'info',
-          }
-        );
-      } else {
-        await feedback.confirm(
-          $t('sync_settings.archives.retention.unprotect_confirm'),
-          $t('sync_settings.archives.retention.unprotect_title'),
-          {
-            confirmButtonText: $t('sync_settings.archives.retention.unprotect'),
-            cancelButtonText: $t('manage.cancel'),
-            type: 'warning',
-          }
-        );
-      }
-      const result = await commands.setSnapshotRetentionProtected(
-        game.value.storage_key || game.value.name,
-        snapshotDate,
-        nextProtected,
-        !nextProtected
-      );
-      if (result.status === 'error') {
-        notifyError($t('sync_settings.archives.retention.protection_failed'), result.error);
-        return;
-      }
-      notifySuccess(
-        nextProtected
-          ? $t('manage.protect_from_retention_success')
-          : $t('sync_settings.archives.retention.unprotected')
-      );
-      await refresh_backups_info();
-      return;
-    }
-    const snapshot = table_data.value.find((x) => x.date === snapshotDate);
-    const { value } = await feedback.prompt(
-      $t('manage.input_description_prompt'),
-      $t('manage.convert_to_permanent'),
-      {
-        confirmButtonText: $t('manage.confirm'),
-        cancelButtonText: $t('manage.cancel'),
-        inputValue: snapshot?.describe,
-      }
-    );
-    if (value !== snapshot?.describe) {
-      const descResult = await commands.setSnapshotDescription(game.value, snapshotDate, value);
-      if (descResult.status === 'error') {
-        notifyError($t('manage.change_description_failed'));
-        return;
-      }
-    }
-    const result = await commands.setSnapshotCreatedBy(game.value.name, snapshotDate, 'Manual');
-    if (result.status === 'error') {
-      notifyError($t('manage.convert_to_permanent_failed'));
-      return;
-    }
-    notifySuccess($t('manage.convert_to_permanent_success'));
-    await refresh_backups_info();
-  } catch {
-    notifyInfo($t('manage.operation_canceled'));
-  }
 }
 
 // Init game info
@@ -437,251 +310,35 @@ function mergeCloudOnlySnapshots(
   return [...local, ...extras].sort((left, right) => left.date.localeCompare(right.date));
 }
 
-function cloudSnapshot(date: string): CloudArchiveSnapshotView | null {
-  return cloudGame.value?.snapshots.find((snapshot) => snapshot.snapshot_id === date) ?? null;
-}
+const { currentHead, headEntries, branchDeviceHeads } = useDeviceHeads({
+  gameSnapshots,
+  tableData: table_data,
+  currentDevice,
+  config,
+});
 
-function isSnapshotOnDevice(date: string) {
-  const snapshot = cloudSnapshot(date);
-  return !snapshot || snapshot.local_verified;
-}
-
-function isSnapshotInCloud(date: string) {
-  return Boolean(cloudSnapshot(date)?.cloud_verified);
-}
-
-function canUploadSnapshot(date: string) {
-  if (!cloudGame.value) return false;
-  const snapshot = cloudSnapshot(date);
-  if (!snapshot) return true;
-  return snapshot.local_verified && !snapshot.cloud_verified;
-}
-
-function canDownloadSnapshot(date: string) {
-  const snapshot = cloudSnapshot(date);
-  return Boolean(snapshot?.cloud_verified && !snapshot.local_verified);
-}
-
-function canEvictSnapshot(date: string) {
-  const snapshot = cloudSnapshot(date);
-  return Boolean(snapshot?.local_verified && snapshot.cloud_verified);
-}
-
-function snapshotLocationLabel(date: string) {
-  const local = isSnapshotOnDevice(date);
-  const cloud = isSnapshotInCloud(date);
-  if (local && cloud) return $t('manage.location_both');
-  if (local) return $t('manage.location_local');
-  if (cloud) return $t('manage.location_cloud');
-  const elsewhere = cloudSnapshot(date)?.reported_on_devices.length ?? 0;
-  if (elsewhere > 0) return $t('sync_settings.archives.available_other_device');
-  return $t('manage.location_missing');
-}
-
-function canApplySnapshot(date: string) {
-  if (!localCatalogDates.value.has(date)) return false;
-  const snapshot = cloudSnapshot(date);
-  return !snapshot || snapshot.local_verified;
-}
-
-async function transferSnapshot(date: string, upload: boolean) {
-  const gameId = game.value.storage_key || game.value.name;
-  activeTransfer.value = date;
-  try {
-    const result = upload
-      ? await commands.uploadCloudArchive(gameId, date)
-      : await commands.downloadCloudArchive(gameId, date);
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.transfer_failed'), result.error);
-      return;
-    }
-    notifySuccess(
-      upload
-        ? $t('sync_settings.archives.upload_success')
-        : $t('sync_settings.archives.download_success')
-    );
-    await refresh_backups_info();
-  } finally {
-    activeTransfer.value = '';
-  }
-}
-
-async function retryPendingDeletion(snapshotId: string, retryable: boolean) {
-  if (!retryable) return;
-  const gameId = game.value.storage_key || game.value.name;
-  activeTransfer.value = snapshotId;
-  try {
-    const result = await commands.deleteV2Snapshot(gameId, snapshotId, false);
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
-      return;
-    }
-    notifySuccess($t('sync_settings.archives.delete_success'));
-    await refresh_backups_info();
-  } finally {
-    activeTransfer.value = '';
-  }
-}
-
-async function removeCloudSnapshot(date: string) {
-  const gameId = game.value.storage_key || game.value.name;
-  try {
-    await feedback.confirm(
-      $t('sync_settings.archives.delete_confirm', { snapshot: date }),
-      $t('sync_settings.archives.delete_title'),
-      {
-        confirmButtonText: $t('sync_settings.archives.delete_permanently'),
-        cancelButtonText: $t('sync_settings.cancel'),
-        type: 'error',
-      }
-    );
-  } catch {
-    return;
-  }
-  activeTransfer.value = date;
-  try {
-    const result = await commands.deleteV2Snapshot(gameId, date, true);
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
-      return;
-    }
-    notifySuccess($t('sync_settings.archives.delete_success'));
-    await refresh_backups_info();
-  } finally {
-    activeTransfer.value = '';
-  }
-}
-
-async function evictSnapshot(date: string) {
-  const gameId = game.value.storage_key || game.value.name;
-  try {
-    await feedback.confirm(
-      $t('sync_settings.archives.evict.confirm', { snapshot: date }),
-      $t('sync_settings.archives.evict.title'),
-      {
-        confirmButtonText: $t('sync_settings.archives.evict.action'),
-        cancelButtonText: $t('sync_settings.cancel'),
-        type: 'warning',
-      }
-    );
-  } catch {
-    return;
-  }
-  activeTransfer.value = date;
-  try {
-    const result = await commands.evictLocalArchive(gameId, date, true);
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.evict.failed'), result.error);
-      return;
-    }
-    notifySuccess($t('sync_settings.archives.evict.success'));
-    await refresh_backups_info();
-  } finally {
-    activeTransfer.value = '';
-  }
-}
-
-const selectedUploadable = computed(() =>
-  selected_game_snapshots.value.filter((snapshot) => canUploadSnapshot(snapshot.date))
-);
-const selectedDownloadable = computed(() =>
-  selected_game_snapshots.value.filter((snapshot) => canDownloadSnapshot(snapshot.date))
-);
-const selectedEvictable = computed(() =>
-  selected_game_snapshots.value.filter((snapshot) => canEvictSnapshot(snapshot.date))
-);
-const selectedCloudRemovable = computed(() =>
-  selected_game_snapshots.value.filter((snapshot) => isSnapshotInCloud(snapshot.date))
-);
-
-async function batchTransfer(upload: boolean) {
-  const rows = upload ? selectedUploadable.value : selectedDownloadable.value;
-  for (const snapshot of rows) {
-    await transferSnapshot(snapshot.date, upload);
-  }
-}
-
-async function batchRemoveCloud() {
-  const rows = selectedCloudRemovable.value;
-  if (rows.length === 0) return;
-  try {
-    await feedback.confirm(
-      $t('manage.batch_cloud_remove_confirm', { count: rows.length }),
-      $t('sync_settings.archives.delete_title'),
-      {
-        confirmButtonText: $t('sync_settings.archives.delete_permanently'),
-        cancelButtonText: $t('sync_settings.cancel'),
-        type: 'error',
-      }
-    );
-  } catch {
-    return;
-  }
-  const gameId = game.value.storage_key || game.value.name;
-  let succeeded = 0;
-  for (const snapshot of rows) {
-    activeTransfer.value = snapshot.date;
-    const result = await commands.deleteV2Snapshot(gameId, snapshot.date, true);
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.delete_incomplete'), result.error);
-      break;
-    }
-    succeeded += 1;
-  }
-  activeTransfer.value = '';
-  if (succeeded === rows.length) {
-    notifySuccess($t('manage.batch_cloud_remove_success', { count: succeeded }));
-  } else if (succeeded > 0) {
-    notifyError(
-      $t('manage.batch_delete_partial', {
-        succeeded,
-        failed: rows.length - succeeded,
-      })
-    );
-  }
-  await refresh_backups_info();
-}
-
-async function batchEvict() {
-  const rows = selectedEvictable.value;
-  if (rows.length === 0) return;
-  try {
-    await feedback.confirm(
-      $t('manage.batch_evict_confirm', { count: rows.length }),
-      $t('sync_settings.archives.evict.title'),
-      {
-        confirmButtonText: $t('sync_settings.archives.evict.action'),
-        cancelButtonText: $t('sync_settings.cancel'),
-        type: 'warning',
-      }
-    );
-  } catch {
-    return;
-  }
-  const gameId = game.value.storage_key || game.value.name;
-  let succeeded = 0;
-  for (const snapshot of rows) {
-    activeTransfer.value = snapshot.date;
-    const result = await commands.evictLocalArchive(gameId, snapshot.date, true);
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.evict.failed'), result.error);
-      break;
-    }
-    succeeded += 1;
-  }
-  activeTransfer.value = '';
-  if (succeeded === rows.length) {
-    notifySuccess($t('manage.batch_evict_success', { count: succeeded }));
-  } else if (succeeded > 0) {
-    notifyError(
-      $t('manage.batch_evict_partial', {
-        succeeded,
-        failed: rows.length - succeeded,
-      })
-    );
-  }
-  await refresh_backups_info();
-}
+const {
+  selectedUploadable,
+  selectedDownloadable,
+  selectedEvictable,
+  selectedCloudRemovable,
+  transferSnapshot,
+  retryPendingDeletion,
+  removeCloudSnapshot,
+  evictSnapshot,
+  batchTransfer,
+  batchRemoveCloud,
+  batchEvict,
+  convertToPermanent,
+} = useSnapshotTransfers({
+  game,
+  cloudGame,
+  activeTransfer,
+  retentionProtectedDates,
+  selected: () => selected_game_snapshots.value,
+  allSnapshots: () => table_data.value,
+  refresh: refresh_backups_info,
+});
 
 function backupSuccessMessage() {
   const backendEnabled = config.value?.settings.cloud_settings?.backend?.type !== 'Disabled';
@@ -935,6 +592,12 @@ async function del_save(date: string) {
       );
       result = await commands.deleteV2Snapshot(gameId, date, true);
     } else {
+      // 行内 popconfirm 移除后，本地命名空间也走统一破坏性确认
+      await feedback.confirm($t('manage.confirm_delete_prompt'), $t('manage.delete'), {
+        confirmButtonText: $t('manage.delete'),
+        cancelButtonText: $t('manage.cancel'),
+        type: 'warning',
+      });
       result = await commands.deleteSnapshot(game.value, date);
     }
     if (result.status === 'error') {
@@ -949,7 +612,7 @@ async function del_save(date: string) {
 }
 
 async function handleApplyClick(date: string) {
-  if (!canApplySnapshot(date)) {
+  if (!canApplySnapshot(localCatalogDates.value, cloudGame.value, date)) {
     notifyError($t('manage.download_before_apply'));
     return;
   }
@@ -1207,7 +870,7 @@ async function change_describe(date: string) {
 async function load_latest_save() {
   const lastBackup = [...table_data.value]
     .reverse()
-    .find((snapshot) => canApplySnapshot(snapshot.date));
+    .find((snapshot) => canApplySnapshot(localCatalogDates.value, cloudGame.value, snapshot.date));
 
   if (lastBackup?.date) {
     await confirmAndRun('latest', () => apply_save(lastBackup.date));
@@ -1417,7 +1080,7 @@ async function on_drawer_save_changes(updatedGame: Game) {
 }
 
 const orderedTableData = computed(() =>
-  tableSortBy.value.order === TableV2SortOrder.ASC ? table_data.value : table_data_desc.value
+  sortDesc.value ? table_data_desc.value : table_data.value
 );
 
 const filter_table = computed(() => {
@@ -1438,72 +1101,6 @@ const selected_game_snapshots = computed<Snapshot[]>(() => {
   return filter_table.value.filter((snapshot) => selectedDates.value.has(snapshot.date));
 });
 
-const selectedCountInView = computed(() => {
-  if (selectedDates.value.size === 0) {
-    return 0;
-  }
-  let count = 0;
-  for (const snapshot of filter_table.value) {
-    if (selectedDates.value.has(snapshot.date)) {
-      count += 1;
-    }
-  }
-  return count;
-});
-
-const isAllSelected = computed(() => {
-  const total = filter_table.value.length;
-  return total > 0 && selectedCountInView.value === total;
-});
-
-const isSelectionIndeterminate = computed(() => {
-  const total = filter_table.value.length;
-  return total > 0 && selectedCountInView.value > 0 && selectedCountInView.value < total;
-});
-
-const tableColumns = computed(() => [
-  { key: 'selection', dataKey: 'selection', title: '', width: 50, align: 'center' as const },
-  {
-    key: 'date',
-    dataKey: 'date',
-    title: $t('manage.save_date'),
-    width: 190,
-    sortable: true,
-  },
-  {
-    key: 'describe',
-    dataKey: 'describe',
-    title: $t('manage.description'),
-    width: 280,
-    minWidth: 220,
-    flexGrow: 1,
-  },
-  { key: 'size', dataKey: 'size', title: $t('manage.location_and_size'), width: 128 },
-  {
-    key: 'actions',
-    dataKey: 'actions',
-    title: $t('manage.actions'),
-    width: 188,
-    align: 'center' as const,
-    fixed: TableV2FixedDir.RIGHT,
-  },
-]);
-
-function onTableColumnSort({
-  key,
-  order,
-}: {
-  key: string | number | symbol;
-  order: TableV2SortOrder;
-}) {
-  if (key !== 'date') return;
-  tableSortBy.value = { key: 'date', order };
-}
-
-function isSnapshotSelected(date: string) {
-  return selectedDates.value.has(date);
-}
-
 function toggleSnapshotSelection(date: string, checked: boolean) {
   const next = new Set(selectedDates.value);
   if (checked) {
@@ -1514,8 +1111,7 @@ function toggleSnapshotSelection(date: string, checked: boolean) {
   selectedDates.value = next;
 }
 
-function toggleSelectAll(value: unknown) {
-  const checked = value === true;
+function toggleSelectAll(checked: boolean) {
   if (checked) {
     selectedDates.value = new Set(filter_table.value.map((snapshot) => snapshot.date));
     return;
@@ -1745,80 +1341,6 @@ async function onCreateBranch(parentDate: string) {
   }
 }
 
-function resolveDeviceDisplayName(deviceId: string) {
-  if (currentDevice.value?.id === deviceId && currentDevice.value.name.trim()) {
-    return currentDevice.value.name;
-  }
-
-  const savedName = config.value?.devices?.[deviceId]?.name?.trim();
-  if (savedName) {
-    return savedName;
-  }
-
-  return deviceId.length > 8 ? `${deviceId.slice(0, 8)}...` : deviceId;
-}
-
-const deviceHeadMap = computed<Record<string, string>>(() => {
-  const snapshots = gameSnapshots.value as GameSnapshotsWithDeviceHeads | null;
-  return Object.fromEntries(
-    Object.entries(snapshots?.device_heads ?? {}).filter(
-      (entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].length > 0
-    )
-  );
-});
-
-const currentHead = computed(() => {
-  const deviceId = currentDevice.value?.id;
-  if (!deviceId) return null;
-  return deviceHeadMap.value[deviceId] ?? null;
-});
-
-const headEntries = computed<DeviceHeadEntry[]>(() => {
-  const currentDeviceId = currentDevice.value?.id;
-  return Object.entries(deviceHeadMap.value)
-    .map(([deviceId, date]) => {
-      const snapshot = table_data.value.find((item) => item.date === date) ?? null;
-      const description = snapshot?.describe?.trim() || '';
-      const parsed = dayjs(date, 'YYYY-MM-DD_HH-mm-ss');
-      const shortTime = parsed.isValid() ? parsed.format('MM/DD HH:mm') : date;
-      const fullTime = parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : date;
-      const isCurrentDevice = deviceId === currentDeviceId;
-      const label = isCurrentDevice
-        ? $t('manage.current_position')
-        : resolveDeviceDisplayName(deviceId);
-      const fullText = description
-        ? `${label} · ${description} (${fullTime})`
-        : `${label} · ${fullTime}`;
-
-      return {
-        deviceId,
-        deviceName: resolveDeviceDisplayName(deviceId),
-        label,
-        date,
-        description,
-        shortTime,
-        fullText,
-        isCurrentDevice,
-      };
-    })
-    .sort((left, right) => {
-      if (left.isCurrentDevice !== right.isCurrentDevice) {
-        return left.isCurrentDevice ? -1 : 1;
-      }
-      return left.deviceName.localeCompare(right.deviceName);
-    });
-});
-
-const branchDeviceHeads = computed<BranchDeviceHeadMarker[]>(() =>
-  headEntries.value.map((entry) => ({
-    deviceId: entry.deviceId,
-    date: entry.date,
-    label: entry.isCurrentDevice ? $t('manage.head') : entry.deviceName,
-    isCurrentDevice: entry.isCurrentDevice,
-    tooltip: entry.fullText,
-  }))
-);
-
 const syncParticipationLabel = computed(() => {
   const next = cloudGame.value;
   if (!next) return '';
@@ -1827,454 +1349,240 @@ const syncParticipationLabel = computed(() => {
   if (next.sync_mode === 'snapshot_sync') return $t('sync_settings.overview.mode_snapshot');
   return $t('sync_settings.overview.mode_manual');
 });
+
+// 头部工具区：低频/破坏性动作收纳进溢出菜单，主按钮只留高频
+const headerMenuEntries = computed<KMenuEntry[]>(() => [
+  { type: 'item', key: 'openFolder', label: $t('manage.open_backup_folder'), icon: FolderOpen },
+  { type: 'item', key: 'verify', label: $t('manage.verify_archive_hashes'), icon: ShieldCheck },
+  { type: 'item', key: 'extraBackups', label: $t('manage.extra_backups'), icon: Copy },
+  {
+    type: 'item',
+    key: 'quickBackup',
+    label: $t('manage.set_quick_backup'),
+    icon: Zap,
+    active: isQuickBackupGame.value,
+  },
+  {
+    type: 'item',
+    key: 'autoSave',
+    label: $t('manage.auto_save_settings'),
+    icon: Timer,
+    active: autoSaveConfigured.value,
+  },
+  { type: 'separator' },
+  {
+    type: 'item',
+    key: 'deleteGame',
+    label: $t('manage.delete_save_manage'),
+    icon: Trash2,
+    danger: true,
+  },
+]);
+
+function onHeaderMenuSelect(key: string) {
+  if (key === 'openFolder') open_backup_folder();
+  else if (key === 'verify') verify_archive_hashes();
+  else if (key === 'extraBackups') extraBackupDrawer.value = true;
+  else if (key === 'quickBackup') set_quick_backup();
+  else if (key === 'autoSave') autoSaveSettingsDrawer.value = true;
+  else if (key === 'deleteGame') del_cur();
+}
+
+const viewModeOptions = computed(() => [
+  { value: 'table' as const, label: $t('manage.table_view'), icon: List },
+  { value: 'branch' as const, label: $t('manage.branch_view'), icon: GitBranch },
+]);
 </script>
 
 <template>
-  <div class="manage-container">
+  <div class="flex h-[calc(100vh-40px)] flex-col gap-4 overflow-hidden">
     <!-- Page Header -->
-    <div class="page-header">
-      <div class="title-stack">
-        <h2 class="page-title">{{ game.name }}</h2>
-        <span v-if="cloudGame" class="sync-mark">{{ syncParticipationLabel }}</span>
+    <div class="flex shrink-0 items-center justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <h2 class="truncate text-lg font-semibold text-text">{{ game.name }}</h2>
+        <KTag v-if="cloudGame" class="mt-1">{{ syncParticipationLabel }}</KTag>
       </div>
-      <div class="header-actions">
-        <el-tooltip :content="$t('manage.launch_game')" placement="bottom">
-          <el-button circle :icon="VideoPlay" type="success" @click="launch_game" />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.open_backup_folder')" placement="bottom">
-          <el-button circle :icon="Folder" @click="open_backup_folder" />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.verify_archive_hashes')" placement="bottom">
-          <el-button circle :icon="CircleCheck" @click="verify_archive_hashes" />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.extra_backups')" placement="bottom">
-          <el-button circle :icon="DocumentCopy" @click="extraBackupDrawer = true" />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.show_drawer')" placement="bottom">
-          <el-button circle :icon="Setting" @click="drawer = true" />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.set_quick_backup')" placement="bottom">
-          <el-button
-            circle
-            :icon="Lightning"
-            :type="isQuickBackupGame ? 'success' : ''"
-            @click="set_quick_backup"
-          />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.auto_save_settings')" placement="bottom">
-          <el-button
-            circle
-            :icon="AlarmClock"
-            :type="autoSaveConfigured ? 'success' : ''"
-            @click="autoSaveSettingsDrawer = true"
-          />
-        </el-tooltip>
-        <el-tooltip :content="$t('manage.delete_save_manage')" placement="bottom">
-          <el-button circle :icon="Delete" type="danger" @click="del_cur" />
-        </el-tooltip>
+      <div class="flex shrink-0 items-center gap-2">
+        <KButton variant="default" @click="launch_game">
+          <template #icon><Play :size="14" aria-hidden="true" /></template>
+          {{ $t('manage.launch_game') }}
+        </KButton>
+        <KButton variant="default" @click="drawer = true">
+          <template #icon><FolderCog :size="14" aria-hidden="true" /></template>
+          {{ $t('manage.show_drawer') }}
+        </KButton>
+        <KMenu
+          :entries="headerMenuEntries"
+          :aria-label="$t('manage.more_actions')"
+          @select="onHeaderMenuSelect"
+        >
+          <KButton variant="ghost" :aria-label="$t('manage.more_actions')">
+            <Ellipsis :size="16" aria-hidden="true" />
+          </KButton>
+        </KMenu>
       </div>
     </div>
 
-    <!-- Quick Actions Card -->
-    <el-card class="quick-actions-card" shadow="never">
-      <div class="quick-actions-content">
-        <div class="create-backup-section">
-          <el-input
-            v-model="describe"
-            :placeholder="$t('manage.input_description_prompt')"
-            class="backup-input"
-            @keyup.enter="create_new_save"
+    <!-- Quick Actions -->
+    <section
+      class="flex shrink-0 items-center gap-3 rounded-md border border-border bg-surface p-3"
+    >
+      <KInput
+        v-model="describe"
+        class="flex-1"
+        :placeholder="$t('manage.input_description_prompt')"
+        :aria-label="$t('manage.input_description_prompt')"
+        @keyup.enter="create_new_save"
+      />
+      <KButton variant="primary" @click="create_new_save">
+        <template #icon><Plus :size="14" aria-hidden="true" /></template>
+        {{ $t('manage.create_new_save') }}
+      </KButton>
+      <div class="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      <KButton variant="default" @click="load_latest_save">
+        <template #icon><RotateCcw :size="14" aria-hidden="true" /></template>
+        {{ $t('manage.load_latest_save') }}
+      </KButton>
+      <KTooltip :content="undoTooltip" side="bottom">
+        <KButton
+          variant="ghost"
+          :aria-label="undoTooltip"
+          :disabled="!canUndo"
+          @click="undo_last_apply"
+        >
+          <Undo2 :size="15" aria-hidden="true" />
+        </KButton>
+      </KTooltip>
+    </section>
+
+    <!-- Main Content -->
+    <section class="flex min-h-0 flex-1 flex-col rounded-md border border-border bg-surface">
+      <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+        <KSegmented
+          v-model="viewMode"
+          :options="viewModeOptions"
+          :aria-label="$t('manage.table_view')"
+          class="w-52"
+        />
+
+        <KInput
+          v-if="viewMode === 'table'"
+          v-model="search"
+          class="w-48"
+          :placeholder="$t('manage.input_description_search_prompt')"
+          :aria-label="$t('manage.input_description_search_prompt')"
+        />
+
+        <template v-if="viewMode === 'table'">
+          <KButton v-if="selectedDownloadable.length > 0" size="sm" @click="batchTransfer(false)">
+            <template #icon><Download :size="13" aria-hidden="true" /></template>
+            {{ $t('manage.batch_download') }}
+          </KButton>
+          <KButton v-if="selectedEvictable.length > 0" size="sm" @click="batchEvict()">
+            <template #icon><FolderMinus :size="13" aria-hidden="true" /></template>
+            {{ $t('manage.batch_evict') }}
+          </KButton>
+          <KButton v-if="selectedUploadable.length > 0" size="sm" @click="batchTransfer(true)">
+            <template #icon><Upload :size="13" aria-hidden="true" /></template>
+            {{ $t('manage.batch_upload') }}
+          </KButton>
+          <KButton
+            v-if="selectedCloudRemovable.length > 0"
+            size="sm"
+            variant="danger"
+            @click="batchRemoveCloud()"
           >
-            <template #append>
-              <el-button type="primary" :icon="Plus" @click="create_new_save">
-                {{ $t('manage.create_new_save') }}
-              </el-button>
-            </template>
-          </el-input>
-        </div>
-        <el-divider direction="vertical" class="action-divider" />
-        <div class="restore-section">
-          <el-button type="warning" :icon="VideoPlay" @click="load_latest_save">
-            {{ $t('manage.load_latest_save') }}
-          </el-button>
-          <el-tooltip :content="undoTooltip" placement="bottom">
-            <span>
-              <el-button
-                circle
-                :type="canUndo ? 'success' : ''"
-                :icon="Back"
-                :disabled="!canUndo"
-                @click="undo_last_apply"
-              />
-            </span>
-          </el-tooltip>
+            {{ $t('manage.batch_cloud_remove') }}
+          </KButton>
+          <KButton
+            v-if="selected_game_snapshots.length > 0"
+            size="sm"
+            variant="danger"
+            @click="batch_delete()"
+          >
+            {{ $t('manage.batch_delete') }}
+          </KButton>
+        </template>
+
+        <div
+          v-if="headEntries.length"
+          class="ms-auto flex flex-wrap items-center justify-end gap-1.5"
+        >
+          <KTooltip
+            v-for="entry in headEntries"
+            :key="entry.deviceId"
+            :content="entry.fullText"
+            side="bottom"
+          >
+            <KTag :tone="entry.isCurrentDevice ? 'accent' : 'neutral'">
+              <span class="font-semibold">{{ entry.label }}</span>
+              <span v-if="entry.description" class="max-w-28 truncate">{{
+                entry.description
+              }}</span>
+              <span class="font-mono text-[11px] opacity-80">{{ entry.shortTime }}</span>
+            </KTag>
+          </KTooltip>
         </div>
       </div>
-    </el-card>
 
-    <!-- Main Content Area -->
-    <el-card class="main-content-card" shadow="never">
-      <template #header>
-        <div class="content-header">
-          <div class="left-controls">
-            <el-radio-group v-model="viewMode" size="small">
-              <el-radio-button value="table">
-                <el-icon class="mr-1"><List /></el-icon>
-                {{ $t('manage.table_view') }}
-              </el-radio-button>
-              <el-radio-button value="branch">
-                <el-icon class="mr-1"><Share /></el-icon>
-                {{ $t('manage.branch_view') }}
-              </el-radio-button>
-            </el-radio-group>
-
-            <el-divider direction="vertical" />
-
-            <el-input
-              v-if="viewMode === 'table'"
-              v-model="search"
-              size="small"
-              :placeholder="$t('manage.input_description_search_prompt')"
-              clearable
-              style="width: 200px"
-            />
-
-            <el-button
-              v-if="selectedDownloadable.length > 0 && viewMode === 'table'"
-              size="small"
-              plain
-              :icon="Download"
-              @click="batchTransfer(false)"
-            >
-              {{ $t('manage.batch_download') }}
-            </el-button>
-            <el-button
-              v-if="selectedEvictable.length > 0 && viewMode === 'table'"
-              size="small"
-              plain
-              :icon="Remove"
-              @click="batchEvict()"
-            >
-              {{ $t('manage.batch_evict') }}
-            </el-button>
-            <el-button
-              v-if="selectedUploadable.length > 0 && viewMode === 'table'"
-              size="small"
-              plain
-              :icon="Upload"
-              @click="batchTransfer(true)"
-            >
-              {{ $t('manage.batch_upload') }}
-            </el-button>
-            <el-button
-              v-if="selectedCloudRemovable.length > 0 && viewMode === 'table'"
-              size="small"
-              plain
-              type="danger"
-              :icon="Remove"
-              @click="batchRemoveCloud()"
-            >
-              {{ $t('manage.batch_cloud_remove') }}
-            </el-button>
-            <el-button
-              v-if="selected_game_snapshots.length > 0 && viewMode === 'table'"
-              type="danger"
-              size="small"
-              plain
-              :icon="Delete"
-              @click="batch_delete()"
-            >
-              {{ $t('manage.batch_delete') }}
-            </el-button>
-          </div>
-          <div v-if="headEntries.length" class="head-tags">
-            <el-tooltip
-              v-for="entry in headEntries"
-              :key="entry.deviceId"
-              :content="entry.fullText"
-              placement="bottom-end"
-              :show-after="300"
-              popper-class="head-tooltip"
-            >
-              <el-tag
-                :type="entry.isCurrentDevice ? 'success' : 'info'"
-                effect="plain"
-                round
-                :class="['head-tag', { 'head-tag--current': entry.isCurrentDevice }]"
-              >
-                <span class="head-label">{{ entry.label }}</span>
-                <span class="head-separator">·</span>
-                <span v-if="entry.description" class="head-desc">{{ entry.description }}</span>
-                <span class="head-time">{{ entry.shortTime }}</span>
-              </el-tag>
-            </el-tooltip>
-          </div>
-        </div>
-      </template>
-
-      <div v-if="pendingDeletions.length" class="pending-deletions">
+      <div
+        v-if="pendingDeletions.length"
+        class="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2.5"
+      >
         <div
           v-for="deletion in pendingDeletions"
           :key="deletion.snapshot_id"
-          class="pending-deletion"
+          class="flex items-center justify-between gap-3 rounded-sm border border-[color-mix(in_oklab,var(--warning)_35%,transparent)] bg-[color-mix(in_oklab,var(--warning)_10%,transparent)] px-3 py-2"
         >
-          <div class="pending-deletion-copy">
-            <strong>{{ deletion.description || deletion.snapshot_id }}</strong>
-            <span>{{ $t('sync_settings.archives.deletion_pending') }}</span>
+          <div class="min-w-0">
+            <div class="truncate text-sm font-medium text-text">
+              {{ deletion.description || deletion.snapshot_id }}
+            </div>
+            <div class="text-xs text-text-dim">
+              {{ $t('sync_settings.archives.deletion_pending') }}
+            </div>
           </div>
-          <el-button
+          <KButton
             v-if="deletion.retryable"
-            size="small"
-            plain
-            type="warning"
-            :icon="Refresh"
+            size="sm"
             :loading="activeTransfer === deletion.snapshot_id"
             @click="retryPendingDeletion(deletion.snapshot_id, deletion.retryable)"
           >
+            <template #icon><RotateCw :size="13" aria-hidden="true" /></template>
             {{ $t('sync_settings.archives.retry_delete') }}
-          </el-button>
-          <span v-else class="pending-deletion-wait">{{
+          </KButton>
+          <span v-else class="shrink-0 text-xs text-text-dim">{{
             $t('sync_settings.archives.deletion_waiting')
           }}</span>
         </div>
       </div>
 
       <!-- Table View -->
-      <div v-if="viewMode === 'table'" class="view-container table-view">
-        <el-empty v-if="filter_table.length === 0" :description="$t('manage.no_snapshots')" />
-        <el-auto-resizer v-else>
-          <template #default="{ height, width }">
-            <el-table-v2
-              :columns="tableColumns"
-              :data="filter_table"
-              :width="width"
-              :height="height"
-              row-key="date"
-              :row-height="50"
-              :header-height="44"
-              :sort-by="tableSortBy"
-              class="snapshot-table-v2"
-              @column-sort="onTableColumnSort"
-            >
-              <template #header-cell="{ column }">
-                <el-checkbox
-                  v-if="column.key === 'selection'"
-                  :model-value="isAllSelected"
-                  :indeterminate="isSelectionIndeterminate"
-                  @change="toggleSelectAll"
-                />
-                <span v-else>{{ column.title }}</span>
-              </template>
-
-              <template #cell="{ column, rowData }">
-                <el-checkbox
-                  v-if="column.key === 'selection'"
-                  :model-value="isSnapshotSelected(rowData.date)"
-                  @change="
-                    (value: string | number | boolean) =>
-                      toggleSnapshotSelection(rowData.date, value === true)
-                  "
-                />
-                <span v-else-if="column.key === 'date'" class="font-mono text-sm">
-                  {{ rowData.date }}
-                </span>
-                <span v-else-if="column.key === 'describe'" class="table-cell-describe">
-                  <el-tag
-                    v-if="snapshotSourceTag(rowData)"
-                    type="info"
-                    size="small"
-                    effect="plain"
-                    round
-                    class="source-tag"
-                    >{{ snapshotSourceTag(rowData) }}</el-tag
-                  >
-                  <el-tooltip
-                    v-if="rowData.describe"
-                    :content="rowData.describe"
-                    placement="top"
-                    :show-after="300"
-                    popper-class="action-tooltip"
-                  >
-                    <span class="table-cell-ellipsis">{{ rowData.describe }}</span>
-                  </el-tooltip>
-                  <span v-else class="table-cell-ellipsis table-cell-empty">{{
-                    $t('manage.no_description')
-                  }}</span>
-                </span>
-                <span v-else-if="column.key === 'size'" class="size-cell">
-                  <span class="location-mark">{{ snapshotLocationLabel(rowData.date) }}</span>
-                  <span class="text-gray-500 text-xs">{{
-                    rowData.size ? formatFileSize(rowData.size) : '-'
-                  }}</span>
-                </span>
-                <div v-else-if="column.key === 'actions'" class="action-buttons">
-                  <span class="action-slot">
-                    <el-tooltip
-                      v-if="cloudGame && isSnapshotOnDevice(rowData.date)"
-                      :content="$t('manage.local_remove')"
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="warning"
-                        :icon="Remove"
-                        :disabled="!canEvictSnapshot(rowData.date)"
-                        :loading="activeTransfer === rowData.date"
-                        @click="evictSnapshot(rowData.date)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip
-                      v-else-if="cloudGame && !isSnapshotOnDevice(rowData.date)"
-                      :content="
-                        canDownloadSnapshot(rowData.date)
-                          ? $t('manage.local_download')
-                          : $t('manage.local_unavailable')
-                      "
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="primary"
-                        :icon="Download"
-                        :disabled="!canDownloadSnapshot(rowData.date)"
-                        :loading="activeTransfer === rowData.date"
-                        @click="transferSnapshot(rowData.date, false)"
-                      />
-                    </el-tooltip>
-                  </span>
-                  <span class="action-slot">
-                    <el-tooltip
-                      v-if="cloudGame && canUploadSnapshot(rowData.date)"
-                      :content="$t('manage.cloud_upload')"
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="primary"
-                        :icon="Upload"
-                        :loading="activeTransfer === rowData.date"
-                        @click="transferSnapshot(rowData.date, true)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip
-                      v-else-if="cloudGame && isSnapshotInCloud(rowData.date)"
-                      :content="$t('manage.cloud_remove')"
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="danger"
-                        :icon="Remove"
-                        :loading="activeTransfer === rowData.date"
-                        @click="removeCloudSnapshot(rowData.date)"
-                      />
-                    </el-tooltip>
-                  </span>
-                  <span class="action-slot">
-                    <el-tooltip
-                      :content="
-                        canApplySnapshot(rowData.date)
-                          ? $t('manage.apply')
-                          : $t('manage.download_before_apply')
-                      "
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="success"
-                        :icon="VideoPlay"
-                        :disabled="!canApplySnapshot(rowData.date)"
-                        @click="handleApplyClick(rowData.date)"
-                      />
-                    </el-tooltip>
-                  </span>
-                  <span class="action-slot">
-                    <el-tooltip
-                      v-if="isAutomaticSnapshot(rowData) && !isRetentionProtected(rowData.date)"
-                      :content="$t('manage.convert_to_permanent')"
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="primary"
-                        :icon="Lock"
-                        @click="convertToPermanent(rowData.date)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip
-                      v-else-if="isAutomaticSnapshot(rowData) && isRetentionProtected(rowData.date)"
-                      :content="$t('sync_settings.archives.retention.unprotect')"
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="primary"
-                        :icon="Unlock"
-                        @click="convertToPermanent(rowData.date)"
-                      />
-                    </el-tooltip>
-                    <el-tooltip
-                      v-else
-                      :content="
-                        localCatalogDates.has(rowData.date)
-                          ? $t('manage.change_describe')
-                          : $t('manage.download_before_apply')
-                      "
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <el-button
-                        link
-                        type="warning"
-                        :icon="Edit"
-                        :disabled="!localCatalogDates.has(rowData.date)"
-                        @click="change_describe(rowData.date)"
-                      />
-                    </el-tooltip>
-                  </span>
-                  <span class="action-slot">
-                    <el-tooltip
-                      :content="$t('manage.delete')"
-                      placement="top"
-                      :show-after="300"
-                      popper-class="action-tooltip"
-                    >
-                      <span>
-                        <el-popconfirm
-                          :title="$t('manage.confirm_delete_prompt')"
-                          @confirm="del_save(rowData.date)"
-                        >
-                          <template #reference>
-                            <el-button link type="danger" :icon="Delete" />
-                          </template>
-                        </el-popconfirm>
-                      </span>
-                    </el-tooltip>
-                  </span>
-                </div>
-              </template>
-            </el-table-v2>
-          </template>
-        </el-auto-resizer>
+      <div v-if="viewMode === 'table'" class="h-full min-h-0 flex-1 overflow-hidden">
+        <SnapshotTable
+          :rows="filter_table"
+          :sort-desc="sortDesc"
+          :selected-dates="selectedDates"
+          :cloud-game="cloudGame"
+          :local-catalog-dates="localCatalogDates"
+          :retention-protected-dates="retentionProtectedDates"
+          :active-transfer="activeTransfer"
+          @toggle-sort="sortDesc = !sortDesc"
+          @toggle-select="toggleSnapshotSelection"
+          @toggle-select-all="toggleSelectAll"
+          @apply="handleApplyClick"
+          @remove="del_save"
+          @change-describe="change_describe"
+          @convert-permanent="convertToPermanent"
+          @evict="evictSnapshot"
+          @download="transferSnapshot($event, false)"
+          @upload="transferSnapshot($event, true)"
+          @remove-cloud="removeCloudSnapshot"
+        />
       </div>
 
       <!-- Branch View -->
-      <div v-else ref="branchViewContainer" class="view-container branch-view">
+      <div v-else class="h-full min-h-0 flex-1 overflow-hidden bg-surface-2">
         <BranchTreeView
           v-if="viewMode === 'branch'"
           :snapshots="table_data"
@@ -2289,7 +1597,7 @@ const syncParticipationLabel = computed(() => {
           @create-branch="onCreateBranch"
         />
       </div>
-    </el-card>
+    </section>
 
     <!-- Drawer -->
     <save-location-drawer
@@ -2308,345 +1616,22 @@ const syncParticipationLabel = computed(() => {
       :cloud-game="cloudGame"
       @saved="onAutoSaveSettingsSaved"
     />
-    <ElDialog
-      v-model="deleteChoiceVisible"
+
+    <KDialog
+      v-model:open="deleteChoiceVisible"
       :title="$t('manage.delete_choice_title')"
-      width="min(460px, 92vw)"
-      align-center
+      :width="460"
     >
-      <p class="delete-choice-copy">{{ $t('manage.delete_choice_confirm') }}</p>
+      <p class="text-sm leading-relaxed text-text-dim">
+        {{ $t('manage.delete_choice_confirm') }}
+      </p>
       <template #footer>
-        <ElButton @click="deleteChoiceVisible = false">{{ $t('manage.cancel') }}</ElButton>
-        <ElButton type="warning" @click="stopManagingHere">
-          {{ $t('manage.stop_managing_action') }}
-        </ElButton>
-        <ElButton type="danger" @click="choosePermanentDelete">
+        <KButton @click="deleteChoiceVisible = false">{{ $t('manage.cancel') }}</KButton>
+        <KButton @click="stopManagingHere">{{ $t('manage.stop_managing_action') }}</KButton>
+        <KButton variant="danger" @click="choosePermanentDelete">
           {{ $t('sync_settings.archives.games.delete_action') }}
-        </ElButton>
+        </KButton>
       </template>
-    </ElDialog>
+    </KDialog>
   </div>
 </template>
-
-<style scoped>
-.manage-container {
-  /* ElMain has default 20px padding, so we subtract 40px from 100vh to fit exactly */
-  height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.page-header {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.title-stack {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.delete-choice-copy {
-  margin: 0;
-  color: var(--el-text-color-regular);
-  line-height: 1.5;
-}
-
-.sync-mark {
-  display: block;
-  margin-top: 2px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.quick-actions-card {
-  flex-shrink: 0;
-  border-radius: 8px;
-  overflow: visible;
-}
-
-.table-cell-describe {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  overflow: hidden;
-}
-
-.source-tag {
-  flex-shrink: 0;
-}
-
-.size-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.2;
-}
-
-.location-mark {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-}
-
-.table-cell-empty {
-  color: var(--el-text-color-placeholder);
-}
-
-.quick-actions-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.create-backup-section {
-  flex: 1;
-}
-
-.backup-input :deep(.el-input-group__append) {
-  background-color: var(--el-color-primary);
-  border-color: var(--el-color-primary);
-  color: white;
-}
-
-.backup-input :deep(.el-input-group__append button:hover) {
-  color: white;
-  opacity: 0.9;
-}
-
-.action-divider {
-  height: 24px;
-}
-
-.restore-section {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.main-content-card {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.main-content-card :deep(.el-card__header) {
-  flex-shrink: 0;
-  padding: 12px 16px;
-}
-
-.main-content-card :deep(.el-card__body) {
-  flex: 1;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.content-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.left-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.view-container {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-}
-
-.table-view {
-  overflow: hidden;
-}
-
-.snapshot-table-v2 {
-  width: 100%;
-  height: 100%;
-}
-
-.snapshot-table-v2 :deep(.el-table-v2__header-cell),
-.snapshot-table-v2 :deep(.el-table-v2__row-cell) {
-  display: flex;
-  align-items: center;
-}
-
-.snapshot-table-v2 :deep(.el-table-v2__header-cell .el-checkbox),
-.snapshot-table-v2 :deep(.el-table-v2__row-cell .el-checkbox) {
-  margin: 0 auto;
-}
-
-.table-cell-ellipsis {
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.branch-view {
-  background-color: #f5f7fa;
-  overflow: hidden;
-}
-
-.text-danger {
-  color: var(--el-color-danger);
-}
-
-.font-mono {
-  font-family: var(--el-font-family-monospace);
-}
-
-.mr-1 {
-  margin-right: 4px;
-}
-
-.head-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-left: auto;
-}
-
-.head-tag {
-  max-width: 280px;
-  display: inline-flex;
-  align-items: center;
-  cursor: default;
-  padding: 0 10px;
-  box-sizing: border-box;
-}
-
-.head-tag--current .head-label {
-  color: var(--el-color-success-dark-2);
-}
-
-.head-tag--current .head-separator {
-  color: var(--el-color-success-light-3);
-}
-
-.head-label {
-  flex-shrink: 0;
-  color: var(--el-text-color-primary);
-  font-weight: 500;
-}
-
-.head-separator {
-  flex-shrink: 0;
-  margin: 0 6px;
-  color: var(--el-text-color-secondary);
-}
-
-.head-desc {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 120px;
-  color: var(--el-text-color-primary);
-  font-weight: 500;
-  margin-right: 8px;
-}
-
-.head-time {
-  flex-shrink: 0;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0;
-}
-
-.action-slot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-}
-
-.action-buttons .el-button {
-  margin: 0;
-  font-size: 16px;
-}
-
-.pending-deletions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.pending-deletion {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--el-color-warning-light-5);
-  border-radius: 8px;
-  background: var(--el-color-warning-light-9);
-}
-
-.pending-deletion-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.pending-deletion-copy span,
-.pending-deletion-wait {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-:deep(.head-tooltip),
-:deep(.action-tooltip) {
-  max-width: 260px;
-  white-space: normal;
-  word-break: break-word;
-}
-</style>
