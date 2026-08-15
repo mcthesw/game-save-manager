@@ -7,7 +7,7 @@ import type { AllowDropType, NodeDropType } from 'element-plus/es/components/tre
 import type { FavoriteTreeNode, Game } from '~/api/commands';
 import { Close, EditPen, FolderAdd, Plus } from '@element-plus/icons-vue';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
-import type { MessageBoxInputData } from '../ui/elementPlus/messageBox';
+import type { PromptResult } from '../composables/useFeedback';
 
 const { config, saveConfig, isGameVisible } = useConfig();
 const feedback = useFeedback();
@@ -128,7 +128,7 @@ function allow_drop(_draggingNode: TreeNode, dropNode: TreeNode, type: AllowDrop
 
 async function add_folder() {
   // 弹出对话框
-  let name: MessageBoxInputData;
+  let name: PromptResult;
   try {
     name = await feedback.prompt($t('favorite.new_folder_name'), $t('home.hint'), {
       confirmButtonText: $t('settings.confirm'),

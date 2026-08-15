@@ -1141,10 +1141,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
           </el-divider>
 
           <div class="setting-box">
-            <ElSwitch v-model="config.settings.prompt_when_not_described" />
-            <span class="setting-label">{{ $t('settings.prompt_when_not_described') }}</span>
-          </div>
-          <div class="setting-box">
             <ElSwitch v-model="config.settings.prompt_when_auto_backup" />
             <span class="setting-label">{{ $t('settings.prompt_when_auto_backup') }}</span>
           </div>

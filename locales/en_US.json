@@ -21,7 +21,6 @@
         "abort_change": "Abandon modifications",
         "confirm_reset": "Confirm reset?",
         "reset_settings": "Restore default",
-        "prompt_when_not_described": "When there is no describe for a save, a prompt pops up",
         "prompt_when_auto_backup": "When automatic backup occurs, a prompt pops up",
         "max_auto_backup_count": "Maximum number of automatic backups to keep (0 = unlimited)",
         "max_auto_backup_count_hint": "This is the global default. Individual games can override this in their auto-backup settings.",
@@ -197,16 +196,14 @@
         "extra_backups_hint": "Auto-created before applying a snapshot. Use this to recover if an overwrite goes wrong.",
         "show_drawer": "View managed files",
         "error_info": "This is an error message. It should not appear under normal circumstances",
-        "wait_for_prompt_hint": "When the game save file is large, the operation may take a while. Please wait for the success prompt before proceeding with other actions",
+        "wait_for_prompt_hint": "Large saves take a while. Live progress appears in the activity panel at the bottom right",
         "save_too_fast_error": "Multiple saves cannot be made within one second",
         "last_backup_unfinished_error": "The last backup is not yet complete. Please wait",
         "last_overwrite_unfinished_error": "The last overwrite is not yet complete. Please wait",
         "backup_success": "Backup successful",
         "backup_success_with_sync": "Backup successful. Cloud sync continues in background.",
         "creating_backup": "Creating backup...",
-        "no_description_warning": "You haven't provided a description for this snapshot. Do you want to continue?",
         "warning": "Warning",
-        "confirm_save": "Confirm save",
         "cancel": "Cancel",
         "no_launch_path_error": "You haven't saved the launch file for this game",
         "delete_success": "Successfully deleted",
@@ -1059,6 +1056,12 @@
         "save_config_failed": "Game settings failed to update"
     },
     "backend": {
+        "stage": {
+            "title": "Working",
+            "scan": "Scanning save files…",
+            "compress": "Compressing %{count} save unit(s)…",
+            "finalize": "Verifying and finishing…"
+        },
         "config": {
             "updating_config_title": "Updating config file",
             "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManagerConfig.json.bak"

@@ -154,6 +154,8 @@ pub struct CaptureSnapshotOptions<'a> {
     pub parent_date: Option<String>,
     pub created_by: CreatedBy,
     pub source_fingerprint: Option<String>,
+    /// Stage notifications during capture (compression is the long pole).
+    pub notifier: Option<&'a dyn RestoreNotifier>,
 }
 
 #[derive(Debug, Clone)]
@@ -495,6 +497,13 @@ impl Game {
         let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
         let archive_format = ArchiveFormat::SevenZ;
         let archive_path = backup_path.join(archive_file_name(&date, archive_format));
+        if let Some(notifier) = options.notifier {
+            notifier.notify(
+                crate::backup::RestoreNotificationLevel::Info,
+                rust_i18n::t!("backend.stage.title").as_ref(),
+                rust_i18n::t!("backend.stage.compress", count = plan.groups.len()).as_ref(),
+            );
+        }
         let file_size = SevenZBackend.compress_capture_plan(
             plan,
             &archive_path,

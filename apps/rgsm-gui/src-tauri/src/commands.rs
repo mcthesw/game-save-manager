@@ -44,12 +44,12 @@ use crate::hooks::HookPipelineState;
 
 pub mod http_commands;
 
-/// Adapter: emits restore progress as HostNotification events through the Host event stream.
-struct HostRestoreNotifier {
+/// Adapter: emits operation progress as HostNotification events through the Host event stream.
+struct HostNotifier {
     app: AppHandle,
 }
 
-impl RestoreNotifier for HostRestoreNotifier {
+impl RestoreNotifier for HostNotifier {
     fn notify(&self, level: RestoreNotificationLevel, title: &str, msg: &str) {
         let notification_level = match level {
             RestoreNotificationLevel::Info => NotificationLevel::info,
@@ -65,8 +65,8 @@ impl RestoreNotifier for HostRestoreNotifier {
 }
 
 /// Helper to create a notifier from an AppHandle
-fn notifier(app: &AppHandle) -> HostRestoreNotifier {
-    HostRestoreNotifier { app: app.clone() }
+fn notifier(app: &AppHandle) -> HostNotifier {
+    HostNotifier { app: app.clone() }
 }
 
 /// Typed error for restore operations, allowing the frontend to
@@ -499,9 +499,10 @@ pub async fn create_snapshot(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Backing up save for game: {:?}", game);
+    let n = notifier(&app_handle);
     handle_backup_err(
         svc(&app_handle)
-            .create_snapshot(&game, &describe, HookSource::UserManual)
+            .create_snapshot(&game, &describe, HookSource::UserManual, Some(&n))
             .await,
         window,
     )?;
@@ -1279,6 +1280,7 @@ pub async fn create_snapshot_at(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
+    let n = notifier(&app_handle);
     handle_backup_err(
         svc(&app_handle)
             .create_snapshot_at(
@@ -1287,6 +1289,7 @@ pub async fn create_snapshot_at(
                 parent_date,
                 CreatedBy::Manual,
                 HookSource::UserManual,
+                Some(&n),
             )
             .await,
         window,

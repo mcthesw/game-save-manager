@@ -19,7 +19,7 @@ pub async fn perform_changed_auto_backup(
 
     let service = ServiceContext::new(app.state::<crate::hooks::HookPipelineState>().snapshot());
     match service
-        .create_snapshot_if_changed(game, &describe, created_by, trigger.to_hook_source())
+        .create_snapshot_if_changed(game, &describe, created_by, trigger.to_hook_source(), None)
         .await
     {
         Ok(TimerSnapshotDecision::SkippedUnchanged) => {

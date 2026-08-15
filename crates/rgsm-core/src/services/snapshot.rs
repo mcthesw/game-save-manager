@@ -1,7 +1,7 @@
 use crate::backup::{
     ArchiveBackend, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions, CreatedBy, Game,
-    GameSnapshots, RestoreNotifier, RestorePlan, SevenZBackend, TimerSnapshotDecision, ZipBackend,
-    archive_file_name, snapshot_archive_path,
+    GameSnapshots, RestoreNotificationLevel, RestoreNotifier, RestorePlan, SevenZBackend,
+    TimerSnapshotDecision, ZipBackend, archive_file_name, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -11,6 +11,18 @@ use crate::preclude::BackupError;
 
 use super::ServiceContext;
 
+/// Emit a stage notification when a notifier is attached. Stage payloads are
+/// pure progress text; the frontend folds them into the running activity entry.
+fn notify_stage(notifier: Option<&dyn RestoreNotifier>, msg: &str) {
+    if let Some(notifier) = notifier {
+        notifier.notify(
+            RestoreNotificationLevel::Info,
+            rust_i18n::t!("backend.stage.title").as_ref(),
+            msg,
+        );
+    }
+}
+
 impl ServiceContext {
     pub async fn quick_backup(
         &self,
@@ -19,7 +31,7 @@ impl ServiceContext {
         created_by: CreatedBy,
         source: HookSource,
     ) -> Result<(), BackupError> {
-        self.create_snapshot_at(game, describe, None, created_by, source)
+        self.create_snapshot_at(game, describe, None, created_by, source, None)
             .await
     }
 
@@ -44,8 +56,9 @@ impl ServiceContext {
         game: &Game,
         describe: &str,
         source: HookSource,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
-        self.create_snapshot_at(game, describe, None, CreatedBy::Manual, source)
+        self.create_snapshot_at(game, describe, None, CreatedBy::Manual, source, notifier)
             .await
     }
 
@@ -56,7 +69,9 @@ impl ServiceContext {
         parent_date: Option<String>,
         created_by: CreatedBy,
         source: HookSource,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
+        notify_stage(notifier, rust_i18n::t!("backend.stage.scan").as_ref());
         let config = get_config()?;
         let plan = self.capture_plan(&config, game)?;
         let created = game
@@ -69,11 +84,13 @@ impl ServiceContext {
                     parent_date,
                     created_by,
                     source_fingerprint: None,
+                    notifier,
                 },
             )
             .await?;
 
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
             game.set_game_snapshots_info(&created.snapshots)?;
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
                 config,
@@ -97,7 +114,9 @@ impl ServiceContext {
         describe: &str,
         created_by: CreatedBy,
         source: HookSource,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<TimerSnapshotDecision, BackupError> {
+        notify_stage(notifier, rust_i18n::t!("backend.stage.scan").as_ref());
         let config = get_config()?;
         let plan = self.capture_plan(&config, game)?;
         let fingerprint = crate::backup::state_fingerprint::fingerprint_capture_plan(&plan)?;
@@ -130,10 +149,12 @@ impl ServiceContext {
                     parent_date: None,
                     created_by,
                     source_fingerprint: Some(fingerprint),
+                    notifier,
                 },
             )
             .await?;
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
+            notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
             game.set_game_snapshots_info(&created.snapshots)?;
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
                 config,
@@ -284,7 +305,14 @@ impl ServiceContext {
         let mut first_error = None;
         for game in &config.games {
             let result = self
-                .create_snapshot_at(game, "Backup all", None, CreatedBy::Manual, source.clone())
+                .create_snapshot_at(
+                    game,
+                    "Backup all",
+                    None,
+                    CreatedBy::Manual,
+                    source.clone(),
+                    None,
+                )
                 .await;
             retain_first_error(&mut first_error, result);
         }
