@@ -376,7 +376,8 @@
     "preset_10m": "10 min",
     "preset_30m": "30 min",
     "preset_1h": "1 hour",
-    "do_not_ask_again": "Don't ask again"
+    "do_not_ask_again": "Don't ask again",
+    "more_actions": "More actions"
   },
   "addgame": {
     "search_local": "Detect local games",

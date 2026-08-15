@@ -376,7 +376,8 @@
     "preset_10m": "10分钟",
     "preset_30m": "30分钟",
     "preset_1h": "1小时",
-    "do_not_ask_again": "以后不再提示"
+    "do_not_ask_again": "以后不再提示",
+    "more_actions": "更多操作"
   },
   "addgame": {
     "search_local": "自动识别本地游戏",

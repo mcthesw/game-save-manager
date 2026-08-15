@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { CheckCircle2, Info, TriangleAlert, X, XCircle, type Component } from '@lucide/vue';
+import type { Component } from 'vue';
+import { CheckCircle2, Info, TriangleAlert, X, XCircle } from '@lucide/vue';
 import { $t } from '../../i18n';
 import { LAYER } from '../layers';
 import { dismissToast, useToast, type ToastTone } from '../../composables/useToast';
