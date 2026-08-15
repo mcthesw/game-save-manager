@@ -1,12 +1,7 @@
 import { computed, type Ref } from 'vue';
 import dayjs from 'dayjs';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
 import type { Config, Device, GameSnapshots, Snapshot } from '../../api/commands';
 import { $t } from '../../i18n';
-
-// `dayjs(date, format)` silently ignores the format without this plugin —
-// snapshot ids (YYYY-MM-DD_HH-mm-ss) used to fall back to raw strings.
-dayjs.extend(customParseFormat);
 
 type GameSnapshotsWithDeviceHeads = GameSnapshots & {
   device_heads?: Record<string, string | null | undefined>;

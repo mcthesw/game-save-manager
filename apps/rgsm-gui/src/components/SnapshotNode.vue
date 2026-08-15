@@ -4,7 +4,8 @@ import { Handle, Position } from '@vue-flow/core';
 import type { Snapshot } from '../api/commands';
 import { $t } from '../i18n';
 import dayjs from 'dayjs';
-import { Delete, Edit, Flag, Scissor, Share, VideoPlay } from '@element-plus/icons-vue';
+import { Flag, GitBranchPlus, Pencil, Play, Scissors, Trash2 } from '@lucide/vue';
+import { KPopover, KTag } from '../ui/kit';
 
 interface HeadMarker {
   deviceId: string;
@@ -65,6 +66,9 @@ function formatFileSize(bytes: number): string {
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i]!;
 }
+
+const actionClass =
+  'flex w-full cursor-pointer items-center gap-2 rounded-sm border-none bg-transparent px-2 py-1.5 text-left text-xs text-text transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50';
 </script>
 
 <template>
@@ -77,158 +81,137 @@ function formatFileSize(bytes: number): string {
       'is-selected': selected,
     }"
   >
-    <Handle type="target" :position="Position.Top" class="handle-target" />
+    <Handle type="target" :position="Position.Top" class="node-handle handle-target" />
 
-    <el-popover placement="right" :width="220" trigger="click" popper-class="snapshot-popover">
-      <template #reference>
-        <div class="node-content">
-          <div class="node-header">
-            <span class="node-date" :title="fullDate">{{ formattedDate }}</span>
-            <div v-if="data.headMarkers.length" class="head-tags">
-              <el-tag
-                v-for="marker in visibleHeadMarkers"
-                :key="marker.deviceId"
-                size="small"
-                :type="marker.isCurrentDevice ? 'success' : 'info'"
-                class="head-tag"
-                :title="marker.tooltip"
-              >
-                {{ marker.label }}
-              </el-tag>
-              <el-tag v-if="overflowHeadCount > 0" size="small" type="info" class="head-tag">
-                +{{ overflowHeadCount }}
-              </el-tag>
-            </div>
-          </div>
-          <div class="node-description" :title="description">
-            {{ truncatedDescription }}
-          </div>
-          <div v-if="data.snapshot.size" class="node-size">
-            {{ formatFileSize(data.snapshot.size) }}
-          </div>
-        </div>
-      </template>
-
-      <div class="popover-content">
-        <div class="popover-header">
-          <div class="popover-title">{{ fullDate }}</div>
-          <div class="popover-description">{{ description }}</div>
-          <div v-if="data.headMarkers.length" class="popover-heads">
-            <el-tag
-              v-for="marker in data.headMarkers"
+    <KPopover side="right" align="start" :width="230">
+      <div class="flex flex-col gap-1.5">
+        <div class="flex flex-col items-start gap-1.5">
+          <span class="font-mono text-[13px] font-semibold text-text" :title="fullDate">{{
+            formattedDate
+          }}</span>
+          <div v-if="data.headMarkers.length" class="flex flex-wrap gap-1">
+            <KTag
+              v-for="marker in visibleHeadMarkers"
               :key="marker.deviceId"
-              size="small"
-              :type="marker.isCurrentDevice ? 'success' : 'info'"
+              :tone="marker.isCurrentDevice ? 'accent' : 'neutral'"
               :title="marker.tooltip"
             >
               {{ marker.label }}
-            </el-tag>
+            </KTag>
+            <KTag v-if="overflowHeadCount > 0">+{{ overflowHeadCount }}</KTag>
           </div>
         </div>
-        <el-divider style="margin: 8px 0" />
-        <div class="popover-actions">
-          <el-button
-            text
-            bg
-            size="small"
-            type="primary"
-            :icon="VideoPlay"
-            class="action-btn"
-            @click="emit('apply', data.snapshot.date)"
-          >
+        <div class="truncate text-xs text-text-dim" :title="description">
+          {{ truncatedDescription }}
+        </div>
+        <div v-if="data.snapshot.size" class="font-mono text-[11px] text-text-dim/70">
+          {{ formatFileSize(data.snapshot.size) }}
+        </div>
+      </div>
+
+      <template #content>
+        <div class="flex flex-col gap-1">
+          <div class="px-1 pb-1">
+            <div class="font-mono text-[13px] font-semibold text-text">{{ fullDate }}</div>
+            <div class="mt-0.5 break-words text-xs leading-relaxed text-text-dim">
+              {{ description }}
+            </div>
+            <div v-if="data.headMarkers.length" class="mt-1.5 flex flex-wrap gap-1">
+              <KTag
+                v-for="marker in data.headMarkers"
+                :key="marker.deviceId"
+                :tone="marker.isCurrentDevice ? 'accent' : 'neutral'"
+                :title="marker.tooltip"
+              >
+                {{ marker.label }}
+              </KTag>
+            </div>
+          </div>
+          <div class="h-px bg-border" aria-hidden="true" />
+          <button type="button" :class="actionClass" @click="emit('apply', data.snapshot.date)">
+            <Play :size="13" aria-hidden="true" />
             {{ $t('manage.apply') }}
-          </el-button>
-          <el-button
-            text
-            bg
-            size="small"
-            :icon="Edit"
-            class="action-btn"
+          </button>
+          <button
+            type="button"
+            :class="actionClass"
             :disabled="data.canEditDescription === false"
             @click="emit('changeDescription', data.snapshot.date)"
           >
+            <Pencil :size="13" aria-hidden="true" />
             {{ $t('manage.change_describe') }}
-          </el-button>
-          <el-button
-            text
-            bg
-            size="small"
-            type="danger"
-            :icon="Delete"
-            class="action-btn"
+          </button>
+          <button
+            type="button"
+            :class="[actionClass, 'text-danger']"
             @click="emit('delete', data.snapshot.date)"
           >
+            <Trash2 :size="13" aria-hidden="true" />
             {{ $t('manage.delete') }}
-          </el-button>
-          <el-divider style="margin: 4px 0" />
-          <el-button
+          </button>
+          <div class="h-px bg-border" aria-hidden="true" />
+          <button
             v-if="!data.isCurrentHead"
-            text
-            bg
-            size="small"
-            type="success"
-            :icon="Flag"
-            class="action-btn"
+            type="button"
+            :class="actionClass"
             @click="emit('setHead', data.snapshot.date)"
           >
+            <Flag :size="13" aria-hidden="true" />
             {{ $t('manage.set_as_head') }}
-          </el-button>
-          <el-button
-            text
-            bg
-            size="small"
-            type="warning"
-            :icon="Share"
-            class="action-btn"
+          </button>
+          <button
+            type="button"
+            :class="actionClass"
             @click="emit('createBranch', data.snapshot.date)"
           >
+            <GitBranchPlus :size="13" aria-hidden="true" />
             {{ $t('manage.branch_from_here') }}
-          </el-button>
-          <el-button
+          </button>
+          <button
             v-if="!data.isRoot"
-            text
-            bg
-            size="small"
-            :icon="Scissor"
-            class="action-btn"
+            type="button"
+            :class="actionClass"
             @click="emit('detach', data.snapshot.date)"
           >
+            <Scissors :size="13" aria-hidden="true" />
             {{ $t('manage.detach') }}
-          </el-button>
+          </button>
         </div>
-      </div>
-    </el-popover>
+      </template>
+    </KPopover>
 
-    <Handle type="source" :position="Position.Bottom" class="handle-source" />
+    <Handle type="source" :position="Position.Bottom" class="node-handle handle-source" />
   </div>
 </template>
 
 <style scoped>
 .snapshot-node {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
-  border-radius: 12px;
-  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
   min-width: 140px;
   max-width: 220px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--el-box-shadow-light);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
 }
 
 .snapshot-node:hover {
-  border-color: var(--el-color-primary);
-  box-shadow: var(--el-box-shadow);
-  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
 }
 
 .snapshot-node.is-head {
-  border-color: var(--el-color-info-light-5);
+  border-color: var(--border-strong);
 }
 
+/* 琥珀 HEAD 钉:当前设备所在快照是分支视图里唯一的强调色 */
 .snapshot-node.is-current-head {
-  border-color: var(--el-color-success);
-  background: var(--el-color-success-light-9);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .snapshot-node.is-root {
@@ -236,70 +219,27 @@ function formatFileSize(bytes: number): string {
 }
 
 .snapshot-node.is-selected {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.node-content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.node-handle {
+  width: 9px;
+  height: 9px;
+  background: var(--border-strong);
+  border: 2px solid var(--surface);
+  transition:
+    width 0.15s ease,
+    height 0.15s ease;
 }
 
-.node-header {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+.is-current-head .node-handle {
+  background: var(--accent);
 }
 
-.node-date {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  font-family: var(--el-font-family-monospace);
-}
-
-.head-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.head-tag {
-  transform: scale(0.92);
-  font-weight: 600;
-  margin: 0;
-}
-
-.node-description {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.4;
-}
-
-.node-size {
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
-  margin-top: 2px;
-}
-
-.handle-target,
-.handle-source {
-  width: 10px;
-  height: 10px;
-  background: var(--el-color-primary);
-  border: 2px solid var(--el-bg-color);
-  transition: all 0.2s;
-}
-
-.snapshot-node:hover .handle-target,
-.snapshot-node:hover .handle-source {
-  width: 12px;
-  height: 12px;
+.snapshot-node:hover .node-handle {
+  width: 11px;
+  height: 11px;
 }
 
 .handle-target {
@@ -308,47 +248,5 @@ function formatFileSize(bytes: number): string {
 
 .handle-source {
   bottom: -6px;
-}
-
-.popover-content {
-  padding: 4px;
-}
-
-.popover-header {
-  margin-bottom: 8px;
-}
-
-.popover-title {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 4px;
-  font-size: 14px;
-}
-
-.popover-description {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  word-break: break-word;
-  line-height: 1.5;
-}
-
-.popover-heads {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.popover-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.popover-actions .el-button {
-  margin: 0;
-  width: 100%;
-  justify-content: flex-start;
-  height: 32px;
 }
 </style>
