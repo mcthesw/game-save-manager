@@ -1050,188 +1050,199 @@ onMounted(async () => {
           />
           <KAlert tone="warning">{{ $t('sync_settings.warning') }}</KAlert>
 
-          <div class="flex flex-col">
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="w-40 shrink-0 text-sm text-text">{{ $t('sync_settings.backend') }}</span>
-              <KSelect
-                v-model="cloud_settings!.backend!.type"
-                class="w-56"
-                :options="backendOptions"
-                :placeholder="$t('sync_settings.backend')"
-                :aria-label="$t('sync_settings.backend')"
-              />
-            </div>
-
-            <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
+          <div class="grid grid-cols-[minmax(0,1fr)_19rem] items-start gap-8">
+            <div class="flex flex-col">
               <div class="flex items-center justify-between gap-4 py-1.5">
                 <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.webdav.endpoint')
-                }}</span>
-                <KInput v-model="webdav_settings.endpoint" class="w-full" mono />
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.webdav.username')
-                }}</span>
-                <KInput v-model="webdav_settings.username" class="w-full" />
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.webdav.password')
-                }}</span>
-                <div class="flex min-w-0 flex-1 items-center gap-1">
-                  <KInput
-                    v-model="webdav_settings.password"
-                    class="w-full"
-                    :type="showWebdavPassword ? 'text' : 'password'"
-                    mono
-                  />
-                  <KButton
-                    variant="ghost"
-                    size="sm"
-                    :aria-label="showWebdavPassword ? 'hide' : 'show'"
-                    @click="showWebdavPassword = !showWebdavPassword"
-                  >
-                    <template #icon>
-                      <EyeOff v-if="showWebdavPassword" :size="14" aria-hidden="true" />
-                      <Eye v-else :size="14" aria-hidden="true" />
-                    </template>
-                  </KButton>
-                </div>
-              </div>
-            </template>
-
-            <template v-if="cloud_settings!.backend!.type === 'S3'">
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.s3.endpoint')
-                }}</span>
-                <KInput v-model="s3_settings.endpoint" class="w-full" mono />
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.s3.bucket')
-                }}</span>
-                <KInput v-model="s3_settings.bucket" class="w-full" mono />
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.s3.region')
-                }}</span>
-                <div class="min-w-0 flex-1">
-                  <KInput v-model="s3_settings.region" class="w-full" mono />
-                  <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.s3.region_hint') }}</p>
-                </div>
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.s3.access_key_id')
-                }}</span>
-                <KInput v-model="s3_settings.access_key_id" class="w-full" mono />
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.s3.secret_access_key')
-                }}</span>
-                <div class="flex min-w-0 flex-1 items-center gap-1">
-                  <KInput
-                    v-model="s3_settings.secret_access_key"
-                    class="w-full"
-                    :type="showS3Secret ? 'text' : 'password'"
-                    mono
-                  />
-                  <KButton
-                    variant="ghost"
-                    size="sm"
-                    :aria-label="showS3Secret ? 'hide' : 'show'"
-                    @click="showS3Secret = !showS3Secret"
-                  >
-                    <template #icon>
-                      <EyeOff v-if="showS3Secret" :size="14" aria-hidden="true" />
-                      <Eye v-else :size="14" aria-hidden="true" />
-                    </template>
-                  </KButton>
-                </div>
-              </div>
-              <div class="flex items-center justify-between gap-4 py-1.5">
-                <span class="w-40 shrink-0 text-sm text-text">{{
-                  $t('sync_settings.s3.addressing_style')
+                  $t('sync_settings.backend')
                 }}</span>
                 <KSelect
-                  v-model="s3_settings.addressing_style"
+                  v-model="cloud_settings!.backend!.type"
                   class="w-56"
-                  :options="addressingOptions"
-                  :aria-label="$t('sync_settings.s3.addressing_style')"
+                  :options="backendOptions"
+                  :placeholder="$t('sync_settings.backend')"
+                  :aria-label="$t('sync_settings.backend')"
                 />
               </div>
-            </template>
 
-            <div
-              v-if="cloud_settings!.backend!.type === 'Fs'"
-              class="flex items-center justify-between gap-4 py-1.5"
-            >
-              <span class="w-40 shrink-0 text-sm text-text">{{ $t('sync_settings.fs.root') }}</span>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1">
-                  <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
-                  <KButton variant="ghost" size="sm" @click="chooseFsRoot">
-                    {{ $t('sync_settings.fs.choose') }}
-                  </KButton>
+              <template v-if="cloud_settings!.backend!.type === 'WebDAV'">
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.webdav.endpoint')
+                  }}</span>
+                  <KInput v-model="webdav_settings.endpoint" class="w-full" mono />
                 </div>
-                <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.fs.root_hint') }}</p>
-              </div>
-            </div>
-            <div v-else class="flex items-center justify-between gap-4 py-1.5">
-              <span class="w-40 shrink-0 text-sm text-text">{{
-                $t('sync_settings.cloud_root')
-              }}</span>
-              <div class="min-w-0 flex-1">
-                <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
-                <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.cloud_root_hint') }}</p>
-              </div>
-            </div>
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="w-40 shrink-0 text-sm text-text">{{
-                $t('sync_settings.max_concurrency')
-              }}</span>
-              <div class="min-w-0 flex-1">
-                <KNumberInput v-model="maxConcurrency" :min="1" :max="32" class="w-28" />
-                <p class="mt-1 text-xs text-text-dim">
-                  {{ $t('sync_settings.max_concurrency_hint') }}
-                </p>
-              </div>
-            </div>
-            <div v-if="v2LibraryActive" class="flex items-center justify-between gap-4 py-1.5">
-              <span class="w-40 shrink-0 text-sm text-text">{{
-                $t('sync_settings.auto_sync_interval')
-              }}</span>
-              <KNumberInput v-model="snapshotSyncInterval" :min="1" :max="1440" class="w-28" />
-            </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.webdav.username')
+                  }}</span>
+                  <KInput v-model="webdav_settings.username" class="w-full" />
+                </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.webdav.password')
+                  }}</span>
+                  <div class="flex min-w-0 flex-1 items-center gap-1">
+                    <KInput
+                      v-model="webdav_settings.password"
+                      class="w-full"
+                      :type="showWebdavPassword ? 'text' : 'password'"
+                      mono
+                    />
+                    <KButton
+                      variant="ghost"
+                      size="sm"
+                      :aria-label="showWebdavPassword ? 'hide' : 'show'"
+                      @click="showWebdavPassword = !showWebdavPassword"
+                    >
+                      <template #icon>
+                        <EyeOff v-if="showWebdavPassword" :size="14" aria-hidden="true" />
+                        <Eye v-else :size="14" aria-hidden="true" />
+                      </template>
+                    </KButton>
+                  </div>
+                </div>
+              </template>
 
-            <div class="mt-3 flex gap-2 border-t border-border pt-4">
-              <KButton variant="primary" :disabled="cloudSettingsActionBusy" @click="save">
-                {{ $t('sync_settings.save_button') }}
-              </KButton>
-              <KButton :disabled="cloudSettingsActionBusy" @click="abort_change">
-                {{ $t('sync_settings.abort_button') }}
-              </KButton>
+              <template v-if="cloud_settings!.backend!.type === 'S3'">
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.s3.endpoint')
+                  }}</span>
+                  <KInput v-model="s3_settings.endpoint" class="w-full" mono />
+                </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.s3.bucket')
+                  }}</span>
+                  <KInput v-model="s3_settings.bucket" class="w-full" mono />
+                </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.s3.region')
+                  }}</span>
+                  <div class="min-w-0 flex-1">
+                    <KInput v-model="s3_settings.region" class="w-full" mono />
+                    <p class="mt-1 text-xs text-text-dim">
+                      {{ $t('sync_settings.s3.region_hint') }}
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.s3.access_key_id')
+                  }}</span>
+                  <KInput v-model="s3_settings.access_key_id" class="w-full" mono />
+                </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.s3.secret_access_key')
+                  }}</span>
+                  <div class="flex min-w-0 flex-1 items-center gap-1">
+                    <KInput
+                      v-model="s3_settings.secret_access_key"
+                      class="w-full"
+                      :type="showS3Secret ? 'text' : 'password'"
+                      mono
+                    />
+                    <KButton
+                      variant="ghost"
+                      size="sm"
+                      :aria-label="showS3Secret ? 'hide' : 'show'"
+                      @click="showS3Secret = !showS3Secret"
+                    >
+                      <template #icon>
+                        <EyeOff v-if="showS3Secret" :size="14" aria-hidden="true" />
+                        <Eye v-else :size="14" aria-hidden="true" />
+                      </template>
+                    </KButton>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-4 py-1.5">
+                  <span class="w-40 shrink-0 text-sm text-text">{{
+                    $t('sync_settings.s3.addressing_style')
+                  }}</span>
+                  <KSelect
+                    v-model="s3_settings.addressing_style"
+                    class="w-56"
+                    :options="addressingOptions"
+                    :aria-label="$t('sync_settings.s3.addressing_style')"
+                  />
+                </div>
+              </template>
+
+              <div
+                v-if="cloud_settings!.backend!.type === 'Fs'"
+                class="flex items-center justify-between gap-4 py-1.5"
+              >
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.fs.root')
+                }}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1">
+                    <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
+                    <KButton variant="ghost" size="sm" @click="chooseFsRoot">
+                      {{ $t('sync_settings.fs.choose') }}
+                    </KButton>
+                  </div>
+                  <p class="mt-1 text-xs text-text-dim">{{ $t('sync_settings.fs.root_hint') }}</p>
+                </div>
+              </div>
+              <div v-else class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.cloud_root')
+                }}</span>
+                <div class="min-w-0 flex-1">
+                  <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
+                  <p class="mt-1 text-xs text-text-dim">
+                    {{ $t('sync_settings.cloud_root_hint') }}
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.max_concurrency')
+                }}</span>
+                <div class="min-w-0 flex-1">
+                  <KNumberInput v-model="maxConcurrency" :min="1" :max="32" class="w-28" />
+                  <p class="mt-1 text-xs text-text-dim">
+                    {{ $t('sync_settings.max_concurrency_hint') }}
+                  </p>
+                </div>
+              </div>
+              <div v-if="v2LibraryActive" class="flex items-center justify-between gap-4 py-1.5">
+                <span class="w-40 shrink-0 text-sm text-text">{{
+                  $t('sync_settings.auto_sync_interval')
+                }}</span>
+                <KNumberInput v-model="snapshotSyncInterval" :min="1" :max="1440" class="w-28" />
+              </div>
+
+              <div class="mt-3 flex gap-2 border-t border-border pt-4">
+                <KButton variant="primary" :disabled="cloudSettingsActionBusy" @click="save">
+                  {{ $t('sync_settings.save_button') }}
+                </KButton>
+                <KButton :disabled="cloudSettingsActionBusy" @click="abort_change">
+                  {{ $t('sync_settings.abort_button') }}
+                </KButton>
+              </div>
+
+              <CloudLibrarySetup
+                ref="cloudLibrarySetup"
+                :enabled="savedBackendEnabled"
+                :dirty="hasUnsavedCloudSettings || updatingCloudSettings"
+                @status="updateCloudLibraryStatus"
+                @busy="cloudLibraryBusy = $event"
+              />
             </div>
+            <BackendCheckResult
+              class="sticky top-6"
+              :report="backendCheckReport"
+              :error="backendCheckError"
+              :checking="checkingBackend"
+              :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
+              @test="check"
+            />
           </div>
-
-          <CloudLibrarySetup
-            ref="cloudLibrarySetup"
-            :enabled="savedBackendEnabled"
-            :dirty="hasUnsavedCloudSettings || updatingCloudSettings"
-            @status="updateCloudLibraryStatus"
-            @busy="cloudLibraryBusy = $event"
-          />
-          <BackendCheckResult
-            :report="backendCheckReport"
-            :error="backendCheckError"
-            :checking="checkingBackend"
-            :disabled="currentSessionConfig()?.backend.type === 'Disabled'"
-            @test="check"
-          />
         </div>
 
         <!-- 危险操作(v1) -->

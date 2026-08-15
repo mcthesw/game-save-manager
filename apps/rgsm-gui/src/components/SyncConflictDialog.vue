@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { $t } from '../i18n';
 import type { ConflictResolution, GameSyncState } from '../api/commands';
+import { KButton, KDialog } from '../ui/kit';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -38,137 +39,69 @@ function decideLater() {
 </script>
 
 <template>
-  <ElDialog
-    v-model="visible"
-    :title="$t('sync_settings.conflict.title')"
-    width="520px"
-    destroy-on-close
-  >
-    <p class="conflict-summary">
+  <KDialog v-model:open="visible" :title="$t('sync_settings.conflict.title')" :width="520">
+    <p class="mb-4 text-sm leading-relaxed text-text-dim">
       {{ $t('sync_settings.conflict.summary', { game: gameName }) }}
     </p>
 
-    <div class="progress-grid">
-      <section class="progress-panel">
-        <h4>{{ $t('sync_settings.conflict.local_title') }}</h4>
-        <dl>
-          <div>
-            <dt>{{ $t('sync_settings.conflict.snapshot') }}</dt>
-            <dd>{{ snapshotLabel(state?.last_known_local_head) }}</dd>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <section class="rounded-md border border-border bg-surface-2 p-3">
+        <h4 class="mb-2.5 text-sm font-medium text-text">
+          {{ $t('sync_settings.conflict.local_title') }}
+        </h4>
+        <dl class="flex flex-col gap-2">
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-text-dim">{{ $t('sync_settings.conflict.snapshot') }}</dt>
+            <dd class="break-words font-mono text-[13px] text-text">
+              {{ snapshotLabel(state?.last_known_local_head) }}
+            </dd>
           </div>
-          <div>
-            <dt>{{ $t('sync_settings.conflict.device') }}</dt>
-            <dd>{{ currentDeviceId || $t('sync_settings.conflict.current_device') }}</dd>
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-text-dim">{{ $t('sync_settings.conflict.device') }}</dt>
+            <dd class="text-[13px] text-text">
+              {{ currentDeviceId || $t('sync_settings.conflict.current_device') }}
+            </dd>
           </div>
-          <div>
-            <dt>{{ $t('sync_settings.conflict.last_checked') }}</dt>
-            <dd>{{ formatTime(state?.last_sync_at) }}</dd>
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-text-dim">{{ $t('sync_settings.conflict.last_checked') }}</dt>
+            <dd class="font-mono text-[13px] text-text">{{ formatTime(state?.last_sync_at) }}</dd>
           </div>
         </dl>
       </section>
 
-      <section class="progress-panel">
-        <h4>{{ $t('sync_settings.conflict.cloud_title') }}</h4>
-        <dl>
-          <div>
-            <dt>{{ $t('sync_settings.conflict.snapshot') }}</dt>
-            <dd>{{ snapshotLabel(state?.last_known_remote_head) }}</dd>
+      <section class="rounded-md border border-border bg-surface-2 p-3">
+        <h4 class="mb-2.5 text-sm font-medium text-text">
+          {{ $t('sync_settings.conflict.cloud_title') }}
+        </h4>
+        <dl class="flex flex-col gap-2">
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-text-dim">{{ $t('sync_settings.conflict.snapshot') }}</dt>
+            <dd class="break-words font-mono text-[13px] text-text">
+              {{ snapshotLabel(state?.last_known_remote_head) }}
+            </dd>
           </div>
-          <div>
-            <dt>{{ $t('sync_settings.conflict.device') }}</dt>
-            <dd>{{ $t('sync_settings.conflict.cloud_device') }}</dd>
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-text-dim">{{ $t('sync_settings.conflict.device') }}</dt>
+            <dd class="text-[13px] text-text">{{ $t('sync_settings.conflict.cloud_device') }}</dd>
           </div>
-          <div>
-            <dt>{{ $t('sync_settings.conflict.last_checked') }}</dt>
-            <dd>{{ formatTime(state?.last_sync_at) }}</dd>
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-xs text-text-dim">{{ $t('sync_settings.conflict.last_checked') }}</dt>
+            <dd class="font-mono text-[13px] text-text">{{ formatTime(state?.last_sync_at) }}</dd>
           </div>
         </dl>
       </section>
     </div>
 
     <template #footer>
-      <div class="dialog-actions">
-        <ElButton :disabled="resolving" @click="decideLater">
-          {{ $t('sync_settings.conflict.decide_later') }}
-        </ElButton>
-        <ElButton
-          type="primary"
-          plain
-          :loading="resolving"
-          @click="emit('resolve', 'accept_remote')"
-        >
-          {{ $t('sync_settings.conflict.accept_remote') }}
-        </ElButton>
-        <ElButton type="warning" :loading="resolving" @click="emit('resolve', 'keep_local')">
-          {{ $t('sync_settings.conflict.keep_local') }}
-        </ElButton>
-      </div>
+      <KButton :disabled="resolving" @click="decideLater">
+        {{ $t('sync_settings.conflict.decide_later') }}
+      </KButton>
+      <KButton :loading="resolving" @click="emit('resolve', 'accept_remote')">
+        {{ $t('sync_settings.conflict.accept_remote') }}
+      </KButton>
+      <KButton variant="primary" :loading="resolving" @click="emit('resolve', 'keep_local')">
+        {{ $t('sync_settings.conflict.keep_local') }}
+      </KButton>
     </template>
-  </ElDialog>
+  </KDialog>
 </template>
-
-<style scoped>
-.conflict-summary {
-  margin: 0 0 16px;
-  color: var(--el-text-color-regular);
-  line-height: 1.5;
-}
-
-.progress-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.progress-panel {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  padding: 12px;
-  background: var(--el-fill-color-lighter);
-}
-
-.progress-panel h4 {
-  margin: 0 0 10px;
-  font-size: 0.95rem;
-  color: var(--el-text-color-primary);
-}
-
-.progress-panel dl {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-
-.progress-panel div {
-  display: grid;
-  gap: 2px;
-}
-
-.progress-panel dt {
-  color: var(--el-text-color-secondary);
-  font-size: 0.78rem;
-}
-
-.progress-panel dd {
-  margin: 0;
-  color: var(--el-text-color-primary);
-  font-size: 0.85rem;
-  word-break: break-word;
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-@media (max-width: 560px) {
-  .progress-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .dialog-actions {
-    flex-wrap: wrap;
-  }
-}
-</style>

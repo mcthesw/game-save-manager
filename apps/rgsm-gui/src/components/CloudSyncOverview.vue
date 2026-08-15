@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   commands,
@@ -10,7 +10,8 @@ import {
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { $t } from '../i18n';
-import { KButton, KInput, KSegmented, KSwitch, KTag } from '../ui/kit';
+import { Archive, ChevronDown, Hand, Zap } from '@lucide/vue';
+import { KInput, KMenu, KSwitch, KTag, type KMenuEntry } from '../ui/kit';
 
 const router = useRouter();
 const feedback = useFeedback();
@@ -29,18 +30,43 @@ const games = computed(() => {
   return rows.filter((game) => game.name.toLowerCase().includes(keyword));
 });
 
-const modeOptions = computed(() => [
-  { value: 'manual', label: $t('sync_settings.overview.mode_manual') },
-  { value: 'snapshot_sync', label: $t('sync_settings.overview.mode_snapshot') },
-  { value: 'live_save_sync', label: $t('sync_settings.overview.mode_live') },
-]);
+const MODE_META: Record<SyncMode, { labelKey: string; descKey: string; icon: Component }> = {
+  manual: {
+    labelKey: 'sync_settings.overview.mode_manual',
+    descKey: 'sync_settings.archives.manual_sync_description',
+    icon: Hand,
+  },
+  snapshot_sync: {
+    labelKey: 'sync_settings.overview.mode_snapshot',
+    descKey: 'sync_settings.archives.snapshot_sync_description',
+    icon: Archive,
+  },
+  live_save_sync: {
+    labelKey: 'sync_settings.overview.mode_live',
+    descKey: 'sync_settings.archives.live_save_sync_description',
+    icon: Zap,
+  },
+};
+
+function modeIcon(mode: SyncMode) {
+  return MODE_META[mode]?.icon ?? Hand;
+}
+function modeLabel(mode: SyncMode) {
+  return $t(MODE_META[mode]?.labelKey ?? 'sync_settings.overview.mode_manual');
+}
+function modeEntries(game: CloudArchiveGameView): KMenuEntry[] {
+  return (Object.keys(MODE_META) as SyncMode[]).map((mode) => ({
+    type: 'item',
+    key: mode,
+    label: $t(MODE_META[mode].labelKey),
+    description: $t(MODE_META[mode].descKey),
+    icon: MODE_META[mode].icon,
+    active: game.sync_mode === mode,
+  }));
+}
 
 function needsProgressChoice(game: CloudArchiveGameView) {
   return game.managed && game.requires_choice;
-}
-
-function tableRow(row: unknown): CloudArchiveGameView {
-  return row as CloudArchiveGameView;
 }
 
 function syncStatus(game: CloudArchiveGameView) {
@@ -138,7 +164,7 @@ function openGame(game: CloudArchiveGameView) {
 
     <div class="rounded-md border border-border">
       <div
-        class="grid grid-cols-[minmax(0,1fr)_6.5rem_21rem_6rem] items-center gap-3 border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
+        class="grid grid-cols-[minmax(0,1fr)_6.5rem_9rem_6rem] items-center gap-3 border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
       >
         <span>{{ $t('sync_settings.overview.game_name') }}</span>
         <span class="text-center">{{ $t('sync_settings.overview.status') }}</span>
@@ -157,7 +183,7 @@ function openGame(game: CloudArchiveGameView) {
       <div
         v-for="game in games"
         :key="game.game_id"
-        class="grid grid-cols-[minmax(0,1fr)_6.5rem_21rem_6rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
+        class="grid grid-cols-[minmax(0,1fr)_6.5rem_9rem_6rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
       >
         <div class="min-w-0">
           <button
@@ -181,14 +207,22 @@ function openGame(game: CloudArchiveGameView) {
           <KTag :tone="statusTone(syncStatus(game))">{{ statusLabel(syncStatus(game)) }}</KTag>
         </div>
 
-        <KSegmented
-          :model-value="game.sync_mode"
-          :options="modeOptions"
+        <KMenu
+          :entries="modeEntries(game)"
           :aria-label="$t('sync_settings.overview.mode')"
-          class="w-full"
-          :class="{ 'pointer-events-none opacity-50': !game.managed }"
-          @update:model-value="changeMode(game, $event)"
-        />
+          @select="(key: string) => changeMode(game, key)"
+        >
+          <button
+            type="button"
+            class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 text-xs text-text transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="!game.managed"
+            :aria-label="$t('sync_settings.overview.mode')"
+          >
+            <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
+            <span>{{ modeLabel(game.sync_mode) }}</span>
+            <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
+          </button>
+        </KMenu>
 
         <div class="flex justify-center">
           <KSwitch

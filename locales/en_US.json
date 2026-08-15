@@ -873,7 +873,8 @@
         "accept_remote_success_with_backup": "The selected progress was applied after creating a safety backup.",
         "resolve_failed": "Could not resolve progress",
         "load_failed": "Could not compare Device progress"
-      }
+      },
+      "manual_sync_description": "Stays on this device; no automatic sync"
     },
     "conflict": {
       "title": "Resolve cloud sync conflict",

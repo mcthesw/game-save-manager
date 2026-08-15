@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Monitor, MostlyCloudy } from '@element-plus/icons-vue';
+import { Cloud, Inbox, LoaderCircle, Monitor } from '@lucide/vue';
 
 import {
   commands,
@@ -10,6 +10,7 @@ import {
 } from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
+import { KAlert, KButton, KDialog, KTag } from '../ui/kit';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -46,11 +47,11 @@ function snapshotLabel(description: string, snapshotId: string) {
   return description || snapshotId;
 }
 
-function relationType(relation: ProgressRelation) {
-  if (relation === 'same') return 'success';
-  if (relation === 'remote_ahead') return 'primary';
-  if (relation === 'remote_earlier') return 'info';
-  return 'warning';
+function relationTone(relation: ProgressRelation) {
+  if (relation === 'same') return 'success' as const;
+  if (relation === 'remote_ahead') return 'accent' as const;
+  if (relation === 'remote_earlier') return 'neutral' as const;
+  return 'warning' as const;
 }
 
 function devices(candidate: RemoteProgressCandidate) {
@@ -164,288 +165,153 @@ watch(
 </script>
 
 <template>
-  <ElDialog
-    v-model="visible"
+  <KDialog
+    v-model:open="visible"
     :title="$t('sync_settings.archives.progress.title', { game: gameName })"
-    width="min(780px, 94vw)"
-    destroy-on-close
+    :width="780"
   >
-    <div v-loading="loading" class="progress-review">
-      <ElAlert
-        v-if="review"
-        :type="review.requires_choice ? 'warning' : 'success'"
-        :title="
+    <div v-if="loading" class="flex min-h-44 items-center justify-center text-text-dim">
+      <LoaderCircle :size="22" class="animate-spin" aria-hidden="true" />
+    </div>
+    <template v-else>
+      <KAlert v-if="review" :tone="review.requires_choice ? 'warning' : 'success'" class="mb-4">
+        {{
           review.requires_choice
             ? $t('sync_settings.archives.progress.choice_required')
             : $t('sync_settings.archives.progress.aligned')
-        "
-        :closable="false"
-        show-icon
-      />
+        }}
+      </KAlert>
 
-      <section v-if="review" class="local-card">
-        <div class="position-heading">
-          <span class="position-icon"
-            ><ElIcon><Monitor /></ElIcon
-          ></span>
-          <div>
-            <small>{{ $t('sync_settings.archives.progress.local_title') }}</small>
-            <strong v-if="review.local">
-              {{ snapshotLabel(review.local.description, review.local.snapshot_id) }}
-            </strong>
-            <strong v-else>{{ $t('sync_settings.archives.progress.no_local') }}</strong>
+      <section
+        v-if="review"
+        class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3.5"
+      >
+        <div class="flex items-center gap-3">
+          <Monitor :size="18" class="shrink-0 text-text-dim" aria-hidden="true" />
+          <div class="min-w-0">
+            <div class="text-xs text-text-dim">
+              {{ $t('sync_settings.archives.progress.local_title') }}
+            </div>
+            <div class="truncate text-sm font-semibold text-text">
+              <template v-if="review.local">
+                {{ snapshotLabel(review.local.description, review.local.snapshot_id) }}
+              </template>
+              <template v-else>{{ $t('sync_settings.archives.progress.no_local') }}</template>
+            </div>
           </div>
         </div>
-        <div v-if="review.local" class="availability">
-          <ElTag :type="review.local.local_available ? 'success' : 'info'" effect="plain" round>
+        <div v-if="review.local" class="flex shrink-0 gap-1.5">
+          <KTag :tone="review.local.local_available ? 'success' : 'neutral'">
             {{
               review.local.local_available
                 ? $t('sync_settings.archives.progress.on_device')
                 : $t('sync_settings.archives.progress.not_on_device')
             }}
-          </ElTag>
-          <ElTag :type="review.local.cloud_available ? 'primary' : 'info'" effect="plain" round>
+          </KTag>
+          <KTag :tone="review.local.cloud_available ? 'accent' : 'neutral'">
             {{
               review.local.cloud_available
                 ? $t('sync_settings.archives.progress.in_cloud')
                 : $t('sync_settings.archives.progress.not_in_cloud')
             }}
-          </ElTag>
+          </KTag>
         </div>
       </section>
 
-      <div v-if="review?.candidates.length" class="candidate-list">
+      <div v-if="review?.candidates.length" class="flex flex-col gap-3">
         <article
           v-for="candidate in review.candidates"
           :key="candidate.snapshot_id"
-          class="candidate-card"
+          class="rounded-md border border-border p-3.5"
         >
-          <div class="candidate-top">
-            <div class="position-heading">
-              <span class="position-icon cloud"
-                ><ElIcon><MostlyCloudy /></ElIcon
-              ></span>
-              <div>
-                <small>{{ devices(candidate) }}</small>
-                <strong>{{ snapshotLabel(candidate.description, candidate.snapshot_id) }}</strong>
+          <div class="mb-3 flex items-start justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-3">
+              <Cloud :size="18" class="shrink-0 text-text-dim" aria-hidden="true" />
+              <div class="min-w-0">
+                <div class="truncate text-xs text-text-dim">{{ devices(candidate) }}</div>
+                <div class="truncate text-sm font-semibold text-text">
+                  {{ snapshotLabel(candidate.description, candidate.snapshot_id) }}
+                </div>
               </div>
             </div>
-            <ElTag :type="relationType(candidate.relation)" effect="light" round>
+            <KTag :tone="relationTone(candidate.relation)" class="shrink-0">
               {{ $t(relationKeys[candidate.relation]) }}
-            </ElTag>
+            </KTag>
           </div>
 
-          <div class="diff-grid">
+          <div class="mb-3 grid grid-cols-3 gap-2 rounded-sm bg-surface-2 px-3 py-2">
             <div>
-              <span>{{ $t('sync_settings.archives.progress.local_unique') }}</span>
-              <strong>{{ candidate.local_unique_snapshots }}</strong>
+              <div class="text-[11px] text-text-dim">
+                {{ $t('sync_settings.archives.progress.local_unique') }}
+              </div>
+              <div class="font-mono text-sm text-text">{{ candidate.local_unique_snapshots }}</div>
             </div>
             <div>
-              <span>{{ $t('sync_settings.archives.progress.remote_unique') }}</span>
-              <strong>{{ candidate.remote_unique_snapshots }}</strong>
+              <div class="text-[11px] text-text-dim">
+                {{ $t('sync_settings.archives.progress.remote_unique') }}
+              </div>
+              <div class="font-mono text-sm text-text">{{ candidate.remote_unique_snapshots }}</div>
             </div>
-            <div>
-              <span>{{ $t('sync_settings.archives.progress.shared_point') }}</span>
-              <strong>
+            <div class="min-w-0">
+              <div class="text-[11px] text-text-dim">
+                {{ $t('sync_settings.archives.progress.shared_point') }}
+              </div>
+              <div class="truncate font-mono text-xs text-text">
                 {{
                   candidate.common_ancestor || $t('sync_settings.archives.progress.no_shared_point')
                 }}
-              </strong>
+              </div>
             </div>
           </div>
 
-          <div class="candidate-actions">
-            <div class="availability">
-              <ElTag :type="candidate.local_available ? 'success' : 'info'" effect="plain" round>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex gap-1.5">
+              <KTag :tone="candidate.local_available ? 'success' : 'neutral'">
                 {{
                   candidate.local_available
                     ? $t('sync_settings.archives.progress.on_device')
                     : $t('sync_settings.archives.progress.not_on_device')
                 }}
-              </ElTag>
-              <ElTag :type="candidate.cloud_available ? 'primary' : 'warning'" effect="plain" round>
+              </KTag>
+              <KTag :tone="candidate.cloud_available ? 'accent' : 'warning'">
                 {{
                   candidate.cloud_available
                     ? $t('sync_settings.archives.progress.in_cloud')
                     : $t('sync_settings.archives.progress.not_in_cloud')
                 }}
-              </ElTag>
+              </KTag>
             </div>
-            <ElButton
+            <KButton
               v-if="candidate.relation !== 'same'"
-              type="primary"
-              plain
+              size="sm"
               :disabled="busy || !candidate.cloud_available"
               :loading="acceptingSnapshotId === candidate.snapshot_id"
               @click="acceptRemote(candidate)"
             >
               {{ $t('sync_settings.archives.progress.accept_remote') }}
-            </ElButton>
+            </KButton>
           </div>
         </article>
       </div>
-      <ElEmpty
-        v-else-if="review"
-        :description="$t('sync_settings.archives.progress.no_candidates')"
-      />
-    </div>
+      <div v-else-if="review" class="flex flex-col items-center gap-2 py-6 text-text-dim">
+        <Inbox :size="26" aria-hidden="true" />
+        <p class="text-sm">{{ $t('sync_settings.archives.progress.no_candidates') }}</p>
+      </div>
+    </template>
 
     <template #footer>
-      <ElButton :disabled="busy" @click="visible = false">
+      <KButton :disabled="busy" @click="visible = false">
         {{ $t('sync_settings.archives.progress.decide_later') }}
-      </ElButton>
-      <ElButton
+      </KButton>
+      <KButton
         v-if="review?.requires_choice && review.local"
-        type="success"
+        variant="primary"
         :disabled="busy"
         :loading="resolving"
         @click="keepLocal"
       >
         {{ $t('sync_settings.archives.progress.keep_local') }}
-      </ElButton>
+      </KButton>
     </template>
-  </ElDialog>
+  </KDialog>
 </template>
-
-<style scoped>
-.progress-review {
-  min-height: 180px;
-}
-
-.local-card,
-.candidate-card {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 12px;
-  background: var(--el-bg-color);
-}
-
-.local-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 16px 0;
-  padding: 14px 16px;
-}
-
-.candidate-list {
-  display: grid;
-  gap: 12px;
-}
-
-.candidate-card {
-  padding: 16px;
-  box-shadow: var(--el-box-shadow-lighter);
-}
-
-.candidate-top,
-.position-heading,
-.availability,
-.candidate-actions {
-  display: flex;
-  align-items: center;
-}
-
-.candidate-top {
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.position-heading {
-  min-width: 0;
-  gap: 10px;
-}
-
-.position-heading > div {
-  display: grid;
-  min-width: 0;
-}
-
-.position-heading small,
-.diff-grid span {
-  color: var(--el-text-color-secondary);
-  font-size: 0.78rem;
-}
-
-.position-heading small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.position-heading strong {
-  overflow: hidden;
-  color: var(--el-text-color-primary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.position-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 10px;
-  color: var(--el-color-success);
-  background: var(--el-color-success-light-9);
-}
-
-.position-icon.cloud {
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-
-.diff-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 14px 0;
-}
-
-.diff-grid div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 9px 10px;
-  border-radius: 8px;
-  background: var(--el-fill-color-light);
-}
-
-.diff-grid strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.availability {
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.candidate-actions {
-  justify-content: space-between;
-  gap: 12px;
-}
-
-@media (max-width: 600px) {
-  .local-card,
-  .candidate-top {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .diff-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .diff-grid div:last-child {
-    grid-column: 1 / -1;
-  }
-
-  .candidate-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-}
-</style>
