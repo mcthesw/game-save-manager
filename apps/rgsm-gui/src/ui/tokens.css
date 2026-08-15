@@ -20,6 +20,18 @@
 :root {
   color-scheme: light;
 
+  /*
+   * Real runtime font stacks. `--rgsm-ui-font-family` is set at runtime by
+   * App.vue when the user overrides the UI font in Settings; it already
+   * contains a full fallback stack. Keep this indirection intact.
+   */
+  --font-sans-stack:
+    var(--rgsm-ui-font-family, 'IBM Plex Sans'), system-ui, -apple-system, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-mono-stack:
+    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'PingFang SC',
+    'Microsoft YaHei', monospace;
+
   --bg: #faf9f7;
   --surface: #ffffff;
   --surface-2: #f2f1ee;
@@ -85,15 +97,7 @@
 
   --shadow-overlay: var(--shadow-overlay);
 
-  /*
-   * `--rgsm-ui-font-family` is set at runtime by App.vue when the user
-   * overrides the UI font in Settings; it already contains a full fallback
-   * stack. Keep this indirection intact.
-   */
-  --font-sans:
-    var(--rgsm-ui-font-family, 'IBM Plex Sans'), system-ui, -apple-system, 'Segoe UI', Roboto,
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
-  --font-mono:
-    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'PingFang SC',
-    'Microsoft YaHei', monospace;
+  /* Point at the real stacks so scoped styles can also var() them. */
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
 }
