@@ -1154,6 +1154,7 @@
         "save_failed": "保存失败",
         "confirm": "确认",
         "refresh": "刷新",
+        "close": "关闭",
         "operation_in_progress": "正在处理中...",
         "minutes_ago": "{n} 分钟前",
         "hours_ago": "{n} 小时前",
