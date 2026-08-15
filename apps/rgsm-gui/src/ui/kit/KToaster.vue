@@ -16,7 +16,7 @@ const toneBar: Record<ToastTone, string> = {
 
 <template>
   <div
-    class="pointer-events-none fixed right-4 top-4 flex w-80 flex-col gap-2"
+    class="pointer-events-none fixed bottom-20 right-5 flex w-80 flex-col gap-2"
     :style="{ zIndex: LAYER.toast }"
     aria-live="polite"
   >
@@ -43,7 +43,7 @@ const toneBar: Record<ToastTone, string> = {
         <button
           type="button"
           :aria-label="$t('common.close')"
-          class="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-text-dim transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
+          class="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-sm border border-transparent bg-transparent text-text-dim transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-accent"
           @click="dismissToast(toast.id)"
         >
           <X :size="12" aria-hidden="true" />

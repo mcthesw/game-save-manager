@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import 'element-plus/theme-chalk/dark/css-vars.css';
 
-import { Loading } from '@element-plus/icons-vue';
+import { LoaderCircle } from '@lucide/vue';
 import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
@@ -216,20 +216,18 @@ if (typeof window !== 'undefined') {
 
 <template>
   <div>
-    <ElContainer class="app-shell">
-      <ElAside :width="sidebarWidth + 'px'">
+    <div class="app-shell">
+      <aside class="app-aside" :style="{ width: sidebarWidth + 'px' }">
         <MainSideBar />
-      </ElAside>
-      <ElScrollbar>
-        <ElMain>
-          <RouterView v-slot="{ Component }">
-            <Transition name="page" mode="out-in">
-              <component :is="Component" />
-            </Transition>
-          </RouterView>
-        </ElMain>
-      </ElScrollbar>
-    </ElContainer>
+      </aside>
+      <main class="app-main">
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" />
+          </Transition>
+        </RouterView>
+      </main>
+    </div>
 
     <!-- 设备设置对话框 -->
     <DeviceSetupDialog
@@ -242,9 +240,7 @@ if (typeof window !== 'undefined') {
     <Transition name="global-loading-fade">
       <div v-if="isLoading" class="global-loading-overlay" :style="globalLoadingStyle">
         <div class="global-loading-card">
-          <el-icon class="global-loading-spinner" :size="36">
-            <Loading />
-          </el-icon>
+          <LoaderCircle class="global-loading-spinner" :size="36" />
           <p class="global-loading-text">{{ loadingMessage }}</p>
           <p v-if="loadingDetail" class="global-loading-detail">{{ loadingDetail }}</p>
         </div>
@@ -265,19 +261,26 @@ body {
 }
 
 .app-shell {
+  display: flex;
   height: 100vh;
   overflow: hidden;
 }
 
-.app-shell .el-aside {
+.app-aside {
+  flex-shrink: 0;
   height: 100%;
   overflow: hidden;
 }
 
-.app-shell .el-scrollbar {
+.app-main {
+  flex: 1;
+  min-width: 0;
   height: 100%;
-  width: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* 与旧 el-main 默认内边距保持一致:未迁移页面仍按 20px 布局;
+     主页等整页画面用负 margin 抵消 */
+  padding: 20px;
 }
 
 /* Custom font family - applied globally when user enables custom font */
@@ -318,14 +321,14 @@ textarea,
 .global-loading-card {
   min-width: 260px;
   padding: 1.75rem 2.5rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  background: var(--el-bg-color-overlay);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
-  color: var(--el-text-color-primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
   text-align: center;
 }
 
@@ -343,7 +346,7 @@ textarea,
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
   line-height: 1.3;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   opacity: 0.85;
 }
 

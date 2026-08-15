@@ -61,7 +61,7 @@ function clear(event: Event) {
           v-if="clearable && model !== undefined && !disabled"
           type="button"
           :aria-label="$t('common.close')"
-          class="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm text-text-dim hover:text-text"
+          class="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm border border-transparent bg-transparent text-text-dim hover:text-text"
           @click="clear"
           @pointerdown.stop
         >
