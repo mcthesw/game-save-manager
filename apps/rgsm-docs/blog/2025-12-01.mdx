@@ -1,0 +1,61 @@
+---
+title: V1.6.0 快照分支与便携模式修复
+slug: v1_6_0
+authors: [Sworld]
+tags: [发布]
+date: 2025-11-30
+---
+
+# V1.6.0 更新：快照分支与便携模式修复
+
+本次更新带来了强大的**快照分支管理功能**，让您的存档管理像代码版本控制一样灵活。同时，修复了便携版（Portable）数据路径的关键问题，并优化了自动备份的存储策略。
+
+## ✨ 核心功能亮点
+
+- **🌿 快照分支管理系统**:
+    - 新增了对存档快照的分支支持。现在您可以为不同的游戏进度创建独立的分支节点，方便在不同的剧情线或游戏周目间自由切换。
+    - ![分支视图](/img/blog/2025-12-01_00-37-13.png)
+- **💾 增强备份策略**:
+    - **自动备份保留限制**: 引入了可配置的保留限制功能。您可以设置自动备份的最大数量或期限，软件将自动清理旧的自动备份，节省您的磁盘空间。
+    - **时间戳保留**: 在备份和还原操作中，现在会保留文件的原始修改时间戳(然而无法保留文件夹的，寻求解决方案中)，确保游戏能正确识别存档时间。
+- **🖥️ 界面与体验优化**:
+    - 游戏管理页面 UI 进行了视觉增强，信息展示更加清晰。
+
+## Bug 修复
+
+- **🐛 便携版路径修复**: 修复了 Portable 版本会将数据保存到当前工作目录（pwd）而不是可执行文件（exe）所在目录的问题。
+
+**Full Changelog**: https://github.com/mcthesw/game-save-manager/compare/v1.5.4...v1.6.0
+
+# 🔮 下版本主要计划
+
+- 云同步功能的进一步完善
+- 着手开发“撤销”操作功能
+- 更多信息请看[链接](https://github.com/mcthesw/game-save-manager/milestones)
+
+# 🛠️ 开发者可能关心的变更
+
+- **CI/CD 增强**:
+    - Linux 构建依赖更新：为 Ubuntu 构建环境添加了 `pkg-config` 和 `libasound2-dev` 依赖。
+    - 新增 `copilot-setup-steps.yml` 工作流。
+    - 刷新了整体 Workflow 套件，优化构建流程。
+- **代码规范**:
+    - 引入了完整的 Lint 和格式化（Formatting）设置，并在整个项目中应用了统一的代码风格。
+- **依赖升级**:
+    - Nuxt 版本从 3.16.0 升级至 3.19.0。
+    - rgsm 核心版本更新至 1.6.0。
+- **JSON格式变更**
+    - `save_data/游戏名`内的json配置现在包含`head`字段，指向当前分支所在的备份时间。
+# 🚀 发布
+
+不知道下载哪个？推荐使用 **Portable 版本（便携版）**，如果无法启动可能是缺少了 [Webview2](https://developer.microsoft.com/microsoft-edge/webview2/)。
+
+- [蓝奏云](https://sworld.lanzouw.com/b01jspttcf) 密码:4hz8
+- [123云盘](https://www.123pan.com/s/xdcDjv-mq9l.html) (V1.6.0 文件夹)
+- [Github Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.6.0)
+
+# 💬 讨论区
+
+- [新功能建议与反馈](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug反馈](https://github.com/mcthesw/game-save-manager/issues)
+- [插件系统的可能性](https://github.com/mcthesw/game-save-manager/issues/126)

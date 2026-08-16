@@ -1,0 +1,49 @@
+---
+title: V1.4.0 收藏栏、快捷键
+slug: v1_4_0
+authors: [Sworld]
+tags: [发布]
+---
+# 功能重要变更
+## 更新内容
+- feat：增加快捷操作的热键支持（请在设置最底部查看）
+- feat：新增“新游戏自动收藏”选项
+- feat：移除收藏管理界面，改为在收藏栏直接管理
+- feat：新增Amazon S3云同步支持
+- fix：增加完成耗时任务的成功日志，完善IPC错误处理，删除无用的错误类型
+- fix：前端调整是否黑暗模式按钮显示错误
+- fix：优化快速操作功能
+- fix：移除存档修改功能（这个功能有很多bug，所以移除）
+- fix：修复有关快捷备份显示的bug [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([Sworld](https://github.com/mcthesw/game-save-manager/commit/7b69cc67e14f227a94a5db56cbfdc0483bea7de7))
+- fix：修复State类型问题；Timer触发条件问题；配置文件自动升级问题（这些问题是重构造成的） [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([Sworld](https://github.com/mcthesw/game-save-manager/commit/cbdb54b6aafbeadc3784f6228da3280d8dadb73a))
+- fix：修复有关快捷备份显示的bug [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([Sworld](https://github.com/mcthesw/game-save-manager/commit/7b69cc67e14f227a94a5db56cbfdc0483bea7de7))
+- refactor：后端代码大幅度重构
+- chore：增加应用全部和备份全部的log [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([Sworld](https://github.com/mcthesw/game-save-manager/commit/7a814471b5bdc9fd70e2589c4794306bc0eedb00))
+- doc：更新文档中过时的内容 [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([Sworld](https://github.com/mcthesw/game-save-manager/commit/97eda0fe603bc6c45b005191b3cbdf71a3e4804e))
+
+**Full Changelog**: https://github.com/mcthesw/game-save-manager/compare/v1.3.0...v1.4.0
+
+# 下版本主要计划
+- 适配与环境有关的路径变量
+- 游戏存档自动识别
+- 继续解决已有的问题
+- (或许)优化MacOS上的问题
+- 更多信息请看[链接](https://github.com/mcthesw/game-save-manager/milestone/6)
+
+# 开发者可能关心的变更
+- 升级了大量第三方库
+- 后端大幅度更新，具体请看[Changelog](https://github.com/mcthesw/game-save-manager/compare/v1.3.0...v1.4.0)
+- GameSaveManager.config.json
+    - 新增`quick_action`，用于存储热键和快捷操作对应的游戏
+
+# 发布
+- [蓝奏云](https://sworld.lanzouw.com/b01jrj7y6f?pwd=2m0o) 密码:2m0o
+- [123云盘](https://www.123pan.com/s/xdcDjv-mq9l.html) 请找到V1.4.0文件夹
+- [Github Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.4.0)
+
+# 讨论区
+- [收藏功能的讨论](https://github.com/mcthesw/game-save-manager/issues/133)
+- [插件系统的可能性](https://github.com/mcthesw/game-save-manager/issues/126)
+- [方便地修改设置过的存档路径](https://github.com/mcthesw/game-save-manager/issues/119)
+- [投票：注释应该写什么语言](https://github.com/mcthesw/game-save-manager/discussions/33)
+- [新图标征集](https://github.com/mcthesw/game-save-manager/discussions/34)

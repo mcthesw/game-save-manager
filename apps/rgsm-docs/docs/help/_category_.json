@@ -1,0 +1,8 @@
+{
+    "label": "自救措施&常见问题",
+    "position": 6,
+    "link": {
+        "type": "doc",
+        "id": "help/index"
+    }
+}
