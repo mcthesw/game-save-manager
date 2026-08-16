@@ -10,6 +10,7 @@ import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
 import KButton from '../ui/kit/KButton.vue';
 import KInput from '../ui/kit/KInput.vue';
+import KSegmented from '../ui/kit/KSegmented.vue';
 import FavoriteTree from './FavoriteTree.vue';
 import { collectLeafNames } from './favoriteTreeContext';
 
@@ -37,6 +38,11 @@ const navLinks = computed(() => [
 const games = computed(() =>
   sortedGames(config.value.games.filter((game) => isGameVisible(game.storage_key, game.name)))
 );
+
+const viewOptions = computed(() => [
+  { value: 'favorites' as const, label: $t('misc.favorites') },
+  { value: 'all' as const, label: $t('sidebar.all_games') },
+]);
 
 const visibleGames = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
@@ -153,28 +159,12 @@ function goGame(game: Game) {
         </KButton>
       </div>
 
-      <div class="seg" role="tablist" :aria-label="$t('sidebar.games')">
-        <button
-          type="button"
-          role="tab"
-          class="seg-btn"
-          :class="{ active: viewMode === 'favorites' }"
-          :aria-selected="viewMode === 'favorites'"
-          @click="viewMode = 'favorites'"
-        >
-          {{ $t('misc.favorites') }}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="seg-btn"
-          :class="{ active: viewMode === 'all' }"
-          :aria-selected="viewMode === 'all'"
-          @click="viewMode = 'all'"
-        >
-          {{ $t('sidebar.all_games') }}
-        </button>
-      </div>
+      <KSegmented
+        v-model="viewMode"
+        class="seg-tabs"
+        :options="viewOptions"
+        :aria-label="$t('sidebar.games')"
+      />
 
       <div class="games-scroll">
         <FavoriteTree v-show="viewMode === 'favorites'" :search-query="searchQuery" />
@@ -312,46 +302,6 @@ function goGame(game: Game) {
   color: var(--text-dim);
 }
 
-.seg {
-  display: flex;
-  gap: 2px;
-  margin: 0 12px 8px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.seg-btn {
-  flex: 1;
-  padding: 3px 0;
-  border: none;
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: transparent;
-  font: inherit;
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.seg-btn:hover {
-  color: var(--text);
-}
-
-.seg-btn.active {
-  background: var(--surface-2);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.seg-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
 .games-scroll {
   flex: 1;
   min-height: 0;
@@ -428,5 +378,8 @@ function goGame(game: Game) {
 .resize-handle:hover,
 .resize-handle.active {
   background-color: var(--border-strong);
+}
+.seg-tabs {
+  margin: 0 12px 8px;
 }
 </style>

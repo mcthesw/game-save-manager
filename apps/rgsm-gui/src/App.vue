@@ -235,7 +235,12 @@ if (typeof window !== 'undefined') {
     />
 
     <Transition name="global-loading-fade">
-      <div v-if="isLoading" class="global-loading-overlay" :style="globalLoadingStyle">
+      <div
+        v-if="isLoading"
+        class="global-loading-overlay"
+        role="status"
+        :style="globalLoadingStyle"
+      >
         <div class="global-loading-card">
           <LoaderCircle class="global-loading-spinner" :size="36" />
           <p class="global-loading-text">{{ loadingMessage }}</p>

@@ -882,6 +882,7 @@ onMounted(async () => {
                 ? 'bg-surface-2 font-semibold text-text'
                 : 'text-text-dim hover:bg-surface-2/60 hover:text-text'
             "
+            :aria-current="activeTab === item.key ? 'page' : undefined"
             @click="activeTab = item.key"
           >
             <component :is="item.icon" :size="14" aria-hidden="true" />
