@@ -21,8 +21,10 @@ import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
 import { computed, provide, ref, watch } from 'vue';
 import { saveUnitPaths } from './utils/saveUnit';
+import { mapLegacyHomePage, resolveStartupDestination } from './utils/appRoutes';
 
 const { config, refreshConfig, saveConfig } = useConfig();
+const route = useRoute();
 useDark();
 
 const { isLoading, loadingMessage, loadingDetail } = useGlobalLoading();
@@ -161,13 +163,31 @@ async function initializeApp() {
       i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
     }
     applyUiFont(uiFontStack.value);
-    await navigateTo(config.value!.settings.home_page ?? '/');
+
+    const configuredHome = config.value.settings.home_page;
+    const mappedHome = mapLegacyHomePage(configuredHome);
+    if (mappedHome !== configuredHome) {
+      config.value.settings.home_page = mappedHome;
+      await saveConfig();
+    }
+
+    const destination = resolveStartupDestination(
+      route.path,
+      mappedHome,
+      config.value.games,
+      'name' in route.params ? route.params.name : undefined
+    );
+    if (destination !== route.path) {
+      await navigateTo(destination);
+    }
 
     // 在应用启动时检查设备设置
     await checkDeviceSetup();
   } catch {
     notifyError($t('home.wrong_homepage'));
-    await navigateTo('/');
+    if (route.path !== '/') {
+      await navigateTo('/');
+    }
   }
 }
 

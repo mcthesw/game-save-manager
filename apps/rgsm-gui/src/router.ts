@@ -2,8 +2,12 @@ import { warn } from './utils/logger';
 import { createRouter, createWebHistory } from 'vue-router';
 import { routes, handleHotUpdate } from 'vue-router/auto-routes';
 import { useConfig } from './composables/useConfig';
-
-const knownPages = new Set(['/', '/About', '/Settings', '/SyncSettings']);
+import {
+  isValidAppDestination,
+  managementGameExists,
+  mapLegacyHomePage,
+  getGameNameFromRouteParam,
+} from './utils/appRoutes';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -14,27 +18,29 @@ if (import.meta.hot) {
   handleHotUpdate(router);
 }
 
-router.beforeEach((to) => {
-  const { config } = useConfig();
+router.beforeEach(async (to) => {
+  const { config, whenConfigReady } = useConfig();
+  await whenConfigReady();
 
   if (to.path.startsWith('/Management')) {
     const routeParam = 'name' in to.params ? to.params.name : undefined;
-    const routeName = Array.isArray(routeParam) ? routeParam[0] : routeParam;
-    const gameName = typeof routeName === 'string' ? routeName : '';
-    const exists = config.value.games.some((game) => game.name === gameName);
-    if (!exists) {
-      void warn(`Game ${gameName} not found`);
-      return '/';
+    if (managementGameExists(config.value.games, routeParam)) {
+      return true;
     }
-    return true;
-  }
-
-  if (!knownPages.has(to.path)) {
-    void warn(`Page ${to.fullPath} not found`);
+    void warn(`Game ${getGameNameFromRouteParam(routeParam)} not found`);
     return '/';
   }
 
-  return true;
+  const mapped = mapLegacyHomePage(to.path);
+  if (mapped !== to.path) {
+    return mapped;
+  }
+  if (isValidAppDestination(to.path, config.value.games)) {
+    return true;
+  }
+
+  void warn(`Page ${to.fullPath} not found`);
+  return '/';
 });
 
 export function navigateTo(path: string) {
