@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import KInput from './KInput.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     min?: number;
     max?: number;
@@ -33,7 +33,10 @@ const text = computed<string>({
     }
     const parsed = Number(raw);
     if (!Number.isNaN(parsed)) {
-      model.value = parsed;
+      // 手输绕过原生 step/min/max 约束,这里按 props 收口
+      const lo = props.min ?? Number.NEGATIVE_INFINITY;
+      const hi = props.max ?? Number.POSITIVE_INFINITY;
+      model.value = Math.min(hi, Math.max(lo, parsed));
     }
   },
 });

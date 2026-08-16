@@ -103,21 +103,6 @@ const checkItems = computed<UiCheckItem[]>(() =>
   })
 );
 
-/** 步骤清单是诊断细节:健康时折叠成一行摘要,出问题自动展开且只列异常项 */
-const detailsOpen = ref(false);
-const problemItems = computed(() =>
-  checkItems.value.filter((item) => item.status === 'failed' || item.status === 'warning')
-);
-const passedCount = computed(
-  () => checkItems.value.filter((item) => item.status === 'passed').length
-);
-const visibleItems = computed(() => (detailsOpen.value ? checkItems.value : problemItems.value));
-const hasHiddenSteps = computed(() => checkItems.value.length > problemItems.value.length);
-
-watch(problemItems, (items) => {
-  if (items.length > 0) detailsOpen.value = true;
-});
-
 const titleKey = computed(() =>
   props.checking
     ? 'sync_settings.check_result.checking_title'

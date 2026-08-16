@@ -101,7 +101,8 @@
       "quick_apply": "Quick file reading",
       "capturing": "Press the key combo… (Esc to cancel)",
       "not_set": "Not set",
-      "clear": "Clear"
+      "clear": "Clear",
+      "meta_unsupported": "Combos with the Windows/Command key are not supported yet"
     },
     "general": "General",
     "backup_settings": "Backup settings",

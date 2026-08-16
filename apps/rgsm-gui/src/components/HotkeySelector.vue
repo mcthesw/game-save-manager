@@ -56,6 +56,12 @@ function onCaptureKey(slot: HotkeySlot, event: KeyboardEvent) {
     capturing.value = null;
     return;
   }
+  if (event.metaKey) {
+    // Meta(Win/Cmd)不在后端支持的修饰键枚举内,录进去会变成裸键全局热键
+    notifyWarning($t('settings.hotkey.meta_unsupported'));
+    capturing.value = null;
+    return;
+  }
   const key = normalizeKey(event);
   if (!key) return; // 纯修饰键按下:继续等待完整组合
   const mods = [

@@ -101,7 +101,8 @@
       "quick_apply": "快速读档",
       "capturing": "按下组合键…(Esc 取消)",
       "not_set": "未设置",
-      "clear": "清除"
+      "clear": "清除",
+      "meta_unsupported": "暂不支持带 Windows/Command 键的组合"
     },
     "general": "通用设置",
     "backup_settings": "备份设置",
