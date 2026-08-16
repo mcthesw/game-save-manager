@@ -6,7 +6,7 @@
     "web:build": "vite build",
     "web:dev": "pnpm web:generate-api && node scripts/web-dev.mjs",
     "web:preview": "vite preview",
-    "web:test": "node --test src/utils/cloudNamespace.test.mjs",
+    "web:test": "node --test src/utils/cloudNamespace.test.mjs src/utils/appRoutes.test.mjs",
     "dev": "tauri dev -- --locked",
     "build": "tauri build",
     "portable": "node ../../scripts/portable.mjs",

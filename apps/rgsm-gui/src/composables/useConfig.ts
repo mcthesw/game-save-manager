@@ -11,7 +11,11 @@ import { $t } from '../i18n';
 const config = ref<Config>(structuredClone(DEFAULT_CONFIG));
 const deviceGameStatuses = ref<DeviceGameStatus[]>([]);
 const isLoading = ref(false);
+let firstLoad: Promise<boolean> | null = null;
 
+function whenConfigReady(): Promise<boolean> {
+  return firstLoad ?? refreshConfig();
+}
 async function refreshConfig(): Promise<boolean> {
   isLoading.value = true;
   try {
@@ -67,7 +71,7 @@ if (typeof window !== 'undefined') {
     });
 }
 
-void refreshConfig();
+firstLoad = refreshConfig();
 
 export function useConfig() {
   const isGameVisible = (gameId: string | undefined, fallbackName?: string) => {
@@ -81,5 +85,6 @@ export function useConfig() {
     isLoading,
     refreshConfig,
     saveConfig,
+    whenConfigReady,
   };
 }
