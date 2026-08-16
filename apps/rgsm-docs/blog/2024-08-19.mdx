@@ -1,0 +1,47 @@
+---
+title: V1.3.0 常规更新
+slug: v1_3_0
+authors: [Sworld]
+tags: [发布]
+---
+# 功能重要变更
+- 日志系统（可关闭日志文件）
+- 批量删除
+- 优化有问题的显示、操作
+- 更好的配置文件升级方式
+- 恢复/创建结束再关闭警告信息
+- 修复前端黑暗模式的一些颜色问题
+- 修复存档多时前端表格溢出不显示的问题
+- 不再允许同名游戏加入（修改为大小写不敏感）
+
+# 下版本主要计划
+- 适配与环境有关的路径变量
+- 游戏存档自动识别
+- 继续解决已有的问题
+- (或许)引入新的云备份后端
+- (或许)优化MacOS上的问题
+- 更多信息请看[链接](https://github.com/mcthesw/game-save-manager/milestone/6)
+
+# 开发者可能关心的变更
+- 增加开发时可用Vue DevTools的教程文档
+- 升级了大量第三方库
+- 更新Vscode推荐插件
+
+# 代码重要变更
+- GameSaveManager.config.json
+    - `Settings`
+        - 新增`log_to_file`，代表是否保存日志到文件
+- `src-tauri/src/errors.rs`
+    - 新增错误类型`SemverError(#[from] semver::Error)`，表示语义化版本检测失败（常常是配置文件有问题）
+
+# 发布
+- [蓝奏云](https://sworld.lanzouw.com/b01jrfhf1c) 密码:38mz
+- [123云盘](https://www.123pan.com/s/xdcDjv-mq9l.html) 请找到V1.3.0文件夹
+- [Github Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.3.0)
+
+# 讨论区
+- [收藏功能的讨论](https://github.com/mcthesw/game-save-manager/issues/133)
+- [插件系统的可能性](https://github.com/mcthesw/game-save-manager/issues/126)
+- [方便地修改设置过的存档路径](https://github.com/mcthesw/game-save-manager/issues/119)
+- [投票：注释应该写什么语言](https://github.com/mcthesw/game-save-manager/discussions/33)
+- [新图标征集](https://github.com/mcthesw/game-save-manager/discussions/34)

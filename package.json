@@ -13,6 +13,8 @@
     "web:format:fix": "pnpm --dir apps/rgsm-gui web:format:fix",
     "web:lint": "pnpm --dir apps/rgsm-gui web:lint",
     "web:lint:fix": "pnpm --dir apps/rgsm-gui web:lint:fix",
+    "docs:dev": "pnpm --dir apps/rgsm-docs dev",
+    "docs:build": "pnpm --dir apps/rgsm-docs build",
     "portable": "pnpm --dir apps/rgsm-gui portable",
     "prepare": "husky"
   },

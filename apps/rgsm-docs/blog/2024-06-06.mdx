@@ -1,0 +1,42 @@
+---
+title: V1.2.0 收藏夹更新
+slug: v1_2_0
+authors: [Sworld]
+tags: [发布]
+---
+# 功能重要变更
+- 有关收藏夹的重要功能
+- 优化提示
+- 优化各种排序和层级操作
+
+# 版本更新
+- feat: **新增收藏夹树**、可以多层嵌套、拖拽编辑
+- feat: 设置中可以拖拽调整顺序
+- feat: 可以设置是否默认应用前删除
+- feat: 增加侧栏切换收藏栏、菜单栏
+- feat: 可以调整收藏夹树是否默认展开
+- feat: 增加目录不存在、额外备份失败的提示
+- feat: 增加选择主页功能
+- fix: 防治重复添加游戏名
+- fix: 修复错误的i18n标记
+- fix: 修复收藏夹过长导致的显示错误
+- fix: 修复重新打开的窗口不能拖拽排序的问题
+
+# 代码重要变更
+- GameSaveManager.config.json
+    - 新增`favorites`字段，具体介绍请看 [Json文件说明](/docs/extras/json)
+    - `Settings`
+        - 新增`default_delete_before_apply`，代表新游戏默认先删除存档再应用
+        - 新增`default_expend_favorites_tree`，代表默认展开收藏夹
+        - 新增`home_page`，代表默认主页
+
+# 发布
+- [蓝奏云](https://sworld.lanzouw.com/b01jr8siwf?password=hbdk) 密码hbdk
+- [123云盘](https://www.123pan.com/s/xdcDjv-mq9l.html) 请找到V1.2.0文件夹
+- [Github Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.2.0)
+
+# 讨论区
+- [方便地修改设置过的存档路径](https://github.com/mcthesw/game-save-manager/issues/119)
+- [单存档多槽位？](https://github.com/mcthesw/game-save-manager/issues/87)
+- [投票：注释应该写什么语言](https://github.com/mcthesw/game-save-manager/discussions/33)
+- [新图标征集](https://github.com/mcthesw/game-save-manager/discussions/34)

@@ -1,0 +1,100 @@
+---
+title: V1.8.0 云、存档识别与 Archive V2
+slug: v1_8_0
+authors: [Sworld]
+tags: [发布]
+date: 2026-03-08
+---
+
+# 云同步、存档识别与 Archive V2
+
+本次更新带来了**云同步状态管理**、**Ludusavi 游戏存档自动识别**、**Archive V2 格式**、**Windows 注册表备份**等重大功能，同时包含大量安全加固、性能优化和架构升级，因此版本号直接跨越到了V1.8.0。
+
+## ✨ 核心功能亮点
+
+- **🎮 Ludusavi 存档自动识别**：
+    - 集成 Ludusavi 数据库，添加游戏时可自动匹配存档路径，无需手动查找。
+    - 通过 `rust-embed` 压缩内嵌 manifest。（后续考虑出不带manifest版本，因为体积较大）
+    - 批量导入失败时提供详细原因和注册表路径说明。
+    - ![Ludusavi 存档识别](/img/blog/v1.8.0_ludusavi.png)
+
+- **☁️ 云同步基础设施**：
+    - **同步状态面板**：新增 Overview 页面，展示同步结果、待处理状态和最近同步时间。
+    - **多设备位置跟踪**：以"每设备独立位置"替代全局单一位置，支持并行分支和同设备分叉识别。
+    - **后台非阻塞同步**：云同步通过后台任务管理器执行，不再阻塞 UI。
+    - **统一流式传输层**：带 Hook 扩展点的流式传输抽象，统一上传/下载路径。
+    - ![云同步面板](/img/blog/v1.8.0_cloud_sync.png)
+
+- **📦 压缩预设与 Archive V2 格式**：
+    - 可选压缩预设（仅存储 / 快速 / 标准 / 极限），使用 Zstd 替代 BZip2。
+    - 支持同名文件。
+
+- **🔐 存档完整性校验**：
+    - 新增 XXH3 哈希校验，恢复前自动验证归档完整性，阻止损坏存档被应用。
+
+- **🪟 Windows 注册表备份**：
+    - 支持备份和恢复注册表中的游戏存档数据，附带源指纹。
+
+- **⏪ 撤销上次恢复**：
+    - 管理页面新增"撤销上次应用的快照"，误操作可一键回退。
+    - ![撤销恢复](/img/blog/v1.8.0_undo.png)
+
+- **💾 额外覆盖备份管理**：
+    - 新增对额外覆盖备份（Extra Overwrite Backups）的管理功能。
+    - ![额外备份管理](/img/blog/v1.8.0_extra_backup.png)
+
+- **⚡ 智能跳过未变更备份**：
+    - 定时备份使用 XXH3 指纹，文件未变化时自动跳过。
+
+## 🖥️ 界面与体验优化
+
+- **🔤 自定义字体与外观设置**：支持自定义字体和外观配置。
+- **🔧 路径变量编辑器改版**：全新设计，状态展示更清晰。
+- **📋 批量删除快照**：支持多选快照一键批量删除。
+- **🔔 统一反馈与通知系统**：集中式通知系统，统一 z-index 管理。
+
+![界面优化](/img/blog/v1.8.0_ui.png)
+
+## 🐛 Bug 修复
+
+- **云同步安全增强**：修复下载/写入失败时可能丢失已有文件的问题，强化原子回滚。
+- **单次写入后端防护**：修复对不支持覆盖写入的后端的上传保护。
+- **时间戳语义修复**：修复 ZIP 时间戳保留的兼容性问题。
+- **Zip Slip 安全修复**：防止 ZIP 路径穿越攻击。
+- **备份并发错误处理**：修复 `backup_all` 中信号量获取错误传播。
+- **云同步禁用报错**：修复禁用时触发 unknown-backend 错误。
+- **日志修复**：修复日志按钮位置并改善日志轮转。
+- **同名文件限制移除**：移除添加游戏时过时的同名文件限制。
+
+## ⚡ 性能优化
+
+- 定时与批量备份路径优化，减少不必要的 IO。
+- 侧边栏列表渲染开销降低，搜索时自动展开。
+- 快照表格排序与选择性能增强。
+
+## 🛠️ 开发者可能关心的变更
+
+- **生命周期 Hook 管线**：typed snapshot hook pipeline，围绕快照创建/删除、恢复前/后等事件的可组合钩子。
+- **IPC 层重构**：game draft input + 后端 ID 分配，暴露 typed hook 和 sync 命令。
+- **Pre-commit Hooks**：Husky + lint-staged + clippy fix + typecheck 预提交检查。
+- **依赖升级**：rgsm 核心版本更新至 1.8.0。
+- **JSON 格式变更**：
+    - 同步状态采用多设备位置跟踪结构。
+    - 归档元数据升级为 V2 格式，含压缩预设和 XXH3 哈希。
+    - 存档配置新增 `save_unit_id` 字段。
+- 新增 Criterion 压缩算法基准测试。
+
+## 🚀 发布
+
+不知道下载哪个？推荐使用 **Portable 版本（便携版）**，如果无法启动可能是缺少了 [Webview2](https://developer.microsoft.com/microsoft-edge/webview2/)。
+
+- [蓝奏云](https://sworld.lanzouw.com/b01jsy96yd?pwd=g2oy) 密码:g2oy
+- [123云盘](https://www.123pan.com/s/xdcDjv-mq9l.html) (V1.8.0 文件夹)
+- [Github Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.8.0)
+
+**Full Changelog**: https://github.com/mcthesw/game-save-manager/compare/v1.6.0...v1.8.0
+
+## 💬 讨论区
+
+- [新功能建议与反馈](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug反馈](https://github.com/mcthesw/game-save-manager/issues)
