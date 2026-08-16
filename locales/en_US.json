@@ -513,7 +513,8 @@
     "frameworks": "Framework",
     "official_website": "Official website",
     "version": "Version: {0}",
-    "help": "User manual"
+    "help": "User manual",
+    "help_translate": "Help translate"
   },
   "misc": {
     "error": "Error",

@@ -1,4 +1,5 @@
-<script lang="ts" setup>
+<script setup lang="ts">
+import { onMounted, ref } from 'vue';
 import { commands } from '~/api/commands';
 import { $t } from '../i18n';
 import { debug } from '../utils/logger';
@@ -20,9 +21,9 @@ async function openUrl(url: string) {
   debug(`Opening URL: ${url}`);
   try {
     await commands.openUrl(url);
-  } catch (error) {
+  } catch (reason) {
     notifyError($t('error.open_url_failed'));
-    console.error(`Failed to open URL ${url}:`, error);
+    console.error(`Failed to open URL ${url}:`, reason);
   }
 }
 
@@ -49,7 +50,9 @@ const frontendDeps = [
   { name: 'Vue.js', url: 'https://vuejs.org/', license: 'MIT' },
   { name: 'Vue Router', url: 'https://router.vuejs.org/', license: 'MIT' },
   { name: 'Vite', url: 'https://vite.dev/', license: 'MIT' },
-  { name: 'Element Plus', url: 'https://element-plus.org/', license: 'MIT' },
+  { name: 'Reka UI', url: 'https://reka-ui.com/', license: 'MIT' },
+  { name: 'Tailwind CSS', url: 'https://tailwindcss.com/', license: 'MIT' },
+  { name: 'Lucide', url: 'https://lucide.dev/', license: 'ISC' },
   { name: 'VueUse', url: 'https://vueuse.org/', license: 'MIT' },
   { name: 'Vue Flow', url: 'https://vueflow.dev/', license: 'MIT' },
   { name: 'Vuedraggable', url: 'https://github.com/SortableJS/Vue.Draggable', license: 'MIT' },
@@ -67,274 +70,107 @@ const backendDeps = [
   { name: 'OpenDAL', url: 'https://opendal.apache.org/', license: 'Apache-2.0' },
   { name: 'Serde', url: 'https://serde.rs/', license: 'MIT / Apache-2.0' },
   { name: 'Tokio', url: 'https://tokio.rs/', license: 'MIT' },
-  { name: 'Chrono', url: 'https://github.com/chronotope/chrono', license: 'MIT / Apache-2.0' },
-  { name: 'Reqwest', url: 'https://github.com/seanmonstar/reqwest', license: 'MIT / Apache-2.0' },
+  { name: 'Chrono', url: 'https://github.com/chronotope/chrono', license: 'MIT' },
+  { name: 'Reqwest', url: 'https://github.com/seanmonstar/reqwest', license: 'MIT' },
   { name: 'zip-rs', url: 'https://github.com/zip-rs/zip', license: 'MIT' },
-  { name: 'Rodio', url: 'https://github.com/RustAudio/rodio', license: 'MIT / Apache-2.0' },
+  { name: 'Rodio', url: 'https://github.com/RustAudio/rodio', license: 'MIT' },
+];
+
+const headerLinks = [
+  { label: 'Gitee', url: 'https://gitee.com/sworldS/game-save-manager' },
+  { label: 'GitHub', url: 'https://github.com/mcthesw/game-save-manager' },
+  { label: $t('about.official_website'), url: 'https://game.sworld.club/' },
+  { label: $t('about.help'), url: 'https://help.sworld.club/' },
+  {
+    label: $t('about.help_translate'),
+    url: 'https://github.com/mcthesw/game-save-manager/blob/main/CONTRIBUTING.md',
+  },
 ];
 </script>
 
 <template>
-  <div class="about-page">
-    <div class="content-wrapper">
-      <el-scrollbar>
-        <div class="main-content">
-          <header class="app-header">
-            <img src="/orange.png" alt="App Logo" class="app-logo" />
-            <h1 class="app-title">{{ $t('home.name') }}</h1>
-            <div v-if="config && config.version" class="version-badge">
-              v{{ config.version }}
-              <span v-if="gitHash" class="git-hash">({{ gitHash }})</span>
-            </div>
-            <p class="app-description">{{ $t('about.content_1') }}</p>
-
-            <div class="header-links">
-              <el-link @click="openUrl('https://gitee.com/sworldS/game-save-manager')"
-                >Gitee</el-link
-              >
-              <el-divider direction="vertical" />
-              <el-link @click="openUrl('https://github.com/mcthesw/game-save-manager')"
-                >Github</el-link
-              >
-              <el-divider direction="vertical" />
-              <el-link @click="openUrl('https://game.sworld.club/')">
-                {{ $t('about.official_website') }}
-              </el-link>
-              <el-divider direction="vertical" />
-              <el-link @click="openUrl('https://help.sworld.club/')">{{
-                $t('about.help')
-              }}</el-link>
-            </div>
-          </header>
-
-          <section class="content-section">
-            <h2 class="section-title">{{ $t('about.support_me') }}</h2>
-            <div class="support-content">
-              <p>{{ $t('about.support_me_content_1') }}</p>
-              <p>{{ $t('about.support_me_content_2') }}</p>
-            </div>
-          </section>
-
-          <el-divider />
-
-          <section class="content-section">
-            <h2 class="section-title">{{ $t('about.thank_you_list') }}</h2>
-            <div class="contributors-list">
-              <div v-for="c in contributors" :key="c.name" class="contributor-item">
-                <span class="contributor-name">{{ c.name }}</span>
-                <span class="contributor-role">{{ c.role }}</span>
-              </div>
-            </div>
-          </section>
-
-          <el-divider />
-
-          <section class="content-section">
-            <h2 class="section-title">{{ $t('about.open_source_acknowledgments') }}</h2>
-            <div class="deps-container">
-              <div class="deps-column">
-                <h3 class="deps-subtitle">Frontend</h3>
-                <div class="deps-list">
-                  <div v-for="lib in frontendDeps" :key="lib.name" class="dep-row">
-                    <el-link
-                      type="primary"
-                      underline="never"
-                      class="dep-name"
-                      @click="openUrl(lib.url)"
-                    >
-                      {{ lib.name }}
-                    </el-link>
-                    <span class="dep-license">{{ lib.license }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="deps-column">
-                <h3 class="deps-subtitle">Backend</h3>
-                <div class="deps-list">
-                  <div v-for="lib in backendDeps" :key="lib.name" class="dep-row">
-                    <el-link
-                      type="primary"
-                      underline="never"
-                      class="dep-name"
-                      @click="openUrl(lib.url)"
-                    >
-                      {{ lib.name }}
-                    </el-link>
-                    <span class="dep-license">{{ lib.license }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+  <div class="h-full overflow-y-auto">
+    <div class="mx-auto flex max-w-[720px] flex-col gap-8 px-6 py-8">
+      <header class="flex flex-col items-center pt-4 text-center">
+        <img src="/orange.png" alt="App Logo" class="mb-4 h-20 w-20" />
+        <h1 class="text-2xl font-semibold text-text">{{ $t('home.name') }}</h1>
+        <div class="mt-2 rounded-full bg-surface-2 px-2.5 py-0.5 font-mono text-xs text-text-dim">
+          v{{ config?.version }}<span v-if="gitHash" class="opacity-70"> ({{ gitHash }})</span>
         </div>
-      </el-scrollbar>
+        <p class="mt-3 max-w-md text-sm leading-relaxed text-text-dim">
+          {{ $t('about.content_1') }}
+        </p>
+        <div class="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          <template v-for="(link, index) in headerLinks" :key="link.url">
+            <span v-if="index > 0" class="h-3.5 w-px bg-border" aria-hidden="true" />
+            <button
+              type="button"
+              class="cursor-pointer border-none bg-transparent p-0 text-sm text-accent transition-colors hover:brightness-110"
+              @click="openUrl(link.url)"
+            >
+              {{ link.label }}
+            </button>
+          </template>
+        </div>
+      </header>
+
+      <section>
+        <h2 class="mb-2 text-sm font-semibold text-text">{{ $t('about.support_me') }}</h2>
+        <div class="flex flex-col gap-1.5 text-sm leading-relaxed text-text-dim">
+          <p>{{ $t('about.support_me_content_1') }}</p>
+          <p>{{ $t('about.support_me_content_2') }}</p>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="mb-3 border-b border-border pb-2 text-sm font-semibold text-text">
+          {{ $t('about.thank_you_list') }}
+        </h2>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+          <div v-for="c in contributors" :key="c.name" class="flex items-baseline gap-2">
+            <span class="truncate text-sm text-text">{{ c.name }}</span>
+            <span class="shrink-0 text-xs text-text-dim">{{ c.role }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="mb-3 border-b border-border pb-2 text-sm font-semibold text-text">
+          {{ $t('about.open_source_acknowledgments') }}
+        </h2>
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <h3 class="mb-2 text-xs font-medium text-text-dim">Frontend</h3>
+            <div class="flex flex-col gap-1.5">
+              <div v-for="lib in frontendDeps" :key="lib.name" class="flex items-baseline gap-2">
+                <button
+                  type="button"
+                  class="cursor-pointer border-none bg-transparent p-0 text-left text-sm text-accent transition-colors hover:brightness-110"
+                  @click="openUrl(lib.url)"
+                >
+                  {{ lib.name }}
+                </button>
+                <span class="text-xs text-text-dim">{{ lib.license }}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="mb-2 text-xs font-medium text-text-dim">Backend</h3>
+            <div class="flex flex-col gap-1.5">
+              <div v-for="lib in backendDeps" :key="lib.name" class="flex items-baseline gap-2">
+                <button
+                  type="button"
+                  class="cursor-pointer border-none bg-transparent p-0 text-left text-sm text-accent transition-colors hover:brightness-110"
+                  @click="openUrl(lib.url)"
+                >
+                  {{ lib.name }}
+                </button>
+                <span class="text-xs text-text-dim">{{ lib.license }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
-
-<style scoped>
-.about-page {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--el-bg-color);
-  overflow: hidden; /* Ensure no double scrollbars */
-}
-
-.content-wrapper {
-  flex: 1;
-  min-height: 0; /* Critical for flex child scrolling */
-}
-
-.main-content {
-  padding: 3rem 15% 4rem;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.app-header {
-  text-align: center;
-  margin-bottom: 3rem;
-}
-
-.app-logo {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 1rem;
-}
-
-.app-title {
-  font-size: 1.75rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem;
-  color: var(--el-text-color-primary);
-}
-
-.version-badge {
-  display: inline-block;
-  font-size: 0.9rem;
-  color: var(--el-color-info);
-  background-color: var(--el-fill-color-light);
-  padding: 2px 8px;
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  font-family: var(--el-font-family-monospace);
-}
-
-.git-hash {
-  font-size: 0.8rem;
-  opacity: 0.7;
-}
-
-.app-description {
-  font-size: 1rem;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
-}
-
-.header-links {
-  margin-top: 1.5rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.content-section {
-  margin-bottom: 2rem;
-}
-
-.section-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-  color: var(--el-text-color-primary);
-}
-
-/* Support Section */
-.support-content p {
-  line-height: 1.6;
-  color: var(--el-text-color-regular);
-  margin-bottom: 0.5rem;
-}
-
-/* Contributors List */
-.contributors-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.5rem;
-}
-
-@media (min-width: 768px) {
-  .contributors-list {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem 2rem;
-  }
-}
-
-.contributor-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0.25rem;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.contributor-name {
-  font-weight: 500;
-  color: var(--el-text-color-regular);
-}
-
-.contributor-role {
-  font-size: 0.9rem;
-  color: var(--el-text-color-secondary);
-}
-
-/* Dependencies Two-Column Layout */
-.deps-container {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-}
-
-@media (min-width: 768px) {
-  .deps-container {
-    grid-template-columns: 1fr 1fr;
-    gap: 4rem;
-  }
-}
-
-.deps-subtitle {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.deps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.dep-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem 0;
-}
-
-.dep-name {
-  font-size: 0.95rem;
-}
-
-.dep-license {
-  font-size: 0.85rem;
-  color: var(--el-text-color-secondary);
-  background-color: var(--el-fill-color-lighter);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-</style>
