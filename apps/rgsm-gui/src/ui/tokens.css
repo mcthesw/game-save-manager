@@ -58,9 +58,9 @@
 .dark {
   color-scheme: dark;
 
-  --bg: #181a1f;
-  --surface: #1f2229;
-  --surface-2: #272b33;
+  --bg: #1a1a1c;
+  --surface: #212123;
+  --surface-2: #28282b;
   --text: #e8e6e1;
   --text-dim: #9b978e;
   --border: color-mix(in oklab, var(--text) 14%, transparent);

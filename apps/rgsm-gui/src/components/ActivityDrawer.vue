@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import {
-  Loading,
-  SuccessFilled,
-  CircleCloseFilled,
-  WarningFilled,
-  InfoFilled,
-  ArrowUp,
-  ArrowDown,
-  Close,
-  List,
-  CopyDocument,
   Check,
-} from '@element-plus/icons-vue';
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Info,
+  List,
+  LoaderCircle,
+  TriangleAlert,
+  X,
+  XCircle,
+} from '@lucide/vue';
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { $t } from '../i18n';
 import { useCloudSyncStatus } from '../composables/useCloudSyncStatus';
@@ -141,13 +141,13 @@ async function copyActivity(entry: ActivityEntry) {
 function syncStatusIcon(status: CloudSyncJobStatus) {
   switch (status) {
     case 'Running':
-      return Loading;
+      return LoaderCircle;
     case 'Completed':
-      return SuccessFilled;
+      return CheckCircle2;
     case 'Failed':
-      return WarningFilled;
+      return TriangleAlert;
     case 'Cancelled':
-      return CircleCloseFilled;
+      return XCircle;
     default:
       return null;
   }
@@ -179,15 +179,15 @@ function activityIcon(status: ActivityStatus) {
   switch (status) {
     case 'pending':
     case 'running':
-      return Loading;
+      return LoaderCircle;
     case 'success':
-      return SuccessFilled;
+      return CheckCircle2;
     case 'info':
-      return InfoFilled;
+      return Info;
     case 'warning':
-      return WarningFilled;
+      return TriangleAlert;
     case 'error':
-      return CircleCloseFilled;
+      return XCircle;
     default:
       return null;
   }
@@ -231,49 +231,44 @@ function canDismiss(entry: ActivityEntry) {
   >
     <!-- Header pill (always visible, acts as toggle + header when expanded) -->
     <div class="activity-pill" @click="handleToggleExpanded">
-      <el-icon
+      <component
+        :is="hasActiveWork ? LoaderCircle : List"
         v-if="isGhostTab"
         :size="18"
         class="activity-ghost-icon"
         :class="{ 'ghost-active': hasActiveWork }"
-      >
-        <Loading v-if="hasActiveWork" />
-        <List v-else />
-      </el-icon>
+      />
       <template v-else>
         <div class="activity-pill-left">
-          <el-icon
+          <LoaderCircle
             v-if="isSyncing || activeActivityCount > 0"
             class="activity-pill-spinner"
             :size="16"
-          >
-            <Loading />
-          </el-icon>
+            aria-hidden="true"
+          />
           <span class="activity-pill-title">{{ $t('activity_center.title') }}</span>
           <span v-if="!expanded && totalActiveCount > 0" class="activity-pill-count">
             {{ $t('activity_center.active_count', { count: totalActiveCount }) }}
           </span>
         </div>
         <div class="activity-pill-right">
-          <el-button
+          <button
             v-if="expanded && hasActivities"
-            text
-            size="small"
-            class="pill-dismiss-btn"
+            type="button"
+            class="pill-text-btn"
             @click.stop="dismissAll"
           >
             {{ $t('activity_center.dismiss_all') }}
-          </el-button>
-          <el-button
+          </button>
+          <button
             v-if="expanded && isSyncing"
-            text
-            size="small"
-            class="pill-dismiss-btn"
-            :loading="isCancelling"
+            type="button"
+            class="pill-text-btn"
+            :disabled="isCancelling"
             @click.stop="cancelSync"
           >
             {{ $t('cloud_sync.cancel') }}
-          </el-button>
+          </button>
           <svg
             v-if="collapseCountdown"
             class="collapse-ring"
@@ -285,9 +280,12 @@ function canDismiss(entry: ActivityEntry) {
             <circle class="collapse-ring-track" cx="9" cy="9" r="7" />
             <circle class="collapse-ring-progress" cx="9" cy="9" r="7" />
           </svg>
-          <el-icon :size="14" class="activity-pill-chevron">
-            <component :is="expanded ? ArrowDown : ArrowUp" />
-          </el-icon>
+          <component
+            :is="expanded ? ChevronDown : ChevronUp"
+            :size="14"
+            class="activity-pill-chevron"
+            aria-hidden="true"
+          />
         </div>
       </template>
     </div>
@@ -304,14 +302,14 @@ function canDismiss(entry: ActivityEntry) {
               class="activity-item"
               :class="syncStatusClass(job.status)"
             >
-              <el-icon
+              <component
+                :is="syncStatusIcon(job.status)"
                 v-if="syncStatusIcon(job.status)"
                 class="activity-item-icon"
                 :class="{ 'icon-spin': job.status === 'Running' }"
                 :size="14"
-              >
-                <component :is="syncStatusIcon(job.status)" />
-              </el-icon>
+                aria-hidden="true"
+              />
               <span v-else class="activity-item-icon-placeholder" />
               <div class="activity-item-body">
                 <span class="activity-item-title" :title="job.description">{{
@@ -333,14 +331,14 @@ function canDismiss(entry: ActivityEntry) {
               class="activity-item"
               :class="activityClass(entry.status)"
             >
-              <el-icon
+              <component
+                :is="activityIcon(entry.status)"
                 v-if="activityIcon(entry.status)"
                 class="activity-item-icon"
                 :class="{ 'icon-spin': entry.status === 'running' || entry.status === 'pending' }"
                 :size="14"
-              >
-                <component :is="activityIcon(entry.status)" />
-              </el-icon>
+                aria-hidden="true"
+              />
               <span v-else class="activity-item-icon-placeholder" />
               <div class="activity-item-body">
                 <span class="activity-item-title" :title="entry.title"
@@ -364,10 +362,8 @@ function canDismiss(entry: ActivityEntry) {
                 :title="$t('activity_center.copy')"
                 @click.stop="copyActivity(entry)"
               >
-                <el-icon :size="12">
-                  <Check v-if="copiedId === entry.id" />
-                  <CopyDocument v-else />
-                </el-icon>
+                <Check v-if="copiedId === entry.id" :size="12" aria-hidden="true" />
+                <Copy v-else :size="12" aria-hidden="true" />
               </button>
               <button
                 v-if="canDismiss(entry)"
@@ -375,7 +371,7 @@ function canDismiss(entry: ActivityEntry) {
                 :title="$t('activity_center.dismiss')"
                 @click.stop="dismissActivity(entry.id)"
               >
-                <el-icon :size="12"><Close /></el-icon>
+                <X :size="12" aria-hidden="true" />
               </button>
             </div>
           </template>
@@ -400,10 +396,10 @@ function canDismiss(entry: ActivityEntry) {
   display: flex;
   flex-direction: column;
   border-radius: 12px;
-  background: color-mix(in oklab, var(--el-bg-color-overlay) 94%, transparent);
+  background: color-mix(in oklab, var(--surface) 94%, transparent);
   box-shadow:
     0 12px 34px rgba(0, 0, 0, 0.22),
-    inset 0 0 0 1px color-mix(in oklab, var(--el-border-color) 68%, transparent);
+    inset 0 0 0 1px color-mix(in oklab, var(--border) 68%, transparent);
   backdrop-filter: blur(6px);
   overflow: hidden;
   transition:
@@ -419,32 +415,32 @@ function canDismiss(entry: ActivityEntry) {
   min-width: 40px;
   max-width: 40px;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--el-bg-color-overlay) 72%, transparent);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
   box-shadow:
     0 4px 14px rgba(0, 0, 0, 0.14),
-    inset 0 0 0 1px color-mix(in oklab, var(--el-border-color) 50%, transparent);
+    inset 0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
   cursor: pointer;
 }
 
 .activity-drawer.is-ghost-tab:hover {
-  background: color-mix(in oklab, var(--el-bg-color-overlay) 95%, transparent);
+  background: color-mix(in oklab, var(--surface) 95%, transparent);
   box-shadow:
     0 6px 20px rgba(0, 0, 0, 0.2),
-    inset 0 0 0 1px color-mix(in oklab, var(--el-color-primary) 45%, transparent);
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
 }
 
 .activity-ghost-icon {
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   transition: color 0.15s ease;
 }
 
 .activity-ghost-icon.ghost-active {
-  color: var(--el-color-primary);
+  color: var(--accent);
   animation: activity-spin 1s linear infinite;
 }
 
 .activity-drawer.is-ghost-tab:hover .activity-ghost-icon {
-  color: var(--el-color-primary);
+  color: var(--accent);
 }
 
 /* Pill bar */
@@ -463,11 +459,23 @@ function canDismiss(entry: ActivityEntry) {
   padding: 6px 14px;
 }
 
-.pill-dismiss-btn {
-  font-size: 0.75rem !important;
-  padding: 0 4px !important;
-  height: auto !important;
-  color: var(--el-text-color-secondary) !important;
+.pill-text-btn {
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.pill-text-btn:hover {
+  color: var(--text);
+}
+
+.pill-text-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Ghost tab pill: center the icon in a 40×40 square */
@@ -489,13 +497,13 @@ function canDismiss(entry: ActivityEntry) {
 .activity-pill-title {
   font-size: 0.88rem;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text);
   white-space: nowrap;
 }
 
 .activity-pill-count {
   font-size: 0.78rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
@@ -512,13 +520,13 @@ function canDismiss(entry: ActivityEntry) {
 
 .collapse-ring-track {
   fill: none;
-  stroke: var(--el-border-color-lighter);
+  stroke: var(--border);
   stroke-width: 2;
 }
 
 .collapse-ring-progress {
   fill: none;
-  stroke: var(--el-text-color-secondary);
+  stroke: var(--text-dim);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-dasharray: var(--circumference);
@@ -538,19 +546,19 @@ function canDismiss(entry: ActivityEntry) {
 }
 
 .activity-pill-chevron {
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   transition: transform 0.2s ease;
 }
 
 .activity-pill-spinner {
-  color: var(--el-color-primary);
+  color: var(--accent);
   animation: activity-spin 1s linear infinite;
   flex-shrink: 0;
 }
 
 /* Panel */
 .activity-panel {
-  border-top: 1px solid color-mix(in oklab, var(--el-border-color-lighter) 80%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
 }
 
 .activity-panel-scroll {
@@ -558,8 +566,7 @@ function canDismiss(entry: ActivityEntry) {
   overflow-y: auto;
   padding: 6px 0;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--el-text-color-placeholder) 40%, transparent)
-    transparent;
+  scrollbar-color: color-mix(in oklab, var(--text-dim) 40%, transparent) transparent;
 }
 
 .activity-panel-scroll::-webkit-scrollbar {
@@ -571,20 +578,20 @@ function canDismiss(entry: ActivityEntry) {
 }
 
 .activity-panel-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--el-text-color-placeholder) 40%, transparent);
+  background: color-mix(in oklab, var(--text-dim) 40%, transparent);
   border-radius: 2px;
 }
 
 .activity-section-divider {
   height: 1px;
-  background: color-mix(in oklab, var(--el-border-color-lighter) 80%, transparent);
+  background: color-mix(in oklab, var(--border) 80%, transparent);
   margin: 4px 14px;
 }
 
 .activity-empty {
   padding: 12px 14px;
   text-align: center;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   font-size: 0.82rem;
 }
 
@@ -621,13 +628,13 @@ function canDismiss(entry: ActivityEntry) {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  color: var(--el-text-color-regular);
+  color: var(--text);
   white-space: normal;
   word-break: break-word;
 }
 
 .activity-item-count {
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
   font-size: 0.85em;
 }
 
@@ -636,7 +643,7 @@ function canDismiss(entry: ActivityEntry) {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.72rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
 }
 
 .activity-item-badge {
@@ -658,7 +665,7 @@ function canDismiss(entry: ActivityEntry) {
   background: transparent;
   cursor: pointer;
   border-radius: 3px;
-  color: var(--el-text-color-placeholder);
+  color: var(--text-dim);
   padding: 0;
   transition:
     color 0.15s ease,
@@ -666,8 +673,8 @@ function canDismiss(entry: ActivityEntry) {
 }
 
 .activity-item-dismiss:hover {
-  color: var(--el-text-color-secondary);
-  background: color-mix(in oklab, var(--el-fill-color) 80%, transparent);
+  color: var(--text-dim);
+  background: color-mix(in oklab, var(--surface-2) 80%, transparent);
 }
 
 .activity-item-copy {
@@ -681,7 +688,7 @@ function canDismiss(entry: ActivityEntry) {
   background: transparent;
   cursor: pointer;
   border-radius: 3px;
-  color: var(--el-text-color-placeholder);
+  color: var(--text-dim);
   padding: 0;
   transition:
     color 0.15s ease,
@@ -689,79 +696,79 @@ function canDismiss(entry: ActivityEntry) {
 }
 
 .activity-item-copy:hover {
-  color: var(--el-color-primary);
-  background: color-mix(in oklab, var(--el-fill-color) 80%, transparent);
+  color: var(--accent);
+  background: color-mix(in oklab, var(--surface-2) 80%, transparent);
 }
 
 /* Status colours for cloud sync jobs */
 .job-running .activity-item-icon {
-  color: var(--el-color-primary);
+  color: var(--accent);
 }
 .job-running .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-primary) 14%, transparent);
-  color: var(--el-color-primary);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 .job-queued .activity-item-badge {
-  background: color-mix(in oklab, var(--el-text-color-secondary) 12%, transparent);
-  color: var(--el-text-color-secondary);
+  background: color-mix(in oklab, var(--text-dim) 12%, transparent);
+  color: var(--text-dim);
 }
 .job-completed .activity-item-icon {
-  color: var(--el-color-success);
+  color: var(--success);
 }
 .job-completed .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-success) 14%, transparent);
-  color: var(--el-color-success);
+  background: color-mix(in oklab, var(--success) 14%, transparent);
+  color: var(--success);
 }
 .job-failed .activity-item-icon {
-  color: var(--el-color-danger);
+  color: var(--danger);
 }
 .job-failed .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-danger) 14%, transparent);
-  color: var(--el-color-danger);
+  background: color-mix(in oklab, var(--danger) 14%, transparent);
+  color: var(--danger);
 }
 .job-cancelled .activity-item-icon {
-  color: var(--el-text-color-secondary);
+  color: var(--text-dim);
 }
 .job-cancelled .activity-item-badge {
-  background: color-mix(in oklab, var(--el-text-color-secondary) 12%, transparent);
-  color: var(--el-text-color-secondary);
+  background: color-mix(in oklab, var(--text-dim) 12%, transparent);
+  color: var(--text-dim);
 }
 
 /* Status colours for activity entries */
 .activity-running .activity-item-icon {
-  color: var(--el-color-primary);
+  color: var(--accent);
 }
 .activity-running .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-primary) 14%, transparent);
-  color: var(--el-color-primary);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 .activity-success .activity-item-icon {
-  color: var(--el-color-success);
+  color: var(--success);
 }
 .activity-success .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-success) 14%, transparent);
-  color: var(--el-color-success);
+  background: color-mix(in oklab, var(--success) 14%, transparent);
+  color: var(--success);
 }
 .activity-info .activity-item-icon {
-  color: var(--el-color-info);
+  color: var(--text-dim);
 }
 .activity-info .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-info) 14%, transparent);
-  color: var(--el-color-info);
+  background: color-mix(in oklab, var(--text-dim) 14%, transparent);
+  color: var(--text-dim);
 }
 .activity-warning .activity-item-icon {
-  color: var(--el-color-warning);
+  color: var(--warning);
 }
 .activity-warning .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-warning) 14%, transparent);
-  color: var(--el-color-warning);
+  background: color-mix(in oklab, var(--warning) 14%, transparent);
+  color: var(--warning);
 }
 .activity-error .activity-item-icon {
-  color: var(--el-color-danger);
+  color: var(--danger);
 }
 .activity-error .activity-item-badge {
-  background: color-mix(in oklab, var(--el-color-danger) 14%, transparent);
-  color: var(--el-color-danger);
+  background: color-mix(in oklab, var(--danger) 14%, transparent);
+  color: var(--danger);
 }
 
 /* Spin animation */

@@ -1,7 +1,7 @@
 import { defineComponent, h, ref } from 'vue';
 import { $t } from '../i18n';
 import type { Settings } from '../api/commands';
-import { ElCheckbox } from '../ui/elementPlus/checkbox';
+import { KCheckbox } from '../ui/kit';
 import { useConfig } from './useConfig';
 import { useFeedback } from './useFeedback';
 
@@ -34,10 +34,10 @@ export function useApplyConfirmation() {
           h('div', { class: 'apply-confirmation-message' }, [
             h('p', $t('manage.confirm_overwrite_prompt')),
             h(
-              ElCheckbox,
+              KCheckbox,
               {
                 modelValue: skipNextTime.value,
-                'onUpdate:modelValue': (value: boolean | string | number) => {
+                'onUpdate:modelValue': (value: boolean | string) => {
                   skipNextTime.value = value === true;
                 },
               },

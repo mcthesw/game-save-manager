@@ -38,7 +38,7 @@
       <img class="focal-logo" :src="appLogo" alt="" />
       <p class="focal-name">{{ $t('home.name') }}</p>
       <button v-if="appVersion" type="button" class="focal-version" @click="goAbout">
-        v{{ appVersion }}
+        v{{ appVersion }}<span v-if="gitHash"> ({{ gitHash }})</span>
       </button>
     </div>
 
@@ -146,6 +146,15 @@ const currentLanguageName = computed(() => {
 });
 
 const appVersion = computed(() => config.value?.version ?? '');
+const gitHash = ref('');
+onMounted(async () => {
+  try {
+    const info = await commands.getBuildInfo();
+    gitHash.value = info.git_hash;
+  } catch {
+    gitHash.value = '';
+  }
+});
 
 function rowWords(rowIndex: number, words: string[]): string[] {
   const n = words.length;

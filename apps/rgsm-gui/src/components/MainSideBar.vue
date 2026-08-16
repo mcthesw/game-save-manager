@@ -106,7 +106,14 @@ async function refreshAutoBackup() {
 }
 
 onMounted(refreshAutoBackup);
-watch(() => config.value?.games?.length, refreshAutoBackup);
+// 定时备份与进程自动化配置变化都会改变状态点;config 引用替换即触发
+watch(
+  () => [
+    (config.value?.games ?? []).map((game) => `${game.name}:${game.auto_backup ? 1 : 0}`).join('|'),
+    JSON.stringify(config.value?.quick_action?.game_automations ?? []),
+  ],
+  refreshAutoBackup
+);
 
 function isActive(path: string): boolean {
   return route.path === path;
@@ -140,7 +147,7 @@ function goGame(game: Game) {
 
       <div class="games-head">
         <span class="games-title">{{ $t('sidebar.games') }}</span>
-        <KButton size="sm" variant="primary" @click="openAddGame()">
+        <KButton size="sm" @click="openAddGame()">
           <template #icon><Plus :size="13" /></template>
           {{ $t('sidebar.add_game') }}
         </KButton>

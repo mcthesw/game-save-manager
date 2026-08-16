@@ -1159,7 +1159,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
                 <KButton
                   variant="ghost"
                   size="sm"
-                  :aria-label="showHttpToken ? 'hide' : 'show'"
+                  :aria-label="showHttpToken ? $t('common.hide') : $t('common.show')"
                   @click="showHttpToken = !showHttpToken"
                 >
                   <template #icon>
@@ -1278,7 +1278,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
                   v-model="root.kind.store"
                   class="w-32 shrink-0"
                   :options="storeOptions"
-                  aria-label="store"
+                  :aria-label="$t('settings.game_roots_title')"
                   @update:model-value="saveGameRoots"
                 />
                 <KInput
@@ -1348,7 +1348,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
                     v-model="account.kind.store"
                     class="w-32 shrink-0"
                     :options="storeOptions"
-                    aria-label="store"
+                    :aria-label="$t('settings.game_roots_title')"
                     @update:model-value="persistDeviceInfo(false)"
                   />
                   <KInput
