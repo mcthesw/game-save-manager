@@ -107,7 +107,7 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col">
+  <div class="flex h-full min-h-0 flex-col" role="table" :aria-label="$t('manage.table_view')">
     <div
       v-if="rows.length === 0"
       class="flex flex-1 flex-col items-center justify-center gap-2 text-text-dim"
@@ -118,209 +118,217 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
 
     <div v-else class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
       <!-- Header -->
-      <div
-        class="sticky top-0 z-10 grid h-10 items-center gap-2 border-b border-border bg-surface px-3 text-xs font-medium text-text-dim"
-        :class="GRID_COLS"
-      >
-        <div class="flex items-center justify-center">
-          <KCheckbox v-model="headerChecked" :aria-label="$t('manage.batch_delete')" />
-        </div>
-        <button
-          type="button"
-          class="inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-xs font-medium text-text-dim transition-colors hover:text-text"
-          @click="emit('toggleSort')"
+      <div role="rowgroup" class="sticky top-0 z-10 bg-surface">
+        <div
+          role="row"
+          class="grid h-10 items-center gap-2 border-b border-border px-3 text-xs font-medium text-text-dim"
+          :class="GRID_COLS"
         >
-          {{ $t('manage.save_date') }}
-          <ArrowDown v-if="sortDesc" :size="12" aria-hidden="true" />
-          <ArrowUp v-else :size="12" aria-hidden="true" />
-        </button>
-        <span>{{ $t('manage.description') }}</span>
-        <span>{{ $t('manage.location_and_size') }}</span>
-        <span class="text-center">{{ $t('manage.actions') }}</span>
+          <div role="columnheader" class="flex items-center justify-center">
+            <KCheckbox v-model="headerChecked" :aria-label="$t('manage.batch_delete')" />
+          </div>
+          <span role="columnheader" :aria-sort="sortDesc ? 'descending' : 'ascending'">
+            <button
+              type="button"
+              class="inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-xs font-medium text-text-dim transition-colors hover:text-text"
+              @click="emit('toggleSort')"
+            >
+              {{ $t('manage.save_date') }}
+              <ArrowDown v-if="sortDesc" :size="12" aria-hidden="true" />
+              <ArrowUp v-else :size="12" aria-hidden="true" />
+            </button>
+          </span>
+          <span role="columnheader">{{ $t('manage.description') }}</span>
+          <span role="columnheader">{{ $t('manage.location_and_size') }}</span>
+          <span role="columnheader" class="text-center">{{ $t('manage.actions') }}</span>
+        </div>
       </div>
 
       <!-- Rows -->
-      <div
-        v-for="snapshot in rows"
-        :key="snapshot.date"
-        class="grid h-11 items-center gap-2 border-b border-border px-3 transition-colors hover:bg-surface-2/60"
-        :class="[GRID_COLS, { 'bg-surface-2/40': selectedDates.has(snapshot.date) }]"
-      >
-        <div class="flex items-center justify-center">
-          <KCheckbox
-            :model-value="selectedDates.has(snapshot.date)"
-            :aria-label="snapshot.date"
-            @update:model-value="emit('toggleSelect', snapshot.date, $event === true)"
-          />
-        </div>
+      <div role="rowgroup">
+        <div
+          v-for="snapshot in rows"
+          :key="snapshot.date"
+          role="row"
+          class="grid h-11 items-center gap-2 border-b border-border px-3 transition-colors hover:bg-surface-2/60"
+          :class="[GRID_COLS, { 'bg-surface-2/40': selectedDates.has(snapshot.date) }]"
+        >
+          <div role="cell" class="flex items-center justify-center">
+            <KCheckbox
+              :model-value="selectedDates.has(snapshot.date)"
+              :aria-label="snapshot.date"
+              @update:model-value="emit('toggleSelect', snapshot.date, $event === true)"
+            />
+          </div>
 
-        <span class="truncate font-mono text-xs text-text">{{ snapshot.date }}</span>
+          <span role="cell" class="truncate font-mono text-xs text-text">{{ snapshot.date }}</span>
 
-        <div class="flex min-w-0 items-center gap-1.5">
-          <KTag v-if="snapshotSourceTag(snapshot)">{{ snapshotSourceTag(snapshot) }}</KTag>
-          <span
-            v-if="snapshot.describe"
-            class="truncate text-sm text-text"
-            :title="snapshot.describe"
-          >
-            {{ snapshot.describe }}
-          </span>
-          <span v-else class="truncate text-sm text-text-dim/70">{{
-            $t('manage.no_description')
-          }}</span>
-        </div>
-
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <span class="truncate text-[11px] leading-tight text-text-dim">{{
-            locationLabel(snapshot.date)
-          }}</span>
-          <span class="font-mono text-xs leading-tight text-text">{{
-            snapshot.size ? formatFileSize(snapshot.size) : '-'
-          }}</span>
-        </div>
-
-        <div class="flex items-center justify-center">
-          <span class="inline-flex h-7 w-7 items-center justify-center">
-            <KTooltip
-              v-if="cloudGame && isOnDevice(snapshot.date)"
-              :content="$t('manage.local_remove')"
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('manage.local_remove')"
-                :disabled="!canEvict(snapshot.date)"
-                :loading="activeTransfer === snapshot.date"
-                @click="emit('evict', snapshot.date)"
-              >
-                <template #icon><FolderMinus :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-            <KTooltip
-              v-else-if="cloudGame && !isOnDevice(snapshot.date)"
-              :content="
-                canDownload(snapshot.date)
-                  ? $t('manage.local_download')
-                  : $t('manage.local_unavailable')
-              "
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('manage.local_download')"
-                :disabled="!canDownload(snapshot.date)"
-                :loading="activeTransfer === snapshot.date"
-                @click="emit('download', snapshot.date)"
-              >
-                <template #icon><Download :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-          </span>
-
-          <!-- 云端槽:可上传时是上传按钮;已在云端时是被动状态标(云副本删除走行尾「删除」) -->
-          <span class="inline-flex h-7 w-7 items-center justify-center">
-            <KTooltip
-              v-if="cloudGame && canUpload(snapshot.date)"
-              :content="$t('manage.cloud_upload')"
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('manage.cloud_upload')"
-                :loading="activeTransfer === snapshot.date"
-                @click="emit('upload', snapshot.date)"
-              >
-                <template #icon><Upload :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
+          <div role="cell" class="flex min-w-0 items-center gap-1.5">
+            <KTag v-if="snapshotSourceTag(snapshot)">{{ snapshotSourceTag(snapshot) }}</KTag>
             <span
-              v-else-if="cloudGame && isInCloud(snapshot.date)"
-              class="inline-flex items-center justify-center"
-              :title="locationLabel(snapshot.date)"
+              v-if="snapshot.describe"
+              class="truncate text-sm text-text"
+              :title="snapshot.describe"
             >
-              <CloudCheck :size="15" class="text-text-dim" aria-hidden="true" />
+              {{ snapshot.describe }}
             </span>
-          </span>
+            <span v-else class="truncate text-sm text-text-dim/70">{{
+              $t('manage.no_description')
+            }}</span>
+          </div>
 
-          <span class="inline-flex h-7 w-7 items-center justify-center">
-            <KTooltip
-              :content="
-                canApply(snapshot.date) ? $t('manage.apply') : $t('manage.download_before_apply')
-              "
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                class="text-success"
-                :aria-label="$t('manage.apply')"
-                :disabled="!canApply(snapshot.date)"
-                @click="emit('apply', snapshot.date)"
-              >
-                <template #icon><Play :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-          </span>
+          <div role="cell" class="flex min-w-0 flex-col gap-0.5">
+            <span class="truncate text-[11px] leading-tight text-text-dim">{{
+              locationLabel(snapshot.date)
+            }}</span>
+            <span class="font-mono text-xs leading-tight text-text">{{
+              snapshot.size ? formatFileSize(snapshot.size) : '-'
+            }}</span>
+          </div>
 
-          <span class="inline-flex h-7 w-7 items-center justify-center">
-            <KTooltip
-              v-if="isAutomaticSnapshot(snapshot) && !isProtected(snapshot.date)"
-              :content="$t('manage.convert_to_permanent')"
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('manage.convert_to_permanent')"
-                @click="emit('convertPermanent', snapshot.date)"
+          <div role="cell" class="flex items-center justify-center">
+            <span class="inline-flex h-7 w-7 items-center justify-center">
+              <KTooltip
+                v-if="cloudGame && isOnDevice(snapshot.date)"
+                :content="$t('manage.local_remove')"
               >
-                <template #icon><Lock :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-            <KTooltip
-              v-else-if="isAutomaticSnapshot(snapshot) && isProtected(snapshot.date)"
-              :content="$t('sync_settings.archives.retention.unprotect')"
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('sync_settings.archives.retention.unprotect')"
-                @click="emit('convertPermanent', snapshot.date)"
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('manage.local_remove')"
+                  :disabled="!canEvict(snapshot.date)"
+                  :loading="activeTransfer === snapshot.date"
+                  @click="emit('evict', snapshot.date)"
+                >
+                  <template #icon><FolderMinus :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+              <KTooltip
+                v-else-if="cloudGame && !isOnDevice(snapshot.date)"
+                :content="
+                  canDownload(snapshot.date)
+                    ? $t('manage.local_download')
+                    : $t('manage.local_unavailable')
+                "
               >
-                <template #icon><LockOpen :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-            <KTooltip
-              v-else
-              :content="
-                localCatalogDates.has(snapshot.date)
-                  ? $t('manage.change_describe')
-                  : $t('manage.download_before_apply')
-              "
-            >
-              <KButton
-                variant="ghost"
-                size="sm"
-                :aria-label="$t('manage.change_describe')"
-                :disabled="!localCatalogDates.has(snapshot.date)"
-                @click="emit('changeDescribe', snapshot.date)"
-              >
-                <template #icon><Pencil :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-          </span>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('manage.local_download')"
+                  :disabled="!canDownload(snapshot.date)"
+                  :loading="activeTransfer === snapshot.date"
+                  @click="emit('download', snapshot.date)"
+                >
+                  <template #icon><Download :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+            </span>
 
-          <span class="inline-flex h-7 w-7 items-center justify-center">
-            <KTooltip :content="$t('manage.delete')">
-              <KButton
-                variant="ghost"
-                size="sm"
-                class="text-danger"
-                :aria-label="$t('manage.delete')"
-                @click="emit('remove', snapshot.date)"
+            <!-- 云端槽:可上传时是上传按钮;已在云端时是被动状态标(云副本删除走行尾「删除」) -->
+            <span class="inline-flex h-7 w-7 items-center justify-center">
+              <KTooltip
+                v-if="cloudGame && canUpload(snapshot.date)"
+                :content="$t('manage.cloud_upload')"
               >
-                <template #icon><Trash2 :size="15" aria-hidden="true" /></template>
-              </KButton>
-            </KTooltip>
-          </span>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('manage.cloud_upload')"
+                  :loading="activeTransfer === snapshot.date"
+                  @click="emit('upload', snapshot.date)"
+                >
+                  <template #icon><Upload :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+              <span
+                v-else-if="cloudGame && isInCloud(snapshot.date)"
+                class="inline-flex items-center justify-center"
+                :title="locationLabel(snapshot.date)"
+              >
+                <CloudCheck :size="15" class="text-text-dim" aria-hidden="true" />
+              </span>
+            </span>
+
+            <span class="inline-flex h-7 w-7 items-center justify-center">
+              <KTooltip
+                :content="
+                  canApply(snapshot.date) ? $t('manage.apply') : $t('manage.download_before_apply')
+                "
+              >
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  class="text-success"
+                  :aria-label="$t('manage.apply')"
+                  :disabled="!canApply(snapshot.date)"
+                  @click="emit('apply', snapshot.date)"
+                >
+                  <template #icon><Play :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+            </span>
+
+            <span class="inline-flex h-7 w-7 items-center justify-center">
+              <KTooltip
+                v-if="isAutomaticSnapshot(snapshot) && !isProtected(snapshot.date)"
+                :content="$t('manage.convert_to_permanent')"
+              >
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('manage.convert_to_permanent')"
+                  @click="emit('convertPermanent', snapshot.date)"
+                >
+                  <template #icon><Lock :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+              <KTooltip
+                v-else-if="isAutomaticSnapshot(snapshot) && isProtected(snapshot.date)"
+                :content="$t('sync_settings.archives.retention.unprotect')"
+              >
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('sync_settings.archives.retention.unprotect')"
+                  @click="emit('convertPermanent', snapshot.date)"
+                >
+                  <template #icon><LockOpen :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+              <KTooltip
+                v-else
+                :content="
+                  localCatalogDates.has(snapshot.date)
+                    ? $t('manage.change_describe')
+                    : $t('manage.download_before_apply')
+                "
+              >
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('manage.change_describe')"
+                  :disabled="!localCatalogDates.has(snapshot.date)"
+                  @click="emit('changeDescribe', snapshot.date)"
+                >
+                  <template #icon><Pencil :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+            </span>
+
+            <span class="inline-flex h-7 w-7 items-center justify-center">
+              <KTooltip :content="$t('manage.delete')">
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  class="text-danger"
+                  :aria-label="$t('manage.delete')"
+                  @click="emit('remove', snapshot.date)"
+                >
+                  <template #icon><Trash2 :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+            </span>
+          </div>
         </div>
       </div>
     </div>

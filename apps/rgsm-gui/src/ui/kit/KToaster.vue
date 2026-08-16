@@ -33,6 +33,7 @@ const toneColor: Record<ToastTone, string> = {
         v-for="toast in toasts"
         :key="toast.id"
         class="k-toast-item pointer-events-auto relative flex gap-3 rounded-md border border-border bg-surface p-3.5 pr-9 shadow-overlay"
+        :role="toast.tone === 'error' ? 'alert' : undefined"
       >
         <component
           :is="toneIcon[toast.tone]"

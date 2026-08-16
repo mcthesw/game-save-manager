@@ -7,7 +7,7 @@ export type KSegmentedOption<T extends string = string> = {
   icon?: Component;
 };
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     options: KSegmentedOption<T>[];
     ariaLabel?: string;
@@ -16,6 +16,25 @@ withDefaults(
 );
 
 const model = defineModel<T>({ required: true });
+
+/** Roving selection: arrows/Home/End move both selection and focus between tabs. */
+function onKeydown(event: KeyboardEvent) {
+  const handled = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+  if (!handled.includes(event.key)) return;
+  event.preventDefault();
+  const options = props.options;
+  const index = options.findIndex((option) => option.value === model.value);
+  let next: number;
+  if (event.key === 'ArrowRight') next = (index + 1) % options.length;
+  else if (event.key === 'ArrowLeft') next = (index - 1 + options.length) % options.length;
+  else if (event.key === 'Home') next = 0;
+  else next = options.length - 1;
+  const target = options[next];
+  if (!target) return;
+  model.value = target.value;
+  const buttons = (event.currentTarget as HTMLElement).querySelectorAll('button');
+  buttons[next]?.focus();
+}
 </script>
 
 <template>
@@ -23,6 +42,7 @@ const model = defineModel<T>({ required: true });
     role="tablist"
     :aria-label="ariaLabel"
     class="flex gap-0.5 rounded-sm border border-border bg-surface p-0.5"
+    @keydown="onKeydown"
   >
     <button
       v-for="option in options"

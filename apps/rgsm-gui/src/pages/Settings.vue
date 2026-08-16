@@ -1074,6 +1074,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
                 ? 'bg-surface-2 font-semibold text-text'
                 : 'text-text-dim hover:bg-surface-2/60 hover:text-text'
             "
+            :aria-current="activeSection === item.key ? 'page' : undefined"
             @click="activeSection = item.key"
           >
             <component :is="item.icon" :size="14" aria-hidden="true" />
