@@ -1,0 +1,279 @@
+.wrap {
+  --sync-auto: var(--ifm-color-primary);
+  --sync-manual: var(--ifm-color-emphasis-600);
+  --sync-new: #1d4ed8;
+  --sync-new-soft: rgba(29, 78, 216, 0.1);
+  margin: 0.5rem 0 1rem;
+}
+
+[data-theme='dark'] .wrap {
+  --sync-new: #6ea8fe;
+  --sync-new-soft: rgba(110, 168, 254, 0.16);
+}
+
+/* 图例 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 0;
+  margin: 0 0 10px;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.swatch {
+  flex: none;
+  width: 26px;
+  height: 0;
+  border-top: 2px solid;
+}
+
+.swatchAuto {
+  color: var(--sync-auto);
+}
+
+.swatchManual {
+  color: var(--sync-manual);
+  border-top-style: dashed;
+}
+
+.swatchNew {
+  color: var(--sync-new);
+}
+
+.legendChip {
+  gap: 8px;
+}
+
+.legendChip .chip {
+  margin-top: 0;
+}
+
+/* 模式面板 */
+.panels {
+  display: grid;
+  gap: 14px;
+}
+
+.panel {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-card-border-radius, 12px);
+  background: var(--ifm-background-surface-color);
+  padding: 14px 18px 12px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.tagline {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* 图解：设备 — 云端 — 设备 */
+.diagram {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) 1fr minmax(88px, auto) 1fr minmax(88px, auto);
+  align-items: center;
+  column-gap: 10px;
+  margin: 12px 0 10px;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--ifm-color-emphasis-400);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-color);
+}
+
+.nodeIcon {
+  width: 26px;
+  height: 26px;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.nodeName {
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.nodeSub {
+  font-size: 0.68rem;
+  color: var(--ifm-color-emphasis-600);
+}
+
+.nodeHighlighted {
+  border-color: var(--sync-new);
+  box-shadow: 0 0 0 3px var(--sync-new-soft);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 0 8px;
+  border: 1px solid var(--sync-new);
+  border-radius: 999px;
+  color: var(--sync-new);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.chipIcon {
+  width: 11px;
+  height: 11px;
+}
+
+/* 箭头泳道 */
+.connector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lane {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 3px;
+}
+
+.laneLabel {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.arrow {
+  position: relative;
+  width: 100%;
+  height: 0;
+  border-top: 2px solid;
+}
+
+.lane.auto .arrow {
+  color: var(--sync-auto);
+}
+
+.lane.manual .arrow {
+  color: var(--sync-manual);
+  border-top-style: dashed;
+}
+
+.lane.new .arrow {
+  color: var(--sync-new);
+}
+
+.arrow::before,
+.arrow::after {
+  content: '';
+  position: absolute;
+  border: 5px solid transparent;
+}
+
+.headsLeft .arrow::before,
+.headsBoth .arrow::before {
+  left: -2px;
+  top: -4px;
+  border-right-color: currentColor;
+}
+
+.headsRight .arrow::after,
+.headsBoth .arrow::after {
+  right: -2px;
+  top: -4px;
+  border-left-color: currentColor;
+}
+
+/* 面板说明 */
+.notes {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.85rem;
+}
+
+.notes li {
+  margin: 2px 0;
+}
+
+/* 窄屏：节点纵向堆叠，箭头转为纵向 */
+@media (max-width: 620px) {
+  .diagram {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    row-gap: 4px;
+  }
+
+  .node {
+    min-width: 128px;
+  }
+
+  .connector {
+    align-items: stretch;
+    gap: 6px;
+    width: min(100%, 300px);
+    margin: 2px 0;
+  }
+
+  .lane {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    column-gap: 10px;
+    align-items: center;
+  }
+
+  .laneLabel {
+    text-align: left;
+  }
+
+  .arrow {
+    justify-self: center;
+    width: 0;
+    height: 30px;
+    border-top: none;
+    border-left: 2px solid;
+  }
+
+  .lane.manual .arrow {
+    border-left-style: dashed;
+  }
+
+  .headsLeft .arrow::before,
+  .headsBoth .arrow::before {
+    left: -4px;
+    top: -2px;
+    border-right-color: transparent;
+    border-bottom-color: currentColor;
+  }
+
+  .headsRight .arrow::after,
+  .headsBoth .arrow::after {
+    right: auto;
+    left: -4px;
+    top: auto;
+    bottom: -2px;
+    border-left-color: transparent;
+    border-top-color: currentColor;
+  }
+}
