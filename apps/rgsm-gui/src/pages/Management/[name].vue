@@ -1170,19 +1170,14 @@ async function checkCurrentDeviceSavePaths() {
 
   try {
     // 询问用户是否要复制其他设备的存档路径
-    const confirmResult = await feedback.confirm(
-      $t('manage.empty_paths_prompt'),
-      $t('manage.empty_paths_title'),
-      {
-        confirmButtonText: $t('manage.copy_from_device'),
-        cancelButtonText: $t('manage.keep_empty'),
-        type: 'info',
-        closeOnClickModal: false,
-        closeOnPressEscape: false,
-      }
-    );
-
-    if (confirmResult !== 'confirm') return;
+    // useFeedback 契约:确认则 resolve,取消则 reject
+    await feedback.confirm($t('manage.empty_paths_prompt'), $t('manage.empty_paths_title'), {
+      confirmButtonText: $t('manage.copy_from_device'),
+      cancelButtonText: $t('manage.keep_empty'),
+      type: 'info',
+      closeOnClickModal: false,
+      closeOnPressEscape: false,
+    });
 
     // 准备设备选择列表
     const deviceOptions = Array.from(devicesWithPaths).map((id) => ({
