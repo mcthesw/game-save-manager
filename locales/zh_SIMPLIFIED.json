@@ -645,7 +645,10 @@
         "general": "操作失败"
       },
       "checking_title": "正在检测",
-      "retest": "重新检测"
+      "retest": "重新检测",
+      "summary_passed": "{passed}/{total} 项通过",
+      "details": "详情",
+      "collapse": "收起"
     },
     "unknown_backend": "使用了未知的云存档后端，请检查设置",
     "upload_success": "上传成功，云端文件已经更新",
@@ -1178,7 +1181,9 @@
     "operation_in_progress": "正在处理中...",
     "minutes_ago": "{n} 分钟前",
     "hours_ago": "{n} 小时前",
-    "days_ago": "{n} 天前"
+    "days_ago": "{n} 天前",
+    "show": "显示",
+    "hide": "隐藏"
   },
   "device_setup": {
     "title": "设备设置",

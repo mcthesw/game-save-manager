@@ -21,7 +21,7 @@
             class="w-full"
             size="sm"
             :placeholder="$t('game_batch_import.store_user_id_placeholder')"
-            aria-label="Steam user ID"
+            :aria-label="$t('game_batch_import.store_user_id')"
             list="batch-user-id-candidates"
             mono
             @blur="handleStoreUserIdChange"

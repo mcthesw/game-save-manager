@@ -33,6 +33,18 @@ export default [
       'vue/multi-word-component-names': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      // Element Plus 已全面移除,禁止回流(S8);新 UI 一律走 src/ui/kit
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['element-plus', 'element-plus/*', '@element-plus/*'],
+              message: 'Element Plus was removed (S8). Use src/ui/kit components instead.',
+            },
+          ],
+        },
+      ],
     },
   },
 ];

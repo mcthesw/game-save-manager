@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import 'element-plus/theme-chalk/dark/css-vars.css';
-
 import { LoaderCircle } from '@lucide/vue';
 import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
@@ -68,10 +66,8 @@ function applyUiFont(stack: string | null) {
   const style = document.documentElement.style;
   if (stack) {
     style.setProperty('--rgsm-ui-font-family', stack);
-    style.setProperty('--el-font-family', stack);
   } else {
     style.removeProperty('--rgsm-ui-font-family');
-    style.removeProperty('--el-font-family');
   }
 }
 

@@ -103,6 +103,21 @@ const checkItems = computed<UiCheckItem[]>(() =>
   })
 );
 
+/** 步骤清单是诊断细节:健康时折叠成一行摘要,出问题自动展开且只列异常项 */
+const detailsOpen = ref(false);
+const problemItems = computed(() =>
+  checkItems.value.filter((item) => item.status === 'failed' || item.status === 'warning')
+);
+const passedCount = computed(
+  () => checkItems.value.filter((item) => item.status === 'passed').length
+);
+const visibleItems = computed(() => (detailsOpen.value ? checkItems.value : problemItems.value));
+const hasHiddenSteps = computed(() => checkItems.value.length > problemItems.value.length);
+
+watch(problemItems, (items) => {
+  if (items.length > 0) detailsOpen.value = true;
+});
+
 const titleKey = computed(() =>
   props.checking
     ? 'sync_settings.check_result.checking_title'
@@ -110,7 +125,9 @@ const titleKey = computed(() =>
 );
 
 const descriptionKey = computed(() => {
-  if (props.checking || currentOutcome.value === 'unknown') return null;
+  // 可用态不赘述:绿点+全过步骤已足够;只有异常态才给说明
+  if (props.checking || currentOutcome.value === 'unknown' || currentOutcome.value === 'available')
+    return null;
   return OUTCOME_META[currentOutcome.value].descKey;
 });
 
@@ -141,23 +158,21 @@ async function copyError(message: string, key: string) {
 </script>
 
 <template>
-  <section class="flex flex-col border-l border-border pl-5" aria-live="polite">
-    <div class="flex items-start gap-2.5">
+  <section class="flex flex-col" aria-live="polite">
+    <div class="flex items-center gap-2">
       <span
-        class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+        class="h-2 w-2 shrink-0 rounded-full"
         :style="{ background: indicatorColor }"
         aria-hidden="true"
       />
-      <div class="min-w-0 flex-1">
-        <span class="block text-sm font-semibold leading-snug text-text">{{ $t(titleKey) }}</span>
-        <span v-if="descriptionKey" class="mt-1 block text-xs leading-relaxed text-text-dim">{{
-          $t(descriptionKey)
-        }}</span>
-      </div>
-      <LoaderCircle v-if="checking" :size="15" class="shrink-0 animate-spin text-accent" />
+      <span class="text-sm font-semibold leading-snug text-text">{{ $t(titleKey) }}</span>
+      <LoaderCircle v-if="checking" :size="13" class="shrink-0 animate-spin text-accent" />
     </div>
+    <p v-if="descriptionKey" class="mt-1 text-xs leading-snug text-text-dim">
+      {{ $t(descriptionKey) }}
+    </p>
 
-    <div class="mt-4 flex flex-col gap-2.5 border-t border-border pt-3.5">
+    <div v-if="report && !checking" class="mt-2 flex flex-col gap-1.5">
       <div v-for="item in checkItems" :key="item.step" class="flex items-center gap-2">
         <span
           v-if="item.status === 'pending'"
@@ -178,7 +193,7 @@ async function copyError(message: string, key: string) {
         />
         <TriangleAlert v-else :size="14" class="shrink-0 text-warning" aria-hidden="true" />
         <span
-          class="min-w-0 flex-1 text-[13px]"
+          class="min-w-0 flex-1 text-xs"
           :class="item.status === 'pending' ? 'text-text-dim/70' : 'text-text'"
         >
           {{ $t(STEP_LABELS[item.step]) }}
@@ -210,7 +225,7 @@ async function copyError(message: string, key: string) {
 
     <div
       v-if="error"
-      class="mt-3.5 flex items-center justify-between gap-2 rounded-md bg-danger-soft px-3 py-2.5 text-[13px] text-danger"
+      class="mt-3 flex items-center justify-between gap-2 rounded-md bg-danger-soft px-2.5 py-2 text-xs text-danger"
     >
       <span>{{ categorizeError(error) }}</span>
       <KButton variant="ghost" size="sm" class="text-danger" @click="copyError(error, 'command')">
@@ -222,10 +237,10 @@ async function copyError(message: string, key: string) {
       </KButton>
     </div>
 
-    <footer class="mt-4">
+    <div class="mt-3">
       <KButton
         variant="primary"
-        class="w-full"
+        size="sm"
         :loading="checking"
         :disabled="disabled || checking"
         @click="emit('test')"
@@ -236,6 +251,6 @@ async function copyError(message: string, key: string) {
             : $t('sync_settings.test_button')
         }}
       </KButton>
-    </footer>
+    </div>
   </section>
 </template>

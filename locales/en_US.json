@@ -645,7 +645,10 @@
         "general": "Operation failed"
       },
       "checking_title": "Checking",
-      "retest": "Check again"
+      "retest": "Check again",
+      "summary_passed": "{passed}/{total} checks passed",
+      "details": "Details",
+      "collapse": "Collapse"
     },
     "unknown_backend": "Unknown cloud backend used, please check settings",
     "upload_success": "Successfully uploaded, cloud file has been updated",
@@ -1178,7 +1181,9 @@
     "operation_in_progress": "Working on it...",
     "minutes_ago": "{n} min ago",
     "hours_ago": "{n} hr ago",
-    "days_ago": "{n} d ago"
+    "days_ago": "{n} d ago",
+    "show": "Show",
+    "hide": "Hide"
   },
   "device_setup": {
     "title": "Device Setup",
