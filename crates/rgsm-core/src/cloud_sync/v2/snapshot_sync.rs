@@ -141,7 +141,7 @@ impl SnapshotSyncCoordinator {
     ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
         self.ensure_active_or_converge_deleted_game(game_id).await?;
         let mut manifest = self.repository().load().await?;
-        let order = publication_order(&manifest, game_id, local, local_baseline)?;
+        let order = publication_order(&manifest, game_id, local)?;
         let mut outcome = SnapshotReconciliationOutcome::default();
 
         for snapshot in order {
@@ -544,15 +544,14 @@ fn merge_local_snapshot(
 
 /// Return missing local nodes in parent-before-child order.
 ///
-/// The traversal starts only from post-activation nodes (those absent from the
-/// captured baseline), but walks through baseline ancestors when the remote
-/// graph does not know them yet. This preserves graph validity without
-/// automatically uploading those inherited Archive bytes.
+/// All local snapshots absent from the remote manifest are published,
+/// including baseline entries. Baseline nodes receive the activation
+/// revision as their catalog revision, which suppresses automatic
+/// archive upload while still making progress visible to other Devices.
 fn publication_order(
     manifest: &CloudManifest,
     game_id: &str,
     local: &GameSnapshots,
-    local_baseline: &BTreeSet<String>,
 ) -> Result<Vec<Snapshot>, SnapshotSyncError> {
     let remote = manifest.games.get(game_id);
     let known: BTreeSet<String> = remote
@@ -567,7 +566,7 @@ fn publication_order(
     let mut emitted = known.clone();
     let mut order = Vec::new();
     for snapshot in &local.backups {
-        if local_baseline.contains(&snapshot.date) || known.contains(&snapshot.date) {
+        if known.contains(&snapshot.date) {
             continue;
         }
         visit_snapshot(
