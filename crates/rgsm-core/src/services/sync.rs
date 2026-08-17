@@ -276,14 +276,20 @@ impl ServiceContext {
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        // Best-effort: remove all V2 remote objects so re-inspection sees an
-        // empty root instead of the same corrupt state.
+        // Remove all V2 remote objects so re-inspection sees an
+        // empty root instead of the same corrupt state. Propagate
+        // deletion errors: a transient failure must not downgrade the
+        // namespace while corrupt objects remain remotely.
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        if let Ok(operator) = session.get_op() {
-            let _ = operator
-                .delete_with(crate::cloud_sync::v2::V2_NAMESPACE_PREFIX)
-                .recursive(true)
-                .await;
+        let operator = session.get_op()?;
+        match operator
+            .delete_with(crate::cloud_sync::v2::V2_NAMESPACE_PREFIX)
+            .recursive(true)
+            .await
+        {
+            Ok(()) => {}
+            Err(err) if err.kind() == opendal::ErrorKind::NotFound => {}
+            Err(err) => return Err(BackendError::from(err).into()),
         }
         crate::config::downgrade_cloud_namespace_to_legacy()?;
         Ok(())
@@ -657,13 +663,12 @@ impl ServiceContext {
         let existing_activation_revision = settings.snapshot_sync_activation_revision;
 
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        DeviceProfileRepository::new(session.get_op()?, 3)
-            .publish(&local_state.current_device_id, &accepted_profile)
-            .await?;
-        replace_current_device_profile(&expected_profile, &accepted_profile)?;
 
-        // When disabling cloud sync, clear this Device's advertised head so
-        // other Devices stop treating it as a participating divergent branch.
+        // When disabling cloud sync, clear this Device's advertised head
+        // BEFORE publishing the disabled profile. If we published first and
+        // the manifest mutation failed, a repeated disable would skip the
+        // clear (was_enabled == false), leaving the stale head visible to
+        // other Devices indefinitely.
         if !enabled && was_enabled {
             let device_id = local_state.current_device_id.clone();
             CloudManifestRepository::new(session.get_op()?, CLOUD_MANIFEST_PATH, 3)
@@ -675,6 +680,11 @@ impl ServiceContext {
                 })
                 .await?;
         }
+
+        DeviceProfileRepository::new(session.get_op()?, 3)
+            .publish(&local_state.current_device_id, &accepted_profile)
+            .await?;
+        replace_current_device_profile(&expected_profile, &accepted_profile)?;
 
         let published = if newly_enabled {
             let game = effective_config
