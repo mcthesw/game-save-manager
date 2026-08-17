@@ -53,7 +53,10 @@ pub use join::{
     CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinItem, CloudLibraryJoinReview,
     GameDefinitionDifference, JoinGameAction, JoinGameDecision,
 };
-pub use local_eviction::{LocalArchiveEviction, LocalArchiveEvictionError};
+pub use local_eviction::{
+    CloudArchiveEviction, CloudArchiveEvictionError, LocalArchiveEviction,
+    LocalArchiveEvictionError,
+};
 pub use manifest::{
     CLOUD_MANIFEST_SCHEMA_VERSION, CloudManifest, DeletionKind, GameManifest, LiveSnapshot,
     ManifestError, PendingTombstone, SnapshotNode, SnapshotState,
@@ -87,6 +90,6 @@ pub use retention::{
 };
 pub use shared_library_repository::{SharedLibraryRepository, SharedLibraryRepositoryError};
 pub use snapshot_sync::{
-    RetentionEnforcementOutcome, SnapshotReconciliationOutcome, SnapshotSyncCoordinator,
-    SnapshotSyncError,
+    RetentionEnforcementOutcome, SnapshotReconcilePolicy, SnapshotReconciliationOutcome,
+    SnapshotSyncCoordinator, SnapshotSyncError,
 };

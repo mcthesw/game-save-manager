@@ -28,7 +28,7 @@ pub use snapshot_sync::{
 };
 pub use sync::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryServiceError,
-    CloudLibraryStatus, GameSyncModeOutcome, LiveSaveSyncOptions,
+    CloudLibraryStatus, CurrentPositionDecision, GameSyncModeOutcome, LiveSaveSyncOptions,
 };
 
 #[derive(Clone)]

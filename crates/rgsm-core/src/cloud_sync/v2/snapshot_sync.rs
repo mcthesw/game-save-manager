@@ -8,18 +8,27 @@ use tokio_util::sync::CancellationToken;
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer,
     CloudManifest, CloudManifestRepository, DeletionKind, DeletionRegistryError,
-    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
-    SnapshotDeletionLifecycleError, SnapshotNode, SnapshotRetentionPlanner,
-    SnapshotRetentionPlannerError, SnapshotState,
+    DeletionRegistryRepository, GameManifest, ManifestError, ManifestRepositoryError,
+    SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotNode,
+    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SnapshotReconciliationOutcome {
     pub published: usize,
     pub uploaded: usize,
     pub downloaded: usize,
+    /// Snapshot that was downloaded as the Forward Target, if any.
+    /// The service layer uses this to trigger Automatic Apply.
+    pub forward_target: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SnapshotReconcilePolicy {
+    pub upload_new_archives: bool,
+    pub download_forward_target: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -74,7 +83,10 @@ impl SnapshotSyncCoordinator {
             activation_revision,
             local_baseline,
             cancellation,
-            true,
+            SnapshotReconcilePolicy {
+                upload_new_archives: true,
+                download_forward_target: true,
+            },
         )
         .await
     }
@@ -93,7 +105,27 @@ impl SnapshotSyncCoordinator {
             activation_revision,
             local_baseline,
             cancellation,
-            false,
+            SnapshotReconcilePolicy::default(),
+        )
+        .await
+    }
+
+    pub async fn reconcile_game_with_policy(
+        &self,
+        game_id: &str,
+        local: &GameSnapshots,
+        activation_revision: u64,
+        local_baseline: &BTreeSet<String>,
+        cancellation: &CancellationToken,
+        policy: SnapshotReconcilePolicy,
+    ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
+        self.reconcile_game_inner(
+            game_id,
+            local,
+            activation_revision,
+            local_baseline,
+            cancellation,
+            policy,
         )
         .await
     }
@@ -105,7 +137,7 @@ impl SnapshotSyncCoordinator {
         activation_revision: u64,
         local_baseline: &BTreeSet<String>,
         cancellation: &CancellationToken,
-        materialize_remote: bool,
+        policy: SnapshotReconcilePolicy,
     ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncError> {
         self.ensure_active_or_converge_deleted_game(game_id).await?;
         let mut manifest = self.repository().load().await?;
@@ -146,42 +178,60 @@ impl SnapshotSyncCoordinator {
 
         self.publish_current_head(game_id, local).await?;
         manifest = self.repository().load().await?;
-        let upload_ids = manifest
-            .games
-            .get(game_id)
-            .map(|game| {
-                game.snapshots
-                    .values()
-                    .filter(|node| {
-                        node.catalog_revision > activation_revision
-                            && !local_baseline.contains(&node.snapshot_id)
-                            && game
-                                .local_archives
-                                .get(&self.current_device_id)
-                                .is_some_and(|items| items.contains(&node.snapshot_id))
-                            && matches!(
-                                &node.state,
-                                SnapshotState::Live(live) if !live.cloud_archive_verified
-                            )
-                    })
-                    .map(|node| node.snapshot_id.clone())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        for snapshot_id in upload_ids {
+        if policy.upload_new_archives {
+            let upload_ids = manifest
+                .games
+                .get(game_id)
+                .map(|game| {
+                    game.snapshots
+                        .values()
+                        .filter(|node| {
+                            node.catalog_revision > activation_revision
+                                && !local_baseline.contains(&node.snapshot_id)
+                                && game
+                                    .local_archives
+                                    .get(&self.current_device_id)
+                                    .is_some_and(|items| items.contains(&node.snapshot_id))
+                                && matches!(
+                                    &node.state,
+                                    SnapshotState::Live(live) if !live.cloud_archive_verified && !live.cloud_evicted
+                                )
+                        })
+                        .map(|node| node.snapshot_id.clone())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            for snapshot_id in upload_ids {
+                if cancellation.is_cancelled() {
+                    return Err(SnapshotSyncError::Cancelled);
+                }
+                self.materializer.upload(game_id, &snapshot_id).await?;
+                outcome.uploaded += 1;
+            }
+        }
+
+        if policy.download_forward_target {
             if cancellation.is_cancelled() {
                 return Err(SnapshotSyncError::Cancelled);
             }
-            self.materializer.upload(game_id, &snapshot_id).await?;
-            outcome.uploaded += 1;
-        }
-
-        if materialize_remote {
-            outcome.downloaded = self
-                .materializer
-                .materialize_game_since(game_id, activation_revision, cancellation)
-                .await?
-                .downloaded;
+            manifest = self.repository().load().await?;
+            if let Some(target_id) = unique_forward_target(
+                manifest.games.get(game_id),
+                local
+                    .head_for_device(&self.current_device_id)
+                    .map(String::as_str),
+            )? {
+                let already_local = manifest.games.get(game_id).is_some_and(|game| {
+                    game.local_archives
+                        .get(&self.current_device_id)
+                        .is_some_and(|items| items.contains(&target_id))
+                });
+                if !already_local {
+                    self.materializer.download(game_id, &target_id).await?;
+                    outcome.downloaded = 1;
+                    outcome.forward_target = Some(target_id);
+                }
+            }
         }
         Ok(outcome)
     }
@@ -364,23 +414,23 @@ impl SnapshotSyncCoordinator {
         Ok(())
     }
 
-    async fn publish_current_head(
+    pub async fn publish_current_head(
         &self,
         game_id: &str,
         local: &GameSnapshots,
     ) -> Result<(), SnapshotSyncError> {
-        let Some(head) = local.head_for_device(&self.current_device_id).cloned() else {
-            return Ok(());
-        };
         self.ensure_active_or_converge_deleted_game(game_id).await?;
+        let head = local.head_for_device(&self.current_device_id).cloned();
         let manifest = self.repository().load().await?;
         let Some(game) = manifest.games.get(game_id) else {
             return Ok(());
         };
-        if !game.snapshots.contains_key(&head)
-            || game.device_heads.get(&self.current_device_id) == Some(&head)
-        {
-            return Ok(());
+        let advertised = game.device_heads.get(&self.current_device_id);
+        match head.as_deref() {
+            None if advertised.is_none() => return Ok(()),
+            Some(head) if advertised.map(String::as_str) == Some(head) => return Ok(()),
+            Some(head) if !game.snapshots.contains_key(head) => return Ok(()),
+            _ => {}
         }
         let game_id = game_id.to_string();
         let cleanup_game_id = game_id.clone();
@@ -391,10 +441,15 @@ impl SnapshotSyncCoordinator {
                     .games
                     .get_mut(&game_id)
                     .ok_or_else(|| ManifestError::MissingGame(game_id.clone()))?;
-                if !game.snapshots.contains_key(&head) {
-                    return Err(ManifestError::MissingSnapshot(head.clone()));
+                match &head {
+                    Some(head) => {
+                        if !game.snapshots.contains_key(head) {
+                            return Err(ManifestError::MissingSnapshot(head.clone()));
+                        }
+                        game.set_head(current_device_id.clone(), head.clone());
+                    }
+                    None => game.clear_head(&current_device_id),
                 }
-                game.set_head(current_device_id.clone(), head.clone());
                 Ok(())
             })
             .await?;
@@ -536,6 +591,49 @@ fn visit_snapshot(
     Ok(())
 }
 
+/// Unique compatible descendant of this Device's Current Position.
+///
+/// Returns `None` when there is no unique Forward Target: same position,
+/// true divergence, or a missing/unverified Archive.
+fn unique_forward_target(
+    game: Option<&GameManifest>,
+    local_head: Option<&str>,
+) -> Result<Option<String>, SnapshotSyncError> {
+    let Some(game) = game else {
+        return Ok(None);
+    };
+    let maximal = game.maximal_heads()?;
+    let candidates = match local_head {
+        None => maximal,
+        Some(local) => {
+            let mut descendants = BTreeSet::new();
+            for head in maximal {
+                if game.is_ancestor_or_equal(local, &head)? && head != local {
+                    descendants.insert(head);
+                }
+            }
+            descendants
+        }
+    };
+    if candidates.len() != 1 {
+        return Ok(None);
+    }
+    let target = candidates
+        .into_iter()
+        .next()
+        .expect("checked unique target");
+    let Some(node) = game.snapshots.get(&target) else {
+        return Ok(None);
+    };
+    if !matches!(
+        &node.state,
+        SnapshotState::Live(live) if live.cloud_archive_verified
+    ) {
+        return Ok(None);
+    }
+    Ok(Some(target))
+}
+
 #[derive(Debug, Error)]
 pub enum SnapshotSyncError {
     #[error("Local Snapshot graph is missing ancestor {0}")]
@@ -550,6 +648,8 @@ pub enum SnapshotSyncError {
     Integrity(#[from] ArchiveIntegrityError),
     #[error(transparent)]
     Manifest(#[from] ManifestRepositoryError),
+    #[error(transparent)]
+    ManifestGraph(#[from] ManifestError),
     #[error(transparent)]
     Materialization(#[from] super::MaterializationError),
     #[error(transparent)]
@@ -648,6 +748,7 @@ mod tests {
                 published: 2,
                 uploaded: 1,
                 downloaded: 0,
+                forward_target: None,
             }
         );
         let stored = coordinator.repository().load().await.unwrap();
@@ -677,7 +778,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reconciliation_downloads_only_post_activation_cloud_archives() {
+    async fn reconciliation_downloads_only_the_unique_forward_target() {
         let operator = memory_operator();
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("deck");
@@ -686,13 +787,15 @@ mod tests {
             ..Default::default()
         };
         let mut game = GameManifest::new("game");
-        for (id, revision, bytes) in [("old", 5, b"old".as_slice()), ("new", 6, b"new".as_slice())]
-        {
+        for (id, parent, revision, bytes) in [
+            ("old", None, 5, b"old".as_slice()),
+            ("new", Some("old"), 6, b"new".as_slice()),
+        ] {
             let fixture = root.path().join(format!("{id}.zip"));
             std::fs::write(&fixture, bytes).unwrap();
             let mut node = SnapshotNode::live(
                 id,
-                None,
+                parent.map(str::to_string),
                 ArchiveIntegrity::from_file(&fixture).unwrap(),
                 CreatedBy::Manual,
             );
@@ -710,6 +813,7 @@ mod tests {
                 .await
                 .unwrap();
         }
+        game.set_head("pc".into(), "new".into());
         manifest.games.insert("game".into(), game);
         write_manifest(&operator, &manifest).await;
         let coordinator = SnapshotSyncCoordinator::new(

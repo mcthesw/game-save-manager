@@ -319,6 +319,8 @@ pub enum SnapshotDeletionLifecycleError {
     SnapshotNotFound(String),
     #[error("Permanent Snapshot deletion requires explicit confirmation")]
     ConfirmationRequired,
+    #[error("This device's Current Position still points at {0}")]
+    CurrentPositionBlocksDeletion(String),
     #[error("Snapshot deletion must be retried on the initiating Device: {0}")]
     DeletionOwnedByDevice(DeviceId),
     #[error(transparent)]

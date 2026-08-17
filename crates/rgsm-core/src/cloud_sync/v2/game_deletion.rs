@@ -287,12 +287,14 @@ mod tests {
     fn device_game() -> DeviceGameProfile {
         DeviceGameProfile {
             visible: true,
-            sync_mode: SyncMode::SnapshotSync,
+            cloud_sync_enabled: true,
+            sync_mode: SyncMode::CloudBackup,
             snapshot_sync_activation_revision: Some(1),
             snapshot_sync_local_baseline: Default::default(),
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             live_save_process_name: None,
             live_save_snapshot_on_exit: false,
+            multi_device_sync_suspended: false,
             game_path: Some("/games/example".into()),
             binding: None,
             auto_backup: None,

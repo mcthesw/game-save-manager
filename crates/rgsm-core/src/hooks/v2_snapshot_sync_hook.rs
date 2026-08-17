@@ -15,6 +15,12 @@ pub struct SnapshotSyncTarget {
     pub activation_revision: u64,
     pub local_baseline: BTreeSet<String>,
     pub retention_limit: Option<u32>,
+    pub upload_new_archives: bool,
+    pub download_forward_target: bool,
+    /// True when the game uses Multi-device Sync. The sync loop uses this to
+    /// perform publication-only reconciliation before checking divergence,
+    /// preventing stale suspension flags from allowing transfers.
+    pub is_multi_device_sync: bool,
 }
 
 pub struct V2SnapshotSyncHook {
@@ -58,12 +64,16 @@ impl LifecycleHook for V2SnapshotSyncHook {
         let _guard = self.operation_lock.lock().await;
         let outcome = self
             .coordinator
-            .publish_local_game(
+            .reconcile_game_with_policy(
                 game_id.as_ref(),
                 &ctx.snapshots,
                 target.activation_revision,
                 &target.local_baseline,
                 &CancellationToken::new(),
+                crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                    upload_new_archives: target.upload_new_archives,
+                    download_forward_target: false,
+                },
             )
             .await?;
         let retained = if let Some(limit) = target.retention_limit {

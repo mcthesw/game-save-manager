@@ -167,6 +167,14 @@ impl OwnerStore {
         self.write(&owners)
     }
 
+    /// Downgrade from V2 when the cloud namespace is broken or manually
+    /// deleted. This is a recovery path, not a normal transition.
+    pub(crate) fn downgrade_to_legacy(&self) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::LegacyV1;
+        self.write(&owners)
+    }
+
     pub(crate) fn activate_join_v2(
         &self,
         expected_local_library: &SharedLibrary,

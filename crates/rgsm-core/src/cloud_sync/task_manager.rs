@@ -286,7 +286,7 @@ impl CloudSyncTaskManager {
     }
 
     pub async fn finish_manual_job(
-        &self,
+        self: &Arc<Self>,
         id: u64,
         description: &str,
         status: CloudSyncJobStatus,
@@ -350,7 +350,7 @@ impl CloudSyncTaskManager {
     }
 
     async fn finish_job(
-        &self,
+        self: &Arc<Self>,
         id: u64,
         description: &str,
         status: CloudSyncJobStatus,
@@ -367,6 +367,18 @@ impl CloudSyncTaskManager {
         while state.history.len() > MAX_HISTORY_SIZE {
             state.history.pop_front();
         }
+        drop(state);
+
+        // Auto-clear completed/cancelled jobs from history so the drawer
+        // doesn't accumulate stale entries.
+        let this = Arc::clone(self);
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let mut state = this.state.lock().await;
+            state.history.retain(|j| j.id != id);
+            drop(state);
+            this.emit_full_status(None).await;
+        });
     }
 
     async fn run_worker(self: Arc<Self>) {

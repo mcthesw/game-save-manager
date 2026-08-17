@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::{
-    CloudNamespaceGeneration, Config, ConfigurationOwners, OwnershipError, QuickActionsSettings,
-    SharedSnapshotRetentionPolicy,
+    CloudNamespaceGeneration, Config, ConfigurationOwners, DeviceGameProfile, OwnershipError,
+    QuickActionsSettings, SharedSnapshotRetentionPolicy, SyncMode,
 };
 use crate::backup::{Game, SaveUnit, SaveUnitType};
 use crate::device::{Device, DeviceId};
@@ -127,6 +127,58 @@ fn legacy_owner_json_defaults_to_v1_generation() {
         reloaded.local_state.cloud_namespace_generation,
         CloudNamespaceGeneration::LegacyV1
     );
+}
+
+#[test]
+fn legacy_sync_mode_aliases_become_presets_and_infer_enablement() {
+    let snapshot: DeviceGameProfile = serde_json::from_value(serde_json::json!({
+        "visible": true,
+        "sync_mode": "snapshot_sync",
+        "game_path": null,
+        "binding": null,
+        "auto_backup": null,
+        "save_units": {}
+    }))
+    .unwrap();
+    assert_eq!(snapshot.sync_mode, SyncMode::CloudBackup);
+    assert!(snapshot.cloud_sync_enabled);
+
+    let live: DeviceGameProfile = serde_json::from_value(serde_json::json!({
+        "visible": true,
+        "sync_mode": "live_save_sync",
+        "game_path": null,
+        "binding": null,
+        "auto_backup": null,
+        "save_units": {}
+    }))
+    .unwrap();
+    assert_eq!(live.sync_mode, SyncMode::MultiDeviceSync);
+    assert!(live.cloud_sync_enabled);
+
+    let manual: DeviceGameProfile = serde_json::from_value(serde_json::json!({
+        "visible": true,
+        "sync_mode": "manual",
+        "game_path": null,
+        "binding": null,
+        "auto_backup": null,
+        "save_units": {}
+    }))
+    .unwrap();
+    assert_eq!(manual.sync_mode, SyncMode::Manual);
+    assert!(!manual.cloud_sync_enabled);
+
+    let remembered: DeviceGameProfile = serde_json::from_value(serde_json::json!({
+        "visible": true,
+        "cloud_sync_enabled": false,
+        "sync_mode": "cloud_backup",
+        "game_path": null,
+        "binding": null,
+        "auto_backup": null,
+        "save_units": {}
+    }))
+    .unwrap();
+    assert_eq!(remembered.sync_mode, SyncMode::CloudBackup);
+    assert!(!remembered.cloud_sync_enabled);
 }
 
 #[test]

@@ -3,7 +3,7 @@ use specta::Type;
 
 use crate::app_dirs::resolve_app_path;
 use crate::cloud_sync::CloudSyncSessionConfig;
-use crate::cloud_sync::v2::{DeviceProfileRepository, LocalArchiveEviction};
+use crate::cloud_sync::v2::{CloudArchiveEviction, DeviceProfileRepository, LocalArchiveEviction};
 use crate::config::{
     CloudNamespaceGeneration, cloud_bootstrap_inputs, get_config, replace_current_device_profile,
 };
@@ -145,6 +145,23 @@ impl ServiceContext {
         )
         .evict(game_id, snapshot_id)
         .await?)
+    }
+
+    pub async fn evict_cloud_archive(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        confirmed: bool,
+    ) -> Result<bool, CloudLibraryServiceError> {
+        if !confirmed {
+            return Err(CloudLibraryServiceError::ConfirmationRequired);
+        }
+        self.converged_materializer().await?;
+        let (_, _, local_state) = v2_inputs()?;
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        Ok(CloudArchiveEviction::new(session.get_op()?, 3)
+            .evict(game_id, snapshot_id)
+            .await?)
     }
 }
 

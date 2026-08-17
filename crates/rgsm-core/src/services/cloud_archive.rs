@@ -63,6 +63,7 @@ impl ServiceContext {
                 game.managed = true;
                 game.visible = settings.visible;
                 game.sync_mode = settings.sync_mode;
+                game.cloud_sync_enabled = settings.cloud_sync_enabled;
                 game.live_save_process_name = settings.live_save_process_name.clone();
                 game.live_save_snapshot_on_exit = settings.live_save_snapshot_on_exit;
             }

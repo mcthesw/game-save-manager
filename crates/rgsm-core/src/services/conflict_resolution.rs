@@ -44,7 +44,7 @@ impl ServiceContext {
             .map(resolve_app_path)
             .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        Ok(V2ConflictResolver::new(
+        let outcome = V2ConflictResolver::new(
             session.get_op()?,
             local_archive_root,
             local_state.current_device_id,
@@ -52,7 +52,9 @@ impl ServiceContext {
             3,
         )
         .keep_local(game_id, manifest_revision, local_snapshot_id, &local)
-        .await?)
+        .await?;
+        self.set_multi_device_sync_suspended(game_id, false).await?;
+        Ok(outcome)
     }
 
     pub async fn accept_v2_remote_progress(
@@ -149,6 +151,7 @@ impl ServiceContext {
                 });
             }
         };
+        self.set_multi_device_sync_suspended(game_id, false).await?;
         Ok(AcceptRemoteProgressOutcome {
             snapshot_id: prepared.selected_snapshot_id,
             safety_backup_created: backup_date.is_some(),

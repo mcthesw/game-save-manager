@@ -155,17 +155,9 @@ async fn conflict_review_reports_divergent_device_positions() {
             .map(|local| local.snapshot_id.as_str()),
         Some(LOCAL_HEAD_ID)
     );
-    assert_eq!(review.candidates.len(), 2);
-
-    let local = review
-        .candidates
-        .iter()
-        .find(|candidate| candidate.snapshot_id == LOCAL_HEAD_ID)
-        .expect("device A head should be advertised");
-    assert_eq!(local.devices, vec![histories.device_a.id.clone()]);
-    assert_eq!(local.relation, ProgressRelation::Same);
-    assert!(local.local_available);
-    assert!(local.cloud_available);
+    // The current Device's head is excluded from remote candidates because
+    // the local Current Position is authoritative. Only device B's head appears.
+    assert_eq!(review.candidates.len(), 1);
 
     let remote = review
         .candidates

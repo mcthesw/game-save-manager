@@ -118,8 +118,12 @@ impl DeviceProfile {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
+#[serde(from = "RawDeviceGameProfile")]
 pub struct DeviceGameProfile {
     pub visible: bool,
+    /// Per-Game, per-Device cloud participation. Independent of the remembered
+    /// [`SyncMode`] preset and of whether this Device still manages the Game.
+    pub cloud_sync_enabled: bool,
     pub sync_mode: SyncMode,
     #[serde(default)]
     pub snapshot_sync_activation_revision: Option<u64>,
@@ -131,10 +135,61 @@ pub struct DeviceGameProfile {
     pub live_save_process_name: Option<String>,
     #[serde(default)]
     pub live_save_snapshot_on_exit: bool,
+    /// When true, Multi-device Sync automatic transfer and Apply are paused
+    /// because Device positions have diverged. The selected preset is unchanged.
+    #[serde(default)]
+    pub multi_device_sync_suspended: bool,
     pub game_path: Option<String>,
     pub binding: Option<GameDeviceBinding>,
     pub auto_backup: Option<AutoBackupConfig>,
     pub save_units: HashMap<u32, DeviceSaveUnitSettings>,
+}
+
+#[derive(Deserialize)]
+struct RawDeviceGameProfile {
+    visible: bool,
+    #[serde(default)]
+    cloud_sync_enabled: Option<bool>,
+    sync_mode: SyncMode,
+    #[serde(default)]
+    snapshot_sync_activation_revision: Option<u64>,
+    #[serde(default)]
+    snapshot_sync_local_baseline: BTreeSet<String>,
+    #[serde(default)]
+    initial_catch_up: InitialCatchUpPolicy,
+    #[serde(default)]
+    live_save_process_name: Option<String>,
+    #[serde(default)]
+    live_save_snapshot_on_exit: bool,
+    #[serde(default)]
+    multi_device_sync_suspended: bool,
+    game_path: Option<String>,
+    binding: Option<GameDeviceBinding>,
+    auto_backup: Option<AutoBackupConfig>,
+    #[serde(default)]
+    save_units: HashMap<u32, DeviceSaveUnitSettings>,
+}
+
+impl From<RawDeviceGameProfile> for DeviceGameProfile {
+    fn from(raw: RawDeviceGameProfile) -> Self {
+        Self {
+            visible: raw.visible,
+            cloud_sync_enabled: raw
+                .cloud_sync_enabled
+                .unwrap_or(raw.sync_mode != SyncMode::Manual),
+            sync_mode: raw.sync_mode,
+            snapshot_sync_activation_revision: raw.snapshot_sync_activation_revision,
+            snapshot_sync_local_baseline: raw.snapshot_sync_local_baseline,
+            initial_catch_up: raw.initial_catch_up,
+            live_save_process_name: raw.live_save_process_name,
+            live_save_snapshot_on_exit: raw.live_save_snapshot_on_exit,
+            multi_device_sync_suspended: raw.multi_device_sync_suspended,
+            game_path: raw.game_path,
+            binding: raw.binding,
+            auto_backup: raw.auto_backup,
+            save_units: raw.save_units,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
@@ -148,8 +203,20 @@ pub struct DeviceSaveUnitSettings {
 #[serde(rename_all = "snake_case")]
 pub enum SyncMode {
     Manual,
-    SnapshotSync,
-    LiveSaveSync,
+    #[serde(alias = "snapshot_sync")]
+    CloudBackup,
+    #[serde(alias = "live_save_sync")]
+    MultiDeviceSync,
+}
+
+impl SyncMode {
+    pub fn auto_uploads_archives(self) -> bool {
+        matches!(self, Self::CloudBackup | Self::MultiDeviceSync)
+    }
+
+    pub fn auto_applies_forward_target(self) -> bool {
+        matches!(self, Self::MultiDeviceSync)
+    }
 }
 
 #[derive(
@@ -504,7 +571,7 @@ impl ConfigurationOwners {
             save_paths,
             game_paths,
             next_save_unit_id: shared.next_save_unit_id,
-            cloud_sync_enabled: current.is_some_and(|game| game.sync_mode != SyncMode::Manual),
+            cloud_sync_enabled: current.is_some_and(|game| game.cloud_sync_enabled),
             auto_backup: current.and_then(|game| game.auto_backup.clone()),
             ludusavi_meta: shared.ludusavi_meta.clone(),
             device_bindings,
@@ -532,12 +599,14 @@ impl DeviceProfile {
                         .cloned()
                         .unwrap_or(DeviceGameProfile {
                             visible: true,
+                            cloud_sync_enabled: false,
                             sync_mode: SyncMode::Manual,
                             snapshot_sync_activation_revision: None,
                             snapshot_sync_local_baseline: BTreeSet::new(),
                             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
                             live_save_process_name: None,
                             live_save_snapshot_on_exit: false,
+                            multi_device_sync_suspended: false,
                             game_path: None,
                             binding: None,
                             auto_backup: None,
@@ -663,8 +732,9 @@ impl DeviceGameProfile {
             .collect();
         Self {
             visible: true,
+            cloud_sync_enabled: game.cloud_sync_enabled,
             sync_mode: if game.cloud_sync_enabled {
-                SyncMode::SnapshotSync
+                SyncMode::CloudBackup
             } else {
                 SyncMode::Manual
             },
@@ -673,6 +743,7 @@ impl DeviceGameProfile {
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             live_save_process_name: None,
             live_save_snapshot_on_exit: false,
+            multi_device_sync_suspended: false,
             game_path: game.game_paths.get(device_id).cloned(),
             binding: game.device_bindings.get(device_id).cloned(),
             auto_backup: game.auto_backup.clone(),
