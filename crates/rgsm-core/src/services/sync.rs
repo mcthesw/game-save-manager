@@ -8,14 +8,14 @@ use tokio_util::sync::CancellationToken;
 use crate::app_dirs::resolve_app_path;
 use crate::backup::{Game, GameSnapshots};
 use crate::cloud_sync::v2::{
-    AcceptRemoteProgressError, CloudArchiveEvictionError, CloudArchiveMaterializer,
-    CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryCutover,
-    CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin, CloudLibraryJoinError,
-    CloudLibraryJoinReview, CloudNamespaceClassification, ConflictReviewError,
-    DeletionRegistryError, DeviceProfileRemovalError, DeviceProfileRepository,
-    DeviceProfileRepositoryError, JoinGameDecision, KeepLocalProgressError,
-    LocalArchiveEvictionError, ManifestRepositoryError, MaterializationError,
-    MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
+    AcceptRemoteProgressError, CLOUD_MANIFEST_PATH, CloudArchiveEvictionError,
+    CloudArchiveMaterializer, CloudLibraryBootstrap, CloudLibraryBootstrapError,
+    CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin,
+    CloudLibraryJoinError, CloudLibraryJoinReview, CloudManifestRepository,
+    CloudNamespaceClassification, ConflictReviewError, DeletionRegistryError,
+    DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
+    JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
+    MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
     SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotSyncCoordinator,
     SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
@@ -268,10 +268,22 @@ impl ServiceContext {
 
     /// Reset the local V2 namespace to legacy when the cloud is broken or
     /// manually deleted. This is a recovery path, not a normal transition.
-    pub fn reset_broken_cloud_library(&self) -> Result<(), CloudLibraryServiceError> {
+    /// Best-effort removal of corrupt V2 remote objects so that a subsequent
+    /// inspect classifies the root as empty rather than hitting the same
+    /// corruption.
+    pub async fn reset_broken_cloud_library(&self) -> Result<(), CloudLibraryServiceError> {
         let (_, _, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        // Best-effort: remove all V2 remote objects so re-inspection sees an
+        // empty root instead of the same corrupt state.
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        if let Ok(operator) = session.get_op() {
+            let _ = operator
+                .delete_with(crate::cloud_sync::v2::V2_NAMESPACE_PREFIX)
+                .recursive(true)
+                .await;
         }
         crate::config::downgrade_cloud_namespace_to_legacy()?;
         Ok(())
@@ -648,6 +660,20 @@ impl ServiceContext {
             .await?;
         replace_current_device_profile(&expected_profile, &accepted_profile)?;
 
+        // When disabling cloud sync, clear this Device's advertised head so
+        // other Devices stop treating it as a participating divergent branch.
+        if !enabled && was_enabled {
+            let device_id = local_state.current_device_id.clone();
+            CloudManifestRepository::new(session.get_op()?, CLOUD_MANIFEST_PATH, 3)
+                .mutate(move |manifest| {
+                    if let Some(game) = manifest.games.get_mut(game_id) {
+                        game.clear_head(&device_id);
+                    }
+                    Ok(())
+                })
+                .await?;
+        }
+
         let published = if newly_enabled {
             let game = effective_config
                 .games
@@ -854,11 +880,31 @@ impl ServiceContext {
                 self.publish_current_position(game_id, &next).await?;
             }
             Some(CurrentPositionDecision::FallbackToParent) => {
-                let parent = snapshots
+                // Walk past tombstoned/absent ancestors to find the nearest
+                // live snapshot, or clear the position if none remain.
+                let live_dates: BTreeSet<&str> = snapshots
+                    .backups
+                    .iter()
+                    .map(|snapshot| snapshot.date.as_str())
+                    .collect();
+                let mut parent = snapshots
                     .backups
                     .iter()
                     .find(|snapshot| snapshot.date == snapshot_id)
                     .and_then(|snapshot| snapshot.parent.clone());
+                while let Some(candidate) = &parent {
+                    if live_dates.contains(candidate.as_str()) {
+                        break;
+                    }
+                    // This ancestor is tombstoned/absent; walk further up.
+                    let grandparent = snapshots
+                        .backups
+                        .iter()
+                        .find(|snapshot| snapshot.date == *candidate)
+                        .and_then(|snapshot| snapshot.parent.clone());
+                    parent = grandparent;
+                }
+                let parent = parent.filter(|candidate| live_dates.contains(candidate.as_str()));
                 let mut next = snapshots;
                 next.set_current_device_head(parent);
                 game.set_game_snapshots_info(&next)?;

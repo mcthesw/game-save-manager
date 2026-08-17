@@ -207,9 +207,15 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
             {
                 return None;
             }
+            let process_name = settings.live_save_process_name.unwrap_or_default();
+            if process_name.is_empty() {
+                // Without a process name the running-process safety check
+                // always passes, so auto-apply would be unguarded.
+                return None;
+            }
             Some(LiveSaveSyncTarget {
                 game_id,
-                process_name: settings.live_save_process_name.unwrap_or_default(),
+                process_name,
                 snapshot_on_exit: settings.live_save_snapshot_on_exit,
             })
         })
@@ -225,6 +231,11 @@ pub async fn review_v2_live_save_apply(
             !settings.cloud_sync_enabled
                 || settings.multi_device_sync_suspended
                 || !settings.sync_mode.auto_applies_forward_target()
+                || settings
+                    .live_save_process_name
+                    .as_deref()
+                    .unwrap_or("")
+                    .is_empty()
         })
     {
         return Ok(None);
