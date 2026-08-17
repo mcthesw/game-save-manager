@@ -184,8 +184,20 @@ async function batch_delete() {
         const gameId = game.value.storage_key || game.value.name;
         let succeeded = 0;
         for (const date of dates) {
-          const result = await commands.deleteV2Snapshot(gameId, date, true);
-          if (result.status === 'ok') succeeded += 1;
+          // When the batch includes the current head, pass the fallback
+          // decision so the backend can move the position to the parent.
+          // Refresh after each head deletion because the position may land
+          // on the next snapshot in the batch.
+          const isHead = currentHead.value === date;
+          const result = isHead
+            ? await commands.deleteV2Snapshot(gameId, date, true, {
+                type: 'fallback_to_parent',
+              })
+            : await commands.deleteV2Snapshot(gameId, date, true);
+          if (result.status === 'ok') {
+            succeeded += 1;
+            if (isHead) await refresh_backups_info();
+          }
         }
         await refresh_backups_info();
         if (succeeded === dates.length) {

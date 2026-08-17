@@ -608,9 +608,15 @@ fn unique_forward_target(
         Some(local) => {
             let mut descendants = BTreeSet::new();
             for head in maximal {
-                if game.is_ancestor_or_equal(local, &head)? && head != local {
-                    descendants.insert(head);
+                if game.is_ancestor_or_equal(local, &head)? {
+                    if head != local {
+                        descendants.insert(head);
+                    }
+                } else if !game.is_ancestor_or_equal(&head, local)? {
+                    // Divergent head: neither ancestor nor descendant of local.
+                    return Ok(None);
                 }
+                // head is an ancestor of local: behind us, not a candidate.
             }
             descendants
         }
@@ -1026,5 +1032,32 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn unique_forward_target_rejects_divergent_maximal_head() {
+        // Local head A, descendant B, and divergent C — no forward target.
+        let mut game = GameManifest::new("game");
+        let root = temp_dir::TempDir::new().unwrap();
+        for (id, parent) in [("a", None), ("b", Some("a")), ("c", None)] {
+            let fixture = root.path().join(format!("{id}.zip"));
+            std::fs::write(&fixture, id.as_bytes()).unwrap();
+            let mut node = SnapshotNode::live(
+                id,
+                parent.map(str::to_string),
+                ArchiveIntegrity::from_file(&fixture).unwrap(),
+                CreatedBy::Manual,
+            );
+            let SnapshotState::Live(live) = &mut node.state else {
+                unreachable!()
+            };
+            live.cloud_archive_verified = true;
+            game.upsert_live(node).unwrap();
+        }
+        game.set_head("pc".into(), "a".into());
+        game.set_head("deck".into(), "b".into());
+        game.set_head("other".into(), "c".into());
+
+        assert_eq!(unique_forward_target(Some(&game), Some("a")).unwrap(), None);
     }
 }
