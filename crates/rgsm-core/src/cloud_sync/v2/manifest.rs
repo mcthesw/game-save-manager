@@ -63,6 +63,10 @@ impl GameManifest {
         self.device_heads.insert(device_id, snapshot_id);
     }
 
+    pub fn clear_head(&mut self, device_id: &DeviceId) {
+        self.device_heads.remove(device_id);
+    }
+
     pub fn report_local_archive(
         &mut self,
         device_id: DeviceId,
@@ -359,6 +363,7 @@ impl SnapshotNode {
                 cloud_archive_verified: false,
                 created_by,
                 retention_protected: false,
+                cloud_evicted: false,
             }),
         }
     }
@@ -379,6 +384,7 @@ impl SnapshotNode {
                 cloud_archive_verified: false,
                 created_by,
                 retention_protected: false,
+                cloud_evicted: false,
             }),
         }
     }
@@ -405,6 +411,10 @@ pub struct LiveSnapshot {
     pub cloud_archive_verified: bool,
     pub created_by: CreatedBy,
     pub retention_protected: bool,
+    /// True when the Cloud Archive was explicitly evicted by the user.
+    /// Prevents automatic re-upload after eviction.
+    #[serde(default)]
+    pub cloud_evicted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

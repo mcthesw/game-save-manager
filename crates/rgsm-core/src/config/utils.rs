@@ -195,6 +195,16 @@ pub(crate) fn activate_cloud_namespace_v2(
     Ok(())
 }
 
+/// Downgrade from V2 when the cloud namespace is broken or manually deleted.
+/// This is a recovery path, not a normal transition.
+pub(crate) fn downgrade_cloud_namespace_to_legacy() -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().downgrade_to_legacy()?;
+    Ok(())
+}
+
 pub(crate) fn activate_joined_cloud_library(
     expected_local_library: &SharedLibrary,
     expected_local_profile: &DeviceProfile,

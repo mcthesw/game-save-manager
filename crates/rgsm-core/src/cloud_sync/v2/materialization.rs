@@ -12,7 +12,6 @@ use super::{
     CloudManifest, CloudManifestRepository, DeletionRegistryError, DeletionRegistryRepository,
     ManifestError, ManifestRepositoryError, MaterializationOutcome, MaterializationPreview,
     SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
-    progress_requires_choice,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, Snapshot, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
@@ -33,6 +32,7 @@ pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
     pub sync_mode: SyncMode,
+    pub cloud_sync_enabled: bool,
     pub live_save_process_name: Option<String>,
     pub live_save_snapshot_on_exit: bool,
     pub retention_limit: Option<u32>,
@@ -40,10 +40,18 @@ pub struct CloudArchiveGameView {
     pub visible: bool,
     pub advertised_head_count: usize,
     pub requires_choice: bool,
+    /// True when a remote head is strictly ahead of the local head on the
+    /// same branch (no divergence, just newer progress available).
+    pub has_update: bool,
     pub snapshots: Vec<CloudArchiveSnapshotView>,
     pub pending_deletions: Vec<CloudArchiveDeletionView>,
     pub local_count: usize,
     pub cloud_count: usize,
+    pub local_only_count: usize,
+    pub cloud_only_count: usize,
+    pub both_available_count: usize,
+    pub other_device_only_count: usize,
+    pub unavailable_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
@@ -162,6 +170,7 @@ impl CloudArchiveMaterializer {
                     .cloned()
                     .unwrap_or_else(|| game_id.clone()),
                 sync_mode: SyncMode::Manual,
+                cloud_sync_enabled: false,
                 live_save_process_name: None,
                 live_save_snapshot_on_exit: false,
                 retention_limit: None,
@@ -173,17 +182,42 @@ impl CloudArchiveMaterializer {
                     .collect::<std::collections::BTreeSet<_>>()
                     .len(),
                 requires_choice: {
-                    let mut advertised = BTreeMap::<String, BTreeSet<DeviceId>>::new();
-                    for (device, head) in &game.device_heads {
-                        advertised
-                            .entry(head.clone())
-                            .or_default()
-                            .insert(device.clone());
+                    let local_head = local_heads.get(game_id).and_then(|head| head.as_deref());
+                    let mut heads = game
+                        .device_heads
+                        .iter()
+                        .filter(|(device, _)| {
+                            // Exclude current device's stale advertised head
+                            // when a local Current Position is authoritative.
+                            !(**device == self.current_device_id && local_head.is_some())
+                        })
+                        .map(|(_, head)| head.clone())
+                        .collect::<std::collections::BTreeSet<_>>();
+                    if let Some(local) = local_head {
+                        heads.insert(local.to_string());
                     }
-                    progress_requires_choice(
-                        local_heads.get(game_id).and_then(|head| head.as_deref()),
-                        &advertised,
-                    )
+                    let list: Vec<_> = heads.into_iter().collect();
+                    list.iter().any(|left| {
+                        list.iter().any(|right| {
+                            left != right
+                                && !game.is_ancestor_or_equal(left, right).unwrap_or(true)
+                                && !game.is_ancestor_or_equal(right, left).unwrap_or(true)
+                        })
+                    })
+                },
+                has_update: {
+                    let local_head = local_heads.get(game_id).and_then(|head| head.as_deref());
+                    match local_head {
+                        None => !game.device_heads.is_empty(),
+                        Some(local) => game
+                            .device_heads
+                            .iter()
+                            .filter(|(device, _)| device.as_str() != self.current_device_id)
+                            .any(|(_, remote)| {
+                                remote.as_str() != local
+                                    && game.is_ancestor_or_equal(local, remote).unwrap_or(false)
+                            }),
+                    }
                 },
                 local_count: snapshots
                     .iter()
@@ -192,6 +226,34 @@ impl CloudArchiveMaterializer {
                 cloud_count: snapshots
                     .iter()
                     .filter(|snapshot| snapshot.cloud_verified)
+                    .count(),
+                local_only_count: snapshots
+                    .iter()
+                    .filter(|snapshot| snapshot.local_verified && !snapshot.cloud_verified)
+                    .count(),
+                cloud_only_count: snapshots
+                    .iter()
+                    .filter(|snapshot| !snapshot.local_verified && snapshot.cloud_verified)
+                    .count(),
+                both_available_count: snapshots
+                    .iter()
+                    .filter(|snapshot| snapshot.local_verified && snapshot.cloud_verified)
+                    .count(),
+                other_device_only_count: snapshots
+                    .iter()
+                    .filter(|snapshot| {
+                        !snapshot.local_verified
+                            && !snapshot.cloud_verified
+                            && !snapshot.reported_on_devices.is_empty()
+                    })
+                    .count(),
+                unavailable_count: snapshots
+                    .iter()
+                    .filter(|snapshot| {
+                        !snapshot.local_verified
+                            && !snapshot.cloud_verified
+                            && snapshot.reported_on_devices.is_empty()
+                    })
                     .count(),
                 snapshots,
                 pending_deletions,
@@ -291,6 +353,7 @@ impl CloudArchiveMaterializer {
                     return Err(ManifestError::InvalidIntegrity(snapshot_id.clone()));
                 }
                 live.cloud_archive_verified = true;
+                live.cloud_evicted = false;
                 game.report_local_archive(current_device.clone(), snapshot_id.clone(), true);
                 Ok(())
             })

@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use rgsm_core::backup::{CreatedBy, archive_path};
 use rgsm_core::cloud_sync::v2::{
-    CLOUD_MANIFEST_PATH, CloudLibraryBootstrap, CloudManifestRepository, DeletionKind,
-    DeletionRegistryRepository, DeviceProfileRemoval, DeviceProfileRemovalError,
+    CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudLibraryBootstrap, CloudManifestRepository,
+    DeletionKind, DeletionRegistryRepository, DeviceProfileRemoval, DeviceProfileRemovalError,
     DeviceProfileRepository, DeviceProfileRepositoryError, SHARED_LIBRARY_PATH,
     SharedLibraryRepository, SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError,
     SnapshotState, SnapshotSyncCoordinator, cloud_archive_path, device_profile_path,
@@ -85,6 +85,16 @@ async fn permanent_deletion_tombstones_shared_state_and_converges_other_device_l
 
     let snapshots_b = device_b.snapshots(GAME_NAME, vec![shared_snapshot], SNAPSHOT_ID);
     reconcile(&cloud, &device_b, &snapshots_b).await;
+    CloudArchiveMaterializer::new(
+        cloud.new_operator(),
+        device_b.archive_root.clone(),
+        device_b.id.clone(),
+        device_b.progress_path.clone(),
+        MAX_ATTEMPTS,
+    )
+    .download(GAME_ID, SNAPSHOT_ID)
+    .await
+    .expect("device B should download the shared archive");
     let device_b_path = archive_path(
         &device_b.archive_root.join(GAME_ID),
         SNAPSHOT_ID,

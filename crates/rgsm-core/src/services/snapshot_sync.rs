@@ -13,7 +13,7 @@ use crate::cloud_sync::v2::{
     V2ConflictInspector, V2ConflictReview,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, DeviceProfile, SyncMode, cloud_bootstrap_inputs, get_config,
+    CloudNamespaceGeneration, Config, DeviceProfile, cloud_bootstrap_inputs, get_config,
 };
 use crate::hooks::{SnapshotSyncTarget, V2SnapshotSyncHook};
 use crate::preclude::{BackendError, BackupError, ConfigError};
@@ -84,14 +84,54 @@ pub async fn run_v2_snapshot_sync_once(
                     .unwrap_or_else(|| game_id.clone()),
             ),
         };
+        // Multi-device Sync: publish first, check divergence, then transfer.
+        // This prevents stale suspension flags from allowing uploads/downloads
+        // when heads have diverged since the last poll.
+        if target.is_multi_device_sync {
+            let publish = runtime
+                .coordinator
+                .reconcile_game_with_policy(
+                    game_id,
+                    &snapshots,
+                    target.activation_revision,
+                    &target.local_baseline,
+                    cancellation,
+                    crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                        upload_new_archives: false,
+                        download_forward_target: false,
+                    },
+                )
+                .await?;
+            total.published += publish.published;
+            let suspended = refresh_multi_device_sync_suspension(game_id, &snapshots).await?;
+            if suspended {
+                continue;
+            }
+        }
+
         let outcome = runtime
             .coordinator
-            .reconcile_game(
+            .reconcile_game_with_policy(
                 game_id,
                 &snapshots,
                 target.activation_revision,
                 &target.local_baseline,
                 cancellation,
+                crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                    // MDS games that reach here have passed the fresh divergence
+                    // check, so their transfer flags should reflect the preset
+                    // capability, not the stale suspension state.
+                    upload_new_archives: if target.is_multi_device_sync {
+                        true
+                    } else {
+                        target.upload_new_archives
+                    },
+                    download_forward_target: if target.is_multi_device_sync {
+                        true
+                    } else {
+                        target.download_forward_target
+                    },
+                },
             )
             .await;
         let import =
@@ -115,6 +155,9 @@ pub async fn run_v2_snapshot_sync_once(
                 game.forget_v2_tombstones(&retention.tombstones)?;
             }
         }
+        if !target.is_multi_device_sync {
+            refresh_multi_device_sync_suspension(game_id, &snapshots).await?;
+        }
     }
     Ok(total)
 }
@@ -137,10 +180,7 @@ pub async fn resume_v2_snapshot_sync(
 pub fn v2_snapshot_sync_poll_minutes() -> Result<Option<u64>, SnapshotSyncServiceError> {
     let (_, profile, local_state) = cloud_bootstrap_inputs()?;
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-        || !profile
-            .games
-            .values()
-            .any(|game| game.sync_mode != SyncMode::Manual)
+        || !profile.games.values().any(|game| game.cloud_sync_enabled)
     {
         return Ok(None);
     }
@@ -161,12 +201,15 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
         .games
         .into_iter()
         .filter_map(|(game_id, settings)| {
-            if settings.sync_mode != SyncMode::LiveSaveSync {
+            if !settings.cloud_sync_enabled
+                || settings.multi_device_sync_suspended
+                || !settings.sync_mode.auto_applies_forward_target()
+            {
                 return None;
             }
             Some(LiveSaveSyncTarget {
                 game_id,
-                process_name: settings.live_save_process_name?,
+                process_name: settings.live_save_process_name.unwrap_or_default(),
                 snapshot_on_exit: settings.live_save_snapshot_on_exit,
             })
         })
@@ -178,10 +221,11 @@ pub async fn review_v2_live_save_apply(
 ) -> Result<Option<LiveSaveApplyPlan>, SnapshotSyncServiceError> {
     let (_, profile, local_state) = cloud_bootstrap_inputs()?;
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-        || profile
-            .games
-            .get(game_id)
-            .is_none_or(|settings| settings.sync_mode != SyncMode::LiveSaveSync)
+        || profile.games.get(game_id).is_none_or(|settings| {
+            !settings.cloud_sync_enabled
+                || settings.multi_device_sync_suspended
+                || !settings.sync_mode.auto_applies_forward_target()
+        })
     {
         return Ok(None);
     }
@@ -282,25 +326,63 @@ fn sync_targets(
         .games
         .iter()
         .filter_map(|(game_id, settings)| {
-            (settings.sync_mode != SyncMode::Manual).then(|| {
-                settings.snapshot_sync_activation_revision.map(|revision| {
-                    (
-                        game_id.clone(),
-                        SnapshotSyncTarget {
-                            activation_revision: revision,
-                            local_baseline: settings.snapshot_sync_local_baseline.clone(),
-                            retention_limit: library
-                                .games
-                                .iter()
-                                .find(|game| game.storage_key == *game_id)
-                                .and_then(|game| game.snapshot_retention)
-                                .map(|policy| policy.automatic_snapshots_per_branch),
-                        },
-                    )
-                })
-            })?
+            if !settings.cloud_sync_enabled {
+                return None;
+            }
+            settings.snapshot_sync_activation_revision.map(|revision| {
+                (
+                    game_id.clone(),
+                    SnapshotSyncTarget {
+                        activation_revision: revision,
+                        local_baseline: settings.snapshot_sync_local_baseline.clone(),
+                        retention_limit: library
+                            .games
+                            .iter()
+                            .find(|game| game.storage_key == *game_id)
+                            .and_then(|game| game.snapshot_retention)
+                            .map(|policy| policy.automatic_snapshots_per_branch),
+                        upload_new_archives: settings.sync_mode.auto_uploads_archives()
+                            && !settings.multi_device_sync_suspended,
+                        download_forward_target: settings.sync_mode.auto_applies_forward_target()
+                            && !settings.multi_device_sync_suspended,
+                        is_multi_device_sync: settings.sync_mode.auto_applies_forward_target(),
+                    },
+                )
+            })
         })
         .collect()
+}
+
+async fn refresh_multi_device_sync_suspension(
+    game_id: &str,
+    local: &GameSnapshots,
+) -> Result<bool, SnapshotSyncServiceError> {
+    let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+    let Some(settings) = profile.games.get(game_id) else {
+        return Ok(false);
+    };
+    if !settings.cloud_sync_enabled || !settings.sync_mode.auto_applies_forward_target() {
+        return Ok(settings.multi_device_sync_suspended);
+    }
+    let Some(local_archive_root) = profile.local_archive_root.as_deref().map(resolve_app_path)
+    else {
+        return Ok(settings.multi_device_sync_suspended);
+    };
+    let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+    let review = V2ConflictInspector::new(
+        session.get_op()?,
+        local_archive_root,
+        local_state.current_device_id,
+        3,
+    )
+    .review(game_id, local)
+    .await?;
+    let diverged = review.requires_choice;
+    if settings.multi_device_sync_suspended == diverged {
+        return Ok(diverged);
+    }
+    super::sync::set_multi_device_sync_suspended(game_id, diverged).await?;
+    Ok(diverged)
 }
 
 #[derive(Debug, Error)]
@@ -327,7 +409,7 @@ pub enum SnapshotSyncServiceError {
 mod tests {
     use super::*;
     use crate::cloud_sync::v2::{LocalProgressView, RemoteProgressCandidate};
-    use crate::config::{DeviceGameProfile, InitialCatchUpPolicy};
+    use crate::config::{DeviceGameProfile, InitialCatchUpPolicy, SyncMode};
 
     #[test]
     fn synchronized_profiles_with_boundaries_become_targets() {
@@ -360,14 +442,16 @@ mod tests {
             }))
             .unwrap(),
         };
-        let game = |mode, revision| DeviceGameProfile {
+        let game = |mode, revision: Option<u64>| DeviceGameProfile {
             visible: true,
+            cloud_sync_enabled: revision.is_some(),
             sync_mode: mode,
             snapshot_sync_activation_revision: revision,
             snapshot_sync_local_baseline: Default::default(),
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             live_save_process_name: None,
             live_save_snapshot_on_exit: false,
+            multi_device_sync_suspended: false,
             game_path: None,
             binding: None,
             auto_backup: None,
@@ -375,16 +459,16 @@ mod tests {
         };
         profile
             .games
-            .insert("manual".into(), game(SyncMode::Manual, None));
+            .insert("manual".into(), game(SyncMode::Manual, Some(3)));
         profile
             .games
-            .insert("ready".into(), game(SyncMode::SnapshotSync, Some(4)));
+            .insert("ready".into(), game(SyncMode::CloudBackup, Some(4)));
         profile
             .games
-            .insert("live".into(), game(SyncMode::LiveSaveSync, Some(5)));
+            .insert("live".into(), game(SyncMode::MultiDeviceSync, Some(5)));
         profile
             .games
-            .insert("incomplete".into(), game(SyncMode::SnapshotSync, None));
+            .insert("incomplete".into(), game(SyncMode::CloudBackup, None));
 
         let targets = sync_targets(
             &profile,
@@ -396,10 +480,27 @@ mod tests {
 
         assert_eq!(
             targets.keys().cloned().collect::<Vec<_>>(),
-            vec!["live", "ready"]
+            vec!["live", "manual", "ready"]
         );
         assert_eq!(targets["live"].activation_revision, 5);
         assert_eq!(targets["ready"].activation_revision, 4);
+        assert!(!targets["manual"].upload_new_archives);
+        assert!(targets["ready"].upload_new_archives);
+        assert!(targets["live"].download_forward_target);
+        assert!(!targets["ready"].download_forward_target);
+
+        let mut live = game(SyncMode::MultiDeviceSync, Some(5));
+        live.multi_device_sync_suspended = true;
+        profile.games.insert("live".into(), live);
+        let suspended = sync_targets(
+            &profile,
+            &crate::config::SharedLibrary {
+                schema_version: crate::config::V2_CONFIG_SCHEMA_VERSION,
+                games: Vec::new(),
+            },
+        );
+        assert!(!suspended["live"].upload_new_archives);
+        assert!(!suspended["live"].download_forward_target);
     }
 
     fn review(candidates: Vec<RemoteProgressCandidate>) -> V2ConflictReview {

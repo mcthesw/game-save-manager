@@ -135,23 +135,29 @@ impl V2ConflictInspector {
 
         let mut grouped_heads = BTreeMap::<String, BTreeSet<DeviceId>>::new();
         for (device, head) in &game.device_heads {
+            // When a local Current Position is available, it is authoritative
+            // for this Device. Skip the stale cloud-advertised head to prevent
+            // the Device from appearing diverged from itself.
+            if *device == self.current_device_id && local_head.is_some() {
+                continue;
+            }
             grouped_heads
                 .entry(head.clone())
                 .or_default()
                 .insert(device.clone());
         }
-        let requires_choice = progress_requires_choice(local_head.as_deref(), &grouped_heads);
+        let head_keys: Vec<String> = grouped_heads.keys().cloned().collect();
         let mut candidates = Vec::with_capacity(grouped_heads.len());
-        for (snapshot_id, devices) in grouped_heads {
+        for (snapshot_id, devices) in &grouped_heads {
             let node = game
                 .snapshots
-                .get(&snapshot_id)
+                .get(snapshot_id)
                 .ok_or_else(|| ManifestError::MissingSnapshot(snapshot_id.clone()))?;
-            let diff = graph.compare(local_head.as_deref(), &snapshot_id)?;
+            let diff = graph.compare(local_head.as_deref(), snapshot_id)?;
             candidates.push(RemoteProgressCandidate {
                 snapshot_id: snapshot_id.clone(),
                 description: node.description.clone(),
-                devices: devices.into_iter().collect(),
+                devices: devices.iter().cloned().collect(),
                 relation: diff.relation,
                 local_unique_snapshots: diff.local_unique,
                 remote_unique_snapshots: diff.remote_unique,
@@ -160,6 +166,8 @@ impl V2ConflictInspector {
                 cloud_available: cloud_available(node),
             });
         }
+        let requires_choice = progress_requires_choice(&candidates)
+            || heads_are_divergent(&graph, local_head.as_deref(), &head_keys);
 
         Ok(V2ConflictReview {
             game_id: game_id.to_string(),
@@ -196,13 +204,36 @@ impl V2ConflictInspector {
     }
 }
 
-pub fn progress_requires_choice(
+pub fn progress_requires_choice(candidates: &[RemoteProgressCandidate]) -> bool {
+    candidates
+        .iter()
+        .any(|candidate| candidate.relation == ProgressRelation::DifferentProgress)
+}
+
+/// True divergence: any two participating heads are mutually unreachable.
+/// Compares every pair of heads (local + remote), not just local-vs-remote.
+fn heads_are_divergent(
+    graph: &SnapshotGraph,
     local_head: Option<&str>,
-    advertised_heads: &BTreeMap<String, BTreeSet<DeviceId>>,
+    remote_heads: &[String],
 ) -> bool {
-    advertised_heads.len() > 1
-        || local_head.is_some_and(|head| !advertised_heads.contains_key(head))
-        || (local_head.is_none() && !advertised_heads.is_empty())
+    let mut all_heads: Vec<&str> = remote_heads.iter().map(String::as_str).collect();
+    if let Some(local) = local_head {
+        all_heads.push(local);
+    }
+    for (i, left) in all_heads.iter().enumerate() {
+        for right in &all_heads[i + 1..] {
+            if left == right {
+                continue;
+            }
+            if let Ok(diff) = graph.compare(Some(left), right)
+                && diff.relation == ProgressRelation::DifferentProgress
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn cloud_available(node: &super::SnapshotNode) -> bool {
@@ -497,7 +528,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn groups_devices_and_keeps_comparable_heads_as_choices() {
+    async fn ancestor_descendant_heads_are_not_a_choice() {
         let root = temp_dir::TempDir::new().unwrap();
         let mut game = GameManifest::new("game");
         for entry in [
@@ -521,7 +552,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(review.requires_choice);
+        assert!(!review.requires_choice);
         assert_eq!(review.candidates.len(), 2);
         assert_eq!(review.candidates[0].devices, vec!["deck", "laptop"]);
         assert_eq!(review.candidates[0].relation, ProgressRelation::RemoteAhead);
@@ -572,6 +603,38 @@ mod tests {
                 .candidates
                 .iter()
                 .all(|candidate| candidate.relation == ProgressRelation::NoLocalPosition)
+        );
+    }
+
+    #[tokio::test]
+    async fn mutually_unreachable_heads_require_choice() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let mut game = GameManifest::new("game");
+        for entry in [
+            node("root", None),
+            node("left", Some("root")),
+            node("right", Some("root")),
+        ] {
+            game.upsert_live(entry).unwrap();
+        }
+        game.set_head("deck".into(), "left".into());
+        game.set_head("laptop".into(), "right".into());
+        let mut local = GameSnapshots::new("Game");
+        local.backups = vec![snapshot("root", None), snapshot("left", Some("root"))];
+        local.set_head_for_device("pc".into(), Some("left".into()));
+
+        let review = inspector(game, root.path())
+            .await
+            .review("game", &local)
+            .await
+            .unwrap();
+
+        assert!(review.requires_choice);
+        assert!(
+            review
+                .candidates
+                .iter()
+                .any(|candidate| candidate.relation == ProgressRelation::DifferentProgress)
         );
     }
 
