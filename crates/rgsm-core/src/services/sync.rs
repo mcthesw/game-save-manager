@@ -653,6 +653,8 @@ impl ServiceContext {
             settings.live_save_process_name = Some(options.process_name.trim().to_string());
             settings.live_save_snapshot_on_exit = options.snapshot_on_exit;
         }
+        // Extract before the mutable borrow on accepted_profile ends.
+        let existing_activation_revision = settings.snapshot_sync_activation_revision;
 
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         DeviceProfileRepository::new(session.get_op()?, 3)
@@ -708,15 +710,12 @@ impl ServiceContext {
             0
         };
 
-        let downloaded = if newly_enabled
-            && initial_catch_up == InitialCatchUpPolicy::DownloadExisting
-        {
+        let downloaded = if enabled && initial_catch_up == InitialCatchUpPolicy::DownloadExisting {
+            let revision = activation_revision
+                .or(existing_activation_revision)
+                .expect("enabled game must have an activation revision");
             let outcome = materializer
-                .materialize_game(
-                    game_id,
-                    activation_revision.expect("new synchronized mode has an activation revision"),
-                    cancellation,
-                )
+                .materialize_game(game_id, revision, cancellation)
                 .await;
             import_local_verified_catalog(&materializer).await?;
             outcome?.downloaded
