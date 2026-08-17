@@ -9,6 +9,7 @@ use rgsm_core::services::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryServiceError,
     CloudLibraryStatus, GameSyncModeOutcome, ServiceContext,
 };
+use rust_i18n::t;
 use tauri::{AppHandle, Manager};
 
 use crate::hooks::HookPipelineState;
@@ -77,15 +78,16 @@ pub async fn cutover(
 pub async fn set_game_sync_mode(
     app: &AppHandle,
     game_id: &str,
+    enabled: bool,
     mode: SyncMode,
     initial_catch_up: InitialCatchUpPolicy,
     live_save: Option<rgsm_core::services::LiveSaveSyncOptions>,
 ) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
     let manager = Arc::clone(app.state::<Arc<CloudSyncTaskManager>>().inner());
-    let description = format!("Updating cloud Sync mode for {game_id}");
+    let description = t!("backend.sync.updating_mode", game = game_id).to_string();
     let (job_id, token) = manager.begin_manual_job(description.clone()).await;
     let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
-        .set_game_sync_mode(game_id, mode, initial_catch_up, live_save, &token)
+        .set_game_cloud_policy(game_id, enabled, mode, initial_catch_up, live_save, &token)
         .await;
     let status = if outcome.is_ok() {
         CloudSyncJobStatus::Completed

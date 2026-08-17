@@ -5,7 +5,6 @@ import ActivityDrawer from './components/ActivityDrawer.vue';
 import AddGameDrawer from './components/AddGameDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
 import KFeedbackHost from './ui/kit/KFeedbackHost.vue';
-import KToaster from './ui/kit/KToaster.vue';
 import { commands, events } from './api/commands';
 import type { Device } from './api/commands';
 import {
@@ -271,7 +270,6 @@ if (typeof window !== 'undefined') {
 
     <ActivityDrawer />
     <AddGameDrawer />
-    <KToaster />
     <KFeedbackHost />
   </div>
 </template>

@@ -36,7 +36,11 @@ export function canDownloadSnapshot(cloudGame: CloudArchiveGameView | null, date
 
 export function canEvictSnapshot(cloudGame: CloudArchiveGameView | null, date: string) {
   const snapshot = cloudSnapshotOf(cloudGame, date);
-  return Boolean(snapshot?.local_verified && snapshot.cloud_verified);
+  return Boolean(snapshot?.local_verified);
+}
+
+export function canEvictCloudSnapshot(cloudGame: CloudArchiveGameView | null, date: string) {
+  return Boolean(cloudSnapshotOf(cloudGame, date)?.cloud_verified);
 }
 
 export function canApplySnapshot(

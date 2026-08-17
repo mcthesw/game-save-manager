@@ -5,6 +5,7 @@ import {
   canDownloadSnapshot,
   canEvictSnapshot,
   canUploadSnapshot,
+  cloudSnapshotOf,
   isRetentionProtectedDate,
 } from './snapshotAvailability';
 
@@ -87,10 +88,22 @@ export function useSnapshotTransfers(deps: {
     }
   }
 
+  function evictConfirmKey(date: string, cloud: boolean): string {
+    const snapshot = cloudSnapshotOf(cloudGame.value, date);
+    const prefix = cloud
+      ? 'sync_settings.archives.evict_cloud'
+      : 'sync_settings.archives.evict';
+    if (!snapshot) return `${prefix}.confirm_last`;
+    const hasReplacement = cloud ? snapshot.local_verified : snapshot.cloud_verified;
+    if (hasReplacement) return `${prefix}.confirm`;
+    if (snapshot.reported_on_devices.length > 0) return `${prefix}.confirm_other_device`;
+    return `${prefix}.confirm_last`;
+  }
+
   async function evictSnapshot(date: string) {
     try {
       await feedback.confirm(
-        $t('sync_settings.archives.evict.confirm', { snapshot: date }),
+        $t(evictConfirmKey(date, false), { snapshot: date }),
         $t('sync_settings.archives.evict.title'),
         {
           confirmButtonText: $t('sync_settings.archives.evict.action'),
@@ -115,6 +128,34 @@ export function useSnapshotTransfers(deps: {
     }
   }
 
+  async function evictCloudSnapshot(date: string) {
+    try {
+      await feedback.confirm(
+        $t(evictConfirmKey(date, true), { snapshot: date }),
+        $t('sync_settings.archives.evict_cloud.title'),
+        {
+          confirmButtonText: $t('sync_settings.archives.evict_cloud.action'),
+          cancelButtonText: $t('sync_settings.cancel'),
+          type: 'warning',
+        }
+      );
+    } catch {
+      return;
+    }
+    activeTransfer.value = date;
+    try {
+      const result = await commands.evictCloudArchive(gameId(), date, true);
+      if (result.status === 'error') {
+        notifyError($t('sync_settings.archives.evict_cloud.failed'), result.error);
+        return;
+      }
+      notifySuccess($t('sync_settings.archives.evict_cloud.success'));
+      await refresh();
+    } finally {
+      activeTransfer.value = '';
+    }
+  }
+
   async function batchTransfer(upload: boolean) {
     const rows = upload ? selectedUploadable.value : selectedDownloadable.value;
     for (const snapshot of rows) {
@@ -126,8 +167,13 @@ export function useSnapshotTransfers(deps: {
     const rows = selectedEvictable.value;
     if (rows.length === 0) return;
     try {
+      const unverified = rows.filter(
+        (s) => !cloudSnapshotOf(cloudGame.value, s.date)?.cloud_verified
+      ).length;
       await feedback.confirm(
-        $t('manage.batch_evict_confirm', { count: rows.length }),
+        unverified > 0
+          ? $t('manage.batch_evict_confirm_mixed', { count: rows.length, unverified })
+          : $t('manage.batch_evict_confirm', { count: rows.length }),
         $t('sync_settings.archives.evict.title'),
         {
           confirmButtonText: $t('sync_settings.archives.evict.action'),
@@ -250,6 +296,7 @@ export function useSnapshotTransfers(deps: {
     transferSnapshot,
     retryPendingDeletion,
     evictSnapshot,
+    evictCloudSnapshot,
     batchTransfer,
     batchEvict,
     convertToPermanent,

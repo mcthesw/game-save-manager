@@ -157,18 +157,29 @@ export type CloudArchiveDeletionView = {
 
 export type CloudArchiveGameView = {
   advertised_head_count: number;
+  both_available_count: number;
   cloud_count: number;
+  cloud_only_count: number;
+  cloud_sync_enabled: boolean;
   game_id: string;
+  /**
+   * True when a remote head is strictly ahead of the local head on the
+   * same branch (no divergence, just newer progress available).
+   */
+  has_update: boolean;
   live_save_process_name?: string | null;
   live_save_snapshot_on_exit: boolean;
   local_count: number;
+  local_only_count: number;
   managed: boolean;
   name: string;
+  other_device_only_count: number;
   pending_deletions: Array<CloudArchiveDeletionView>;
   requires_choice: boolean;
   retention_limit?: number | null;
   snapshots: Array<CloudArchiveSnapshotView>;
   sync_mode: SyncMode;
+  unavailable_count: number;
   visible: boolean;
 };
 
@@ -404,6 +415,21 @@ export type CreatedBy =
   | 'ProcessInterval'
   | 'Unknown';
 
+export type CurrentPositionDecision =
+  | {
+      snapshot_id: string;
+      type: 'apply';
+    }
+  | {
+      type: 'capture';
+    }
+  | {
+      type: 'clear';
+    }
+  | {
+      type: 'fallback_to_parent';
+    };
+
 export type CutoverCloudLibraryRequest = {
   confirmed: boolean;
 };
@@ -424,6 +450,7 @@ export type DeleteSnapshotRequest = {
 
 export type DeleteV2SnapshotRequest = {
   confirmed: boolean;
+  currentPosition?: null | CurrentPositionDecision;
   gameId: string;
   snapshotId: string;
 };
@@ -486,6 +513,12 @@ export type DeviceResourceKind =
 export type DeviceResourceSource = 'manual' | 'detected';
 
 export type DownloadCloudArchiveRequest = {
+  gameId: string;
+  snapshotId: string;
+};
+
+export type EvictCloudArchiveRequest = {
+  confirmed: boolean;
   gameId: string;
   snapshotId: string;
 };
@@ -639,8 +672,10 @@ export type GameSnapshots = {
 };
 
 export type GameSyncModeOutcome = {
+  cloud_sync_enabled: boolean;
   downloaded: number;
   mode: SyncMode;
+  published: number;
 };
 
 export type GameSyncState = {
@@ -1245,6 +1280,7 @@ export type SetGameDeviceBindingRequest = {
 };
 
 export type SetGameSyncModeRequest = {
+  enabled?: boolean;
   gameId: string;
   initialCatchUp: InitialCatchUpPolicy;
   liveSave?: null | LiveSaveSyncOptions;
@@ -1399,7 +1435,7 @@ export type SyncGameRequest = {
   gameName: string;
 };
 
-export type SyncMode = 'manual' | 'snapshot_sync' | 'live_save_sync';
+export type SyncMode = 'manual' | 'cloud_backup' | 'multi_device_sync';
 
 export type SyncResult =
   | 'success'
@@ -1984,6 +2020,28 @@ export type StreamEventsResponses = {
 };
 
 export type StreamEventsResponse = StreamEventsResponses[keyof StreamEventsResponses];
+
+export type EvictCloudArchiveData = {
+  body: EvictCloudArchiveRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/evict-cloud-archive';
+};
+
+export type EvictCloudArchiveErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type EvictCloudArchiveError = EvictCloudArchiveErrors[keyof EvictCloudArchiveErrors];
+
+export type EvictCloudArchiveResponses = {
+  200: boolean;
+};
+
+export type EvictCloudArchiveResponse =
+  EvictCloudArchiveResponses[keyof EvictCloudArchiveResponses];
 
 export type EvictLocalArchiveData = {
   body: EvictLocalArchiveRequest;
@@ -2756,6 +2814,26 @@ export type RemoveCloudDeviceProfileResponses = {
 
 export type RemoveCloudDeviceProfileResponse =
   RemoveCloudDeviceProfileResponses[keyof RemoveCloudDeviceProfileResponses];
+
+export type ResetBrokenCloudLibraryData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/reset-broken-cloud-library';
+};
+
+export type ResetBrokenCloudLibraryErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type ResetBrokenCloudLibraryError =
+  ResetBrokenCloudLibraryErrors[keyof ResetBrokenCloudLibraryErrors];
+
+export type ResetBrokenCloudLibraryResponses = {
+  200: unknown;
+};
 
 export type ResetLudusaviManifestToBundledData = {
   body?: never;

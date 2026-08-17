@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, type Component, type Ref } from 'vue';
+import { ref, computed, onMounted, watch, type Ref } from 'vue';
 import { $t } from '../i18n';
 import {
   commands,
@@ -7,30 +7,14 @@ import {
   type CloudBackendCheckReport,
   type CloudLibraryStatus,
   type CloudNamespaceGeneration,
-  type ConflictResolution,
-  type GameSyncState,
-  type SyncState,
 } from '../api/commands';
 import { error } from '../utils/logger';
-import {
-  Cable,
-  Download,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Layers,
-  Lock,
-  RefreshCw,
-  TriangleAlert,
-  Upload,
-} from '@lucide/vue';
-import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '../ui/kit';
+import { Cable, ExternalLink, Eye, EyeOff, Layers } from '@lucide/vue';
+import { KAlert, KButton, KInput, KNumberInput, KSelect } from '../ui/kit';
 import CloudLibraryCutoverDialog from '../components/CloudLibraryCutoverDialog.vue';
 import CloudLibraryJoinDialog from '../components/CloudLibraryJoinDialog.vue';
 import CloudLibrarySetup from '../components/CloudLibrarySetup.vue';
 import CloudLibraryUpgradeCard from '../components/CloudLibraryUpgradeCard.vue';
-import CloudLibraryUpgradeGate from '../components/CloudLibraryUpgradeGate.vue';
-import SyncConflictDialog from '../components/SyncConflictDialog.vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
 import CloudSyncOverview from '../components/CloudSyncOverview.vue';
 import { resolveCloudUiMode } from '../utils/cloudNamespace';
@@ -64,6 +48,7 @@ interface CloudLibraryInspectOptions {
 
 interface CloudLibrarySetupHandle {
   inspect(options?: CloudLibraryInspectOptions): Promise<CloudLibraryStatus | null>;
+  create(): Promise<CloudLibraryStatus | null>;
 }
 
 interface EditableCloudSettings {
@@ -71,16 +56,6 @@ interface EditableCloudSettings {
   root_path: string;
   backend: Backend;
   max_concurrency: number;
-}
-
-interface BatchSyncItemReportLike {
-  name: string;
-  status: unknown;
-}
-
-interface BatchSyncReportLike {
-  config: BatchSyncItemReportLike;
-  games: BatchSyncItemReportLike[];
 }
 
 const showWebdavPassword = ref(false);
@@ -93,20 +68,10 @@ const maxConcurrency = computed({
   },
 });
 
-const navItems = computed(() => {
-  const items: { key: 'overview' | 'backend' | 'operations'; icon: Component; label: string }[] = [
-    { key: 'overview', icon: Layers, label: $t('sync_settings.overview.tab') },
-    { key: 'backend', icon: Cable, label: $t('sync_settings.console.connection_tab') },
-  ];
-  if (!v2LibraryActive.value) {
-    items.push({
-      key: 'operations',
-      icon: TriangleAlert,
-      label: $t('sync_settings.console.danger_tab'),
-    });
-  }
-  return items;
-});
+const navItems = computed(() => [
+  { key: 'overview' as const, icon: Layers, label: $t('sync_settings.overview.tab') },
+  { key: 'backend' as const, icon: Cable, label: $t('sync_settings.console.connection_tab') },
+]);
 
 const backendOptions = computed(() =>
   backends.map((backend) => ({ value: backend.value, label: $t(backend.label) }))
@@ -125,16 +90,10 @@ const backends = [
 ] as const;
 
 const { config, refreshConfig, saveConfig } = useConfig();
-const { withLoading } = useGlobalLoading();
+
 const feedback = useFeedback();
 
-const activeTab = ref<'overview' | 'backend' | 'operations'>('overview');
-const syncState = ref<SyncState | null>(null);
-const syncingGames = ref<Set<string>>(new Set());
-const syncingConfig = ref(false);
-const resolvingConflict = ref(false);
-const conflictDialogVisible = ref(false);
-const selectedConflictGameName = ref<string | null>(null);
+const activeTab = ref<'overview' | 'backend'>('overview');
 const checkingBackend = ref(false);
 const backendCheckReport = ref<CloudBackendCheckReport | null>(null);
 const backendCheckError = ref<string | null>(null);
@@ -213,10 +172,6 @@ const joinRequired = computed(() => cloudLibraryStatus.value?.kind === 'join_req
 const cutoverResumable = computed(
   () => cloudLibraryStatus.value?.kind === 'cutover_required' && cloudLibraryStatus.value.resumable
 );
-const legacyCloudControlsEnabled = computed(() => cloudUiMode.value === 'legacy');
-const overviewBlocked = computed(
-  () => (cutoverRequired.value || joinRequired.value) && cloudUiMode.value === 'legacy'
-);
 const snapshotSyncInterval = computed({
   get: () => cloud_settings.value.auto_sync_interval || 5,
   set: (minutes: number | undefined) => {
@@ -248,33 +203,8 @@ function updateCloudLibraryStatus(status: CloudLibraryStatus | null) {
   }
 }
 
-function openLibraryAction() {
-  activeTab.value = 'backend';
-  if (cutoverRequired.value) {
-    cuttingOver.value = true;
-    return;
-  }
-  if (joinRequired.value) {
-    joiningLibrary.value = true;
-  }
-}
-
 function finishLibraryAction(gameCount: number) {
   updateCloudLibraryStatus({ kind: 'active', game_count: gameCount });
-}
-
-const hasEnabledGames = computed(() =>
-  (config.value?.games ?? []).some((game) => game.cloud_sync_enabled !== false)
-);
-
-interface GameRow {
-  name: string;
-  isConfig: boolean;
-  cloudSyncEnabled: boolean;
-  status: 'synced' | 'pending' | 'failed' | 'disabled' | 'conflict' | 'unknown';
-  lastSyncAt: string | null;
-  detail: string | null;
-  syncState: GameSyncState | null;
 }
 
 /** Returns true when the error string indicates the bucket requires virtual-hosted-style addressing. */
@@ -285,246 +215,6 @@ function isVirtualHostStyleError(msg: string): boolean {
 function reportHasVirtualHostStyleError(report: CloudBackendCheckReport): boolean {
   return report.items.some((item) => item.message && isVirtualHostStyleError(item.message));
 }
-
-function resolveStatus(enabled: boolean, gs?: GameSyncState): GameRow['status'] {
-  if (!enabled) return 'disabled';
-  if (!gs) return 'unknown';
-  if (gs.last_sync_result === 'cancelled') return 'pending';
-  if (gs.pending_action === 'user_decision_required') return 'conflict';
-  if (gs.pending_action === 'retry_required') return 'failed';
-  if (!gs.last_sync_result) return 'pending';
-  if (gs.last_sync_result === 'success') return 'synced';
-  if (gs.last_sync_result === 'conflict') return 'conflict';
-  if (typeof gs.last_sync_result === 'object' && 'error' in gs.last_sync_result) return 'failed';
-  return 'unknown';
-}
-
-function syncErrorDetail(gs?: GameSyncState): string | null {
-  const result = gs?.last_sync_result;
-  if (result && typeof result === 'object' && 'error' in result) {
-    return String(result.error);
-  }
-  return null;
-}
-
-const gameRows = computed<GameRow[]>(() => {
-  const states = syncState.value?.games ?? {};
-  const configState = syncState.value?.config_state;
-  const configRow: GameRow = {
-    name: $t('sync_settings.overview.config_row'),
-    isConfig: true,
-    cloudSyncEnabled: true,
-    status: resolveStatus(savedBackendEnabled.value, configState),
-    lastSyncAt: configState?.last_sync_at ?? null,
-    detail: syncErrorDetail(configState),
-    syncState: configState ?? null,
-  };
-
-  const rows: GameRow[] = (config.value?.games ?? []).map((game) => {
-    const enabled = savedBackendEnabled.value && game.cloud_sync_enabled !== false;
-    const gs: GameSyncState | undefined = states[game.name] ?? undefined;
-    return {
-      name: game.name,
-      isConfig: false,
-      cloudSyncEnabled: game.cloud_sync_enabled !== false,
-      status: resolveStatus(enabled, gs),
-      lastSyncAt: gs?.last_sync_at ?? null,
-      detail: syncErrorDetail(gs),
-      syncState: gs ?? null,
-    };
-  });
-
-  return [configRow, ...rows];
-});
-
-type StatusKey = GameRow['status'];
-const STATUS_META: Record<
-  StatusKey,
-  { tone: 'success' | 'warning' | 'danger' | 'neutral'; labelKey: string }
-> = {
-  synced: { tone: 'success', labelKey: 'sync_settings.overview.status_synced' },
-  pending: { tone: 'warning', labelKey: 'sync_settings.overview.status_pending' },
-  failed: { tone: 'danger', labelKey: 'sync_settings.overview.status_failed' },
-  disabled: { tone: 'neutral', labelKey: 'sync_settings.overview.status_disabled' },
-  conflict: { tone: 'warning', labelKey: 'sync_settings.overview.status_conflict' },
-  unknown: { tone: 'neutral', labelKey: 'sync_settings.overview.status_unknown' },
-};
-
-function statusLabel(status: StatusKey) {
-  return $t(STATUS_META[status]?.labelKey ?? status);
-}
-
-function statusTone(status: StatusKey) {
-  return STATUS_META[status]?.tone ?? 'neutral';
-}
-
-const selectedConflictRow = computed(
-  () =>
-    gameRows.value.find((row) => !row.isConfig && row.name === selectedConflictGameName.value) ??
-    null
-);
-const selectedConflictState = computed(() => selectedConflictRow.value?.syncState ?? null);
-
-function openConflictDialog(row: GameRow) {
-  if (row.isConfig || row.status !== 'conflict') return;
-  selectedConflictGameName.value = row.name;
-  conflictDialogVisible.value = true;
-}
-
-async function retryConfigSync() {
-  if (!legacyCloudControlsEnabled.value || !savedBackendEnabled.value || syncingConfig.value)
-    return;
-  syncingConfig.value = true;
-  try {
-    const result = await commands.syncConfig();
-    if (result.status === 'error') {
-      notifyError(`${$t('sync_settings.config_sync_failed')}: ${result.error}`);
-      error(`Sync config error: ${result.error}`);
-      return;
-    }
-    notifySuccess($t('sync_settings.config_sync_success'));
-  } catch (e) {
-    error(`Sync config exception: ${e}`);
-    notifyError(String(e));
-  } finally {
-    syncingConfig.value = false;
-    await loadSyncState();
-  }
-}
-
-async function resolveConflict(resolution: ConflictResolution) {
-  const row = selectedConflictRow.value;
-  if (!row || row.isConfig) return;
-
-  const confirmKey =
-    resolution === 'keep_local'
-      ? 'sync_settings.conflict.keep_local_confirm'
-      : 'sync_settings.conflict.accept_remote_confirm';
-
-  try {
-    await feedback.confirm($t(confirmKey, { game: row.name }), $t('sync_settings.conflict.title'), {
-      confirmButtonText: $t('sync_settings.confirm'),
-      cancelButtonText: $t('sync_settings.cancel'),
-      type: 'warning',
-    });
-  } catch {
-    notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
-    return;
-  }
-
-  try {
-    resolvingConflict.value = true;
-    const result = await commands.resolveGameSyncConflict(row.name, resolution);
-    if (result.status === 'error') {
-      notifyError(`${$t('sync_settings.conflict.resolve_failed')}: ${result.error}`);
-      error(`Resolve conflict error for ${row.name}: ${result.error}`);
-      return;
-    }
-
-    notifySuccess($t('sync_settings.conflict.resolve_success'));
-    conflictDialogVisible.value = false;
-  } catch (e) {
-    error(`Resolve conflict exception for ${row.name}: ${e}`);
-    notifyError(`${$t('sync_settings.conflict.resolve_failed')}: ${String(e)}`);
-  } finally {
-    resolvingConflict.value = false;
-    await loadSyncState();
-  }
-}
-
-async function toggleGameSync(row: GameRow) {
-  if (row.isConfig) return;
-  const game = config.value?.games.find((item) => item.name === row.name);
-  if (!game) return;
-
-  const previous = game.cloud_sync_enabled !== false;
-  game.cloud_sync_enabled = row.cloudSyncEnabled;
-
-  const saved = await saveConfig();
-  if (!saved) {
-    game.cloud_sync_enabled = previous;
-    row.cloudSyncEnabled = previous;
-    error(`Failed to toggle sync for ${row.name}`);
-    return;
-  }
-
-  await loadSyncState();
-}
-
-function formatTime(iso: string | null): string {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString();
-}
-
-async function loadSyncState() {
-  try {
-    const result = await commands.getSyncState();
-    if (result.status === 'ok') {
-      syncState.value = result.data;
-    } else {
-      syncState.value = null;
-      error(`Failed to load sync state: ${result.error}`);
-    }
-  } catch (e) {
-    syncState.value = null;
-    error(`Exception loading sync state: ${e}`);
-  }
-}
-
-async function syncGame(gameName: string) {
-  if (
-    !legacyCloudControlsEnabled.value ||
-    !savedBackendEnabled.value ||
-    syncingGames.value.has(gameName)
-  )
-    return;
-  syncingGames.value.add(gameName);
-  try {
-    const result = await commands.syncGame(gameName);
-    if (result.status === 'error') {
-      notifyError(`${$t('sync_settings.sync_failed')}: ${result.error}`);
-      error(`Sync game error for ${gameName}: ${result.error}`);
-      if (isVirtualHostStyleError(result.error)) {
-        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
-      }
-      return;
-    }
-
-    if (result.data === 'conflict') {
-      notifyWarning(statusLabel('conflict'));
-    } else {
-      notifySuccess($t('sync_settings.sync_success'));
-    }
-  } catch (e) {
-    error(`Sync game exception for ${gameName}: ${e}`);
-    notifyError(String(e));
-  } finally {
-    syncingGames.value.delete(gameName);
-    await loadSyncState();
-  }
-}
-
-async function syncAllGames() {
-  if (!legacyCloudControlsEnabled.value || !savedBackendEnabled.value) return;
-  const enabledGames = (config.value?.games ?? []).filter(
-    (game) => game.cloud_sync_enabled !== false
-  );
-  if (enabledGames.length === 0) return;
-
-  await withLoading(async () => {
-    for (const game of enabledGames) {
-      await syncGame(game.name);
-    }
-  }, $t('sync_settings.overview.syncing_all'));
-}
-
-watch(activeTab, (tab) => {
-  if (tab === 'overview') {
-    void loadSyncState();
-  }
-});
 
 watch(draftConnectionKey, (value, previous) => {
   if (value === previous) return;
@@ -714,111 +404,6 @@ async function abort_change() {
   }
 }
 
-function isFailedBatchStatus(status: unknown): boolean {
-  return !!status && typeof status === 'object' && 'failed' in (status as Record<string, unknown>);
-}
-
-function isCancelledBatchStatus(status: unknown): boolean {
-  return status === 'cancelled';
-}
-
-function reportHasFailures(report: BatchSyncReportLike): boolean {
-  return [report.config.status, ...report.games.map((item) => item.status)].some(
-    isFailedBatchStatus
-  );
-}
-
-function reportWasCancelled(report: BatchSyncReportLike): boolean {
-  return [report.config.status, ...report.games.map((item) => item.status)].some(
-    isCancelledBatchStatus
-  );
-}
-
-async function upload_all() {
-  if (!legacyCloudControlsEnabled.value) return;
-  try {
-    await feedback.prompt($t('sync_settings.confirm_upload_all'), $t('home.hint'), {
-      confirmButtonText: $t('sync_settings.confirm'),
-      cancelButtonText: $t('sync_settings.cancel'),
-      inputPattern: /yes/,
-      inputErrorMessage: $t('sync_settings.invalid_input_error'),
-    });
-
-    const session = currentSessionConfig();
-    if (!session || session.backend.type === 'Disabled') {
-      notifyError($t('sync_settings.upload_failed'));
-      return;
-    }
-
-    const result = await withLoading(async () => {
-      return await commands.cloudUploadAll(session);
-    }, $t('sync_settings.uploading_all'));
-
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.upload_failed'));
-      error(`Upload error: ${result.error}`);
-      if (isVirtualHostStyleError(result.error)) {
-        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
-      }
-    } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
-      notifyError($t('sync_settings.upload_failed'));
-    } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
-      notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
-    } else {
-      notifySuccess($t('sync_settings.upload_success'));
-    }
-  } catch {
-    notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
-  } finally {
-    await loadSyncState();
-  }
-}
-
-async function download_all() {
-  if (!legacyCloudControlsEnabled.value) return;
-  try {
-    await feedback.prompt($t('sync_settings.confirm_download_all'), $t('home.hint'), {
-      confirmButtonText: $t('sync_settings.confirm'),
-      cancelButtonText: $t('sync_settings.cancel'),
-      inputPattern: /yes/,
-      inputErrorMessage: $t('sync_settings.invalid_input_error'),
-    });
-
-    const session = currentSessionConfig();
-    if (!session || session.backend.type === 'Disabled') {
-      notifyError($t('sync_settings.download_failed'));
-      return;
-    }
-
-    const result = await withLoading(async () => {
-      return await commands.cloudDownloadAll(session);
-    }, $t('sync_settings.downloading_all'));
-
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.download_failed'));
-      error(`Download error: ${result.error}`);
-      if (isVirtualHostStyleError(result.error)) {
-        notifyWarning($t('sync_settings.s3.virtual_host_hint'));
-      }
-    } else if (reportHasFailures(result.data as BatchSyncReportLike)) {
-      notifyError($t('sync_settings.download_failed'));
-    } else if (reportWasCancelled(result.data as BatchSyncReportLike)) {
-      notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
-    } else {
-      notifySuccess($t('sync_settings.download_success'));
-      const loaded = await load_config();
-      if (loaded) {
-        await loadCloudNamespaceGeneration();
-        await cloudLibrarySetup.value?.inspect();
-      }
-    }
-  } catch {
-    notifyInfo($t('sync_settings.canceled'), undefined, { silent: true });
-  } finally {
-    await loadSyncState();
-  }
-}
-
 async function open_manual() {
   const result = await commands.openUrl('https://help.sworld.club/docs/extras/cloud');
   if (result.status === 'error') {
@@ -837,10 +422,8 @@ async function loadCloudNamespaceGeneration() {
   cloudNamespaceGeneration.value = result.data;
 }
 
-watch(v2LibraryActive, (active) => {
-  if (active && activeTab.value === 'operations') {
-    activeTab.value = 'overview';
-  }
+watch(savedBackendEnabled, (enabled) => {
+  if (enabled) void cloudLibrarySetup.value?.inspect();
 });
 
 onMounted(async () => {
@@ -849,7 +432,6 @@ onMounted(async () => {
     await loadCloudNamespaceGeneration();
     updatingCloudSettings.value = false;
     void cloudLibrarySetup.value?.inspect();
-    void loadSyncState();
   } catch {
     updatingCloudSettings.value = false;
   }
@@ -905,130 +487,52 @@ onMounted(async () => {
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="flex flex-col gap-4">
           <CloudSyncOverview v-if="v2LibraryActive" />
-
-          <div v-if="legacyCloudControlsEnabled && !overviewBlocked" class="flex gap-2">
-            <KButton
-              variant="primary"
-              :disabled="!savedBackendEnabled || !hasEnabledGames"
-              @click="syncAllGames"
-            >
-              <template #icon><RefreshCw :size="14" aria-hidden="true" /></template>
-              {{ $t('sync_settings.overview.sync_all') }}
-            </KButton>
-          </div>
-
-          <section v-if="legacyCloudControlsEnabled || overviewBlocked">
-            <CloudLibraryUpgradeGate
-              :blocked="overviewBlocked"
+          <template v-else>
+            <CloudLibraryUpgradeCard
+              v-if="cutoverRequired && cloudLibraryStatus?.kind === 'cutover_required'"
+              :kicker="
+                cloudLibraryStatus.resumable
+                  ? $t('sync_settings.library.cutover.card_resume')
+                  : $t('sync_settings.library.cutover.card_kicker')
+              "
               :title="
-                joinRequired
-                  ? $t('sync_settings.library.join.gate_title')
-                  : $t('sync_settings.library.cutover.gate_title')
+                $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
               "
+              :hint="$t('sync_settings.library.cutover.card_hint')"
               :action="
-                joinRequired
-                  ? $t('sync_settings.library.join.gate_action')
-                  : $t('sync_settings.library.cutover.gate_action')
+                cloudLibraryStatus.resumable
+                  ? $t('sync_settings.library.cutover.resume_action')
+                  : $t('sync_settings.library.cutover.action')
               "
-              @upgrade="openLibraryAction"
-            >
-              <div class="rounded-md border border-border">
-                <div
-                  class="grid grid-cols-[minmax(0,1fr)_5.5rem_7rem_10rem_8rem] items-center gap-3 border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
-                >
-                  <span>{{ $t('sync_settings.overview.game_name') }}</span>
-                  <span class="text-center">{{ $t('sync_settings.overview.cloud_sync') }}</span>
-                  <span class="text-center">{{ $t('sync_settings.overview.status') }}</span>
-                  <span class="text-center">{{ $t('sync_settings.overview.last_sync') }}</span>
-                  <span class="text-center">{{ $t('sync_settings.overview.actions') }}</span>
-                </div>
-                <div
-                  v-if="gameRows.length === 0"
-                  class="px-3 py-8 text-center text-sm text-text-dim"
-                >
-                  {{ $t('sync_settings.overview.no_games') }}
-                </div>
-                <div
-                  v-for="row in gameRows"
-                  :key="row.name"
-                  class="grid grid-cols-[minmax(0,1fr)_5.5rem_7rem_10rem_8rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
-                >
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5">
-                      <span class="truncate text-sm font-medium text-text">{{ row.name }}</span>
-                      <KTag v-if="row.isConfig">
-                        <Lock :size="10" aria-hidden="true" />
-                        {{ $t('sync_settings.overview.always_synced') }}
-                      </KTag>
-                    </div>
-                    <div v-if="row.detail" class="mt-0.5 truncate text-xs text-danger">
-                      {{ row.detail }}
-                    </div>
-                  </div>
-                  <div class="flex justify-center">
-                    <KSwitch
-                      v-if="!row.isConfig"
-                      v-model="row.cloudSyncEnabled"
-                      :disabled="!legacyCloudControlsEnabled"
-                      :aria-label="$t('sync_settings.overview.cloud_sync')"
-                      @update:model-value="toggleGameSync(row)"
-                    />
-                    <Lock v-else :size="14" class="text-text-dim" aria-hidden="true" />
-                  </div>
-                  <div class="flex justify-center">
-                    <KTag :tone="statusTone(row.status)">{{ statusLabel(row.status) }}</KTag>
-                  </div>
-                  <div class="text-center font-mono text-xs text-text-dim">
-                    {{ formatTime(row.lastSyncAt) }}
-                  </div>
-                  <div class="flex justify-end">
-                    <KButton
-                      v-if="
-                        row.isConfig &&
-                        row.status === 'failed' &&
-                        savedBackendEnabled &&
-                        legacyCloudControlsEnabled
-                      "
-                      variant="ghost"
-                      size="sm"
-                      :loading="syncingConfig"
-                      @click="retryConfigSync"
-                    >
-                      <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
-                      {{ $t('sync_settings.config_retry') }}
-                    </KButton>
-                    <KButton
-                      v-else-if="
-                        legacyCloudControlsEnabled && !row.isConfig && row.status === 'conflict'
-                      "
-                      variant="ghost"
-                      size="sm"
-                      class="text-warning"
-                      @click="openConflictDialog(row)"
-                    >
-                      <template #icon><TriangleAlert :size="13" aria-hidden="true" /></template>
-                      {{ $t('sync_settings.conflict.resolve') }}
-                    </KButton>
-                    <KButton
-                      v-else-if="
-                        legacyCloudControlsEnabled &&
-                        !row.isConfig &&
-                        row.cloudSyncEnabled &&
-                        savedBackendEnabled
-                      "
-                      variant="ghost"
-                      size="sm"
-                      :loading="syncingGames.has(row.name)"
-                      @click="syncGame(row.name)"
-                    >
-                      <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
-                      {{ $t('sync_settings.console.sync_now') }}
-                    </KButton>
-                  </div>
-                </div>
-              </div>
-            </CloudLibraryUpgradeGate>
-          </section>
+              @action="cuttingOver = true"
+            />
+            <CloudLibraryUpgradeCard
+              v-else-if="joinRequired && cloudLibraryStatus?.kind === 'join_required'"
+              :kicker="$t('sync_settings.library.join.card_kicker')"
+              :title="
+                $t('sync_settings.library.join.card', { count: cloudLibraryStatus.game_count })
+              "
+              :hint="$t('sync_settings.library.join.card_hint')"
+              :action="$t('sync_settings.library.join.action')"
+              @action="joiningLibrary = true"
+            />
+            <CloudLibraryUpgradeCard
+              v-else-if="cloudLibraryStatus?.kind === 'empty'"
+              :kicker="$t('sync_settings.library.title')"
+              :title="$t('sync_settings.library.empty')"
+              :hint="$t('sync_settings.library.description')"
+              :action="$t('sync_settings.library.create')"
+              @action="void cloudLibrarySetup?.create()"
+            />
+            <CloudLibraryUpgradeCard
+              v-else
+              :kicker="$t('sync_settings.library.title')"
+              :title="$t('sync_settings.library.not_checked')"
+              :hint="$t('sync_settings.library.description')"
+              :action="$t('sync_settings.library.inspect')"
+              @action="void cloudLibrarySetup?.inspect()"
+            />
+          </template>
         </div>
 
         <!-- 连接 -->
@@ -1231,61 +735,15 @@ onMounted(async () => {
                 {{ $t('sync_settings.abort_button') }}
               </KButton>
             </div>
-
-            <CloudLibrarySetup
-              ref="cloudLibrarySetup"
-              :enabled="savedBackendEnabled"
-              :dirty="hasUnsavedCloudSettings || updatingCloudSettings"
-              @status="updateCloudLibraryStatus"
-              @busy="cloudLibraryBusy = $event"
-            />
           </div>
         </div>
-
-        <!-- 危险操作(v1) -->
-        <div v-else-if="activeTab === 'operations'" class="flex flex-col gap-4">
-          <KAlert tone="warning">{{ $t('sync_settings.operations.warning') }}</KAlert>
-          <div class="flex items-center justify-between gap-4 border-b border-border pb-4">
-            <div class="min-w-0">
-              <h4 class="text-sm font-medium text-text">
-                {{ $t('sync_settings.overwrite_upload') }}
-              </h4>
-              <p class="mt-0.5 text-xs leading-relaxed text-text-dim">
-                {{ $t('sync_settings.operations.upload_desc') }}
-              </p>
-            </div>
-            <KButton
-              variant="danger"
-              :disabled="
-                !legacyCloudControlsEnabled || currentSessionConfig()?.backend.type === 'Disabled'
-              "
-              @click="upload_all"
-            >
-              <template #icon><Upload :size="14" aria-hidden="true" /></template>
-              {{ $t('sync_settings.overwrite_upload') }}
-            </KButton>
-          </div>
-          <div class="flex items-center justify-between gap-4">
-            <div class="min-w-0">
-              <h4 class="text-sm font-medium text-text">
-                {{ $t('sync_settings.overwrite_download') }}
-              </h4>
-              <p class="mt-0.5 text-xs leading-relaxed text-text-dim">
-                {{ $t('sync_settings.operations.download_desc') }}
-              </p>
-            </div>
-            <KButton
-              variant="danger"
-              :disabled="
-                !legacyCloudControlsEnabled || currentSessionConfig()?.backend.type === 'Disabled'
-              "
-              @click="download_all"
-            >
-              <template #icon><Download :size="14" aria-hidden="true" /></template>
-              {{ $t('sync_settings.overwrite_download') }}
-            </KButton>
-          </div>
-        </div>
+        <CloudLibrarySetup
+          ref="cloudLibrarySetup"
+          :enabled="savedBackendEnabled"
+          :dirty="hasUnsavedCloudSettings || updatingCloudSettings"
+          @status="updateCloudLibraryStatus"
+          @busy="cloudLibraryBusy = $event"
+        />
       </div>
     </div>
 
@@ -1295,13 +753,5 @@ onMounted(async () => {
       @cutover="finishLibraryAction"
     />
     <CloudLibraryJoinDialog v-model="joiningLibrary" @joined="finishLibraryAction" />
-    <SyncConflictDialog
-      v-model="conflictDialogVisible"
-      :game-name="selectedConflictRow?.name ?? ''"
-      :state="selectedConflictState"
-      :current-device-id="syncState?.current_device_id"
-      :resolving="resolvingConflict"
-      @resolve="resolveConflict"
-    />
   </div>
 </template>

@@ -24,6 +24,7 @@ const inspecting = ref(false);
 const initializing = ref(false);
 const initializationFailed = ref(false);
 const inspectionFailed = ref(false);
+const resetting = ref(false);
 
 const requiresAction = computed(
   () =>
@@ -31,7 +32,7 @@ const requiresAction = computed(
     !props.dirty &&
     !inspecting.value &&
     !initializing.value &&
-    (inspectionFailed.value || (status.value?.kind === 'empty' && initializationFailed.value))
+    (inspectionFailed.value || status.value?.kind === 'empty')
 );
 
 watch(
@@ -150,25 +151,61 @@ async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus
   }
 }
 
-defineExpose({ inspect });
+async function reset() {
+  resetting.value = true;
+  try {
+    const result = await commands.resetBrokenCloudLibrary();
+    if (result.status === 'error') {
+      notifyError(`${$t('sync_settings.library.reset_failed')}: ${result.error}`);
+      return;
+    }
+    notifySuccess($t('sync_settings.library.reset_success'));
+    inspectionFailed.value = false;
+    updateStatus(null);
+    const fresh = await inspect({ createWhenEmpty: true });
+    if (fresh) {
+      updateStatus(fresh);
+    }
+  } finally {
+    resetting.value = false;
+  }
+}
+
+defineExpose({ inspect, create, reset });
 </script>
 <template>
   <section
     v-if="requiresAction"
-    class="mt-4 flex flex-wrap items-center justify-between gap-4 border-y border-border py-3"
+    class="flex flex-wrap items-center justify-between gap-4 rounded-md border border-[color-mix(in_oklab,var(--warning)_38%,transparent)] bg-[color-mix(in_oklab,var(--warning)_10%,transparent)] px-5 py-4"
   >
-    <span class="min-w-0 text-sm font-medium leading-relaxed text-text">{{ statusText }}</span>
-    <KButton v-if="inspectionFailed" variant="primary" size="sm" @click="inspect()">
-      {{ $t('sync_settings.library.inspect') }}
-    </KButton>
-    <KButton
-      v-else-if="status?.kind === 'empty'"
-      variant="primary"
-      size="sm"
-      :loading="initializing"
-      @click="create()"
-    >
-      {{ $t('sync_settings.library.retry_create') }}
-    </KButton>
+    <div class="min-w-0">
+      <p class="mb-1 text-xs font-bold tracking-wide text-warning">
+        {{ $t('sync_settings.library.title') }}
+      </p>
+      <p class="text-sm font-medium leading-relaxed text-text">{{ statusText }}</p>
+    </div>
+    <div class="flex shrink-0 gap-2">
+      <KButton v-if="inspectionFailed" variant="primary" size="sm" @click="inspect()">
+        {{ $t('sync_settings.library.inspect') }}
+      </KButton>
+      <KButton
+        v-if="inspectionFailed"
+        variant="default"
+        size="sm"
+        :loading="resetting"
+        @click="reset()"
+      >
+        {{ $t('sync_settings.library.reset') }}
+      </KButton>
+      <KButton
+        v-else-if="status?.kind === 'empty'"
+        variant="primary"
+        size="sm"
+        :loading="initializing"
+        @click="create()"
+      >
+        {{ $t('sync_settings.library.retry_create') }}
+      </KButton>
+    </div>
   </section>
 </template>

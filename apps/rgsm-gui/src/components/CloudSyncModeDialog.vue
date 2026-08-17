@@ -29,7 +29,7 @@ const changingMode = ref(false);
 const catchUpPolicy = ref<InitialCatchUpPolicy>('keep_remote');
 const liveSaveProcessName = ref('');
 const liveSaveSnapshotOnExit = ref(false);
-const isLive = computed(() => props.mode === 'live_save_sync');
+const isLive = computed(() => props.mode === 'multi_device_sync');
 
 const visible = computed({
   get: () => props.game !== null,
@@ -72,9 +72,9 @@ async function confirm() {
       game.game_id,
       props.mode,
       catchUpPolicy.value,
-      isLive.value
+      isLive.value && liveSaveProcessName.value.trim()
         ? {
-            process_name: liveSaveProcessName.value,
+            process_name: liveSaveProcessName.value.trim(),
             snapshot_on_exit: liveSaveSnapshotOnExit.value,
           }
         : null
@@ -203,7 +203,7 @@ async function confirm() {
       </KButton>
       <KButton
         variant="primary"
-        :disabled="isLive && !liveSaveProcessName.trim()"
+        :disabled="isLive && liveSaveSnapshotOnExit && !liveSaveProcessName.trim()"
         :loading="changingMode"
         @click="confirm"
       >

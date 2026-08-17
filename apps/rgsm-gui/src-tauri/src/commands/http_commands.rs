@@ -578,6 +578,21 @@ pub async fn http_review_cloud_library_join(
         .map_err(ApiError::from_command)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/reset-broken-cloud-library",
+    operation_id = "resetBrokenCloudLibrary",
+    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_reset_broken_cloud_library(
+    State(state): State<HttpHostState>,
+) -> Result<Json<()>, ApiError> {
+    commands::reset_broken_cloud_library(state.app().clone())
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct JoinCloudLibraryRequest {
@@ -813,6 +828,8 @@ pub struct DeleteV2SnapshotRequest {
     pub game_id: String,
     pub snapshot_id: String,
     pub confirmed: bool,
+    #[serde(default)]
+    pub current_position: Option<rgsm_core::services::CurrentPositionDecision>,
 }
 
 #[utoipa::path(
@@ -830,6 +847,7 @@ pub async fn http_delete_v2_snapshot(
         request.game_id,
         request.snapshot_id,
         request.confirmed,
+        request.current_position,
         state.app().clone(),
     )
     .await
@@ -997,6 +1015,36 @@ pub async fn http_evict_local_archive(
     .map_err(ApiError::from_command)
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EvictCloudArchiveRequest {
+    pub game_id: String,
+    pub snapshot_id: String,
+    pub confirmed: bool,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/evict-cloud-archive",
+    operation_id = "evictCloudArchive",
+    request_body = EvictCloudArchiveRequest,
+    responses((status = 200, body = bool), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_evict_cloud_archive(
+    State(state): State<HttpHostState>,
+    Json(request): Json<EvictCloudArchiveRequest>,
+) -> Result<Json<bool>, ApiError> {
+    commands::evict_cloud_archive(
+        request.game_id,
+        request.snapshot_id,
+        request.confirmed,
+        state.app().clone(),
+    )
+    .await
+    .map(Json)
+    .map_err(ApiError::from_command)
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/get-cloud-device-profiles",
@@ -1094,9 +1142,15 @@ pub async fn http_materialize_all_cloud_archives(
 #[serde(rename_all = "camelCase")]
 pub struct SetGameSyncModeRequest {
     pub game_id: String,
+    #[serde(default = "default_cloud_sync_enabled")]
+    pub enabled: bool,
     pub mode: SyncMode,
     pub initial_catch_up: InitialCatchUpPolicy,
     pub live_save: Option<LiveSaveSyncOptions>,
+}
+
+fn default_cloud_sync_enabled() -> bool {
+    true
 }
 
 #[utoipa::path(
@@ -1112,6 +1166,7 @@ pub async fn http_set_game_sync_mode(
 ) -> Result<Json<GameSyncModeOutcome>, ApiError> {
     commands::set_game_sync_mode(
         request.game_id,
+        request.enabled,
         request.mode,
         request.initial_catch_up,
         request.live_save,
@@ -2051,6 +2106,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_create_cloud_library),
         )
         .route(
+            "/api/v1/reset-broken-cloud-library",
+            post(http_reset_broken_cloud_library),
+        )
+        .route(
             "/api/v1/review-cloud-library-join",
             post(http_review_cloud_library_join),
         )
@@ -2115,6 +2174,10 @@ pub fn router() -> Router<HttpHostState> {
         .route(
             "/api/v1/evict-local-archive",
             post(http_evict_local_archive),
+        )
+        .route(
+            "/api/v1/evict-cloud-archive",
+            post(http_evict_cloud_archive),
         )
         .route(
             "/api/v1/get-cloud-device-profiles",
@@ -2285,6 +2348,7 @@ pub fn router() -> Router<HttpHostState> {
         http_check_cloud_backend,
         http_inspect_cloud_library,
         http_create_cloud_library,
+        http_reset_broken_cloud_library,
         http_review_cloud_library_join,
         http_join_cloud_library,
         http_review_cloud_library_cutover,
@@ -2303,6 +2367,7 @@ pub fn router() -> Router<HttpHostState> {
         http_set_device_game_visibility,
         http_set_device_game_managed,
         http_evict_local_archive,
+        http_evict_cloud_archive,
         http_get_cloud_device_profiles,
         http_remove_cloud_device_profile,
         http_get_deleted_cloud_games,
@@ -2396,6 +2461,7 @@ pub fn router() -> Router<HttpHostState> {
         SetDeviceGameVisibilityRequest,
         SetDeviceGameManagedRequest,
         EvictLocalArchiveRequest,
+        EvictCloudArchiveRequest,
         RemoveCloudDeviceProfileRequest,
         PermanentlyDeleteCloudGameRequest,
         SetGameSyncModeRequest,

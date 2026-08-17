@@ -24,8 +24,8 @@ use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::{
-    CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus, GameSyncModeOutcome,
-    LiveSaveSyncOptions, ServiceContext,
+    CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus,
+    CurrentPositionDecision, GameSyncModeOutcome, LiveSaveSyncOptions, ServiceContext,
 };
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
@@ -742,12 +742,22 @@ pub async fn delete_v2_snapshot(
     game_id: String,
     snapshot_id: String,
     confirmed: bool,
+    current_position: Option<CurrentPositionDecision>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
     ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
-        .delete_v2_snapshot(&game_id, &snapshot_id, confirmed)
+        .delete_v2_snapshot(&game_id, &snapshot_id, confirmed, current_position)
         .await
         .map_err(|error| error.to_string())
+}
+
+pub async fn reset_broken_cloud_library(app_handle: AppHandle) -> Result<(), String> {
+    svc(&app_handle)
+        .reset_broken_cloud_library()
+        .map_err(|error| error.to_string())?;
+    let config = get_config().map_err(|error| error.to_string())?;
+    crate::hooks::rebuild_pipeline(&app_handle, &config);
+    Ok(())
 }
 
 pub async fn set_shared_snapshot_retention(
@@ -822,6 +832,18 @@ pub async fn evict_local_archive(
         .map_err(|error| error.to_string())
 }
 
+pub async fn evict_cloud_archive(
+    game_id: String,
+    snapshot_id: String,
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    svc(&app_handle)
+        .evict_cloud_archive(&game_id, &snapshot_id, confirmed)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 pub async fn get_cloud_device_profiles(
     app_handle: AppHandle,
 ) -> Result<Vec<rgsm_core::services::CloudDeviceProfileView>, String> {
@@ -888,6 +910,7 @@ pub async fn materialize_all_cloud_archives(
 
 pub async fn set_game_sync_mode(
     game_id: String,
+    enabled: bool,
     mode: SyncMode,
     initial_catch_up: InitialCatchUpPolicy,
     live_save: Option<LiveSaveSyncOptions>,
@@ -896,6 +919,7 @@ pub async fn set_game_sync_mode(
     crate::cloud_library::set_game_sync_mode(
         &app_handle,
         &game_id,
+        enabled,
         mode,
         initial_catch_up,
         live_save,

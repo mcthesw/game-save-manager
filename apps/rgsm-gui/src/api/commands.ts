@@ -189,6 +189,9 @@ export const commands = {
   async inspectCloudLibrary() {
     return unwrap<types.InspectCloudLibraryResponses[200]>(await sdk.inspectCloudLibrary());
   },
+  async resetBrokenCloudLibrary() {
+    return unwrap<types.ResetBrokenCloudLibraryResponses[200]>(await sdk.resetBrokenCloudLibrary());
+  },
   async createCloudLibrary(confirmed: types.CreateCloudLibraryRequest['confirmed']) {
     return unwrap<types.CreateCloudLibraryResponses[200]>(
       await sdk.createCloudLibrary({ body: { confirmed } })
@@ -266,10 +269,11 @@ export const commands = {
   async deleteV2Snapshot(
     gameId: types.DeleteV2SnapshotRequest['gameId'],
     snapshotId: types.DeleteV2SnapshotRequest['snapshotId'],
-    confirmed: types.DeleteV2SnapshotRequest['confirmed']
+    confirmed: types.DeleteV2SnapshotRequest['confirmed'],
+    currentPosition?: types.DeleteV2SnapshotRequest['currentPosition']
   ) {
     return unwrap<types.DeleteV2SnapshotResponses[200]>(
-      await sdk.deleteV2Snapshot({ body: { gameId, snapshotId, confirmed } })
+      await sdk.deleteV2Snapshot({ body: { gameId, snapshotId, confirmed, currentPosition } })
     );
   },
   async setSharedSnapshotRetention(
@@ -324,6 +328,16 @@ export const commands = {
       await sdk.evictLocalArchive({ body: { gameId, snapshotId, confirmed } })
     );
   },
+  async evictCloudArchive(
+    gameId: types.EvictCloudArchiveRequest['gameId'],
+    snapshotId: types.EvictCloudArchiveRequest['snapshotId'],
+    confirmed: types.EvictCloudArchiveRequest['confirmed']
+  ) {
+    return unwrap<types.EvictCloudArchiveResponses[200]>(
+      await sdk.evictCloudArchive({ body: { gameId, snapshotId, confirmed } })
+    );
+  },
+
   async getCloudDeviceProfiles() {
     return unwrap<types.GetCloudDeviceProfilesResponses[200]>(await sdk.getCloudDeviceProfiles());
   },
@@ -355,10 +369,11 @@ export const commands = {
     gameId: types.SetGameSyncModeRequest['gameId'],
     mode: types.SetGameSyncModeRequest['mode'],
     initialCatchUp: types.SetGameSyncModeRequest['initialCatchUp'],
-    liveSave: types.SetGameSyncModeRequest['liveSave']
+    liveSave: types.SetGameSyncModeRequest['liveSave'],
+    enabled: types.SetGameSyncModeRequest['enabled'] = true
   ) {
     return unwrap<types.SetGameSyncModeResponses[200]>(
-      await sdk.setGameSyncMode({ body: { gameId, mode, initialCatchUp, liveSave } })
+      await sdk.setGameSyncMode({ body: { gameId, mode, initialCatchUp, liveSave, enabled } })
     );
   },
   async cloudUploadAll(session: types.CloudUploadAllRequest['session']) {

@@ -1,6 +1,5 @@
 import { ref, computed } from 'vue';
 import { $t } from '../i18n';
-import { pushToast } from './useToast';
 
 export type ActivityStatus = 'pending' | 'running' | 'info' | 'success' | 'warning' | 'error';
 
@@ -125,10 +124,6 @@ export function addActivity(opts: {
     last.updatedAt = now;
     if (!opts.silent) {
       activityAddSignal.value++;
-      // Repeated identical events (e.g. hotkey backups) still toast each time.
-      if (isTerminal(status)) {
-        pushToast({ tone: status, title: opts.title, description: opts.description });
-      }
     }
     applyTimerPolicy(last);
     return last.id;
@@ -149,11 +144,6 @@ export function addActivity(opts: {
   activities.value.push(entry);
   if (!opts.silent) {
     activityAddSignal.value++;
-    // Terminal states are events: foreground toast. Active states are tasks:
-    // they live in the drawer only, progress arrives via stage updates.
-    if (isTerminal(status)) {
-      pushToast({ tone: status, title: entry.title, description: entry.description });
-    }
   }
   evict();
   applyTimerPolicy(entry);
@@ -188,10 +178,6 @@ export function updateActivity(
     updatedAt: Date.now(),
   };
   activities.value[idx] = updated;
-  // A task finishing is an event: surface it as a toast with its final title.
-  if (isActive(entry.status) && isTerminal(updated.status)) {
-    pushToast({ tone: updated.status, title: updated.title, description: updated.description });
-  }
   applyTimerPolicy(updated);
 }
 
