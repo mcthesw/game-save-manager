@@ -85,6 +85,9 @@ import type {
   DownloadCloudArchiveData,
   DownloadCloudArchiveErrors,
   DownloadCloudArchiveResponses,
+  EvictCloudArchiveData,
+  EvictCloudArchiveErrors,
+  EvictCloudArchiveResponses,
   EvictLocalArchiveData,
   EvictLocalArchiveErrors,
   EvictLocalArchiveResponses,
@@ -190,6 +193,9 @@ import type {
   RemoveCloudDeviceProfileData,
   RemoveCloudDeviceProfileErrors,
   RemoveCloudDeviceProfileResponses,
+  ResetBrokenCloudLibraryData,
+  ResetBrokenCloudLibraryErrors,
+  ResetBrokenCloudLibraryResponses,
   ResetLudusaviManifestToBundledData,
   ResetLudusaviManifestToBundledErrors,
   ResetLudusaviManifestToBundledResponses,
@@ -626,6 +632,22 @@ export const streamEvents = <ThrowOnError extends boolean = false>(
     ...options,
   });
 
+export const evictCloudArchive = <ThrowOnError extends boolean = false>(
+  options: Options<EvictCloudArchiveData, ThrowOnError>
+): RequestResult<EvictCloudArchiveResponses, EvictCloudArchiveErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    EvictCloudArchiveResponses,
+    EvictCloudArchiveErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/evict-cloud-archive',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
 export const evictLocalArchive = <ThrowOnError extends boolean = false>(
   options: Options<EvictLocalArchiveData, ThrowOnError>
 ): RequestResult<EvictLocalArchiveResponses, EvictLocalArchiveErrors, ThrowOnError> =>
@@ -1040,6 +1062,15 @@ export const removeCloudDeviceProfile = <ThrowOnError extends boolean = false>(
       ...options.headers,
     },
   });
+
+export const resetBrokenCloudLibrary = <ThrowOnError extends boolean = false>(
+  options?: Options<ResetBrokenCloudLibraryData, ThrowOnError>
+): RequestResult<ResetBrokenCloudLibraryResponses, ResetBrokenCloudLibraryErrors, ThrowOnError> =>
+  (options?.client ?? client).post<
+    ResetBrokenCloudLibraryResponses,
+    ResetBrokenCloudLibraryErrors,
+    ThrowOnError
+  >({ url: '/api/v1/reset-broken-cloud-library', ...options });
 
 export const resetLudusaviManifestToBundled = <ThrowOnError extends boolean = false>(
   options?: Options<ResetLudusaviManifestToBundledData, ThrowOnError>

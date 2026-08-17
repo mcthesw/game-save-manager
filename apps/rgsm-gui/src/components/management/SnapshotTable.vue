@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import {
   ArrowDown,
   ArrowUp,
-  CloudCheck,
+  CloudOff,
   Download,
   FolderMinus,
   Inbox,
@@ -20,6 +20,7 @@ import { KButton, KCheckbox, KTag, KTooltip } from '../../ui/kit';
 import {
   canApplySnapshot,
   canDownloadSnapshot,
+  canEvictCloudSnapshot,
   canEvictSnapshot,
   canUploadSnapshot,
   isRetentionProtectedDate,
@@ -47,6 +48,7 @@ const emit = defineEmits<{
   changeDescribe: [date: string];
   convertPermanent: [date: string];
   evict: [date: string];
+  evictCloud: [date: string];
   download: [date: string];
   upload: [date: string];
 }>();
@@ -100,6 +102,7 @@ const isInCloud = (date: string) => isSnapshotInCloud(props.cloudGame, date);
 const canUpload = (date: string) => canUploadSnapshot(props.cloudGame, date);
 const canDownload = (date: string) => canDownloadSnapshot(props.cloudGame, date);
 const canEvict = (date: string) => canEvictSnapshot(props.cloudGame, date);
+const canEvictCloud = (date: string) => canEvictCloudSnapshot(props.cloudGame, date);
 const canApply = (date: string) => canApplySnapshot(props.localCatalogDates, props.cloudGame, date);
 const isProtected = (date: string) =>
   isRetentionProtectedDate(props.retentionProtectedDates, props.cloudGame, date);
@@ -240,13 +243,21 @@ const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, d
                   <template #icon><Upload :size="15" aria-hidden="true" /></template>
                 </KButton>
               </KTooltip>
-              <span
+              <KTooltip
                 v-else-if="cloudGame && isInCloud(snapshot.date)"
-                class="inline-flex items-center justify-center"
-                :title="locationLabel(snapshot.date)"
+                :content="$t('sync_settings.archives.evict_cloud.action')"
               >
-                <CloudCheck :size="15" class="text-text-dim" aria-hidden="true" />
-              </span>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('sync_settings.archives.evict_cloud.action')"
+                  :disabled="!canEvictCloud(snapshot.date)"
+                  :loading="activeTransfer === snapshot.date"
+                  @click="emit('evictCloud', snapshot.date)"
+                >
+                  <template #icon><CloudOff :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
             </span>
 
             <span class="inline-flex h-7 w-7 items-center justify-center">

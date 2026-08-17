@@ -6,6 +6,7 @@ import { KButton } from '../ui/kit';
 
 defineProps<{
   localSnapshots: number;
+  cloudSnapshots: number;
   totalSnapshots: number;
   materializing: boolean;
   pendingMaterialization: boolean;
@@ -25,8 +26,9 @@ defineEmits<{
       </p>
       <p class="mt-1 text-xs text-text-dim">
         {{
-          $t('sync_settings.archives.summary', {
+          $t('sync_settings.archives.game_summary', {
             local: localSnapshots,
+            cloud: cloudSnapshots,
             total: totalSnapshots,
           })
         }}

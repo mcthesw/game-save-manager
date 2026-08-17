@@ -16,16 +16,14 @@ const library = ref<CloudArchiveLibraryView | null>(null);
 const loading = ref(false);
 const materializing = ref(false);
 
-const downloadableSnapshots = computed(
-  () =>
-    library.value?.games.flatMap((game) =>
-      game.snapshots.filter((snapshot) => snapshot.cloud_verified)
-    ) ?? []
-);
-const totalSnapshots = computed(() => downloadableSnapshots.value.length);
+const allSnapshots = computed(() => library.value?.games.flatMap((game) => game.snapshots) ?? []);
 const localSnapshots = computed(
-  () => downloadableSnapshots.value.filter((snapshot) => snapshot.local_verified).length
+  () => allSnapshots.value.filter((snapshot) => snapshot.local_verified).length
 );
+const cloudSnapshots = computed(
+  () => allSnapshots.value.filter((snapshot) => snapshot.cloud_verified).length
+);
+const totalSnapshots = computed(() => allSnapshots.value.length);
 
 async function load() {
   loading.value = true;
@@ -92,6 +90,7 @@ onMounted(load);
   <section class="mb-4 flex flex-col gap-3">
     <CloudArchiveToolbar
       :local-snapshots="localSnapshots"
+      :cloud-snapshots="cloudSnapshots"
       :total-snapshots="totalSnapshots"
       :materializing="materializing"
       :pending-materialization="library?.pending_materialization ?? false"
