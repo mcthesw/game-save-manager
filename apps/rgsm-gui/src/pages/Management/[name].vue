@@ -36,7 +36,6 @@ import {
   RotateCw,
   ShieldCheck,
   Timer,
-  Trash2,
   Undo2,
   Upload,
   Zap,
@@ -49,16 +48,7 @@ import {
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
 import { usePathResolution } from '../../composables/usePathResolution';
 import { saveUnitPaths } from '../../utils/saveUnit';
-import {
-  KButton,
-  KDialog,
-  KInput,
-  KMenu,
-  KSegmented,
-  KTag,
-  KTooltip,
-  type KMenuEntry,
-} from '../../ui/kit';
+import { KButton, KInput, KMenu, KSegmented, KTag, KTooltip, type KMenuEntry } from '../../ui/kit';
 
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
@@ -77,7 +67,6 @@ const viewMode = ref<'table' | 'branch'>('table');
 const search = ref(''); // 搜索时使用的字符串
 const drawer = ref(false); // 是否显示存档位置侧栏
 const extraBackupDrawer = ref(false);
-const deleteChoiceVisible = ref(false); // 删除游戏方式选择对话框
 const autoSaveSettingsDrawer = ref(false); // 是否显示自动保存设置抽屉
 
 const table_data = ref<Snapshot[]>([]);
@@ -324,6 +313,7 @@ const {
   transferSnapshot,
   retryPendingDeletion,
   evictSnapshot,
+  evictCloudSnapshot,
   batchTransfer,
   batchEvict,
   convertToPermanent,
@@ -587,7 +577,29 @@ async function del_save(date: string) {
           type: 'warning',
         }
       );
-      result = await commands.deleteV2Snapshot(gameId, date, true);
+      if (currentHead.value === date) {
+        const headSnapshot = table_data.value.find((item) => item.date === date);
+        const parentDate = headSnapshot?.parent;
+        const parentLabel = parentDate
+          ? table_data.value.find((item) => item.date === parentDate)?.describe || parentDate
+          : null;
+        await feedback.confirm(
+          parentLabel
+            ? $t('sync_settings.archives.delete_head_fallback', { parent: parentLabel })
+            : $t('sync_settings.archives.delete_head_clear'),
+          $t('sync_settings.archives.delete_title'),
+          {
+            confirmButtonText: $t('sync_settings.archives.delete_permanently'),
+            cancelButtonText: $t('manage.cancel'),
+            type: 'warning',
+          }
+        );
+        result = await commands.deleteV2Snapshot(gameId, date, true, {
+          type: 'fallback_to_parent',
+        });
+      } else {
+        result = await commands.deleteV2Snapshot(gameId, date, true);
+      }
     } else {
       // 行内 popconfirm 移除后，本地命名空间也走统一破坏性确认
       await feedback.confirm($t('manage.confirm_delete_prompt'), $t('manage.delete'), {
@@ -874,85 +886,6 @@ async function load_latest_save() {
   } else {
     notifyError($t('manage.no_backup_error'));
   }
-}
-
-async function permanentlyDeleteSharedGame() {
-  const gameId = cloudGame.value?.game_id ?? game.value.storage_key ?? game.value.name;
-  try {
-    await feedback.confirm(
-      $t('sync_settings.archives.games.delete_confirm', { game: game.value.name }),
-      $t('sync_settings.archives.games.delete_title'),
-      {
-        confirmButtonText: $t('sync_settings.archives.games.delete_action'),
-        cancelButtonText: $t('manage.cancel'),
-        type: 'error',
-      }
-    );
-  } catch {
-    notifyInfo($t('manage.operation_canceled'));
-    return;
-  }
-  const result = await commands.permanentlyDeleteCloudGame(gameId, true);
-  if (result.status === 'error') {
-    notifyError($t('sync_settings.archives.games.delete_incomplete'), result.error);
-    return;
-  }
-  notifySuccess(
-    $t('sync_settings.archives.games.delete_success', {
-      snapshots: result.data.removed_snapshots,
-    })
-  );
-  await refreshConfig();
-  router.back();
-}
-
-async function del_cur() {
-  const cloud = await commands.inspectCloudLibrary();
-  if (cloud.status === 'ok' && cloud.data.kind === 'active') {
-    deleteChoiceVisible.value = true;
-    return;
-  }
-  try {
-    const { value } = await feedback.prompt($t('manage.delete_prompt'), $t('home.hint'), {
-      confirmButtonText: $t('manage.confirm'),
-      cancelButtonText: $t('manage.cancel'),
-      inputPattern: /yes/,
-      inputErrorMessage: $t('manage.invalid_input_error'),
-    });
-    if (value === 'yes') {
-      const result = await commands.deleteGame(game.value);
-      if (result.status === 'error') {
-        notifyError($t('error.delete_game_failed'));
-        return;
-      }
-      await refreshConfig();
-      router.back();
-    } else {
-      notifyInfo($t('manage.invalid_input_error'));
-    }
-  } catch {
-    notifyInfo($t('manage.operation_canceled'));
-  }
-}
-
-async function stopManagingHere() {
-  deleteChoiceVisible.value = false;
-  const result = await commands.setDeviceGameManaged(
-    game.value.storage_key || game.value.name,
-    false,
-    true
-  );
-  if (result.status === 'error') {
-    notifyError($t('manage.stop_managing_failed'), result.error);
-    return;
-  }
-  await refreshConfig();
-  router.back();
-}
-
-async function choosePermanentDelete() {
-  deleteChoiceVisible.value = false;
-  await permanentlyDeleteSharedGame();
 }
 
 async function open_backup_folder() {
@@ -1337,8 +1270,14 @@ const syncParticipationLabel = computed(() => {
   const next = cloudGame.value;
   if (!next) return '';
   if (!next.managed) return $t('sync_settings.overview.unmanaged');
-  if (next.sync_mode === 'live_save_sync') return $t('sync_settings.overview.mode_live');
-  if (next.sync_mode === 'snapshot_sync') return $t('sync_settings.overview.mode_snapshot');
+  if (!next.cloud_sync_enabled) return $t('sync_settings.overview.status_disabled');
+  const mode = next.sync_mode;
+  if (mode === 'multi_device_sync') {
+    return $t('sync_settings.overview.mode_live');
+  }
+  if (mode === 'cloud_backup') {
+    return $t('sync_settings.overview.mode_snapshot');
+  }
   return $t('sync_settings.overview.mode_manual');
 });
 
@@ -1361,14 +1300,6 @@ const headerMenuEntries = computed<KMenuEntry[]>(() => [
     icon: Timer,
     active: autoSaveConfigured.value,
   },
-  { type: 'separator' },
-  {
-    type: 'item',
-    key: 'deleteGame',
-    label: $t('manage.delete_save_manage'),
-    icon: Trash2,
-    danger: true,
-  },
 ]);
 
 function onHeaderMenuSelect(key: string) {
@@ -1377,7 +1308,6 @@ function onHeaderMenuSelect(key: string) {
   else if (key === 'extraBackups') extraBackupDrawer.value = true;
   else if (key === 'quickBackup') set_quick_backup();
   else if (key === 'autoSave') autoSaveSettingsDrawer.value = true;
-  else if (key === 'deleteGame') del_cur();
 }
 
 const viewModeOptions = computed(() => [
@@ -1559,6 +1489,7 @@ const viewModeOptions = computed(() => [
           @change-describe="change_describe"
           @convert-permanent="convertToPermanent"
           @evict="evictSnapshot"
+          @evict-cloud="evictCloudSnapshot"
           @download="transferSnapshot($event, false)"
           @upload="transferSnapshot($event, true)"
         />
@@ -1593,28 +1524,10 @@ const viewModeOptions = computed(() => [
 
     <ExtraBackupDrawer v-if="game" v-model="extraBackupDrawer" :game="game" />
     <AutoSaveSettingsDrawer
-      v-if="game"
       v-model="autoSaveSettingsDrawer"
       :game="game"
       :cloud-game="cloudGame"
       @saved="onAutoSaveSettingsSaved"
     />
-
-    <KDialog
-      v-model:open="deleteChoiceVisible"
-      :title="$t('manage.delete_choice_title')"
-      :width="460"
-    >
-      <p class="text-sm leading-relaxed text-text-dim">
-        {{ $t('manage.delete_choice_confirm') }}
-      </p>
-      <template #footer>
-        <KButton @click="deleteChoiceVisible = false">{{ $t('manage.cancel') }}</KButton>
-        <KButton @click="stopManagingHere">{{ $t('manage.stop_managing_action') }}</KButton>
-        <KButton variant="danger" @click="choosePermanentDelete">
-          {{ $t('sync_settings.archives.games.delete_action') }}
-        </KButton>
-      </template>
-    </KDialog>
   </div>
 </template>

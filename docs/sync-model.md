@@ -179,8 +179,8 @@ Matching positions on other Devices do not block deletion. They are cleared when
 - Disabling cloud sync is not Stop Managing or a deletion choice.
 - The Game management page contains no Game-level lifecycle deletion entry.
 - The Game overview uses four mutually exclusive current-Device × cloud Archive availability counts; unavailable/unavailable distinguishes another Device's last-reported copy from no known copy.
-- Global Snapshot Deletion requires the initiating Device to resolve a matching Current Position before deletion; other Devices do not block deletion and select or capture progress after their matching positions are cleared.
-- Global Snapshot Deletion never automatically moves a Device to an ancestor.
+- Global Snapshot Deletion requires the initiating Device to resolve a matching Current Position before deletion; the default is falling back to the deleted Snapshot's parent. Other Devices do not block deletion and select or capture progress after their matching positions are cleared.
+- Global Snapshot Deletion moves the initiating Device's Current Position to the deleted Snapshot's parent (or clears it if no parent exists). Other Devices' positions are cleared without automatic ancestor fallback.
 - Local and Cloud Archive eviction use consequence warnings rather than requiring a verified replacement copy.
 - Evicting the last known Archive leaves the Snapshot visible but unavailable; it is not Global Snapshot Deletion.
 

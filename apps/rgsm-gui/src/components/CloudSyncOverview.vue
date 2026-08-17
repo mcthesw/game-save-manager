@@ -190,8 +190,7 @@ function distribution(game: CloudArchiveGameView) {
   if (cloud > 0) parts.push($t('sync_settings.overview.dist_cloud', { count: cloud }));
   if (otherDevice > 0)
     parts.push($t('sync_settings.overview.dist_other_device', { count: otherDevice }));
-  if (unavailable > 0)
-    parts.push($t('sync_settings.overview.dist_lost', { count: unavailable }));
+  if (unavailable > 0) parts.push($t('sync_settings.overview.dist_lost', { count: unavailable }));
   return parts.join(' \u00b7 ');
 }
 

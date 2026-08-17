@@ -90,9 +90,7 @@ export function useSnapshotTransfers(deps: {
 
   function evictConfirmKey(date: string, cloud: boolean): string {
     const snapshot = cloudSnapshotOf(cloudGame.value, date);
-    const prefix = cloud
-      ? 'sync_settings.archives.evict_cloud'
-      : 'sync_settings.archives.evict';
+    const prefix = cloud ? 'sync_settings.archives.evict_cloud' : 'sync_settings.archives.evict';
     if (!snapshot) return `${prefix}.confirm_last`;
     const hasReplacement = cloud ? snapshot.local_verified : snapshot.cloud_verified;
     if (hasReplacement) return `${prefix}.confirm`;
