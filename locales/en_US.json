@@ -1025,7 +1025,8 @@
       "retry_create": "Retry creation",
       "reset": "Reset and recreate",
       "reset_success": "Cloud Library state reset",
-      "reset_failed": "Could not reset the Cloud Library"
+      "reset_failed": "Could not reset the Cloud Library",
+      "reset_confirm": "This deletes the entire remote cloud library namespace and all Cloud Archives. Enter yes to confirm."
     },
     "operations": {
       "tab": "Operations",

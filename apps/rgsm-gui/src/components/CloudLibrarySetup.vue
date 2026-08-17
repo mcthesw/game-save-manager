@@ -25,6 +25,7 @@ const initializing = ref(false);
 const initializationFailed = ref(false);
 const inspectionFailed = ref(false);
 const resetting = ref(false);
+const feedback = useFeedback();
 
 const requiresAction = computed(
   () =>
@@ -154,6 +155,19 @@ async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus
 async function reset() {
   resetting.value = true;
   try {
+    // Require explicit confirmation: this deletes the entire remote v2/
+    // namespace, which could be a valid shared library if the inspection
+    // failure was transient (network timeout, etc.).
+    await feedback.prompt(
+      $t('sync_settings.library.reset_confirm'),
+      $t('sync_settings.library.reset'),
+      {
+        confirmButtonText: $t('sync_settings.library.reset'),
+        cancelButtonText: $t('sync_settings.cancel'),
+        inputPattern: /yes/,
+        inputErrorMessage: $t('manage.invalid_input_error'),
+      }
+    );
     const result = await commands.resetBrokenCloudLibrary();
     if (result.status === 'error') {
       notifyError(`${$t('sync_settings.library.reset_failed')}: ${result.error}`);
@@ -166,6 +180,8 @@ async function reset() {
     if (fresh) {
       updateStatus(fresh);
     }
+  } catch {
+    // User cancelled the confirmation prompt.
   } finally {
     resetting.value = false;
   }

@@ -1026,7 +1026,8 @@
       "retry_create": "重试创建",
       "reset": "重置并重建",
       "reset_success": "云端资料库状态已重置",
-      "reset_failed": "无法重置云端资料库"
+      "reset_failed": "无法重置云端资料库",
+      "reset_confirm": "这将删除整个远程云库命名空间和所有云端存档。输入 yes 确认。"
     },
     "operations": {
       "tab": "操作",
