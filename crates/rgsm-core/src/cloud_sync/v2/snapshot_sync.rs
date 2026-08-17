@@ -10,7 +10,7 @@ use super::{
     CloudManifest, CloudManifestRepository, DeletionKind, DeletionRegistryError,
     DeletionRegistryRepository, GameManifest, ManifestError, ManifestRepositoryError,
     SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotNode,
-    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState,
+    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState, V2ConflictInspector,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
@@ -458,6 +458,21 @@ impl SnapshotSyncCoordinator {
         Ok(())
     }
 
+    pub async fn check_divergence(
+        &self,
+        game_id: &str,
+        local: &GameSnapshots,
+    ) -> Result<bool, SnapshotSyncError> {
+        let inspector = V2ConflictInspector::new(
+            self.operator.clone(),
+            self.local_archive_root.clone(),
+            self.current_device_id.clone(),
+            self.max_attempts,
+        );
+        let review = inspector.review(game_id, local).await?;
+        Ok(review.requires_choice)
+    }
+
     async fn ensure_active_or_converge_deleted_game(
         &self,
         game_id: &str,
@@ -664,6 +679,8 @@ pub enum SnapshotSyncError {
     Deletion(#[from] SnapshotDeletionLifecycleError),
     #[error(transparent)]
     DeletionRegistry(#[from] DeletionRegistryError),
+    #[error(transparent)]
+    ConflictReview(#[from] super::ConflictReviewError),
 }
 
 #[cfg(test)]

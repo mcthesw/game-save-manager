@@ -62,20 +62,49 @@ impl LifecycleHook for V2SnapshotSyncHook {
             return Ok(());
         };
         let _guard = self.operation_lock.lock().await;
-        let outcome = self
-            .coordinator
-            .reconcile_game_with_policy(
-                game_id.as_ref(),
-                &ctx.snapshots,
-                target.activation_revision,
-                &target.local_baseline,
-                &CancellationToken::new(),
-                crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                    upload_new_archives: target.upload_new_archives,
-                    download_forward_target: false,
-                },
-            )
-            .await?;
+
+        // Multi-device Sync: publish records first, check divergence, then
+        // transfer only when the fleet is not diverged. This prevents a stale
+        // target from uploading a new archive after suspension.
+        let allow_transfer = if target.is_multi_device_sync {
+            self.coordinator
+                .reconcile_game_with_policy(
+                    game_id.as_ref(),
+                    &ctx.snapshots,
+                    target.activation_revision,
+                    &target.local_baseline,
+                    &CancellationToken::new(),
+                    crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                        upload_new_archives: false,
+                        download_forward_target: false,
+                    },
+                )
+                .await?;
+            !self
+                .coordinator
+                .check_divergence(game_id.as_ref(), &ctx.snapshots)
+                .await?
+        } else {
+            true
+        };
+
+        let outcome = if allow_transfer {
+            self.coordinator
+                .reconcile_game_with_policy(
+                    game_id.as_ref(),
+                    &ctx.snapshots,
+                    target.activation_revision,
+                    &target.local_baseline,
+                    &CancellationToken::new(),
+                    crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                        upload_new_archives: target.upload_new_archives,
+                        download_forward_target: false,
+                    },
+                )
+                .await?
+        } else {
+            crate::cloud_sync::v2::SnapshotReconciliationOutcome::default()
+        };
         let retained = if let Some(limit) = target.retention_limit {
             let retention = self
                 .coordinator

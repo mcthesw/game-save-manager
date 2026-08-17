@@ -754,6 +754,7 @@ pub async fn delete_v2_snapshot(
 pub async fn reset_broken_cloud_library(app_handle: AppHandle) -> Result<(), String> {
     svc(&app_handle)
         .reset_broken_cloud_library()
+        .await
         .map_err(|error| error.to_string())?;
     let config = get_config().map_err(|error| error.to_string())?;
     crate::hooks::rebuild_pipeline(&app_handle, &config);
