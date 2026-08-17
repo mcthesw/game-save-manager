@@ -147,8 +147,23 @@ impl V2ConflictInspector {
                 .insert(device.clone());
         }
         let head_keys: Vec<String> = grouped_heads.keys().cloned().collect();
-        let mut candidates = Vec::with_capacity(grouped_heads.len());
-        for (snapshot_id, devices) in &grouped_heads {
+        // Keep only maximal heads: when two remote Devices advertise
+        // comparable positions on the same branch (e.g. B and its
+        // descendant C), only the descendant is a meaningful Forward
+        // Target. Emitting both would force requires_choice even
+        // though there is exactly one forward direction.
+        let mut maximal_heads = Vec::with_capacity(head_keys.len());
+        for (i, head) in head_keys.iter().enumerate() {
+            let dominated = head_keys.iter().enumerate().any(|(j, other)| {
+                i != j && graph.chain(other).is_ok_and(|chain| chain.contains(head))
+            });
+            if !dominated {
+                maximal_heads.push(head.clone());
+            }
+        }
+        let mut candidates = Vec::with_capacity(maximal_heads.len());
+        for snapshot_id in &maximal_heads {
+            let devices = &grouped_heads[snapshot_id];
             let node = game
                 .snapshots
                 .get(snapshot_id)
@@ -167,7 +182,7 @@ impl V2ConflictInspector {
             });
         }
         let requires_choice = progress_requires_choice(&candidates)
-            || heads_are_divergent(&graph, local_head.as_deref(), &head_keys);
+            || heads_are_divergent(&graph, local_head.as_deref(), &maximal_heads);
 
         Ok(V2ConflictReview {
             game_id: game_id.to_string(),
@@ -553,11 +568,10 @@ mod tests {
             .unwrap();
 
         assert!(!review.requires_choice);
-        assert_eq!(review.candidates.len(), 2);
-        assert_eq!(review.candidates[0].devices, vec!["deck", "laptop"]);
+        assert_eq!(review.candidates.len(), 1);
+        assert_eq!(review.candidates[0].devices, vec!["handheld"]);
         assert_eq!(review.candidates[0].relation, ProgressRelation::RemoteAhead);
-        assert_eq!(review.candidates[0].remote_unique_snapshots, 1);
-        assert_eq!(review.candidates[1].remote_unique_snapshots, 2);
+        assert_eq!(review.candidates[0].remote_unique_snapshots, 2);
     }
 
     #[tokio::test]
@@ -586,13 +600,10 @@ mod tests {
 
         let review = inspector.review("game", &local).await.unwrap();
 
+        assert_eq!(review.candidates.len(), 1);
         assert_eq!(
             review.candidates[0].relation,
             ProgressRelation::DifferentProgress
-        );
-        assert_eq!(
-            review.candidates[1].relation,
-            ProgressRelation::RemoteEarlier
         );
         let headless = inspector
             .review("game", &GameSnapshots::new("Game"))
