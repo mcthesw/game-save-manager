@@ -8,6 +8,8 @@ export default [
   {
     ignores: [
       '**/node_modules/**',
+      'e2e-report/**',
+      'e2e-results/**',
       '.nuxt/**',
       '.output/**',
       '.data/**',

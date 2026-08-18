@@ -39,12 +39,16 @@ type HostFile = {
 };
 
 type SharedVite = {
-  child: ChildProcess;
+  child: ChildProcess | undefined;
   users: number;
 };
 
 let sharedVite: SharedVite | undefined;
 let builtBinary: string | undefined;
+
+// The Playwright worker owns the Vite child, but global teardown runs in a
+// separate process, so the child PID is recorded here for cross-process cleanup.
+const viteMarkerPath = join(tmpdir(), 'rgsm-gui-e2e-vite.json');
 
 export function workspacePath(...parts: string[]): string {
   return resolve(workspaceRoot, ...parts);
@@ -154,10 +158,39 @@ export async function startTestWeb(): Promise<TestWeb> {
     };
   }
 
-  const viteCommand = process.platform === 'win32' ? 'cmd.exe' : 'pnpm';
-  const viteArgs =
-    process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm.cmd exec vite'] : ['exec', 'vite'];
-  const child = spawn(viteCommand, viteArgs, {
+  try {
+    const response = await fetch(`${VITE_ORIGIN}/`);
+    if (response.ok) {
+      // A marker means the listener is a stale orphan from a crashed run; it
+      // can die mid-test when its dead parent's stdio closes. Replace it.
+      let stalePid: number | undefined;
+      try {
+        const marker = JSON.parse(await readFile(viteMarkerPath, 'utf8')) as { pid?: number };
+        stalePid = marker.pid;
+      } catch {
+        // No marker: a foreign dev server owns the port; adopt it.
+      }
+      if (stalePid !== undefined) {
+        stopPidTree(stalePid);
+        await rm(viteMarkerPath, { force: true });
+        await waitForPortFree(10_000);
+      } else {
+        sharedVite = { child: undefined, users: 1 };
+        return {
+          origin: VITE_ORIGIN,
+          stop: async () => {
+            await releaseTestWeb();
+          },
+        };
+      }
+    }
+  } catch {
+    // No leftover Vite on the shared port.
+  }
+
+  // Spawn Vite's node binary directly (no cmd/pnpm wrappers): the recorded PID
+  // is then the port owner itself, so teardown can kill it reliably.
+  const child = spawn(process.execPath, [join(appRoot, 'node_modules', 'vite', 'bin', 'vite.js')], {
     cwd: appRoot,
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -180,6 +213,7 @@ export async function startTestWeb(): Promise<TestWeb> {
     stopProcessTree(child);
     throw error;
   }
+  await writeFile(viteMarkerPath, JSON.stringify({ pid: child.pid }), 'utf8');
   sharedVite = { child, users: 1 };
   return {
     origin: VITE_ORIGIN,
@@ -191,18 +225,47 @@ export async function startTestWeb(): Promise<TestWeb> {
 
 async function releaseTestWeb(): Promise<void> {
   if (!sharedVite) return;
-  sharedVite.users -= 1;
-  if (sharedVite.users > 0) return;
-  const child = sharedVite.child;
-  sharedVite = undefined;
-  stopProcessTree(child);
+  sharedVite.users = Math.max(0, sharedVite.users - 1);
+}
+
+async function waitForPortFree(timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(`${VITE_ORIGIN}/`);
+    } catch {
+      return;
+    }
+    await delay(250);
+  }
+}
+
+function stopPidTree(pid: number): void {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    return;
+  }
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    // Already gone.
+  }
 }
 
 export async function stopSharedTestWeb(): Promise<void> {
-  if (!sharedVite) return;
-  const child = sharedVite.child;
+  const child = sharedVite?.child;
   sharedVite = undefined;
   stopProcessTree(child);
+  try {
+    const marker = JSON.parse(await readFile(viteMarkerPath, 'utf8')) as { pid?: number };
+    if (marker.pid !== undefined && marker.pid !== child?.pid) {
+      stopPidTree(marker.pid);
+    }
+  } catch {
+    // No marker: nothing this suite spawned is still alive.
+  }
+  await rm(viteMarkerPath, { force: true });
+  await waitForPortFree(10_000);
 }
 
 export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost> {
