@@ -52,6 +52,7 @@ test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ brow
 
   let host: RgsmHost | undefined;
   let context;
+  let failed = false;
   try {
     host = await startRgsmHost({
       appDataDir: seeded.deviceA.appDataDir,
@@ -143,10 +144,15 @@ test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ brow
       parent: seeded.parentArchiveBytes,
       child: seeded.childArchiveBytes,
     });
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
     await context?.close();
     await host?.stop();
     await vite.stop();
-    await removeRunRoot(runRoot);
+    if (!failed) {
+      await removeRunRoot(runRoot);
+    }
   }
 });

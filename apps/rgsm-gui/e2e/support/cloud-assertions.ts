@@ -59,7 +59,18 @@ export function localOwnerPaths(appDataDir: string, deviceId: string) {
 }
 
 export function localArchivePath(appDataDir: string, snapshotId: string): string {
-  return join(appDataDir, 'save_data', STORAGE_KEY, `${snapshotId}.zip`);
+  return firstExistingArchive(join(appDataDir, 'save_data', STORAGE_KEY), snapshotId);
+}
+
+export function cloudArchivePath(cloudRoot: string, snapshotId: string): string {
+  return firstExistingArchive(join(cloudRoot, 'v2', 'archives', STORAGE_KEY), snapshotId);
+}
+
+function firstExistingArchive(directory: string, snapshotId: string): string {
+  const zip = join(directory, `${snapshotId}.zip`);
+  const sevenZ = join(directory, `${snapshotId}.7z`);
+  if (existsSync(sevenZ)) return sevenZ;
+  return zip;
 }
 
 export async function xxh3File(
@@ -114,6 +125,23 @@ export function snapshotNode(manifest: JsonObject, snapshotId: string) {
   return snapshots[snapshotId];
 }
 
+export function liveSnapshotState(manifest: JsonObject, snapshotId: string): JsonObject {
+  const state = snapshotNode(manifest, snapshotId).state;
+  expect(state && typeof state === 'object').toBe(true);
+  const live = state as JsonObject;
+  expect(live.type).toBe('live');
+  return live;
+}
+
+export function expectSharedRetentionLimit(library: JsonObject, limit: number): void {
+  expectSharedLibraryHasGame(library);
+  const games = library.games as Array<JsonObject>;
+  const game = games.find((item) => item.storage_key === STORAGE_KEY);
+  expect(game, 'shared library missing Echo Keep').toBeTruthy();
+  const retention = game?.snapshot_retention as JsonObject | undefined;
+  expect(retention?.automatic_snapshots_per_branch).toBe(limit);
+}
+
 export function expectLiveParentChildGraph(manifest: JsonObject): void {
   expect(manifest.schema_version).toBe(2);
   const parent = snapshotNode(manifest, PARENT_SNAPSHOT_ID);
@@ -140,6 +168,18 @@ export function expectNoDeviceHead(
   expect(heads[deviceId]).not.toBe(snapshotId);
 }
 
+export function expectDeviceHasNoHead(manifest: JsonObject, deviceId: string): void {
+  const game = gameManifest(manifest);
+  const heads = game.device_heads as Record<string, string>;
+  expect(heads[deviceId]).toBeUndefined();
+}
+
+export function deviceGameSettings(profile: JsonObject) {
+  return (profile.games as Record<string, { sync_mode?: string; cloud_sync_enabled?: boolean }>)[
+    STORAGE_KEY
+  ];
+}
+
 export function expectFinalTombstone(manifest: JsonObject, snapshotId: string): void {
   const node = snapshotNode(manifest, snapshotId);
   expect((node.state as JsonObject).type).toBe('final_tombstone');
@@ -160,11 +200,12 @@ export async function expectVerifiedArchives(
   expect(child.hash).toBe(CHILD_ARCHIVE_HASH);
 }
 
-export async function expectDeviceProfiles(cloudRoot: string): Promise<void> {
+export async function expectDeviceProfiles(
+  cloudRoot: string,
+  deviceIds: string[] = [DEVICE_A_ID, DEVICE_B_ID]
+): Promise<void> {
   const files = await readdir(cloudPaths(cloudRoot).profiles);
-  expect(files.sort()).toEqual(
-    [deviceProfileFileName(DEVICE_A_ID), deviceProfileFileName(DEVICE_B_ID)].sort()
-  );
+  expect(files.sort()).toEqual(deviceIds.map(deviceProfileFileName).sort());
 }
 
 export async function readDeviceProfile(cloudRoot: string, deviceId: string): Promise<JsonObject> {

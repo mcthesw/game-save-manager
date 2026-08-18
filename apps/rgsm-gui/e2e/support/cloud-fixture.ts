@@ -127,6 +127,88 @@ export async function seedLegacyV1Scene(runRoot: string): Promise<SeededCloud> {
   };
 }
 
+export async function seedEmptyCloudWithLocalGame(
+  runRoot: string,
+  options: { gameOnB?: boolean } = {}
+): Promise<{
+  cloudRoot: string;
+  deviceA: DeviceLayout;
+  deviceB: DeviceLayout;
+}> {
+  const gameOnB = options.gameOnB ?? true;
+  const cloudRoot = join(runRoot, 'cloud');
+  const deviceA = deviceLayout(runRoot, 'a');
+  const deviceB = deviceLayout(runRoot, 'b');
+  const configTemplate = await readFile(join(fixtureRoot, 'GameSaveManager.config.json'), 'utf8');
+  await mkdir(cloudRoot, { recursive: true });
+  for (const device of [deviceA, deviceB]) {
+    let localConfig = applyPlaceholders(configTemplate, {
+      __BACKUP_PATH__: device.archiveRoot.replaceAll('\\', '/'),
+      __CLOUD_ROOT__: cloudRoot.replaceAll('\\', '/'),
+      __SAVE_PATH_A__: deviceA.savePath.replaceAll('\\', '/'),
+      __SAVE_PATH_B__: deviceB.savePath.replaceAll('\\', '/'),
+    });
+    if (device === deviceB && !gameOnB) {
+      const parsed = JSON.parse(localConfig) as { games: unknown[] };
+      parsed.games = [];
+      localConfig = `${JSON.stringify(parsed, null, 2)}\n`;
+    }
+    await writeText(join(device.appDataDir, 'GameSaveManager.config.json'), localConfig);
+    if (device === deviceA || gameOnB) {
+      await writeText(
+        join(device.appDataDir, 'save_data', STORAGE_KEY, 'Backups.json'),
+        `${JSON.stringify({ name: GAME_NAME, backups: [], device_heads: {}, sync_version: 0 }, null, 2)}\n`
+      );
+    }
+    await writeText(device.savePath, CHILD_SAVE_BYTES);
+  }
+  return { cloudRoot, deviceA, deviceB };
+}
+
+/// Seed local snapshots marked as automatic (Timer) before the host starts, so
+/// the first library activation publishes them with automatic provenance. V2
+/// forbids re-marking provenance through the API, and the HTTP host has no
+/// auto-backup timer, so fixture data is the only way to get Timer snapshots.
+export async function seedLocalAutomaticSnapshots(
+  device: DeviceLayout,
+  describes: string[]
+): Promise<string[]> {
+  const ids = describes.map((_, index) => `2026-01-01_00-00-0${index + 1}`);
+  const dir = join(device.archiveRoot, STORAGE_KEY);
+  await mkdir(dir, { recursive: true });
+  const backups = [];
+  for (const [index, describe] of describes.entries()) {
+    const date = ids[index]!;
+    const archivePath = join(dir, `${date}.7z`);
+    const bytes = Buffer.from(`automatic archive ${describe}\n`, 'utf8');
+    await writeFile(archivePath, bytes);
+    backups.push({
+      date,
+      describe,
+      path: archivePath,
+      archive_format: 'seven_z',
+      size: bytes.length,
+      parent: index === 0 ? null : ids[index - 1],
+      device_id: device.id,
+      created_by: 'Timer',
+    });
+  }
+  await writeText(
+    join(dir, 'Backups.json'),
+    `${JSON.stringify(
+      {
+        name: GAME_NAME,
+        backups,
+        device_heads: { [device.id]: ids.at(-1) },
+        sync_version: 0,
+      },
+      null,
+      2
+    )}\n`
+  );
+  return ids;
+}
+
 export async function writeSave(device: DeviceLayout, contents: string): Promise<void> {
   await writeText(device.savePath, contents);
 }

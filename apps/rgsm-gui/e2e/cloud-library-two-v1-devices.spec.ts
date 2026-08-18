@@ -14,7 +14,6 @@ import {
   expectNoDeviceHead,
   expectSharedLibraryHasGame,
   expectV1ObjectsUnchanged,
-  expectVerifiedArchives,
   localArchivePath,
   readDeviceProfile,
   readJson,
@@ -23,10 +22,12 @@ import {
 import { readSave, seedLegacyV1Scene, writeSave } from './support/cloud-fixture';
 import {
   acceptRemoteProgress,
+  applySnapshot,
   changeGameMode,
   confirmCutover,
   confirmJoinKeepCloud,
   deleteCurrentHead,
+  downloadSnapshot,
   expectCutoverSuccess,
   expectLegacyUploadBlocked,
   expectLibraryKind,
@@ -66,6 +67,7 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
   let hostB: RgsmHost | undefined;
   let contextA;
   let contextB;
+  let failed = false;
   try {
     hostA = await startRgsmHost({
       appDataDir: seeded.deviceA.appDataDir,
@@ -144,21 +146,14 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     expectDeviceHead(afterForward, DEVICE_A_ID, aForward);
     expect((snapshotNode(afterForward, aForward).state as { type?: string }).type).toBe('live');
 
-    const downloaded = await hostPost(hostB, '/api/v1/download-cloud-archive', {
-      gameId: 'Echo Keep',
-      snapshotId: aForward,
-    });
-    expect(downloaded.ok, downloaded.raw).toBe(true);
-    const reviewB = await reviewProgress(hostB);
-    const accepted = await hostPost(hostB, '/api/v1/accept-v2-remote-progress', {
-      gameId: 'Echo Keep',
-      manifestRevision: (await readJson(paths.manifest)).revision,
-      expectedLocalSnapshotId: reviewB.local?.snapshot_id ?? null,
-      selectedSnapshotId: aForward,
-    });
-    expect(accepted.ok, accepted.raw).toBe(true);
+    const saveBeforeApply = await readSave(seeded.deviceB);
+    await openGame(pageB);
+    await downloadSnapshot(pageB, aForward);
+    expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, aForward))).toBe(true);
+    expect(await readSave(seeded.deviceB)).toBe(saveBeforeApply);
+    await applySnapshot(pageB, aForward);
     expect(await readSave(seeded.deviceB)).toBe('a-forward-save\n');
-    expectDeviceHead(await readJson(paths.manifest), DEVICE_B_ID, aForward);
+    expectDeviceHead(await readJson(paths.manifest), DEVICE_A_ID, aForward);
     await openSyncSettings(pageA);
     await changeGameMode(pageA, 'Manual');
     const profileA = await readDeviceProfile(seeded.cloudRoot, DEVICE_A_ID);
@@ -171,7 +166,7 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     )['Echo Keep'];
     expect(gameA.sync_mode).toBe('manual');
     expect(gameB.sync_mode).not.toBe('manual');
-    await toggleCloudEnabled(pageB);
+    await toggleCloudEnabled(pageB, hostB, false);
     const profileAAfter = await readDeviceProfile(seeded.cloudRoot, DEVICE_A_ID);
     expect(
       (profileAAfter.games as Record<string, { sync_mode?: string }>)['Echo Keep'].sync_mode
@@ -253,13 +248,18 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     expect(await readSave(seeded.deviceA)).toBe(saveA);
     expect(await readSave(seeded.deviceB)).toBe(saveB);
     expectFinalTombstone(await readJson(paths.manifest), bBranch);
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
     await contextA?.close();
     await contextB?.close();
     await hostA?.stop();
     await hostB?.stop();
     await vite.stop();
-    await removeRunRoot(runRoot);
+    if (!failed) {
+      await removeRunRoot(runRoot);
+    }
   }
 });
 
