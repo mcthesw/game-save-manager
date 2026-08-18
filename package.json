@@ -8,6 +8,7 @@
     "web:dev": "pnpm --dir apps/rgsm-gui web:dev",
     "web:build": "pnpm --dir apps/rgsm-gui web:build",
     "web:test": "pnpm --dir apps/rgsm-gui web:test",
+    "web:e2e": "pnpm --dir apps/rgsm-gui web:e2e",
     "web:typecheck": "pnpm --dir apps/rgsm-gui web:typecheck",
     "web:format": "pnpm --dir apps/rgsm-gui web:format",
     "web:format:fix": "pnpm --dir apps/rgsm-gui web:format:fix",

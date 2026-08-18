@@ -86,3 +86,67 @@ jobs:
         run: |
           cargo check -p rgsm-core --no-default-features
           cargo test -p rgsm-core --no-default-features --lib
+
+  gui-cloud-fs-e2e:
+    name: GUI Cloud Fs E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libasound2-dev \
+            pkg-config
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate frontend API
+        run: pnpm --dir apps/rgsm-gui web:generate-api
+
+      - name: Build debug RGSM Host
+        run: cargo build --locked -p rgsm
+
+      - name: Install Playwright Chromium
+        run: pnpm --dir apps/rgsm-gui exec playwright install chromium --with-deps
+
+      - name: Run GUI Cloud Fs E2E
+        run: pnpm web:e2e
+
+      - name: Upload E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-cloud-fs-e2e
+          path: |
+            apps/rgsm-gui/e2e-report
+            apps/rgsm-gui/e2e-results
+          if-no-files-found: ignore

@@ -1,0 +1,32 @@
+{
+  "name": "Echo Keep",
+  "backups": [
+    {
+      "date": "2026-01-01_12-00-00",
+      "describe": "Parent snapshot",
+      "path": "save_data/Echo Keep/2026-01-01_12-00-00.zip",
+      "archive_format": "zip",
+      "size": 143,
+      "parent": null,
+      "archive_hash": "66fd5ad032b19c61",
+      "device_id": "e2e-device-a",
+      "created_by": "Manual"
+    },
+    {
+      "date": "2026-01-02_12-00-00",
+      "describe": "Child snapshot",
+      "path": "save_data/Echo Keep/2026-01-02_12-00-00.zip",
+      "archive_format": "zip",
+      "size": 150,
+      "parent": "2026-01-01_12-00-00",
+      "archive_hash": "b20b92239c7fb335",
+      "device_id": "e2e-device-a",
+      "created_by": "Manual"
+    }
+  ],
+  "device_heads": {
+    "e2e-device-a": "2026-01-02_12-00-00",
+    "e2e-device-b": "2026-01-02_12-00-00"
+  },
+  "sync_version": 2
+}
