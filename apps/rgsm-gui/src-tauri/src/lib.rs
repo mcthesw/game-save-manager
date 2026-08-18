@@ -52,8 +52,22 @@ impl SyncEventEmitter for TauriSyncEmitter {
 pub fn configure_development_data_dir() -> anyhow::Result<()> {
     #[cfg(debug_assertions)]
     {
-        let development_data_dir =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../.rgsm-dev/app-data");
+        validate_e2e_cutover_failpoint()?;
+        let development_data_dir = match std::env::var_os("RGSM_E2E_APP_DATA_DIR") {
+            Some(value) => {
+                let path = std::path::PathBuf::from(value);
+                if !path.is_absolute() {
+                    anyhow::bail!(
+                        "RGSM_E2E_APP_DATA_DIR must be an absolute path, got {}",
+                        path.display()
+                    );
+                }
+                path
+            }
+            None => {
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../.rgsm-dev/app-data")
+            }
+        };
         rgsm_core::app_dirs::set_app_data_dir_override(development_data_dir)?;
     }
     Ok(())
@@ -103,7 +117,7 @@ pub fn run() -> anyhow::Result<()> {
     }));
 
     // Init app
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -114,13 +128,18 @@ pub fn run() -> anyhow::Result<()> {
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
-        )
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        );
+    // Dual Host E2E starts two HTTP-only processes. The desktop single-instance
+    // lock would silently exit the second process before it can bind.
+    if std::env::var_os("RGSM_HTTP_HOST_ONLY").is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             app.get_webview_window("main")
                 .expect("no main window")
                 .set_focus()
                 .expect("failed to set focus");
-        }))
+        }));
+    }
+    let app = builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(move |app| {
             let http_host = tauri::async_runtime::block_on(http::start(app.handle().clone()))?;
@@ -198,4 +217,16 @@ pub fn run() -> anyhow::Result<()> {
             exit_code
         ))
     }
+}
+
+#[cfg(debug_assertions)]
+fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
+    rgsm_core::cloud_sync::v2::validate_e2e_cutover_interrupt_env()
+        .map(|_| ())
+        .map_err(|error| anyhow::anyhow!("{error}"))
+}
+
+#[cfg(not(debug_assertions))]
+fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
+    Ok(())
 }

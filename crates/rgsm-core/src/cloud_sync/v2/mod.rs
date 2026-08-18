@@ -33,7 +33,7 @@ pub use conflict_review::{
 };
 pub use cutover::{
     CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverResult,
-    CloudLibraryCutoverReview,
+    CloudLibraryCutoverReview, validate_e2e_cutover_interrupt_env,
 };
 pub use deletion::{
     ArchiveDeletionBackend, ArchiveDeletionError, GlobalSnapshotDeletion,

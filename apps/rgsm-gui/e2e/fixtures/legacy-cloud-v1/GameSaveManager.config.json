@@ -1,0 +1,82 @@
+{
+  "version": "1.9.0",
+  "backup_path": "__BACKUP_PATH__",
+  "games": [
+    {
+      "name": "Echo Keep",
+      "storage_key": "Echo Keep",
+      "save_paths": [
+        {
+          "id": 1,
+          "unit_type": "File",
+          "paths": {
+            "e2e-device-a": "__SAVE_PATH_A__",
+            "e2e-device-b": "__SAVE_PATH_B__"
+          },
+          "delete_before_apply": false,
+          "enabled": true
+        }
+      ],
+      "game_paths": {},
+      "next_save_unit_id": 2,
+      "cloud_sync_enabled": true
+    }
+  ],
+  "settings": {
+    "prompt_when_not_described": false,
+    "extra_backup_when_apply": true,
+    "confirm_before_apply_latest": false,
+    "confirm_before_apply_snapshot": false,
+    "show_edit_button": false,
+    "prompt_when_auto_backup": false,
+    "exit_to_tray": false,
+    "cloud_settings": {
+      "auto_sync_interval": 0,
+      "root_path": "__CLOUD_ROOT__",
+      "backend": { "type": "Fs" },
+      "max_concurrency": 1
+    },
+    "locale": "en_US",
+    "default_delete_before_apply": false,
+    "default_expend_favorites_tree": false,
+    "home_page": "/",
+    "log_to_file": true,
+    "add_new_to_favorites": false,
+    "vn_scan_dirs": [],
+    "save_list_expand_behavior": "always_closed",
+    "save_list_last_expanded": false,
+    "max_auto_backup_count": 0,
+    "max_extra_backup_count": 5,
+    "appearance": {
+      "custom_font_enabled": false,
+      "ui_font_family": ""
+    },
+    "compression_preset": "Standard",
+    "compute_archive_hash": false,
+    "verify_archive_before_apply": false
+  },
+  "favorites": [],
+  "quick_action": {
+    "quick_action_game": null,
+    "hotkeys": {
+      "apply": ["", "", ""],
+      "backup": ["", "", ""]
+    },
+    "enable_sound": false,
+    "enable_notification": false
+  },
+  "devices": {
+    "e2e-device-a": {
+      "id": "e2e-device-a",
+      "name": "E2E Device A",
+      "resources": [],
+      "next_resource_id": 0
+    },
+    "e2e-device-b": {
+      "id": "e2e-device-b",
+      "name": "E2E Device B",
+      "resources": [],
+      "next_resource_id": 0
+    }
+  }
+}

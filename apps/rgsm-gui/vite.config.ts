@@ -28,6 +28,8 @@ const generatedFilePatterns = [
   'node_modules/**',
   'src-tauri/gen/**',
   'src-tauri/target/**',
+  'e2e-report/**',
+  'e2e-results/**',
   '**/.data/**',
   '**/.nuxt/**',
   '**/.output/**',
@@ -35,6 +37,8 @@ const generatedFilePatterns = [
   '**/node_modules/**',
   '**/src-tauri/gen/**',
   '**/src-tauri/target/**',
+  '**/e2e-report/**',
+  '**/e2e-results/**',
 ];
 
 const viteOptimizationEntries = [

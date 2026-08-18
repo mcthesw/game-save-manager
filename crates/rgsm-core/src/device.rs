@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use crate::path_pattern::StoreKind;
 
@@ -125,14 +125,32 @@ impl Device {
     }
 }
 
-// 存储当前设备的静态变量，使用 OnceLock 确保只初始化一次
-static CURRENT_DEVICE_ID: OnceLock<DeviceId> = OnceLock::new();
+// 存储当前设备的静态变量，使用 LazyLock 确保只初始化一次
+static CURRENT_DEVICE_ID: LazyLock<DeviceId> = LazyLock::new(resolve_current_device_id);
+
+fn resolve_current_device_id() -> DeviceId {
+    #[cfg(debug_assertions)]
+    {
+        match std::env::var("RGSM_E2E_DEVICE_ID") {
+            Ok(value) => {
+                let device_id = value.trim();
+                if device_id.is_empty() {
+                    panic!("RGSM_E2E_DEVICE_ID must be a non-empty Device ID");
+                }
+                return device_id.to_string();
+            }
+            Err(std::env::VarError::NotPresent) => {}
+            Err(error) => panic!("RGSM_E2E_DEVICE_ID is invalid: {error}"),
+        }
+    }
+    machine_uid::get().expect("Failed to get machine ID")
+}
 
 /// 获取当前设备的ID。
 /// 首次调用时会生成 UUID 作为设备 ID。
 /// 后续调用将返回缓存的设备ID。
 pub fn get_current_device_id() -> &'static DeviceId {
-    CURRENT_DEVICE_ID.get_or_init(|| machine_uid::get().expect("Failed to get machine ID"))
+    &CURRENT_DEVICE_ID
 }
 
 /// 获取当前系统的主机名
@@ -147,7 +165,7 @@ pub fn get_system_hostname() -> String {
 impl Default for Device {
     fn default() -> Self {
         Self {
-            id: machine_uid::get().expect("Failed to get machine ID"),
+            id: resolve_current_device_id(),
             name: get_system_hostname(),
             resources: Vec::new(),
             next_resource_id: 0,

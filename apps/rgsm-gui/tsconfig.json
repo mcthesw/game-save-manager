@@ -25,6 +25,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
+    "e2e/**/*.ts",
+    "playwright.config.ts",
     "components.d.ts",
     "typed-router.d.ts"
   ],
