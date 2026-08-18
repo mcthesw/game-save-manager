@@ -1,8 +1,12 @@
-# 云端同步端到端测试
+# E2E 测试说明
 
 `pnpm web:e2e`
 
-## 升级中断后恢复
+## 云端同步端到端测试
+
+覆盖旧版云配置/存档升级到新版，以及两台设备各自与云交互。
+
+### V1 to V2 cutover interrupts, resumes, and stays idempotent
 
 云端已有一份旧版配置和两份存档。升级迁完第一份存档后被打断。
 
@@ -11,7 +15,7 @@
 - 再重启不会多出配置或存档
 - 旧上传接口被拒绝
 
-## 两台设备先后升级再协作
+### two V1 devices cut over, join, and keep V2 device boundaries
 
 1. A、B 本地都是旧版配置，共用云端同一份旧配置和两份存档。A 往云上传存档，B 从云下载同一份
 2. A 的本地配置升到新版，B 的本地配置仍是旧版，B 被提示加入
@@ -22,7 +26,9 @@
 7. A 删掉当前这份存档，本地回到上一份；云上这份被标记删除，B 不能再把它拉回本地
 8. A、B 重启后，各自的本地配置、本地存档、以及云上的配置和存档，都与重启前一致
 
-## A、B 各用各的本机配置
+## 杂项测试
+
+### A/B Hosts isolate device id, token, port, and browser traffic
 
 同时开两套本机：
 
