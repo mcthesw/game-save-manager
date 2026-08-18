@@ -1,40 +1,29 @@
-# GUI Cloud Fs E2E
+# 云端同步端到端测试
 
-`pnpm web:e2e`
+运行：`pnpm web:e2e`（以下结果来自 2026-08-18 本地运行）
 
-单 worker、真实网页 + 双 Host + OpenDAL Fs。失败即产品缺陷，不改业务语义。
+共 3 个测试：**1 个通过，2 个失败**。失败的写在前面。
 
-## Tests
+## 【失败】升级中断后恢复
 
-**host-isolation** — A/B Host 隔离  
-Device ID / token / port / app-data / browser 请求不交叉。
+场景：升级开始、迁完第一份存档后被打断，旧云端数据原样保留。
 
-**cutover** — V1→V2 中断恢复
+- 期望：重启后能接着完成升级；再重启不产生重复存档，旧的上传方式被拒绝。
+- 实际：一重启就报错，无法继续：
+  `V2 namespace descriptor is absent but V2 objects remain: ["v2/archives/"]`
+- 因此"完成升级、再重启不重复、拒绝旧上传"都没跑到。
 
-1. 迁移 1 份 archive 后注入中断：progress 落盘、无 `v2/namespace.json`、V1 字节不变
-2. 同 app-data 重启：inspect = `cutover_required` + `resumable`，UI 完成 cutover
-3. 再重启：`active`，对象不重复；legacy upload 返回 `V2CloudLibraryActive`
+## 【失败】两台设备先后升级再协作
 
-**two-devices** — 两台 V1 → A cutover → B join → V2 操作
+1. 两台都还在旧云端，A 把存档发给 B —— 通过
+2. A 先升级，B 留在旧云端，B 被提示加入 —— 通过
+3. B 保留云端数据加入，两台都上了新云端，旧上传方式被禁用 —— 通过
+4. A 发布新存档，B 收到那一份 —— 通过
+5. A 改同步模式，不影响 B —— 通过
+6. 两台从同一份存档各自分叉，A 必须明确选择 B 那条 —— **失败**：A 上传新分叉的存档时报 `Archive integrity mismatch`，差了 1–2 个字节
+7. 删除当前存档回退到上一份，另一台设备不得把它复活 —— 没跑到
+8. 两台都重启后状态一致 —— 没跑到
 
-1. 双 V1 基线，A→B 经 V1 交换 archive
-2. A cutover，B 仍 LegacyV1，inspect = `join_required`
-3. B join keep-cloud，两端 V2，legacy path 被挡住
-4. A 前进，B 下载并 apply 唯一 forward
-5. sync mode 只改本机 profile
-6. 同 ancestor 分叉，A 必须显式选 B candidate
-7. 删当前 head 回退 parent + tombstone，对端 reconcile 不复活
-8. 两端重启状态一致
+## 【通过】两台设备互不干扰
 
-## Unmet
-
-本地 `pnpm web:e2e`（2026-08-18）：
-
-| 项             | 卡点                  | 期望                             | 实际                                                                        |
-| -------------- | --------------------- | -------------------------------- | --------------------------------------------------------------------------- |
-| cutover #2     | 中断后重启 inspect    | `cutover_required` + `resumable` | `V2 namespace descriptor is absent but V2 objects remain: ["v2/archives/"]` |
-| two-devices #6 | 分叉后上传新 snapshot | upload 通过                      | `Archive integrity mismatch`，差 1–2 字节                                   |
-
-因此尚未跑到：cutover 完成/幂等/legacy 阻断；two-devices 分叉选择、删 head 回退、对端 reconcile、重启恢复。
-
-host-isolation 已过。two-devices #1–5 在卡住前已通过。
+两台设备的身份和流量完全隔离，互不影响。
