@@ -6,9 +6,11 @@ import { fsSession, hostPost } from './rgsm-instance';
 import { GAME_NAME, V2_ACTIVE_ERROR } from './constants';
 
 async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
-  const text = page.getByText(pattern).first();
+  const drawer = page.locator('.activity-drawer');
+  const text = drawer.getByText(pattern).first();
   if (await text.isVisible().catch(() => false)) return;
-  await page.getByRole('status').click();
+  // The global loading overlay also carries role="status"; target the drawer.
+  await page.locator('.activity-drawer[role="status"]').click();
   await expect(text).toBeVisible({ timeout: 30_000 });
 }
 
@@ -139,16 +141,15 @@ export async function uploadSnapshot(page: Page, snapshotId: string): Promise<vo
 }
 
 export async function downloadSnapshot(page: Page, snapshotId: string): Promise<void> {
-  const download = snapshotRow(page, snapshotId).getByRole('button', {
-    name: 'Download to this device',
-  });
+  const row = snapshotRow(page, snapshotId);
+  const download = row.getByRole('button', { name: 'Download to this device' });
+  const remove = row.getByRole('button', { name: 'Remove from this device' });
+  // The row buttons render after the row itself; wait for either state first.
+  await download.or(remove).first().waitFor({ state: 'visible', timeout: 30_000 });
   if (await download.isVisible().catch(() => false)) {
-    await expect(download).toBeEnabled();
     await download.click();
   }
-  await expect(
-    snapshotRow(page, snapshotId).getByRole('button', { name: 'Remove from this device' })
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(remove).toBeVisible({ timeout: 30_000 });
 }
 
 export async function deleteCurrentHead(page: Page, snapshotId: string): Promise<void> {

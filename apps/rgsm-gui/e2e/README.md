@@ -97,6 +97,14 @@ A 已在新版资料库，这款游戏有若干自动存档。
 - A 在某一份自动存档上点 Keep：这份带上保护，不会被自动清理算进去
 - A 在自动存档设置里打开 Shared retention limit，填一个较小的数并保存：超出的未保护自动存档从云和本机消失，被 Keep 的那份和当前指针还在
 
+### repeated upload download round trips stay consistent
+
+A、B 都已在新版资料库，这款游戏两边都是 Multi-device Sync。连续三轮：
+
+- A 改存档、新建并上传；B 下载这份并 Apply，B 的游戏文件变成 A 的内容
+- B 改存档、新建并上传；A 下载这份并 Apply，A 的游戏文件变成 B 的内容
+- 每轮结束后：云上和两台本机都留有每一轮的存档文件，两边游戏文件一致，两边的当前指针各自指向自己最后上传的那份
+
 ### broken library reset and recreate
 
 A 已在新版资料库，本地还有这款游戏。云端新版配置被删掉，只剩残缺对象。
