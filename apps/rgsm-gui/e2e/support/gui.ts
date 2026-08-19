@@ -5,7 +5,7 @@ import type { RgsmHost } from './rgsm-instance';
 import { fsSession, hostPost } from './rgsm-instance';
 import { GAME_NAME, V2_ACTIVE_ERROR } from './constants';
 
-async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
+export async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
   const drawer = page.locator('.activity-drawer');
   const text = drawer.getByText(pattern).first();
   if (await text.isVisible().catch(() => false)) return;
