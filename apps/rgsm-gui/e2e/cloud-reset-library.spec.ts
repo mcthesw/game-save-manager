@@ -32,7 +32,9 @@ test('broken library reset and recreate', async ({ browser }) => {
     await expect(session.pageA.getByRole('button', { name: 'Reset and recreate' })).toBeVisible();
     await resetBrokenLibrary(session.pageA);
     const paths = cloudPaths(seeded.cloudRoot);
-    expect(existsSync(paths.namespace)).toBe(true);
+    // Namespace recreation finishes after the reset activity; poll instead of
+    // assuming the file is already back.
+    await expect.poll(() => existsSync(paths.namespace), { timeout: 15_000 }).toBe(true);
     expectNamespaceDescriptor(await readJson(paths.namespace));
     expectSharedLibraryHasGame(await readJson(paths.sharedLibrary));
   } catch (error) {
