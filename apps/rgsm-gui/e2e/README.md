@@ -185,6 +185,27 @@ A 已在新版资料库，本地还有这款游戏。云端新版配置被删掉
 - 旧版应用留下的扁平 zip 存档（无注释、根目录平铺、legacy head 字段）：列表里可见可应用，内容恢复，当前指针指向它
 - 在它之后新建存档：新存档挂到这份旧存档下
 
+### favorites: star persists to device config, survives reload, unstar removes
+
+- 在游戏行点星收藏：写入本机设备私有配置（private_favorites），刷新页面后收藏树仍在
+- 取消收藏：配置与界面同步移除
+
+### backup all and apply all operate on every game
+
+- Settings → Backup settings → Backup all saves（输入 yes 确认）：每款游戏都新建一份存档
+- Apply all saves（输入 yes 确认）：每款游戏的文件都回到各自最新存档内容
+
+### failure surface: missing archive, corrupted archive, missing save on create
+
+- 归档文件从磁盘删掉后 Apply：Recovery failed，游戏文件不动，当前指针不动
+- 归档被篡改（开启完整性校验）后 Apply：弹 Archive Corrupted，游戏文件不动，当前指针不动
+- 存档文件丢失时新建存档：Backup failed，不留下新存档；补回文件后可正常新建
+
+### ludusavi import: search manifest, customize paths, game joins the library
+
+- Add game → Detect local games → 关掉 Show only locally installed games → 搜索并勾选 Stardew Valley → Import → Customize 对话框里 Select all 后 Confirm
+- 游戏出现在游戏列表，存档路径按清单落地
+
 ## 未覆盖
 
 - 两台设备同时改云上同一份清单
