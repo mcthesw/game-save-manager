@@ -8,10 +8,19 @@ import { GAME_NAME, V2_ACTIVE_ERROR } from './constants';
 export async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
   const drawer = page.locator('.activity-drawer');
   const text = drawer.getByText(pattern).first();
-  if (await text.isVisible().catch(() => false)) return;
-  // The global loading overlay also carries role="status"; target the drawer.
-  await page.locator('.activity-drawer[role="status"]').click();
-  await expect(text).toBeVisible({ timeout: 30_000 });
+  // The drawer may be collapsed; a loading overlay can also swallow the first
+  // click on the pill. Retry until the entry shows or the deadline passes.
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (await text.isVisible().catch(() => false)) return;
+    // The global loading overlay also carries role="status"; target the drawer.
+    await page
+      .locator('.activity-drawer[role="status"]')
+      .click()
+      .catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  await expect(text).toBeVisible();
 }
 
 export async function openApp(page: Page): Promise<void> {
