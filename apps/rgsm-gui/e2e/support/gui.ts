@@ -265,7 +265,7 @@ export async function getLocalConfig(host: RgsmHost) {
 // the same second collide (self-parent, overwritten archive). Space them out.
 let lastSnapshotCreateMs = 0;
 
-async function waitForFreshSnapshotSecond(): Promise<void> {
+export async function waitForFreshSnapshotSecond(): Promise<void> {
   const elapsed = Date.now() - lastSnapshotCreateMs;
   if (elapsed < 1100) {
     const { promise, resolve } = Promise.withResolvers<void>();
