@@ -268,6 +268,16 @@ export async function stopSharedTestWeb(): Promise<void> {
   await waitForPortFree(10_000);
 }
 
+async function readLogTail(logPath: string): Promise<string> {
+  try {
+    const content = await readFile(logPath, 'utf8');
+    const tail = content.trim().split('\n').slice(-30).join('\n');
+    return `Host log tail:\n${tail}`;
+  } catch {
+    return `No host log at ${logPath}`;
+  }
+}
+
 export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost> {
   await mkdir(options.appDataDir, { recursive: true });
   await mkdir(dirname(options.logPath), { recursive: true });
@@ -301,8 +311,10 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
   let lastError: unknown;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
+      // Give the piped log stream a moment to flush the panic output.
+      await delay(500);
       throw new Error(
-        `RGSM Host for ${options.deviceId} exited with code ${child.exitCode}. See ${options.logPath}`
+        `RGSM Host for ${options.deviceId} exited with code ${child.exitCode}. ${await readLogTail(options.logPath)}`
       );
     }
     try {
