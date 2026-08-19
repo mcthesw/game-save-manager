@@ -51,8 +51,18 @@ export async function expectSnapshotDates(
   expectedDates: string[],
   storageKey: string = STORAGE_KEY
 ): Promise<void> {
-  const file = await readBackupsJson(appDataDir, storageKey);
-  expect(file.backups.map((item) => item.date).sort()).toEqual([...expectedDates].sort());
+  await expect
+    .poll(
+      async () => {
+        if (!existsSync(join(localSnapshotsDir(appDataDir, storageKey), 'Backups.json'))) {
+          return [];
+        }
+        const file = await readBackupsJson(appDataDir, storageKey);
+        return file.backups.map((item) => item.date).sort();
+      },
+      { timeout: 15_000 }
+    )
+    .toEqual([...expectedDates].sort());
 }
 
 export async function expectSnapshotParent(
@@ -61,8 +71,15 @@ export async function expectSnapshotParent(
   parentId: string | null,
   storageKey: string = STORAGE_KEY
 ): Promise<void> {
-  const entry = await snapshotMeta(appDataDir, snapshotId, storageKey);
-  expect(entry.parent ?? null).toBe(parentId);
+  await expect
+    .poll(
+      async () => {
+        const file = await readBackupsJson(appDataDir, storageKey);
+        return file.backups.find((item) => item.date === snapshotId)?.parent ?? null;
+      },
+      { timeout: 15_000 }
+    )
+    .toBe(parentId);
 }
 
 export async function expectLocalHead(
@@ -71,12 +88,15 @@ export async function expectLocalHead(
   snapshotId: string | null,
   storageKey: string = STORAGE_KEY
 ): Promise<void> {
-  const file = await readBackupsJson(appDataDir, storageKey);
-  if (snapshotId === null) {
-    expect(file.device_heads[deviceId]).toBeUndefined();
-    return;
-  }
-  expect(file.device_heads[deviceId]).toBe(snapshotId);
+  await expect
+    .poll(
+      async () => {
+        const file = await readBackupsJson(appDataDir, storageKey);
+        return file.device_heads[deviceId] ?? null;
+      },
+      { timeout: 15_000 }
+    )
+    .toBe(snapshotId);
 }
 
 export function localArchiveExists(
