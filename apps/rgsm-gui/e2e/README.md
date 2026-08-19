@@ -124,10 +124,72 @@ A 已在新版资料库，本地还有这款游戏。云端新版配置被删掉
 - 用 B 的 API token 访问 A 的本机接口会被拒绝
 - A 的界面只读写 A 这份本机配置，B 同理
 
+## 本地操作端到端测试
+
+云端关闭的单机环境，覆盖不依赖云的玩家路径。
+
+### main path: create, apply latest, apply old snapshot, confirmations, delete
+
+- 新建两份存档（第二份带描述），游戏文件与当前指针跟随
+- 取消 Apply latest 的确认框：什么都不变；确认后游戏文件变成最新存档
+- 应用一份旧存档：游戏文件回到旧内容，当前指针指向旧存档
+- 删除一份存档：记录和压缩包一起消失，当前指针按规则回退
+
+### snapshot tree: branch on apply-then-create, set head, delete head fallbacks
+
+- 应用旧存档后再新建：新存档挂在旧存档下，形成分支，分支视图可见
+- 删除分支头：当前指针回退到最近的存活祖先；子节点重新挂到存活祖先
+
+### save units: disable skips backup and restore; delete-before-overwrite clears extras
+
+- 停用某个存档单元后：新建存档不包含它，应用也不碰它的文件
+- 单元目录里多出的无关文件：不开"覆盖前删除"时保留，打开后被清掉
+
+### edit save path: apply follows the current path, invalid path fails then fix works
+
+- 在"View managed files"里把存档路径改到新位置：Apply 落到新路径，不回到旧绝对路径
+- 路径无效（父级是个文件）：报 Recovery failed，当前指针不动；改好后同一份存档能正常应用
+
+### apply preserves file and nested directory mtimes
+
+- 应用存档后：文件和嵌套目录的修改时间与备份时一致（秒级）
+
+### restore permissions matrix (POSIX chmod, Windows hidden/read-only)
+
+- POSIX（CI Linux）：恢复目录/文件的权限位按预期落地
+- Windows：覆盖隐藏文件两种模式都成功；覆盖只读文件在不开"覆盖前删除"时失败且内容不动，打开后成功
+
+### extra backups: created on apply, undo restores content and head, retention trims
+
+- 带着未保存进度应用旧存档：先自动留一份额外备份
+- 点 Undo last apply：被覆盖的进度恢复，当前指针回到应用前
+- 在 Extra backups 抽屉里 Apply 一份额外备份：只改游戏文件，不动当前指针、不新建存档
+- max_extra_backup_count=2 时连续应用：只留最新两份额外备份
+- 关掉 Extra backup before apply：应用不再留额外备份，Undo 按钮禁用并带提示
+
+### extra backups: deleting one from the drawer（当前红，等产品缺陷修复）
+
+- 抽屉里点 Delete 弹出的确认框被抽屉遮罩压住点不到（与共享 retention 抽屉确认框同一层级缺陷）。修复后：确认删除，额外备份精确减一
+
+### batch delete removes selected snapshots and rewires the tree
+
+- 勾选链中间两份存档批删（输入 yes 确认）：幸存者重挂到最近存活祖先，压缩包删除，当前指针不动
+- 勾选当前指针所在存档及其父级批删：指针回退到最近存活祖先
+
+### compression presets all capture and restore correctly
+
+- Store/Fast/Standard/Best 四档逐一：建出来是 7z，应用后内容与备份时一致，文件修改时间保留
+
+### legacy zip backup from an old version restores and joins the tree
+
+- 旧版应用留下的扁平 zip 存档（无注释、根目录平铺、legacy head 字段）：列表里可见可应用，内容恢复，当前指针指向它
+- 在它之后新建存档：新存档挂到这份旧存档下
+
 ## 未覆盖
 
 - 两台设备同时改云上同一份清单
 - S3、WebDAV
-- 自动存档定时器自己触发清理
+- 自动存档定时器自己触发清理（本地自动 retention 只有桌面定时器入口，web 宿主无此玩家路径）
 - 换云端位置时带走未完成的升级进度
 - Stop managing here、隐藏游戏（界面没有入口）
+- Windows 注册表存档单元的备份/恢复（平台限定且有副作用）
