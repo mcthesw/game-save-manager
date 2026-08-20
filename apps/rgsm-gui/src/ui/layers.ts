@@ -11,7 +11,7 @@ export const LAYER = {
   // Path variable autocomplete dropdown — must sit above normal content but below drawers.
   PATH_AUTOCOMPLETE: 2050,
 
-  // Element Plus poppers/dialogs typically sit around 2xxx. Keep semantic room above.
+  // Drawers sit below dialogs so confirm/prompt boxes remain clickable.
   drawer: 3000,
   dialog: 3100,
   messageBox: 3200,
