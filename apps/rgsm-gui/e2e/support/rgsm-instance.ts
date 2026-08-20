@@ -301,6 +301,14 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  // Keep the last bytes of host output in memory: the piped log file is not
+  // reliably flushed when the process dies instantly (e.g. startup panic).
+  let outputTail = '';
+  const capture = (chunk: Buffer) => {
+    outputTail = (outputTail + chunk.toString('utf8')).slice(-16384);
+  };
+  child.stdout?.on('data', capture);
+  child.stderr?.on('data', capture);
   child.stdout?.pipe(log);
   child.stderr?.pipe(log);
 
@@ -311,10 +319,9 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
   let lastError: unknown;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      // Give the piped log stream a moment to flush the panic output.
-      await delay(500);
+      const tail = outputTail.trim() || (await readLogTail(options.logPath));
       throw new Error(
-        `RGSM Host for ${options.deviceId} exited with code ${child.exitCode}. ${await readLogTail(options.logPath)}`
+        `RGSM Host for ${options.deviceId} exited with code ${child.exitCode}. Host output tail:\n${tail}`
       );
     }
     try {
