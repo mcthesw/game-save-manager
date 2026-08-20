@@ -79,9 +79,10 @@ export async function xxh3File(
   const bytes = await readFile(path);
   const result = spawnSync(xxh3HelperPath(), [path], { encoding: 'utf8' });
   expect(result.status, `xxh3 helper failed for ${path}: ${result.stderr}`).toBe(0);
-  const parts = result.stdout.trim().split(/\s+/);
-  expect(parts.length).toBeGreaterThanOrEqual(3);
-  return { size: Number(parts[1]), hash: parts[2], bytes };
+  const [size, hash] = result.stdout.trim().split('\t');
+  expect(size).toBeTruthy();
+  expect(hash).toBeTruthy();
+  return { size: Number(size), hash, bytes };
 }
 export async function expectFileBytes(path: string, expected: Buffer): Promise<void> {
   expect(existsSync(path), `missing ${path}`).toBe(true);

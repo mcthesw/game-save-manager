@@ -39,3 +39,7 @@ src-tauri/GameSaveManager.config.json
 src-tauri/GameSaveManager.config.v2/
 src-tauri/GameSaveManager.cloud-cutover.*.json
 src-tauri/save_data/*
+
+# Playwright output
+e2e-report
+e2e-results

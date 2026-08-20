@@ -173,20 +173,27 @@ export async function deleteCurrentHead(page: Page, snapshotId: string): Promise
 
 export async function openProgressReview(page: Page): Promise<void> {
   await openSyncSettings(page);
-  await page.getByRole('button', { name: 'Progress diverged, compare' }).click();
+  const compare = page.getByRole('button', { name: 'Progress diverged, compare' });
+  await expect(compare).toBeVisible({ timeout: 30_000 });
+  await compare.click();
   await expect(page.getByRole('dialog').getByText('Devices have different progress')).toBeVisible();
 }
 
 export async function acceptRemoteProgress(page: Page, snapshotId: string): Promise<void> {
-  const dialog = page.getByRole('dialog');
-  await dialog
+  const review = page.getByRole('dialog', { name: /Compare progress/ });
+  const candidate = review
     .locator('article')
     .filter({ hasText: snapshotId })
-    .getByRole('button', {
-      name: 'Use this progress',
-    })
-    .click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Use this progress' }).last().click();
+    .or(
+      review
+        .locator('article')
+        .filter({ has: page.getByRole('button', { name: 'Use this progress' }) })
+    )
+    .first();
+  await candidate.getByRole('button', { name: 'Use this progress' }).click();
+  const confirm = page.getByRole('dialog', { name: "Apply another device's progress?" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Use this progress' }).click();
   await expect(page.getByText(/The selected progress was applied/).first()).toBeAttached({
     timeout: 30_000,
   });
@@ -430,14 +437,13 @@ export async function enableMode(
 
 export async function keepLocalProgress(page: Page): Promise<void> {
   await openProgressReview(page);
-  await page.getByRole('button', { name: 'Keep this device' }).click();
-  const confirm = page.getByRole('dialog').getByRole('button', { name: 'Keep this device' });
-  if (await confirm.isVisible().catch(() => false)) {
-    await confirm.click();
-  }
-  await expect(page.getByRole('dialog', { name: 'Devices have different progress' })).toBeHidden({
-    timeout: 30_000,
-  });
+  const review = page.getByRole('dialog', { name: /Compare progress/ });
+  await review.getByRole('button', { name: 'Keep this device' }).click();
+  const confirm = page.getByRole('dialog', { name: "Keep this device's progress?" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Keep this device' }).click();
+  await expect(confirm).toBeHidden({ timeout: 30_000 });
+  await expect(review).toBeHidden({ timeout: 30_000 });
 }
 
 export async function evictLocalCopy(page: Page, snapshotId: string): Promise<void> {

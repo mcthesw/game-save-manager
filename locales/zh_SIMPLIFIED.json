@@ -261,6 +261,7 @@
         "local_remove": "从本机移除",
         "local_download": "下载到本机",
         "local_unavailable": "云端还没有可下载的副本",
+        "download_before_apply": "请先下载到本机再应用",
         "cloud_upload": "上传到云",
         "batch_upload": "上传到云",
         "batch_download": "下载到本机",

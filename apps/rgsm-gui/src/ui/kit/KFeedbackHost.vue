@@ -2,10 +2,10 @@
 import { computed, ref, watch, type VNode } from 'vue';
 import { $t } from '../../i18n';
 import { settleFeedback, useFeedbackQueue } from '../../composables/useFeedback';
+import { LAYER } from '../layers';
 import KButton from './KButton.vue';
 import KDialog from './KDialog.vue';
 import KInput from './KInput.vue';
-
 /** Singleton host rendering queued useFeedback requests. Mounted once in App.vue. */
 const { feedbackQueue } = useFeedbackQueue();
 
@@ -59,6 +59,7 @@ function asRenderable(message: string | VNode) {
     :title="current?.title ?? ''"
     :width="440"
     :dismissable="current?.dismissable ?? true"
+    :layer="LAYER.messageBox"
   >
     <template v-if="current">
       <div class="text-sm leading-relaxed text-text">
