@@ -44,11 +44,11 @@ function onEscape(event: KeyboardEvent) {
   <DialogRoot v-model:open="open">
     <DialogPortal>
       <DialogOverlay
-        :style="{ zIndex: LAYER.dialog }"
+        :style="{ zIndex: LAYER.drawer }"
         class="k-overlay fixed inset-0 bg-black/55 backdrop-blur-[2px]"
       />
       <DialogContent
-        :style="{ zIndex: LAYER.dialog, width: widthStyle }"
+        :style="{ zIndex: LAYER.drawer, width: widthStyle }"
         class="k-drawer fixed right-0 top-0 flex h-full max-w-[calc(100vw-2rem)] flex-col border-l border-border bg-surface text-text shadow-overlay focus:outline-none"
         @interact-outside="onInteractOutside"
         @escape-key-down="onEscape"
