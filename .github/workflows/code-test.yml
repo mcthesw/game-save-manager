@@ -107,7 +107,9 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libasound2-dev \
-            pkg-config
+            pkg-config \
+            xvfb \
+            dbus-x11
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
@@ -138,8 +140,10 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --dir apps/rgsm-gui exec playwright install chromium --with-deps
 
+      # The debug "host" is the full Tauri app in host-only mode; GTK and the
+      # tray stack still initialize, so the suite needs a virtual display.
       - name: Run GUI Cloud Fs E2E
-        run: pnpm web:e2e
+        run: xvfb-run -a pnpm web:e2e
 
       - name: Upload E2E artifacts
         if: failure()
