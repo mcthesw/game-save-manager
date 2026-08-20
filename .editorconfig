@@ -25,6 +25,11 @@ indent_size = 2
 indent_style = space
 indent_size = 2
 
+# Weblate writes locale files with 4-space indent.
+[locales/*.json]
+indent_style = space
+indent_size = 4
+
 # YAML files
 [*.{yml,yaml}]
 indent_style = space
