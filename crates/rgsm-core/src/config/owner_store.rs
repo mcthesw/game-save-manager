@@ -105,6 +105,11 @@ impl OwnerStore {
         if let Some(existing) = existing {
             owners.local_state.cloud_namespace_generation =
                 existing.local_state.cloud_namespace_generation;
+            if let Some(existing_profile) = existing.device_profiles.get(&current_device_id)
+                && let Some(current_profile) = owners.device_profiles.get_mut(&current_device_id)
+            {
+                current_profile.local_archive_root = existing_profile.local_archive_root.clone();
+            }
         }
         let effective = owners.assemble_effective()?;
         self.write(&owners)?;
@@ -713,6 +718,29 @@ mod tests {
                 .quick_action_game_id
                 .as_deref(),
             Some("deck-only")
+        );
+    }
+
+    #[test]
+    fn replace_effective_keeps_this_device_archive_root() {
+        let (_root, store) = store();
+        let local = config(get_current_device_id(), "this-device-backups");
+        store.initialize_from_legacy(&local).unwrap();
+
+        let mut remote = config(get_current_device_id(), "other-device-backups");
+        add_device(&mut remote, "other", "Other");
+        store.replace_effective(&remote).unwrap();
+
+        let persisted = store.load().unwrap();
+        assert_eq!(
+            persisted.device_profiles[get_current_device_id()]
+                .local_archive_root
+                .as_deref(),
+            Some("this-device-backups")
+        );
+        assert_eq!(
+            store.load_effective().unwrap().backup_path,
+            "this-device-backups"
         );
     }
 

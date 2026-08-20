@@ -550,6 +550,56 @@ async fn game_materialization_respects_scope_and_activation_revision() {
 }
 
 #[tokio::test]
+async fn catch_up_uses_current_catalog_revision_not_legacy_zero() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest {
+        revision: 4,
+        ..Default::default()
+    };
+    let mut game = GameManifest::new("selected");
+    let bytes = b"published after join";
+    let mut node = live("later", bytes, true);
+    node.catalog_revision = 4;
+    game.upsert_live(node).unwrap();
+    operator
+        .write(
+            &cloud_archive_path("selected", "later", ArchiveFormat::Zip).unwrap(),
+            bytes.to_vec(),
+        )
+        .await
+        .unwrap();
+    manifest.games.insert("selected".into(), game);
+    write_manifest(&operator, &manifest).await;
+
+    let deck = materializer(operator.clone(), root.path(), "deck");
+    assert_eq!(
+        deck.materialize_game("selected", 0, &CancellationToken::new())
+            .await
+            .unwrap()
+            .downloaded,
+        0
+    );
+    let current = deck.catalog_revision().await.unwrap();
+    assert_eq!(current, 4);
+    assert_eq!(
+        deck.materialize_game("selected", current, &CancellationToken::new())
+            .await
+            .unwrap()
+            .downloaded,
+        1
+    );
+    assert!(
+        archive_path(
+            &root.path().join("deck").join("selected"),
+            "later",
+            ArchiveFormat::Zip
+        )
+        .is_file()
+    );
+}
+
+#[tokio::test]
 async fn materialize_all_resumes_the_one_pending_scope() {
     let operator = memory_operator();
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");

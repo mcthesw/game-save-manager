@@ -436,8 +436,15 @@ impl Game {
         created_by: CreatedBy,
     ) -> Result<SnapshotCreated, BackupError> {
         let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
+        let infos = match self.get_game_snapshots_info() {
+            Ok(infos) => infos,
+            Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                GameSnapshots::new(self.name.clone())
+            }
+            Err(error) => return Err(error),
+        };
         // Keep the timestamp format sortable so lexicographic order equals chronological order.
-        let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+        let date = unused_snapshot_date(&backup_path, &infos)?;
         let save_paths = &self.save_paths; // everything you should copy
         let config = get_config()?;
         let preset = config.settings.compression_preset;
@@ -454,7 +461,7 @@ impl Game {
             }
         };
 
-        let mut infos = self.get_game_snapshots_info()?;
+        let mut infos = infos;
 
         let parent = parent_date.or_else(|| infos.current_device_head().cloned());
 
@@ -494,7 +501,14 @@ impl Game {
     ) -> Result<SnapshotCreated, BackupError> {
         let backup_path = options.backup_base.join(self.backup_dir_name().as_ref());
         fs::create_dir_all(&backup_path)?;
-        let date = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+        let infos = match self.get_game_snapshots_info() {
+            Ok(infos) => infos,
+            Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                GameSnapshots::new(self.name.clone())
+            }
+            Err(error) => return Err(error),
+        };
+        let date = unused_snapshot_date(&backup_path, &infos)?;
         let archive_format = ArchiveFormat::SevenZ;
         let archive_path = backup_path.join(archive_file_name(&date, archive_format));
         if let Some(notifier) = options.notifier {
@@ -511,7 +525,7 @@ impl Game {
             options.source_fingerprint,
         )?;
 
-        let mut infos = self.get_game_snapshots_info()?;
+        let mut infos = infos;
         let parent = options
             .parent_date
             .or_else(|| infos.current_device_head().cloned());
@@ -1000,4 +1014,32 @@ impl Game {
         self.set_game_snapshots_info(&saves)?;
         Ok(saves)
     }
+}
+
+pub(crate) fn unused_snapshot_date(
+    backup_path: &Path,
+    infos: &GameSnapshots,
+) -> Result<String, BackupError> {
+    let taken: HashSet<&str> = infos
+        .backups
+        .iter()
+        .map(|snapshot| snapshot.date.as_str())
+        .collect();
+    for offset in 0..60 {
+        let candidate = (chrono::Local::now() + chrono::Duration::seconds(offset))
+            .format("%Y-%m-%d_%H-%M-%S")
+            .to_string();
+        if taken.contains(candidate.as_str()) {
+            continue;
+        }
+        let zip = backup_path.join(archive_file_name(&candidate, ArchiveFormat::Zip));
+        let seven_z = backup_path.join(archive_file_name(&candidate, ArchiveFormat::SevenZ));
+        if zip.exists() || seven_z.exists() {
+            continue;
+        }
+        return Ok(candidate);
+    }
+    Err(BackupError::Unexpected(anyhow::anyhow!(
+        "Could not allocate a unique snapshot identity"
+    )))
 }
