@@ -20,8 +20,10 @@ const props = withDefaults(
     width?: number;
     /** When false: no X, no outside-click/Escape dismissal. For blocking confirms. */
     dismissable?: boolean;
+    /** Overlay stack. Nested confirms use messageBox above ordinary dialogs. */
+    layer?: number;
   }>(),
-  { title: undefined, width: 520, dismissable: true }
+  { title: undefined, width: 520, dismissable: true, layer: LAYER.dialog }
 );
 
 const open = defineModel<boolean>('open', { required: true });
@@ -39,11 +41,11 @@ function onEscape(event: KeyboardEvent) {
   <DialogRoot v-model:open="open">
     <DialogPortal>
       <DialogOverlay
-        :style="{ zIndex: LAYER.dialog }"
+        :style="{ zIndex: props.layer }"
         class="k-overlay fixed inset-0 bg-black/55 backdrop-blur-[2px]"
       />
       <DialogContent
-        :style="{ zIndex: LAYER.dialog, maxWidth: `${width}px` }"
+        :style="{ zIndex: props.layer, maxWidth: `${width}px` }"
         class="k-dialog fixed left-1/2 top-1/2 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-surface p-5 text-text shadow-overlay focus:outline-none"
         @interact-outside="onInteractOutside"
         @escape-key-down="onEscape"

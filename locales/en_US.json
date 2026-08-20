@@ -261,6 +261,7 @@
         "local_remove": "Remove from this device",
         "local_download": "Download to this device",
         "local_unavailable": "No downloadable cloud copy yet",
+        "download_before_apply": "Download this snapshot to this device before applying it",
         "cloud_upload": "Upload to cloud",
         "batch_upload": "Upload to cloud",
         "batch_download": "Download to this device",

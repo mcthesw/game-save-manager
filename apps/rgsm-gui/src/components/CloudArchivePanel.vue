@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { commands, type CloudArchiveLibraryView } from '../api/commands';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
@@ -25,12 +25,15 @@ const cloudSnapshots = computed(
 );
 const totalSnapshots = computed(() => allSnapshots.value.length);
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
+  if (loading.value) return;
   loading.value = true;
   try {
     const result = await commands.getCloudArchiveLibrary();
     if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.load_failed'), result.error);
+      if (!options.silent) {
+        notifyError($t('sync_settings.archives.load_failed'), result.error);
+      }
       return;
     }
     library.value = result.data;
@@ -83,7 +86,16 @@ async function materializeAll() {
 }
 
 defineExpose({ load });
-onMounted(load);
+let refreshTimer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  void load();
+  refreshTimer = setInterval(() => {
+    void load({ silent: true });
+  }, 2000);
+});
+onUnmounted(() => {
+  if (refreshTimer !== undefined) clearInterval(refreshTimer);
+});
 </script>
 
 <template>

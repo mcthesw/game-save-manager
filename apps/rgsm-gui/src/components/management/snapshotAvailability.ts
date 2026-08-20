@@ -14,8 +14,7 @@ export function cloudSnapshotOf(
 }
 
 export function isSnapshotOnDevice(cloudGame: CloudArchiveGameView | null, date: string) {
-  const snapshot = cloudSnapshotOf(cloudGame, date);
-  return !snapshot || snapshot.local_verified;
+  return Boolean(cloudSnapshotOf(cloudGame, date)?.local_verified);
 }
 
 export function isSnapshotInCloud(cloudGame: CloudArchiveGameView | null, date: string) {

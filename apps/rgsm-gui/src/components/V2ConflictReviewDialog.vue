@@ -160,7 +160,8 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) void load();
-  }
+  },
+  { immediate: true }
 );
 </script>
 
