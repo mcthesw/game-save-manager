@@ -12,7 +12,7 @@ use crate::cloud_sync::v2::{
     CloudArchiveMaterializer, CloudLibraryBootstrap, CloudLibraryBootstrapError,
     CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin,
     CloudLibraryJoinError, CloudLibraryJoinReview, CloudManifestRepository,
-    CloudNamespaceClassification, ConflictReviewError, DeletionRegistryError,
+    CloudNamespaceClassification, CloudNamespaceError, ConflictReviewError, DeletionRegistryError,
     DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
     JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
     MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
@@ -261,9 +261,11 @@ impl ServiceContext {
         let generation = local_state.cloud_namespace_generation;
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let bootstrap = CloudLibraryBootstrap::new(session.get_op()?, 3);
-        let classification = bootstrap.inspect().await?;
         let resumable_cutover = cutover_progress_path(&local_state.cloud_settings)?.is_file();
-        map_library_status(generation, classification, resumable_cutover)
+        match bootstrap.inspect().await {
+            Ok(classification) => map_library_status(generation, classification, resumable_cutover),
+            Err(error) => map_inspect_error(generation, resumable_cutover, error),
+        }
     }
 
     /// Reset the local V2 namespace to legacy when the cloud is broken or
@@ -659,8 +661,6 @@ impl ServiceContext {
             settings.live_save_process_name = Some(options.process_name.trim().to_string());
             settings.live_save_snapshot_on_exit = options.snapshot_on_exit;
         }
-        // Extract before the mutable borrow on accepted_profile ends.
-        let existing_activation_revision = settings.snapshot_sync_activation_revision;
 
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
 
@@ -721,9 +721,7 @@ impl ServiceContext {
         };
 
         let downloaded = if enabled && initial_catch_up == InitialCatchUpPolicy::DownloadExisting {
-            let revision = activation_revision
-                .or(existing_activation_revision)
-                .expect("enabled game must have an activation revision");
+            let revision = materializer.catalog_revision().await?;
             let outcome = materializer
                 .materialize_game(game_id, revision, cancellation)
                 .await;
@@ -1047,6 +1045,24 @@ fn map_library_status(
     }
 }
 
+fn map_inspect_error(
+    generation: CloudNamespaceGeneration,
+    resumable_cutover: bool,
+    error: CloudLibraryBootstrapError,
+) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+    match error {
+        CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_))
+            if generation == CloudNamespaceGeneration::LegacyV1 && resumable_cutover =>
+        {
+            Ok(CloudLibraryStatus::CutoverRequired {
+                game_count: 0,
+                resumable: true,
+            })
+        }
+        error => Err(error.into()),
+    }
+}
+
 fn import_downloaded_lineage(
     game_id: &str,
     lineage: &[crate::backup::Snapshot],
@@ -1151,6 +1167,46 @@ mod tests {
                 false
             ),
             Err(CloudLibraryServiceError::ActiveLibraryUnavailable)
+        ));
+    }
+
+    fn resumable_partial_v2_status(
+        generation: CloudNamespaceGeneration,
+        resumable_cutover: bool,
+    ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+        map_inspect_error(
+            generation,
+            resumable_cutover,
+            CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(vec![
+                "v2/archives/".into(),
+            ])),
+        )
+    }
+
+    #[test]
+    fn interrupted_cutover_with_local_progress_is_resumable() {
+        assert_eq!(
+            resumable_partial_v2_status(CloudNamespaceGeneration::LegacyV1, true).unwrap(),
+            CloudLibraryStatus::CutoverRequired {
+                game_count: 0,
+                resumable: true,
+            }
+        );
+    }
+
+    #[test]
+    fn partial_v2_without_local_progress_stays_fail_closed() {
+        assert!(matches!(
+            resumable_partial_v2_status(CloudNamespaceGeneration::LegacyV1, false),
+            Err(CloudLibraryServiceError::Bootstrap(
+                CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_))
+            ))
+        ));
+        assert!(matches!(
+            resumable_partial_v2_status(CloudNamespaceGeneration::V2, true),
+            Err(CloudLibraryServiceError::Bootstrap(
+                CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_))
+            ))
         ));
     }
 

@@ -388,29 +388,50 @@ impl SnapshotSyncCoordinator {
         local: &GameSnapshots,
     ) -> Result<(), SnapshotSyncError> {
         let manifest = self.repository().load().await?;
-        let mut visiting = HashSet::new();
-        let mut emitted = manifest
+        if let Some(existing) = manifest
             .games
             .get(game_id)
-            .map(|game| game.snapshots.keys().cloned().collect())
-            .unwrap_or_default();
-        let snapshots = local
-            .backups
-            .iter()
-            .map(|item| (item.date.clone(), item))
-            .collect();
-        let mut order = Vec::new();
-        visit_snapshot(
-            &snapshot.date,
-            &snapshots,
-            &mut visiting,
-            &mut emitted,
-            &mut order,
-        )?;
-        for ancestor in order {
-            self.publish_local_node(game_id, &ancestor, None).await?;
+            .and_then(|game| game.snapshots.get(&snapshot.date))
+        {
+            let local_path = self.local_path(game_id, snapshot);
+            let integrity = if local_path.is_file() {
+                let path = local_path.clone();
+                Some(
+                    tokio::task::spawn_blocking(move || ArchiveIntegrity::from_file(&path))
+                        .await
+                        .map_err(|error| SnapshotSyncError::HashTask(error.to_string()))??,
+                )
+            } else {
+                None
+            };
+            merge_local_snapshot(&mut existing.clone(), snapshot, integrity)?;
+            self.materializer.upload(game_id, &snapshot.date).await?;
+        } else {
+            let mut visiting = HashSet::new();
+            let mut emitted = manifest
+                .games
+                .get(game_id)
+                .map(|game| game.snapshots.keys().cloned().collect())
+                .unwrap_or_default();
+            let snapshots = local
+                .backups
+                .iter()
+                .map(|item| (item.date.clone(), item))
+                .collect();
+            let mut order = Vec::new();
+            visit_snapshot(
+                &snapshot.date,
+                &snapshots,
+                &mut visiting,
+                &mut emitted,
+                &mut order,
+            )?;
+            for ancestor in order {
+                self.publish_local_node(game_id, &ancestor, None).await?;
+            }
+            self.materializer.upload(game_id, &snapshot.date).await?;
         }
-        self.materializer.upload(game_id, &snapshot.date).await?;
+        self.publish_current_head(game_id, local).await?;
         Ok(())
     }
 
@@ -1048,6 +1069,53 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn upload_rejects_same_identity_with_different_content() {
+        let operator = memory_operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let archive_root = root.path().join("deck");
+        let game_root = archive_root.join("game");
+        std::fs::create_dir_all(&game_root).unwrap();
+        let first = archive_path(&game_root, "same", ArchiveFormat::Zip);
+        std::fs::write(&first, b"first-device").unwrap();
+        let mut game = GameManifest::new("game");
+        let mut node = SnapshotNode::live(
+            "same",
+            None,
+            ArchiveIntegrity::from_file(&first).unwrap(),
+            CreatedBy::Manual,
+        );
+        let SnapshotState::Live(live) = &mut node.state else {
+            unreachable!()
+        };
+        live.cloud_archive_verified = true;
+        game.upsert_live(node).unwrap();
+        let mut manifest = CloudManifest::default();
+        manifest.games.insert("game".into(), game);
+        write_manifest(&operator, &manifest).await;
+
+        std::fs::write(&first, b"second-device-bytes").unwrap();
+        let mut local = GameSnapshots::new("Game");
+        local.backups.push(snapshot("same", None));
+        let coordinator = SnapshotSyncCoordinator::new(
+            operator,
+            archive_root,
+            "laptop".into(),
+            root.path().join("progress.json"),
+            2,
+        );
+
+        let error = coordinator
+            .upload_local_snapshot("game", &local.backups[0], &local)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            SnapshotSyncError::ManifestGraph(ManifestError::SnapshotContentConflict(id))
+                if id == "same"
+        ));
     }
 
     #[test]

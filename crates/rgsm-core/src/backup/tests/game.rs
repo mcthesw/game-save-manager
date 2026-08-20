@@ -1128,6 +1128,27 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
 }
 
 #[test]
+fn unused_snapshot_date_skips_occupied_second() -> TestResult {
+    let backup_path = Path::new("occupied-second");
+    let mut infos = GameSnapshots::new("game");
+    let occupied = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+    infos.backups.push(Snapshot {
+        date: occupied.clone(),
+        describe: String::new(),
+        path: String::new(),
+        archive_format: crate::backup::ArchiveFormat::Zip,
+        size: 0,
+        parent: None,
+        archive_hash: None,
+        device_id: None,
+        created_by: CreatedBy::Manual,
+    });
+    let allocated = crate::backup::game::unused_snapshot_date(backup_path, &infos)?;
+    assert_ne!(allocated, occupied);
+    Ok(())
+}
+
+#[test]
 fn game_with_colon_in_name_can_create_snapshot() -> TestResult {
     let _config_lock = lock_config_file();
     run_async_test(async {
