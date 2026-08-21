@@ -542,13 +542,7 @@ export async function setSharedRetention(page: Page, limit: number): Promise<voi
   }
   await block.getByLabel('Shared automatic snapshot limit').fill(String(limit));
   await page.getByRole('button', { name: 'Save settings' }).click();
-  // Lowering the limit always asks before permanent cleanup. Bounded click: the
-  // confirm dialog currently renders under the drawer, which must not hang the
-  // test for the whole test timeout while the product bug stands.
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Allow permanent cleanup' })
-    .click({ timeout: 15_000 });
+  await page.getByRole('dialog').getByRole('button', { name: 'Allow permanent cleanup' }).click();
   await expect(page.getByText('Shared automatic snapshot limit')).toBeHidden({ timeout: 15_000 });
 }
 

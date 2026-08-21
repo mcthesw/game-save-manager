@@ -104,9 +104,6 @@ test('extra backups: created on apply, undo restores content and head, retention
   }
 });
 
-// Covered by the same z-index defect as the shared-retention drawer confirm
-// (KDrawer renders above the confirm dialog): the delete confirmation is
-// unreachable, so this stays red until the layering bug is fixed.
 test('extra backups: deleting one from the drawer', async ({ browser }) => {
   const runRoot = await createRunRoot('local-extra-del');
   const device = await seedLocalConfig(runRoot);
@@ -129,12 +126,7 @@ test('extra backups: deleting one from the drawer', async ({ browser }) => {
     const drawer = page.getByRole('dialog', { name: 'Extra backups' });
     await expect(drawer).toBeVisible();
     await drawer.getByRole('button', { name: 'Delete' }).first().click();
-    // Bounded click: while the layering bug stands, the confirm button renders
-    // under the drawer overlay and cannot receive the click.
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: 'Confirm' })
-      .click({ timeout: 15_000 });
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
     await expect
       .poll(async () => (await getExtraBackups(host, GAME_NAME)).length, { timeout: 15_000 })
       .toBe(0);

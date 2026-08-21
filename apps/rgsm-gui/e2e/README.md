@@ -167,9 +167,9 @@ A 已在新版资料库，本地还有这款游戏。云端新版配置被删掉
 - max_extra_backup_count=2 时连续应用：只留最新两份额外备份
 - 关掉 Extra backup before apply：应用不再留额外备份，Undo 按钮禁用并带提示
 
-### extra backups: deleting one from the drawer（当前红，等产品缺陷修复）
+### extra backups: deleting one from the drawer
 
-- 抽屉里点 Delete 弹出的确认框被抽屉遮罩压住点不到（与共享 retention 抽屉确认框同一层级缺陷）。修复后：确认删除，额外备份精确减一
+- 抽屉里点 Delete，确认后额外备份精确减一
 
 ### batch delete removes selected snapshots and rewires the tree
 

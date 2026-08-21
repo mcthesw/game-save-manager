@@ -90,8 +90,6 @@ test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ brow
       message?: string;
       resumable?: boolean;
     }>(host, '/api/v1/inspect-cloud-library');
-    // Expected: cutover_required + resumable after a descriptor-last interrupt.
-    // Actual product: inspect treats leftover v2/archives/ as a broken namespace.
     expect(inspect.ok, inspect.raw).toBe(true);
     expect(inspect.data.kind).toBe('cutover_required');
     expect(inspect.data.resumable).toBe(true);
