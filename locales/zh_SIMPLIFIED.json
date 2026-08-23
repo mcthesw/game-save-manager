@@ -1024,10 +1024,16 @@
                 "story": "此位置仍为旧版云存档，升级会将现有归档迁入新资料库，此设备之后仅使用新格式，旧数据不会删除"
             },
             "retry_create": "重试创建",
-            "reset": "重置并重建",
-            "reset_success": "云端资料库状态已重置",
-            "reset_failed": "无法重置云端资料库",
-            "reset_confirm": "这将删除整个远程云库命名空间和所有云端存档。输入 yes 确认。"
+            "rebuild": "从此设备重建",
+            "rebuild_description": "已保存的云端资料库不完整或已被删除。请从此设备重建后继续使用。",
+            "rebuild_success": "云端资料库已重建",
+            "rebuild_failed": "无法重建云端资料库",
+            "rebuild_confirm": "这会用此设备的游戏替换损坏的云端资料库，并重新上传此设备现有的存档快照。其他设备之后需要重新连接。输入 yes 确认。",
+            "reconnect": "重新连接此设备",
+            "reconnect_description": "云端资料库已由另一台设备重建。重新连接此设备后即可继续同步。",
+            "reconnect_success": "此设备已重新连接",
+            "reconnect_failed": "无法重新连接此设备",
+            "reconnect_confirm": "在此设备上使用当前云端资料库。本地存档快照会保留，云端内容不会被删除。"
         },
         "operations": {
             "tab": "操作",

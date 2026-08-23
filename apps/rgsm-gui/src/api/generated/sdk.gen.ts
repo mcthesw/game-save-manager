@@ -187,15 +187,18 @@ import type {
   PreviewSaveUnitResolutionData,
   PreviewSaveUnitResolutionErrors,
   PreviewSaveUnitResolutionResponses,
+  RebuildCloudLibraryFromLocalData,
+  RebuildCloudLibraryFromLocalErrors,
+  RebuildCloudLibraryFromLocalResponses,
+  ReconnectCloudLibraryData,
+  ReconnectCloudLibraryErrors,
+  ReconnectCloudLibraryResponses,
   RegenerateHttpApiTokenData,
   RegenerateHttpApiTokenErrors,
   RegenerateHttpApiTokenResponses,
   RemoveCloudDeviceProfileData,
   RemoveCloudDeviceProfileErrors,
   RemoveCloudDeviceProfileResponses,
-  ResetBrokenCloudLibraryData,
-  ResetBrokenCloudLibraryErrors,
-  ResetBrokenCloudLibraryResponses,
   ResetLudusaviManifestToBundledData,
   ResetLudusaviManifestToBundledErrors,
   ResetLudusaviManifestToBundledResponses,
@@ -1038,6 +1041,42 @@ export const previewSaveUnitResolution = <ThrowOnError extends boolean = false>(
     },
   });
 
+export const rebuildCloudLibraryFromLocal = <ThrowOnError extends boolean = false>(
+  options: Options<RebuildCloudLibraryFromLocalData, ThrowOnError>
+): RequestResult<
+  RebuildCloudLibraryFromLocalResponses,
+  RebuildCloudLibraryFromLocalErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    RebuildCloudLibraryFromLocalResponses,
+    RebuildCloudLibraryFromLocalErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/rebuild-cloud-library-from-local',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+export const reconnectCloudLibrary = <ThrowOnError extends boolean = false>(
+  options: Options<ReconnectCloudLibraryData, ThrowOnError>
+): RequestResult<ReconnectCloudLibraryResponses, ReconnectCloudLibraryErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ReconnectCloudLibraryResponses,
+    ReconnectCloudLibraryErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/reconnect-cloud-library',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
 export const regenerateHttpApiToken = <ThrowOnError extends boolean = false>(
   options?: Options<RegenerateHttpApiTokenData, ThrowOnError>
 ): RequestResult<RegenerateHttpApiTokenResponses, RegenerateHttpApiTokenErrors, ThrowOnError> =>
@@ -1062,15 +1101,6 @@ export const removeCloudDeviceProfile = <ThrowOnError extends boolean = false>(
       ...options.headers,
     },
   });
-
-export const resetBrokenCloudLibrary = <ThrowOnError extends boolean = false>(
-  options?: Options<ResetBrokenCloudLibraryData, ThrowOnError>
-): RequestResult<ResetBrokenCloudLibraryResponses, ResetBrokenCloudLibraryErrors, ThrowOnError> =>
-  (options?.client ?? client).post<
-    ResetBrokenCloudLibraryResponses,
-    ResetBrokenCloudLibraryErrors,
-    ThrowOnError
-  >({ url: '/api/v1/reset-broken-cloud-library', ...options });
 
 export const resetLudusaviManifestToBundled = <ThrowOnError extends boolean = false>(
   options?: Options<ResetLudusaviManifestToBundledData, ThrowOnError>

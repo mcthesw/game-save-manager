@@ -16,8 +16,8 @@ use crate::cloud_sync::v2::{
     DeviceProfileRemovalError, DeviceProfileRepository, DeviceProfileRepositoryError,
     JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
     MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
-    SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotSyncCoordinator,
-    SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
+    SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotReconcilePolicy,
+    SnapshotSyncCoordinator, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -26,9 +26,10 @@ use crate::cloud_sync::{
     sync_game as sync_cloud_game, upload_all_from_session,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, InitialCatchUpPolicy, SyncMode, activate_cloud_namespace_v2,
-    activate_cutover_cloud_library, activate_joined_cloud_library, cloud_bootstrap_inputs,
-    cloud_namespace_generation, get_config, replace_current_device_profile, resolve_backup_path,
+    CloudNamespaceGeneration, Config, InitialCatchUpPolicy, SyncMode, accept_remote_shared_library,
+    activate_cloud_namespace_v2, activate_cutover_cloud_library, activate_joined_cloud_library,
+    cloud_bootstrap_inputs, cloud_namespace_generation, get_config, replace_current_device_profile,
+    resolve_backup_path,
 };
 use crate::hooks::{HookSource, MetadataChangedCtx};
 use crate::preclude::BackendError;
@@ -61,6 +62,8 @@ fn ensure_legacy_cloud_sync() -> Result<(), BackendError> {
 pub enum CloudLibraryStatus {
     Empty,
     JoinRequired { game_count: usize },
+    ReconnectRequired { game_count: usize },
+    RebuildRequired,
     CutoverRequired { game_count: usize, resumable: bool },
     Active { game_count: usize },
 }
@@ -114,6 +117,8 @@ pub enum CloudLibraryServiceError {
     CurrentPositionBlocksDeletion(String),
     #[error("The active V2 Cloud Library no longer matches the saved connection")]
     ActiveLibraryUnavailable,
+    #[error("This device must reconnect to the rebuilt Cloud Library")]
+    DeviceReconnectRequired,
     #[error("This installation does not need to join a Cloud Library")]
     JoinNotRequired,
     #[error("This installation does not need Cloud Cutover")]
@@ -260,28 +265,43 @@ impl ServiceContext {
         let (_, _, local_state) = cloud_bootstrap_inputs()?;
         let generation = local_state.cloud_namespace_generation;
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        let bootstrap = CloudLibraryBootstrap::new(session.get_op()?, 3);
+        let operator = session.get_op()?;
+        let bootstrap = CloudLibraryBootstrap::new(operator.clone(), 3);
         let resumable_cutover = cutover_progress_path(&local_state.cloud_settings)?.is_file();
         match bootstrap.inspect().await {
-            Ok(classification) => map_library_status(generation, classification, resumable_cutover),
+            Ok(classification) => {
+                if generation == CloudNamespaceGeneration::V2
+                    && let CloudNamespaceClassification::SupportedV2 { shared_library, .. } =
+                        &classification
+                    && !DeviceProfileRepository::new(operator, 3)
+                        .list()
+                        .await?
+                        .iter()
+                        .any(|profile| profile.device.id == local_state.current_device_id)
+                {
+                    return Ok(CloudLibraryStatus::ReconnectRequired {
+                        game_count: shared_library.games.len(),
+                    });
+                }
+                map_library_status(generation, classification, resumable_cutover)
+            }
             Err(error) => map_inspect_error(generation, resumable_cutover, error),
         }
     }
 
-    /// Reset the local V2 namespace to legacy when the cloud is broken or
-    /// manually deleted. This is a recovery path, not a normal transition.
-    /// Best-effort removal of corrupt V2 remote objects so that a subsequent
-    /// inspect classifies the root as empty rather than hitting the same
-    /// corruption.
-    pub async fn reset_broken_cloud_library(&self) -> Result<(), CloudLibraryServiceError> {
-        let (_, _, local_state) = cloud_bootstrap_inputs()?;
+    /// Rebuild a missing or corrupt remote V2 namespace from this Device's
+    /// accepted local owners and locally available enabled Snapshots.
+    pub async fn rebuild_cloud_library_from_local(
+        &self,
+        confirmed: bool,
+    ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+        if !confirmed {
+            return Err(CloudLibraryServiceError::ConfirmationRequired);
+        }
+        let (shared_library, device_profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        // Remove all V2 remote objects so re-inspection sees an
-        // empty root instead of the same corrupt state. Propagate
-        // deletion errors: a transient failure must not downgrade the
-        // namespace while corrupt objects remain remotely.
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let operator = session.get_op()?;
         match operator
@@ -293,8 +313,51 @@ impl ServiceContext {
             Err(err) if err.kind() == opendal::ErrorKind::NotFound => {}
             Err(err) => return Err(BackendError::from(err).into()),
         }
-        crate::config::downgrade_cloud_namespace_to_legacy()?;
-        Ok(())
+        CloudLibraryBootstrap::new(operator, 3)
+            .create_empty(&shared_library, &device_profile)
+            .await?;
+        self.reupload_enabled_local_progress(&CancellationToken::new())
+            .await?;
+        Ok(CloudLibraryStatus::Active {
+            game_count: shared_library.games.len(),
+        })
+    }
+
+    /// Re-register only this Device against the remote library. No remote
+    /// namespace or Snapshot is deleted by this operation.
+    pub async fn reconnect_cloud_library(
+        &self,
+        confirmed: bool,
+    ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+        if !confirmed {
+            return Err(CloudLibraryServiceError::ConfirmationRequired);
+        }
+        let (expected_library, expected_profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        let operator = session.get_op()?;
+        let classification = CloudLibraryBootstrap::new(operator.clone(), 3)
+            .inspect()
+            .await?;
+        let CloudNamespaceClassification::SupportedV2 { shared_library, .. } = classification
+        else {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        };
+        let accepted_profile = expected_profile.for_shared_library(&shared_library);
+        DeviceProfileRepository::new(operator, 3)
+            .publish(&local_state.current_device_id, &accepted_profile)
+            .await?;
+        accept_remote_shared_library(
+            &expected_library,
+            &expected_profile,
+            &shared_library,
+            &accepted_profile,
+        )?;
+        Ok(CloudLibraryStatus::Active {
+            game_count: shared_library.games.len(),
+        })
     }
 
     pub async fn create_cloud_library(
@@ -829,6 +892,53 @@ impl ServiceContext {
         Ok(())
     }
 
+    async fn reupload_enabled_local_progress(
+        &self,
+        cancellation: &CancellationToken,
+    ) -> Result<(), CloudLibraryServiceError> {
+        let config = get_config()?;
+        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+        let local_archive_root = profile
+            .local_archive_root
+            .as_deref()
+            .map(resolve_app_path)
+            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
+        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+        let coordinator = SnapshotSyncCoordinator::new(
+            session.get_op()?,
+            local_archive_root,
+            local_state.current_device_id.clone(),
+            resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
+            3,
+        );
+        for (game_id, settings) in &profile.games {
+            if !settings.cloud_sync_enabled {
+                continue;
+            }
+            let Some(game) = config
+                .games
+                .iter()
+                .find(|game| game.storage_key == *game_id)
+            else {
+                continue;
+            };
+            coordinator
+                .reconcile_game_with_policy(
+                    game_id,
+                    &game.get_game_snapshots_info()?,
+                    settings.snapshot_sync_activation_revision.unwrap_or(0),
+                    &BTreeSet::new(),
+                    cancellation,
+                    SnapshotReconcilePolicy {
+                        upload_new_archives: true,
+                        download_forward_target: false,
+                    },
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
     pub(super) async fn converged_materializer(
         &self,
     ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
@@ -1024,6 +1134,9 @@ fn map_library_status(
         ) => Ok(CloudLibraryStatus::Active {
             game_count: shared_library.games.len(),
         }),
+        (CloudNamespaceGeneration::V2, CloudNamespaceClassification::Empty) => {
+            Ok(CloudLibraryStatus::RebuildRequired)
+        }
         (CloudNamespaceGeneration::V2, _) => {
             Err(CloudLibraryServiceError::ActiveLibraryUnavailable)
         }
@@ -1051,6 +1164,13 @@ fn map_inspect_error(
     error: CloudLibraryBootstrapError,
 ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
     match error {
+        CloudLibraryBootstrapError::Namespace(
+            CloudNamespaceError::MalformedObject { .. }
+            | CloudNamespaceError::MissingRequiredObject(_)
+            | CloudNamespaceError::PartialV2(_)
+            | CloudNamespaceError::SharedLibrary(_)
+            | CloudNamespaceError::Manifest(_),
+        ) if generation == CloudNamespaceGeneration::V2 => Ok(CloudLibraryStatus::RebuildRequired),
         CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_))
             if generation == CloudNamespaceGeneration::LegacyV1 && resumable_cutover =>
         {
@@ -1143,6 +1263,15 @@ mod tests {
             CloudLibraryStatus::Active { game_count: 0 }
         );
         assert_eq!(
+            map_library_status(
+                CloudNamespaceGeneration::V2,
+                CloudNamespaceClassification::Empty,
+                false
+            )
+            .unwrap(),
+            CloudLibraryStatus::RebuildRequired
+        );
+        assert_eq!(
             map_library_status(CloudNamespaceGeneration::LegacyV1, v1_only(), false).unwrap(),
             CloudLibraryStatus::CutoverRequired {
                 game_count: 0,
@@ -1159,15 +1288,26 @@ mod tests {
     }
 
     #[test]
-    fn active_device_fails_closed_when_saved_location_is_not_v2() {
+    fn active_device_fails_closed_when_saved_location_contains_legacy_data() {
         assert!(matches!(
-            map_library_status(
-                CloudNamespaceGeneration::V2,
-                CloudNamespaceClassification::Empty,
-                false
-            ),
+            map_library_status(CloudNamespaceGeneration::V2, v1_only(), false),
             Err(CloudLibraryServiceError::ActiveLibraryUnavailable)
         ));
+    }
+
+    #[test]
+    fn active_device_can_rebuild_a_namespace_with_missing_v2_objects() {
+        assert_eq!(
+            map_inspect_error(
+                CloudNamespaceGeneration::V2,
+                false,
+                CloudLibraryBootstrapError::Namespace(CloudNamespaceError::MissingRequiredObject(
+                    "v2/shared-library.json"
+                )),
+            )
+            .unwrap(),
+            CloudLibraryStatus::RebuildRequired
+        );
     }
 
     fn resumable_partial_v2_status(
@@ -1195,19 +1335,17 @@ mod tests {
     }
 
     #[test]
-    fn partial_v2_without_local_progress_stays_fail_closed() {
+    fn partial_v2_without_local_progress_requires_the_matching_recovery_path() {
         assert!(matches!(
             resumable_partial_v2_status(CloudNamespaceGeneration::LegacyV1, false),
             Err(CloudLibraryServiceError::Bootstrap(
                 CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_))
             ))
         ));
-        assert!(matches!(
-            resumable_partial_v2_status(CloudNamespaceGeneration::V2, true),
-            Err(CloudLibraryServiceError::Bootstrap(
-                CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_))
-            ))
-        ));
+        assert_eq!(
+            resumable_partial_v2_status(CloudNamespaceGeneration::V2, true).unwrap(),
+            CloudLibraryStatus::RebuildRequired
+        );
     }
 
     #[test]

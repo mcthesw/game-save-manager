@@ -421,7 +421,8 @@ impl Game {
         }
         let mut normalized = new_info.clone();
         normalized.normalize_heads();
-        fs::write(saves_path, serde_json::to_string_pretty(&normalized)?)?;
+        let bytes = serde_json::to_vec_pretty(&normalized)?;
+        crate::atomic_file::write_bytes_atomically(&saves_path, &bytes)?;
         Ok(())
     }
     pub async fn create_snapshot(&self, describe: &str) -> Result<SnapshotCreated, BackupError> {

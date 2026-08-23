@@ -615,7 +615,7 @@ async fn materialize_all_resumes_the_one_pending_scope() {
         .await
         .unwrap();
     write_manifest(&operator, &manifest).await;
-    let deck = materializer(operator, root.path(), "deck");
+    let deck = materializer(operator.clone(), root.path(), "deck");
     let cancelled = CancellationToken::new();
     cancelled.cancel();
     assert!(matches!(
@@ -638,4 +638,96 @@ async fn materialize_all_resumes_the_one_pending_scope() {
             .downloaded,
         1
     );
+}
+
+#[tokio::test]
+async fn pending_plan_is_replanned_when_its_snapshot_identity_changes_remotely() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    manifest.games.insert("game".into(), game);
+    operator
+        .write(
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            b"bytes".to_vec(),
+        )
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+    let deck = materializer(operator.clone(), root.path(), "deck");
+    let cancelled = CancellationToken::new();
+    cancelled.cancel();
+    assert!(matches!(
+        deck.materialize_all(&cancelled).await,
+        Err(MaterializationError::Cancelled)
+    ));
+
+    manifest
+        .games
+        .get_mut("game")
+        .unwrap()
+        .snapshots
+        .insert("snapshot".into(), live("snapshot", b"replacement", true));
+    operator
+        .write(
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            b"replacement".to_vec(),
+        )
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+
+    let resumed = deck
+        .resume_pending(&CancellationToken::new())
+        .await
+        .expect("stale progress should be replanned")
+        .expect("the pending operation should finish");
+    assert_eq!(resumed.downloaded, 1);
+    assert!(!root.path().join("deck-materialize.json").exists());
+}
+
+#[tokio::test]
+async fn pending_plan_skips_a_snapshot_deleted_remotely() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+    manifest.games.insert("game".into(), game);
+    operator
+        .write(
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            b"bytes".to_vec(),
+        )
+        .await
+        .unwrap();
+    write_manifest(&operator, &manifest).await;
+    let deck = materializer(operator.clone(), root.path(), "deck");
+    let cancelled = CancellationToken::new();
+    cancelled.cancel();
+    assert!(matches!(
+        deck.materialize_all(&cancelled).await,
+        Err(MaterializationError::Cancelled)
+    ));
+
+    manifest
+        .games
+        .get_mut("game")
+        .unwrap()
+        .snapshots
+        .get_mut("snapshot")
+        .unwrap()
+        .state = SnapshotState::FinalTombstone {
+        kind: DeletionKind::User,
+    };
+    write_manifest(&operator, &manifest).await;
+
+    let resumed = deck
+        .resume_pending(&CancellationToken::new())
+        .await
+        .expect("deleted pending items should be skipped");
+    assert!(resumed.is_none());
+    assert!(!root.path().join("deck-materialize.json").exists());
 }

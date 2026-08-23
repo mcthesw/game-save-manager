@@ -189,8 +189,17 @@ export const commands = {
   async inspectCloudLibrary() {
     return unwrap<types.InspectCloudLibraryResponses[200]>(await sdk.inspectCloudLibrary());
   },
-  async resetBrokenCloudLibrary() {
-    return unwrap<types.ResetBrokenCloudLibraryResponses[200]>(await sdk.resetBrokenCloudLibrary());
+  async rebuildCloudLibraryFromLocal(
+    confirmed: types.RebuildCloudLibraryFromLocalData['body']['confirmed']
+  ) {
+    return unwrap<types.RebuildCloudLibraryFromLocalResponses[200]>(
+      await sdk.rebuildCloudLibraryFromLocal({ body: { confirmed } })
+    );
+  },
+  async reconnectCloudLibrary(confirmed: types.ReconnectCloudLibraryData['body']['confirmed']) {
+    return unwrap<types.ReconnectCloudLibraryResponses[200]>(
+      await sdk.reconnectCloudLibrary({ body: { confirmed } })
+    );
   },
   async createCloudLibrary(confirmed: types.CreateCloudLibraryRequest['confirmed']) {
     return unwrap<types.CreateCloudLibraryResponses[200]>(

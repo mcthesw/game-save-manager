@@ -195,16 +195,6 @@ pub(crate) fn activate_cloud_namespace_v2(
     Ok(())
 }
 
-/// Downgrade from V2 when the cloud namespace is broken or manually deleted.
-/// This is a recovery path, not a normal transition.
-pub(crate) fn downgrade_cloud_namespace_to_legacy() -> Result<(), ConfigError> {
-    let _guard = CONFIG_STORE_LOCK
-        .lock()
-        .map_err(|_| ConfigError::StoreLockPoisoned)?;
-    OwnerStore::runtime().downgrade_to_legacy()?;
-    Ok(())
-}
-
 pub(crate) fn activate_joined_cloud_library(
     expected_local_library: &SharedLibrary,
     expected_local_profile: &DeviceProfile,
@@ -260,6 +250,24 @@ pub(crate) fn replace_shared_library(
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     OwnerStore::runtime().replace_shared_library(expected, accepted)?;
+    Ok(())
+}
+
+pub(crate) fn accept_remote_shared_library(
+    expected_library: &SharedLibrary,
+    expected_profile: &DeviceProfile,
+    accepted_library: &SharedLibrary,
+    accepted_profile: &DeviceProfile,
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    OwnerStore::runtime().accept_remote_shared_library(
+        expected_library,
+        expected_profile,
+        accepted_library,
+        accepted_profile,
+    )?;
     Ok(())
 }
 

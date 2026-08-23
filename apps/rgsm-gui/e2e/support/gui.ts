@@ -14,9 +14,12 @@ export async function expectActivity(page: Page, pattern: string | RegExp): Prom
   while (Date.now() < deadline) {
     if (await text.isVisible().catch(() => false)) return;
     // The global loading overlay also carries role="status"; target the drawer.
-    await page
-      .locator('.activity-drawer[role="status"]')
-      .click()
+    // Click a fixed safe point in the pill. The drawer can expand between the
+    // visibility check and this click; clicking the drawer's moving centre can
+    // then land on "Dismiss all" or an activity's dismiss button.
+    await drawer
+      .locator('.activity-pill')
+      .click({ position: { x: 10, y: 10 } })
       .catch(() => {});
     await page.waitForTimeout(500);
   }
@@ -512,13 +515,21 @@ export async function removeLibraryDevice(page: Page, deviceName: string): Promi
   await expectActivity(page, /Device Profile removed/);
 }
 
-export async function resetBrokenLibrary(page: Page): Promise<void> {
+export async function rebuildCloudLibrary(page: Page): Promise<void> {
   await openSyncSettings(page);
-  await page.getByRole('button', { name: 'Reset and recreate' }).click();
+  await page.getByRole('button', { name: 'Rebuild from this device' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox').fill('yes');
-  await dialog.getByRole('button', { name: 'Reset and recreate' }).click();
-  await expectActivity(page, 'Cloud Library state reset');
+  await dialog.getByRole('button', { name: 'Rebuild from this device' }).click();
+  await expectActivity(page, 'Cloud Library rebuilt');
+}
+
+export async function reconnectCloudLibrary(page: Page): Promise<void> {
+  await openSyncSettings(page);
+  await page.getByRole('button', { name: 'Reconnect this device' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Reconnect this device' }).click();
+  await expectActivity(page, 'This device reconnected');
 }
 
 export async function protectSnapshot(page: Page, snapshotId: string): Promise<void> {

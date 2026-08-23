@@ -21,10 +21,8 @@ async fn create_backup_folder(dir_name: &str) -> Result<(), BackupError> {
         let bytes = fs::read(backup_path.join("Backups.json"));
         serde_json::from_slice(&bytes?)?
     };
-    fs::write(
-        backup_path.join("Backups.json"),
-        serde_json::to_string_pretty(&info)?,
-    )?;
+    let bytes = serde_json::to_vec_pretty(&info)?;
+    crate::atomic_file::write_bytes_atomically(&backup_path.join("Backups.json"), &bytes)?;
 
     Ok(())
 }

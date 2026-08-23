@@ -172,14 +172,6 @@ impl OwnerStore {
         self.write(&owners)
     }
 
-    /// Downgrade from V2 when the cloud namespace is broken or manually
-    /// deleted. This is a recovery path, not a normal transition.
-    pub(crate) fn downgrade_to_legacy(&self) -> Result<(), OwnerStoreError> {
-        let mut owners = self.load()?;
-        owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::LegacyV1;
-        self.write(&owners)
-    }
-
     pub(crate) fn activate_join_v2(
         &self,
         expected_local_library: &SharedLibrary,
@@ -286,6 +278,34 @@ impl OwnerStore {
         }
         accepted.validate()?;
         owners.shared_library = accepted.clone();
+        self.write(&owners)
+    }
+
+    pub(crate) fn accept_remote_shared_library(
+        &self,
+        expected_library: &SharedLibrary,
+        expected_profile: &DeviceProfile,
+        accepted_library: &SharedLibrary,
+        accepted_profile: &DeviceProfile,
+    ) -> Result<(), OwnerStoreError> {
+        let mut owners = self.load()?;
+        let current_device_id = owners.local_state.current_device_id.clone();
+        let current_profile = owners
+            .device_profiles
+            .get(&current_device_id)
+            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
+        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
+            || owners.shared_library != *expected_library
+            || current_profile != expected_profile
+            || accepted_profile.device.id != current_device_id
+        {
+            return Err(OwnerStoreError::SharedLibraryInputsChanged);
+        }
+        accepted_library.validate()?;
+        owners.shared_library = accepted_library.clone();
+        owners
+            .device_profiles
+            .insert(current_device_id, accepted_profile.clone());
         self.write(&owners)
     }
 
