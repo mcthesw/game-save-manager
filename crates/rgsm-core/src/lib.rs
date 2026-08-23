@@ -10,6 +10,7 @@ use rust_i18n::i18n;
 i18n!("../../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 pub mod app_dirs;
+mod atomic_file;
 pub mod backup;
 pub mod cloud_sync;
 pub mod config;

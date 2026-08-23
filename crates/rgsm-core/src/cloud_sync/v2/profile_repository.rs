@@ -83,8 +83,7 @@ impl DeviceProfileRepository {
             if !path.ends_with(".json") {
                 continue;
             }
-            let bytes = self.operator.read(path).await?;
-            let profile: DeviceProfile = serde_json::from_slice(&bytes.to_vec())?;
+            let profile = self.read_profile(path).await?;
             if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
                 return Err(DeviceProfileRepositoryError::UnsupportedSchema(
                     profile.schema_version,
@@ -100,6 +99,26 @@ impl DeviceProfileRepository {
         }
         profiles.sort_by(|left, right| left.device.id.cmp(&right.device.id));
         Ok(profiles)
+    }
+
+    async fn read_profile(
+        &self,
+        path: &str,
+    ) -> Result<DeviceProfile, DeviceProfileRepositoryError> {
+        let mut last_error = None;
+        for attempt in 0..self.max_attempts {
+            let bytes = self.operator.read(path).await?;
+            match serde_json::from_slice(&bytes.to_vec()) {
+                Ok(profile) => return Ok(profile),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt + 1 < self.max_attempts {
+                tokio::time::sleep(std::time::Duration::from_millis(10 << attempt.min(4))).await;
+            }
+        }
+        Err(last_error
+            .expect("at least one profile read attempt")
+            .into())
     }
 
     pub async fn delete(&self, device_id: &str) -> Result<(), DeviceProfileRepositoryError> {
@@ -226,5 +245,51 @@ mod tests {
             repository.list().await.unwrap()[0].device.name,
             "Steam Deck"
         );
+    }
+
+    #[tokio::test]
+    async fn listing_retries_a_profile_while_an_overwrite_is_in_progress() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let operator =
+            Operator::new(services::Fs::default().root(root.path().to_string_lossy().as_ref()))
+                .unwrap()
+                .finish();
+        let path = device_profile_path("deck");
+        operator.write(&path, Vec::<u8>::new()).await.unwrap();
+
+        let writer = operator.clone();
+        let expected = serde_json::to_vec_pretty(&profile()).unwrap();
+        let write_path = path.clone();
+        let write = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            writer.write(&write_path, expected).await.unwrap();
+        });
+
+        let repository = DeviceProfileRepository::new(operator, 10);
+        let profiles = repository.list().await.unwrap();
+        write.await.unwrap();
+
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].device.id, "deck");
+    }
+
+    #[tokio::test]
+    async fn listing_still_rejects_a_persistently_malformed_profile() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let operator =
+            Operator::new(services::Fs::default().root(root.path().to_string_lossy().as_ref()))
+                .unwrap()
+                .finish();
+        operator
+            .write(&device_profile_path("deck"), b"{broken".to_vec())
+            .await
+            .unwrap();
+
+        let result = DeviceProfileRepository::new(operator, 2).list().await;
+
+        assert!(matches!(
+            result,
+            Err(DeviceProfileRepositoryError::Serialization(_))
+        ));
     }
 }

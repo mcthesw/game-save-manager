@@ -751,14 +751,22 @@ pub async fn delete_v2_snapshot(
         .map_err(|error| error.to_string())
 }
 
-pub async fn reset_broken_cloud_library(app_handle: AppHandle) -> Result<(), String> {
-    svc(&app_handle)
-        .reset_broken_cloud_library()
+pub async fn rebuild_cloud_library_from_local(
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<CloudLibraryStatus, String> {
+    crate::cloud_library::rebuild(&app_handle, confirmed)
         .await
-        .map_err(|error| error.to_string())?;
-    let config = get_config().map_err(|error| error.to_string())?;
-    crate::hooks::rebuild_pipeline(&app_handle, &config);
-    Ok(())
+        .map_err(|error| error.to_string())
+}
+
+pub async fn reconnect_cloud_library(
+    confirmed: bool,
+    app_handle: AppHandle,
+) -> Result<CloudLibraryStatus, String> {
+    crate::cloud_library::reconnect(&app_handle, confirmed)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 pub async fn set_shared_snapshot_retention(

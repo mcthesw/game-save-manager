@@ -1024,10 +1024,16 @@
                 "story": "This location still uses the old cloud format. Upgrade moves existing archives into the new library. This device then uses only the new format. Old data is not deleted"
             },
             "retry_create": "Retry creation",
-            "reset": "Reset and recreate",
-            "reset_success": "Cloud Library state reset",
-            "reset_failed": "Could not reset the Cloud Library",
-            "reset_confirm": "This deletes the entire remote cloud library namespace and all Cloud Archives. Enter yes to confirm."
+            "rebuild": "Rebuild from this device",
+            "rebuild_description": "The saved Cloud Library is incomplete or was deleted. Rebuild it from this device to continue.",
+            "rebuild_success": "Cloud Library rebuilt",
+            "rebuild_failed": "Could not rebuild the Cloud Library",
+            "rebuild_confirm": "This replaces the damaged Cloud Library with this device's games and re-uploads its available snapshots. Other devices will need to reconnect. Enter yes to confirm.",
+            "reconnect": "Reconnect this device",
+            "reconnect_description": "The Cloud Library was rebuilt by another device. Reconnect this device to continue syncing.",
+            "reconnect_success": "This device reconnected",
+            "reconnect_failed": "Could not reconnect this device",
+            "reconnect_confirm": "Use the current Cloud Library on this device. Local snapshot files are kept and nothing in the cloud is deleted."
         },
         "operations": {
             "tab": "Operations",

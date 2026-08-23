@@ -19,7 +19,7 @@ export type BackupsEntry = {
 export type BackupsFile = {
   name: string;
   backups: BackupsEntry[];
-  device_heads: Record<string, string>;
+  device_heads?: Record<string, string>;
 };
 
 export function localSnapshotsDir(appDataDir: string, storageKey: string = STORAGE_KEY): string {
@@ -92,7 +92,7 @@ export async function expectLocalHead(
     .poll(
       async () => {
         const file = await readBackupsJson(appDataDir, storageKey);
-        return file.device_heads[deviceId] ?? null;
+        return file.device_heads?.[deviceId] ?? null;
       },
       { timeout: 15_000 }
     )

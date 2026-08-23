@@ -129,12 +129,13 @@ export async function seedLegacyV1Scene(runRoot: string): Promise<SeededCloud> {
 
 export async function seedEmptyCloudWithLocalGame(
   runRoot: string,
-  options: { gameOnB?: boolean } = {}
+  options: { gameOnA?: boolean; gameOnB?: boolean } = {}
 ): Promise<{
   cloudRoot: string;
   deviceA: DeviceLayout;
   deviceB: DeviceLayout;
 }> {
+  const gameOnA = options.gameOnA ?? true;
   const gameOnB = options.gameOnB ?? true;
   const cloudRoot = join(runRoot, 'cloud');
   const deviceA = deviceLayout(runRoot, 'a');
@@ -148,13 +149,14 @@ export async function seedEmptyCloudWithLocalGame(
       __SAVE_PATH_A__: deviceA.savePath.replaceAll('\\', '/'),
       __SAVE_PATH_B__: deviceB.savePath.replaceAll('\\', '/'),
     });
-    if (device === deviceB && !gameOnB) {
+    const hasGame = device === deviceA ? gameOnA : gameOnB;
+    if (!hasGame) {
       const parsed = JSON.parse(localConfig) as { games: unknown[] };
       parsed.games = [];
       localConfig = `${JSON.stringify(parsed, null, 2)}\n`;
     }
     await writeText(join(device.appDataDir, 'GameSaveManager.config.json'), localConfig);
-    if (device === deviceA || gameOnB) {
+    if (hasGame) {
       await writeText(
         join(device.appDataDir, 'save_data', STORAGE_KEY, 'Backups.json'),
         `${JSON.stringify({ name: GAME_NAME, backups: [], device_heads: {}, sync_version: 0 }, null, 2)}\n`

@@ -24,7 +24,7 @@ const inspecting = ref(false);
 const initializing = ref(false);
 const initializationFailed = ref(false);
 const inspectionFailed = ref(false);
-const resetting = ref(false);
+const recovering = ref(false);
 const feedback = useFeedback();
 
 const requiresAction = computed(
@@ -33,7 +33,10 @@ const requiresAction = computed(
     !props.dirty &&
     !inspecting.value &&
     !initializing.value &&
-    (inspectionFailed.value || status.value?.kind === 'empty')
+    (inspectionFailed.value ||
+      status.value?.kind === 'empty' ||
+      status.value?.kind === 'rebuild_required' ||
+      status.value?.kind === 'reconnect_required')
 );
 
 watch(
@@ -51,6 +54,10 @@ const statusText = computed(() => {
     case 'cutover_required':
     case 'active':
       return '';
+    case 'reconnect_required':
+      return $t('sync_settings.library.reconnect_description');
+    case 'rebuild_required':
+      return $t('sync_settings.library.rebuild_description');
     case 'empty':
       return $t('sync_settings.library.create_failed');
   }
@@ -152,42 +159,60 @@ async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus
   }
 }
 
-async function reset() {
-  resetting.value = true;
+async function rebuild() {
+  recovering.value = true;
   try {
-    // Require explicit confirmation: this deletes the entire remote v2/
-    // namespace, which could be a valid shared library if the inspection
-    // failure was transient (network timeout, etc.).
     await feedback.prompt(
-      $t('sync_settings.library.reset_confirm'),
-      $t('sync_settings.library.reset'),
+      $t('sync_settings.library.rebuild_confirm'),
+      $t('sync_settings.library.rebuild'),
       {
-        confirmButtonText: $t('sync_settings.library.reset'),
+        confirmButtonText: $t('sync_settings.library.rebuild'),
         cancelButtonText: $t('sync_settings.cancel'),
         inputPattern: /yes/,
         inputErrorMessage: $t('manage.invalid_input_error'),
       }
     );
-    const result = await commands.resetBrokenCloudLibrary();
+    const result = await commands.rebuildCloudLibraryFromLocal(true);
     if (result.status === 'error') {
-      notifyError(`${$t('sync_settings.library.reset_failed')}: ${result.error}`);
+      notifyError(`${$t('sync_settings.library.rebuild_failed')}: ${result.error}`);
       return;
     }
-    notifySuccess($t('sync_settings.library.reset_success'));
+    notifySuccess($t('sync_settings.library.rebuild_success'));
     inspectionFailed.value = false;
-    updateStatus(null);
-    const fresh = await inspect({ createWhenEmpty: true });
-    if (fresh) {
-      updateStatus(fresh);
-    }
+    updateStatus(result.data);
   } catch {
     // User cancelled the confirmation prompt.
   } finally {
-    resetting.value = false;
+    recovering.value = false;
   }
 }
 
-defineExpose({ inspect, create, reset });
+async function reconnect() {
+  recovering.value = true;
+  try {
+    await feedback.confirm(
+      $t('sync_settings.library.reconnect_confirm'),
+      $t('sync_settings.library.reconnect'),
+      {
+        confirmButtonText: $t('sync_settings.library.reconnect'),
+        cancelButtonText: $t('sync_settings.cancel'),
+      }
+    );
+    const result = await commands.reconnectCloudLibrary(true);
+    if (result.status === 'error') {
+      notifyError(`${$t('sync_settings.library.reconnect_failed')}: ${result.error}`);
+      return;
+    }
+    notifySuccess($t('sync_settings.library.reconnect_success'));
+    updateStatus(result.data);
+  } catch {
+    // User cancelled the confirmation dialog.
+  } finally {
+    recovering.value = false;
+  }
+}
+
+defineExpose({ inspect, create, rebuild, reconnect });
 </script>
 <template>
   <section
@@ -205,13 +230,22 @@ defineExpose({ inspect, create, reset });
         {{ $t('sync_settings.library.inspect') }}
       </KButton>
       <KButton
-        v-if="inspectionFailed"
+        v-if="status?.kind === 'rebuild_required'"
         variant="default"
         size="sm"
-        :loading="resetting"
-        @click="reset()"
+        :loading="recovering"
+        @click="rebuild()"
       >
-        {{ $t('sync_settings.library.reset') }}
+        {{ $t('sync_settings.library.rebuild') }}
+      </KButton>
+      <KButton
+        v-else-if="status?.kind === 'reconnect_required'"
+        variant="primary"
+        size="sm"
+        :loading="recovering"
+        @click="reconnect()"
+      >
+        {{ $t('sync_settings.library.reconnect') }}
       </KButton>
       <KButton
         v-else-if="status?.kind === 'empty'"

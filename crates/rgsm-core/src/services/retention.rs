@@ -4,12 +4,12 @@ use specta::Type;
 use crate::app_dirs::resolve_app_path;
 use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
-    CLOUD_MANIFEST_PATH, CloudManifestRepository, ManifestError, SharedLibraryRepository,
-    SnapshotState, SnapshotSyncCoordinator,
+    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeviceProfileRepository, ManifestError,
+    SharedLibraryRepository, SnapshotState, SnapshotSyncCoordinator,
 };
 use crate::config::{
-    CloudNamespaceGeneration, SharedSnapshotRetentionPolicy, cloud_bootstrap_inputs, get_config,
-    replace_shared_library,
+    CloudNamespaceGeneration, SharedSnapshotRetentionPolicy, accept_remote_shared_library,
+    cloud_bootstrap_inputs, get_config, replace_shared_library,
 };
 
 use super::ServiceContext;
@@ -21,35 +21,38 @@ pub struct SnapshotRetentionOutcome {
     pub deleted: usize,
 }
 
-/// Refresh only the shared retention field from the remote Shared Library.
-/// Any Game identity or portable definition drift fails closed and remains a
-/// separate Library-management concern.
+/// Refresh the authoritative Shared Library for a Device that is still a
+/// registered member of the remote library. Device-local settings are rebased
+/// onto the accepted portable definitions.
 pub(crate) async fn refresh_v2_snapshot_retention() -> Result<(), CloudLibraryServiceError> {
-    let (expected_library, _, local_state) = cloud_bootstrap_inputs()?;
+    let (expected_library, expected_profile, local_state) = cloud_bootstrap_inputs()?;
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
         return Ok(());
     }
     let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-    let remote = SharedLibraryRepository::new(session.get_op()?, 3)
+    let operator = session.get_op()?;
+    if !DeviceProfileRepository::new(operator.clone(), 3)
+        .list()
+        .await?
+        .iter()
+        .any(|profile| profile.device.id == local_state.current_device_id)
+    {
+        return Err(CloudLibraryServiceError::DeviceReconnectRequired);
+    }
+    let remote = SharedLibraryRepository::new(operator.clone(), 3)
         .load()
         .await?;
-    if remote.games.len() != expected_library.games.len() {
-        return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
-    }
-    let mut accepted = expected_library.clone();
-    for game in &mut accepted.games {
-        let cloud = remote
-            .games
-            .iter()
-            .find(|candidate| candidate.storage_key == game.storage_key)
-            .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?;
-        if cloud.normalized_portable() != game.normalized_portable() {
-            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
-        }
-        game.snapshot_retention = cloud.snapshot_retention;
-    }
-    if accepted != expected_library {
-        replace_shared_library(&expected_library, &accepted)?;
+    if remote != expected_library {
+        let accepted_profile = expected_profile.for_shared_library(&remote);
+        DeviceProfileRepository::new(operator, 3)
+            .publish(&local_state.current_device_id, &accepted_profile)
+            .await?;
+        accept_remote_shared_library(
+            &expected_library,
+            &expected_profile,
+            &remote,
+            &accepted_profile,
+        )?;
     }
     Ok(())
 }

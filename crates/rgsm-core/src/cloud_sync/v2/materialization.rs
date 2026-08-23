@@ -661,22 +661,24 @@ impl CloudArchiveMaterializer {
         min_catalog_revision_exclusive: Option<u64>,
         persist_new: bool,
     ) -> Result<MaterializationPlan, MaterializationError> {
-        if let Some(plan) = self.load_plan().await? {
-            if plan.scope != scope
+        let saved_plan = self.load_plan().await?;
+        if saved_plan.as_ref().is_some_and(|plan| {
+            plan.scope != scope
                 || plan.max_catalog_revision != max_catalog_revision
                 || plan.min_catalog_revision_exclusive != min_catalog_revision_exclusive
-            {
-                return Err(MaterializationError::AnotherMaterializationPending);
-            }
-            return Ok(plan);
+        }) {
+            return Err(MaterializationError::AnotherMaterializationPending);
         }
         let manifest = self.repository().load().await?;
         let mut remaining = Vec::new();
-        for (game_id, game) in &manifest.games {
-            if scope.as_ref().is_some_and(|scope| scope != game_id) {
-                continue;
-            }
-            for node in game.snapshots.values() {
+        if let Some(saved_plan) = saved_plan {
+            for saved in saved_plan.remaining {
+                let Some(game) = manifest.games.get(&saved.game_id) else {
+                    continue;
+                };
+                let Some(node) = game.snapshots.get(&saved.snapshot_id) else {
+                    continue;
+                };
                 let SnapshotState::Live(live) = &node.state else {
                     continue;
                 };
@@ -686,24 +688,55 @@ impl CloudArchiveMaterializer {
                 let local_archive_verified = self.is_locally_reported(game, &node.snapshot_id)
                     && verify_file(
                         integrity.clone(),
-                        self.local_path(game_id, &node.snapshot_id, node.archive_format),
+                        self.local_path(&saved.game_id, &node.snapshot_id, node.archive_format),
                     )
                     .await
                     .is_ok();
-                if !live.cloud_archive_verified
-                    || max_catalog_revision.is_some_and(|maximum| node.catalog_revision > maximum)
-                    || min_catalog_revision_exclusive
-                        .is_some_and(|minimum| node.catalog_revision <= minimum)
-                    || local_archive_verified
-                {
+                if !live.cloud_archive_verified || local_archive_verified {
                     continue;
                 }
                 remaining.push(MaterializationItem {
-                    game_id: game_id.clone(),
+                    game_id: saved.game_id,
                     snapshot_id: node.snapshot_id.clone(),
                     archive_format: node.archive_format,
                     integrity: integrity.clone(),
                 });
+            }
+        } else {
+            for (game_id, game) in &manifest.games {
+                if scope.as_ref().is_some_and(|scope| scope != game_id) {
+                    continue;
+                }
+                for node in game.snapshots.values() {
+                    let SnapshotState::Live(live) = &node.state else {
+                        continue;
+                    };
+                    let Some(integrity) = &live.integrity else {
+                        continue;
+                    };
+                    let local_archive_verified = self.is_locally_reported(game, &node.snapshot_id)
+                        && verify_file(
+                            integrity.clone(),
+                            self.local_path(game_id, &node.snapshot_id, node.archive_format),
+                        )
+                        .await
+                        .is_ok();
+                    if !live.cloud_archive_verified
+                        || max_catalog_revision
+                            .is_some_and(|maximum| node.catalog_revision > maximum)
+                        || min_catalog_revision_exclusive
+                            .is_some_and(|minimum| node.catalog_revision <= minimum)
+                        || local_archive_verified
+                    {
+                        continue;
+                    }
+                    remaining.push(MaterializationItem {
+                        game_id: game_id.clone(),
+                        snapshot_id: node.snapshot_id.clone(),
+                        archive_format: node.archive_format,
+                        integrity: integrity.clone(),
+                    });
+                }
             }
         }
         let plan = MaterializationPlan {

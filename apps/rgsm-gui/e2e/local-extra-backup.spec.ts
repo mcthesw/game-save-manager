@@ -49,7 +49,7 @@ test('extra backups: created on apply, undo restores content and head, retention
       .toBe('v3-unsaved\n');
     await expect
       .poll(
-        async () => (await readBackupsJson(device.appDataDir)).device_heads[DEVICE_A_ID] ?? null,
+        async () => (await readBackupsJson(device.appDataDir)).device_heads?.[DEVICE_A_ID] ?? null,
         { timeout: 15_000 }
       )
       .toBe(secondId);

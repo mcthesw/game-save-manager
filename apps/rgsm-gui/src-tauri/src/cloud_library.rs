@@ -30,6 +30,34 @@ pub async fn create(
     Ok(status)
 }
 
+pub async fn rebuild(
+    app: &AppHandle,
+    confirmed: bool,
+) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+    app.state::<Arc<CloudSyncTaskManager>>()
+        .cancel_all_and_wait()
+        .await;
+    let status = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+        .rebuild_cloud_library_from_local(confirmed)
+        .await?;
+    crate::hooks::rebuild_pipeline(app, &get_config()?);
+    Ok(status)
+}
+
+pub async fn reconnect(
+    app: &AppHandle,
+    confirmed: bool,
+) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+    app.state::<Arc<CloudSyncTaskManager>>()
+        .cancel_all_and_wait()
+        .await;
+    let status = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+        .reconnect_cloud_library(confirmed)
+        .await?;
+    crate::hooks::rebuild_pipeline(app, &get_config()?);
+    Ok(status)
+}
+
 pub async fn review(app: &AppHandle) -> Result<CloudLibraryJoinReview, CloudLibraryServiceError> {
     ServiceContext::new(app.state::<HookPipelineState>().snapshot())
         .review_cloud_library_join()

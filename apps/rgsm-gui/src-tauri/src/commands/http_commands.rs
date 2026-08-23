@@ -580,14 +580,33 @@ pub async fn http_review_cloud_library_join(
 
 #[utoipa::path(
     post,
-    path = "/api/v1/reset-broken-cloud-library",
-    operation_id = "resetBrokenCloudLibrary",
-    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+    path = "/api/v1/rebuild-cloud-library-from-local",
+    operation_id = "rebuildCloudLibraryFromLocal",
+    request_body = CreateCloudLibraryRequest,
+    responses((status = 200, body = CloudLibraryStatus), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
 )]
-pub async fn http_reset_broken_cloud_library(
+pub async fn http_rebuild_cloud_library_from_local(
     State(state): State<HttpHostState>,
-) -> Result<Json<()>, ApiError> {
-    commands::reset_broken_cloud_library(state.app().clone())
+    Json(request): Json<CreateCloudLibraryRequest>,
+) -> Result<Json<CloudLibraryStatus>, ApiError> {
+    commands::rebuild_cloud_library_from_local(request.confirmed, state.app().clone())
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/reconnect-cloud-library",
+    operation_id = "reconnectCloudLibrary",
+    request_body = CreateCloudLibraryRequest,
+    responses((status = 200, body = CloudLibraryStatus), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_reconnect_cloud_library(
+    State(state): State<HttpHostState>,
+    Json(request): Json<CreateCloudLibraryRequest>,
+) -> Result<Json<CloudLibraryStatus>, ApiError> {
+    commands::reconnect_cloud_library(request.confirmed, state.app().clone())
         .await
         .map(Json)
         .map_err(ApiError::from_command)
@@ -2106,8 +2125,12 @@ pub fn router() -> Router<HttpHostState> {
             post(http_create_cloud_library),
         )
         .route(
-            "/api/v1/reset-broken-cloud-library",
-            post(http_reset_broken_cloud_library),
+            "/api/v1/rebuild-cloud-library-from-local",
+            post(http_rebuild_cloud_library_from_local),
+        )
+        .route(
+            "/api/v1/reconnect-cloud-library",
+            post(http_reconnect_cloud_library),
         )
         .route(
             "/api/v1/review-cloud-library-join",
@@ -2348,7 +2371,8 @@ pub fn router() -> Router<HttpHostState> {
         http_check_cloud_backend,
         http_inspect_cloud_library,
         http_create_cloud_library,
-        http_reset_broken_cloud_library,
+        http_rebuild_cloud_library_from_local,
+        http_reconnect_cloud_library,
         http_review_cloud_library_join,
         http_join_cloud_library,
         http_review_cloud_library_cutover,

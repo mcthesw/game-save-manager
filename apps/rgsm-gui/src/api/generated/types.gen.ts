@@ -284,6 +284,13 @@ export type CloudLibraryStatus =
     }
   | {
       game_count: number;
+      kind: 'reconnect_required';
+    }
+  | {
+      kind: 'rebuild_required';
+    }
+  | {
+      game_count: number;
       kind: 'cutover_required';
       resumable: boolean;
     }
@@ -2770,6 +2777,52 @@ export type PreviewSaveUnitResolutionResponses = {
 export type PreviewSaveUnitResolutionResponse =
   PreviewSaveUnitResolutionResponses[keyof PreviewSaveUnitResolutionResponses];
 
+export type RebuildCloudLibraryFromLocalData = {
+  body: CreateCloudLibraryRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/rebuild-cloud-library-from-local';
+};
+
+export type RebuildCloudLibraryFromLocalErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type RebuildCloudLibraryFromLocalError =
+  RebuildCloudLibraryFromLocalErrors[keyof RebuildCloudLibraryFromLocalErrors];
+
+export type RebuildCloudLibraryFromLocalResponses = {
+  200: CloudLibraryStatus;
+};
+
+export type RebuildCloudLibraryFromLocalResponse =
+  RebuildCloudLibraryFromLocalResponses[keyof RebuildCloudLibraryFromLocalResponses];
+
+export type ReconnectCloudLibraryData = {
+  body: CreateCloudLibraryRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/reconnect-cloud-library';
+};
+
+export type ReconnectCloudLibraryErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type ReconnectCloudLibraryError =
+  ReconnectCloudLibraryErrors[keyof ReconnectCloudLibraryErrors];
+
+export type ReconnectCloudLibraryResponses = {
+  200: CloudLibraryStatus;
+};
+
+export type ReconnectCloudLibraryResponse =
+  ReconnectCloudLibraryResponses[keyof ReconnectCloudLibraryResponses];
+
 export type RegenerateHttpApiTokenData = {
   body?: never;
   path?: never;
@@ -2814,26 +2867,6 @@ export type RemoveCloudDeviceProfileResponses = {
 
 export type RemoveCloudDeviceProfileResponse =
   RemoveCloudDeviceProfileResponses[keyof RemoveCloudDeviceProfileResponses];
-
-export type ResetBrokenCloudLibraryData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: '/api/v1/reset-broken-cloud-library';
-};
-
-export type ResetBrokenCloudLibraryErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type ResetBrokenCloudLibraryError =
-  ResetBrokenCloudLibraryErrors[keyof ResetBrokenCloudLibraryErrors];
-
-export type ResetBrokenCloudLibraryResponses = {
-  200: unknown;
-};
 
 export type ResetLudusaviManifestToBundledData = {
   body?: never;
