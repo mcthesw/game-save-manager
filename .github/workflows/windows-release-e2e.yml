@@ -1,0 +1,69 @@
+name: Windows Release E2E
+
+on:
+  pull_request:
+  push:
+    branches: ["dev"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-e2e:
+    name: Windows Release E2E
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --dir apps/rgsm-gui exec playwright install chromium
+
+      - name: Run release-critical E2E
+        run: >-
+          pnpm --dir apps/rgsm-gui exec playwright test
+          e2e/local-main-path.spec.ts
+          e2e/local-compression.spec.ts
+          e2e/local-legacy-archive.spec.ts
+          e2e/local-failure-surface.spec.ts
+          e2e/local-extra-backup.spec.ts
+          e2e/local-restore-permissions.spec.ts
+          e2e/cloud-library-cutover.spec.ts
+          e2e/cloud-library-two-v1-devices.spec.ts
+          e2e/cloud-library-late-game.spec.ts
+          e2e/cloud-sync-modes.spec.ts
+          e2e/cloud-reset-library.spec.ts
+
+      - name: Upload E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-e2e
+          path: |
+            apps/rgsm-gui/e2e-report
+            apps/rgsm-gui/e2e-results
+          if-no-files-found: ignore
