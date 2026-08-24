@@ -105,6 +105,7 @@ impl OwnerStore {
         if let Some(existing) = existing {
             owners.local_state.cloud_namespace_generation =
                 existing.local_state.cloud_namespace_generation;
+            owners.local_state.cloud_library_id = existing.local_state.cloud_library_id;
             if let Some(existing_profile) = existing.device_profiles.get(&current_device_id)
                 && let Some(current_profile) = owners.device_profiles.get_mut(&current_device_id)
             {
@@ -157,6 +158,7 @@ impl OwnerStore {
         &self,
         expected_library: &SharedLibrary,
         expected_profile: &DeviceProfile,
+        library_id: &str,
     ) -> Result<(), OwnerStoreError> {
         let mut owners = self.load()?;
         let current_profile = owners
@@ -169,6 +171,7 @@ impl OwnerStore {
             return Err(OwnerStoreError::ActivationInputsChanged);
         }
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
     }
 
@@ -178,6 +181,7 @@ impl OwnerStore {
         expected_local_profile: &DeviceProfile,
         accepted_library: &SharedLibrary,
         accepted_profile: &DeviceProfile,
+        library_id: &str,
     ) -> Result<(), OwnerStoreError> {
         let mut owners = self.load()?;
         let current_device_id = owners.local_state.current_device_id.clone();
@@ -208,6 +212,7 @@ impl OwnerStore {
             .device_profiles
             .insert(current_device_id, accepted_profile.clone());
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
     }
 
@@ -217,6 +222,7 @@ impl OwnerStore {
         expected_local_profile: &DeviceProfile,
         accepted_library: &SharedLibrary,
         accepted_profiles: &HashMap<DeviceId, DeviceProfile>,
+        library_id: &str,
     ) -> Result<(), OwnerStoreError> {
         let mut owners = self.load()?;
         let current_device_id = owners.local_state.current_device_id.clone();
@@ -239,6 +245,7 @@ impl OwnerStore {
             .device_profiles
             .insert(current_device_id, accepted_current_profile);
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
     }
 
@@ -287,6 +294,7 @@ impl OwnerStore {
         expected_profile: &DeviceProfile,
         accepted_library: &SharedLibrary,
         accepted_profile: &DeviceProfile,
+        library_id: &str,
     ) -> Result<(), OwnerStoreError> {
         let mut owners = self.load()?;
         let current_device_id = owners.local_state.current_device_id.clone();
@@ -306,6 +314,7 @@ impl OwnerStore {
         owners
             .device_profiles
             .insert(current_device_id, accepted_profile.clone());
+        owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
     }
 
@@ -595,6 +604,8 @@ mod tests {
     use crate::backup::Game;
     use crate::device::Device;
 
+    const LIBRARY_ID: &str = "11111111-1111-4111-8111-111111111111";
+
     fn store() -> (temp_dir::TempDir, OwnerStore) {
         let root = temp_dir::TempDir::new().unwrap();
         let store = OwnerStore::new(root.path().to_path_buf());
@@ -784,6 +795,7 @@ mod tests {
         store.initialize_from_legacy(&input).unwrap();
         let mut owners = store.load().unwrap();
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+        owners.local_state.cloud_library_id = Some(LIBRARY_ID.to_string());
         owners
             .device_profiles
             .get_mut("steam-deck")
@@ -809,15 +821,19 @@ mod tests {
         store.initialize_from_legacy(&input).unwrap();
         let owners = store.load().unwrap();
         let profile = &owners.device_profiles[get_current_device_id()];
-        store.activate_v2(&owners.shared_library, profile).unwrap();
+        store
+            .activate_v2(&owners.shared_library, profile, LIBRARY_ID)
+            .unwrap();
 
         store.merge_effective(&input).unwrap();
         store.replace_effective(&input).unwrap();
 
+        let active = store.load().unwrap().local_state;
         assert_eq!(
-            store.load().unwrap().local_state.cloud_namespace_generation,
+            active.cloud_namespace_generation,
             CloudNamespaceGeneration::V2
         );
+        assert_eq!(active.cloud_library_id.as_deref(), Some(LIBRARY_ID));
     }
 
     #[test]
@@ -836,6 +852,7 @@ mod tests {
                 &stale_profile,
                 &before.shared_library,
                 &before.device_profiles,
+                LIBRARY_ID,
             ),
             Err(OwnerStoreError::CutoverInputsChanged)
         ));
@@ -852,6 +869,7 @@ mod tests {
                 &expected_profile,
                 &before.shared_library,
                 &accepted_profiles,
+                LIBRARY_ID,
             )
             .unwrap();
         let active = store.load().unwrap();
@@ -862,6 +880,10 @@ mod tests {
         assert_eq!(
             active.local_state.cloud_namespace_generation,
             CloudNamespaceGeneration::V2
+        );
+        assert_eq!(
+            active.local_state.cloud_library_id.as_deref(),
+            Some(LIBRARY_ID)
         );
         assert_eq!(
             active.device_profiles[get_current_device_id()].device.name,
@@ -912,6 +934,7 @@ mod tests {
                 &reordered,
                 &before.shared_library,
                 &before.device_profiles,
+                LIBRARY_ID,
             )
             .unwrap();
     }
@@ -930,7 +953,7 @@ mod tests {
             Err(OwnerStoreError::ProfileInputsChanged)
         ));
         store
-            .activate_v2(&owners.shared_library, &expected)
+            .activate_v2(&owners.shared_library, &expected, LIBRARY_ID)
             .unwrap();
         store.replace_current_profile(&expected, &accepted).unwrap();
         assert_eq!(
@@ -967,7 +990,11 @@ mod tests {
             Err(OwnerStoreError::SharedLibraryInputsChanged)
         ));
         store
-            .activate_v2(&expected, &owners.device_profiles[get_current_device_id()])
+            .activate_v2(
+                &expected,
+                &owners.device_profiles[get_current_device_id()],
+                LIBRARY_ID,
+            )
             .unwrap();
         store.replace_shared_library(&expected, &accepted).unwrap();
         assert_eq!(

@@ -50,8 +50,8 @@ pub use game_comparison::{
 pub use game_deletion::{SharedGameDeletion, SharedGameDeletionError, SharedGameDeletionOutcome};
 pub use integrity::{ArchiveIntegrity, ArchiveIntegrityError};
 pub use join::{
-    CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinItem, CloudLibraryJoinReview,
-    GameDefinitionDifference, JoinGameAction, JoinGameDecision,
+    CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinItem, CloudLibraryJoinResult,
+    CloudLibraryJoinReview, GameDefinitionDifference, JoinGameAction, JoinGameDecision,
 };
 pub use local_eviction::{
     CloudArchiveEviction, CloudArchiveEvictionError, LocalArchiveEviction,
@@ -68,6 +68,7 @@ pub use materialization::{
 pub use materialization_models::{
     CloudArchiveDeletionView, MaterializationOutcome, MaterializationPreview,
 };
+pub(crate) use namespace::CloudLibraryTarget;
 pub use namespace::{
     CLOUD_ARCHIVES_PREFIX, CLOUD_MANIFEST_PATH, CloudNamespaceClassification,
     CloudNamespaceClassifier, CloudNamespaceDescriptor, CloudNamespaceError,

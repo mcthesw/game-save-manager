@@ -60,6 +60,8 @@ pub enum BackendError {
     #[error("Cloud operator error: {0:#?}")]
     OperatorCheck(String),
     #[error(transparent)]
+    CloudNamespace(#[from] crate::cloud_sync::v2::CloudNamespaceError),
+    #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
 impl From<opendal::Error> for BackendError {

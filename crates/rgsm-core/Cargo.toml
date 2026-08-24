@@ -50,6 +50,7 @@ specta.workspace = true
 rust-i18n.workspace = true
 keyvalues-serde = "0.2"
 utoipa = "5"
+uuid.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true

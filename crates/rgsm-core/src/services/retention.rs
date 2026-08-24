@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::app_dirs::resolve_app_path;
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
     CLOUD_MANIFEST_PATH, CloudManifestRepository, DeviceProfileRepository, ManifestError,
     SharedLibraryRepository, SnapshotState, SnapshotSyncCoordinator,
@@ -12,8 +11,8 @@ use crate::config::{
     cloud_bootstrap_inputs, get_config, replace_shared_library,
 };
 
-use super::ServiceContext;
 use super::sync::CloudLibraryServiceError;
+use super::{ServiceContext, cloud_library_target::bound_v2_operator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct SnapshotRetentionOutcome {
@@ -29,8 +28,7 @@ pub(crate) async fn refresh_v2_snapshot_retention() -> Result<(), CloudLibrarySe
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
         return Ok(());
     }
-    let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-    let operator = session.get_op()?;
+    let operator = bound_v2_operator(&local_state).await?;
     if !DeviceProfileRepository::new(operator.clone(), 3)
         .list()
         .await?
@@ -52,6 +50,10 @@ pub(crate) async fn refresh_v2_snapshot_retention() -> Result<(), CloudLibrarySe
             &expected_profile,
             &remote,
             &accepted_profile,
+            local_state
+                .cloud_library_id
+                .as_deref()
+                .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?,
         )?;
     }
     Ok(())
@@ -97,10 +99,10 @@ impl ServiceContext {
                         automatic_snapshots_per_branch,
                     },
                 );
-            let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-            let accepted_library = SharedLibraryRepository::new(session.get_op()?, 3)
-                .compare_replace(&expected_library, &accepted_library)
-                .await?;
+            let accepted_library =
+                SharedLibraryRepository::new(bound_v2_operator(&local_state).await?, 3)
+                    .compare_replace(&expected_library, &accepted_library)
+                    .await?;
             replace_shared_library(&expected_library, &accepted_library)?;
         }
 
@@ -134,24 +136,27 @@ impl ServiceContext {
             .map(|policy| policy.automatic_snapshots_per_branch);
         let game_id_owned = game_id.to_string();
         let snapshot_id_owned = snapshot_id.to_string();
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        CloudManifestRepository::new(session.get_op()?, CLOUD_MANIFEST_PATH, 3)
-            .mutate(move |manifest| {
-                let game = manifest
-                    .games
-                    .get_mut(&game_id_owned)
-                    .ok_or_else(|| ManifestError::MissingGame(game_id_owned.clone()))?;
-                let node = game
-                    .snapshots
-                    .get_mut(&snapshot_id_owned)
-                    .ok_or_else(|| ManifestError::MissingSnapshot(snapshot_id_owned.clone()))?;
-                let SnapshotState::Live(live) = &mut node.state else {
-                    return Err(ManifestError::ExpectedLive(snapshot_id_owned.clone()));
-                };
-                live.retention_protected = protected;
-                Ok(())
-            })
-            .await?;
+        CloudManifestRepository::new(
+            bound_v2_operator(&local_state).await?,
+            CLOUD_MANIFEST_PATH,
+            3,
+        )
+        .mutate(move |manifest| {
+            let game = manifest
+                .games
+                .get_mut(&game_id_owned)
+                .ok_or_else(|| ManifestError::MissingGame(game_id_owned.clone()))?;
+            let node = game
+                .snapshots
+                .get_mut(&snapshot_id_owned)
+                .ok_or_else(|| ManifestError::MissingSnapshot(snapshot_id_owned.clone()))?;
+            let SnapshotState::Live(live) = &mut node.state else {
+                return Err(ManifestError::ExpectedLive(snapshot_id_owned.clone()));
+            };
+            live.retention_protected = protected;
+            Ok(())
+        })
+        .await?;
         let deleted = match (protected, limit) {
             (false, Some(limit)) => self.enforce_retention_now(game_id, limit).await?,
             _ => 0,
@@ -159,7 +164,9 @@ impl ServiceContext {
         Ok(SnapshotRetentionOutcome { limit, deleted })
     }
 
-    fn retention_coordinator(&self) -> Result<SnapshotSyncCoordinator, CloudLibraryServiceError> {
+    async fn retention_coordinator(
+        &self,
+    ) -> Result<SnapshotSyncCoordinator, CloudLibraryServiceError> {
         let (_, profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
@@ -169,9 +176,8 @@ impl ServiceContext {
             .as_deref()
             .map(resolve_app_path)
             .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         Ok(SnapshotSyncCoordinator::new(
-            session.get_op()?,
+            bound_v2_operator(&local_state).await?,
             local_archive_root,
             local_state.current_device_id,
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
@@ -185,7 +191,8 @@ impl ServiceContext {
         limit: u32,
     ) -> Result<usize, CloudLibraryServiceError> {
         let outcome = self
-            .retention_coordinator()?
+            .retention_coordinator()
+            .await?
             .enforce_retention(game_id, limit)
             .await?;
         if !outcome.tombstones.is_empty()

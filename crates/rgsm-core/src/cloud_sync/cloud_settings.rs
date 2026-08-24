@@ -6,7 +6,7 @@ use crate::preclude::*;
 
 use super::Backend;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct CloudSettings {
     /// 同步间隔，单位分钟，为0则不自动同步
     #[serde(default = "default_value::default_zero")]

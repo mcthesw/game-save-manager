@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use super::{HookSource, LifecycleHook, SnapshotCreatedCtx};
-use crate::cloud_sync::v2::SnapshotSyncCoordinator;
+use crate::cloud_sync::v2::{CloudLibraryTarget, SnapshotSyncCoordinator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnapshotSyncTarget {
@@ -24,18 +24,21 @@ pub struct SnapshotSyncTarget {
 }
 
 pub struct V2SnapshotSyncHook {
+    target: CloudLibraryTarget,
     coordinator: SnapshotSyncCoordinator,
     targets: BTreeMap<String, SnapshotSyncTarget>,
     operation_lock: Arc<Mutex<()>>,
 }
 
 impl V2SnapshotSyncHook {
-    pub fn new(
+    pub(crate) fn new(
+        target: CloudLibraryTarget,
         coordinator: SnapshotSyncCoordinator,
         targets: BTreeMap<String, SnapshotSyncTarget>,
         operation_lock: Arc<Mutex<()>>,
     ) -> Self {
         Self {
+            target,
             coordinator,
             targets,
             operation_lock,
@@ -62,6 +65,7 @@ impl LifecycleHook for V2SnapshotSyncHook {
             return Ok(());
         };
         let _guard = self.operation_lock.lock().await;
+        self.target.verify().await?;
 
         // Multi-device Sync: publish records first, check divergence, then
         // transfer only when the fleet is not diverged. This prevents a stale

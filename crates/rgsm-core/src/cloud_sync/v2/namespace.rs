@@ -5,6 +5,7 @@ use futures_util::TryStreamExt;
 use opendal::{ErrorKind, Operator};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use uuid::Uuid;
 
 use super::super::V1_CONFIG_PATH;
 #[cfg(test)]
@@ -46,13 +47,73 @@ pub fn cloud_archive_path(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudNamespaceDescriptor {
     pub schema_version: u32,
+    pub library_id: String,
 }
 
 impl Default for CloudNamespaceDescriptor {
     fn default() -> Self {
         Self {
             schema_version: V2_NAMESPACE_SCHEMA_VERSION,
+            library_id: Uuid::new_v4().to_string(),
         }
+    }
+}
+
+impl CloudNamespaceDescriptor {
+    pub fn with_library_id(library_id: impl Into<String>) -> Self {
+        Self {
+            schema_version: V2_NAMESPACE_SCHEMA_VERSION,
+            library_id: library_id.into(),
+        }
+    }
+
+    pub(super) fn validate(&self) -> Result<(), CloudNamespaceError> {
+        if self.schema_version != V2_NAMESPACE_SCHEMA_VERSION {
+            return Err(CloudNamespaceError::UnsupportedSchema {
+                object: V2_NAMESPACE_DESCRIPTOR_PATH,
+                found: self.schema_version,
+            });
+        }
+        Uuid::parse_str(&self.library_id).map_err(|_| CloudNamespaceError::InvalidLibraryId)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct CloudLibraryTarget {
+    operator: Operator,
+    expected_library_id: String,
+}
+
+impl CloudLibraryTarget {
+    pub(crate) fn new(operator: Operator, expected_library_id: impl Into<String>) -> Self {
+        Self {
+            operator,
+            expected_library_id: expected_library_id.into(),
+        }
+    }
+
+    pub(crate) fn operator(&self) -> Operator {
+        self.operator.clone()
+    }
+
+    pub(crate) async fn verify(&self) -> Result<Operator, CloudNamespaceError> {
+        let bytes = match self.operator.read(V2_NAMESPACE_DESCRIPTOR_PATH).await {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                return Err(CloudNamespaceError::MissingRequiredObject(
+                    V2_NAMESPACE_DESCRIPTOR_PATH,
+                ));
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let descriptor: CloudNamespaceDescriptor =
+            parse_json(V2_NAMESPACE_DESCRIPTOR_PATH, &bytes.to_vec())?;
+        descriptor.validate()?;
+        if descriptor.library_id != self.expected_library_id {
+            return Err(CloudNamespaceError::LibraryIdentityMismatch);
+        }
+        Ok(self.operator())
     }
 }
 
@@ -176,12 +237,7 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
     ) -> Result<CloudNamespaceClassification, CloudNamespaceError> {
         let descriptor: CloudNamespaceDescriptor =
             parse_json(V2_NAMESPACE_DESCRIPTOR_PATH, descriptor_bytes)?;
-        if descriptor.schema_version != V2_NAMESPACE_SCHEMA_VERSION {
-            return Err(CloudNamespaceError::UnsupportedSchema {
-                object: V2_NAMESPACE_DESCRIPTOR_PATH,
-                found: descriptor.schema_version,
-            });
-        }
+        descriptor.validate()?;
 
         let shared_bytes = self.required_object(SHARED_LIBRARY_PATH).await?;
         let shared_library: SharedLibrary = parse_json(SHARED_LIBRARY_PATH, &shared_bytes)?;
@@ -232,6 +288,12 @@ pub enum CloudNamespaceError {
     PartialV2(Vec<String>),
     #[error("Cloud root is non-empty but is not recognized: {0:?}")]
     UnrecognizedRoot(Vec<String>),
+    #[error("Cloud Library descriptor contains an invalid library ID")]
+    InvalidLibraryId,
+    #[error("The configured cloud location belongs to a different Cloud Library")]
+    LibraryIdentityMismatch,
+    #[error("The local V2 configuration is missing its Cloud Library ID")]
+    LocalLibraryIdMissing,
     #[error(transparent)]
     SharedLibrary(#[from] OwnershipError),
     #[error(transparent)]
@@ -362,6 +424,7 @@ mod tests {
             V2_NAMESPACE_DESCRIPTOR_PATH.into(),
             serde_json::to_vec(&CloudNamespaceDescriptor {
                 schema_version: V2_NAMESPACE_SCHEMA_VERSION + 1,
+                ..CloudNamespaceDescriptor::default()
             })
             .unwrap(),
         );
@@ -370,6 +433,18 @@ mod tests {
                 .classify()
                 .await,
             Err(CloudNamespaceError::UnsupportedSchema { .. })
+        ));
+
+        let mut invalid_identity = complete_v2();
+        invalid_identity.objects.insert(
+            V2_NAMESPACE_DESCRIPTOR_PATH.into(),
+            serde_json::to_vec(&CloudNamespaceDescriptor::with_library_id("invalid")).unwrap(),
+        );
+        assert!(matches!(
+            CloudNamespaceClassifier::with_transport(invalid_identity)
+                .classify()
+                .await,
+            Err(CloudNamespaceError::InvalidLibraryId)
         ));
 
         let mut corrupt = complete_v2();
@@ -537,5 +612,29 @@ mod tests {
         let transport = OpenDalNamespaceTransport::new(operator);
 
         assert!(transport.list_sample("/", 10).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn target_accepts_only_the_bound_library_id() {
+        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let descriptor = CloudNamespaceDescriptor::default();
+        operator
+            .write(
+                V2_NAMESPACE_DESCRIPTOR_PATH,
+                serde_json::to_vec(&descriptor).unwrap(),
+            )
+            .await
+            .unwrap();
+
+        CloudLibraryTarget::new(operator.clone(), &descriptor.library_id)
+            .verify()
+            .await
+            .unwrap();
+        assert!(matches!(
+            CloudLibraryTarget::new(operator, CloudNamespaceDescriptor::default().library_id,)
+                .verify()
+                .await,
+            Err(CloudNamespaceError::LibraryIdentityMismatch)
+        ));
     }
 }

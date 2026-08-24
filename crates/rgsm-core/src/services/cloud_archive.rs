@@ -1,9 +1,8 @@
 use crate::backup::GameSnapshots;
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{CloudArchiveLibraryView, DeletionRegistryRepository};
 use crate::config::{cloud_bootstrap_inputs, get_config};
 
-use super::{CloudLibraryServiceError, ServiceContext};
+use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
 
 impl ServiceContext {
     pub async fn cloud_archive_library(
@@ -12,12 +11,9 @@ impl ServiceContext {
         super::game_deletion::converge_local_deleted_games().await?;
         super::retention::refresh_v2_snapshot_retention().await?;
         let (library, profile, local_state) = cloud_bootstrap_inputs()?;
-        let registry = DeletionRegistryRepository::new(
-            CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?,
-            3,
-        )
-        .load()
-        .await?;
+        let registry = DeletionRegistryRepository::new(bound_v2_operator(&local_state).await?, 3)
+            .load()
+            .await?;
         let game_names = library
             .games
             .iter()

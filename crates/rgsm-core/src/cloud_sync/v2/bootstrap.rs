@@ -61,6 +61,7 @@ impl<T: CloudLibraryTransport> CloudLibraryBootstrap<T> {
     /// namespace; it never advertises an incomplete library as supported.
     pub async fn create_empty(
         &self,
+        descriptor: &CloudNamespaceDescriptor,
         shared_library: &SharedLibrary,
         device_profile: &DeviceProfile,
     ) -> Result<(), CloudLibraryBootstrapError> {
@@ -74,11 +75,11 @@ impl<T: CloudLibraryTransport> CloudLibraryBootstrap<T> {
             }
         }
 
+        descriptor.validate()?;
         shared_library.validate()?;
         let manifest = CloudManifest::default();
         manifest.validate()?;
         let profile_path = device_profile_path(&device_profile.device.id);
-        let descriptor = CloudNamespaceDescriptor::default();
 
         self.write_verified(SHARED_LIBRARY_PATH, &pretty_bytes(shared_library)?)
             .await?;
@@ -91,15 +92,20 @@ impl<T: CloudLibraryTransport> CloudLibraryBootstrap<T> {
         .await?;
         self.write_verified(&profile_path, &pretty_bytes(device_profile)?)
             .await?;
-        self.write_verified(V2_NAMESPACE_DESCRIPTOR_PATH, &pretty_bytes(&descriptor)?)
+        self.write_verified(V2_NAMESPACE_DESCRIPTOR_PATH, &pretty_bytes(descriptor)?)
             .await?;
 
         match self.inspect().await? {
             CloudNamespaceClassification::SupportedV2 {
+                descriptor: stored_descriptor,
                 shared_library: stored,
                 manifest: stored_manifest,
-                ..
-            } if stored == *shared_library && stored_manifest == manifest => Ok(()),
+            } if stored_descriptor == *descriptor
+                && stored == *shared_library
+                && stored_manifest == manifest =>
+            {
+                Ok(())
+            }
             _ => Err(CloudLibraryBootstrapError::FinalVerificationMismatch),
         }
     }
@@ -224,8 +230,12 @@ mod tests {
         let transport = FakeTransport::default();
         let bootstrap = CloudLibraryBootstrap::with_transport(transport, 2);
         let (shared, profile) = inputs();
+        let descriptor = CloudNamespaceDescriptor::default();
 
-        bootstrap.create_empty(&shared, &profile).await.unwrap();
+        bootstrap
+            .create_empty(&descriptor, &shared, &profile)
+            .await
+            .unwrap();
 
         let state = bootstrap.transport.state.lock().unwrap();
         assert_eq!(
@@ -247,9 +257,10 @@ mod tests {
             .insert("unrelated".into(), Vec::new());
         let bootstrap = CloudLibraryBootstrap::with_transport(transport, 2);
         let (shared, profile) = inputs();
+        let descriptor = CloudNamespaceDescriptor::default();
 
         assert!(matches!(
-            bootstrap.create_empty(&shared, &profile).await,
+            bootstrap.create_empty(&descriptor, &shared, &profile).await,
             Err(CloudLibraryBootstrapError::Namespace(
                 CloudNamespaceError::UnrecognizedRoot(_)
             ))
@@ -263,9 +274,10 @@ mod tests {
         transport.state.lock().unwrap().corrupt_writes = true;
         let bootstrap = CloudLibraryBootstrap::with_transport(transport, 2);
         let (shared, profile) = inputs();
+        let descriptor = CloudNamespaceDescriptor::default();
 
         assert!(matches!(
-            bootstrap.create_empty(&shared, &profile).await,
+            bootstrap.create_empty(&descriptor, &shared, &profile).await,
             Err(CloudLibraryBootstrapError::WriteVerificationFailed { attempts: 2, .. })
         ));
         let state = bootstrap.transport.state.lock().unwrap();

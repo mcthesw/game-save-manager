@@ -8,8 +8,8 @@ use tokio::sync::Mutex;
 
 use super::{
     CloudLibraryTransport, CloudNamespaceClassification, CloudNamespaceClassifier,
-    CloudNamespaceError, GameJoinClassification, OpenDalNamespaceTransport, SHARED_LIBRARY_PATH,
-    compare_join_libraries, device_profile_path,
+    CloudNamespaceDescriptor, CloudNamespaceError, GameJoinClassification,
+    OpenDalNamespaceTransport, SHARED_LIBRARY_PATH, compare_join_libraries, device_profile_path,
 };
 use crate::config::{DeviceProfile, OwnershipError, SharedGame, SharedLibrary};
 
@@ -30,6 +30,13 @@ pub struct CloudLibraryJoinItem {
     pub cloud_fingerprint: Option<String>,
     pub classification: GameJoinClassification,
     pub difference: GameDefinitionDifference,
+}
+
+#[derive(Debug)]
+pub struct CloudLibraryJoinResult {
+    pub library_id: String,
+    pub shared_library: SharedLibrary,
+    pub device_profile: DeviceProfile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
@@ -82,7 +89,7 @@ impl<T: CloudLibraryTransport> CloudLibraryJoin<T> {
         &self,
         local: &SharedLibrary,
     ) -> Result<CloudLibraryJoinReview, CloudLibraryJoinError> {
-        let cloud = self.load_supported().await?;
+        let (_, cloud) = self.load_supported().await?;
         build_review(local, &cloud)
     }
 
@@ -92,12 +99,12 @@ impl<T: CloudLibraryTransport> CloudLibraryJoin<T> {
         local_profile: &DeviceProfile,
         decisions: &[JoinGameDecision],
         confirmed_replacements: bool,
-    ) -> Result<(SharedLibrary, DeviceProfile), CloudLibraryJoinError> {
+    ) -> Result<CloudLibraryJoinResult, CloudLibraryJoinError> {
         let _guard = JOIN_WRITER_LOCK.lock().await;
         validate_decisions(local, decisions, confirmed_replacements)?;
 
         for _ in 0..self.max_attempts {
-            let latest = self.load_supported().await?;
+            let (descriptor, latest) = self.load_supported().await?;
             let accepted = apply_decisions(local, latest, decisions)?;
             let expected = serde_json::to_vec_pretty(&accepted)?;
             if decisions
@@ -116,7 +123,11 @@ impl<T: CloudLibraryTransport> CloudLibraryJoin<T> {
             let profile_path = device_profile_path(&profile.device.id);
             let profile_bytes = serde_json::to_vec_pretty(&profile)?;
             self.write_verified(&profile_path, &profile_bytes).await?;
-            return Ok((accepted, profile));
+            return Ok(CloudLibraryJoinResult {
+                library_id: descriptor.library_id,
+                shared_library: accepted,
+                device_profile: profile,
+            });
         }
         Err(CloudLibraryJoinError::WriteVerificationFailed {
             path: SHARED_LIBRARY_PATH.to_string(),
@@ -124,12 +135,18 @@ impl<T: CloudLibraryTransport> CloudLibraryJoin<T> {
         })
     }
 
-    async fn load_supported(&self) -> Result<SharedLibrary, CloudLibraryJoinError> {
+    async fn load_supported(
+        &self,
+    ) -> Result<(CloudNamespaceDescriptor, SharedLibrary), CloudLibraryJoinError> {
         match CloudNamespaceClassifier::with_transport(self.transport.clone())
             .classify()
             .await?
         {
-            CloudNamespaceClassification::SupportedV2 { shared_library, .. } => Ok(shared_library),
+            CloudNamespaceClassification::SupportedV2 {
+                descriptor,
+                shared_library,
+                ..
+            } => Ok((descriptor, shared_library)),
             CloudNamespaceClassification::V1Only { .. } => {
                 Err(CloudLibraryJoinError::JoinUnavailable("legacy_v1"))
             }
@@ -325,6 +342,8 @@ mod tests {
         V2_CONFIG_SCHEMA_VERSION,
     };
 
+    const LIBRARY_ID: &str = "11111111-1111-4111-8111-111111111111";
+
     #[derive(Default)]
     struct FakeTransport {
         objects: StdMutex<BTreeMap<String, Vec<u8>>>,
@@ -394,7 +413,7 @@ mod tests {
         let mut objects = transport.objects.lock().unwrap();
         objects.insert(
             V2_NAMESPACE_DESCRIPTOR_PATH.into(),
-            serde_json::to_vec(&CloudNamespaceDescriptor::default()).unwrap(),
+            serde_json::to_vec(&CloudNamespaceDescriptor::with_library_id(LIBRARY_ID)).unwrap(),
         );
         objects.insert(
             CLOUD_MANIFEST_PATH.into(),
@@ -495,10 +514,12 @@ mod tests {
             .collect::<Vec<_>>();
         let join = CloudLibraryJoin::with_transport(transport(&cloud), 2);
 
-        let (accepted, _) = join
+        let result = join
             .join(&local, &profile(&local), &decisions, true)
             .await
             .unwrap();
+        assert_eq!(result.library_id, LIBRARY_ID);
+        let accepted = result.shared_library;
 
         assert!(accepted.games.contains(&local_only));
         let accepted_replacement = accepted
