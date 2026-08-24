@@ -1,46 +1,36 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use log::{info, warn};
 use tauri::{AppHandle, Manager};
-use tokio::sync::Mutex;
 use tokio::time::{Instant, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 
+use crate::cloud_operation::CloudOperationState;
+
 const CONTROL_POLL_INTERVAL: Duration = Duration::from_secs(15);
 
-#[derive(Clone, Default)]
-pub struct SnapshotSyncRuntimeState {
-    operation_lock: Arc<Mutex<()>>,
-}
-
-impl SnapshotSyncRuntimeState {
-    pub fn operation_lock(&self) -> Arc<Mutex<()>> {
-        Arc::clone(&self.operation_lock)
-    }
-}
-
-pub fn setup(app: AppHandle, state: SnapshotSyncRuntimeState) {
+pub fn setup(app: AppHandle, state: CloudOperationState) {
     tauri::async_runtime::spawn(run(app, state));
 }
 
-async fn run(app: AppHandle, state: SnapshotSyncRuntimeState) {
+async fn run(app: AppHandle, state: CloudOperationState) {
     let cancellation = CancellationToken::new();
-    {
-        let _guard = state.operation_lock.lock().await;
-        match rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
-            Ok(downloaded) if downloaded > 0 => info!(
-                target: "rgsm::cloud::v2_snapshot_sync",
-                "Resumed {downloaded} pending Snapshot downloads at startup"
-            ),
-            Ok(_) => {}
-            Err(error) => warn!(
-                target: "rgsm::cloud::v2_snapshot_sync",
-                "V2 Snapshot download recovery failed: {error}"
-            ),
-        }
-        run_reconciliation(&cancellation).await;
-    }
+    state
+        .run(async {
+            match rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
+                Ok(downloaded) if downloaded > 0 => info!(
+                    target: "rgsm::cloud::v2_snapshot_sync",
+                    "Resumed {downloaded} pending Snapshot downloads at startup"
+                ),
+                Ok(_) => {}
+                Err(error) => warn!(
+                    target: "rgsm::cloud::v2_snapshot_sync",
+                    "V2 Snapshot download recovery failed: {error}"
+                ),
+            }
+            run_reconciliation(&cancellation).await;
+        })
+        .await;
 
     let mut last_run = Instant::now();
     let mut control_tick = tokio::time::interval(CONTROL_POLL_INTERVAL);
@@ -66,9 +56,12 @@ async fn run(app: AppHandle, state: SnapshotSyncRuntimeState) {
         if last_run.elapsed() < poll_interval {
             continue;
         }
-        let _guard = state.operation_lock.lock().await;
-        run_reconciliation(&cancellation).await;
-        run_live_save_apply(&app).await;
+        state
+            .run(async {
+                run_reconciliation(&cancellation).await;
+                run_live_save_apply(&app).await;
+            })
+            .await;
         last_run = Instant::now();
     }
 }

@@ -18,44 +18,44 @@ pub async fn create(
     app: &AppHandle,
     confirmed: bool,
 ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
-    app.state::<Arc<CloudSyncTaskManager>>()
-        .cancel_all_and_wait()
-        .await;
-    let pipeline = app.state::<HookPipelineState>().snapshot();
-    let status = ServiceContext::new(pipeline)
-        .create_cloud_library(confirmed)
-        .await?;
-    let config = get_config()?;
-    crate::hooks::rebuild_pipeline(app, &config);
-    Ok(status)
+    crate::cloud_operation::run_after_cancelling(app, async {
+        let pipeline = app.state::<HookPipelineState>().snapshot();
+        let status = ServiceContext::new(pipeline)
+            .create_cloud_library(confirmed)
+            .await?;
+        let config = get_config()?;
+        crate::hooks::rebuild_pipeline(app, &config);
+        Ok(status)
+    })
+    .await
 }
 
 pub async fn rebuild(
     app: &AppHandle,
     confirmed: bool,
 ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
-    app.state::<Arc<CloudSyncTaskManager>>()
-        .cancel_all_and_wait()
-        .await;
-    let status = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
-        .rebuild_cloud_library_from_local(confirmed)
-        .await?;
-    crate::hooks::rebuild_pipeline(app, &get_config()?);
-    Ok(status)
+    crate::cloud_operation::run_after_cancelling(app, async {
+        let status = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+            .rebuild_cloud_library_from_local(confirmed)
+            .await?;
+        crate::hooks::rebuild_pipeline(app, &get_config()?);
+        Ok(status)
+    })
+    .await
 }
 
 pub async fn reconnect(
     app: &AppHandle,
     confirmed: bool,
 ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
-    app.state::<Arc<CloudSyncTaskManager>>()
-        .cancel_all_and_wait()
-        .await;
-    let status = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
-        .reconnect_cloud_library(confirmed)
-        .await?;
-    crate::hooks::rebuild_pipeline(app, &get_config()?);
-    Ok(status)
+    crate::cloud_operation::run_after_cancelling(app, async {
+        let status = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+            .reconnect_cloud_library(confirmed)
+            .await?;
+        crate::hooks::rebuild_pipeline(app, &get_config()?);
+        Ok(status)
+    })
+    .await
 }
 
 pub async fn review(app: &AppHandle) -> Result<CloudLibraryJoinReview, CloudLibraryServiceError> {
@@ -69,16 +69,16 @@ pub async fn join(
     decisions: &[JoinGameDecision],
     confirmed_replacements: bool,
 ) -> Result<CloudLibraryJoinOutcome, CloudLibraryServiceError> {
-    app.state::<Arc<CloudSyncTaskManager>>()
-        .cancel_all_and_wait()
-        .await;
-    let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
-        .join_cloud_library(decisions, confirmed_replacements)
-        .await?;
-    if matches!(outcome, CloudLibraryJoinOutcome::Active { .. }) {
-        crate::hooks::rebuild_pipeline(app, &get_config()?);
-    }
-    Ok(outcome)
+    crate::cloud_operation::run_after_cancelling(app, async {
+        let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+            .join_cloud_library(decisions, confirmed_replacements)
+            .await?;
+        if matches!(outcome, CloudLibraryJoinOutcome::Active { .. }) {
+            crate::hooks::rebuild_pipeline(app, &get_config()?);
+        }
+        Ok(outcome)
+    })
+    .await
 }
 
 pub async fn review_cutover(
@@ -93,17 +93,32 @@ pub async fn cutover(
     app: &AppHandle,
     confirmed: bool,
 ) -> Result<CloudLibraryCutoverOutcome, CloudLibraryServiceError> {
-    app.state::<Arc<CloudSyncTaskManager>>()
-        .cancel_all_and_wait()
-        .await;
-    let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
-        .cutover_cloud_library(confirmed)
-        .await?;
-    crate::hooks::rebuild_pipeline(app, &get_config()?);
-    Ok(outcome)
+    crate::cloud_operation::run_after_cancelling(app, async {
+        let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
+            .cutover_cloud_library(confirmed)
+            .await?;
+        crate::hooks::rebuild_pipeline(app, &get_config()?);
+        Ok(outcome)
+    })
+    .await
 }
 
 pub async fn set_game_sync_mode(
+    app: &AppHandle,
+    game_id: &str,
+    enabled: bool,
+    mode: SyncMode,
+    initial_catch_up: InitialCatchUpPolicy,
+    live_save: Option<rgsm_core::services::LiveSaveSyncOptions>,
+) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
+    crate::cloud_operation::run(
+        app,
+        set_game_sync_mode_inner(app, game_id, enabled, mode, initial_catch_up, live_save),
+    )
+    .await
+}
+
+async fn set_game_sync_mode_inner(
     app: &AppHandle,
     game_id: &str,
     enabled: bool,

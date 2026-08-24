@@ -140,6 +140,13 @@ fn svc<R: tauri::Runtime, M: Manager<R>>(manager: &M) -> ServiceContext {
     ServiceContext::new(hook_pipeline(manager))
 }
 
+async fn run_cloud_operation<T>(
+    app: &AppHandle,
+    operation: impl std::future::Future<Output = T>,
+) -> T {
+    crate::cloud_operation::run(app, operation).await
+}
+
 async fn rebuild_pipeline_and_fire_config_saved(
     app_handle: &AppHandle,
     config: Config,
@@ -653,10 +660,13 @@ pub async fn cutover_cloud_library(
 pub async fn get_cloud_archive_library(
     app_handle: AppHandle,
 ) -> Result<CloudArchiveLibraryView, String> {
-    svc(&app_handle)
-        .cloud_archive_library()
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .cloud_archive_library()
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn review_v2_game_progress(
@@ -675,14 +685,13 @@ pub async fn keep_v2_local_progress(
     local_snapshot_id: String,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::cloud_sync::v2::KeepLocalProgressOutcome, String> {
-    let operation_lock = app_handle
-        .state::<crate::snapshot_sync::SnapshotSyncRuntimeState>()
-        .operation_lock();
-    let _guard = operation_lock.lock().await;
-    svc(&app_handle)
-        .keep_v2_local_progress(&game_id, manifest_revision, &local_snapshot_id)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .keep_v2_local_progress(&game_id, manifest_revision, &local_snapshot_id)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn accept_v2_remote_progress(
@@ -692,28 +701,30 @@ pub async fn accept_v2_remote_progress(
     selected_snapshot_id: String,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::AcceptRemoteProgressOutcome, String> {
-    let operation_lock = app_handle
-        .state::<crate::snapshot_sync::SnapshotSyncRuntimeState>()
-        .operation_lock();
-    let _guard = operation_lock.lock().await;
-    svc(&app_handle)
-        .accept_v2_remote_progress(
-            &game_id,
-            manifest_revision,
-            expected_local_snapshot_id.as_deref(),
-            &selected_snapshot_id,
-        )
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .accept_v2_remote_progress(
+                &game_id,
+                manifest_revision,
+                expected_local_snapshot_id.as_deref(),
+                &selected_snapshot_id,
+            )
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn preview_materialize_all(
     app_handle: AppHandle,
 ) -> Result<MaterializationPreview, String> {
-    svc(&app_handle)
-        .preview_materialize_all()
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .preview_materialize_all()
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn upload_cloud_archive(
@@ -721,10 +732,13 @@ pub async fn upload_cloud_archive(
     snapshot_id: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    svc(&app_handle)
-        .upload_cloud_archive(&game_id, &snapshot_id)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .upload_cloud_archive(&game_id, &snapshot_id)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn download_cloud_archive(
@@ -732,10 +746,13 @@ pub async fn download_cloud_archive(
     snapshot_id: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    svc(&app_handle)
-        .download_cloud_archive(&game_id, &snapshot_id)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .download_cloud_archive(&game_id, &snapshot_id)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn delete_v2_snapshot(
@@ -745,10 +762,13 @@ pub async fn delete_v2_snapshot(
     current_position: Option<CurrentPositionDecision>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
-        .delete_v2_snapshot(&game_id, &snapshot_id, confirmed, current_position)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
+            .delete_v2_snapshot(&game_id, &snapshot_id, confirmed, current_position)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn rebuild_cloud_library_from_local(
@@ -775,10 +795,13 @@ pub async fn set_shared_snapshot_retention(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::SnapshotRetentionOutcome, String> {
-    ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
-        .set_shared_snapshot_retention(&game_id, limit, confirmed)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
+            .set_shared_snapshot_retention(&game_id, limit, confirmed)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn set_snapshot_retention_protected(
@@ -788,10 +811,18 @@ pub async fn set_snapshot_retention_protected(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::SnapshotRetentionOutcome, String> {
-    ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
-        .set_snapshot_retention_protected(&game_id, &snapshot_id, retention_protected, confirmed)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
+            .set_snapshot_retention_protected(
+                &game_id,
+                &snapshot_id,
+                retention_protected,
+                confirmed,
+            )
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub fn get_current_device_game_statuses(
@@ -807,12 +838,15 @@ pub async fn set_device_game_visibility(
     visible: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::DeviceGameStatus, String> {
-    let status = svc(&app_handle)
-        .set_device_game_visibility(&game_id, visible)
-        .await
-        .map_err(|error| error.to_string())?;
-    reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
-    Ok(status)
+    run_cloud_operation(&app_handle, async {
+        let status = svc(&app_handle)
+            .set_device_game_visibility(&game_id, visible)
+            .await
+            .map_err(|error| error.to_string())?;
+        reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
+        Ok(status)
+    })
+    .await
 }
 
 pub async fn set_device_game_managed(
@@ -821,12 +855,15 @@ pub async fn set_device_game_managed(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::DeviceGameStatus, String> {
-    let status = svc(&app_handle)
-        .set_device_game_managed(&game_id, managed, confirmed)
-        .await
-        .map_err(|error| error.to_string())?;
-    reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
-    Ok(status)
+    run_cloud_operation(&app_handle, async {
+        let status = svc(&app_handle)
+            .set_device_game_managed(&game_id, managed, confirmed)
+            .await
+            .map_err(|error| error.to_string())?;
+        reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
+        Ok(status)
+    })
+    .await
 }
 
 pub async fn evict_local_archive(
@@ -835,10 +872,13 @@ pub async fn evict_local_archive(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
-    svc(&app_handle)
-        .evict_local_archive(&game_id, &snapshot_id, confirmed)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .evict_local_archive(&game_id, &snapshot_id, confirmed)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn evict_cloud_archive(
@@ -847,10 +887,13 @@ pub async fn evict_cloud_archive(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
-    svc(&app_handle)
-        .evict_cloud_archive(&game_id, &snapshot_id, confirmed)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .evict_cloud_archive(&game_id, &snapshot_id, confirmed)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn get_cloud_device_profiles(
@@ -867,10 +910,13 @@ pub async fn remove_cloud_device_profile(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::cloud_sync::v2::DeviceProfileRemovalOutcome, String> {
-    svc(&app_handle)
-        .remove_cloud_device_profile(&device_id, confirmed)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .remove_cloud_device_profile(&device_id, confirmed)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn get_deleted_cloud_games(
@@ -887,34 +933,40 @@ pub async fn permanently_delete_cloud_game(
     confirmed: bool,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::cloud_sync::v2::SharedGameDeletionOutcome, String> {
-    svc(&app_handle)
-        .permanently_delete_cloud_game(&game_id, confirmed)
-        .await
-        .map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .permanently_delete_cloud_game(&game_id, confirmed)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn materialize_all_cloud_archives(
     app_handle: AppHandle,
 ) -> Result<MaterializationOutcome, String> {
-    let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
-    let (job_id, token) = manager
-        .begin_manual_job("Downloading all Cloud Snapshots".into())
-        .await;
-    let result = svc(&app_handle)
-        .materialize_all_cloud_archives(&token)
-        .await;
-    let status = if result.is_ok() {
-        cloud_sync::CloudSyncJobStatus::Completed
-    } else if token.is_cancelled() {
-        cloud_sync::CloudSyncJobStatus::Cancelled
-    } else {
-        cloud_sync::CloudSyncJobStatus::Failed
-    };
-    let error = result.as_ref().err().map(ToString::to_string);
-    manager
-        .finish_manual_job(job_id, "Downloading all Cloud Snapshots", status, error)
-        .await;
-    result.map_err(|error| error.to_string())
+    run_cloud_operation(&app_handle, async {
+        let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
+        let (job_id, token) = manager
+            .begin_manual_job("Downloading all Cloud Snapshots".into())
+            .await;
+        let result = svc(&app_handle)
+            .materialize_all_cloud_archives(&token)
+            .await;
+        let status = if result.is_ok() {
+            cloud_sync::CloudSyncJobStatus::Completed
+        } else if token.is_cancelled() {
+            cloud_sync::CloudSyncJobStatus::Cancelled
+        } else {
+            cloud_sync::CloudSyncJobStatus::Failed
+        };
+        let error = result.as_ref().err().map(ToString::to_string);
+        manager
+            .finish_manual_job(job_id, "Downloading all Cloud Snapshots", status, error)
+            .await;
+        result.map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn set_game_sync_mode(
@@ -941,67 +993,71 @@ pub async fn cloud_upload_all(
     session: CloudSyncSessionConfig,
     app_handle: AppHandle,
 ) -> Result<BatchSyncReport, String> {
-    let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
-    let manager = Arc::clone(manager_state.inner());
-    let _ = manager.cancel_all().await;
-
-    let description = format!(
-        "Overwrite upload ({:?})",
-        session.backend.clone().sanitize()
-    );
-    let (job_id, token) = manager.begin_manual_job(description.clone()).await;
-    let result = svc(&app_handle)
-        .upload_all_from_session(&session, Some(token))
-        .await;
-    let (status, error) = summarize_batch_result(&result);
-    manager
-        .finish_manual_job(job_id, &description, status, error.clone())
-        .await;
-    result.map_err(|e| e.to_string())
+    crate::cloud_operation::run_after_cancelling(&app_handle, async {
+        let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
+        let description = format!(
+            "Overwrite upload ({:?})",
+            session.backend.clone().sanitize()
+        );
+        let (job_id, token) = manager.begin_manual_job(description.clone()).await;
+        let result = svc(&app_handle)
+            .upload_all_from_session(&session, Some(token))
+            .await;
+        let (status, error) = summarize_batch_result(&result);
+        manager
+            .finish_manual_job(job_id, &description, status, error.clone())
+            .await;
+        result.map_err(|e| e.to_string())
+    })
+    .await
 }
 
 pub async fn cloud_download_all(
     session: CloudSyncSessionConfig,
     app_handle: AppHandle,
 ) -> Result<BatchSyncReport, String> {
-    let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
-    let manager = Arc::clone(manager_state.inner());
-    let _ = manager.cancel_all().await;
+    crate::cloud_operation::run_after_cancelling(&app_handle, async {
+        let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
+        let description = format!(
+            "Overwrite download ({:?})",
+            session.backend.clone().sanitize()
+        );
+        let (job_id, token) = manager.begin_manual_job(description.clone()).await;
+        let result = svc(&app_handle)
+            .download_all_from_session(&session, Some(token))
+            .await;
 
-    let description = format!(
-        "Overwrite download ({:?})",
-        session.backend.clone().sanitize()
-    );
-    let (job_id, token) = manager.begin_manual_job(description.clone()).await;
-    let result = svc(&app_handle)
-        .download_all_from_session(&session, Some(token))
-        .await;
-
-    // After a successful download, the config may contain new games or updated
-    // auto-backup settings. Rebuild the hook pipeline so the scheduler syncs.
-    if matches!(
-        summarize_batch_result(&result).0,
-        cloud_sync::CloudSyncJobStatus::Completed
-    ) {
-        match get_config() {
-            Ok(config) => {
-                rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::CloudSync)
+        // After a successful download, the config may contain new games or updated
+        // auto-backup settings. Rebuild the hook pipeline so the scheduler syncs.
+        if matches!(
+            summarize_batch_result(&result).0,
+            cloud_sync::CloudSyncJobStatus::Completed
+        ) {
+            match get_config() {
+                Ok(config) => {
+                    rebuild_pipeline_and_fire_config_saved(
+                        &app_handle,
+                        config,
+                        HookSource::CloudSync,
+                    )
                     .await;
-            }
-            Err(err) => {
-                warn!(
-                    target: "rgsm::commands",
-                    "Failed to reload config after cloud download: {err:?}"
-                );
+                }
+                Err(err) => {
+                    warn!(
+                        target: "rgsm::commands",
+                        "Failed to reload config after cloud download: {err:?}"
+                    );
+                }
             }
         }
-    }
 
-    let (status, error) = summarize_batch_result(&result);
-    manager
-        .finish_manual_job(job_id, &description, status, error.clone())
-        .await;
-    result.map_err(|e| e.to_string())
+        let (status, error) = summarize_batch_result(&result);
+        manager
+            .finish_manual_job(job_id, &description, status, error.clone())
+            .await;
+        result.map_err(|e| e.to_string())
+    })
+    .await
 }
 
 pub async fn set_snapshot_description(
