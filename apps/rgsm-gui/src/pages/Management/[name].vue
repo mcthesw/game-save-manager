@@ -111,7 +111,6 @@ async function fetchCurrentDevice() {
 fetchCurrentDevice();
 
 const describe = ref('');
-let backup_button_time_limit = true; // 两次备份时间间隔1秒
 let backup_button_backup_limit = true; // 上次没备份好禁止再备份或读取
 let apply_button_apply_limit = true; // 上次未恢复好禁止读取或备份
 
@@ -487,10 +486,6 @@ ${items}`,
 }
 
 async function send_save_to_background() {
-  if (!backup_button_time_limit) {
-    notifyError($t('manage.save_too_fast_error'));
-    return;
-  }
   if (!backup_button_backup_limit) {
     notifyError($t('manage.last_backup_unfinished_error'));
     return;
@@ -505,7 +500,6 @@ async function send_save_to_background() {
     return;
   }
 
-  backup_button_time_limit = false;
   backup_button_backup_limit = false;
 
   const activityId = addActivity({
@@ -537,9 +531,6 @@ async function send_save_to_background() {
   refresh_backups_info();
 
   describe.value = '';
-  setTimeout(() => {
-    backup_button_time_limit = true;
-  }, 1000);
 }
 
 async function create_new_save() {
