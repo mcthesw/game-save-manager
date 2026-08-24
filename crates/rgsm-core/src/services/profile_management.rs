@@ -3,14 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
     CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionRegistryRepository, DeviceProfileRemoval,
     DeviceProfileRemovalOutcome, DeviceProfileRepository,
 };
 use crate::config::{CloudNamespaceGeneration, cloud_bootstrap_inputs, remove_device_profile};
 
-use super::{CloudLibraryServiceError, ServiceContext};
+use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudDeviceProfileView {
@@ -30,8 +29,7 @@ impl ServiceContext {
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        let operator = session.get_op()?;
+        let operator = bound_v2_operator(&local_state).await?;
         let profiles = DeviceProfileRepository::new(operator.clone(), 3)
             .list()
             .await?
@@ -82,11 +80,13 @@ impl ServiceContext {
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        let outcome =
-            DeviceProfileRemoval::new(session.get_op()?, local_state.current_device_id, 3)
-                .remove(device_id, confirmed)
-                .await?;
+        let outcome = DeviceProfileRemoval::new(
+            bound_v2_operator(&local_state).await?,
+            local_state.current_device_id,
+            3,
+        )
+        .remove(device_id, confirmed)
+        .await?;
         remove_device_profile(device_id)?;
         Ok(outcome)
     }

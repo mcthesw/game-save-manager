@@ -10,7 +10,9 @@ use rgsm_core::cloud_sync::v2::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::support::{DeviceFixture, FsCloudFixture, MAX_ATTEMPTS, no_baseline, snapshot};
+use crate::support::{
+    DeviceFixture, FsCloudFixture, MAX_ATTEMPTS, cloud_namespace_descriptor, no_baseline, snapshot,
+};
 
 const GAME_ID: &str = "example-game";
 const GAME_NAME: &str = "Example Game";
@@ -22,7 +24,11 @@ async fn bootstrap_game(
 ) {
     let (empty_library, empty_profile) = device_a.empty_library_and_profile();
     CloudLibraryBootstrap::new(cloud.new_operator(), MAX_ATTEMPTS)
-        .create_empty(&empty_library, &empty_profile)
+        .create_empty(
+            &cloud_namespace_descriptor(),
+            &empty_library,
+            &empty_profile,
+        )
         .await
         .expect("empty Fs root should bootstrap");
 

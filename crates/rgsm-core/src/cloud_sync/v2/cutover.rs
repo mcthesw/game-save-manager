@@ -30,6 +30,7 @@ pub struct CloudLibraryCutoverReview {
 }
 #[derive(Debug)]
 pub struct CloudLibraryCutoverResult {
+    pub library_id: String,
     pub shared_library: SharedLibrary,
     pub device_profiles: HashMap<DeviceId, DeviceProfile>,
     pub snapshot_count: usize,
@@ -38,6 +39,7 @@ pub struct CloudLibraryCutoverResult {
 #[derive(Debug, Serialize, Deserialize)]
 struct CutoverPlan {
     schema_version: u32,
+    library_id: String,
     shared_library: SharedLibrary,
     device_profiles: HashMap<DeviceId, DeviceProfile>,
     games: Vec<FrozenGame>,
@@ -104,7 +106,7 @@ impl CloudLibraryCutover {
                 return Err(CloudLibraryCutoverError::UnexpectedPublishedNamespace);
             }
             let manifest = self.build_manifest(&plan)?;
-            self.verify_published(&plan.shared_library, &manifest)
+            self.verify_published(&plan.library_id, &plan.shared_library, &manifest)
                 .await?;
             return Ok(Self::result(plan));
         }
@@ -134,7 +136,7 @@ impl CloudLibraryCutover {
         }
         let manifest = self.build_manifest(&plan)?;
         self.publish(&plan, &manifest).await?;
-        self.verify_published(&plan.shared_library, &manifest)
+        self.verify_published(&plan.library_id, &plan.shared_library, &manifest)
             .await?;
         Ok(Self::result(plan))
     }
@@ -180,6 +182,7 @@ impl CloudLibraryCutover {
         }
         Ok(CutoverPlan {
             schema_version: CUTOVER_PROGRESS_SCHEMA_VERSION,
+            library_id: CloudNamespaceDescriptor::default().library_id,
             shared_library: owners.shared_library,
             device_profiles: owners.device_profiles,
             games,
@@ -211,6 +214,7 @@ impl CloudLibraryCutover {
             .filter(|result| matches!(result, CutoverArchiveResult::Unavailable))
             .count();
         CloudLibraryCutoverResult {
+            library_id: plan.library_id,
             shared_library: plan.shared_library,
             device_profiles: plan.device_profiles,
             snapshot_count: summary.snapshot_count,
@@ -374,7 +378,9 @@ impl CloudLibraryCutover {
         }
         self.write_verified(
             V2_NAMESPACE_DESCRIPTOR_PATH,
-            &serde_json::to_vec_pretty(&CloudNamespaceDescriptor::default())?,
+            &serde_json::to_vec_pretty(&CloudNamespaceDescriptor::with_library_id(
+                &plan.library_id,
+            ))?,
         )
         .await
     }
@@ -399,6 +405,7 @@ impl CloudLibraryCutover {
     }
     async fn verify_published(
         &self,
+        library_id: &str,
         library: &SharedLibrary,
         manifest: &CloudManifest,
     ) -> Result<(), CloudLibraryCutoverError> {
@@ -407,10 +414,15 @@ impl CloudLibraryCutover {
             .await?
         {
             CloudNamespaceClassification::SupportedV2 {
+                descriptor,
                 shared_library,
                 manifest: stored_manifest,
-                ..
-            } if shared_library == *library && stored_manifest == *manifest => Ok(()),
+            } if descriptor.library_id == library_id
+                && shared_library == *library
+                && stored_manifest == *manifest =>
+            {
+                Ok(())
+            }
             _ => Err(CloudLibraryCutoverError::FinalVerificationMismatch),
         }
     }

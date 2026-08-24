@@ -113,7 +113,7 @@ fn endpoint_host_range(endpoint: &str) -> Option<(usize, usize)> {
     Some((start, start + host_len))
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum Backend {
     Disabled,

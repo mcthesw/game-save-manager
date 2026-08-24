@@ -3,7 +3,6 @@ use specta::Type;
 
 use crate::app_dirs::resolve_app_path;
 use crate::backup::{CapturePlanError, Game, GameSnapshots, Snapshot};
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
     KeepLocalProgressOutcome, V2ConflictResolver, V2RemoteProgressResolver,
 };
@@ -12,7 +11,7 @@ use crate::config::{
 };
 use crate::hooks::HookSource;
 
-use super::{CloudLibraryServiceError, ServiceContext};
+use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct AcceptRemoteProgressOutcome {
@@ -43,9 +42,8 @@ impl ServiceContext {
             .as_deref()
             .map(resolve_app_path)
             .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let outcome = V2ConflictResolver::new(
-            session.get_op()?,
+            bound_v2_operator(&local_state).await?,
             local_archive_root,
             local_state.current_device_id,
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
@@ -81,9 +79,8 @@ impl ServiceContext {
             .as_deref()
             .map(resolve_app_path)
             .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let resolver = V2RemoteProgressResolver::new(
-            session.get_op()?,
+            bound_v2_operator(&local_state).await?,
             local_archive_root,
             local_state.current_device_id,
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),

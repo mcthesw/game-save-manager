@@ -1,4 +1,5 @@
 mod cloud_archive;
+mod cloud_library_target;
 mod config;
 mod conflict_resolution;
 mod device_game_lifecycle;

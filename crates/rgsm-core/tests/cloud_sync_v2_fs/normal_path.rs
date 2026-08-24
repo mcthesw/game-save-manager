@@ -7,16 +7,19 @@ use rgsm_core::cloud_sync::v2::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::support::{DeviceFixture, FsCloudFixture, MAX_ATTEMPTS, no_baseline, snapshot};
+use crate::support::{
+    DeviceFixture, FsCloudFixture, MAX_ATTEMPTS, cloud_namespace_descriptor, no_baseline, snapshot,
+};
 
 #[tokio::test]
 async fn bootstrap_persists_complete_v2_namespace_across_fresh_operators() {
     let cloud = FsCloudFixture::new();
     let device = DeviceFixture::new("device-a");
     let (shared_library, device_profile) = device.empty_library_and_profile();
+    let expected_descriptor = cloud_namespace_descriptor();
 
     CloudLibraryBootstrap::new(cloud.new_operator(), MAX_ATTEMPTS)
-        .create_empty(&shared_library, &device_profile)
+        .create_empty(&expected_descriptor, &shared_library, &device_profile)
         .await
         .expect("empty Fs root should bootstrap");
 
@@ -34,7 +37,7 @@ async fn bootstrap_persists_complete_v2_namespace_across_fresh_operators() {
     else {
         panic!("bootstrapped Fs root should classify as V2");
     };
-    assert_eq!(descriptor, Default::default());
+    assert_eq!(descriptor, expected_descriptor);
     assert_eq!(stored_library, shared_library);
     assert_eq!(manifest, Default::default());
 
@@ -68,7 +71,11 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
     let device = DeviceFixture::new("device-a");
     let (empty_library, empty_profile) = device.empty_library_and_profile();
     CloudLibraryBootstrap::new(cloud.new_operator(), MAX_ATTEMPTS)
-        .create_empty(&empty_library, &empty_profile)
+        .create_empty(
+            &cloud_namespace_descriptor(),
+            &empty_library,
+            &empty_profile,
+        )
         .await
         .expect("empty Fs root should bootstrap");
 

@@ -5,7 +5,8 @@ use opendal::Operator;
 use rgsm_core::backup::{ArchiveFormat, CreatedBy, Game, GameSnapshots, Snapshot, archive_path};
 use rgsm_core::cloud_sync::v2::{
     CLOUD_MANIFEST_PATH, CloudLibraryBootstrap, CloudManifest, CloudManifestRepository,
-    DeviceProfileRepository, SharedLibraryRepository, SnapshotSyncCoordinator, cloud_archive_path,
+    CloudNamespaceDescriptor, DeviceProfileRepository, SharedLibraryRepository,
+    SnapshotSyncCoordinator, cloud_archive_path,
 };
 use rgsm_core::cloud_sync::{Backend, CloudSyncSessionConfig};
 use rgsm_core::config::{
@@ -15,6 +16,11 @@ use rgsm_core::device::DeviceId;
 use tokio_util::sync::CancellationToken;
 
 pub const MAX_ATTEMPTS: usize = 2;
+pub const LIBRARY_ID: &str = "11111111-1111-4111-8111-111111111111";
+
+pub fn cloud_namespace_descriptor() -> CloudNamespaceDescriptor {
+    CloudNamespaceDescriptor::with_library_id(LIBRARY_ID)
+}
 
 pub struct FsCloudFixture {
     root: temp_dir::TempDir,
@@ -142,7 +148,11 @@ pub async fn bootstrap_game(
 ) {
     let (empty_library, empty_profile) = device_a.empty_library_and_profile();
     CloudLibraryBootstrap::new(cloud.new_operator(), MAX_ATTEMPTS)
-        .create_empty(&empty_library, &empty_profile)
+        .create_empty(
+            &cloud_namespace_descriptor(),
+            &empty_library,
+            &empty_profile,
+        )
         .await
         .expect("empty Fs root should bootstrap");
 

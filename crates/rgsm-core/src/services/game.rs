@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 
 use crate::backup::{self, AutoBackupConfig, Game, GameDeviceBinding, GameDraft};
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
     CLOUD_MANIFEST_PATH, CloudManifestRepository, DeviceProfileRepository, SharedLibraryRepository,
 };
@@ -12,7 +11,7 @@ use crate::config::{
 };
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
-use super::ServiceContext;
+use super::{ServiceContext, cloud_library_target::bound_v2_operator};
 
 impl ServiceContext {
     pub async fn add_game(&self, game: &GameDraft, source: HookSource) -> Result<()> {
@@ -337,18 +336,19 @@ async fn publish_v2_game_change(expected: ExpectedV2GameChange) -> Result<()> {
     let (accepted_library, accepted_profile, accepted_state) = cloud_bootstrap_inputs()?;
     if accepted_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
         || accepted_state.current_device_id != expected.local_state.current_device_id
+        || accepted_state.cloud_settings != expected.local_state.cloud_settings
+        || accepted_state.cloud_library_id != expected.local_state.cloud_library_id
     {
         bail!("Cloud Library ownership changed while the Game was being saved");
     }
 
-    let session = CloudSyncSessionConfig::from(&expected.local_state.cloud_settings);
-    let operator = session.get_op()?;
+    let operator = bound_v2_operator(&expected.local_state).await?;
     let shared = SharedLibraryRepository::new(operator.clone(), 3);
     let committed_library = shared
         .compare_replace(&expected.library, &accepted_library)
         .await
         .context("failed to publish the updated V2 Shared Library")?;
-    let profiles = DeviceProfileRepository::new(operator, 3);
+    let profiles = DeviceProfileRepository::new(operator.clone(), 3);
     if let Err(error) = profiles
         .publish(&accepted_state.current_device_id, &accepted_profile)
         .await
@@ -382,8 +382,7 @@ async fn publish_v2_game_change(expected: ExpectedV2GameChange) -> Result<()> {
         .map(|game| game.storage_key.clone())
         .collect::<Vec<_>>();
     if !added_game_ids.is_empty() {
-        let session = CloudSyncSessionConfig::from(&expected.local_state.cloud_settings);
-        let manifest = CloudManifestRepository::new(session.get_op()?, CLOUD_MANIFEST_PATH, 3);
+        let manifest = CloudManifestRepository::new(operator, CLOUD_MANIFEST_PATH, 3);
         if let Err(error) = manifest
             .mutate(move |manifest| {
                 for game_id in &added_game_ids {

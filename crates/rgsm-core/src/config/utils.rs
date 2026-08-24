@@ -187,11 +187,12 @@ pub(crate) fn cloud_bootstrap_inputs()
 pub(crate) fn activate_cloud_namespace_v2(
     expected_library: &SharedLibrary,
     expected_profile: &DeviceProfile,
+    library_id: &str,
 ) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
-    OwnerStore::runtime().activate_v2(expected_library, expected_profile)?;
+    OwnerStore::runtime().activate_v2(expected_library, expected_profile, library_id)?;
     Ok(())
 }
 
@@ -200,6 +201,7 @@ pub(crate) fn activate_joined_cloud_library(
     expected_local_profile: &DeviceProfile,
     accepted_library: &SharedLibrary,
     accepted_profile: &DeviceProfile,
+    library_id: &str,
 ) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
@@ -209,6 +211,7 @@ pub(crate) fn activate_joined_cloud_library(
         expected_local_profile,
         accepted_library,
         accepted_profile,
+        library_id,
     )?;
     Ok(())
 }
@@ -218,6 +221,7 @@ pub(crate) fn activate_cutover_cloud_library(
     expected_local_profile: &DeviceProfile,
     accepted_library: &SharedLibrary,
     accepted_profiles: &std::collections::HashMap<crate::device::DeviceId, DeviceProfile>,
+    library_id: &str,
 ) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
@@ -227,6 +231,7 @@ pub(crate) fn activate_cutover_cloud_library(
         expected_local_profile,
         accepted_library,
         accepted_profiles,
+        library_id,
     )?;
     Ok(())
 }
@@ -258,6 +263,7 @@ pub(crate) fn accept_remote_shared_library(
     expected_profile: &DeviceProfile,
     accepted_library: &SharedLibrary,
     accepted_profile: &DeviceProfile,
+    library_id: &str,
 ) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
@@ -267,6 +273,7 @@ pub(crate) fn accept_remote_shared_library(
         expected_profile,
         accepted_library,
         accepted_profile,
+        library_id,
     )?;
     Ok(())
 }

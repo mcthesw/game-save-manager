@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::app_dirs::resolve_app_path;
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
     CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionRegistryRepository,
     DeviceProfileRepository, SharedGameDeletion, SharedGameDeletionOutcome,
@@ -11,7 +10,7 @@ use crate::cloud_sync::v2::{
 };
 use crate::config::{CloudNamespaceGeneration, cloud_bootstrap_inputs, remove_shared_game};
 
-use super::{CloudLibraryServiceError, ServiceContext};
+use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct DeletedCloudGameView {
@@ -29,7 +28,7 @@ impl ServiceContext {
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        let operator = CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?;
+        let operator = bound_v2_operator(&local_state).await?;
         let registry = DeletionRegistryRepository::new(operator.clone(), 3)
             .load()
             .await?;
@@ -83,7 +82,7 @@ impl ServiceContext {
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        let operator = CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?;
+        let operator = bound_v2_operator(&local_state).await?;
         let registry = DeletionRegistryRepository::new(operator.clone(), 3)
             .load()
             .await?;
@@ -119,7 +118,7 @@ pub(crate) async fn converge_local_deleted_games() -> Result<(), CloudLibrarySer
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
         return Ok(());
     }
-    let operator = CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?;
+    let operator = bound_v2_operator(&local_state).await?;
     let registry = DeletionRegistryRepository::new(operator, 3).load().await?;
     for (game_id, deletion) in registry.deleted_games {
         if let Some(root) = profile.local_archive_root.as_deref().map(resolve_app_path) {
@@ -303,6 +302,7 @@ mod tests {
             const GAME_ID: &str = "example-game";
             const GAME_NAME: &str = "Example Game";
             const SNAPSHOT_ID: &str = "snapshot-a";
+            const LIBRARY_ID: &str = "11111111-1111-4111-8111-111111111111";
             const ARCHIVE_BYTES: &[u8] = b"service deletion archive bytes";
 
             let _ = crate::app_dirs::get_app_data_dir();
@@ -336,7 +336,7 @@ mod tests {
             set_config_local(&config).expect("effective V2 configuration should persist");
             let (library, profile, _) =
                 cloud_bootstrap_inputs().expect("persisted configuration should load");
-            activate_cloud_namespace_v2(&library, &profile)
+            activate_cloud_namespace_v2(&library, &profile, LIBRARY_ID)
                 .expect("configuration should activate the V2 namespace");
             assert_eq!(
                 crate::config::cloud_namespace_generation()
@@ -352,7 +352,11 @@ mod tests {
                 games: Vec::new(),
             };
             CloudLibraryBootstrap::new(operator.clone(), 2)
-                .create_empty(&empty_library, &profile)
+                .create_empty(
+                    &crate::cloud_sync::v2::CloudNamespaceDescriptor::with_library_id(LIBRARY_ID),
+                    &empty_library,
+                    &profile,
+                )
                 .await
                 .expect("empty Cloud Namespace should bootstrap");
             SharedLibraryRepository::new(operator.clone(), 2)

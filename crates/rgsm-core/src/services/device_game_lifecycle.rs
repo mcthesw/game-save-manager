@@ -2,13 +2,12 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::app_dirs::resolve_app_path;
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{CloudArchiveEviction, DeviceProfileRepository, LocalArchiveEviction};
 use crate::config::{
     CloudNamespaceGeneration, cloud_bootstrap_inputs, get_config, replace_current_device_profile,
 };
 
-use super::{CloudLibraryServiceError, ServiceContext};
+use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct DeviceGameStatus {
@@ -136,9 +135,8 @@ impl ServiceContext {
             .as_deref()
             .map(resolve_app_path)
             .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         Ok(LocalArchiveEviction::new(
-            session.get_op()?,
+            bound_v2_operator(&local_state).await?,
             local_archive_root,
             local_state.current_device_id,
             3,
@@ -158,10 +156,11 @@ impl ServiceContext {
         }
         self.converged_materializer().await?;
         let (_, _, local_state) = v2_inputs()?;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        Ok(CloudArchiveEviction::new(session.get_op()?, 3)
-            .evict(game_id, snapshot_id)
-            .await?)
+        Ok(
+            CloudArchiveEviction::new(bound_v2_operator(&local_state).await?, 3)
+                .evict(game_id, snapshot_id)
+                .await?,
+        )
     }
 }
 
@@ -185,8 +184,7 @@ async fn publish_profile(
     expected: &crate::config::DeviceProfile,
     accepted: &crate::config::DeviceProfile,
 ) -> Result<(), CloudLibraryServiceError> {
-    let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-    DeviceProfileRepository::new(session.get_op()?, 3)
+    DeviceProfileRepository::new(bound_v2_operator(local_state).await?, 3)
         .publish(&local_state.current_device_id, accepted)
         .await?;
     replace_current_device_profile(expected, accepted)?;

@@ -39,6 +39,8 @@ pub enum OwnershipError {
     DuplicateSharedSaveUnit { game_id: String, save_unit_id: u32 },
     #[error("Shared Game {0} has an invalid Snapshot retention limit")]
     InvalidSnapshotRetention(String),
+    #[error("An active V2 configuration must contain a Cloud Library ID")]
+    MissingCloudLibraryId,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
@@ -265,6 +267,8 @@ pub struct LocalState {
     pub cloud_settings: CloudSettings,
     #[serde(default)]
     pub cloud_namespace_generation: CloudNamespaceGeneration,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud_library_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
@@ -359,6 +363,7 @@ impl ConfigurationOwners {
                 interface: LocalInterfaceSettings::from(&config.settings),
                 cloud_settings: config.settings.cloud_settings.clone(),
                 cloud_namespace_generation: CloudNamespaceGeneration::LegacyV1,
+                cloud_library_id: None,
             },
         }
     }
@@ -367,6 +372,15 @@ impl ConfigurationOwners {
         validate_schema("Configuration Owners", self.schema_version)?;
         self.shared_library.validate()?;
         validate_schema("Local State", self.local_state.schema_version)?;
+        if self.local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2
+            && self
+                .local_state
+                .cloud_library_id
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            return Err(OwnershipError::MissingCloudLibraryId);
+        }
 
         for (device_id, profile) in &self.device_profiles {
             validate_schema(
@@ -445,6 +459,7 @@ impl ConfigurationOwners {
         self.shared_library = incoming.shared_library;
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
+        incoming.local_state.cloud_library_id = self.local_state.cloud_library_id.clone();
         self.local_state = incoming.local_state;
         self.device_profiles.retain(|device_id, _| {
             device_id == &current_device_id || incoming_device_ids.contains(device_id)

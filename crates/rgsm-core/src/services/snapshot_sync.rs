@@ -7,16 +7,17 @@ use tokio_util::sync::CancellationToken;
 
 use crate::app_dirs::resolve_app_path;
 use crate::backup::GameSnapshots;
-use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
-    ProgressRelation, SnapshotReconciliationOutcome, SnapshotSyncCoordinator, SnapshotSyncError,
-    V2ConflictInspector, V2ConflictReview,
+    CloudLibraryTarget, ProgressRelation, SnapshotReconciliationOutcome, SnapshotSyncCoordinator,
+    SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
 };
 use crate::config::{
     CloudNamespaceGeneration, Config, DeviceProfile, cloud_bootstrap_inputs, get_config,
 };
 use crate::hooks::{SnapshotSyncTarget, V2SnapshotSyncHook};
 use crate::preclude::{BackendError, BackupError, ConfigError};
+
+use super::cloud_library_target::{bound_v2_operator, cloud_library_target};
 
 pub const DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES: u64 = 5;
 
@@ -36,6 +37,7 @@ pub struct LiveSaveApplyPlan {
 }
 
 struct SnapshotSyncRuntime {
+    target: CloudLibraryTarget,
     coordinator: SnapshotSyncCoordinator,
     targets: BTreeMap<String, SnapshotSyncTarget>,
     game_names: BTreeMap<String, String>,
@@ -46,7 +48,12 @@ pub fn build_v2_snapshot_sync_hook(
     operation_lock: Arc<Mutex<()>>,
 ) -> Result<Option<V2SnapshotSyncHook>, SnapshotSyncServiceError> {
     Ok(load_runtime()?.map(|runtime| {
-        V2SnapshotSyncHook::new(runtime.coordinator, runtime.targets, operation_lock)
+        V2SnapshotSyncHook::new(
+            runtime.target,
+            runtime.coordinator,
+            runtime.targets,
+            operation_lock,
+        )
     }))
 }
 
@@ -58,6 +65,7 @@ pub async fn run_v2_snapshot_sync_once(
     let Some(runtime) = load_runtime()? else {
         return Ok(SnapshotReconciliationOutcome::default());
     };
+    runtime.target.verify().await.map_err(BackendError::from)?;
     let tombstones = runtime.coordinator.converge_local_tombstones().await?;
     let mut total = SnapshotReconciliationOutcome::default();
     for (game_id, target) in &runtime.targets {
@@ -169,6 +177,7 @@ pub async fn resume_v2_snapshot_sync(
     let Some(runtime) = load_runtime()? else {
         return Ok(0);
     };
+    runtime.target.verify().await.map_err(BackendError::from)?;
     let downloaded = runtime.coordinator.resume_pending(cancellation).await;
     let import =
         super::sync::import_local_verified_catalog(runtime.coordinator.materializer()).await;
@@ -251,7 +260,7 @@ pub async fn review_v2_live_save_apply(
         .map(resolve_app_path)
         .ok_or(SnapshotSyncServiceError::StorageLocationRequired)?;
     let review = V2ConflictInspector::new(
-        CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?,
+        bound_v2_operator(&local_state).await?,
         archive_root,
         local_state.current_device_id.clone(),
         3,
@@ -310,10 +319,11 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
         .as_deref()
         .map(resolve_app_path)
         .ok_or(SnapshotSyncServiceError::StorageLocationRequired)?;
-    let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
+    let target = cloud_library_target(&local_state)?;
     Ok(Some(SnapshotSyncRuntime {
+        target: target.clone(),
         coordinator: SnapshotSyncCoordinator::new(
-            session.get_op()?,
+            target.operator(),
             archive_root,
             local_state.current_device_id,
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
@@ -379,9 +389,8 @@ async fn refresh_multi_device_sync_suspension(
     else {
         return Ok(settings.multi_device_sync_suspended);
     };
-    let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
     let review = V2ConflictInspector::new(
-        session.get_op()?,
+        bound_v2_operator(&local_state).await?,
         local_archive_root,
         local_state.current_device_id,
         3,
