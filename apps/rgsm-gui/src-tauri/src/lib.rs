@@ -17,6 +17,7 @@ use rgsm_core::config::config_check;
 
 // GUI-specific modules
 mod cloud_library;
+mod cloud_operation;
 mod commands;
 mod hooks;
 mod http;
@@ -174,13 +175,13 @@ pub fn run() -> anyhow::Result<()> {
                 cloud_sync_worker.run().await;
             });
             let config = get_config().expect("Failed to load config while building hooks");
-            let snapshot_sync_runtime = snapshot_sync::SnapshotSyncRuntimeState::default();
-            app.manage(snapshot_sync_runtime.clone());
+            let cloud_operation_state = cloud_operation::CloudOperationState::default();
+            app.manage(cloud_operation_state.clone());
             let pipeline = hooks::build_builtin_pipeline(app.handle(), &config);
             app.manage(hooks::HookPipelineState::new(pipeline));
 
             app.manage(cloud_sync_manager);
-            snapshot_sync::setup(app.handle().clone(), snapshot_sync_runtime);
+            snapshot_sync::setup(app.handle().clone(), cloud_operation_state);
 
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键
