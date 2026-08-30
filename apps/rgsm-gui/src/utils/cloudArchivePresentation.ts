@@ -14,7 +14,9 @@ export function cloudArchiveTransferKey(gameId: string, snapshotId: string) {
 
 export function cloudArchiveCatchUpPreview(game: CloudArchiveGameView | null) {
   const snapshots =
-    game?.snapshots.filter((snapshot) => snapshot.cloud_verified && !snapshot.local_verified) ?? [];
+    game?.snapshots.filter(
+      (snapshot) => snapshot.cloud_verified && snapshot.local_evidence !== 'present'
+    ) ?? [];
   return {
     count: snapshots.length,
     size: snapshots.reduce((total, snapshot) => total + (snapshot.size ?? 0), 0),
@@ -22,10 +24,10 @@ export function cloudArchiveCatchUpPreview(game: CloudArchiveGameView | null) {
 }
 
 export function cloudArchiveAvailabilityLabel(snapshot: CloudArchiveSnapshotView) {
-  if (snapshot.local_verified && snapshot.cloud_verified) {
+  if (snapshot.local_evidence === 'present' && snapshot.cloud_verified) {
     return $t('sync_settings.archives.available_both');
   }
-  if (snapshot.local_verified) return $t('sync_settings.archives.available_local');
+  if (snapshot.local_evidence === 'present') return $t('sync_settings.archives.available_local');
   if (snapshot.cloud_verified) return $t('sync_settings.archives.available_cloud');
   if (snapshot.reported_on_devices.length > 0) {
     return $t('sync_settings.archives.available_other_device');
@@ -34,8 +36,8 @@ export function cloudArchiveAvailabilityLabel(snapshot: CloudArchiveSnapshotView
 }
 
 export function cloudArchiveAvailabilityType(snapshot: CloudArchiveSnapshotView) {
-  if (snapshot.local_verified && snapshot.cloud_verified) return 'success';
-  if (snapshot.local_verified || snapshot.cloud_verified) return 'primary';
+  if (snapshot.local_evidence === 'present' && snapshot.cloud_verified) return 'success';
+  if (snapshot.local_evidence === 'present' || snapshot.cloud_verified) return 'primary';
   if (snapshot.reported_on_devices.length > 0) return 'warning';
   return 'info';
 }

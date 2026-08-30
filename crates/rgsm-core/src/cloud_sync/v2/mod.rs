@@ -63,7 +63,7 @@ pub use manifest::{
 };
 pub use materialization::{
     CloudArchiveGameView, CloudArchiveLibraryView, CloudArchiveMaterializer,
-    CloudArchiveSnapshotView, MaterializationError,
+    CloudArchiveSnapshotView, LocalArchiveEvidence, MaterializationError,
 };
 pub use materialization_models::{
     CloudArchiveDeletionView, MaterializationOutcome, MaterializationPreview,

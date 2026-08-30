@@ -59,12 +59,34 @@ pub struct CloudArchiveSnapshotView {
     pub snapshot_id: String,
     pub description: String,
     pub size: Option<u64>,
-    pub local_verified: bool,
+    pub local_evidence: LocalArchiveEvidence,
     pub cloud_verified: bool,
     pub reported_on_devices: Vec<DeviceId>,
     pub created_by: CreatedBy,
     pub retention_protected: bool,
     pub parent: Option<String>,
+}
+
+/// Evidence available while building the cloud catalog view of a local archive.
+/// This intentionally does not claim content verification: catalog views use a
+/// cheap metadata check, while transfer operations perform the full hash check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalArchiveEvidence {
+    /// Cloud metadata cannot confirm or reject the local catalog entry.
+    Unknown,
+    /// A regular file with the expected size is present at the local archive
+    /// path.
+    Present,
+    /// The local file is missing, is not a regular file, or has a different
+    /// size.
+    Mismatch,
+}
+
+impl LocalArchiveEvidence {
+    fn is_present(self) -> bool {
+        self == Self::Present
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,13 +157,10 @@ impl CloudArchiveMaterializer {
                 let SnapshotState::Live(live) = &node.state else {
                     unreachable!("live filter guarantees a live Snapshot")
                 };
-                let local_verified = live.integrity.as_ref().is_some_and(|integrity| {
-                    self.is_locally_reported(game, &node.snapshot_id)
-                        && local_size_matches(
-                            &self.local_path(game_id, &node.snapshot_id, node.archive_format),
-                            integrity.size,
-                        )
-                });
+                let local_evidence = classify_local_archive_evidence(
+                    live.integrity.as_ref(),
+                    &self.local_path(game_id, &node.snapshot_id, node.archive_format),
+                );
                 let reported_on_devices = game
                     .local_archives
                     .iter()
@@ -154,7 +173,7 @@ impl CloudArchiveMaterializer {
                     snapshot_id: node.snapshot_id.clone(),
                     description: node.description.clone(),
                     size: live.integrity.as_ref().map(|integrity| integrity.size),
-                    local_verified,
+                    local_evidence,
                     cloud_verified: live.cloud_archive_verified,
                     reported_on_devices,
                     created_by: live.created_by.clone(),
@@ -221,7 +240,7 @@ impl CloudArchiveMaterializer {
                 },
                 local_count: snapshots
                     .iter()
-                    .filter(|snapshot| snapshot.local_verified)
+                    .filter(|snapshot| snapshot.local_evidence.is_present())
                     .count(),
                 cloud_count: snapshots
                     .iter()
@@ -229,20 +248,26 @@ impl CloudArchiveMaterializer {
                     .count(),
                 local_only_count: snapshots
                     .iter()
-                    .filter(|snapshot| snapshot.local_verified && !snapshot.cloud_verified)
+                    .filter(|snapshot| {
+                        snapshot.local_evidence.is_present() && !snapshot.cloud_verified
+                    })
                     .count(),
                 cloud_only_count: snapshots
                     .iter()
-                    .filter(|snapshot| !snapshot.local_verified && snapshot.cloud_verified)
+                    .filter(|snapshot| {
+                        !snapshot.local_evidence.is_present() && snapshot.cloud_verified
+                    })
                     .count(),
                 both_available_count: snapshots
                     .iter()
-                    .filter(|snapshot| snapshot.local_verified && snapshot.cloud_verified)
+                    .filter(|snapshot| {
+                        snapshot.local_evidence.is_present() && snapshot.cloud_verified
+                    })
                     .count(),
                 other_device_only_count: snapshots
                     .iter()
                     .filter(|snapshot| {
-                        !snapshot.local_verified
+                        !snapshot.local_evidence.is_present()
                             && !snapshot.cloud_verified
                             && !snapshot.reported_on_devices.is_empty()
                     })
@@ -250,7 +275,7 @@ impl CloudArchiveMaterializer {
                 unavailable_count: snapshots
                     .iter()
                     .filter(|snapshot| {
-                        !snapshot.local_verified
+                        !snapshot.local_evidence.is_present()
                             && !snapshot.cloud_verified
                             && snapshot.reported_on_devices.is_empty()
                     })
@@ -867,6 +892,84 @@ pub(super) async fn verify_file(
 fn local_size_matches(path: &Path, expected_size: u64) -> bool {
     path.metadata()
         .is_ok_and(|metadata| metadata.is_file() && metadata.len() == expected_size)
+}
+
+fn classify_local_archive_evidence(
+    integrity: Option<&ArchiveIntegrity>,
+    local_path: &Path,
+) -> LocalArchiveEvidence {
+    let Some(integrity) = integrity else {
+        return LocalArchiveEvidence::Unknown;
+    };
+    if local_size_matches(local_path, integrity.size) {
+        LocalArchiveEvidence::Present
+    } else {
+        LocalArchiveEvidence::Mismatch
+    }
+}
+
+#[cfg(test)]
+mod local_archive_evidence_tests {
+    use super::*;
+
+    fn integrity(size: u64) -> ArchiveIntegrity {
+        ArchiveIntegrity {
+            size,
+            xxh3_64: "0000000000000000".to_string(),
+        }
+    }
+
+    #[test]
+    fn metadata_without_integrity_is_unknown() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("snapshot.7z");
+        std::fs::write(&archive, b"save").unwrap();
+
+        assert_eq!(
+            classify_local_archive_evidence(None, &archive),
+            LocalArchiveEvidence::Unknown
+        );
+    }
+
+    #[test]
+    fn file_evidence_does_not_depend_on_manifest_ownership() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("snapshot.7z");
+        std::fs::write(&archive, b"save").unwrap();
+
+        assert_eq!(
+            classify_local_archive_evidence(Some(&integrity(4)), &archive),
+            LocalArchiveEvidence::Present
+        );
+        assert_eq!(
+            classify_local_archive_evidence(Some(&integrity(5)), &archive),
+            LocalArchiveEvidence::Mismatch
+        );
+        assert_eq!(
+            classify_local_archive_evidence(Some(&integrity(4)), &temp.path().join("missing.7z")),
+            LocalArchiveEvidence::Mismatch
+        );
+    }
+
+    #[test]
+    fn reported_archive_size_distinguishes_presence_from_mismatch() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("snapshot.7z");
+        std::fs::write(&archive, b"save").unwrap();
+
+        assert_eq!(
+            classify_local_archive_evidence(Some(&integrity(4)), &archive),
+            LocalArchiveEvidence::Present
+        );
+        assert_eq!(
+            classify_local_archive_evidence(Some(&integrity(5)), &archive),
+            LocalArchiveEvidence::Mismatch
+        );
+        assert_eq!(
+            classify_local_archive_evidence(Some(&integrity(4)), &temp.path().join("missing.7z")),
+            LocalArchiveEvidence::Mismatch
+        );
+    }
 }
 
 async fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {

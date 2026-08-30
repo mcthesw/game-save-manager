@@ -443,6 +443,7 @@ export type {
   ListRunningProcessesResponse,
   ListRunningProcessesResponses,
   LiveSaveSyncOptions,
+  LocalArchiveEvidence,
   LocalProgressView,
   LudusaviManifestStatus,
   LudusaviMeta,

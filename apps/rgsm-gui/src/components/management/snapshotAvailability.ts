@@ -1,5 +1,4 @@
 import type { CloudArchiveGameView, CloudArchiveSnapshotView } from '../../api/commands';
-import { $t } from '../../i18n';
 
 /**
  * Snapshot availability predicates shared by the management page and its
@@ -13,33 +12,75 @@ export function cloudSnapshotOf(
   return cloudGame?.snapshots.find((snapshot) => snapshot.snapshot_id === date) ?? null;
 }
 
-export function isSnapshotOnDevice(cloudGame: CloudArchiveGameView | null, date: string) {
-  return Boolean(cloudSnapshotOf(cloudGame, date)?.local_verified);
+export type SnapshotAvailability = {
+  onDevice: boolean;
+  inCloud: boolean;
+  onOtherDevice: boolean;
+};
+
+export function snapshotAvailability(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+): SnapshotAvailability {
+  const snapshot = cloudSnapshotOf(cloudGame, date);
+  return {
+    onDevice: localCatalogDates.has(date) && snapshot?.local_evidence !== 'mismatch',
+    inCloud: Boolean(snapshot?.cloud_verified),
+    onOtherDevice: (snapshot?.reported_on_devices.length ?? 0) > 0,
+  };
 }
 
-export function isSnapshotInCloud(cloudGame: CloudArchiveGameView | null, date: string) {
-  return Boolean(cloudSnapshotOf(cloudGame, date)?.cloud_verified);
+export function isSnapshotOnDevice(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
+  return snapshotAvailability(localCatalogDates, cloudGame, date).onDevice;
 }
 
-export function canUploadSnapshot(cloudGame: CloudArchiveGameView | null, date: string) {
+export function isSnapshotInCloud(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
+  return snapshotAvailability(localCatalogDates, cloudGame, date).inCloud;
+}
+
+export function canUploadSnapshot(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
   if (!cloudGame) return false;
-  const snapshot = cloudSnapshotOf(cloudGame, date);
-  if (!snapshot) return true;
-  return snapshot.local_verified && !snapshot.cloud_verified;
+  const availability = snapshotAvailability(localCatalogDates, cloudGame, date);
+  return availability.onDevice && !availability.inCloud;
 }
 
-export function canDownloadSnapshot(cloudGame: CloudArchiveGameView | null, date: string) {
-  const snapshot = cloudSnapshotOf(cloudGame, date);
-  return Boolean(snapshot?.cloud_verified && !snapshot.local_verified);
+export function canDownloadSnapshot(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
+  const availability = snapshotAvailability(localCatalogDates, cloudGame, date);
+  return availability.inCloud && !availability.onDevice;
 }
 
-export function canEvictSnapshot(cloudGame: CloudArchiveGameView | null, date: string) {
-  const snapshot = cloudSnapshotOf(cloudGame, date);
-  return Boolean(snapshot?.local_verified);
+export function canEvictSnapshot(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
+  if (!cloudGame) return false;
+  return snapshotAvailability(localCatalogDates, cloudGame, date).onDevice;
 }
 
-export function canEvictCloudSnapshot(cloudGame: CloudArchiveGameView | null, date: string) {
-  return Boolean(cloudSnapshotOf(cloudGame, date)?.cloud_verified);
+export function canEvictCloudSnapshot(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
+  return snapshotAvailability(localCatalogDates, cloudGame, date).inCloud;
 }
 
 export function canApplySnapshot(
@@ -47,9 +88,7 @@ export function canApplySnapshot(
   cloudGame: CloudArchiveGameView | null,
   date: string
 ) {
-  if (!localCatalogDates.has(date)) return false;
-  const snapshot = cloudSnapshotOf(cloudGame, date);
-  return !snapshot || snapshot.local_verified;
+  return snapshotAvailability(localCatalogDates, cloudGame, date).onDevice;
 }
 
 export function isRetentionProtectedDate(
@@ -63,13 +102,15 @@ export function isRetentionProtectedDate(
   );
 }
 
-export function snapshotLocationLabel(cloudGame: CloudArchiveGameView | null, date: string) {
-  const local = isSnapshotOnDevice(cloudGame, date);
-  const cloud = isSnapshotInCloud(cloudGame, date);
-  if (local && cloud) return $t('manage.location_both');
-  if (local) return $t('manage.location_local');
-  if (cloud) return $t('manage.location_cloud');
-  const elsewhere = cloudSnapshotOf(cloudGame, date)?.reported_on_devices.length ?? 0;
-  if (elsewhere > 0) return $t('sync_settings.archives.available_other_device');
-  return $t('manage.location_missing');
+export function snapshotLocationKey(
+  localCatalogDates: Set<string>,
+  cloudGame: CloudArchiveGameView | null,
+  date: string
+) {
+  const availability = snapshotAvailability(localCatalogDates, cloudGame, date);
+  if (availability.onDevice && availability.inCloud) return 'manage.location_both';
+  if (availability.onDevice) return 'manage.location_local';
+  if (availability.inCloud) return 'manage.location_cloud';
+  if (availability.onOtherDevice) return 'sync_settings.archives.available_other_device';
+  return 'manage.location_missing';
 }
