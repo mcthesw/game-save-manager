@@ -46,6 +46,7 @@ jobs:
       - name: Run release-critical E2E
         run: >-
           pnpm --dir apps/rgsm-gui exec playwright test
+          e2e/desktop-window-lifecycle.spec.ts
           e2e/local-main-path.spec.ts
           e2e/local-compression.spec.ts
           e2e/local-legacy-archive.spec.ts

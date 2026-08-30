@@ -11,6 +11,8 @@
   "app": {
     "windows": [
       {
+        "label": "main",
+        "create": false,
         "title": "Game Save Manager",
         "width": 1280,
         "height": 850,

@@ -116,7 +116,7 @@ export async function removeRunRoot(root: string): Promise<void> {
   await rm(root, { recursive: true, force: true });
 }
 
-function stopProcessTree(child: ChildProcess | undefined): void {
+export function stopProcessTree(child: ChildProcess | undefined): void {
   if (!child || child.exitCode !== null || child.pid === undefined) return;
   if (process.platform === 'win32') {
     spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });

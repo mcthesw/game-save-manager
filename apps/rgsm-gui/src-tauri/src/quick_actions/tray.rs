@@ -1,14 +1,11 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use log::info;
+use log::{error, info};
 use tauri::{
     AppHandle, Manager, State,
     menu::{MenuBuilder, MenuEvent, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    utils::config::WindowConfig,
 };
-use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 use super::{QuickActionManager, QuickActionType};
 
@@ -68,26 +65,8 @@ pub fn tray_event_handler(tray: &TrayIcon, event: TrayIconEvent) {
     {
         info!(target: "rgsm::quick_action::tray", "Tray left click");
         let app = tray.app_handle();
-        if app.get_webview_window("main").is_none() {
-            let window = tauri::WebviewWindowBuilder::from_config(
-                app,
-                &WindowConfig {
-                    label: "main".to_string(),
-                    url: tauri::WebviewUrl::App(PathBuf::from("index.html")),
-                    drag_drop_enabled: false,
-                    title: "RustyManager".to_string(),
-                    ..Default::default()
-                },
-            )
-            .unwrap()
-            .build()
-            .unwrap();
-
-            window
-                .restore_state(StateFlags::all())
-                .expect("Cannot restore window state");
-            window.show().expect("Cannot show window");
-            window.set_focus().expect("Cannot set focus");
+        if let Err(error) = crate::main_window::show_main_window(app) {
+            error!(target: "rgsm::quick_action::tray", "Cannot show main window: {error}");
         }
     }
 }

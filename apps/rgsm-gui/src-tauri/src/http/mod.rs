@@ -200,14 +200,6 @@ impl ApiError {
         }
     }
 
-    pub fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: ApiErrorCode::Unavailable,
-            message: message.into(),
-            details: None,
-        }
-    }
-
     pub fn from_command(error: impl std::fmt::Display) -> Self {
         Self {
             code: ApiErrorCode::InvalidRequest,
@@ -252,7 +244,6 @@ impl IntoResponse for ApiError {
 
 pub struct HttpHost {
     pub base_url: String,
-    pub api_token: String,
 }
 
 pub fn prepare_configuration() -> anyhow::Result<()> {
@@ -310,10 +301,7 @@ pub async fn start(app: AppHandle) -> anyhow::Result<HttpHost> {
         }
     });
 
-    Ok(HttpHost {
-        base_url,
-        api_token,
-    })
+    Ok(HttpHost { base_url })
 }
 
 fn is_allowed_browser_origin(origin: &HeaderValue) -> bool {

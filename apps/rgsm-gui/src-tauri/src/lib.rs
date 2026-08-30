@@ -21,6 +21,7 @@ mod cloud_operation;
 mod commands;
 mod hooks;
 mod http;
+mod main_window;
 mod process_util;
 mod quick_actions;
 mod snapshot_sync;
@@ -88,6 +89,7 @@ pub fn openapi_json() -> anyhow::Result<String> {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    let http_host_only = std::env::var_os("RGSM_HTTP_HOST_ONLY").is_some();
     configure_development_data_dir()?;
 
     info!("{}", t!("home.hello_world"));
@@ -132,12 +134,12 @@ pub fn run() -> anyhow::Result<()> {
         );
     // Dual Host E2E starts two HTTP-only processes. The desktop single-instance
     // lock would silently exit the second process before it can bind.
-    if std::env::var_os("RGSM_HTTP_HOST_ONLY").is_none() {
+    if !http_host_only {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            app.get_webview_window("main")
-                .expect("no main window")
-                .set_focus()
-                .expect("failed to set focus");
+            // Windows delivers this callback inside the synchronous WM_COPYDATA
+            // request sent by the second process. Defer WebView construction until
+            // the callback returns so the sender can complete and release its lock.
+            main_window::defer_show_main_window(app);
         }));
     }
     let app = builder
@@ -149,23 +151,9 @@ pub fn run() -> anyhow::Result<()> {
                 "HTTP Host listening on {}",
                 http_host.base_url
             );
-            let runtime_config = serde_json::json!({
-                "apiBaseUrl": http_host.base_url,
-                "token": http_host.api_token,
-            });
-            let initialization_script = format!(
-                "window.__RGSM_RUNTIME__ = {};",
-                serde_json::to_string(&runtime_config)?
-            );
-            app.get_webview_window("main")
-                .ok_or_else(|| anyhow::anyhow!("Main window is not available"))?
-                .eval(&initialization_script)?;
-            if std::env::var_os("RGSM_HTTP_HOST_ONLY").is_some() {
-                app.get_webview_window("main")
-                    .ok_or_else(|| anyhow::anyhow!("Main window is not available"))?
-                    .hide()?;
+            if !http_host_only {
+                main_window::show_main_window(app.handle())?;
             }
-            app.manage(http_host);
             let emitter = std::sync::Arc::new(TauriSyncEmitter {
                 app: app.handle().clone(),
             });
@@ -198,11 +186,14 @@ pub fn run() -> anyhow::Result<()> {
         .expect("Cannot build tauri app")
         .run_return(move |handle, event| {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
-                handle
-                    .save_window_state(StateFlags::all())
-                    .expect("Cannot save window state");
-                // Only prevent exit when exit to tray is enabled and exit code is not provided(User requested exit)
-                if config.settings.exit_to_tray && code.is_none() {
+                if !http_host_only {
+                    handle
+                        .save_window_state(StateFlags::all())
+                        .expect("Cannot save window state");
+                }
+                // The HTTP-only host has no window by design, so its event loop
+                // stays alive until the test harness explicitly terminates it.
+                if should_prevent_exit(http_host_only, config.settings.exit_to_tray, code) {
                     api.prevent_exit();
                 }
             }
@@ -220,6 +211,10 @@ pub fn run() -> anyhow::Result<()> {
     }
 }
 
+fn should_prevent_exit(http_host_only: bool, exit_to_tray: bool, code: Option<i32>) -> bool {
+    code.is_none() && (http_host_only || exit_to_tray)
+}
+
 #[cfg(debug_assertions)]
 fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
     rgsm_core::cloud_sync::v2::validate_e2e_cutover_interrupt_env()
@@ -230,4 +225,21 @@ fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
 #[cfg(not(debug_assertions))]
 fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::should_prevent_exit;
+
+    #[test]
+    fn windowless_http_host_stays_alive_until_explicitly_stopped() {
+        assert!(should_prevent_exit(true, false, None));
+    }
+
+    #[test]
+    fn desktop_exit_policy_respects_tray_setting_and_explicit_exit() {
+        assert!(should_prevent_exit(false, true, None));
+        assert!(!should_prevent_exit(false, false, None));
+        assert!(!should_prevent_exit(true, true, Some(0)));
+    }
 }
