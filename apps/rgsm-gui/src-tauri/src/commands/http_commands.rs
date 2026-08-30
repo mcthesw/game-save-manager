@@ -379,11 +379,7 @@ pub async fn http_create_snapshot(
     State(state): State<HttpHostState>,
     Json(request): Json<CreateSnapshotRequest>,
 ) -> Result<Json<()>, ApiError> {
-    let window = state
-        .app()
-        .get_webview_window("main")
-        .ok_or_else(|| ApiError::unavailable("Main window is not available"))?;
-    commands::create_snapshot(request.game, request.describe, window, state.app().clone())
+    commands::create_snapshot(request.game, request.describe, state.app().clone())
         .await
         .map(Json)
         .map_err(ApiError::from_command)
@@ -1632,15 +1628,10 @@ pub async fn http_create_snapshot_at(
     State(state): State<HttpHostState>,
     Json(request): Json<CreateSnapshotAtRequest>,
 ) -> Result<Json<()>, ApiError> {
-    let window = state
-        .app()
-        .get_webview_window("main")
-        .ok_or_else(|| ApiError::unavailable("Main window is not available"))?;
     commands::create_snapshot_at(
         request.game,
         request.describe,
         request.parent_date,
-        window,
         state.app().clone(),
     )
     .await

@@ -38,7 +38,7 @@ use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Manager};
 
 use crate::hooks::HookPipelineState;
 
@@ -502,7 +502,6 @@ pub async fn reset_settings(app_handle: AppHandle) -> Result<(), String> {
 pub async fn create_snapshot(
     game: Game,
     describe: String,
-    window: WebviewWindow,
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Backing up save for game: {:?}", game);
@@ -511,7 +510,7 @@ pub async fn create_snapshot(
         svc(&app_handle)
             .create_snapshot(&game, &describe, HookSource::UserManual, Some(&n))
             .await,
-        window,
+        &app_handle,
     )?;
 
     info!(target:"rgsm::commands", "Successfully backed up save for game: {:?}", game);
@@ -1365,7 +1364,6 @@ pub async fn create_snapshot_at(
     game: Game,
     describe: String,
     parent_date: Option<String>,
-    window: WebviewWindow,
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Creating snapshot at parent: {:?} for game: {:?}", parent_date, game);
@@ -1381,12 +1379,12 @@ pub async fn create_snapshot_at(
                 Some(&n),
             )
             .await,
-        window,
+        &app_handle,
     )?;
     Ok(())
 }
 
-fn handle_backup_err<T>(res: Result<T, BackupError>, window: WebviewWindow) -> Result<T, String> {
+fn handle_backup_err<T>(res: Result<T, BackupError>, app_handle: &AppHandle) -> Result<T, String> {
     match res {
         Ok(value) => Ok(value),
         Err(e) => {
@@ -1396,7 +1394,7 @@ fn handle_backup_err<T>(res: Result<T, BackupError>, window: WebviewWindow) -> R
                         error!(target:"rgsm::commands","{}",file);
                         if let BackupFileError::NotExists(path) = file {
                             crate::http::emit(
-                                window.app_handle(),
+                                app_handle,
                                 "notification",
                                 &HostNotification {
                                     level: NotificationLevel::error,
