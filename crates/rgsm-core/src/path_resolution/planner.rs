@@ -5,6 +5,8 @@ use crate::path_pattern::{
     ManifestPathConstraints, ParsedManifestPathPattern, PathPlaceholder, PlatformKind,
 };
 
+use super::model::{first_unescaped_glob, unescape_glob_literal};
+
 use super::{
     CandidateDimensions, CandidateExpression, GameInstallationCandidate, GameRootCandidate,
     ResolutionContext, ResolutionDiagnostic, ResolutionDiagnosticKind, ResolutionPlan,
@@ -337,34 +339,6 @@ fn glob_logical_anchor(expression: &str) -> PathBuf {
         None => expression,
     };
     PathBuf::from(unescape_glob_literal(anchor))
-}
-
-fn first_unescaped_glob(expression: &str) -> Option<usize> {
-    let bytes = expression.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index..].starts_with(b"[[]")
-            || bytes[index..].starts_with(b"[]]")
-            || bytes[index..].starts_with(b"[*]")
-            || bytes[index..].starts_with(b"[?]")
-        {
-            index += 3;
-            continue;
-        }
-        if matches!(bytes[index], b'*' | b'?' | b'[') {
-            return Some(index);
-        }
-        index += 1;
-    }
-    None
-}
-
-fn unescape_glob_literal(value: &str) -> String {
-    value
-        .replace("[[]", "[")
-        .replace("[]]", "]")
-        .replace("[*]", "*")
-        .replace("[?]", "?")
 }
 
 fn replace_path(

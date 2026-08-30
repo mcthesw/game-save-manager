@@ -200,6 +200,7 @@ impl ServiceContext {
             SaveUnitSource::ManifestPattern {
                 pattern,
                 constraints,
+                ..
             } => {
                 let context = resolution_context(config, game, device_id);
                 let parsed = match parse_manifest_path_pattern(pattern.raw()) {
@@ -457,7 +458,7 @@ fn resolve_concrete(
         },
         candidates: vec![CandidateExpression {
             id: "concrete".to_string(),
-            expression: resolved.to_string_lossy().into_owned(),
+            expression: globset::escape(&resolved.to_string_lossy()),
             logical_anchor: source
                 .parent()
                 .unwrap_or(source)
@@ -553,6 +554,25 @@ mod concrete_tests {
             PathBuf::from(&report.locations[0].path),
             temp.path().join("save.dat")
         );
+    }
+
+    #[test]
+    fn concrete_candidate_escapes_glob_characters_but_keeps_the_literal_target() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let save = temp.path().join("Games[Main]").join("slot*.sav");
+        let path = save.to_string_lossy().into_owned();
+
+        let report = resolve_concrete(
+            Some(&path),
+            &SaveUnitType::File,
+            None,
+            ResolutionPurpose::Restore,
+        );
+
+        assert_eq!(report.candidates.len(), 1);
+        let candidate = &report.candidates[0];
+        assert!(candidate.is_exact());
+        assert_eq!(candidate.exact_target_path(), Some(save));
     }
 
     #[test]

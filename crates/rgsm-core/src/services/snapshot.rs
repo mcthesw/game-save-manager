@@ -1,7 +1,8 @@
 use crate::backup::{
-    ArchiveBackend, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions, CreatedBy, Game,
-    GameSnapshots, RestoreNotificationLevel, RestoreNotifier, RestorePlan, SevenZBackend,
-    TimerSnapshotDecision, ZipBackend, archive_file_name, snapshot_archive_path,
+    ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions,
+    CaptureSourceKind, CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier,
+    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend,
+    archive_file_name, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -206,26 +207,38 @@ impl ServiceContext {
             .await?;
 
         let snapshots = if snapshot.archive_format == ArchiveFormat::SevenZ {
-            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend)?;
-            let mut snapshots = game.get_game_snapshots_info()?;
-            snapshots.set_current_device_head(Some(date.to_string()));
-            game.set_game_snapshots_info(&snapshots)?;
-            snapshots
-        } else if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
-            self.restore_capture_archive(&config, game, &archive_path, &ZipBackend)?;
+            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)?;
             let mut snapshots = game.get_game_snapshots_info()?;
             snapshots.set_current_device_head(Some(date.to_string()));
             game.set_game_snapshots_info(&snapshots)?;
             snapshots
         } else {
-            let device = config.devices.get(crate::device::get_current_device_id());
-            let path_context = game.path_context(device);
-            game.restore_snapshot_with_context(
-                date,
-                notifier,
-                &resolve_backup_path(&config.backup_path),
-                &path_context,
-            )?
+            match ZipBackend.archive_version(&archive_path)? {
+                ArchiveVersion::V2 | ArchiveVersion::V3 => {
+                    self.restore_capture_archive(
+                        &config,
+                        game,
+                        &archive_path,
+                        &ZipBackend,
+                        notifier,
+                    )?;
+                    let mut snapshots = game.get_game_snapshots_info()?;
+                    snapshots.set_current_device_head(Some(date.to_string()));
+                    game.set_game_snapshots_info(&snapshots)?;
+                    snapshots
+                }
+                ArchiveVersion::Legacy | ArchiveVersion::V1 => {
+                    let device = config.devices.get(crate::device::get_current_device_id());
+                    let path_context = game.path_context(device);
+                    game.restore_snapshot_with_context(
+                        date,
+                        notifier,
+                        &resolve_backup_path(&config.backup_path),
+                        &path_context,
+                    )?
+                }
+                ArchiveVersion::V4 => unreachable!("Archive V4 uses the 7z backend"),
+            }
         };
 
         self.pipeline()
@@ -256,18 +269,28 @@ impl ServiceContext {
             folder.join(archive_file_name(date, ArchiveFormat::Zip))
         };
         if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
-            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend)
-        } else if ZipBackend.archive_version(&archive_path)? == ArchiveVersion::V3 {
-            self.restore_capture_archive(&config, game, &archive_path, &ZipBackend)
+            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)
         } else {
-            let device = config.devices.get(crate::device::get_current_device_id());
-            ZipBackend.decompress(
-                &game.save_paths,
-                &archive_path,
-                notifier,
-                Some(&game.path_context(device)),
-            )?;
-            Ok(())
+            match ZipBackend.archive_version(&archive_path)? {
+                ArchiveVersion::V2 | ArchiveVersion::V3 => self.restore_capture_archive(
+                    &config,
+                    game,
+                    &archive_path,
+                    &ZipBackend,
+                    notifier,
+                ),
+                ArchiveVersion::Legacy | ArchiveVersion::V1 => {
+                    let device = config.devices.get(crate::device::get_current_device_id());
+                    ZipBackend.decompress(
+                        &game.save_paths,
+                        &archive_path,
+                        notifier,
+                        Some(&game.path_context(device)),
+                    )?;
+                    Ok(())
+                }
+                ArchiveVersion::V4 => unreachable!("Archive V4 uses the 7z backend"),
+            }
         }
     }
 
@@ -277,8 +300,12 @@ impl ServiceContext {
         game: &Game,
         archive_path: &std::path::Path,
         backend: &dyn ArchiveBackend,
+        notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
-        let manifest = backend.read_capture_manifest(archive_path)?;
+        let mut manifest = backend.read_capture_manifest(archive_path)?;
+        if manifest.version == 2 {
+            apply_legacy_v2_save_unit_metadata(&mut manifest.groups, &game.save_paths);
+        }
         let reports = game
             .save_paths
             .iter()
@@ -295,7 +322,25 @@ impl ServiceContext {
             .get(crate::device::get_current_device_id())
             .map(|binding| binding.restore_mappings.as_slice())
             .unwrap_or_default();
-        let plan = RestorePlan::build(&manifest.groups, &reports, rules)?;
+        let plan = if manifest.version == 2 {
+            RestorePlan::build_legacy_v2(&manifest.groups, &reports, rules)?
+        } else {
+            RestorePlan::build(&manifest.groups, &reports, rules)?
+        };
+        if let Some(notifier) = notifier {
+            for save_unit_id in &plan.skipped_inactive_save_unit_ids {
+                notifier.notify(
+                    RestoreNotificationLevel::Warning,
+                    rust_i18n::t!("backend.archive.restore_skipped_title").as_ref(),
+                    rust_i18n::t!(
+                        "backend.archive.restore_unit_skipped",
+                        unit = save_unit_id,
+                        reason = rust_i18n::t!("backend.archive.skip_reason_inactive_save_unit")
+                    )
+                    .as_ref(),
+                );
+            }
+        }
         backend.restore_capture_plan(&plan, archive_path)?;
         Ok(())
     }
@@ -519,9 +564,46 @@ fn retain_first_error(first_error: &mut Option<BackupError>, result: Result<(), 
     }
 }
 
+/// Archive V2 stores stable save-unit IDs but no type metadata. Its entry
+/// shape is only a fallback for dynamic patterns; concrete save units retain
+/// their declared type as the restore authority.
+fn apply_legacy_v2_save_unit_metadata(groups: &mut [ArchiveCaptureGroup], units: &[SaveUnit]) {
+    for group in groups {
+        let Some(unit) = units.iter().find(|unit| unit.id == group.save_unit_id) else {
+            continue;
+        };
+        group.delete_before_apply = unit.delete_before_apply;
+        group.kind = match unit.unit_type() {
+            Some(SaveUnitType::File) => CaptureSourceKind::File,
+            Some(SaveUnitType::Folder) => CaptureSourceKind::Directory,
+            Some(SaveUnitType::WinRegistry) => CaptureSourceKind::Registry,
+            None => group.kind,
+        };
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
+    use crate::backup::SaveUnitSource;
+    use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
+    use crate::path_resolution::CandidateDimensions;
+
+    fn legacy_v2_group(kind: CaptureSourceKind) -> ArchiveCaptureGroup {
+        ArchiveCaptureGroup {
+            id: 0,
+            save_unit_id: 12,
+            candidate_id: "legacy-v2".to_string(),
+            dimensions: CandidateDimensions::default(),
+            relative_path: String::new(),
+            archive_path: "12/registry.reg".to_string(),
+            kind,
+            delete_before_apply: false,
+            source_path_diagnostic: None,
+        }
+    }
 
     #[test]
     fn batch_error_state_retains_the_first_failure() {
@@ -531,5 +613,62 @@ mod tests {
         retain_first_error(&mut first_error, Err(BackupError::NoBackupAvailable));
 
         assert!(matches!(first_error, Some(BackupError::NoDataMatched)));
+    }
+
+    #[test]
+    fn legacy_v2_concrete_type_overrides_archive_filename_inference() {
+        let mut groups = vec![legacy_v2_group(CaptureSourceKind::Registry)];
+        let units = vec![SaveUnit::concrete(
+            12,
+            SaveUnitType::File,
+            HashMap::new(),
+            true,
+            true,
+        )];
+
+        apply_legacy_v2_save_unit_metadata(&mut groups, &units);
+
+        assert_eq!(groups[0].kind, CaptureSourceKind::File);
+        assert!(groups[0].delete_before_apply);
+    }
+
+    #[test]
+    fn legacy_v2_dynamic_pattern_keeps_archive_shape_inference() {
+        let mut groups = vec![legacy_v2_group(CaptureSourceKind::Directory)];
+        let units = vec![SaveUnit {
+            id: 12,
+            source: SaveUnitSource::ManifestPattern {
+                expected_type: None,
+                pattern: ManifestPathPattern::new("<home>/Saves/*"),
+                constraints: ManifestPathConstraints::default(),
+            },
+            delete_before_apply: true,
+            enabled: true,
+        }];
+
+        apply_legacy_v2_save_unit_metadata(&mut groups, &units);
+
+        assert_eq!(groups[0].kind, CaptureSourceKind::Directory);
+        assert!(groups[0].delete_before_apply);
+    }
+
+    #[test]
+    fn legacy_v2_typed_pattern_preserves_declared_folder_kind() {
+        let mut groups = vec![legacy_v2_group(CaptureSourceKind::File)];
+        let units = vec![SaveUnit {
+            id: 12,
+            source: SaveUnitSource::ManifestPattern {
+                expected_type: Some(SaveUnitType::Folder),
+                pattern: ManifestPathPattern::new("<root>/Saved"),
+                constraints: ManifestPathConstraints::default(),
+            },
+            delete_before_apply: true,
+            enabled: true,
+        }];
+
+        apply_legacy_v2_save_unit_metadata(&mut groups, &units);
+
+        assert_eq!(groups[0].kind, CaptureSourceKind::Directory);
+        assert!(groups[0].delete_before_apply);
     }
 }

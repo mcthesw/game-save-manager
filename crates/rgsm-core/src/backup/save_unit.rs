@@ -27,6 +27,11 @@ pub enum SaveUnitSource {
         paths: HashMap<DeviceId, String>,
     },
     ManifestPattern {
+        /// Optional kind declared by the source that introduced the pattern.
+        /// Legacy configurations always provide it; manifest imports may leave
+        /// it unresolved and rely on the matched filesystem entry instead.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_type: Option<SaveUnitType>,
         pattern: ManifestPathPattern,
         #[serde(default)]
         constraints: ManifestPathConstraints,
@@ -34,8 +39,8 @@ pub enum SaveUnitSource {
 }
 
 /// A save unit declares one concrete per-Device location or one portable
-/// Manifest Path Pattern. Dynamic patterns deliberately do not guess whether
-/// their future matches will be files or directories.
+/// Manifest Path Pattern. A pattern preserves a known source kind when one was
+/// declared, while imported patterns may defer the kind to each resolved match.
 #[derive(Debug, Serialize, Clone, Type, utoipa::ToSchema)]
 pub struct SaveUnit {
     #[serde(default)]
@@ -163,7 +168,7 @@ impl SaveUnit {
     pub fn unit_type(&self) -> Option<&SaveUnitType> {
         match &self.source {
             SaveUnitSource::Concrete { unit_type, .. } => Some(unit_type),
-            SaveUnitSource::ManifestPattern { .. } => None,
+            SaveUnitSource::ManifestPattern { expected_type, .. } => expected_type.as_ref(),
         }
     }
 
@@ -179,6 +184,7 @@ impl SaveUnit {
             SaveUnitSource::ManifestPattern {
                 pattern,
                 constraints,
+                ..
             } => Some((pattern, constraints)),
             SaveUnitSource::Concrete { .. } => None,
         }
@@ -266,10 +272,11 @@ mod tests {
     }
 
     #[test]
-    fn manifest_pattern_has_no_concrete_type_or_device_paths() {
+    fn manifest_pattern_preserves_declared_type_without_concrete_paths() {
         let unit = SaveUnit {
             id: 1,
             source: SaveUnitSource::ManifestPattern {
+                expected_type: Some(SaveUnitType::File),
                 pattern: ManifestPathPattern::new("<home>/*.sav"),
                 constraints: ManifestPathConstraints::default(),
             },
@@ -277,9 +284,18 @@ mod tests {
             enabled: true,
         };
 
-        assert!(unit.unit_type().is_none());
+        assert_eq!(unit.unit_type(), Some(&SaveUnitType::File));
         assert!(unit.paths().is_none());
         assert_eq!(unit.manifest_pattern().unwrap().0.raw(), "<home>/*.sav");
+
+        let serialized = serde_json::to_value(&unit).unwrap();
+        assert_eq!(
+            serialized.pointer("/source/expected_type"),
+            Some(&serde_json::json!("File"))
+        );
+
+        let round_trip: SaveUnit = serde_json::from_value(serialized).unwrap();
+        assert_eq!(round_trip.unit_type(), Some(&SaveUnitType::File));
     }
 
     #[test]

@@ -4,20 +4,23 @@
 //! between `MIN_SUPPORTED_VERSION` and the latest release tag. Releases that serialize the
 //! same shape share a fixture; unreleased schemas do not define compatibility promises.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::Write;
+use std::sync::Arc;
 
 use serde_json::Value;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 use rgsm_core::backup::{
-    ArchiveBackend, ArchiveFormat, CreatedBy, GameSnapshots, SaveUnit, SaveUnitSource,
+    ArchiveBackend, ArchiveFormat, CreatedBy, GameSnapshots, RestorePlan, SaveUnit, SaveUnitSource,
     SaveUnitType, ZipBackend,
 };
 use rgsm_core::config::Config;
 use rgsm_core::device::get_current_device_id;
+use rgsm_core::hooks::HookPipeline;
 use rgsm_core::preclude::UpdaterError;
+use rgsm_core::services::ServiceContext;
 use rgsm_core::updater::migration::update_config;
 use rgsm_core::updater::versions::{CURRENT_VERSION, MIN_SUPPORTED_VERSION};
 
@@ -452,5 +455,67 @@ fn direct_upgrade_contract_rejects_versions_outside_the_supported_range()
         update_config(&config_path).unwrap_err(),
         UpdaterError::Deserialize(_)
     ));
+    Ok(())
+}
+
+#[test]
+fn dynamic_v1_8_folder_restores_its_v2_archive_after_upgrade()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = temp_dir::TempDir::new()?;
+    let config_path = temp.path().join("GameSaveManager.config.json");
+    let backup_path = temp.path().join("save_data");
+    let game_root = temp.path().join("game-root[legacy]");
+    let target = game_root.join("Saved");
+    fs::create_dir_all(&target)?;
+    fs::write(target.join("profile.sav"), b"current-save")?;
+
+    let device_id = get_current_device_id().clone();
+    let mut raw: Value = serde_json::from_str(STABLE_SAVE_UNIT_IDS)?;
+    raw["backup_path"] = Value::String(backup_path.to_string_lossy().into_owned());
+    raw["games"][0]["save_paths"][1]["paths"] =
+        serde_json::json!({(device_id.clone()): "<root>/Saved"});
+    raw["games"][0]["game_paths"] = serde_json::json!({
+        (device_id.clone()): game_root.join("game.exe").to_string_lossy()
+    });
+    raw["devices"] = serde_json::json!({
+        (device_id.clone()): {
+            "id": device_id,
+            "name": "Upgrade device",
+            "game_roots": [game_root.to_string_lossy()]
+        }
+    });
+
+    let game_name = raw["games"][0]["name"].as_str().unwrap();
+    seed_released_save_data(
+        &backup_path,
+        game_name,
+        ReleasedSaveData::V1_8IdPrefixedFolder,
+    )?;
+    fs::write(&config_path, serde_json::to_vec_pretty(&raw)?)?;
+    assert!(update_config(&config_path)?);
+
+    let config: Config = serde_json::from_slice(&fs::read(&config_path)?)?;
+    let game = &config.games[0];
+    let unit = &game.save_paths[1];
+    assert!(matches!(
+        unit.source,
+        SaveUnitSource::ManifestPattern {
+            expected_type: Some(SaveUnitType::Folder),
+            ..
+        }
+    ));
+
+    let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+    let reports = BTreeMap::from([(unit.id, service.resolve_save_unit(&config, game, unit))]);
+    let archive = backup_path
+        .join(game.backup_dir_name().as_ref())
+        .join(format!("{RELEASED_SNAPSHOT_DATE}.zip"));
+    let mut manifest = ZipBackend.read_capture_manifest(&archive)?;
+    manifest.groups[0].delete_before_apply = unit.delete_before_apply;
+    let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports, &[])?;
+
+    ZipBackend.restore_capture_plan(&plan, &archive)?;
+
+    assert_eq!(fs::read(target.join("profile.sav"))?, RELEASED_SAVE_CONTENT);
     Ok(())
 }

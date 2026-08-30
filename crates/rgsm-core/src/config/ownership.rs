@@ -86,6 +86,8 @@ pub enum SharedSaveUnitSource {
         unit_type: SaveUnitType,
     },
     ManifestPattern {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expected_type: Option<SaveUnitType>,
         pattern: ManifestPathPattern,
         constraints: ManifestPathConstraints,
     },
@@ -563,9 +565,11 @@ impl ConfigurationOwners {
                         }
                     }
                     SharedSaveUnitSource::ManifestPattern {
+                        expected_type,
                         pattern,
                         constraints,
                     } => SaveUnitSource::ManifestPattern {
+                        expected_type: expected_type.clone(),
                         pattern: pattern.clone(),
                         constraints: constraints.clone(),
                     },
@@ -715,9 +719,11 @@ impl From<&SaveUnit> for SharedSaveUnit {
                 unit_type: unit_type.clone(),
             },
             SaveUnitSource::ManifestPattern {
+                expected_type,
                 pattern,
                 constraints,
             } => SharedSaveUnitSource::ManifestPattern {
+                expected_type: expected_type.clone(),
                 pattern: pattern.clone(),
                 constraints: constraints.clone(),
             },

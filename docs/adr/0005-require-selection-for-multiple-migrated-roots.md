@@ -2,8 +2,10 @@
 
 Status: accepted
 
-Legacy game roots migrate into typed Device Resources, but the old resolver's
-implicit use of the first root is not promoted to an explicit Game Device
-Binding. One applicable root remains implicitly unique; multiple roots become
-ambiguous and require the player to choose. This may pause an existing automatic
-backup, but avoids preserving a path the player never explicitly confirmed.
+Legacy game roots migrate into typed Device Resources. When a legacy pattern
+uses `<root>` and its Device declared exactly one game root, migration preserves
+that uniquely implied choice as a Game Device Binding so later auto-detected
+resources cannot make the upgraded path ambiguous. Multiple legacy roots remain
+ambiguous and require the player to choose; the old resolver's implicit use of
+the first root is never promoted. This may pause an existing automatic backup,
+but avoids preserving a path the player never explicitly confirmed.
