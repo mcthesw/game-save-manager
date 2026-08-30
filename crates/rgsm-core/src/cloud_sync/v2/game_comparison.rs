@@ -131,6 +131,7 @@ mod tests {
                 SharedSaveUnit {
                     id: 2,
                     source: SharedSaveUnitSource::ManifestPattern {
+                        expected_type: None,
                         pattern: crate::path_pattern::ManifestPathPattern::new("<home>/save"),
                         constraints: ManifestPathConstraints {
                             alternatives: vec![

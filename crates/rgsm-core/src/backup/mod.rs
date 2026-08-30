@@ -16,6 +16,7 @@ pub mod storage_key;
 mod tests;
 mod utils;
 
+pub(crate) use archive::ArchiveCaptureGroup;
 pub use archive::{
     ArchiveBackend, ArchiveVersion, CompressionPreset, RestoreNotificationLevel, RestoreNotifier,
     SevenZBackend, ZipBackend, archive_file_name, archive_path, remote_archive_path,

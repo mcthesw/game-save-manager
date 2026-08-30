@@ -1147,6 +1147,7 @@
             "restore_unit_skipped": "存档单元「%{unit}」已跳过：%{reason}",
             "skip_reason_legacy_format": "存档格式早于索引前缀格式",
             "skip_reason_missing_entry": "在存档中未找到",
+            "skip_reason_inactive_save_unit": "该存档单元已禁用或不再存在于当前配置中",
             "skip_reason_unsupported_platform": "当前平台不支持注册表操作"
         }
     },

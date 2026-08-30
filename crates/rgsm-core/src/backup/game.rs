@@ -128,9 +128,14 @@ fn save_unit_identity(source: &crate::backup::SaveUnitSource) -> String {
             format!("concrete:{unit_type:?}|{paths_key}")
         }
         crate::backup::SaveUnitSource::ManifestPattern {
+            expected_type,
             pattern,
             constraints,
-        } => format!("manifest:{}|{:?}", pattern.raw(), constraints.alternatives),
+        } => format!(
+            "manifest:{expected_type:?}|{}|{:?}",
+            pattern.raw(),
+            constraints.alternatives
+        ),
     }
 }
 

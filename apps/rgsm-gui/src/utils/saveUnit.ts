@@ -34,7 +34,9 @@ export function saveUnitPaths(unit: Unit): Partial<Record<string, string>> | und
 }
 
 export function saveUnitType(unit: Unit): SaveUnitType | undefined {
-  return unit.source.type === 'concrete' ? unit.source.unit_type : undefined;
+  return unit.source.type === 'concrete'
+    ? unit.source.unit_type
+    : (unit.source.expected_type ?? undefined);
 }
 
 export function saveUnitPattern(unit: Unit): string | undefined {

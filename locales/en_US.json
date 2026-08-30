@@ -1147,6 +1147,7 @@
             "restore_unit_skipped": "Save unit \"%{unit}\" was skipped: %{reason}",
             "skip_reason_legacy_format": "archive predates the index-prefix format",
             "skip_reason_missing_entry": "not found in archive",
+            "skip_reason_inactive_save_unit": "the save unit is disabled or no longer configured",
             "skip_reason_unsupported_platform": "registry operations not supported on this platform"
         }
     },

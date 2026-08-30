@@ -1213,8 +1213,8 @@ export type SaveRestoreMappingRequest = {
 
 /**
  * A save unit declares one concrete per-Device location or one portable
- * Manifest Path Pattern. Dynamic patterns deliberately do not guess whether
- * their future matches will be files or directories.
+ * Manifest Path Pattern. A pattern preserves a known source kind when one was
+ * declared, while imported patterns may defer the kind to each resolved match.
  */
 export type SaveUnit = {
   delete_before_apply?: boolean;
@@ -1240,6 +1240,7 @@ export type SaveUnitSource =
     }
   | {
       constraints?: ManifestPathConstraints;
+      expected_type?: null | SaveUnitType;
       pattern: ManifestPathPattern;
       type: 'manifestPattern';
     };

@@ -4,6 +4,7 @@
 //! V2 archives have index-prefixed entries that are mapped back to save units by stable ID.
 
 use std::{
+    collections::BTreeMap,
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
@@ -37,8 +38,8 @@ pub trait RestoreNotifier: Send + Sync {
 }
 
 use super::{
-    ArchiveManifestV3, V3_MANIFEST_ENTRY, timestamp::zip_datetime_to_system_time,
-    version::ArchiveVersion,
+    ArchiveCaptureGroup, ArchiveManifestV3, V3_MANIFEST_ENTRY,
+    timestamp::zip_datetime_to_system_time, version::ArchiveVersion,
 };
 
 pub(super) fn archive_version(archive_path: &Path) -> Result<ArchiveVersion, CompressError> {
@@ -53,16 +54,93 @@ pub(super) fn read_capture_manifest(
     let file = File::open(archive_path).map_err(|error| CompressError::Single(error.into()))?;
     let mut zip =
         zip::ZipArchive::new(file).map_err(|error| CompressError::Single(error.into()))?;
-    if ArchiveVersion::from_comment(zip.comment()) != ArchiveVersion::V3 {
+    match ArchiveVersion::from_comment(zip.comment()) {
+        ArchiveVersion::V2 => read_v2_capture_manifest(&mut zip),
+        ArchiveVersion::V3 => serde_json::from_reader(
+            zip.by_name(V3_MANIFEST_ENTRY)
+                .map_err(|error| CompressError::Single(error.into()))?,
+        )
+        .map_err(|error| CompressError::Single(BackupFileError::Unexpected(error.into()))),
+        _ => Err(CompressError::Single(BackupFileError::Unexpected(
+            anyhow::anyhow!("capture manifest requested from an archive without save-unit IDs"),
+        ))),
+    }
+}
+
+fn read_v2_capture_manifest(
+    zip: &mut zip::ZipArchive<File>,
+) -> Result<ArchiveManifestV3, CompressError> {
+    #[derive(Default)]
+    struct LegacyGroup {
+        root: Option<String>,
+        directory: bool,
+    }
+
+    let mut units = BTreeMap::<u32, LegacyGroup>::new();
+    for index in 0..zip.len() {
+        let entry = zip
+            .by_index(index)
+            .map_err(|error| CompressError::Single(error.into()))?;
+        let Some(path) = entry.enclosed_name() else {
+            continue;
+        };
+        let mut components = path.components();
+        let Some(std::path::Component::Normal(unit)) = components.next() else {
+            continue;
+        };
+        let Some(std::path::Component::Normal(root)) = components.next() else {
+            continue;
+        };
+        let Some(unit) = unit.to_str().and_then(|value| value.parse::<u32>().ok()) else {
+            continue;
+        };
+        let root = root.to_string_lossy().into_owned();
+        let group = units.entry(unit).or_default();
+        if group
+            .root
+            .as_deref()
+            .is_some_and(|existing| existing != root)
+        {
+            return Err(CompressError::Single(BackupFileError::Unexpected(
+                anyhow::anyhow!("Archive V2 save unit {unit} contains multiple roots"),
+            )));
+        }
+        group.root = Some(root);
+        group.directory |= entry.is_dir() || components.next().is_some();
+    }
+
+    let groups = units
+        .into_iter()
+        .filter_map(|(save_unit_id, group)| {
+            let root = group.root?;
+            let kind = if root == crate::backup::registry::REGISTRY_DATA_FILENAME
+                || root == crate::backup::registry::LEGACY_REGISTRY_DATA_FILENAME
+            {
+                CaptureSourceKind::Registry
+            } else if group.directory {
+                CaptureSourceKind::Directory
+            } else {
+                CaptureSourceKind::File
+            };
+            Some(ArchiveCaptureGroup {
+                id: 0,
+                save_unit_id,
+                candidate_id: "legacy-v2".to_string(),
+                dimensions: Default::default(),
+                relative_path: String::new(),
+                archive_path: format!("{save_unit_id}/{root}"),
+                kind,
+                delete_before_apply: false,
+                source_path_diagnostic: None,
+            })
+        })
+        .collect::<Vec<_>>();
+    if groups.is_empty() {
         return Err(CompressError::Single(BackupFileError::Unexpected(
-            anyhow::anyhow!("capture manifest requested from a non-V3 archive"),
+            anyhow::anyhow!("Archive V2 contains no save-unit entries"),
         )));
     }
-    serde_json::from_reader(
-        zip.by_name(V3_MANIFEST_ENTRY)
-            .map_err(|error| CompressError::Single(error.into()))?,
-    )
-    .map_err(|error| CompressError::Single(BackupFileError::Unexpected(error.into())))
+    Ok(ArchiveManifestV3 { version: 2, groups })
 }
 
 pub(super) fn restore_capture_plan(
@@ -597,8 +675,105 @@ mod tests {
 
     use filetime::{FileTime, set_file_mtime};
 
-    use super::save_unit_label;
-    use crate::backup::{SaveUnit, SaveUnitType};
+    use super::{read_capture_manifest, save_unit_label};
+    use crate::backup::{CaptureSourceKind, SaveUnit, SaveUnitType};
+
+    #[test]
+    fn v2_entries_form_a_capture_manifest_without_config_state() {
+        use std::io::Write;
+
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("legacy-v2.zip");
+        let mut writer = zip::ZipWriter::new(std::fs::File::create(&archive).unwrap());
+        writer.set_comment("RGSM_ARCHIVE_V2\n{\"version\":2,\"compression\":\"zip\"}");
+        let options = zip::write::SimpleFileOptions::default();
+        writer.start_file("7/Saved/profile.sav", options).unwrap();
+        writer.write_all(b"folder").unwrap();
+        writer.start_file("8/slot.sav", options).unwrap();
+        writer.write_all(b"file").unwrap();
+        writer.start_file("9/registry.reg", options).unwrap();
+        writer.write_all(b"registry").unwrap();
+        writer.finish().unwrap();
+
+        let manifest = read_capture_manifest(&archive).unwrap();
+
+        assert_eq!(manifest.version, 2);
+        assert_eq!(manifest.groups.len(), 3);
+        assert_eq!(manifest.groups[0].archive_path, "7/Saved");
+        assert_eq!(manifest.groups[0].kind, CaptureSourceKind::Directory);
+        assert_eq!(manifest.groups[1].kind, CaptureSourceKind::File);
+        assert_eq!(manifest.groups[2].kind, CaptureSourceKind::Registry);
+    }
+
+    #[test]
+    fn v2_manifest_rejects_multiple_roots_for_one_save_unit() {
+        use std::io::Write;
+
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("ambiguous-v2.zip");
+        let mut writer = zip::ZipWriter::new(std::fs::File::create(&archive).unwrap());
+        writer.set_comment("RGSM_ARCHIVE_V2\n{\"version\":2,\"compression\":\"zip\"}");
+        let options = zip::write::SimpleFileOptions::default();
+        writer.start_file("7/a.sav", options).unwrap();
+        writer.write_all(b"a").unwrap();
+        writer.start_file("7/b.sav", options).unwrap();
+        writer.write_all(b"b").unwrap();
+        writer.finish().unwrap();
+
+        assert!(read_capture_manifest(&archive).is_err());
+    }
+
+    #[test]
+    fn v2_restore_decodes_escaped_literals_before_writing_target() {
+        use std::collections::BTreeMap;
+        use std::io::Write;
+
+        use crate::backup::{ArchiveBackend, RestorePlan, ZipBackend};
+        use crate::path_resolution::{
+            CandidateDimensions, CandidateExpression, ResolutionReport, ResolutionSelectionState,
+        };
+
+        let temp = temp_dir::TempDir::new().unwrap();
+        let archive = temp.path().join("legacy-v2.zip");
+        let target = temp.path().join("Games[Main]").join("Saved");
+        let mut writer = zip::ZipWriter::new(fs::File::create(&archive).unwrap());
+        writer.set_comment("RGSM_ARCHIVE_V2\n{\"version\":2,\"compression\":\"zip\"}");
+        writer
+            .start_file(
+                "7/Saved/profile.sav",
+                zip::write::SimpleFileOptions::default(),
+            )
+            .unwrap();
+        writer.write_all(b"captured").unwrap();
+        writer.finish().unwrap();
+
+        let manifest = read_capture_manifest(&archive).unwrap();
+        let expression = globset::escape(&target.to_string_lossy().replace('\\', "/"));
+        let reports = BTreeMap::from([(
+            7,
+            ResolutionReport {
+                raw_pattern: "<root>/Saved".to_string(),
+                selection_state: ResolutionSelectionState::ImplicitUnique {
+                    candidate_id: "root".to_string(),
+                },
+                candidates: vec![CandidateExpression {
+                    id: "root".to_string(),
+                    expression,
+                    logical_anchor: target.parent().unwrap().to_string_lossy().into_owned(),
+                    dimensions: CandidateDimensions::default(),
+                    case_sensitive: false,
+                }],
+                locations: Vec::new(),
+                diagnostics: Vec::new(),
+            },
+        )]);
+        let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports, &[]).unwrap();
+
+        ZipBackend.restore_capture_plan(&plan, &archive).unwrap();
+
+        assert_eq!(fs::read(target.join("profile.sav")).unwrap(), b"captured");
+        assert!(!temp.path().join("Games[[]Main[]]").exists());
+    }
 
     #[test]
     fn v3_restore_plan_extracts_only_approved_target() {
@@ -639,6 +814,7 @@ mod tests {
                 kind: CaptureSourceKind::File,
                 delete_before_apply: true,
             }],
+            skipped_inactive_save_unit_ids: Vec::new(),
         };
 
         ZipBackend.restore_capture_plan(&restore, &archive).unwrap();
@@ -667,6 +843,7 @@ mod tests {
                 kind: CaptureSourceKind::File,
                 delete_before_apply: true,
             }],
+            skipped_inactive_save_unit_ids: Vec::new(),
         };
 
         assert!(super::restore_capture_plan(&restore, &archive).is_err());
@@ -720,6 +897,7 @@ mod tests {
                         kind: CaptureSourceKind::Directory,
                         delete_before_apply: false,
                     }],
+                    skipped_inactive_save_unit_ids: Vec::new(),
                 },
                 &archive,
             )

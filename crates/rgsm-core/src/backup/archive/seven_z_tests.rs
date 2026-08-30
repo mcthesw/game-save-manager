@@ -38,6 +38,7 @@ fn restore_plan(target: &Path, kind: CaptureSourceKind) -> RestorePlan {
             kind,
             delete_before_apply: false,
         }],
+        skipped_inactive_save_unit_ids: Vec::new(),
     }
 }
 
@@ -361,6 +362,7 @@ fn missing_planned_entry_is_rejected_before_target_deletion() {
             kind: CaptureSourceKind::File,
             delete_before_apply: true,
         }],
+        skipped_inactive_save_unit_ids: Vec::new(),
     };
 
     assert!(restore_capture_plan(&plan, &archive).is_err());

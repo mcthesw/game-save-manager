@@ -108,6 +108,48 @@ pub struct CandidateExpression {
     pub case_sensitive: bool,
 }
 
+impl CandidateExpression {
+    pub fn is_exact(&self) -> bool {
+        first_unescaped_glob(&self.expression).is_none()
+    }
+
+    /// Return the concrete path represented by an exact candidate expression.
+    /// Glob escaping is an expression-level concern and must not leak into the
+    /// filesystem target used by restore operations.
+    pub fn exact_target_path(&self) -> Option<PathBuf> {
+        self.is_exact()
+            .then(|| PathBuf::from(unescape_glob_literal(&self.expression)))
+    }
+}
+
+pub(super) fn unescape_glob_literal(value: &str) -> String {
+    value
+        .replace("[[]", "[")
+        .replace("[]]", "]")
+        .replace("[*]", "*")
+        .replace("[?]", "?")
+}
+
+pub(super) fn first_unescaped_glob(expression: &str) -> Option<usize> {
+    let bytes = expression.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"[[]")
+            || bytes[index..].starts_with(b"[]]")
+            || bytes[index..].starts_with(b"[*]")
+            || bytes[index..].starts_with(b"[?]")
+        {
+            index += 3;
+            continue;
+        }
+        if matches!(bytes[index], b'*' | b'?' | b'[') {
+            return Some(index);
+        }
+        index += 1;
+    }
+    None
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum ResolutionSelectionState {
@@ -202,4 +244,45 @@ pub struct ResolutionReport {
     pub candidates: Vec<CandidateExpression>,
     pub locations: Vec<ResolvedSaveLocation>,
     pub diagnostics: Vec<ResolutionDiagnostic>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidate(expression: &str, logical_anchor: &str) -> CandidateExpression {
+        CandidateExpression {
+            id: "candidate".to_string(),
+            expression: expression.to_string(),
+            logical_anchor: logical_anchor.to_string(),
+            dimensions: CandidateDimensions::default(),
+            case_sensitive: false,
+        }
+    }
+
+    #[test]
+    fn exactness_depends_on_unescaped_globs_not_the_logical_anchor() {
+        assert!(candidate("C:/Users/Player/Saved", "C:/Users/Player").is_exact());
+        assert!(!candidate("C:/Users/Player/*.sav", "C:/Users/Player").is_exact());
+    }
+
+    #[test]
+    fn exact_target_decodes_escaped_glob_literals() {
+        let exact = candidate("C:/Games[[]Main[]]/slot[*]-answer[?].sav", "C:/Games[Main]");
+
+        assert_eq!(
+            exact.exact_target_path(),
+            Some(PathBuf::from("C:/Games[Main]/slot*-answer?.sav"))
+        );
+        assert_eq!(
+            candidate("C:/Games/*.sav", "C:/Games").exact_target_path(),
+            None
+        );
+    }
+
+    #[test]
+    fn escaped_glob_characters_are_exact_path_literals() {
+        assert!(candidate("D:/Games[[]Main[]]/slot[*].sav", "D:/Games[Main]").is_exact());
+        assert!(!candidate("D:/Games[[]Main[]]/slot[0-9].sav", "D:/Games[Main]").is_exact());
+    }
 }

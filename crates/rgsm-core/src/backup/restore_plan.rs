@@ -21,6 +21,7 @@ pub struct RestoreEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RestorePlan {
     pub entries: Vec<RestoreEntry>,
+    pub skipped_inactive_save_unit_ids: Vec<u32>,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -37,6 +38,12 @@ pub enum RestorePlanError {
         group_id: u32,
         source_dimensions: crate::path_resolution::CandidateDimensions,
     },
+    #[error(
+        "legacy archive cannot restore wildcard save location for save unit {save_unit_id}, capture group {group_id}"
+    )]
+    LegacyWildcardTarget { save_unit_id: u32, group_id: u32 },
+    #[error("archive has no active target save units: {save_unit_ids:?}")]
+    NoActiveTargetSaveUnits { save_unit_ids: Vec<u32> },
 }
 
 impl RestorePlan {
@@ -46,46 +53,13 @@ impl RestorePlan {
         rules: &[RestoreMappingRule],
     ) -> Result<Self, RestorePlanError> {
         let mut entries = Vec::new();
+        let mut skipped = std::collections::BTreeSet::new();
         for group in groups {
             let Some(report) = reports.get(&group.save_unit_id) else {
+                skipped.insert(group.save_unit_id);
                 continue;
             };
-            let source_group_count = groups
-                .iter()
-                .filter(|candidate| candidate.save_unit_id == group.save_unit_id)
-                .count();
-            let candidates = report.candidates.as_slice();
-            let rule = rules.iter().find(|rule| {
-                rule.save_unit_id == group.save_unit_id
-                    && rule.source_dimensions == group.dimensions
-            });
-            let selected = if let Some(rule) = rule {
-                let selected = candidates
-                    .iter()
-                    .filter(|candidate| rule.target_candidate_ids.contains(&candidate.id))
-                    .collect::<Vec<_>>();
-                if selected.len() != rule.target_candidate_ids.len() {
-                    return Err(RestorePlanError::StaleMapping {
-                        save_unit_id: group.save_unit_id,
-                        group_id: group.id,
-                        source_dimensions: group.dimensions.clone(),
-                    });
-                }
-                selected
-            } else if let Some(equivalent) = candidates
-                .iter()
-                .find(|candidate| candidate.dimensions == group.dimensions)
-            {
-                vec![equivalent]
-            } else if candidates.len() == 1 && source_group_count == 1 {
-                vec![&candidates[0]]
-            } else {
-                return Err(RestorePlanError::MappingRequired {
-                    save_unit_id: group.save_unit_id,
-                    group_id: group.id,
-                    source_dimensions: group.dimensions.clone(),
-                });
-            };
+            let selected = selected_candidates(group, groups, report, rules)?;
             for candidate in selected {
                 entries.push(RestoreEntry {
                     save_unit_id: group.save_unit_id,
@@ -98,15 +72,113 @@ impl RestorePlan {
                 });
             }
         }
-        Ok(Self { entries })
+        finish_plan(entries, skipped)
     }
+
+    /// Build targets for Archive V2, whose ID-prefixed entries predate the
+    /// embedded capture manifest. Exact current candidates are authoritative;
+    /// wildcard patterns are rejected because V2 does not record which match
+    /// produced the archived save unit.
+    pub fn build_legacy_v2(
+        groups: &[ArchiveCaptureGroup],
+        reports: &BTreeMap<u32, ResolutionReport>,
+        rules: &[RestoreMappingRule],
+    ) -> Result<Self, RestorePlanError> {
+        let mut entries = Vec::new();
+        let mut skipped = std::collections::BTreeSet::new();
+        for group in groups {
+            let Some(report) = reports.get(&group.save_unit_id) else {
+                skipped.insert(group.save_unit_id);
+                continue;
+            };
+            let selected = selected_candidates(group, groups, report, rules)?;
+            for candidate in selected {
+                let Some(target_path) = candidate.exact_target_path() else {
+                    return Err(RestorePlanError::LegacyWildcardTarget {
+                        save_unit_id: group.save_unit_id,
+                        group_id: group.id,
+                    });
+                };
+                entries.push(RestoreEntry {
+                    save_unit_id: group.save_unit_id,
+                    group_id: group.id,
+                    archive_path: group.archive_path.clone(),
+                    target_path,
+                    kind: group.kind,
+                    delete_before_apply: group.delete_before_apply,
+                });
+            }
+        }
+        finish_plan(entries, skipped)
+    }
+}
+
+fn finish_plan(
+    entries: Vec<RestoreEntry>,
+    skipped: std::collections::BTreeSet<u32>,
+) -> Result<RestorePlan, RestorePlanError> {
+    let skipped_inactive_save_unit_ids = skipped.into_iter().collect::<Vec<_>>();
+    if entries.is_empty() && !skipped_inactive_save_unit_ids.is_empty() {
+        return Err(RestorePlanError::NoActiveTargetSaveUnits {
+            save_unit_ids: skipped_inactive_save_unit_ids,
+        });
+    }
+    Ok(RestorePlan {
+        entries,
+        skipped_inactive_save_unit_ids,
+    })
+}
+
+fn selected_candidates<'a>(
+    group: &ArchiveCaptureGroup,
+    groups: &[ArchiveCaptureGroup],
+    report: &'a ResolutionReport,
+    rules: &[RestoreMappingRule],
+) -> Result<Vec<&'a crate::path_resolution::CandidateExpression>, RestorePlanError> {
+    let source_group_count = groups
+        .iter()
+        .filter(|candidate| candidate.save_unit_id == group.save_unit_id)
+        .count();
+    let candidates = report.candidates.as_slice();
+    let rule = rules.iter().find(|rule| {
+        rule.save_unit_id == group.save_unit_id && rule.source_dimensions == group.dimensions
+    });
+    if let Some(rule) = rule {
+        let selected = candidates
+            .iter()
+            .filter(|candidate| rule.target_candidate_ids.contains(&candidate.id))
+            .collect::<Vec<_>>();
+        if selected.len() != rule.target_candidate_ids.len() {
+            return Err(RestorePlanError::StaleMapping {
+                save_unit_id: group.save_unit_id,
+                group_id: group.id,
+                source_dimensions: group.dimensions.clone(),
+            });
+        }
+        return Ok(selected);
+    }
+    if let Some(equivalent) = candidates
+        .iter()
+        .find(|candidate| candidate.dimensions == group.dimensions)
+    {
+        return Ok(vec![equivalent]);
+    }
+    if candidates.len() == 1 && source_group_count == 1 {
+        return Ok(vec![&candidates[0]]);
+    }
+    Err(RestorePlanError::MappingRequired {
+        save_unit_id: group.save_unit_id,
+        group_id: group.id,
+        source_dimensions: group.dimensions.clone(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::path_resolution::{
-        CandidateDimensions, CandidateExpression, ResolutionSelectionState,
+        CandidateDimensions, CandidateExpression, ResolutionSelectionState, ResolvedLocationKind,
+        ResolvedSaveLocation,
     };
 
     fn group() -> ArchiveCaptureGroup {
@@ -228,7 +300,93 @@ mod tests {
 
     #[test]
     fn archived_groups_without_an_active_save_unit_are_skipped() {
-        let plan = RestorePlan::build(&[group()], &BTreeMap::new(), &[]).unwrap();
-        assert!(plan.entries.is_empty());
+        assert_eq!(
+            RestorePlan::build(&[group()], &BTreeMap::new(), &[]).unwrap_err(),
+            RestorePlanError::NoActiveTargetSaveUnits {
+                save_unit_ids: vec![7]
+            }
+        );
+    }
+
+    #[test]
+    fn inactive_groups_are_reported_when_active_groups_can_restore() {
+        let reports = BTreeMap::from([(7, report(&[("a", "C:/A")]))]);
+        let mut inactive = group();
+        inactive.save_unit_id = 8;
+
+        let plan = RestorePlan::build(&[group(), inactive], &reports, &[]).unwrap();
+
+        assert_eq!(plan.entries.len(), 1);
+        assert_eq!(plan.skipped_inactive_save_unit_ids, vec![8]);
+    }
+
+    #[test]
+    fn legacy_v2_uses_exact_candidate_as_restore_target() {
+        let mut legacy = group();
+        legacy.archive_path = "7/Saved".to_string();
+        legacy.kind = CaptureSourceKind::Directory;
+        let reports = BTreeMap::from([(
+            7,
+            ResolutionReport {
+                raw_pattern: "<home>/Saved".to_string(),
+                selection_state: ResolutionSelectionState::ImplicitUnique {
+                    candidate_id: "home".to_string(),
+                },
+                candidates: vec![CandidateExpression {
+                    id: "home".to_string(),
+                    expression: "C:/Users/Player/Saved".to_string(),
+                    logical_anchor: "C:/Users/Player".to_string(),
+                    dimensions: CandidateDimensions::default(),
+                    case_sensitive: false,
+                }],
+                locations: Vec::new(),
+                diagnostics: Vec::new(),
+            },
+        )]);
+
+        let plan = RestorePlan::build_legacy_v2(&[legacy], &reports, &[]).unwrap();
+
+        assert_eq!(
+            plan.entries[0].target_path,
+            PathBuf::from("C:/Users/Player/Saved")
+        );
+    }
+
+    #[test]
+    fn legacy_v2_rejects_wildcard_target_even_when_it_currently_matches() {
+        let reports = BTreeMap::from([(
+            7,
+            ResolutionReport {
+                raw_pattern: "<home>/*.sav".to_string(),
+                selection_state: ResolutionSelectionState::ImplicitUnique {
+                    candidate_id: "home".to_string(),
+                },
+                candidates: vec![CandidateExpression {
+                    id: "home".to_string(),
+                    expression: "C:/Users/Player/*.sav".to_string(),
+                    logical_anchor: "C:/Users/Player".to_string(),
+                    dimensions: CandidateDimensions::default(),
+                    case_sensitive: false,
+                }],
+                locations: vec![ResolvedSaveLocation {
+                    candidate_id: "home".to_string(),
+                    path: "C:/Users/Player/slot.sav".to_string(),
+                    kind: ResolvedLocationKind::File,
+                    logical_anchor: "C:/Users/Player".to_string(),
+                    dimensions: CandidateDimensions::default(),
+                }],
+                diagnostics: Vec::new(),
+            },
+        )]);
+
+        let error = RestorePlan::build_legacy_v2(&[group()], &reports, &[]).unwrap_err();
+
+        assert!(matches!(
+            error,
+            RestorePlanError::LegacyWildcardTarget {
+                save_unit_id: 7,
+                ..
+            }
+        ));
     }
 }
