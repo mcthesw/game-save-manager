@@ -7,6 +7,7 @@ import {
   canUploadSnapshot,
   cloudSnapshotOf,
   isRetentionProtectedDate,
+  isSnapshotOnDevice,
 } from './snapshotAvailability';
 
 /**
@@ -18,6 +19,7 @@ import {
 export function useSnapshotTransfers(deps: {
   game: Ref<Game>;
   cloudGame: Ref<CloudArchiveGameView | null>;
+  localCatalogDates: Ref<Set<string>>;
   activeTransfer: Ref<string>;
   retentionProtectedDates: Ref<Set<string>>;
   /** Currently selected rows (drives batch availability). */
@@ -29,6 +31,7 @@ export function useSnapshotTransfers(deps: {
   const {
     game,
     cloudGame,
+    localCatalogDates,
     activeTransfer,
     retentionProtectedDates,
     selected,
@@ -38,13 +41,19 @@ export function useSnapshotTransfers(deps: {
   const feedback = useFeedback();
 
   const selectedUploadable = computed(() =>
-    selected().filter((snapshot) => canUploadSnapshot(cloudGame.value, snapshot.date))
+    selected().filter((snapshot) =>
+      canUploadSnapshot(localCatalogDates.value, cloudGame.value, snapshot.date)
+    )
   );
   const selectedDownloadable = computed(() =>
-    selected().filter((snapshot) => canDownloadSnapshot(cloudGame.value, snapshot.date))
+    selected().filter((snapshot) =>
+      canDownloadSnapshot(localCatalogDates.value, cloudGame.value, snapshot.date)
+    )
   );
   const selectedEvictable = computed(() =>
-    selected().filter((snapshot) => canEvictSnapshot(cloudGame.value, snapshot.date))
+    selected().filter((snapshot) =>
+      canEvictSnapshot(localCatalogDates.value, cloudGame.value, snapshot.date)
+    )
   );
 
   function gameId() {
@@ -92,7 +101,9 @@ export function useSnapshotTransfers(deps: {
     const snapshot = cloudSnapshotOf(cloudGame.value, date);
     const prefix = cloud ? 'sync_settings.archives.evict_cloud' : 'sync_settings.archives.evict';
     if (!snapshot) return `${prefix}.confirm_last`;
-    const hasReplacement = cloud ? snapshot.local_verified : snapshot.cloud_verified;
+    const hasReplacement = cloud
+      ? isSnapshotOnDevice(localCatalogDates.value, cloudGame.value, date)
+      : snapshot.cloud_verified;
     if (hasReplacement) return `${prefix}.confirm`;
     if (snapshot.reported_on_devices.length > 0) return `${prefix}.confirm_other_device`;
     return `${prefix}.confirm_last`;

@@ -192,7 +192,7 @@ export type CloudArchiveSnapshotView = {
   cloud_verified: boolean;
   created_by: CreatedBy;
   description: string;
-  local_verified: boolean;
+  local_evidence: LocalArchiveEvidence;
   parent?: string | null;
   reported_on_devices: Array<String>;
   retention_protected: boolean;
@@ -780,6 +780,13 @@ export type LiveSaveSyncOptions = {
   process_name: string;
   snapshot_on_exit: boolean;
 };
+
+/**
+ * Evidence available while building the cloud catalog view of a local archive.
+ * This intentionally does not claim content verification: catalog views use a
+ * cheap metadata check, while transfer operations perform the full hash check.
+ */
+export type LocalArchiveEvidence = 'unknown' | 'present' | 'mismatch';
 
 export type LocalProgressView = {
   cloud_available: boolean;

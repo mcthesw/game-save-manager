@@ -46,8 +46,10 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
       .poll(async () => (await listSnapshotsFor(host, GAME_NAME)).length, { timeout: 30_000 })
       .toBe(1);
     const firstId = (await listSnapshotsFor(host, GAME_NAME))[0]!.date;
+    const firstRow = page.getByRole('row').filter({ hasText: firstId });
     expect((await snapshotMeta(device.appDataDir, firstId)).describe).toBe('');
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, firstId);
+    await expect(firstRow.getByText('This device', { exact: true })).toBeVisible();
 
     // Second snapshot with a description, over newer save content.
     await writeSaveText(device.savePath, CONTENT_V2);
@@ -79,7 +81,6 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, secondId);
 
     // In-row Apply on an older snapshot restores that exact content.
-    const firstRow = page.getByRole('row').filter({ hasText: firstId });
     await firstRow.getByRole('button', { name: 'Apply' }).click();
     await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     expect(await readFile(device.savePath, 'utf8')).toBe(CONTENT_V2);

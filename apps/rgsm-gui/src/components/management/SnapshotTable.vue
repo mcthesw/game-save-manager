@@ -26,7 +26,7 @@ import {
   isRetentionProtectedDate,
   isSnapshotInCloud,
   isSnapshotOnDevice,
-  snapshotLocationLabel,
+  snapshotLocationKey,
 } from './snapshotAvailability';
 
 const props = defineProps<{
@@ -97,16 +97,22 @@ function isAutomaticSnapshot(snapshot: Snapshot): boolean {
   );
 }
 
-const isOnDevice = (date: string) => isSnapshotOnDevice(props.cloudGame, date);
-const isInCloud = (date: string) => isSnapshotInCloud(props.cloudGame, date);
-const canUpload = (date: string) => canUploadSnapshot(props.cloudGame, date);
-const canDownload = (date: string) => canDownloadSnapshot(props.cloudGame, date);
-const canEvict = (date: string) => canEvictSnapshot(props.cloudGame, date);
-const canEvictCloud = (date: string) => canEvictCloudSnapshot(props.cloudGame, date);
+const isOnDevice = (date: string) =>
+  isSnapshotOnDevice(props.localCatalogDates, props.cloudGame, date);
+const isInCloud = (date: string) =>
+  isSnapshotInCloud(props.localCatalogDates, props.cloudGame, date);
+const canUpload = (date: string) =>
+  canUploadSnapshot(props.localCatalogDates, props.cloudGame, date);
+const canDownload = (date: string) =>
+  canDownloadSnapshot(props.localCatalogDates, props.cloudGame, date);
+const canEvict = (date: string) => canEvictSnapshot(props.localCatalogDates, props.cloudGame, date);
+const canEvictCloud = (date: string) =>
+  canEvictCloudSnapshot(props.localCatalogDates, props.cloudGame, date);
 const canApply = (date: string) => canApplySnapshot(props.localCatalogDates, props.cloudGame, date);
 const isProtected = (date: string) =>
   isRetentionProtectedDate(props.retentionProtectedDates, props.cloudGame, date);
-const locationLabel = (date: string) => snapshotLocationLabel(props.cloudGame, date);
+const locationLabel = (date: string) =>
+  $t(snapshotLocationKey(props.localCatalogDates, props.cloudGame, date));
 </script>
 
 <template>

@@ -18,7 +18,7 @@ const materializing = ref(false);
 
 const allSnapshots = computed(() => library.value?.games.flatMap((game) => game.snapshots) ?? []);
 const localSnapshots = computed(
-  () => allSnapshots.value.filter((snapshot) => snapshot.local_verified).length
+  () => allSnapshots.value.filter((snapshot) => snapshot.local_evidence === 'present').length
 );
 const cloudSnapshots = computed(
   () => allSnapshots.value.filter((snapshot) => snapshot.cloud_verified).length

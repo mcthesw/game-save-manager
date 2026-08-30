@@ -331,6 +331,7 @@ const {
 } = useSnapshotTransfers({
   game,
   cloudGame,
+  localCatalogDates,
   activeTransfer,
   retentionProtectedDates,
   selected: () => selected_game_snapshots.value,

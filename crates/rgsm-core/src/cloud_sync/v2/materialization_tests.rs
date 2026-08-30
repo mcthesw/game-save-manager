@@ -5,8 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{
     ArchiveIntegrity, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifest, DeletionKind,
-    GameManifest, LocalArchiveEviction, MaterializationError, SnapshotDeletionLifecycleError,
-    SnapshotNode, SnapshotState, cloud_archive_path,
+    GameManifest, LocalArchiveEviction, LocalArchiveEvidence, MaterializationError,
+    SnapshotDeletionLifecycleError, SnapshotNode, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
 
@@ -89,7 +89,7 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
         .iter()
         .find(|snapshot| snapshot.snapshot_id == "deck-only")
         .unwrap();
-    assert!(!deck_only.local_verified);
+    assert_eq!(deck_only.local_evidence, LocalArchiveEvidence::Mismatch);
     assert!(!deck_only.cloud_verified);
     assert_eq!(deck_only.reported_on_devices, vec!["deck"]);
     assert_eq!(deck_only.parent, None);
