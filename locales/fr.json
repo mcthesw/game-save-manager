@@ -65,8 +65,7 @@
     "home": {
         "name": "Service de gestion du jeu",
         "greeting": "Bonjour",
-        "hint": "Indicative",
-        "wrong_homepage": "Aucune page n'est disponible et la page d'accueil devrait être rouverte"
+        "hint": "Indicative"
     },
     "manage": {
         "create_new_save": "Création d'une nouvelle voie rapide",

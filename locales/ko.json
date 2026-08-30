@@ -65,8 +65,7 @@
     "home": {
         "name": "Play 관리 서비스",
         "greeting": "안녕하세요",
-        "hint": "“archive management” 란의 밑에, 놀이 이름은 새로운 공용영역에 있는 archive 관리를 위해 단식되어야 합니다",
-        "wrong_homepage": "페이지를 사용할 수 없으며 홈 페이지가 다시 열어야합니다"
+        "hint": "“archive management” 란의 밑에, 놀이 이름은 새로운 공용영역에 있는 archive 관리를 위해 단식되어야 합니다"
     },
     "manage": {
         "create_new_save": "새로운 빠른 추적의 창조",

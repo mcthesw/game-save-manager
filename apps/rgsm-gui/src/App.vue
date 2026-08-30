@@ -21,6 +21,7 @@ import { $t, i18n } from './i18n';
 import { computed, provide, ref, watch } from 'vue';
 import { saveUnitPaths } from './utils/saveUnit';
 import { mapLegacyHomePage, resolveStartupDestination } from './utils/appRoutes';
+import { error as logError } from './utils/logger';
 
 const { config, refreshConfig, saveConfig } = useConfig();
 const route = useRoute();
@@ -156,7 +157,7 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
 
 async function initializeApp() {
   try {
-    await refreshConfig();
+    if (!(await refreshConfig())) return;
     const currentLocale = config.value.settings.locale;
     if (currentLocale) {
       i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
@@ -182,10 +183,14 @@ async function initializeApp() {
 
     // 在应用启动时检查设备设置
     await checkDeviceSetup();
-  } catch {
-    notifyError($t('home.wrong_homepage'));
+  } catch (cause) {
+    logError(`Failed to initialize app: ${cause}`);
     if (route.path !== '/') {
-      await navigateTo('/');
+      try {
+        await navigateTo('/');
+      } catch (navigationError) {
+        logError(`Failed to recover startup route: ${navigationError}`);
+      }
     }
   }
 }

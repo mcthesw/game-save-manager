@@ -179,7 +179,6 @@
         "name": "游戏存档管理器",
         "greeting": "你好",
         "hint": "提示",
-        "wrong_homepage": "页面不存在，请重设主页",
         "status_games": "游戏",
         "status_cloud": "云同步",
         "status_auto_backup": "自动备份",
