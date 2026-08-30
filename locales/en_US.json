@@ -179,7 +179,6 @@
         "name": "Game save manager",
         "greeting": "Hello",
         "hint": "Hint",
-        "wrong_homepage": "The page does not exist, please reset the homepage",
         "status_games": "Games",
         "status_cloud": "Cloud sync",
         "status_auto_backup": "Auto backup",

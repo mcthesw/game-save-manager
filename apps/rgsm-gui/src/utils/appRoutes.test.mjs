@@ -53,7 +53,7 @@ test('startup applies the configured homepage from /', () => {
   assert.equal(resolveStartupDestination('/', '/Management/Isaac', games), '/Management/Isaac');
 });
 
-test('invalid configured homepage falls back to home', () => {
+test('invalid configured homepage is a normal fallback to home', () => {
   assert.equal(isValidAppDestination('/AddGame', games), true);
   assert.equal(resolveStartupDestination('/', '/Nope', games), '/');
 });
