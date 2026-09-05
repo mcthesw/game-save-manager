@@ -533,6 +533,8 @@ mod tests {
             local: Some(LocalProgressView {
                 snapshot_id: "local".into(),
                 description: String::new(),
+                created_at: None,
+                device_id: None,
                 local_available: true,
                 cloud_available: true,
             }),
@@ -545,11 +547,14 @@ mod tests {
         RemoteProgressCandidate {
             snapshot_id: id.into(),
             description: String::new(),
+            created_at: None,
+            device_id: None,
             devices: vec![device.into()],
             relation,
             local_unique_snapshots: 0,
             remote_unique_snapshots: 1,
             common_ancestor: Some("root".into()),
+            common_ancestor_created_at: None,
             local_available: false,
             cloud_available: true,
         }

@@ -131,7 +131,7 @@ export async function createSnapshotFromGui(
 }
 
 export function snapshotRow(page: Page, snapshotId: string): Locator {
-  return page.getByRole('row').filter({ hasText: snapshotId });
+  return page.locator(`[role="row"][data-snapshot-id=${JSON.stringify(snapshotId)}]`);
 }
 
 export async function uploadSnapshot(page: Page, snapshotId: string): Promise<void> {
@@ -178,15 +178,7 @@ export async function openProgressReview(page: Page): Promise<void> {
 
 export async function acceptRemoteProgress(page: Page, snapshotId: string): Promise<void> {
   const review = page.getByRole('dialog', { name: /Compare progress/ });
-  const candidate = review
-    .locator('article')
-    .filter({ hasText: snapshotId })
-    .or(
-      review
-        .locator('article')
-        .filter({ has: page.getByRole('button', { name: 'Use this progress' }) })
-    )
-    .first();
+  const candidate = review.locator(`article[data-snapshot-id=${JSON.stringify(snapshotId)}]`);
   await candidate.getByRole('button', { name: 'Use this progress' }).click();
   const confirm = page.getByRole('dialog', { name: "Apply another device's progress?" });
   await expect(confirm).toBeVisible();
@@ -274,22 +266,7 @@ export async function getLocalConfig(host: RgsmHost) {
   return result.data;
 }
 
-// Snapshot IDs are second-precision (`YYYY-MM-DD_HH-mm-ss`); two creations in
-// the same second collide (self-parent, overwritten archive). Space them out.
-let lastSnapshotCreateMs = 0;
-
-export async function waitForFreshSnapshotSecond(): Promise<void> {
-  const elapsed = Date.now() - lastSnapshotCreateMs;
-  if (elapsed < 1100) {
-    const { promise, resolve } = Promise.withResolvers<void>();
-    setTimeout(resolve, 1100 - elapsed);
-    await promise;
-  }
-  lastSnapshotCreateMs = Date.now();
-}
-
 export async function createSnapshotViaApi(host: RgsmHost, describe: string) {
-  await waitForFreshSnapshotSecond();
   const config = await getLocalConfig(host);
   const game = config.games.find((item) => item.name === GAME_NAME);
   expect(game).toBeTruthy();

@@ -1,7 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEVICE_A_ID, DEVICE_B_ID, GAME_NAME, STORAGE_KEY } from './support/constants';
+import {
+  DEVICE_A_ID,
+  DEVICE_A_NAME,
+  DEVICE_B_ID,
+  DEVICE_B_NAME,
+  GAME_NAME,
+  STORAGE_KEY,
+} from './support/constants';
 import {
   cloudArchivePath,
   cloudPaths,
@@ -17,6 +24,7 @@ import {
   downloadSnapshot,
   enableMode,
   openGame,
+  snapshotRow,
 } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
@@ -42,7 +50,7 @@ async function expectDeviceHeadEventually(
     .toBe(snapshotId);
 }
 
-test('repeated upload download round trips stay consistent', async ({ browser }) => {
+test('repeated upload download round trips stay consistent', async ({ browser }, testInfo) => {
   const runRoot = await createRunRoot('ping-pong');
   const seeded = await seedEmptyCloudWithLocalGame(runRoot);
   const session = await startDualSession(browser, { ...seeded, runRoot, label: 'ping-pong' });
@@ -109,6 +117,14 @@ test('repeated upload download round trips stay consistent', async ({ browser })
       expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, id))).toBe(true);
       const original = catalogA.find((snapshot) => snapshot.date === id)!;
       expect(original.device_id).toBe(creators.get(id));
+      expect(original.created_at).toEqual(expect.any(Number));
+      const creatorName = creators.get(id) === DEVICE_A_ID ? DEVICE_A_NAME : DEVICE_B_NAME;
+      for (const page of [session.pageA, session.pageB]) {
+        await expect(
+          snapshotRow(page, id).getByText(`Created on ${creatorName}`, { exact: true })
+        ).toBeVisible();
+        await expect(snapshotRow(page, id)).not.toContainText(id);
+      }
       for (const copy of [
         catalogB.find((snapshot) => snapshot.date === id)!,
         remote[STORAGE_KEY]!.snapshots[id]!,
@@ -117,6 +133,10 @@ test('repeated upload download round trips stay consistent', async ({ browser })
         expect(copy.created_at).toBe(original.created_at);
       }
     }
+    await testInfo.attach('snapshot-origins', {
+      body: await session.pageA.screenshot(),
+      contentType: 'image/png',
+    });
   } catch (error) {
     failed = true;
     throw error;

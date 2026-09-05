@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue';
-import dayjs from 'dayjs';
+import { formatSnapshotTime, snapshotDeviceName } from '../../utils/snapshotPresentation';
 import type { Config, Device, GameSnapshots, Snapshot } from '../../api/commands';
 import { $t } from '../../i18n';
 
@@ -43,12 +43,9 @@ export function useDeviceHeads(deps: {
       return currentDevice.value.name;
     }
 
-    const savedName = config.value?.devices?.[deviceId]?.name?.trim();
-    if (savedName) {
-      return savedName;
-    }
-
-    return deviceId.length > 8 ? `${deviceId.slice(0, 8)}...` : deviceId;
+    return (
+      snapshotDeviceName(deviceId, config.value.devices) ?? $t('manage.unknown_snapshot_device')
+    );
   }
 
   const deviceHeadMap = computed<Record<string, string>>(() => {
@@ -72,9 +69,11 @@ export function useDeviceHeads(deps: {
       .map(([deviceId, date]) => {
         const snapshot = tableData.value.find((item) => item.date === date) ?? null;
         const description = snapshot?.describe?.trim() || '';
-        const parsed = dayjs(date, 'YYYY-MM-DD_HH-mm-ss');
-        const shortTime = parsed.isValid() ? parsed.format('MM/DD HH:mm') : date;
-        const fullTime = parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : date;
+        const shortTime =
+          formatSnapshotTime(snapshot ?? { date }, 'MM/DD HH:mm') ??
+          $t('manage.unknown_snapshot_time');
+        const fullTime =
+          formatSnapshotTime(snapshot ?? { date }) ?? $t('manage.unknown_snapshot_time');
         const isCurrentDevice = deviceId === currentDeviceId;
         const label = isCurrentDevice
           ? $t('manage.current_position')

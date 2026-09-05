@@ -40,7 +40,6 @@ import {
   openSyncSettings,
   reviewProgress,
   toggleCloudEnabled,
-  waitForFreshSnapshotSecond,
 } from './support/gui';
 import {
   createRunRoot,
@@ -285,7 +284,6 @@ async function listSnapshots(host: RgsmHost): Promise<Array<{ date: string; desc
 }
 
 async function createAndUploadSnapshot(host: RgsmHost, describe: string): Promise<string> {
-  await waitForFreshSnapshotSecond();
   const config = await hostPost<{ games: Array<Record<string, unknown>> }>(
     host,
     '/api/v1/get-local-config'

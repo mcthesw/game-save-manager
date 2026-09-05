@@ -17,6 +17,7 @@ import {
 import type { CloudArchiveGameView, Snapshot } from '../../api/commands';
 import { $t } from '../../i18n';
 import { KButton, KCheckbox, KTag, KTooltip } from '../../ui/kit';
+import { formatSnapshotTime, snapshotDeviceName } from '../../utils/snapshotPresentation';
 import {
   canApplySnapshot,
   canDownloadSnapshot,
@@ -37,6 +38,7 @@ const props = defineProps<{
   localCatalogDates: Set<string>;
   retentionProtectedDates: Set<string>;
   activeTransfer: string;
+  devices?: Record<string, { name: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -75,6 +77,17 @@ function formatFileSize(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function timeLabel(snapshot: Snapshot) {
+  return formatSnapshotTime(snapshot) ?? $t('manage.unknown_snapshot_time');
+}
+
+function creatorLabel(snapshot: Snapshot) {
+  return $t('manage.snapshot_creator', {
+    device:
+      snapshotDeviceName(snapshot.device_id, props.devices) ?? $t('manage.unknown_snapshot_device'),
+  });
 }
 
 function snapshotSourceTag(snapshot: Snapshot): string | null {
@@ -158,6 +171,7 @@ const locationLabel = (date: string) =>
         <div
           v-for="snapshot in rows"
           :key="snapshot.date"
+          :data-snapshot-id="snapshot.date"
           role="row"
           class="grid h-11 items-center gap-2 border-b border-border px-3 transition-colors hover:bg-surface-2/60"
           :class="[GRID_COLS, { 'bg-surface-2/40': selectedDates.has(snapshot.date) }]"
@@ -165,12 +179,19 @@ const locationLabel = (date: string) =>
           <div role="cell" class="flex items-center justify-center">
             <KCheckbox
               :model-value="selectedDates.has(snapshot.date)"
-              :aria-label="snapshot.date"
+              :aria-label="`${timeLabel(snapshot)} · ${creatorLabel(snapshot)}`"
               @update:model-value="emit('toggleSelect', snapshot.date, $event === true)"
             />
           </div>
 
-          <span role="cell" class="truncate font-mono text-xs text-text">{{ snapshot.date }}</span>
+          <div role="cell" class="flex min-w-0 flex-col gap-0.5">
+            <span class="truncate font-mono text-xs text-text">{{ timeLabel(snapshot) }}</span>
+            <span
+              class="truncate text-[11px] leading-tight text-text-dim"
+              :title="creatorLabel(snapshot)"
+              >{{ creatorLabel(snapshot) }}</span
+            >
+          </div>
 
           <div role="cell" class="flex min-w-0 items-center gap-1.5">
             <KTag v-if="snapshotSourceTag(snapshot)">{{ snapshotSourceTag(snapshot) }}</KTag>
