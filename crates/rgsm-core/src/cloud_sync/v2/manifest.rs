@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::ArchiveIntegrity;
-use crate::backup::{ArchiveFormat, CreatedBy, Snapshot};
+use crate::backup::{ArchiveFormat, CreatedBy, Snapshot, archive_path};
 use crate::device::DeviceId;
 
 pub const CLOUD_MANIFEST_SCHEMA_VERSION: u32 = 2;
@@ -65,6 +65,43 @@ impl GameManifest {
 
     pub fn clear_head(&mut self, device_id: &DeviceId) {
         self.device_heads.remove(device_id);
+    }
+
+    /// Import the live rows of a selected history without rewriting its parent links.
+    /// Deleted ancestors remain part of cloud ancestry but must not reappear locally.
+    pub(crate) fn local_lineage(
+        &self,
+        selected_snapshot_id: &str,
+        archive_root: &std::path::Path,
+    ) -> Result<Vec<Snapshot>, ManifestError> {
+        let mut lineage = Vec::new();
+        let mut visited = HashSet::new();
+        let mut cursor = selected_snapshot_id;
+        loop {
+            if !visited.insert(cursor) {
+                return Err(ManifestError::ParentCycle(cursor.to_string()));
+            }
+            let node = self
+                .snapshots
+                .get(cursor)
+                .ok_or_else(|| ManifestError::MissingSnapshot(cursor.to_string()))?;
+            if cursor == selected_snapshot_id && !node.state.is_live() {
+                return Err(ManifestError::ExpectedLive(cursor.to_string()));
+            }
+            if let Some(snapshot) = node.local_snapshot(archive_path(
+                archive_root,
+                &node.snapshot_id,
+                node.archive_format,
+            )) {
+                lineage.push(snapshot);
+            }
+            let Some(parent) = node.parent.as_deref() else {
+                break;
+            };
+            cursor = parent;
+        }
+        lineage.reverse();
+        Ok(lineage)
     }
 
     pub fn report_local_archive(

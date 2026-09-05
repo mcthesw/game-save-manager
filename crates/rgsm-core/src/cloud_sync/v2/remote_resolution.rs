@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use opendal::Operator;
@@ -131,12 +130,7 @@ impl V2RemoteProgressResolver {
         ensure_remote_candidate(game, &self.current_device_id, selected_snapshot_id, false)?;
         Ok(PreparedRemoteProgress {
             selected_snapshot_id: selected_snapshot_id.to_string(),
-            lineage: remote_lineage(
-                game_id,
-                game,
-                selected_snapshot_id,
-                &self.local_archive_root,
-            )?,
+            lineage: game.local_lineage(selected_snapshot_id, &game_archive_root)?,
         })
     }
 
@@ -220,44 +214,6 @@ fn ensure_remote_candidate(
     Ok(())
 }
 
-/// Build one selected parent chain in parent-first order.
-///
-/// Each node is visited once. The cycle guard makes the traversal O(V) time
-/// and O(V) additional space for V Snapshots on the selected lineage.
-fn remote_lineage(
-    game_id: &str,
-    game: &super::GameManifest,
-    selected_snapshot_id: &str,
-    local_archive_root: &std::path::Path,
-) -> Result<Vec<Snapshot>, AcceptRemoteProgressError> {
-    let mut lineage = Vec::new();
-    let mut visited = HashSet::new();
-    let mut cursor = selected_snapshot_id;
-    loop {
-        if !visited.insert(cursor.to_string()) {
-            return Err(AcceptRemoteProgressError::ParentCycle(cursor.to_string()));
-        }
-        let node = game
-            .snapshots
-            .get(cursor)
-            .ok_or_else(|| ManifestError::MissingSnapshot(cursor.to_string()))?;
-        lineage.push(
-            node.local_snapshot(archive_path(
-                &local_archive_root.join(game_id),
-                &node.snapshot_id,
-                node.archive_format,
-            ))
-            .ok_or_else(|| AcceptRemoteProgressError::TombstonedLineage(cursor.to_string()))?,
-        );
-        let Some(parent) = node.parent.as_deref() else {
-            break;
-        };
-        cursor = parent;
-    }
-    lineage.reverse();
-    Ok(lineage)
-}
-
 #[derive(Debug, Error)]
 pub enum AcceptRemoteProgressError {
     #[error("Cloud progress review is stale: expected revision {expected}, found {actual}")]
@@ -275,10 +231,6 @@ pub enum AcceptRemoteProgressError {
     SelectedArchiveUnavailable(String),
     #[error("A different Local Archive already uses the selected Snapshot identity: {0}")]
     LocalArchiveConflict(String),
-    #[error("Selected progress contains a deleted ancestor: {0}")]
-    TombstonedLineage(String),
-    #[error("Cloud Snapshot parent cycle contains {0}")]
-    ParentCycle(String),
     #[error(transparent)]
     Manifest(#[from] ManifestError),
     #[error(transparent)]

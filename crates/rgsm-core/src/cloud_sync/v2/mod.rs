@@ -24,6 +24,8 @@ mod repository;
 mod retention;
 mod shared_library_repository;
 #[cfg(test)]
+mod snapshot_lineage_tests;
+#[cfg(test)]
 mod snapshot_metadata_tests;
 mod snapshot_sync;
 
