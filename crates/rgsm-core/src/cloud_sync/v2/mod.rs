@@ -13,6 +13,8 @@ mod manifest;
 mod materialization;
 mod materialization_models;
 #[cfg(test)]
+mod materialization_read_tests;
+#[cfg(test)]
 mod materialization_tests;
 mod namespace;
 mod profile_removal;

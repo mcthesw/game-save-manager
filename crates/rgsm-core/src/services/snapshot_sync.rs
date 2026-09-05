@@ -61,7 +61,7 @@ pub async fn run_v2_snapshot_sync_once(
     cancellation: &CancellationToken,
 ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError> {
     super::game_deletion::converge_local_deleted_games().await?;
-    super::retention::refresh_v2_snapshot_retention().await?;
+    super::cloud_library_metadata::refresh_shared_library().await?;
     let Some(runtime) = load_runtime()? else {
         return Ok(SnapshotReconciliationOutcome::default());
     };

@@ -231,7 +231,7 @@ async fn permanent_deletion_requires_confirmation_then_removes_local_and_cloud_c
 }
 
 #[tokio::test]
-async fn observing_pending_tombstone_removes_this_devices_local_copy() {
+async fn reconciling_pending_tombstone_removes_this_devices_local_copy() {
     let operator = memory_operator();
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
@@ -251,6 +251,8 @@ async fn observing_pending_tombstone_removes_this_devices_local_copy() {
     write_manifest(&operator, &manifest).await;
 
     let pc = materializer(operator.clone(), root.path(), "pc");
+    let removed = pc.converge_local_tombstones().await.unwrap();
+    assert!(removed["game"].contains("snapshot"));
     let view = pc
         .view(
             &BTreeMap::from([("game".into(), "Example".into())]),

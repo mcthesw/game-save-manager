@@ -659,9 +659,18 @@ pub async fn cutover_cloud_library(
 pub async fn get_cloud_archive_library(
     app_handle: AppHandle,
 ) -> Result<CloudArchiveLibraryView, String> {
+    svc(&app_handle)
+        .cloud_archive_library()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+pub async fn refresh_cloud_archive_library(
+    app_handle: AppHandle,
+) -> Result<CloudArchiveLibraryView, String> {
     run_cloud_operation(&app_handle, async {
         svc(&app_handle)
-            .cloud_archive_library()
+            .refresh_cloud_archive_library()
             .await
             .map_err(|error| error.to_string())
     })

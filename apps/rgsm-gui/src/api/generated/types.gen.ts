@@ -2831,6 +2831,29 @@ export type ReconnectCloudLibraryResponses = {
 export type ReconnectCloudLibraryResponse =
   ReconnectCloudLibraryResponses[keyof ReconnectCloudLibraryResponses];
 
+export type RefreshCloudArchiveLibraryData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/refresh-cloud-archive-library';
+};
+
+export type RefreshCloudArchiveLibraryErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type RefreshCloudArchiveLibraryError =
+  RefreshCloudArchiveLibraryErrors[keyof RefreshCloudArchiveLibraryErrors];
+
+export type RefreshCloudArchiveLibraryResponses = {
+  200: CloudArchiveLibraryView;
+};
+
+export type RefreshCloudArchiveLibraryResponse =
+  RefreshCloudArchiveLibraryResponses[keyof RefreshCloudArchiveLibraryResponses];
+
 export type RegenerateHttpApiTokenData = {
   body?: never;
   path?: never;

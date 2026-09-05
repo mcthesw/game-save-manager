@@ -281,7 +281,7 @@ async function loadCloudGame() {
     cloudGame.value = null;
     return null;
   }
-  const result = await commands.getCloudArchiveLibrary();
+  const result = await commands.refreshCloudArchiveLibrary();
   if (result.status === 'error') {
     cloudGame.value = null;
     return null;

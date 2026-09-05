@@ -193,6 +193,9 @@ import type {
   ReconnectCloudLibraryData,
   ReconnectCloudLibraryErrors,
   ReconnectCloudLibraryResponses,
+  RefreshCloudArchiveLibraryData,
+  RefreshCloudArchiveLibraryErrors,
+  RefreshCloudArchiveLibraryResponses,
   RegenerateHttpApiTokenData,
   RegenerateHttpApiTokenErrors,
   RegenerateHttpApiTokenResponses,
@@ -1076,6 +1079,19 @@ export const reconnectCloudLibrary = <ThrowOnError extends boolean = false>(
       ...options.headers,
     },
   });
+
+export const refreshCloudArchiveLibrary = <ThrowOnError extends boolean = false>(
+  options?: Options<RefreshCloudArchiveLibraryData, ThrowOnError>
+): RequestResult<
+  RefreshCloudArchiveLibraryResponses,
+  RefreshCloudArchiveLibraryErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).post<
+    RefreshCloudArchiveLibraryResponses,
+    RefreshCloudArchiveLibraryErrors,
+    ThrowOnError
+  >({ url: '/api/v1/refresh-cloud-archive-library', ...options });
 
 export const regenerateHttpApiToken = <ThrowOnError extends boolean = false>(
   options?: Options<RegenerateHttpApiTokenData, ThrowOnError>
