@@ -788,7 +788,7 @@ impl Game {
             })?;
         let backup_dir = get_backup_path()?.join(self.backup_dir_name().as_ref());
         let archive_path = crate::backup::snapshot_archive_path(&backup_dir, deleted);
-        fs::remove_file(&archive_path)?;
+        remove_snapshot_archive(&archive_path)?;
         let remote_archive_path = crate::backup::remote_archive_path(
             self.backup_dir_name().as_ref(),
             date,
@@ -901,9 +901,7 @@ impl Game {
                     BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
                 })?;
             let archive_path = crate::backup::snapshot_archive_path(&backup_dir, snapshot);
-            if archive_path.exists() {
-                fs::remove_file(&archive_path)?;
-            }
+            remove_snapshot_archive(&archive_path)?;
             deleted_remote_paths.push(
                 crate::backup::remote_archive_path(
                     self.backup_dir_name().as_ref(),
@@ -1019,6 +1017,15 @@ impl Game {
         saves.backups[pos].describe = describe.to_string();
         self.set_game_snapshots_info(&saves)?;
         Ok(saves)
+    }
+}
+
+fn remove_snapshot_archive(path: &Path) -> std::io::Result<()> {
+    match fs::remove_file(path) {
+        // The catalog can outlive its archive after an interrupted deletion or
+        // a failed catalog write. Retrying must still finish catalog cleanup.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        result => result,
     }
 }
 
