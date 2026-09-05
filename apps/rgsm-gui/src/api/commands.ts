@@ -230,6 +230,11 @@ export const commands = {
   async getCloudArchiveLibrary() {
     return unwrap<types.GetCloudArchiveLibraryResponses[200]>(await sdk.getCloudArchiveLibrary());
   },
+  async refreshCloudArchiveLibrary() {
+    return unwrap<types.RefreshCloudArchiveLibraryResponses[200]>(
+      await sdk.refreshCloudArchiveLibrary()
+    );
+  },
   async reviewV2GameProgress(gameId: types.ReviewV2GameProgressRequest['gameId']) {
     return unwrap<types.ReviewV2GameProgressResponses[200]>(
       await sdk.reviewV2GameProgress({ body: { gameId } })

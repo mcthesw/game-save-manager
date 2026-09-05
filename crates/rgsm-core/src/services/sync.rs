@@ -555,11 +555,7 @@ impl ServiceContext {
     pub async fn preview_materialize_all(
         &self,
     ) -> Result<MaterializationPreview, CloudLibraryServiceError> {
-        Ok(self
-            .converged_materializer()
-            .await?
-            .preview_materialize_all()
-            .await?)
+        Ok(self.materializer().await?.preview_materialize_all().await?)
     }
 
     pub async fn upload_cloud_archive(
@@ -842,25 +838,6 @@ impl ServiceContext {
         ))
     }
 
-    async fn materializer(&self) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
-        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
-        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
-            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
-        }
-        let local_archive_root = profile
-            .local_archive_root
-            .as_deref()
-            .map(resolve_app_path)
-            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        Ok(CloudArchiveMaterializer::new(
-            bound_v2_operator(&local_state).await?,
-            local_archive_root,
-            local_state.current_device_id,
-            resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
-            3,
-        ))
-    }
-
     async fn publish_enabled_local_progress(
         &self,
         cancellation: &CancellationToken,
@@ -958,16 +935,6 @@ impl ServiceContext {
                 .await?;
         }
         Ok(())
-    }
-
-    pub(super) async fn converged_materializer(
-        &self,
-    ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
-        super::game_deletion::converge_local_deleted_games().await?;
-        let materializer = self.materializer().await?;
-        self.converge_local_tombstone_metadata(&materializer)
-            .await?;
-        Ok(materializer)
     }
 
     async fn resolve_current_position_for_deletion(
@@ -1083,23 +1050,6 @@ impl ServiceContext {
         suspended: bool,
     ) -> Result<(), CloudLibraryServiceError> {
         set_multi_device_sync_suspended(game_id, suspended).await
-    }
-
-    async fn converge_local_tombstone_metadata(
-        &self,
-        materializer: &CloudArchiveMaterializer,
-    ) -> Result<(), CloudLibraryServiceError> {
-        let tombstones = materializer.converge_local_tombstones().await?;
-        if tombstones.is_empty() {
-            return Ok(());
-        }
-        let config = get_config()?;
-        for game in &config.games {
-            if let Some(snapshot_ids) = tombstones.get(&game.storage_key) {
-                game.forget_v2_tombstones(snapshot_ids)?;
-            }
-        }
-        Ok(())
     }
 }
 

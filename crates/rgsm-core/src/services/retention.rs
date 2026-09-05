@@ -3,12 +3,12 @@ use specta::Type;
 
 use crate::app_dirs::resolve_app_path;
 use crate::cloud_sync::v2::{
-    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeviceProfileRepository, ManifestError,
-    SharedLibraryRepository, SnapshotState, SnapshotSyncCoordinator,
+    CLOUD_MANIFEST_PATH, CloudManifestRepository, ManifestError, SharedLibraryRepository,
+    SnapshotState, SnapshotSyncCoordinator,
 };
 use crate::config::{
-    CloudNamespaceGeneration, SharedSnapshotRetentionPolicy, accept_remote_shared_library,
-    cloud_bootstrap_inputs, get_config, replace_shared_library,
+    CloudNamespaceGeneration, SharedSnapshotRetentionPolicy, cloud_bootstrap_inputs, get_config,
+    replace_shared_library,
 };
 
 use super::sync::CloudLibraryServiceError;
@@ -18,45 +18,6 @@ use super::{ServiceContext, cloud_library_target::bound_v2_operator};
 pub struct SnapshotRetentionOutcome {
     pub limit: Option<u32>,
     pub deleted: usize,
-}
-
-/// Refresh the authoritative Shared Library for a Device that is still a
-/// registered member of the remote library. Device-local settings are rebased
-/// onto the accepted portable definitions.
-pub(crate) async fn refresh_v2_snapshot_retention() -> Result<(), CloudLibraryServiceError> {
-    let (expected_library, expected_profile, local_state) = cloud_bootstrap_inputs()?;
-    if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
-        return Ok(());
-    }
-    let operator = bound_v2_operator(&local_state).await?;
-    if !DeviceProfileRepository::new(operator.clone(), 3)
-        .list()
-        .await?
-        .iter()
-        .any(|profile| profile.device.id == local_state.current_device_id)
-    {
-        return Err(CloudLibraryServiceError::DeviceReconnectRequired);
-    }
-    let remote = SharedLibraryRepository::new(operator.clone(), 3)
-        .load()
-        .await?;
-    if remote != expected_library {
-        let accepted_profile = expected_profile.for_shared_library(&remote);
-        DeviceProfileRepository::new(operator, 3)
-            .publish(&local_state.current_device_id, &accepted_profile)
-            .await?;
-        accept_remote_shared_library(
-            &expected_library,
-            &expected_profile,
-            &remote,
-            &accepted_profile,
-            local_state
-                .cloud_library_id
-                .as_deref()
-                .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?,
-        )?;
-    }
-    Ok(())
 }
 
 impl ServiceContext {
