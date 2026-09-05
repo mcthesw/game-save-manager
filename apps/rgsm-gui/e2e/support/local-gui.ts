@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { DEVICE_A_ID } from './constants';
 import { hostPost, type RgsmHost } from './rgsm-instance';
 import { waitForFreshSnapshotSecond } from './gui';
+import { waitForCommand } from './command-result';
 
 export type LocalUnitInput = {
   type: 'File' | 'Folder';
@@ -164,9 +165,15 @@ export async function updateSettings(
 export async function deleteSnapshotViaUi(page: Page, snapshotId: string): Promise<void> {
   const row = page.getByRole('row').filter({ hasText: snapshotId });
   await row.getByRole('button', { name: 'Delete' }).click();
+  await confirmSnapshotDeletion(page, snapshotId);
+}
+
+export async function confirmSnapshotDeletion(page: Page, snapshotId: string): Promise<void> {
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Are you sure you want to delete?')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await waitForCommand(page, '/api/v1/delete-snapshot', snapshotId, () =>
+    dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+  );
   await expect(page.getByText('Successfully deleted').first()).toBeVisible({ timeout: 15_000 });
 }
 

@@ -10,7 +10,11 @@ import {
   localArchiveExists,
   readBackupsJson,
 } from './support/local-assertions';
-import { applySnapshotViaApi, createSnapshotForGame } from './support/local-gui';
+import {
+  applySnapshotViaApi,
+  confirmSnapshotDeletion,
+  createSnapshotForGame,
+} from './support/local-gui';
 import { openGame } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 
@@ -83,10 +87,7 @@ test('snapshot tree: branch on apply-then-create, set head, delete head fallback
 
     // Deleting a childless head falls back to its parent.
     await branchNodeAction(page, fourthId, 'Delete');
-    const deleteDialog = page.getByRole('dialog');
-    await expect(deleteDialog.getByText('Are you sure you want to delete?')).toBeVisible();
-    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
-    await expect(page.getByText('Successfully deleted').first()).toBeVisible({ timeout: 15_000 });
+    await confirmSnapshotDeletion(page, fourthId);
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, secondId);
     expect(localArchiveExists(device.appDataDir, fourthId)).toBe(false);
 
@@ -95,9 +96,7 @@ test('snapshot tree: branch on apply-then-create, set head, delete head fallback
     await branchNodeAction(page, firstId, 'Continue from here');
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, firstId);
     await branchNodeAction(page, firstId, 'Delete');
-    await expect(deleteDialog.getByText('Are you sure you want to delete?')).toBeVisible();
-    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
-    await expect(page.getByText('Successfully deleted').first()).toBeVisible({ timeout: 15_000 });
+    await confirmSnapshotDeletion(page, firstId);
     // branchedId sorts after secondId, so it becomes the new position.
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, branchedId);
     await expectSnapshotParent(device.appDataDir, secondId, null);
@@ -106,9 +105,7 @@ test('snapshot tree: branch on apply-then-create, set head, delete head fallback
 
     // Deleting a root head without children falls back to the newest remaining.
     await branchNodeAction(page, branchedId, 'Delete');
-    await expect(deleteDialog.getByText('Are you sure you want to delete?')).toBeVisible();
-    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
-    await expect(page.getByText('Successfully deleted').first()).toBeVisible({ timeout: 15_000 });
+    await confirmSnapshotDeletion(page, branchedId);
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, secondId);
     await expectSnapshotDates(device.appDataDir, [secondId]);
 
