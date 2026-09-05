@@ -8,6 +8,7 @@ import { commands, type FavoriteTreeNode, type Game } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
+import { refreshCloudLibrary } from '../composables/useCloudLibrary';
 import KButton from '../ui/kit/KButton.vue';
 import KInput from '../ui/kit/KInput.vue';
 import KSegmented from '../ui/kit/KSegmented.vue';
@@ -127,6 +128,12 @@ function isActive(path: string): boolean {
 
 function goGame(game: Game) {
   router.push(getGameManagementPath(game.name));
+  void refreshCloudLibrary();
+}
+
+function navigatePage(path: string) {
+  void router.push(path);
+  if (path === '/SyncSettings') void refreshCloudLibrary();
 }
 </script>
 
@@ -144,7 +151,7 @@ function goGame(game: Game) {
           type="button"
           class="side-row nav-row"
           :class="{ active: isActive(link.link) }"
-          @click="router.push(link.link)"
+          @click="navigatePage(link.link)"
         >
           <component :is="link.icon" :size="15" class="row-icon" />
           <span class="row-text">{{ link.text }}</span>

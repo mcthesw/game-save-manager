@@ -51,6 +51,7 @@ import {
   getGameNameFromRouteParam,
 } from '../../composables/useGameManagementRoute';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
+import { useCloudLibrary } from '../../composables/useCloudLibrary';
 import { usePathResolution } from '../../composables/usePathResolution';
 import { saveUnitPaths } from '../../utils/saveUnit';
 import { KButton, KInput, KMenu, KSegmented, KTag, KTooltip, type KMenuEntry } from '../../ui/kit';
@@ -79,14 +80,22 @@ const table_data_desc = ref<Snapshot[]>([]);
 const sortDesc = ref(true);
 const selectedDates = ref<Set<string>>(new Set());
 const retentionProtectedDates = ref<Set<string>>(new Set());
-const cloudGame = ref<CloudArchiveGameView | null>(null);
-const definitionConflict = ref(false);
+const { library: cloudLibrary, refresh: refreshCloudLibrary } = useCloudLibrary();
+const cloudDefinition = computed(
+  () =>
+    cloudLibrary.value?.games.find(
+      (item) => item.game_id === (game.value?.storage_key || game.value?.name)
+    ) ?? null
+);
+const definitionConflict = computed(() => Boolean(cloudDefinition.value?.definition_conflict));
+const cloudGame = computed(() => (definitionConflict.value ? null : cloudDefinition.value));
 const choosingDefinition = ref(false);
 const localCatalogDates = ref<Set<string>>(new Set());
 const activeTransfer = ref('');
 
 // Game snapshots info including HEAD
 const gameSnapshots = ref<GameSnapshots | null>(null);
+let backupRead = 0;
 
 const game: Ref<Game> = ref({
   name: '',
@@ -264,19 +273,28 @@ watch(
   { immediate: true }
 );
 
-async function refresh_backups_info() {
-  const result = await commands.getGameSnapshotsInfo(game.value);
+async function refresh_backups_info(refreshCloud = true) {
+  const request = ++backupRead;
+  const target = game.value;
+  if (!target?.name) return;
+  if (refreshCloud) await refreshCloudLibrary(true);
+  const result = await commands.getGameSnapshotsInfo(target);
+  if (request !== backupRead || target.storage_key !== game.value?.storage_key) return;
   if (result.status === 'error') {
     notifyError(result.error);
     return;
   }
-  const cloud = await loadCloudGame();
+  const cloud = cloudGame.value;
   const merged = mergeCloudOnlySnapshots(result.data.backups, cloud);
   localCatalogDates.value = new Set(result.data.backups.map((snapshot) => snapshot.date));
   gameSnapshots.value = { ...result.data, backups: merged };
   table_data.value = merged;
   table_data_desc.value = [...merged].reverse();
-  selectedDates.value = new Set();
+  selectedDates.value = refreshCloud
+    ? new Set()
+    : new Set(
+        [...selectedDates.value].filter((id) => merged.some((snapshot) => snapshot.date === id))
+      );
   retentionProtectedDates.value = new Set(
     cloud?.snapshots
       .filter((snapshot) => snapshot.retention_protected)
@@ -284,30 +302,29 @@ async function refresh_backups_info() {
   );
 }
 
-async function loadCloudGame() {
-  const gameId = game.value.storage_key || game.value.name;
-  if (!gameId) {
-    cloudGame.value = null;
-    return null;
+watch(cloudLibrary, () => {
+  void refresh_backups_info(false);
+});
+
+watch(
+  () => config.value.games.find((item) => item.storage_key === game.value?.storage_key),
+  (latest) => {
+    if (latest) {
+      game.value = latest;
+      void refresh_backups_info(false);
+    } else if (game.value?.name) {
+      // Remote deletion must not leave actions bound to an obsolete definition.
+      void router.replace('/');
+    }
   }
-  const result = await commands.refreshCloudArchiveLibrary();
-  if (result.status === 'error') {
-    cloudGame.value = null;
-    return null;
-  }
-  const next = result.data.games.find((item) => item.game_id === gameId) ?? null;
-  definitionConflict.value = Boolean(next?.definition_conflict);
-  // A pending cloud definition does not describe this local game's archives.
-  cloudGame.value = definitionConflict.value ? null : next;
-  return cloudGame.value;
-}
+);
 
 async function onDefinitionSelected() {
   const gameId = game.value.storage_key;
   await refreshConfig();
   const selected = config.value.games.find((item) => item.storage_key === gameId);
   if (selected) await router.replace(getGameManagementPath(selected.name));
-  await loadCloudGame();
+  await refreshCloudLibrary(true);
 }
 
 function mergeCloudOnlySnapshots(
@@ -336,6 +353,7 @@ const { currentHead, headEntries, branchDeviceHeads } = useDeviceHeads({
   tableData: table_data,
   currentDevice,
   config,
+  cloudGame,
 });
 
 const {

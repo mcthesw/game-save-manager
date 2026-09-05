@@ -184,11 +184,12 @@ function initTempGame() {
 }
 
 watch(
-  () => props.game,
-  () => {
-    initTempGame();
+  [() => props.modelValue, () => props.game.storage_key || props.game.name],
+  ([visible]) => {
+    // A background definition refresh must not replace an open editing session.
+    if (visible) initTempGame();
   },
-  { deep: true, immediate: true }
+  { immediate: true }
 );
 
 watch(

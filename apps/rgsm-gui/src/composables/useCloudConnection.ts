@@ -1,5 +1,6 @@
 import { commands } from '~/api/commands';
 import { useConfig } from './useConfig';
+import { clearCloudLibrary, refreshCloudLibrary } from './useCloudLibrary';
 
 let connecting: { key: string; promise: ReturnType<typeof commands.connectCloudLibrary> } | null =
   null;
@@ -8,14 +9,20 @@ let connecting: { key: string; promise: ReturnType<typeof commands.connectCloudL
 export async function connectSavedCloudLibrary() {
   const key = JSON.stringify(useConfig().config.value.settings.cloud_settings);
   if (!connecting || connecting.key !== key) {
-    const promise = commands.connectCloudLibrary().finally(() => {
-      if (connecting?.promise === promise) connecting = null;
-    });
+    const promise = commands
+      .connectCloudLibrary()
+      .then(async (result) => {
+        if (result.status === 'ok' && result.data.kind === 'active') {
+          await useConfig().refreshConfig();
+          clearCloudLibrary();
+          await refreshCloudLibrary();
+        }
+        return result;
+      })
+      .finally(() => {
+        if (connecting?.promise === promise) connecting = null;
+      });
     connecting = { key, promise };
   }
-  const result = await connecting.promise;
-  if (result.status === 'ok' && result.data.kind === 'active') {
-    await useConfig().refreshConfig();
-  }
-  return result;
+  return connecting.promise;
 }
