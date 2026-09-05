@@ -192,6 +192,10 @@ pub(crate) fn merge_remote_lineage(
             if existing.describe.is_empty() {
                 existing.describe = remote.describe.clone();
             }
+            existing.created_at = existing.created_at.or(remote.created_at);
+            if existing.device_id.is_none() {
+                existing.device_id = remote.device_id.clone();
+            }
         } else {
             local.backups.push(remote.clone());
         }
@@ -238,6 +242,7 @@ mod tests {
             size: 5,
             parent: parent.map(str::to_string),
             archive_hash: Some("0000000000000000".into()),
+            created_at: None,
             device_id: None,
             created_by: CreatedBy::Manual,
         }
@@ -257,6 +262,23 @@ mod tests {
 
         assert_eq!(local.head_for_device(&"pc".to_string()).unwrap(), "local");
         assert_eq!(local.backups.len(), 3);
+    }
+
+    #[test]
+    fn remote_lineage_merges_creation_metadata_without_relabeling_known_origin() {
+        let mut local = GameSnapshots::new("Game");
+        local.backups.push(snapshot("same", None));
+        let mut remote = snapshot("same", None);
+        remote.created_at = Some(1234);
+        remote.device_id = Some("original".into());
+        merge_remote_lineage(&mut local, &[remote.clone()]).unwrap();
+        assert_eq!(local.backups[0].created_at, Some(1234));
+        assert_eq!(local.backups[0].device_id.as_deref(), Some("original"));
+        remote.created_at = Some(5678);
+        remote.device_id = Some("holder".into());
+        merge_remote_lineage(&mut local, &[remote]).unwrap();
+        assert_eq!(local.backups[0].created_at, Some(1234));
+        assert_eq!(local.backups[0].device_id.as_deref(), Some("original"));
     }
 
     #[test]

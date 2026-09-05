@@ -122,6 +122,7 @@ mod tests {
             size: fs::metadata(&archive_path)?.len(),
             parent: None,
             archive_hash: None,
+            created_at: None,
             device_id: None,
             created_by: Default::default(),
         };
@@ -171,6 +172,7 @@ mod tests {
                 size: fs::metadata(&archive_path)?.len(),
                 parent: None,
                 archive_hash: Some("expected-hash".into()),
+                created_at: None,
                 device_id: None,
                 created_by: Default::default(),
             },

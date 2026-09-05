@@ -136,6 +136,7 @@ mod tests {
             size: 0,
             parent: None,
             archive_hash: None,
+            created_at: None,
             device_id: device_id.map(str::to_string),
             created_by: Default::default(),
         }

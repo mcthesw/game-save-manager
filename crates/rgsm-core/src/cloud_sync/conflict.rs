@@ -203,6 +203,7 @@ mod tests {
             size: 0,
             parent: parent.map(|s| s.to_string()),
             archive_hash: None,
+            created_at: None,
             device_id: None,
             created_by: Default::default(),
         }

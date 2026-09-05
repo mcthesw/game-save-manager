@@ -58,6 +58,10 @@ pub struct CloudArchiveGameView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct CloudArchiveSnapshotView {
     pub snapshot_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<DeviceId>,
     pub description: String,
     pub size: Option<u64>,
     pub local_evidence: LocalArchiveEvidence,
@@ -193,6 +197,8 @@ impl CloudArchiveMaterializer {
                     .collect();
                 snapshots.push(CloudArchiveSnapshotView {
                     snapshot_id: node.snapshot_id.clone(),
+                    created_at: node.created_at,
+                    device_id: node.device_id.clone(),
                     description: node.description.clone(),
                     size: live.integrity.as_ref().map(|integrity| integrity.size),
                     local_evidence,
@@ -455,25 +461,14 @@ impl CloudArchiveMaterializer {
                 .snapshots
                 .get(cursor)
                 .ok_or_else(|| MaterializationError::SnapshotNotFound(cursor.to_string()))?;
-            let SnapshotState::Live(live) = &node.state else {
-                return Err(MaterializationError::SnapshotUnavailable(
-                    cursor.to_string(),
-                ));
-            };
-            lineage.push(Snapshot {
-                date: node.snapshot_id.clone(),
-                describe: node.description.clone(),
-                path: self
-                    .local_path(game_id, &node.snapshot_id, node.archive_format)
-                    .to_string_lossy()
-                    .into_owned(),
-                archive_format: node.archive_format,
-                size: live.integrity.as_ref().map_or(0, |value| value.size),
-                parent: node.parent.clone(),
-                archive_hash: live.integrity.as_ref().map(|value| value.xxh3_64.clone()),
-                device_id: None,
-                created_by: live.created_by.clone(),
-            });
+            lineage.push(
+                node.local_snapshot(self.local_path(
+                    game_id,
+                    &node.snapshot_id,
+                    node.archive_format,
+                ))
+                .ok_or_else(|| MaterializationError::SnapshotUnavailable(cursor.to_string()))?,
+            );
             let Some(parent) = node.parent.as_deref() else {
                 break;
             };

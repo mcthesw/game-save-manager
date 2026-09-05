@@ -23,6 +23,8 @@ mod remote_resolution;
 mod repository;
 mod retention;
 mod shared_library_repository;
+#[cfg(test)]
+mod snapshot_metadata_tests;
 mod snapshot_sync;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};

@@ -101,6 +101,7 @@ fn create_legacy_auto_snapshot(
         size: fs::metadata(&zip_path)?.len(),
         parent: None,
         archive_hash: None,
+        created_at: None,
         device_id: None,
         created_by: CreatedBy::Timer,
     });
@@ -392,6 +393,7 @@ fn insert_snapshot(
         size: fs::metadata(&zip_path)?.len(),
         parent: parent.map(|s| s.to_string()),
         archive_hash: None,
+        created_at: None,
         device_id: None,
         created_by: Default::default(),
     });
@@ -418,6 +420,7 @@ fn insert_v4_snapshot(
         size: fs::metadata(&archive_path)?.len(),
         parent: parent.map(str::to_string),
         archive_hash: None,
+        created_at: None,
         device_id: None,
         created_by: Default::default(),
     });
@@ -1247,6 +1250,7 @@ fn unused_snapshot_date_skips_occupied_second() -> TestResult {
         size: 0,
         parent: None,
         archive_hash: None,
+        created_at: None,
         device_id: None,
         created_by: CreatedBy::Manual,
     });

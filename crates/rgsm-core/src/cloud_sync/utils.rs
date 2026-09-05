@@ -467,6 +467,7 @@ mod tests {
             size: 0,
             parent: None,
             archive_hash: None,
+            created_at: None,
             device_id: None,
             created_by: CreatedBy::Manual,
         }

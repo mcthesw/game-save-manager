@@ -310,6 +310,7 @@ mod tests {
             size: 0,
             parent: parent.map(str::to_string),
             archive_hash: None,
+            created_at: None,
             device_id: Some(get_current_device_id().clone()),
             created_by: Default::default(),
         }
