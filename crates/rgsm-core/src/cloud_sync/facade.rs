@@ -161,25 +161,26 @@ fn merge_snapshots_metadata(
         .clone()
         .or_else(|| remote.last_sync_timestamp.clone());
 
-    let mut snapshots_by_date: HashMap<String, crate::backup::Snapshot> = local
+    merged.backups = local.backups.clone();
+    let mut positions: HashMap<String, usize> = local
         .backups
         .iter()
-        .cloned()
-        .map(|snapshot| (snapshot.date.clone(), snapshot))
+        .enumerate()
+        .map(|(index, snapshot)| (snapshot.date.clone(), index))
         .collect();
     for snapshot in &remote.backups {
-        match snapshots_by_date.get_mut(&snapshot.date) {
-            Some(existing) => merge_snapshot(existing, snapshot)?,
+        match positions.get(&snapshot.date) {
+            Some(index) => merge_snapshot(&mut merged.backups[*index], snapshot)?,
             None => {
-                snapshots_by_date.insert(snapshot.date.clone(), snapshot.clone());
+                positions.insert(snapshot.date.clone(), merged.backups.len());
+                merged.backups.push(snapshot.clone());
             }
         }
     }
 
-    merged.backups = snapshots_by_date.into_values().collect();
     merged
         .backups
-        .sort_by(|left, right| left.date.cmp(&right.date));
+        .sort_by_key(|snapshot| snapshot.creation_time());
     merged.device_heads = local.device_heads.clone();
 
     let parent_map: HashMap<String, Option<String>> = merged
@@ -764,6 +765,27 @@ mod tests {
                 .head_for_device(&"remote-device".to_string())
                 .map(String::as_str),
             Some("2025-01-02_00-00-00")
+        );
+    }
+
+    #[test]
+    fn merging_equal_time_snapshots_retains_local_order_and_both_identities() {
+        let mut local = snapshots("game", vec![snapshot("z", None, Some("a"))], &[]);
+        let mut remote = snapshots("game", vec![snapshot("a", None, Some("b"))], &[]);
+        local.backups[0].created_at = Some(1234);
+        remote.backups[0].created_at = Some(1234);
+        let merged = merge_snapshots_metadata(&local, &remote).unwrap();
+        assert_eq!(
+            merged
+                .backups
+                .iter()
+                .map(|snapshot| snapshot.date.as_str())
+                .collect::<Vec<_>>(),
+            vec!["z", "a"]
+        );
+        assert_eq!(
+            merge_snapshots_metadata(&merged, &remote).unwrap().backups,
+            merged.backups
         );
     }
 

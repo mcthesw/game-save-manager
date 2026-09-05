@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { DEVICE_A_ID } from './support/constants';
+import { DEVICE_A_ID, DEVICE_A_NAME } from './support/constants';
 import { seedLocalConfig, writeSaveText } from './support/local-fixture';
 import { startLocalSession } from './support/local-session';
 import {
@@ -15,7 +15,7 @@ import {
   getSettings,
   listSnapshotsFor,
 } from './support/local-gui';
-import { openGame } from './support/gui';
+import { openGame, snapshotRow } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 import { GAME_NAME } from './support/constants';
 
@@ -46,14 +46,17 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
       .poll(async () => (await listSnapshotsFor(host, GAME_NAME)).length, { timeout: 30_000 })
       .toBe(1);
     const firstId = (await listSnapshotsFor(host, GAME_NAME))[0]!.date;
-    const firstRow = page.getByRole('row').filter({ hasText: firstId });
+    const firstRow = snapshotRow(page, firstId);
+    expect(firstId).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
+    expect((await snapshotMeta(device.appDataDir, firstId)).created_at).toEqual(expect.any(Number));
+    await expect(firstRow.getByText(`Created on ${DEVICE_A_NAME}`, { exact: true })).toBeVisible();
+    await expect(firstRow).not.toContainText(firstId);
     expect((await snapshotMeta(device.appDataDir, firstId)).describe).toBe('');
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, firstId);
     await expect(firstRow.getByText('This device', { exact: true })).toBeVisible();
 
     // Second snapshot with a description, over newer save content.
     await writeSaveText(device.savePath, CONTENT_V2);
-    await page.waitForTimeout(1100); // snapshot IDs are second-precision
     await page.getByPlaceholder('New backup description').fill('second');
     await page.getByRole('button', { name: 'Create new snapshot' }).click();
     await expect
@@ -100,7 +103,7 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
       .toBe(false);
     await expect.poll(async () => (await getSettings(host)).confirm_before_apply_latest).toBe(true);
 
-    const secondRow = page.getByRole('row').filter({ hasText: secondId });
+    const secondRow = snapshotRow(page, secondId);
     await secondRow.getByRole('button', { name: 'Apply' }).click();
     await expect
       .poll(async () => readFile(device.savePath, 'utf8'), { timeout: 30_000 })

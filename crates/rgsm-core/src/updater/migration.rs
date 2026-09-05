@@ -591,7 +591,9 @@ fn migrate_game_snapshots_to_chain(backup_path: &Path) -> Result<(), UpdaterErro
             }
         } else {
             // Sort snapshots by date (ascending - oldest first)
-            game_snapshots.backups.sort_by(|a, b| a.date.cmp(&b.date));
+            game_snapshots
+                .backups
+                .sort_by_key(|snapshot| snapshot.creation_time());
 
             // Create parent chain: each snapshot points to the previous one
             for i in 1..game_snapshots.backups.len() {

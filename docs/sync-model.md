@@ -36,6 +36,8 @@ The shared metadata for one progress point: identity, parent, description, creat
 
 Creation metadata is independent of identity and availability: `created_at` is the original Unix-millisecond timestamp, `device_id` identifies the original creator, and `created_by` records the capture trigger. Transfer and Apply preserve this metadata; a Device holding a copy is not necessarily its creator. Missing historical values remain unknown. The historical local field `date` still carries the Snapshot ID, so old catalogs and Archive filenames do not need rewriting.
 
+New captures use random UUID identities and record their creation time separately. The table, branch view and progress review display creation time and the original Device name. Historical timestamp IDs remain readable as local wall-clock times; no time zone is invented or persisted for them. Chronological ordering is only for presentation, retention and local latest-snapshot actions; it never decides which Device's progress wins.
+
 ### Archive copy
 
 The actual zip or 7z bytes for one Snapshot. Copies may independently exist on the current Device, other Devices, and cloud storage.

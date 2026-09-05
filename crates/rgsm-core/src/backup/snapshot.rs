@@ -76,7 +76,7 @@ pub struct Snapshot {
     pub archive_format: ArchiveFormat,
     #[serde(default = "default_value::default_zero")]
     pub size: u64, // in bytes
-    /// Parent snapshot's date (None means this is a root node)
+    /// Parent snapshot's identity (None means this is a root node)
     #[serde(default = "default_value::default_none")]
     pub parent: Option<String>,
     /// XXH3 hash of the archive file for integrity verification.
@@ -93,9 +93,57 @@ pub struct Snapshot {
     pub created_by: CreatedBy,
 }
 
+impl Snapshot {
+    /// Time for presentation, retention and local fallback selection, not ancestry.
+    /// Legacy IDs contain a local wall clock without a time zone. Interpret them
+    /// on this device without writing an inferred timestamp back to the catalog.
+    pub fn creation_time(&self) -> Option<i64> {
+        use chrono::TimeZone;
+        if let Some(timestamp) = self.created_at {
+            return chrono::Utc
+                .timestamp_millis_opt(timestamp)
+                .single()
+                .map(|time| time.timestamp_millis());
+        }
+        let local = chrono::NaiveDateTime::parse_from_str(&self.date, "%Y-%m-%d_%H-%M-%S").ok()?;
+        if local.format("%Y-%m-%d_%H-%M-%S").to_string() != self.date {
+            return None;
+        }
+        chrono::Local
+            .from_local_datetime(&local)
+            .earliest()
+            .map(|time| time.timestamp_millis())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creation_time_prefers_explicit_time_and_reads_only_valid_legacy_clocks() {
+        use chrono::TimeZone;
+        let mut snapshot: Snapshot = serde_json::from_value(serde_json::json!({
+            "date": "2025-02-14_12-34-56", "describe": "", "path": ""
+        }))
+        .unwrap();
+        let legacy_time = chrono::Local
+            .with_ymd_and_hms(2025, 2, 14, 12, 34, 56)
+            .earliest()
+            .unwrap()
+            .timestamp_millis();
+        assert_eq!(snapshot.creation_time(), Some(legacy_time));
+        assert_eq!(snapshot.created_at, None);
+        snapshot.created_at = Some(1234);
+        assert_eq!(snapshot.creation_time(), Some(1234));
+        snapshot.created_at = None;
+        for invalid in ["opaque", "2025-02-31_12-00-00", "2025-02-14_12-34-56-extra"] {
+            snapshot.date = invalid.into();
+            assert_eq!(snapshot.creation_time(), None);
+        }
+        snapshot.created_at = Some(i64::MAX);
+        assert_eq!(snapshot.creation_time(), None);
+    }
 
     #[test]
     fn legacy_snapshot_without_archive_format_defaults_to_zip() {

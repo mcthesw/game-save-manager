@@ -44,8 +44,7 @@ impl ServiceContext {
     ) -> Result<(), BackupError> {
         let snapshots = game.get_game_snapshots_info()?;
         let snapshot = snapshots
-            .backups
-            .last()
+            .latest_snapshot()
             .ok_or(BackupError::NoBackupAvailable)?
             .clone();
         self.restore_snapshot(game, &snapshot.date, source, notifier)
@@ -126,7 +125,7 @@ impl ServiceContext {
             .backups
             .iter()
             .filter(|snapshot| snapshot.created_by.is_automatic_backup())
-            .max_by_key(|snapshot| &snapshot.date);
+            .max_by_key(|snapshot| snapshot.creation_time());
         if latest.is_some_and(|snapshot| {
             let backend: &dyn ArchiveBackend = match snapshot.archive_format {
                 ArchiveFormat::Zip => &ZipBackend,
@@ -372,7 +371,7 @@ impl ServiceContext {
         let config = get_config()?;
         for game in &config.games {
             let snapshots_info = game.get_game_snapshots_info()?;
-            let Some(snapshot) = snapshots_info.backups.last().cloned() else {
+            let Some(snapshot) = snapshots_info.latest_snapshot().cloned() else {
                 continue;
             };
             self.restore_snapshot(game, &snapshot.date, source.clone(), notifier)

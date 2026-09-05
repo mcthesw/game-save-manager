@@ -844,6 +844,51 @@ fn batch_delete_empty_dates_is_noop() -> TestResult {
 }
 
 #[test]
+fn opaque_snapshot_selection_uses_creation_time() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let root = temp_dir::TempDir::new()?;
+        let config = Config {
+            backup_path: root.path().to_string_lossy().into_owned(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+        for action in ["single", "batch", "retention"] {
+            let game = make_test_game(action, root.path())?;
+            insert_snapshot(&game, root.path(), "root", None)?;
+            insert_snapshot(&game, root.path(), "z-old", Some("root"))?;
+            insert_snapshot(&game, root.path(), "a-new", Some("root"))?;
+            let mut infos = game.get_game_snapshots_info()?;
+            for (index, snapshot) in infos.backups.iter_mut().enumerate() {
+                snapshot.created_at = Some(index as i64 * 1000);
+                snapshot.created_by = CreatedBy::Timer;
+            }
+            infos.set_current_device_head(Some("root".into()));
+            game.set_game_snapshots_info(&infos)?;
+            let result = match action {
+                "single" => game.delete_snapshot("root").await?.snapshots,
+                "batch" => {
+                    game.batch_delete_snapshots(&["root".into()])
+                        .await?
+                        .snapshots
+                }
+                _ => game.cleanup_old_auto_backups(1).await?.snapshots,
+            };
+            assert_eq!(
+                result.current_device_head().map(String::as_str),
+                Some("a-new"),
+                "{action}"
+            );
+            if action == "retention" {
+                assert_eq!(result.backups.len(), 1);
+                assert_eq!(result.backups[0].date, "a-new");
+            }
+        }
+        Ok(())
+    })
+}
+
+#[test]
 fn delete_game_clears_quick_action_reference_by_storage_key() -> TestResult {
     let _config_lock = lock_config_file();
     run_async_test(async {
@@ -1238,7 +1283,7 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
 }
 
 #[test]
-fn unused_snapshot_date_skips_occupied_second() -> TestResult {
+fn snapshot_ids_are_opaque_and_do_not_depend_on_the_clock() -> TestResult {
     let backup_path = Path::new("occupied-second");
     let mut infos = GameSnapshots::new("game");
     let occupied = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
@@ -1254,8 +1299,13 @@ fn unused_snapshot_date_skips_occupied_second() -> TestResult {
         device_id: None,
         created_by: CreatedBy::Manual,
     });
-    let allocated = crate::backup::game::unused_snapshot_date(backup_path, &infos)?;
-    assert_ne!(allocated, occupied);
+    let mut ids = BTreeSet::new();
+    for _ in 0..100 {
+        let allocated = crate::backup::game::unused_snapshot_id(backup_path, &infos)?;
+        assert_ne!(allocated, occupied);
+        assert!(uuid::Uuid::parse_str(&allocated).is_ok());
+        assert!(ids.insert(allocated));
+    }
     Ok(())
 }
 
@@ -1300,6 +1350,8 @@ fn game_with_colon_in_name_can_create_snapshot() -> TestResult {
 
         let snapshots = game.get_game_snapshots_info()?;
         assert_eq!(snapshots.backups.len(), 1);
+        assert!(uuid::Uuid::parse_str(&snapshots.backups[0].date).is_ok());
+        assert!(snapshots.backups[0].created_at.is_some());
         Ok(())
     })
 }

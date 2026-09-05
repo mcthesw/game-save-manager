@@ -111,7 +111,9 @@ test('snapshot tree: branch on apply-then-create, set head, delete head fallback
 
     // The table view still lists the surviving snapshot.
     await page.getByRole('tab', { name: 'Table View' }).click();
-    await expect(page.getByRole('row').filter({ hasText: secondId })).toBeVisible();
+    await expect(
+      page.locator(`[role="row"][data-snapshot-id=${JSON.stringify(secondId)}]`)
+    ).toBeVisible();
   } catch (error) {
     failed = true;
     throw error;

@@ -9,7 +9,7 @@ import {
   localArchiveExists,
 } from './support/local-assertions';
 import { createSnapshotForGame } from './support/local-gui';
-import { openGame } from './support/gui';
+import { openGame, snapshotRow } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 
 test('batch delete removes selected snapshots and rewires the tree', async ({ browser }) => {
@@ -29,8 +29,8 @@ test('batch delete removes selected snapshots and rewires the tree', async ({ br
 
     // Delete the two middle links: s4 must re-parent to s1, head stays.
     await openGame(page);
-    await page.getByRole('checkbox', { name: s2! }).click();
-    await page.getByRole('checkbox', { name: s3! }).click();
+    await snapshotRow(page, s2).getByRole('checkbox').click();
+    await snapshotRow(page, s3).getByRole('checkbox').click();
     await page.getByRole('button', { name: 'Batch delete' }).click();
     const prompt = page.getByRole('dialog');
     await expect(prompt.getByText(/enter yes to confirm/)).toBeVisible();
@@ -52,8 +52,8 @@ test('batch delete removes selected snapshots and rewires the tree', async ({ br
     await expectSnapshotParent(device.appDataDir, s5, s4);
     await page.reload();
     await openGame(page);
-    await page.getByRole('checkbox', { name: s4 }).click();
-    await page.getByRole('checkbox', { name: s5 }).click();
+    await snapshotRow(page, s4).getByRole('checkbox').click();
+    await snapshotRow(page, s5).getByRole('checkbox').click();
     await page.getByRole('button', { name: 'Batch delete' }).click();
     await expect(prompt.getByText(/enter yes to confirm/)).toBeVisible();
     await prompt.getByRole('textbox').fill('yes');

@@ -10,6 +10,7 @@ import {
   evictCloudCopy,
   evictLocalCopy,
   openGame,
+  snapshotRow,
   uploadSnapshot,
 } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
@@ -40,18 +41,14 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
     expect(existsSync(localArchivePath(seeded.deviceA.appDataDir, snapshotId))).toBe(true);
 
     await openGame(session.pageB);
-    const download = session.pageB
-      .getByRole('row')
-      .filter({ hasText: snapshotId })
-      .getByRole('button', { name: 'Download to this device' });
+    const download = snapshotRow(session.pageB, snapshotId).getByRole('button', {
+      name: 'Download to this device',
+    });
     if (await download.isVisible().catch(() => false)) {
       await expect(download).toBeDisabled();
     } else {
       await expect(
-        session.pageB
-          .getByRole('row')
-          .filter({ hasText: snapshotId })
-          .getByRole('button', { name: 'Upload to cloud' })
+        snapshotRow(session.pageB, snapshotId).getByRole('button', { name: 'Upload to cloud' })
       ).toBeVisible();
     }
 

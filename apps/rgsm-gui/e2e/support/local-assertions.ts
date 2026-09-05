@@ -12,6 +12,7 @@ export type BackupsEntry = {
   size?: number;
   parent?: string | null;
   device_id?: string | null;
+  created_at?: number | null;
   created_by?: string;
   archive_hash?: string | null;
 };

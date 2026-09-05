@@ -50,6 +50,13 @@ impl GameSnapshots {
         }
     }
 
+    /// Latest by creation time, with catalog order as the tie breaker.
+    pub fn latest_snapshot(&self) -> Option<&Snapshot> {
+        self.backups
+            .iter()
+            .max_by_key(|snapshot| snapshot.creation_time())
+    }
+
     pub fn forget_v2_tombstones(&mut self, snapshot_ids: &BTreeSet<String>) -> usize {
         let previous = self.backups.len();
         self.backups
@@ -211,5 +218,19 @@ mod tests {
         assert_eq!(snapshots.backups[0].date, "kept");
         assert!(!snapshots.device_heads.contains_key("device-a"));
         assert_eq!(snapshots.device_heads["device-b"], "kept");
+    }
+
+    #[test]
+    fn latest_snapshot_uses_time_not_identity_or_download_order() {
+        let mut snapshots = GameSnapshots::new("game");
+        let mut newer = snapshot("aaaa", Some("a"));
+        newer.created_at = Some(2000);
+        let mut older = snapshot("zzzz", Some("b"));
+        older.created_at = Some(1000);
+        snapshots.backups = vec![newer.clone(), older];
+        assert_eq!(snapshots.latest_snapshot().unwrap().date, "aaaa");
+        newer.date = "equal-time".into();
+        snapshots.backups.push(newer);
+        assert_eq!(snapshots.latest_snapshot().unwrap().date, "equal-time");
     }
 }

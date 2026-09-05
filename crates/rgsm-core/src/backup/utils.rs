@@ -127,8 +127,7 @@ pub async fn apply_all(
     for game in &config.games {
         let date = game
             .get_game_snapshots_info()?
-            .backups
-            .last()
+            .latest_snapshot()
             .ok_or(BackupError::NoBackupAvailable)?
             .date
             .clone();

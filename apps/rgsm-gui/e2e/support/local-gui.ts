@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { DEVICE_A_ID } from './constants';
 import { hostPost, type RgsmHost } from './rgsm-instance';
-import { waitForFreshSnapshotSecond } from './gui';
+import { snapshotRow } from './gui';
 import { waitForCommand } from './command-result';
 
 export type LocalUnitInput = {
@@ -114,7 +114,6 @@ export async function createSnapshotForGame(
   gameName: string,
   describe: string
 ): Promise<string> {
-  await waitForFreshSnapshotSecond();
   const game = await getLocalGame(host, gameName);
   const result = await hostPost(host, '/api/v1/create-snapshot', { game, describe });
   expect(result.ok, result.raw).toBe(true);
@@ -163,7 +162,7 @@ export async function updateSettings(
 
 /** Clicks the in-row Delete button and confirms the local destructive dialog. */
 export async function deleteSnapshotViaUi(page: Page, snapshotId: string): Promise<void> {
-  const row = page.getByRole('row').filter({ hasText: snapshotId });
+  const row = snapshotRow(page, snapshotId);
   await row.getByRole('button', { name: 'Delete' }).click();
   await confirmSnapshotDeletion(page, snapshotId);
 }
@@ -183,7 +182,7 @@ export async function changeDescriptionViaUi(
   snapshotId: string,
   description: string
 ): Promise<void> {
-  const row = page.getByRole('row').filter({ hasText: snapshotId });
+  const row = snapshotRow(page, snapshotId);
   await row.getByRole('button', { name: 'Modify' }).click();
   const dialog = page.getByRole('dialog', { name: 'Enter new description' });
   await expect(dialog).toBeVisible();

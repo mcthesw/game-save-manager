@@ -8,6 +8,7 @@ import type { Snapshot } from '../api/commands';
 import { $t } from '../i18n';
 import { Crosshair, Inbox, Maximize } from '@lucide/vue';
 import { KButton, KTooltip } from '../ui/kit';
+import { compareSnapshotTime, snapshotDeviceName } from '../utils/snapshotPresentation';
 
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
@@ -25,6 +26,7 @@ interface Props {
   currentHead: string | null;
   deviceHeads: DeviceHeadMarker[];
   editableDates?: string[];
+  devices?: Record<string, { name: string }>;
 }
 
 const props = defineProps<Props>();
@@ -71,7 +73,7 @@ function buildTreeLayout(snapshots: Snapshot[]): { nodes: Node[]; edges: Edge[] 
   }
 
   for (const children of childrenMap.values()) {
-    children.sort((a, b) => a.date.localeCompare(b.date));
+    children.sort(compareSnapshotTime);
   }
 
   const snapshotDates = new Set(snapshots.map((snapshot) => snapshot.date));
@@ -81,7 +83,7 @@ function buildTreeLayout(snapshots: Snapshot[]): { nodes: Node[]; edges: Edge[] 
       snapshot.parent === undefined ||
       !snapshotDates.has(snapshot.parent)
   );
-  rootSnapshots.sort((a, b) => a.date.localeCompare(b.date));
+  rootSnapshots.sort(compareSnapshotTime);
 
   function buildTreeNode(snapshot: Snapshot, parent: TreeNode | null, depth: number): TreeNode {
     const node: TreeNode = {
@@ -162,6 +164,11 @@ function buildTreeLayout(snapshots: Snapshot[]): { nodes: Node[]; edges: Edge[] 
       position: { x: posX, y: posY },
       data: {
         snapshot: node.snapshot,
+        creatorLabel: $t('manage.snapshot_creator', {
+          device:
+            snapshotDeviceName(node.snapshot.device_id, props.devices) ??
+            $t('manage.unknown_snapshot_device'),
+        }),
         isHead: headMarkers.length > 0,
         isCurrentHead: node.snapshot.date === props.currentHead,
         isRoot: node.parent === null,
@@ -203,7 +210,7 @@ const flowNodes = ref<Node[]>([]);
 const flowEdges = ref<Edge[]>([]);
 
 watch(
-  () => [props.snapshots, props.currentHead, props.deviceHeads],
+  () => [props.snapshots, props.currentHead, props.deviceHeads, props.devices],
   () => {
     const { nodes, edges } = buildTreeLayout(props.snapshots);
     flowNodes.value = nodes;

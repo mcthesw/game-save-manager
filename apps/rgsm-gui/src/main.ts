@@ -13,7 +13,7 @@ import { i18n } from './i18n';
 import { router } from './router';
 
 // `dayjs(date, format)` silently ignores the format without this plugin —
-// snapshot ids (YYYY-MM-DD_HH-mm-ss) used to fall back to raw strings.
+// historical snapshot and Extra Backup filenames use a custom date format.
 dayjs.extend(customParseFormat);
 
 createApp(App).use(i18n).use(router).mount('#app');
