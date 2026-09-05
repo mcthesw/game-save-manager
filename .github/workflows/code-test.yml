@@ -86,9 +86,13 @@ jobs:
           cargo check -p rgsm-core --no-default-features
           cargo test -p rgsm-core --no-default-features --lib
 
-  gui-cloud-fs-e2e:
-    name: GUI Cloud Fs E2E
+  gui-cloud-fs-e2e-shard:
+    name: GUI Cloud Fs E2E (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v5
 
@@ -133,23 +137,31 @@ jobs:
       - name: Generate frontend API
         run: pnpm --dir apps/rgsm-gui web:generate-api
 
-      - name: Build debug RGSM Host
-        run: cargo build --locked -p rgsm
-
       - name: Install Playwright Chromium
         run: pnpm --dir apps/rgsm-gui exec playwright install chromium --with-deps
 
       # The debug "host" is the full Tauri app in host-only mode; GTK and the
       # tray stack still initialize, so the suite needs a virtual display.
       - name: Run GUI Cloud Fs E2E
-        run: xvfb-run -a pnpm web:e2e
+        run: xvfb-run -a pnpm web:e2e --shard=${{ matrix.shard }}/2
 
       - name: Upload E2E artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gui-cloud-fs-e2e
+          name: gui-cloud-fs-e2e-${{ matrix.shard }}
           path: |
             apps/rgsm-gui/e2e-report
             apps/rgsm-gui/e2e-results
           if-no-files-found: ignore
+
+  gui-cloud-fs-e2e:
+    name: GUI Cloud Fs E2E
+    needs: gui-cloud-fs-e2e-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all E2E shards to pass
+        env:
+          SHARD_RESULT: ${{ needs.gui-cloud-fs-e2e-shard.result }}
+        run: test "$SHARD_RESULT" = success
