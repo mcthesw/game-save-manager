@@ -34,6 +34,8 @@ Synchronization has one per-Game on/off switch plus a remembered cloud preset. C
 
 The shared metadata for one progress point: identity, parent, description, creation source, Archive identity, and availability reports. A Snapshot record may exist without a Cloud Archive.
 
+Creation metadata is independent of identity and availability: `created_at` is the original Unix-millisecond timestamp, `device_id` identifies the original creator, and `created_by` records the capture trigger. Transfer and Apply preserve this metadata; a Device holding a copy is not necessarily its creator. Missing historical values remain unknown. The historical local field `date` still carries the Snapshot ID, so old catalogs and Archive filenames do not need rewriting.
+
 ### Archive copy
 
 The actual zip or 7z bytes for one Snapshot. Copies may independently exist on the current Device, other Devices, and cloud storage.

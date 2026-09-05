@@ -227,6 +227,7 @@ pub fn snapshot(id: &str, parent: Option<&str>, device_id: &str, size: usize) ->
         size: size as u64,
         parent: parent.map(str::to_string),
         archive_hash: None,
+        created_at: None,
         device_id: Some(device_id.to_string()),
         created_by: CreatedBy::Manual,
     }

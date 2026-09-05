@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::ArchiveIntegrity;
-use crate::backup::{ArchiveFormat, CreatedBy};
+use crate::backup::{ArchiveFormat, CreatedBy, Snapshot};
 use crate::device::DeviceId;
 
 pub const CLOUD_MANIFEST_SCHEMA_VERSION: u32 = 2;
@@ -336,6 +336,12 @@ impl GameManifest {
 pub struct SnapshotNode {
     pub snapshot_id: String,
     pub parent: Option<String>,
+    /// Original creation time in Unix milliseconds, independent of the ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<i64>,
+    /// Original creator, not the Device publishing or holding an Archive copy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<DeviceId>,
     #[serde(default)]
     pub catalog_revision: u64,
     #[serde(default)]
@@ -346,6 +352,45 @@ pub struct SnapshotNode {
 }
 
 impl SnapshotNode {
+    pub(crate) fn from_snapshot(snapshot: &Snapshot, integrity: Option<ArchiveIntegrity>) -> Self {
+        let mut node = match integrity {
+            Some(integrity) => Self::live(
+                &snapshot.date,
+                snapshot.parent.clone(),
+                integrity,
+                snapshot.created_by.clone(),
+            ),
+            None => Self::unavailable(
+                &snapshot.date,
+                snapshot.parent.clone(),
+                snapshot.created_by.clone(),
+            ),
+        };
+        node.description = snapshot.describe.clone();
+        node.archive_format = snapshot.archive_format;
+        node.created_at = snapshot.created_at;
+        node.device_id = snapshot.device_id.clone();
+        node
+    }
+
+    pub(crate) fn local_snapshot(&self, path: std::path::PathBuf) -> Option<Snapshot> {
+        let SnapshotState::Live(live) = &self.state else {
+            return None;
+        };
+        Some(Snapshot {
+            date: self.snapshot_id.clone(),
+            describe: self.description.clone(),
+            path: path.to_string_lossy().into_owned(),
+            archive_format: self.archive_format,
+            size: live.integrity.as_ref().map_or(0, |value| value.size),
+            parent: self.parent.clone(),
+            archive_hash: live.integrity.as_ref().map(|value| value.xxh3_64.clone()),
+            created_at: self.created_at,
+            device_id: self.device_id.clone(),
+            created_by: live.created_by.clone(),
+        })
+    }
+
     pub fn live(
         snapshot_id: impl Into<String>,
         parent: Option<String>,
@@ -355,6 +400,8 @@ impl SnapshotNode {
         Self {
             snapshot_id: snapshot_id.into(),
             parent,
+            created_at: None,
+            device_id: None,
             catalog_revision: 0,
             description: String::new(),
             archive_format: ArchiveFormat::default(),
@@ -376,6 +423,8 @@ impl SnapshotNode {
         Self {
             snapshot_id: snapshot_id.into(),
             parent,
+            created_at: None,
+            device_id: None,
             catalog_revision: 0,
             description: String::new(),
             archive_format: ArchiveFormat::default(),

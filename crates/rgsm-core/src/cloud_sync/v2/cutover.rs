@@ -308,21 +308,11 @@ impl CloudLibraryCutover {
                 let result = frozen.results.get(&snapshot.date).ok_or_else(|| {
                     CloudLibraryCutoverError::MissingProgressResult(snapshot.date.clone())
                 })?;
-                let mut node = match result {
-                    CutoverArchiveResult::Verified { integrity, .. } => SnapshotNode::live(
-                        &snapshot.date,
-                        snapshot.parent.clone(),
-                        integrity.clone(),
-                        snapshot.created_by.clone(),
-                    ),
-                    CutoverArchiveResult::Unavailable => SnapshotNode::unavailable(
-                        &snapshot.date,
-                        snapshot.parent.clone(),
-                        snapshot.created_by.clone(),
-                    ),
+                let integrity = match result {
+                    CutoverArchiveResult::Verified { integrity, .. } => Some(integrity.clone()),
+                    CutoverArchiveResult::Unavailable => None,
                 };
-                node.description = snapshot.describe.clone();
-                node.archive_format = snapshot.archive_format;
+                let mut node = SnapshotNode::from_snapshot(snapshot, integrity);
                 if let SnapshotState::Live(live) = &mut node.state {
                     live.cloud_archive_verified =
                         matches!(result, CutoverArchiveResult::Verified { .. });
@@ -621,6 +611,7 @@ mod tests {
             size: payload.len() as u64,
             parent: parent.map(str::to_string),
             archive_hash: Some(format!("{:016x}", xxhash_rust::xxh3::xxh3_64(payload))),
+            created_at: None,
             device_id: Some("creator-device".into()),
             created_by: CreatedBy::Manual,
         }
@@ -710,7 +701,7 @@ mod tests {
                 if !live.cloud_archive_verified && live.integrity.is_none()
         ));
         let json = serde_json::to_string(&manifest).unwrap();
-        assert!(!json.contains("creator-device"));
+        assert!(json.contains("creator-device"));
         assert_eq!(game.device_heads["deck"], "missing");
     }
     #[tokio::test]

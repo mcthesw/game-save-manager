@@ -482,6 +482,7 @@ impl Game {
             size: file_size,
             parent,
             archive_hash: None,
+            created_at: None,
             device_id: Some(get_current_device_id().clone()),
             created_by,
         };
@@ -543,6 +544,7 @@ impl Game {
             size: file_size,
             parent,
             archive_hash: None,
+            created_at: None,
             device_id: Some(get_current_device_id().clone()),
             created_by: options.created_by,
         });
