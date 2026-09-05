@@ -103,6 +103,7 @@ impl OwnerStore {
         );
         let mut owners = ConfigurationOwners::from_legacy(config, &current_device_id);
         if let Some(existing) = existing {
+            owners.preserve_local_scope(&existing.local_state);
             owners.local_state.cloud_namespace_generation =
                 existing.local_state.cloud_namespace_generation;
             owners.local_state.cloud_library_id = existing.local_state.cloud_library_id;
@@ -197,20 +198,10 @@ impl OwnerStore {
             return Err(OwnerStoreError::JoinInputsChanged);
         }
 
-        let accepted_ids = accepted_library
-            .games
-            .iter()
-            .map(|game| game.storage_key.as_str())
-            .collect::<std::collections::HashSet<_>>();
-        for profile in owners.device_profiles.values_mut() {
-            profile
-                .games
-                .retain(|id, _| accepted_ids.contains(id.as_str()));
-        }
-        owners.shared_library = accepted_library.clone();
-        owners
-            .device_profiles
-            .insert(current_device_id, accepted_profile.clone());
+        owners.accept_library(
+            accepted_library,
+            &HashMap::from([(current_device_id, accepted_profile.clone())]),
+        );
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
         owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
@@ -239,11 +230,9 @@ impl OwnerStore {
         }
 
         let accepted_current_profile = current_profile.for_shared_library(accepted_library);
-        owners.shared_library = accepted_library.clone();
-        owners.device_profiles = accepted_profiles.clone();
-        owners
-            .device_profiles
-            .insert(current_device_id, accepted_current_profile);
+        let mut profiles = accepted_profiles.clone();
+        profiles.insert(current_device_id, accepted_current_profile);
+        owners.accept_library(accepted_library, &profiles);
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
         owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
@@ -310,10 +299,10 @@ impl OwnerStore {
             return Err(OwnerStoreError::SharedLibraryInputsChanged);
         }
         accepted_library.validate()?;
-        owners.shared_library = accepted_library.clone();
-        owners
-            .device_profiles
-            .insert(current_device_id, accepted_profile.clone());
+        owners.accept_library(
+            accepted_library,
+            &HashMap::from([(current_device_id, accepted_profile.clone())]),
+        );
         owners.local_state.cloud_library_id = Some(library_id.to_string());
         self.write(&owners)
     }
@@ -345,6 +334,12 @@ impl OwnerStore {
             .games
             .retain(|game| game.storage_key != game_id);
         let mut changed = owners.shared_library.games.len() != previous_game_count;
+        let previous_local_count = owners.local_state.local_games.len();
+        owners
+            .local_state
+            .local_games
+            .retain(|game| game.storage_key != game_id);
+        changed |= owners.local_state.local_games.len() != previous_local_count;
         for profile in owners.device_profiles.values_mut() {
             changed |= profile.remove_game_state(game_id, game_name);
         }
@@ -597,6 +592,10 @@ fn profile_file_name(device_id: &str) -> String {
     encoded.push_str(".json");
     encoded
 }
+
+#[cfg(test)]
+#[path = "local_games_tests.rs"]
+mod local_games_tests;
 
 #[cfg(test)]
 mod tests {

@@ -466,6 +466,15 @@ impl ServiceContext {
                 date: snapshot_date.to_string(),
             })?;
 
+        // Resolve the name-only legacy endpoint once before checking ownership.
+        // An unrelated local ID may be identical to this Game's display name.
+        if self
+            .is_shared_game(&game.storage_key)
+            .map_err(|error| BackupError::Unexpected(error.into()))?
+        {
+            return Err(BackupError::SharedSnapshotProvenance);
+        }
+
         let mut snapshots = game.get_game_snapshots_info()?;
         let snapshot = snapshots
             .backups

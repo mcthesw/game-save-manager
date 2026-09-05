@@ -388,8 +388,9 @@ pub async fn delete_snapshot(
     date: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
-        == CloudNamespaceGeneration::V2
+    if svc(&app_handle)
+        .is_shared_game(game.backup_dir_name().as_ref())
+        .map_err(|error| error.to_string())?
     {
         return Err(ACTIVE_CLOUD_LIBRARY_DELETION_REQUIRES_PERMANENT.into());
     }
@@ -411,8 +412,9 @@ pub async fn batch_delete_snapshots(
     dates: Vec<String>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
-        == CloudNamespaceGeneration::V2
+    if svc(&app_handle)
+        .is_shared_game(game.backup_dir_name().as_ref())
+        .map_err(|error| error.to_string())?
     {
         return Err(ACTIVE_CLOUD_LIBRARY_DELETION_REQUIRES_PERMANENT.into());
     }
@@ -1221,13 +1223,6 @@ pub async fn set_snapshot_created_by(
     snapshot_date: String,
     created_by: CreatedBy,
 ) -> Result<GameSnapshots, String> {
-    if rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())?
-        == CloudNamespaceGeneration::V2
-    {
-        return Err(
-            "Use V2 retention protection without changing Snapshot creation provenance".into(),
-        );
-    }
     info!(
         target:"rgsm::commands",
         "Setting created_by for '{game_name}' snapshot '{snapshot_date}' to {created_by:?}"

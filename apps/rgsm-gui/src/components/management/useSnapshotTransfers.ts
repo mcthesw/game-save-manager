@@ -223,12 +223,12 @@ export function useSnapshotTransfers(deps: {
 
   async function convertToPermanent(snapshotDate: string) {
     try {
-      const generation = await commands.getCloudNamespaceGeneration();
-      if (generation.status === 'error') {
-        notifyError(generation.error);
+      const ownership = await commands.getCurrentDeviceGameStatuses();
+      if (ownership.status === 'error') {
+        notifyError(ownership.error);
         return;
       }
-      if (generation.data === 'v2') {
+      if (ownership.data.some((status) => status.game_id === gameId() && status.shared)) {
         const nextProtected = !isRetentionProtected(snapshotDate);
         if (nextProtected) {
           await feedback.confirm(

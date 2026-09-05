@@ -15,7 +15,8 @@ import {
   setSharedRetention,
   uploadSnapshot,
 } from './support/gui';
-import { createRunRoot } from './support/rgsm-instance';
+import { createRunRoot, hostPost } from './support/rgsm-instance';
+import { GAME_NAME } from './support/constants';
 import { startDualSession } from './support/session';
 
 test('protect snapshot and set shared retention limit', async ({ browser }) => {
@@ -31,6 +32,12 @@ test('protect snapshot and set shared retention limit', async ({ browser }) => {
   let failed = false;
   try {
     await createLibrary(session.pageA);
+    const provenanceChange = await hostPost(session.hostA, '/api/v1/set-snapshot-created-by', {
+      gameName: GAME_NAME,
+      snapshotDate: keepId,
+      createdBy: 'Manual',
+    });
+    expect(provenanceChange.ok).toBe(false);
     await openGame(session.pageA);
     for (const snapshotId of [keepId, second, third, fourth]) {
       await uploadSnapshot(session.pageA, snapshotId!);

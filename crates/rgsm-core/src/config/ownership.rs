@@ -33,6 +33,8 @@ pub enum OwnershipError {
     ProfileIdentityMismatch { key: DeviceId, embedded: DeviceId },
     #[error("Shared Library contains duplicate Game identity: {0}")]
     DuplicateSharedGame(String),
+    #[error("Game belongs to both local and shared configuration: {0}")]
+    DuplicateGameOwnership(String),
     #[error("Shared Library contains an empty Game identity")]
     EmptySharedGameId,
     #[error("Shared Game {game_id} contains duplicate Save Unit ID {save_unit_id}")]
@@ -271,6 +273,8 @@ pub struct LocalState {
     pub cloud_namespace_generation: CloudNamespaceGeneration,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cloud_library_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub local_games: Vec<SharedGame>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
@@ -366,6 +370,7 @@ impl ConfigurationOwners {
                 cloud_settings: config.settings.cloud_settings.clone(),
                 cloud_namespace_generation: CloudNamespaceGeneration::LegacyV1,
                 cloud_library_id: None,
+                local_games: Vec::new(),
             },
         }
     }
@@ -373,6 +378,7 @@ impl ConfigurationOwners {
     pub fn validate(&self) -> Result<(), OwnershipError> {
         validate_schema("Configuration Owners", self.schema_version)?;
         self.shared_library.validate()?;
+        self.validate_local_games()?;
         validate_schema("Local State", self.local_state.schema_version)?;
         if self.local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2
             && self
@@ -439,6 +445,7 @@ impl ConfigurationOwners {
             .shared_library
             .games
             .iter()
+            .chain(self.local_state.local_games.iter())
             .map(|game| (game.storage_key.as_str(), game.snapshot_retention))
             .collect::<HashMap<_, _>>();
         for game in &mut incoming.shared_library.games {
@@ -458,6 +465,7 @@ impl ConfigurationOwners {
                 !previously_shared.contains(game_id)
             }
         });
+        incoming.preserve_local_scope(&self.local_state);
         self.shared_library = incoming.shared_library;
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
@@ -476,6 +484,7 @@ impl ConfigurationOwners {
             .shared_library
             .games
             .iter()
+            .chain(self.local_state.local_games.iter())
             .map(|game| game.storage_key.as_str())
             .collect::<HashSet<_>>();
         for profile in self.device_profiles.values_mut() {
@@ -499,6 +508,7 @@ impl ConfigurationOwners {
             .shared_library
             .games
             .iter()
+            .chain(self.local_state.local_games.iter())
             .map(|shared| self.assemble_game(shared, current_device_id))
             .collect();
         let devices = self

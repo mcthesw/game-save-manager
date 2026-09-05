@@ -160,12 +160,14 @@ onBeforeUnmount(() => {
 const pendingDeletions = computed(() => cloudGame.value?.pending_deletions ?? []);
 async function batch_delete() {
   try {
-    const generation = await commands.getCloudNamespaceGeneration();
-    if (generation.status === 'error') {
-      notifyError(generation.error);
+    const ownership = await commands.getCurrentDeviceGameStatuses();
+    if (ownership.status === 'error') {
+      notifyError(ownership.error);
       return;
     }
-    const global = generation.data === 'v2';
+    const global = ownership.data.some(
+      (status) => status.game_id === (game.value.storage_key || game.value.name) && status.shared
+    );
     const promptResult = await feedback.prompt(
       $t(global ? 'manage.batch_delete_global_prompt' : 'manage.batch_delete_prompt'),
       $t('home.hint'),
@@ -561,13 +563,17 @@ async function launch_game() {
 
 async function del_save(date: string) {
   try {
-    const generation = await commands.getCloudNamespaceGeneration();
-    if (generation.status === 'error') {
-      notifyError(generation.error);
+    const ownership = await commands.getCurrentDeviceGameStatuses();
+    if (ownership.status === 'error') {
+      notifyError(ownership.error);
       return;
     }
     let result;
-    if (generation.data === 'v2') {
+    if (
+      ownership.data.some(
+        (status) => status.game_id === (game.value.storage_key || game.value.name) && status.shared
+      )
+    ) {
       const gameId = game.value.storage_key || game.value.name;
       const snapshot = table_data.value.find((item) => item.date === date);
       await feedback.confirm(

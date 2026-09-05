@@ -68,7 +68,7 @@ export async function updateGameViaApi(
   game: LocalGame
 ): Promise<void> {
   const result = await hostPost(host, '/api/v1/update-game', {
-    storage_key: storageKey,
+    storageKey,
     game: {
       name: game.name,
       save_paths: game.save_paths,

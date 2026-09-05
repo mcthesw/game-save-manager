@@ -483,6 +483,7 @@ export type Device = {
 export type DeviceGameStatus = {
   game_id: string;
   managed: boolean;
+  shared: boolean;
   visible: boolean;
 };
 

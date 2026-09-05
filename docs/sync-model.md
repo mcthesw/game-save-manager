@@ -22,6 +22,8 @@ The player keeps automatic local capture enabled for rollback and corruption rec
 
 The player owns multiple Devices, but only some Games overlap. Cloud sync must be enabled independently per Game and Device; one Device must not be forced to synchronize the full Shared Library.
 
+Connecting, migrating, or refreshing a cloud library preserves Games that exist only locally, including their save paths and backups. Absence from a cloud directory is not a deletion request. Local-only definitions remain separate from the accepted Shared Library, so ordinary local edits do not publish them or require a working cloud connection. Explicit shared deletion records still remove the matching identity.
+
 ## Domain model
 
 Synchronization has one per-Game on/off switch plus a remembered cloud preset. Capture, Archive transfer, remote Apply, visibility, local Archive presence, and deletion remain distinct concepts even when presets keep the ordinary UI simple.
@@ -183,4 +185,3 @@ Matching positions on other Devices do not block deletion. They are cleared when
 - Global Snapshot Deletion moves the initiating Device's Current Position to the deleted Snapshot's parent (or clears it if no parent exists). Other Devices' positions are cleared without automatic ancestor fallback.
 - Local and Cloud Archive eviction use consequence warnings rather than requiring a verified replacement copy.
 - Evicting the last known Archive leaves the Snapshot visible but unavailable; it is not Global Snapshot Deletion.
-

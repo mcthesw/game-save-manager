@@ -30,6 +30,7 @@ async function refreshConfig(): Promise<boolean> {
         ? statuses.data
         : config.value.games.map((game) => ({
             game_id: game.storage_key || game.name,
+            shared: false,
             managed: true,
             visible: true,
           }));
