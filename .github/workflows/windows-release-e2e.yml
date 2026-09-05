@@ -52,6 +52,7 @@ jobs:
           e2e/local-compression.spec.ts
           e2e/local-legacy-archive.spec.ts
           e2e/local-v1-8-upgrade.spec.ts
+          e2e/local-released-upgrade.spec.ts
           e2e/local-failure-surface.spec.ts
           e2e/local-extra-backup.spec.ts
           e2e/local-restore-permissions.spec.ts

@@ -2,7 +2,8 @@
 //!
 //! Keep one realistic fixture for every materially different schema shipped in a release
 //! between `MIN_SUPPORTED_VERSION` and the latest release tag. Releases that serialize the
-//! same shape share a fixture; unreleased schemas do not define compatibility promises.
+//! same shape share a fixture. The historical 1.7.0 source fixture additionally covers
+//! its single-head branch graph, without claiming a published release package.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
@@ -28,6 +29,7 @@ const LEGACY_SINGLE_DEVICE: &str = include_str!("fixtures/config-upgrade/config_
 const LEGACY_SINGLE_DEVICE_WITH_REFERENCES: &str =
     include_str!("fixtures/config-upgrade/config_v1_4_0.json");
 const DEVICE_KEYED: &str = include_str!("fixtures/config-upgrade/config_v1_5_6.json");
+const HISTORICAL_BRANCHING: &str = include_str!("fixtures/config-upgrade/config_v1_7_0.json");
 const STABLE_SAVE_UNIT_IDS: &str = include_str!("fixtures/config-upgrade/config_v1_8_0.json");
 const RELEASED_SNAPSHOT_DATE: &str = "2025-01-02_03-04-05";
 const RELEASED_SAVE_CONTENT: &[u8] = b"released-save-content";
@@ -36,13 +38,14 @@ const RELEASED_SAVE_CONTENT: &[u8] = b"released-save-content";
 enum ReleasedSaveData {
     V1_0FlatFile,
     V1_5FlatFolder,
+    V1_7FlatFolder,
     V1_8IdPrefixedFolder,
 }
 
 impl ReleasedSaveData {
     fn save_unit_index(self) -> usize {
         match self {
-            Self::V1_0FlatFile | Self::V1_5FlatFolder => 0,
+            Self::V1_0FlatFile | Self::V1_5FlatFolder | Self::V1_7FlatFolder => 0,
             Self::V1_8IdPrefixedFolder => 1,
         }
     }
@@ -50,7 +53,7 @@ impl ReleasedSaveData {
     fn target_name(self) -> &'static str {
         match self {
             Self::V1_0FlatFile => "slot1.sav",
-            Self::V1_5FlatFolder => "Saves",
+            Self::V1_5FlatFolder | Self::V1_7FlatFolder => "Saves",
             Self::V1_8IdPrefixedFolder => "Saved",
         }
     }
@@ -58,7 +61,7 @@ impl ReleasedSaveData {
     fn archive_entry(self) -> &'static str {
         match self {
             Self::V1_0FlatFile => "slot1.sav",
-            Self::V1_5FlatFolder => "Saves/profile.sav",
+            Self::V1_5FlatFolder | Self::V1_7FlatFolder => "Saves/profile.sav",
             Self::V1_8IdPrefixedFolder => "11/Saved/profile.sav",
         }
     }
@@ -66,14 +69,14 @@ impl ReleasedSaveData {
     fn compression_method(self) -> zip::CompressionMethod {
         match self {
             Self::V1_0FlatFile => zip::CompressionMethod::Stored,
-            Self::V1_5FlatFolder => zip::CompressionMethod::Bzip2,
+            Self::V1_5FlatFolder | Self::V1_7FlatFolder => zip::CompressionMethod::Bzip2,
             Self::V1_8IdPrefixedFolder => zip::CompressionMethod::Zstd,
         }
     }
 
     fn archive_comment(self) -> Option<&'static str> {
         match self {
-            Self::V1_0FlatFile | Self::V1_5FlatFolder => None,
+            Self::V1_0FlatFile | Self::V1_5FlatFolder | Self::V1_7FlatFolder => None,
             Self::V1_8IdPrefixedFolder => {
                 Some("RGSM_ARCHIVE_V2\n{\"version\":2,\"compression\":\"zstd:3\"}")
             }
@@ -122,6 +125,12 @@ fn seed_released_save_data(
             "device_heads": {"released-device": RELEASED_SNAPSHOT_DATE},
             "sync_version": 3,
             "last_sync_device": "released-device"
+        })
+    } else if matches!(shape, ReleasedSaveData::V1_7FlatFolder) {
+        serde_json::json!({
+            "name": game_name,
+            "backups": [snapshot],
+            "head": RELEASED_SNAPSHOT_DATE
         })
     } else {
         serde_json::json!({
@@ -372,6 +381,86 @@ fn device_keyed_config_upgrades_and_preserves_multi_device_save_units()
     assert!(config.settings.save_list_last_expanded);
     assert_eq!(config.settings.max_auto_backup_count, 7);
     assert_eq!(config.settings.cloud_settings.max_concurrency, 1);
+    Ok(())
+}
+
+#[test]
+fn historical_1_7_config_assigns_ids_without_changing_save_unit_types()
+-> Result<(), Box<dyn std::error::Error>> {
+    let migrated = migrate_fixture(HISTORICAL_BRANCHING, ReleasedSaveData::V1_7FlatFolder)?;
+    let game = &migrated.config.games[0];
+    assert_eq!(game.next_save_unit_id, 2);
+    assert_concrete_unit(
+        &game.save_paths[0],
+        0,
+        SaveUnitType::Folder,
+        &[(
+            "desktop-alpha",
+            "C:/Users/Player/Saved Games/Branching Adventure/Saves",
+        )],
+        false,
+        true,
+    );
+    assert_concrete_unit(
+        &game.save_paths[1],
+        1,
+        SaveUnitType::File,
+        &[(
+            "desktop-alpha",
+            "D:/Games/Branching Adventure/settings.json",
+        )],
+        true,
+        true,
+    );
+    assert!(migrated.config.settings.extra_backup_when_apply);
+    Ok(())
+}
+
+#[test]
+fn historical_1_7_upgrade_preserves_a_branch_head_older_than_the_newest_snapshot()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = temp_dir::TempDir::new()?;
+    let config_path = temp.path().join("GameSaveManager.config.json");
+    let backup_path = temp.path().join("save_data");
+    let mut raw: Value = serde_json::from_str(HISTORICAL_BRANCHING)?;
+    raw["backup_path"] = serde_json::json!(backup_path);
+    let game_dir = backup_path.join(raw["games"][0]["name"].as_str().unwrap());
+    fs::create_dir_all(&game_dir)?;
+    let catalog_path = game_dir.join("Backups.json");
+    let dates = [
+        "2025-01-01_00-00-00",
+        "2025-01-02_00-00-00",
+        "2025-01-03_00-00-00",
+    ];
+    let backups: Vec<_> = dates
+        .iter()
+        .enumerate()
+        .map(|(index, date)| {
+            serde_json::json!({
+                "date": date,
+                "describe": "Historical branch",
+                "path": format!("{date}.zip"),
+                "parent": (index > 0).then_some(dates[0])
+            })
+        })
+        .collect();
+    fs::write(
+        &catalog_path,
+        serde_json::to_vec(&serde_json::json!({
+            "name": "Branching Adventure", "backups": backups, "head": dates[1]
+        }))?,
+    )?;
+    fs::write(&config_path, serde_json::to_vec(&raw)?)?;
+    assert!(update_config(&config_path)?);
+    let mut catalog: GameSnapshots = serde_json::from_slice(&fs::read(&catalog_path)?)?;
+    catalog.normalize_heads();
+    assert_eq!(
+        catalog.current_device_head().map(String::as_str),
+        Some(dates[1])
+    );
+    assert_eq!(catalog.backups[1].parent.as_deref(), Some(dates[0]));
+    assert_eq!(catalog.backups[2].parent.as_deref(), Some(dates[0]));
+    assert!(!update_config(&config_path)?);
     Ok(())
 }
 
