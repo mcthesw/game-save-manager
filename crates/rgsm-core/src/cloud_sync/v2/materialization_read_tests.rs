@@ -86,3 +86,38 @@ async fn catalog_view_does_not_delete_archives_or_publish_presence() {
 async fn download_preview_does_not_delete_archives_or_publish_presence() {
     assert_read_does_not_reconcile(true).await;
 }
+
+#[tokio::test]
+async fn catalog_reports_device_positions_without_treating_our_stale_position_as_remote() {
+    let root = temp_dir::TempDir::new().unwrap();
+    let operator = Operator::new(services::Memory::default()).unwrap().finish();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(SnapshotNode::unavailable("old", None, CreatedBy::Manual))
+        .unwrap();
+    game.set_head("pc".into(), "old".into());
+    let mut manifest = CloudManifest::default();
+    manifest.games.insert("game".into(), game);
+    operator
+        .write(CLOUD_MANIFEST_PATH, serde_json::to_vec(&manifest).unwrap())
+        .await
+        .unwrap();
+    let materializer = CloudArchiveMaterializer::new(
+        operator,
+        root.path().into(),
+        "pc".into(),
+        root.path().join("progress.json"),
+        2,
+    );
+    let view = materializer
+        .view(&BTreeMap::new(), &BTreeMap::from([("game".into(), None)]))
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&view).unwrap()["games"][0]["device_heads"]["pc"],
+        "old"
+    );
+    assert!(
+        !view.games[0].has_update,
+        "our cleared local position must not rediscover our own stale publication"
+    );
+}

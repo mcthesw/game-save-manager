@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEVICE_A_ID, DEVICE_B_ID, GAME_NAME, STORAGE_KEY } from './support/constants';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { DEVICE_B_ID, GAME_NAME } from './support/constants';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
   createLibrary,
@@ -16,7 +14,7 @@ import { readBackupsJson, snapshotMeta } from './support/local-assertions';
 import { createRunRoot } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
 
-test('a headless copied catalog selects its first parent by displayed creation time', async ({
+test('a device without a position selects downloaded remote progress by displayed creation time', async ({
   browser,
 }) => {
   const runRoot = await createRunRoot('snapshot-choice');
@@ -32,15 +30,7 @@ test('a headless copied catalog selects its first parent by displayed creation t
     expect(
       (await readBackupsJson(seeded.deviceB.appDataDir)).device_heads?.[DEVICE_B_ID]
     ).toBeUndefined();
-    // A catalog copied from another device retains that device's position.
-    // Ordinary download only imports archives; it does not set either position.
-    const catalog = await readBackupsJson(seeded.deviceB.appDataDir);
-    catalog.device_heads = { [DEVICE_A_ID]: parent };
-    await writeFile(
-      join(seeded.deviceB.archiveRoot, STORAGE_KEY, 'Backups.json'),
-      JSON.stringify(catalog)
-    );
-    await openGame(session.pageB);
+    expect((await readBackupsJson(seeded.deviceB.appDataDir)).device_heads).toEqual({});
     const displayedTime = await snapshotRow(session.pageB, parent)
       .getByRole('cell')
       .nth(1)

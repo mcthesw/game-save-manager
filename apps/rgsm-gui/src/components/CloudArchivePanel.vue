@@ -1,19 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
-import { commands, type CloudArchiveLibraryView } from '../api/commands';
+import { commands } from '../api/commands';
+import { useCloudLibrary } from '../composables/useCloudLibrary';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 import { KAlert } from '../ui/kit';
 import { formatCloudArchiveBytes as formatBytes } from '../utils/cloudArchivePresentation';
 
-const emit = defineEmits<{
-  loaded: [library: CloudArchiveLibraryView];
-}>();
-
 const feedback = useFeedback();
-const library = ref<CloudArchiveLibraryView | null>(null);
-const loading = ref(false);
+const { library, lastError, refresh } = useCloudLibrary();
 const materializing = ref(false);
 
 const allSnapshots = computed(() => library.value?.games.flatMap((game) => game.snapshots) ?? []);
@@ -26,21 +22,9 @@ const cloudSnapshots = computed(
 const totalSnapshots = computed(() => allSnapshots.value.length);
 
 async function load(options: { silent?: boolean } = {}) {
-  if (loading.value) return;
-  loading.value = true;
-  try {
-    const result = await commands.refreshCloudArchiveLibrary();
-    if (result.status === 'error') {
-      if (!options.silent) {
-        notifyError($t('sync_settings.archives.load_failed'), result.error);
-      }
-      return;
-    }
-    library.value = result.data;
-    emit('loaded', result.data);
-  } finally {
-    loading.value = false;
-  }
+  await refresh(!options.silent);
+  if (lastError.value && !options.silent)
+    notifyError($t('sync_settings.archives.load_failed'), lastError.value);
 }
 
 async function materializeAll() {
@@ -86,20 +70,20 @@ async function materializeAll() {
 }
 
 defineExpose({ load });
-let refreshTimer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
-  void load();
-  refreshTimer = setInterval(() => {
-    void load({ silent: true });
-  }, 2000);
-});
-onUnmounted(() => {
-  if (refreshTimer !== undefined) clearInterval(refreshTimer);
+  void load({ silent: true });
 });
 </script>
 
 <template>
   <section class="mb-4 flex flex-col gap-3">
+    <KAlert v-if="lastError" tone="warning">{{
+      $t(
+        library
+          ? 'sync_settings.archives.refresh_unavailable'
+          : 'sync_settings.archives.load_failed'
+      )
+    }}</KAlert>
     <CloudArchiveToolbar
       :local-snapshots="localSnapshots"
       :cloud-snapshots="cloudSnapshots"

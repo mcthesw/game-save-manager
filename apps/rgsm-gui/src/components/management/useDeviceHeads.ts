@@ -1,6 +1,13 @@
 import { computed, type Ref } from 'vue';
 import { formatSnapshotTime, snapshotDeviceName } from '../../utils/snapshotPresentation';
-import type { Config, Device, GameSnapshots, Snapshot } from '../../api/commands';
+import type {
+  CloudArchiveGameView,
+  Config,
+  Device,
+  GameSnapshots,
+  Snapshot,
+} from '../../api/commands';
+import { devicePositions } from '../../utils/devicePositions';
 import { $t } from '../../i18n';
 
 type GameSnapshotsWithDeviceHeads = GameSnapshots & {
@@ -35,8 +42,9 @@ export function useDeviceHeads(deps: {
   tableData: Ref<Snapshot[]>;
   currentDevice: Ref<Device | null>;
   config: Ref<Config>;
+  cloudGame: Ref<CloudArchiveGameView | null>;
 }) {
-  const { gameSnapshots, tableData, currentDevice, config } = deps;
+  const { gameSnapshots, tableData, currentDevice, config, cloudGame } = deps;
 
   function resolveDeviceDisplayName(deviceId: string) {
     if (currentDevice.value?.id === deviceId && currentDevice.value.name.trim()) {
@@ -50,10 +58,10 @@ export function useDeviceHeads(deps: {
 
   const deviceHeadMap = computed<Record<string, string>>(() => {
     const snapshots = gameSnapshots.value as GameSnapshotsWithDeviceHeads | null;
-    return Object.fromEntries(
-      Object.entries(snapshots?.device_heads ?? {}).filter(
-        (entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].length > 0
-      )
+    return devicePositions(
+      snapshots?.device_heads,
+      cloudGame.value?.device_heads,
+      currentDevice.value?.id
     );
   });
 
