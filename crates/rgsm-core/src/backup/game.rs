@@ -449,8 +449,8 @@ impl Game {
             }
             Err(error) => return Err(error),
         };
-        // Keep the timestamp format sortable so lexicographic order equals chronological order.
-        let date = unused_snapshot_date(&backup_path, &infos)?;
+        let date = unused_snapshot_id(&backup_path, &infos)?;
+        let created_at = Some(chrono::Utc::now().timestamp_millis());
         let save_paths = &self.save_paths; // everything you should copy
         let config = get_config()?;
         let preset = config.settings.compression_preset;
@@ -482,7 +482,7 @@ impl Game {
             size: file_size,
             parent,
             archive_hash: None,
-            created_at: None,
+            created_at,
             device_id: Some(get_current_device_id().clone()),
             created_by,
         };
@@ -515,7 +515,8 @@ impl Game {
             }
             Err(error) => return Err(error),
         };
-        let date = unused_snapshot_date(&backup_path, &infos)?;
+        let date = unused_snapshot_id(&backup_path, &infos)?;
+        let created_at = Some(chrono::Utc::now().timestamp_millis());
         let archive_format = ArchiveFormat::SevenZ;
         let archive_path = backup_path.join(archive_file_name(&date, archive_format));
         if let Some(notifier) = options.notifier {
@@ -544,7 +545,7 @@ impl Game {
             size: file_size,
             parent,
             archive_hash: None,
-            created_at: None,
+            created_at,
             device_id: Some(get_current_device_id().clone()),
             created_by: options.created_by,
         });
@@ -576,12 +577,11 @@ impl Game {
         created_by: CreatedBy,
     ) -> Result<TimerSnapshotDecision, BackupError> {
         let infos = self.get_game_snapshots_info()?;
-        // `date` uses `%Y-%m-%d_%H-%M-%S`, so max lexicographic value is the newest snapshot.
         let latest_auto_snapshot = infos
             .backups
             .iter()
             .filter(|snapshot| snapshot.created_by.is_automatic_backup())
-            .max_by_key(|snapshot| &snapshot.date);
+            .max_by_key(|snapshot| snapshot.creation_time());
 
         let Some(latest_auto_snapshot) = latest_auto_snapshot else {
             self.create_snapshot_with_parent(describe, None, created_by)
@@ -666,8 +666,8 @@ impl Game {
             });
         }
 
-        // Sort by date (oldest first). Date string format preserves chronological order.
-        auto_backups.sort_by(|a, b| a.date.cmp(&b.date));
+        // Stable ordering retains catalog order when creation times tie.
+        auto_backups.sort_by_key(|snapshot| snapshot.creation_time());
 
         // Collect dates of oldest auto backups that exceed the limit
         let to_delete_count = auto_backups.len() - max_count as usize;
@@ -807,12 +807,12 @@ impl Game {
             .and_then(|x| x.parent.clone());
 
         // Find children of the deleted node BEFORE re-parenting them
-        let children_dates: Vec<String> = saves
+        let newest_child = saves
             .backups
             .iter()
             .filter(|x| x.parent.as_deref() == Some(date))
-            .map(|x| x.date.clone())
-            .collect();
+            .max_by_key(|snapshot| snapshot.creation_time())
+            .map(|snapshot| snapshot.date.clone());
 
         // Update children's parent to point to deleted node's parent
         for snapshot in saves.backups.iter_mut() {
@@ -821,8 +821,8 @@ impl Game {
             }
         }
 
-        let replacement_head = if !children_dates.is_empty() {
-            children_dates.iter().max().cloned()
+        let replacement_head = if newest_child.is_some() {
+            newest_child
         } else if deleted_parent.is_some() {
             deleted_parent.clone()
         } else {
@@ -830,7 +830,7 @@ impl Game {
                 .backups
                 .iter()
                 .filter(|x| x.date != date)
-                .max_by_key(|x| &x.date)
+                .max_by_key(|snapshot| snapshot.creation_time())
                 .map(|x| x.date.clone())
         };
         let affected_devices: Vec<_> = saves
@@ -956,7 +956,7 @@ impl Game {
             .backups
             .iter()
             .filter(|s| !to_delete.contains(s.date.as_str()))
-            .max_by_key(|s| &s.date)
+            .max_by_key(|snapshot| snapshot.creation_time())
             .map(|s| s.date.clone());
         let affected_devices: Vec<_> = saves
             .head_entries()
@@ -1031,7 +1031,7 @@ fn remove_snapshot_archive(path: &Path) -> std::io::Result<()> {
     }
 }
 
-pub(crate) fn unused_snapshot_date(
+pub(crate) fn unused_snapshot_id(
     backup_path: &Path,
     infos: &GameSnapshots,
 ) -> Result<String, BackupError> {
@@ -1040,10 +1040,8 @@ pub(crate) fn unused_snapshot_date(
         .iter()
         .map(|snapshot| snapshot.date.as_str())
         .collect();
-    for offset in 0..60 {
-        let candidate = (chrono::Local::now() + chrono::Duration::seconds(offset))
-            .format("%Y-%m-%d_%H-%M-%S")
-            .to_string();
+    for _ in 0..3 {
+        let candidate = uuid::Uuid::new_v4().to_string();
         if taken.contains(candidate.as_str()) {
             continue;
         }

@@ -26,6 +26,8 @@ pub struct V2ConflictReview {
 pub struct LocalProgressView {
     pub snapshot_id: String,
     pub description: String,
+    pub created_at: Option<i64>,
+    pub device_id: Option<DeviceId>,
     pub local_available: bool,
     pub cloud_available: bool,
 }
@@ -34,11 +36,14 @@ pub struct LocalProgressView {
 pub struct RemoteProgressCandidate {
     pub snapshot_id: String,
     pub description: String,
+    pub created_at: Option<i64>,
+    pub device_id: Option<DeviceId>,
     pub devices: Vec<DeviceId>,
     pub relation: ProgressRelation,
     pub local_unique_snapshots: usize,
     pub remote_unique_snapshots: usize,
     pub common_ancestor: Option<String>,
+    pub common_ancestor_created_at: Option<i64>,
     pub local_available: bool,
     pub cloud_available: bool,
 }
@@ -108,27 +113,30 @@ impl V2ConflictInspector {
 
         let local = local_head.as_ref().map(|snapshot_id| {
             let node = game.snapshots.get(snapshot_id);
+            let snapshot = local_snapshots
+                .backups
+                .iter()
+                .find(|snapshot| snapshot.date == *snapshot_id);
             LocalProgressView {
                 snapshot_id: snapshot_id.clone(),
-                description: local_snapshots
-                    .backups
-                    .iter()
-                    .find(|snapshot| snapshot.date == *snapshot_id)
+                created_at: snapshot
+                    .and_then(|snapshot| snapshot.created_at)
+                    .or_else(|| node.and_then(|node| node.created_at)),
+                device_id: snapshot
+                    .and_then(|snapshot| snapshot.device_id.clone())
+                    .or_else(|| node.and_then(|node| node.device_id.clone())),
+                description: snapshot
                     .map(|snapshot| snapshot.describe.clone())
                     .or_else(|| node.map(|node| node.description.clone()))
                     .unwrap_or_default(),
-                local_available: local_snapshots
-                    .backups
-                    .iter()
-                    .find(|snapshot| snapshot.date == *snapshot_id)
-                    .is_some_and(|snapshot| {
-                        archive_path(
-                            &self.local_archive_root.join(game_id),
-                            snapshot_id,
-                            snapshot.archive_format,
-                        )
-                        .is_file()
-                    }),
+                local_available: snapshot.is_some_and(|snapshot| {
+                    archive_path(
+                        &self.local_archive_root.join(game_id),
+                        snapshot_id,
+                        snapshot.archive_format,
+                    )
+                    .is_file()
+                }),
                 cloud_available: node.is_some_and(cloud_available),
             }
         });
@@ -172,10 +180,17 @@ impl V2ConflictInspector {
             candidates.push(RemoteProgressCandidate {
                 snapshot_id: snapshot_id.clone(),
                 description: node.description.clone(),
+                created_at: node.created_at,
+                device_id: node.device_id.clone(),
                 devices: devices.iter().cloned().collect(),
                 relation: diff.relation,
                 local_unique_snapshots: diff.local_unique,
                 remote_unique_snapshots: diff.remote_unique,
+                common_ancestor_created_at: diff
+                    .common_ancestor
+                    .as_ref()
+                    .and_then(|id| game.snapshots.get(id))
+                    .and_then(|node| node.created_at),
                 common_ancestor: diff.common_ancestor,
                 local_available: self.local_verified(game_id, game, node),
                 cloud_available: cloud_available(node),
@@ -573,6 +588,40 @@ mod tests {
         assert_eq!(review.candidates[0].devices, vec!["handheld"]);
         assert_eq!(review.candidates[0].relation, ProgressRelation::RemoteAhead);
         assert_eq!(review.candidates[0].remote_unique_snapshots, 2);
+    }
+
+    #[tokio::test]
+    async fn progress_review_reports_creation_metadata_not_holder_or_clock_precedence() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let mut game = GameManifest::new("game");
+        let mut local_node = node("z-local", None);
+        local_node.created_at = Some(2000);
+        local_node.device_id = Some("original-pc".into());
+        game.upsert_live(local_node).unwrap();
+        let mut remote = node("a-remote", Some("z-local"));
+        // A device clock running behind must not reverse the ancestry relationship.
+        remote.created_at = Some(1000);
+        remote.device_id = Some("original-deck".into());
+        game.upsert_live(remote).unwrap();
+        game.set_head("holder".into(), "a-remote".into());
+        let mut local = GameSnapshots::new("game");
+        local.backups.push(snapshot("z-local", None));
+        local.set_head_for_device("pc".into(), Some("z-local".into()));
+        let review = inspector(game, root.path())
+            .await
+            .review("game", &local)
+            .await
+            .unwrap();
+        let local = review.local.unwrap();
+        assert_eq!(local.created_at, Some(2000));
+        assert_eq!(local.device_id.as_deref(), Some("original-pc"));
+        let remote = &review.candidates[0];
+        assert_eq!(remote.created_at, Some(1000));
+        assert_eq!(remote.device_id.as_deref(), Some("original-deck"));
+        assert_eq!(remote.devices, vec!["holder"]);
+        assert_eq!(remote.common_ancestor_created_at, Some(2000));
+        assert_eq!(remote.relation, ProgressRelation::RemoteAhead);
+        assert!(!review.requires_choice);
     }
 
     #[tokio::test]

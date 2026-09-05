@@ -5,12 +5,14 @@ import { Cloud, Inbox, LoaderCircle, Monitor } from '@lucide/vue';
 import {
   commands,
   type ProgressRelation,
+  type LocalProgressView,
   type RemoteProgressCandidate,
   type V2ConflictReview,
 } from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 import { KAlert, KButton, KDialog, KTag } from '../ui/kit';
+import { formatSnapshotTime, snapshotDeviceName } from '../utils/snapshotPresentation';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -24,6 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const feedback = useFeedback();
+const { config } = useConfig();
 const review = ref<V2ConflictReview | null>(null);
 const loading = ref(false);
 const resolving = ref(false);
@@ -43,8 +46,25 @@ const relationKeys: Record<ProgressRelation, string> = {
   no_local_position: 'sync_settings.archives.progress.relation_no_local',
 };
 
-function snapshotLabel(description: string, snapshotId: string) {
-  return description || snapshotId;
+function timeLabel(snapshotId: string, createdAt?: number | null) {
+  return (
+    formatSnapshotTime({ date: snapshotId, created_at: createdAt }) ??
+    $t('manage.unknown_snapshot_time')
+  );
+}
+
+function snapshotLabel(snapshot: LocalProgressView | RemoteProgressCandidate) {
+  return [timeLabel(snapshot.snapshot_id, snapshot.created_at), snapshot.description]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function creatorLabel(snapshot: LocalProgressView | RemoteProgressCandidate) {
+  return $t('manage.snapshot_creator', {
+    device:
+      snapshotDeviceName(snapshot.device_id, config.value.devices) ??
+      $t('manage.unknown_snapshot_device'),
+  });
 }
 
 function relationTone(relation: ProgressRelation) {
@@ -55,7 +75,7 @@ function relationTone(relation: ProgressRelation) {
 }
 
 function devices(candidate: RemoteProgressCandidate) {
-  return candidate.devices.join(' · ');
+  return candidate.devices.map((id) => snapshotDeviceName(id, config.value.devices)).join(' · ');
 }
 
 async function load() {
@@ -119,7 +139,7 @@ async function acceptRemote(candidate: RemoteProgressCandidate) {
   try {
     await feedback.confirm(
       $t('sync_settings.archives.progress.accept_remote_confirm', {
-        progress: snapshotLabel(candidate.description, candidate.snapshot_id),
+        progress: `${snapshotLabel(candidate)} · ${creatorLabel(candidate)}`,
       }),
       $t('sync_settings.archives.progress.accept_remote_title'),
       {
@@ -195,9 +215,12 @@ watch(
             </div>
             <div class="truncate text-sm font-semibold text-text">
               <template v-if="review.local">
-                {{ snapshotLabel(review.local.description, review.local.snapshot_id) }}
+                {{ snapshotLabel(review.local) }}
               </template>
               <template v-else>{{ $t('sync_settings.archives.progress.no_local') }}</template>
+            </div>
+            <div v-if="review.local" class="text-xs text-text-dim">
+              {{ creatorLabel(review.local) }}
             </div>
           </div>
         </div>
@@ -223,6 +246,7 @@ watch(
         <article
           v-for="candidate in review.candidates"
           :key="candidate.snapshot_id"
+          :data-snapshot-id="candidate.snapshot_id"
           class="rounded-md border border-border p-3.5"
         >
           <div class="mb-3 flex items-start justify-between gap-3">
@@ -231,8 +255,9 @@ watch(
               <div class="min-w-0">
                 <div class="truncate text-xs text-text-dim">{{ devices(candidate) }}</div>
                 <div class="truncate text-sm font-semibold text-text">
-                  {{ snapshotLabel(candidate.description, candidate.snapshot_id) }}
+                  {{ snapshotLabel(candidate) }}
                 </div>
+                <div class="truncate text-xs text-text-dim">{{ creatorLabel(candidate) }}</div>
               </div>
             </div>
             <KTag :tone="relationTone(candidate.relation)" class="shrink-0">
@@ -259,7 +284,9 @@ watch(
               </div>
               <div class="truncate font-mono text-xs text-text">
                 {{
-                  candidate.common_ancestor || $t('sync_settings.archives.progress.no_shared_point')
+                  candidate.common_ancestor
+                    ? timeLabel(candidate.common_ancestor, candidate.common_ancestor_created_at)
+                    : $t('sync_settings.archives.progress.no_shared_point')
                 }}
               </div>
             </div>

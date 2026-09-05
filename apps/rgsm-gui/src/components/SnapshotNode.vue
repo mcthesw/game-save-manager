@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 import type { Snapshot } from '../api/commands';
 import { $t } from '../i18n';
-import dayjs from 'dayjs';
+import { formatSnapshotTime } from '../utils/snapshotPresentation';
 import { Flag, GitBranchPlus, Pencil, Play, Scissors, Trash2 } from '@lucide/vue';
 import { KPopover, KTag } from '../ui/kit';
 
@@ -17,6 +17,7 @@ interface HeadMarker {
 interface Props {
   data: {
     snapshot: Snapshot;
+    creatorLabel: string;
     isHead: boolean;
     isCurrentHead: boolean;
     isRoot: boolean;
@@ -37,17 +38,13 @@ const emit = defineEmits<{
   createBranch: [date: string];
 }>();
 
-const formattedDate = computed(() => {
-  const dateStr = props.data.snapshot.date;
-  const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
-  return parsed.isValid() ? parsed.format('MM/DD HH:mm') : dateStr;
-});
+const formattedDate = computed(
+  () => formatSnapshotTime(props.data.snapshot, 'MM/DD HH:mm') ?? $t('manage.unknown_snapshot_time')
+);
 
-const fullDate = computed(() => {
-  const dateStr = props.data.snapshot.date;
-  const parsed = dayjs(dateStr, 'YYYY-MM-DD_HH-mm-ss');
-  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : dateStr;
-});
+const fullDate = computed(
+  () => formatSnapshotTime(props.data.snapshot) ?? $t('manage.unknown_snapshot_time')
+);
 
 const description = computed(() => props.data.snapshot.describe || '-');
 
@@ -74,6 +71,7 @@ const actionClass =
 <template>
   <div
     class="snapshot-node"
+    :data-snapshot-id="data.snapshot.date"
     :class="{
       'is-head': data.isHead,
       'is-current-head': data.isCurrentHead,
@@ -88,6 +86,9 @@ const actionClass =
         <div class="flex flex-col items-start gap-1.5">
           <span class="font-mono text-[13px] font-semibold text-text" :title="fullDate">{{
             formattedDate
+          }}</span>
+          <span class="max-w-full truncate text-[11px] text-text-dim" :title="data.creatorLabel">{{
+            data.creatorLabel
           }}</span>
           <div v-if="data.headMarkers.length" class="flex flex-wrap gap-1">
             <KTag
@@ -113,6 +114,7 @@ const actionClass =
         <div class="flex flex-col gap-1">
           <div class="px-1 pb-1">
             <div class="font-mono text-[13px] font-semibold text-text">{{ fullDate }}</div>
+            <div class="text-xs text-text-dim">{{ data.creatorLabel }}</div>
             <div class="mt-0.5 break-words text-xs leading-relaxed text-text-dim">
               {{ description }}
             </div>

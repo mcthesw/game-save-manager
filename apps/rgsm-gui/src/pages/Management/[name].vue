@@ -40,7 +40,12 @@ import {
   Upload,
   Zap,
 } from '@lucide/vue';
-import dayjs from 'dayjs';
+import {
+  compareSnapshotTime,
+  findSnapshotByInput,
+  formatSnapshotTime,
+  snapshotDeviceName,
+} from '../../utils/snapshotPresentation';
 import {
   getGameManagementPath,
   getGameNameFromRouteParam,
@@ -309,7 +314,7 @@ function mergeCloudOnlySnapshots(
   local: Snapshot[],
   cloud: CloudArchiveGameView | null
 ): Snapshot[] {
-  if (!cloud) return local;
+  if (!cloud) return [...local].sort(compareSnapshotTime);
   const known = new Set(local.map((snapshot) => snapshot.date));
   const extras = cloud.snapshots
     .filter((snapshot) => !known.has(snapshot.snapshot_id))
@@ -319,9 +324,11 @@ function mergeCloudOnlySnapshots(
       path: '',
       size: snapshot.size ?? 0,
       created_by: snapshot.created_by,
+      created_at: snapshot.created_at,
+      device_id: snapshot.device_id,
       parent: snapshot.parent,
     }));
-  return [...local, ...extras].sort((left, right) => left.date.localeCompare(right.date));
+  return [...local, ...extras].sort(compareSnapshotTime);
 }
 
 const { currentHead, headEntries, branchDeviceHeads } = useDeviceHeads({
@@ -362,10 +369,12 @@ function backupSuccessMessage() {
 
 function formatSnapshotPromptLine(date: string) {
   const snapshot = table_data.value.find((item) => item.date === date);
-  const parsed = dayjs(date, 'YYYY-MM-DD_HH-mm-ss');
-  const formatted = parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : date;
+  const formatted = formatSnapshotTime(snapshot ?? { date }) ?? $t('manage.unknown_snapshot_time');
+  const creator =
+    snapshotDeviceName(snapshot?.device_id, config.value.devices) ??
+    $t('manage.unknown_snapshot_device');
   const description = snapshot?.describe?.trim();
-  return description ? `${formatted} · ${description}` : formatted;
+  return [formatted, creator, description].filter(Boolean).join(' · ');
 }
 
 function findHeadEntryByInput(entries: DeviceHeadEntry[], rawInput: string) {
@@ -383,26 +392,6 @@ function findHeadEntryByInput(entries: DeviceHeadEntry[], rawInput: string) {
         entry.deviceId === input ||
         entry.deviceId.startsWith(input) ||
         entry.deviceName.toLowerCase().includes(input.toLowerCase())
-    ) ?? null
-  );
-}
-
-function findSnapshotByInput(rawInput: string) {
-  const input = rawInput.trim();
-  if (!input) return null;
-
-  const recentSnapshots = [...table_data.value].slice(-10).reverse();
-  const index = Number.parseInt(input, 10);
-  if (Number.isInteger(index) && index >= 1 && index <= recentSnapshots.length) {
-    return recentSnapshots[index - 1] ?? null;
-  }
-
-  return (
-    table_data.value.find(
-      (snapshot) =>
-        snapshot.date === input ||
-        snapshot.date.startsWith(input) ||
-        snapshot.describe.toLowerCase().includes(input.toLowerCase())
     ) ?? null
   );
 }
@@ -486,7 +475,7 @@ ${items}`,
         }
       );
 
-      const matchedSnapshot = findSnapshotByInput(snapshotValue);
+      const matchedSnapshot = findSnapshotByInput(table_data.value, snapshotValue);
       if (!matchedSnapshot) {
         notifyError($t('manage.invalid_snapshot_or_device'));
         return undefined;
@@ -1042,7 +1031,7 @@ const filter_table = computed(() => {
   }
 
   return orderedTableData.value.filter(
-    (data) => data.describe.includes(keyword) || data.date.includes(keyword)
+    (data) => formatSnapshotPromptLine(data.date).includes(keyword) || data.date.includes(keyword)
   );
 });
 
@@ -1503,6 +1492,7 @@ const viewModeOptions = computed(() => [
       <!-- Table View -->
       <div v-if="viewMode === 'table'" class="h-full min-h-0 flex-1 overflow-hidden">
         <SnapshotTable
+          :devices="config.devices"
           :rows="filter_table"
           :sort-desc="sortDesc"
           :selected-dates="selectedDates"
@@ -1528,6 +1518,7 @@ const viewModeOptions = computed(() => [
       <div v-else class="h-full min-h-0 flex-1 overflow-hidden bg-surface-2">
         <BranchTreeView
           v-if="viewMode === 'branch'"
+          :devices="config.devices"
           :snapshots="table_data"
           :current-head="currentHead"
           :device-heads="branchDeviceHeads"

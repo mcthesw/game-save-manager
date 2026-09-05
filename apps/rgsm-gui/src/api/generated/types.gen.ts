@@ -794,7 +794,9 @@ export type LocalArchiveEvidence = 'unknown' | 'present' | 'mismatch';
 
 export type LocalProgressView = {
   cloud_available: boolean;
+  created_at?: number | null;
   description: string;
+  device_id?: null | String;
   local_available: boolean;
   snapshot_id: string;
 };
@@ -1039,7 +1041,10 @@ export type RegenerateHttpApiTokenResponse = {
 export type RemoteProgressCandidate = {
   cloud_available: boolean;
   common_ancestor?: string | null;
+  common_ancestor_created_at?: number | null;
+  created_at?: number | null;
   description: string;
+  device_id?: null | String;
   devices: Array<String>;
   local_available: boolean;
   local_unique_snapshots: number;
@@ -1410,7 +1415,7 @@ export type Snapshot = {
   describe: string;
   device_id?: null | String;
   /**
-   * Parent snapshot's date (None means this is a root node)
+   * Parent snapshot's identity (None means this is a root node)
    */
   parent?: string | null;
   path: string;
