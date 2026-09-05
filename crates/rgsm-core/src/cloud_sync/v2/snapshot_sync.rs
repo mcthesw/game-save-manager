@@ -330,17 +330,7 @@ impl SnapshotSyncCoordinator {
         inherited_revision: Option<u64>,
     ) -> Result<(), SnapshotSyncError> {
         self.ensure_active_or_converge_deleted_game(game_id).await?;
-        let local_path = self.local_path(game_id, snapshot);
-        let integrity = if local_path.is_file() {
-            let path = local_path.clone();
-            Some(
-                tokio::task::spawn_blocking(move || ArchiveIntegrity::from_file(&path))
-                    .await
-                    .map_err(|error| SnapshotSyncError::HashTask(error.to_string()))??,
-            )
-        } else {
-            None
-        };
+        let integrity = self.local_integrity(game_id, snapshot).await?;
         let game_id = game_id.to_string();
         let cleanup_game_id = game_id.clone();
         let snapshot = snapshot.clone();
@@ -354,23 +344,10 @@ impl SnapshotSyncCoordinator {
                 let game = manifest.game_mut(&game_id);
                 if let Some(existing) = game.snapshots.get_mut(&snapshot.date) {
                     merge_local_snapshot(existing, &snapshot, integrity.clone())?;
+                    existing.description = snapshot.describe.clone();
                 } else {
-                    let mut node = match integrity.clone() {
-                        Some(integrity) => SnapshotNode::live(
-                            &snapshot.date,
-                            snapshot.parent.clone(),
-                            integrity,
-                            snapshot.created_by.clone(),
-                        ),
-                        None => SnapshotNode::unavailable(
-                            &snapshot.date,
-                            snapshot.parent.clone(),
-                            snapshot.created_by.clone(),
-                        ),
-                    };
+                    let mut node = SnapshotNode::from_snapshot(&snapshot, integrity.clone());
                     node.catalog_revision = catalog_revision;
-                    node.description = snapshot.describe.clone();
-                    node.archive_format = snapshot.archive_format;
                     game.upsert_live(node)?;
                 }
                 game.report_local_archive(
@@ -393,23 +370,26 @@ impl SnapshotSyncCoordinator {
         local: &GameSnapshots,
     ) -> Result<(), SnapshotSyncError> {
         let manifest = self.repository().load().await?;
-        if let Some(existing) = manifest
+        if manifest
             .games
             .get(game_id)
             .and_then(|game| game.snapshots.get(&snapshot.date))
+            .is_some()
         {
-            let local_path = self.local_path(game_id, snapshot);
-            let integrity = if local_path.is_file() {
-                let path = local_path.clone();
-                Some(
-                    tokio::task::spawn_blocking(move || ArchiveIntegrity::from_file(&path))
-                        .await
-                        .map_err(|error| SnapshotSyncError::HashTask(error.to_string()))??,
-                )
-            } else {
-                None
-            };
-            merge_local_snapshot(&mut existing.clone(), snapshot, integrity)?;
+            self.ensure_active_or_converge_deleted_game(game_id).await?;
+            let integrity = self.local_integrity(game_id, snapshot).await?;
+            // Uploading a copy can fill unknown identity metadata, but it is
+            // not a request to replace the current shared description.
+            self.repository()
+                .mutate(|manifest| {
+                    let existing = manifest
+                        .games
+                        .get_mut(game_id)
+                        .and_then(|game| game.snapshots.get_mut(&snapshot.date))
+                        .ok_or_else(|| ManifestError::MissingSnapshot(snapshot.date.clone()))?;
+                    merge_local_snapshot(existing, snapshot, integrity.clone())
+                })
+                .await?;
             self.materializer.upload(game_id, &snapshot.date).await?;
         } else {
             let mut visiting = HashSet::new();
@@ -535,6 +515,22 @@ impl SnapshotSyncCoordinator {
         )
     }
 
+    async fn local_integrity(
+        &self,
+        game_id: &str,
+        snapshot: &Snapshot,
+    ) -> Result<Option<ArchiveIntegrity>, SnapshotSyncError> {
+        let path = self.local_path(game_id, snapshot);
+        if !path.is_file() {
+            return Ok(None);
+        }
+        Ok(Some(
+            tokio::task::spawn_blocking(move || ArchiveIntegrity::from_file(&path))
+                .await
+                .map_err(|error| SnapshotSyncError::HashTask(error.to_string()))??,
+        ))
+    }
+
     pub(crate) fn local_path(&self, game_id: &str, snapshot: &Snapshot) -> PathBuf {
         archive_path(
             &self.local_archive_root.join(game_id),
@@ -565,7 +561,12 @@ fn merge_local_snapshot(
     if live.integrity.is_none() {
         live.integrity = integrity;
     }
-    existing.description = local.describe.clone();
+    // Older catalogs may provide no origin. Only fill missing metadata; a new
+    // holder never replaces an already recorded creator or creation timestamp.
+    existing.created_at = existing.created_at.or(local.created_at);
+    if existing.device_id.is_none() {
+        existing.device_id = local.device_id.clone();
+    }
     Ok(())
 }
 
@@ -694,7 +695,7 @@ pub enum SnapshotSyncError {
     #[error(transparent)]
     Integrity(#[from] ArchiveIntegrityError),
     #[error(transparent)]
-    Manifest(#[from] ManifestRepositoryError),
+    Manifest(ManifestRepositoryError),
     #[error(transparent)]
     ManifestGraph(#[from] ManifestError),
     #[error(transparent)]
@@ -707,6 +708,15 @@ pub enum SnapshotSyncError {
     DeletionRegistry(#[from] DeletionRegistryError),
     #[error(transparent)]
     ConflictReview(#[from] super::ConflictReviewError),
+}
+
+impl From<ManifestRepositoryError> for SnapshotSyncError {
+    fn from(error: ManifestRepositoryError) -> Self {
+        match error {
+            ManifestRepositoryError::Manifest(error) => Self::ManifestGraph(error),
+            error => Self::Manifest(error),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -730,6 +740,7 @@ mod tests {
             size: 0,
             parent: parent.map(str::to_string),
             archive_hash: None,
+            created_at: None,
             device_id: Some("deck".into()),
             created_by: CreatedBy::Manual,
         }

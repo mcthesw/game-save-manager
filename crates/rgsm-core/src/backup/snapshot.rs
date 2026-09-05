@@ -65,7 +65,7 @@ impl CreatedBy {
 }
 
 /// A backup archive containing all data declared by its Save Units.
-/// The date is the unique indicator for a backup
+/// `date` is the historical wire name for the Snapshot identity, not its clock.
 #[derive(Debug, Serialize, Deserialize, Type, utoipa::ToSchema, Clone, PartialEq, Eq)]
 pub struct Snapshot {
     pub date: String,
@@ -82,6 +82,9 @@ pub struct Snapshot {
     /// XXH3 hash of the archive file for integrity verification.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub archive_hash: Option<String>,
+    /// Original creation time in Unix milliseconds; absent in historical catalogs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<i64>,
     /// The device that created this snapshot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub device_id: Option<DeviceId>,

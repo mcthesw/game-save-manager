@@ -241,28 +241,14 @@ fn remote_lineage(
             .snapshots
             .get(cursor)
             .ok_or_else(|| ManifestError::MissingSnapshot(cursor.to_string()))?;
-        let SnapshotState::Live(live) = &node.state else {
-            return Err(AcceptRemoteProgressError::TombstonedLineage(
-                cursor.to_string(),
-            ));
-        };
-        lineage.push(Snapshot {
-            date: node.snapshot_id.clone(),
-            describe: node.description.clone(),
-            path: archive_path(
+        lineage.push(
+            node.local_snapshot(archive_path(
                 &local_archive_root.join(game_id),
                 &node.snapshot_id,
                 node.archive_format,
-            )
-            .to_string_lossy()
-            .into_owned(),
-            archive_format: node.archive_format,
-            size: live.integrity.as_ref().map_or(0, |value| value.size),
-            parent: node.parent.clone(),
-            archive_hash: live.integrity.as_ref().map(|value| value.xxh3_64.clone()),
-            device_id: None,
-            created_by: live.created_by.clone(),
-        });
+            ))
+            .ok_or_else(|| AcceptRemoteProgressError::TombstonedLineage(cursor.to_string()))?,
+        );
         let Some(parent) = node.parent.as_deref() else {
             break;
         };
@@ -430,6 +416,7 @@ mod tests {
             size: 6,
             parent: Some("root".into()),
             archive_hash: None,
+            created_at: None,
             device_id: Some("pc".into()),
             created_by: CreatedBy::Manual,
         });

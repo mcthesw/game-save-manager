@@ -119,6 +119,7 @@ fn merge_snapshot(
     if existing.device_id.is_none() {
         existing.device_id = incoming.device_id.clone();
     }
+    existing.created_at = existing.created_at.or(incoming.created_at);
     if existing.archive_hash.is_none() {
         existing.archive_hash = incoming.archive_hash.clone();
     }
@@ -674,6 +675,7 @@ mod tests {
             size: 0,
             parent: parent.map(str::to_string),
             archive_hash: None,
+            created_at: None,
             device_id: device_id.map(str::to_string),
             created_by: Default::default(),
         }
@@ -688,6 +690,21 @@ mod tests {
                 .insert((*device_id).to_string(), (*head).to_string());
         }
         snapshots
+    }
+
+    #[test]
+    fn coexist_merges_creation_metadata_without_relabeling_known_origin() {
+        let mut existing = snapshot("legacy", None, None);
+        let mut incoming = snapshot("legacy", None, Some("original"));
+        incoming.created_at = Some(1234);
+        merge_snapshot(&mut existing, &incoming).unwrap();
+        assert_eq!(existing.created_at, Some(1234));
+        assert_eq!(existing.device_id.as_deref(), Some("original"));
+        incoming.created_at = Some(5678);
+        incoming.device_id = Some("holder".into());
+        merge_snapshot(&mut existing, &incoming).unwrap();
+        assert_eq!(existing.created_at, Some(1234));
+        assert_eq!(existing.device_id.as_deref(), Some("original"));
     }
 
     #[test]

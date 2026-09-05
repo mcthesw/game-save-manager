@@ -398,6 +398,7 @@ mod tests {
                 size: ARCHIVE_BYTES.len() as u64,
                 parent: None,
                 archive_hash: None,
+                created_at: None,
                 device_id: Some(current_device_id.clone()),
                 created_by: CreatedBy::Manual,
             };

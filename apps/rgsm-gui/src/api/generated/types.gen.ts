@@ -191,8 +191,10 @@ export type CloudArchiveLibraryView = {
 
 export type CloudArchiveSnapshotView = {
   cloud_verified: boolean;
+  created_at?: number | null;
   created_by: CreatedBy;
   description: string;
+  device_id?: null | String;
   local_evidence: LocalArchiveEvidence;
   parent?: string | null;
   reported_on_devices: Array<String>;
@@ -1385,7 +1387,7 @@ export type SharedGameDeletionOutcome = {
 
 /**
  * A backup archive containing all data declared by its Save Units.
- * The date is the unique indicator for a backup
+ * `date` is the historical wire name for the Snapshot identity, not its clock.
  */
 export type Snapshot = {
   /**
@@ -1396,6 +1398,10 @@ export type Snapshot = {
    * XXH3 hash of the archive file for integrity verification.
    */
   archive_hash?: string | null;
+  /**
+   * Original creation time in Unix milliseconds; absent in historical catalogs.
+   */
+  created_at?: number | null;
   /**
    * How this snapshot was created.
    */

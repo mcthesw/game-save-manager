@@ -270,6 +270,7 @@ mod tests {
             size: 0,
             parent: parent.map(str::to_string),
             archive_hash: None,
+            created_at: None,
             device_id: Some("pc".into()),
             created_by: CreatedBy::Manual,
         }
