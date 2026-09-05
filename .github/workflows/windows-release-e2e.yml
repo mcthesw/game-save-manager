@@ -60,6 +60,7 @@ jobs:
           e2e/cloud-library-two-v1-devices.spec.ts
           e2e/cloud-library-late-game.spec.ts
           e2e/cloud-catalog-read.spec.ts
+          e2e/cloud-local-games.spec.ts
           e2e/cloud-sync-modes.spec.ts
           e2e/cloud-reset-library.spec.ts
 

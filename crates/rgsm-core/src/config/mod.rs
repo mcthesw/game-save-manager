@@ -1,5 +1,6 @@
 mod app_config;
 pub mod backup;
+mod local_games;
 pub(crate) mod owner_store;
 mod ownership;
 #[cfg(test)]

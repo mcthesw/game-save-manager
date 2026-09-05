@@ -12,11 +12,28 @@ use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::boun
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct DeviceGameStatus {
     pub game_id: String,
+    pub shared: bool,
     pub managed: bool,
     pub visible: bool,
 }
 
 impl ServiceContext {
+    pub fn is_shared_game(&self, identity: &str) -> Result<bool, CloudLibraryServiceError> {
+        let config = get_config()?;
+        let Some(index) = config.position_game_by_identity(identity) else {
+            return Ok(false);
+        };
+        let game_id = &config.games[index].storage_key;
+        let (library, _, local_state) = cloud_bootstrap_inputs()?;
+        Ok(
+            local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2
+                && library
+                    .games
+                    .iter()
+                    .any(|game| &game.storage_key == game_id),
+        )
+    }
+
     pub fn current_device_game_statuses(
         &self,
     ) -> Result<Vec<DeviceGameStatus>, CloudLibraryServiceError> {
@@ -27,17 +44,25 @@ impl ServiceContext {
                 .into_iter()
                 .map(|game| DeviceGameStatus {
                     game_id: game.storage_key,
+                    shared: false,
                     managed: true,
                     visible: true,
                 })
                 .collect());
         }
+        let local_ids = local_state
+            .local_games
+            .iter()
+            .map(|game| game.storage_key.clone())
+            .collect::<std::collections::HashSet<_>>();
         Ok(library
             .games
             .into_iter()
+            .chain(local_state.local_games)
             .map(|game| {
                 let settings = profile.games.get(&game.storage_key);
                 DeviceGameStatus {
+                    shared: !local_ids.contains(&game.storage_key),
                     game_id: game.storage_key,
                     managed: settings.is_some(),
                     visible: settings.is_some_and(|settings| settings.visible),
@@ -66,6 +91,7 @@ impl ServiceContext {
         publish_profile(&local_state, &expected, &accepted).await?;
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
+            shared: true,
             managed: true,
             visible,
         })
@@ -114,6 +140,7 @@ impl ServiceContext {
         publish_profile(&local_state, &expected, &accepted).await?;
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
+            shared: true,
             managed,
             visible: managed,
         })
@@ -185,8 +212,104 @@ async fn publish_profile(
     accepted: &crate::config::DeviceProfile,
 ) -> Result<(), CloudLibraryServiceError> {
     DeviceProfileRepository::new(bound_v2_operator(local_state).await?, 3)
-        .publish(&local_state.current_device_id, accepted)
+        .publish(
+            &local_state.current_device_id,
+            &accepted.without_local_games(local_state),
+        )
         .await?;
     replace_current_device_profile(expected, accepted)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::config::{
+        Config, ConfigTestStateGuard, activate_joined_cloud_library, set_config_local,
+    };
+    use crate::hooks::HookPipeline;
+
+    #[test]
+    fn shared_ownership_resolves_local_ids_before_cloud_display_names() {
+        let _config_lock = crate::config::lock_config_test_file();
+        let archives = temp_dir::TempDir::new().unwrap();
+        let config = Config {
+            backup_path: archives.path().to_string_lossy().into_owned(),
+            games: serde_json::from_value(serde_json::json!([
+                {"name": "Renamed Local", "storage_key": "Old Name", "save_paths": []},
+                {"name": "Old Name", "storage_key": "remote-key", "save_paths": []}
+            ]))
+            .unwrap(),
+            ..Config::default()
+        };
+        let _config_state = ConfigTestStateGuard::replace_with(&config).unwrap();
+        set_config_local(&config).unwrap();
+        let (before, profile, _) = cloud_bootstrap_inputs().unwrap();
+        let mut remote = before.clone();
+        remote.games.retain(|game| game.storage_key == "remote-key");
+        activate_joined_cloud_library(
+            &before,
+            &profile,
+            &remote,
+            &profile.for_shared_library(&remote),
+            "11111111-1111-4111-8111-111111111111",
+        )
+        .unwrap();
+
+        let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+        assert!(!service.is_shared_game("Old Name").unwrap());
+        assert!(!service.is_shared_game("Renamed Local").unwrap());
+        assert!(service.is_shared_game("remote-key").unwrap());
+        assert!(!service.is_shared_game("missing").unwrap());
+
+        for game in &config.games {
+            let mut snapshots = crate::backup::GameSnapshots::new(&game.name);
+            snapshots.backups.push(
+                serde_json::from_value(serde_json::json!({
+                    "date": "2026-09-05_12-00-00", "describe": "", "path": "test.zip",
+                    "created_by": "Timer"
+                }))
+                .unwrap(),
+            );
+            game.set_game_snapshots_info(&snapshots).unwrap();
+        }
+        // This legacy endpoint accepts display names. Its ownership check must
+        // protect the same resolved Game that the metadata operation modifies.
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            assert!(
+                service
+                    .set_snapshot_created_by(
+                        "Old Name",
+                        "2026-09-05_12-00-00",
+                        crate::backup::CreatedBy::Manual,
+                        crate::hooks::HookSource::UserManual,
+                    )
+                    .await
+                    .is_err()
+            );
+            service
+                .set_snapshot_created_by(
+                    "Renamed Local",
+                    "2026-09-05_12-00-00",
+                    crate::backup::CreatedBy::Manual,
+                    crate::hooks::HookSource::UserManual,
+                )
+                .await
+                .unwrap();
+        });
+        assert_eq!(
+            config.games[0].get_game_snapshots_info().unwrap().backups[0].created_by,
+            crate::backup::CreatedBy::Manual
+        );
+        assert_eq!(
+            config.games[1].get_game_snapshots_info().unwrap().backups[0].created_by,
+            crate::backup::CreatedBy::Timer
+        );
+    }
 }

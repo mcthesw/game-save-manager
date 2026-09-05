@@ -629,6 +629,26 @@ impl ServiceContext {
         confirmed: bool,
         current_position: Option<CurrentPositionDecision>,
     ) -> Result<(), CloudLibraryServiceError> {
+        let (_, _, local_state) = cloud_bootstrap_inputs()?;
+        if local_state
+            .local_games
+            .iter()
+            .any(|game| game.storage_key == game_id)
+        {
+            if !confirmed {
+                return Err(CloudLibraryServiceError::ConfirmationRequired);
+            }
+            let game = get_config()?
+                .games
+                .into_iter()
+                .find(|game| game.storage_key == game_id)
+                .ok_or_else(|| {
+                    CloudLibraryServiceError::GameProfileNotFound(game_id.to_string())
+                })?;
+            return Ok(self
+                .delete_snapshot(&game, snapshot_id, HookSource::UserManual)
+                .await?);
+        }
         // Only execute the Current Position decision when the caller has
         // confirmed deletion. Unconfirmed requests must not have destructive
         // side effects (Apply restores files, Capture creates a snapshot).
@@ -765,7 +785,10 @@ impl ServiceContext {
         }
 
         DeviceProfileRepository::new(operator.clone(), 3)
-            .publish(&local_state.current_device_id, &accepted_profile)
+            .publish(
+                &local_state.current_device_id,
+                &accepted_profile.without_local_games(&local_state),
+            )
             .await?;
         replace_current_device_profile(&expected_profile, &accepted_profile)?;
 
@@ -1070,7 +1093,10 @@ pub(super) async fn set_multi_device_sync_suspended(
     }
     settings.multi_device_sync_suspended = suspended;
     DeviceProfileRepository::new(bound_v2_operator(&local_state).await?, 3)
-        .publish(&local_state.current_device_id, &accepted)
+        .publish(
+            &local_state.current_device_id,
+            &accepted.without_local_games(&local_state),
+        )
         .await?;
     replace_current_device_profile(&expected, &accepted)?;
     Ok(())
