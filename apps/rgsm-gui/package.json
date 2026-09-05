@@ -6,7 +6,7 @@
     "web:build": "vite build",
     "web:dev": "pnpm web:generate-api && node scripts/web-dev.mjs",
     "web:preview": "vite preview",
-    "web:test": "node --test src/utils/cloudNamespace.test.mjs src/utils/appRoutes.test.mjs src/utils/saveUnit.test.mjs src/utils/snapshotPresentation.test.mjs src/components/management/snapshotAvailability.test.mjs e2e/support/build-state.test.mjs e2e/support/shards.test.mjs e2e/support/command-result.test.mjs",
+    "web:test": "node --test src/utils/cloudNamespace.test.mjs src/utils/appRoutes.test.mjs src/utils/saveUnit.test.mjs src/utils/snapshotPresentation.test.mjs src/utils/devicePositions.test.mjs src/utils/gameOrder.test.mjs src/components/management/snapshotAvailability.test.mjs e2e/support/build-state.test.mjs e2e/support/shards.test.mjs e2e/support/command-result.test.mjs",
     "web:e2e": "playwright test --project=browser",
     "web:e2e:desktop": "playwright test --project=desktop",
     "dev": "tauri dev -- --locked",

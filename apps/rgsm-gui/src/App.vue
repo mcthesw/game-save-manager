@@ -15,6 +15,7 @@ import {
 } from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
 import { connectSavedCloudLibrary } from './composables/useCloudConnection';
+import { useCloudLibraryRefresh } from './composables/useCloudLibrary';
 import { useGlobalLoading } from './composables/useGlobalLoading';
 import { useHostNotificationCollector } from './composables/useHostNotificationCollector';
 import { LAYER } from './ui/layers';
@@ -25,6 +26,7 @@ import { mapLegacyHomePage, resolveStartupDestination } from './utils/appRoutes'
 import { error as logError } from './utils/logger';
 
 const { config, refreshConfig, saveConfig } = useConfig();
+useCloudLibraryRefresh();
 const route = useRoute();
 useDark();
 

@@ -40,6 +40,7 @@ pub struct CloudArchiveGameView {
     pub managed: bool,
     pub visible: bool,
     pub advertised_head_count: usize,
+    pub device_heads: BTreeMap<DeviceId, String>,
     pub requires_choice: bool,
     /// True when a remote head is strictly ahead of the local head on the
     /// same branch (no divergence, just newer progress available).
@@ -229,16 +230,14 @@ impl CloudArchiveMaterializer {
                     .values()
                     .collect::<std::collections::BTreeSet<_>>()
                     .len(),
+                device_heads: game.device_heads.clone(),
                 requires_choice: {
                     let local_head = local_heads.get(game_id).and_then(|head| head.as_deref());
                     let mut heads = game
                         .device_heads
                         .iter()
-                        .filter(|(device, _)| {
-                            // Exclude current device's stale advertised head
-                            // when a local Current Position is authoritative.
-                            !(**device == self.current_device_id && local_head.is_some())
-                        })
+                        // A cleared local position is authoritative too.
+                        .filter(|(device, _)| **device != self.current_device_id)
                         .map(|(_, head)| head.clone())
                         .collect::<std::collections::BTreeSet<_>>();
                     if let Some(local) = local_head {
@@ -256,7 +255,10 @@ impl CloudArchiveMaterializer {
                 has_update: {
                     let local_head = local_heads.get(game_id).and_then(|head| head.as_deref());
                     match local_head {
-                        None => !game.device_heads.is_empty(),
+                        None => game
+                            .device_heads
+                            .keys()
+                            .any(|device| device != &self.current_device_id),
                         Some(local) => game
                             .device_heads
                             .iter()

@@ -1,21 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, type Component } from 'vue';
 import { useRouter } from 'vue-router';
-import {
-  commands,
-  type CloudArchiveGameView,
-  type CloudArchiveLibraryView,
-  type SyncMode,
-} from '../api/commands';
+import { commands, type CloudArchiveGameView, type SyncMode } from '../api/commands';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
+import { useCloudLibrary } from '../composables/useCloudLibrary';
 import { $t } from '../i18n';
 import { Archive, ChevronDown, Hand, Trash2, Zap } from '@lucide/vue';
 import { KInput, KMenu, KSwitch, KTag, type KMenuEntry } from '../ui/kit';
 
 const router = useRouter();
 const feedback = useFeedback();
-const library = ref<CloudArchiveLibraryView | null>(null);
+const { library, lastError } = useCloudLibrary();
 const search = ref('');
 const modeGame = ref<CloudArchiveGameView | null>(null);
 const pendingMode = ref<SyncMode>('cloud_backup');
@@ -78,6 +74,7 @@ function needsProgressChoice(game: CloudArchiveGameView) {
 }
 
 function syncStatus(game: CloudArchiveGameView) {
+  if (lastError.value) return 'unavailable';
   if (game.definition_conflict) return 'conflict';
   if (!game.managed || !game.cloud_sync_enabled) return 'disabled';
   if (game.requires_choice) return 'conflict';
@@ -99,10 +96,6 @@ function statusLabel(status: ReturnType<typeof syncStatus>) {
 async function reload() {
   await refreshConfig();
   await fleet.value?.load();
-}
-
-function onLibraryLoaded(next: CloudArchiveLibraryView) {
-  library.value = next;
 }
 
 async function changeMode(game: CloudArchiveGameView, mode: string | number | boolean) {
@@ -205,7 +198,7 @@ function openGame(game: CloudArchiveGameView) {
 
 <template>
   <section>
-    <CloudArchivePanel ref="fleet" @loaded="onLibraryLoaded" />
+    <CloudArchivePanel ref="fleet" />
 
     <KInput
       v-model="search"
