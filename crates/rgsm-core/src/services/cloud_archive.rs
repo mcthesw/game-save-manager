@@ -30,11 +30,16 @@ impl ServiceContext {
         let registry = DeletionRegistryRepository::new(bound_v2_operator(&local_state).await?, 3)
             .load()
             .await?;
-        let game_names = library
+        let mut game_names = library
             .games
             .iter()
             .map(|game| (game.storage_key.clone(), game.name.clone()))
-            .collect();
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for local in &local_state.local_games {
+            if let Some(name) = game_names.get_mut(&local.storage_key) {
+                *name = local.name.clone();
+            }
+        }
         let current_device = local_state.current_device_id.clone();
         let local_heads = get_config()?
             .games
@@ -71,6 +76,7 @@ impl ServiceContext {
         view.games
             .retain(|game| !registry.deleted_games.contains_key(&game.game_id));
         for game in &mut view.games {
+            game.definition_conflict = local_state.is_local_game(&game.game_id);
             if let Some(settings) = profile.games.get(&game.game_id) {
                 game.managed = true;
                 game.visible = settings.visible;
@@ -78,6 +84,9 @@ impl ServiceContext {
                 game.cloud_sync_enabled = settings.cloud_sync_enabled;
                 game.live_save_process_name = settings.live_save_process_name.clone();
                 game.live_save_snapshot_on_exit = settings.live_save_snapshot_on_exit;
+            }
+            if game.definition_conflict {
+                game.cloud_sync_enabled = false;
             }
             game.retention_limit = library
                 .games
@@ -101,13 +110,15 @@ impl ServiceContext {
             .as_deref()
             .map(resolve_app_path)
             .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
+        let excluded = local_state.local_game_ids();
         Ok(CloudArchiveMaterializer::new(
             bound_v2_operator(&local_state).await?,
             local_archive_root,
             local_state.current_device_id,
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
-        ))
+        )
+        .excluding_games(excluded))
     }
 
     pub(super) async fn converged_materializer(

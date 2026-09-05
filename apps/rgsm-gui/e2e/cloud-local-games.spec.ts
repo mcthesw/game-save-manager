@@ -4,13 +4,7 @@ import { join } from 'node:path';
 import { DEVICE_A_ID, GAME_NAME } from './support/constants';
 import { cloudPaths, readDeviceProfile, readJson } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame, writeSave, readSave } from './support/cloud-fixture';
-import {
-  applySnapshot,
-  confirmJoinKeepCloud,
-  createLibrary,
-  openApp,
-  openGame,
-} from './support/gui';
+import { applySnapshot, connectLibrary, createLibrary, openApp, openGame } from './support/gui';
 import {
   createSnapshotForGame,
   deleteSnapshotViaUi,
@@ -42,7 +36,7 @@ test('connecting cloud keeps local games usable through refresh, offline edits, 
     await writeSave(seeded.deviceA, 'local original\n');
     const original = await createSnapshotForGame(session.hostA, GAME_NAME, 'Before connection');
     const originalGame = await getLocalGame(session.hostA, GAME_NAME);
-    await confirmJoinKeepCloud(session.pageA);
+    await connectLibrary(session.pageA);
     expect(await getLocalGame(session.hostA, GAME_NAME)).toEqual(originalGame);
     const refresh = await hostPost(session.hostA, '/api/v1/refresh-cloud-archive-library');
     expect(refresh.ok, refresh.raw).toBe(true);

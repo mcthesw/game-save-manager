@@ -10,7 +10,7 @@ import {
 import { readSave, seedEmptyCloudWithLocalGame, writeSave } from './support/cloud-fixture';
 import {
   applySnapshot,
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   downloadSnapshot,
@@ -50,7 +50,7 @@ test('repeated upload download round trips stay consistent', async ({ browser })
     await createLibrary(session.pageA);
     const first = await createPublishedSnapshot(session.pageA, session.hostA, 'Round 0 from A');
     await enableMode(session.pageA, session.hostA, 'Multi-device Sync', 'Keep in cloud');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     await openGame(session.pageB);
     await downloadSnapshot(session.pageB, first);
     await enableMode(session.pageB, session.hostB, 'Multi-device Sync', 'Keep in cloud');

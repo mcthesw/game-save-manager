@@ -46,6 +46,102 @@ fn remote_library(before: &ConfigurationOwners) -> SharedLibrary {
     library
 }
 
+#[test]
+fn automatic_connection_retains_only_conflicts_and_explicit_choices_resolve_one_game() {
+    let (_root, store, before) = fixture();
+    let mut remote = remote_library(&before);
+    let mut conflicting = before.shared_library.games[0].clone();
+    conflicting.name = "Cloud version".into();
+    remote.games.push(conflicting);
+    store
+        .connect_v2(
+            &before.shared_library,
+            &before.device_profiles["pc"],
+            &before.local_state,
+            &remote,
+            "library-a",
+        )
+        .unwrap();
+    let pending = store.load().unwrap();
+    assert_eq!(pending.local_state.local_games, before.shared_library.games);
+    assert_eq!(
+        store
+            .load_effective()
+            .unwrap()
+            .games
+            .iter()
+            .find(|game| game.storage_key == "local-game")
+            .unwrap()
+            .name,
+        "Local adventure"
+    );
+    assert_eq!(
+        pending.device_profiles["pc"].games["local-game"].save_units,
+        before.device_profiles["pc"].games["local-game"].save_units
+    );
+    assert!(
+        !pending.device_profiles["pc"]
+            .without_local_games(&pending.local_state)
+            .games
+            .contains_key("local-game")
+    );
+    store
+        .resolve_cloud_definitions(
+            &pending.shared_library,
+            &pending.device_profiles["pc"],
+            &pending.local_state,
+            &remote,
+            &["local-game".into()],
+        )
+        .unwrap();
+    assert!(store.load().unwrap().local_state.local_games.is_empty());
+    assert_eq!(
+        store
+            .load_effective()
+            .unwrap()
+            .games
+            .iter()
+            .find(|game| game.storage_key == "local-game")
+            .unwrap()
+            .name,
+        "Cloud version"
+    );
+}
+
+#[test]
+fn equal_definition_connects_without_a_choice_and_stale_connection_cannot_replace_local_edits() {
+    let (_root, store, before) = fixture();
+    store
+        .connect_v2(
+            &before.shared_library,
+            &before.device_profiles["pc"],
+            &before.local_state,
+            &before.shared_library,
+            "library-a",
+        )
+        .unwrap();
+    assert!(store.load().unwrap().local_state.local_games.is_empty());
+    assert!(matches!(
+        store.connect_v2(
+            &before.shared_library,
+            &before.device_profiles["pc"],
+            &before.local_state,
+            &remote_library(&before),
+            "library-b"
+        ),
+        Err(OwnerStoreError::JoinInputsChanged)
+    ));
+    assert_eq!(
+        store
+            .load()
+            .unwrap()
+            .local_state
+            .cloud_library_id
+            .as_deref(),
+        Some("library-a")
+    );
+}
+
 fn assert_local_preserved(store: &OwnerStore, before: &ConfigurationOwners) {
     let effective = store.load_effective().unwrap();
     let original = before.assemble_effective().unwrap();
@@ -225,4 +321,60 @@ fn reconnect_and_refresh_retain_local_games_without_publishing_them() {
         )
         .unwrap();
     assert_local_preserved(&store, &before);
+}
+
+#[test]
+fn discovering_a_conflicting_local_id_keeps_the_local_version_until_a_choice() {
+    let (_root, store, before) = fixture();
+    let remote = remote_library(&before);
+    let profile = &before.device_profiles["pc"];
+    store
+        .activate_join_v2(
+            &before.shared_library,
+            profile,
+            &remote,
+            &profile.for_shared_library(&remote),
+            "library-a",
+        )
+        .unwrap();
+    let joined = store.load().unwrap();
+    let mut discovered = remote.clone();
+    let mut conflicting = before.shared_library.games[0].clone();
+    conflicting.name = "Different cloud definition".into();
+    discovered.games.push(conflicting.clone());
+    let current_profile = &joined.device_profiles["pc"];
+    store
+        .accept_remote_shared_library(
+            &remote,
+            current_profile,
+            &discovered,
+            &current_profile.for_shared_library(&discovered),
+            "library-a",
+        )
+        .unwrap();
+    let accepted = store.load().unwrap();
+    let effective = accepted.assemble_effective().unwrap();
+    assert_eq!(
+        effective
+            .games
+            .iter()
+            .find(|game| game.storage_key == "local-game")
+            .unwrap()
+            .name,
+        "Local adventure"
+    );
+    assert_eq!(effective.games.len(), 2);
+    assert!(accepted.shared_library.games.contains(&conflicting));
+    assert_eq!(accepted.local_state.local_games.len(), 1);
+    assert_eq!(
+        accepted.device_profiles["pc"].games["local-game"].save_units,
+        profile.games["local-game"].save_units
+    );
+    store.merge_effective(&effective).unwrap();
+    let round_trip = store.load().unwrap();
+    assert_eq!(round_trip.shared_library, accepted.shared_library);
+    assert_eq!(
+        round_trip.local_state.local_games,
+        accepted.local_state.local_games
+    );
 }

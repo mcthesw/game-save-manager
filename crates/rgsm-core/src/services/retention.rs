@@ -27,6 +27,7 @@ impl ServiceContext {
         limit: Option<u32>,
         confirmed: bool,
     ) -> Result<SnapshotRetentionOutcome, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         if limit == Some(0) {
             return Err(CloudLibraryServiceError::InvalidRetentionLimit);
         }
@@ -81,6 +82,7 @@ impl ServiceContext {
         protected: bool,
         confirmed: bool,
     ) -> Result<SnapshotRetentionOutcome, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         if !protected && !confirmed {
             return Err(CloudLibraryServiceError::ProtectionRemovalConfirmationRequired);
         }
@@ -140,10 +142,11 @@ impl ServiceContext {
         Ok(SnapshotSyncCoordinator::new(
             bound_v2_operator(&local_state).await?,
             local_archive_root,
-            local_state.current_device_id,
+            local_state.current_device_id.clone(),
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
-        ))
+        )
+        .excluding_games(local_state.local_game_ids()))
     }
 
     async fn enforce_retention_now(

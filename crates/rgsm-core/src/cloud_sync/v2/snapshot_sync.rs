@@ -46,6 +46,10 @@ pub struct SnapshotSyncCoordinator {
 }
 
 impl SnapshotSyncCoordinator {
+    pub fn excluding_games(mut self, game_ids: BTreeSet<String>) -> Self {
+        self.materializer = self.materializer.excluding_games(game_ids);
+        self
+    }
     pub fn new(
         operator: Operator,
         local_archive_root: PathBuf,
@@ -262,6 +266,7 @@ impl SnapshotSyncCoordinator {
         game_id: &str,
         automatic_snapshots_per_branch: u32,
     ) -> Result<RetentionEnforcementOutcome, SnapshotSyncError> {
+        self.materializer.ensure_game_allowed(game_id)?;
         let lifecycle = SnapshotDeletionLifecycle::new(
             self.operator.clone(),
             self.local_archive_root.clone(),
@@ -498,6 +503,7 @@ impl SnapshotSyncCoordinator {
         &self,
         game_id: &str,
     ) -> Result<(), SnapshotSyncError> {
+        self.materializer.ensure_game_allowed(game_id)?;
         let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts);
         match registry
             .ensure_active_and_converge_game_archives(&self.current_device_id, game_id)

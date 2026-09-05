@@ -13,7 +13,7 @@ import {
 } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   downloadSnapshot,
@@ -42,7 +42,7 @@ test('empty cloud creates library then first snapshot uploads', async ({ browser
     expect(existsSync(cloudArchivePath(seeded.cloudRoot, snapshotId))).toBe(true);
     expect(existsSync(localArchivePath(seeded.deviceA.appDataDir, snapshotId))).toBe(true);
 
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     expect(await getGeneration(session.hostB)).toBe('v2');
     await openGame(session.pageB);
     await downloadSnapshot(session.pageB, snapshotId);

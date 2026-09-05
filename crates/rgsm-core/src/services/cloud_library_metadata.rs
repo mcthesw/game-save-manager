@@ -13,22 +13,20 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
         return Ok(());
     }
     let operator = bound_v2_operator(&local_state).await?;
-    if !DeviceProfileRepository::new(operator.clone(), 3)
+    let profiles = DeviceProfileRepository::new(operator.clone(), 3)
         .list()
-        .await?
+        .await?;
+    let Some(published) = profiles
         .iter()
-        .any(|profile| profile.device.id == local_state.current_device_id)
-    {
+        .find(|profile| profile.device.id == local_state.current_device_id)
+    else {
         return Err(CloudLibraryServiceError::DeviceReconnectRequired);
-    }
+    };
     let remote = SharedLibraryRepository::new(operator.clone(), 3)
         .load()
         .await?;
     if remote != expected_library {
         let accepted_profile = expected_profile.for_shared_library(&remote);
-        DeviceProfileRepository::new(operator, 3)
-            .publish(&local_state.current_device_id, &accepted_profile)
-            .await?;
         accept_remote_shared_library(
             &expected_library,
             &expected_profile,
@@ -39,6 +37,13 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
                 .as_deref()
                 .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?,
         )?;
+    }
+    let (_, current, state) = cloud_bootstrap_inputs()?;
+    let desired = current.without_local_games(&state);
+    if *published != desired {
+        DeviceProfileRepository::new(operator, 3)
+            .publish(&state.current_device_id, &desired)
+            .await?;
     }
     Ok(())
 }

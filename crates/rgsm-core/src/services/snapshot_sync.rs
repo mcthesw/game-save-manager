@@ -310,7 +310,8 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
         return Ok(None);
     }
-    let targets = sync_targets(&profile, &library);
+    let mut targets = sync_targets(&profile, &library);
+    targets.retain(|game_id, _| !local_state.is_local_game(game_id));
     if targets.is_empty() {
         return Ok(None);
     }
@@ -320,6 +321,7 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
         .map(resolve_app_path)
         .ok_or(SnapshotSyncServiceError::StorageLocationRequired)?;
     let target = cloud_library_target(&local_state)?;
+    let excluded = local_state.local_game_ids();
     Ok(Some(SnapshotSyncRuntime {
         target: target.clone(),
         coordinator: SnapshotSyncCoordinator::new(
@@ -328,7 +330,8 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
             local_state.current_device_id,
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
-        ),
+        )
+        .excluding_games(excluded),
         targets,
         game_names: library
             .games

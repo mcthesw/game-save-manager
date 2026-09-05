@@ -10,7 +10,7 @@ import {
 } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   enableMode,
@@ -28,7 +28,7 @@ test('remove other device from library', async ({ browser }) => {
     await createLibrary(session.pageA);
     const snapshotId = await createPublishedSnapshot(session.pageA, session.hostA, 'Shared');
     await enableMode(session.pageA, session.hostA, 'Cloud Backup', 'Keep in cloud');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     await enableMode(session.pageB, session.hostB, 'Cloud Backup', 'Keep in cloud');
     await expectDeviceProfiles(seeded.cloudRoot, [DEVICE_A_ID, DEVICE_B_ID]);
 

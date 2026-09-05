@@ -536,6 +536,21 @@ pub async fn http_inspect_cloud_library(
         .map_err(ApiError::from_command)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/connect-cloud-library",
+    operation_id = "connectCloudLibrary",
+    responses((status = 200, body = CloudLibraryStatus), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_connect_cloud_library(
+    State(state): State<HttpHostState>,
+) -> Result<Json<CloudLibraryStatus>, ApiError> {
+    commands::connect_cloud_library(state.app().clone())
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateCloudLibraryRequest {
@@ -2127,6 +2142,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_inspect_cloud_library),
         )
         .route(
+            "/api/v1/connect-cloud-library",
+            post(http_connect_cloud_library),
+        )
+        .route(
             "/api/v1/create-cloud-library",
             post(http_create_cloud_library),
         )
@@ -2380,6 +2399,7 @@ pub fn router() -> Router<HttpHostState> {
         http_open_extra_backup_folder,
         http_check_cloud_backend,
         http_inspect_cloud_library,
+        http_connect_cloud_library,
         http_create_cloud_library,
         http_rebuild_cloud_library_from_local,
         http_reconnect_cloud_library,
