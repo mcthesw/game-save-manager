@@ -4,6 +4,7 @@ import { localArchivePath } from './cloud-assertions';
 import type { RgsmHost } from './rgsm-instance';
 import { fsSession, hostPost } from './rgsm-instance';
 import { GAME_NAME, V2_ACTIVE_ERROR } from './constants';
+import { reportTiming } from './timing';
 
 export async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
   const drawer = page.locator('.activity-drawer');
@@ -27,6 +28,7 @@ export async function expectActivity(page: Page, pattern: string | RegExp): Prom
 }
 
 export async function openApp(page: Page): Promise<void> {
+  const startedAt = performance.now();
   await page.goto('/');
   const deviceSetup = page.getByRole('dialog', { name: /Device Setup|设备设置/ });
   if (await deviceSetup.isVisible().catch(() => false)) {
@@ -34,6 +36,7 @@ export async function openApp(page: Page): Promise<void> {
     await expect(deviceSetup).toBeHidden();
   }
   await expect(cloudSyncNav(page)).toBeVisible();
+  reportTiming('app page ready', startedAt);
 }
 
 export function cloudSyncNav(page: Page) {
