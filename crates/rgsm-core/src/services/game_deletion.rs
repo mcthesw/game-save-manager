@@ -79,6 +79,9 @@ impl ServiceContext {
         confirmed: bool,
     ) -> Result<SharedGameDeletionOutcome, CloudLibraryServiceError> {
         let (library, profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.is_local_game(game_id) {
+            self.require_shared_game(game_id)?;
+        }
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
@@ -121,6 +124,9 @@ pub(crate) async fn converge_local_deleted_games() -> Result<(), CloudLibrarySer
     let operator = bound_v2_operator(&local_state).await?;
     let registry = DeletionRegistryRepository::new(operator, 3).load().await?;
     for (game_id, deletion) in registry.deleted_games {
+        if local_state.is_local_game(&game_id) {
+            continue;
+        }
         if let Some(root) = profile.local_archive_root.as_deref().map(resolve_app_path) {
             crate::cloud_sync::v2::game_deletion::remove_local_game_directory(&root, &game_id)
                 .await?;

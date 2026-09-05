@@ -14,6 +14,7 @@ import {
   routeStageUpdate,
 } from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
+import { connectSavedCloudLibrary } from './composables/useCloudConnection';
 import { useGlobalLoading } from './composables/useGlobalLoading';
 import { useHostNotificationCollector } from './composables/useHostNotificationCollector';
 import { LAYER } from './ui/layers';
@@ -183,6 +184,13 @@ async function initializeApp() {
 
     // 在应用启动时检查设备设置
     await checkDeviceSetup();
+    if ((config.value.settings.cloud_settings?.backend?.type ?? 'Disabled') !== 'Disabled') {
+      void connectSavedCloudLibrary()
+        .then((result) => {
+          if (result.status === 'error') logError(`Cloud connection failed: ${result.error}`);
+        })
+        .catch((cause) => logError(`Cloud connection failed: ${cause}`));
+    }
   } catch (cause) {
     logError(`Failed to initialize app: ${cause}`);
     if (route.path !== '/') {

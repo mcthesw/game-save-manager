@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { commands, type CloudLibraryStatus } from '~/api/commands';
 import { $t } from '~/i18n';
 import { KButton } from '../ui/kit';
+import { connectSavedCloudLibrary } from '../composables/useCloudConnection';
 
 interface InspectOptions {
   createWhenEmpty?: boolean;
@@ -112,7 +113,10 @@ async function performInspection(
   inspectionFailed.value = false;
   initializationFailed.value = false;
   try {
-    const result = await commands.inspectCloudLibrary();
+    let result = await commands.inspectCloudLibrary();
+    if (result.status === 'ok' && result.data.kind === 'join_required') {
+      result = await connectSavedCloudLibrary();
+    }
     if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
     if (result.status === 'error') {
       inspectionFailed.value = true;

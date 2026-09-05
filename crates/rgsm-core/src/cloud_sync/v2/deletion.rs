@@ -167,10 +167,21 @@ impl SnapshotDeletionLifecycle {
     pub async fn converge_local_tombstones(
         &self,
     ) -> Result<BTreeMap<String, BTreeSet<String>>, SnapshotDeletionLifecycleError> {
+        self.converge_local_tombstones_except(&BTreeSet::new())
+            .await
+    }
+
+    pub(crate) async fn converge_local_tombstones_except(
+        &self,
+        excluded_games: &BTreeSet<String>,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>, SnapshotDeletionLifecycleError> {
         let repository = self.repository();
         let manifest = repository.load().await?;
         let mut tombstones = BTreeMap::<String, BTreeSet<String>>::new();
         for (game_id, game) in &manifest.games {
+            if excluded_games.contains(game_id) {
+                continue;
+            }
             for node in game.snapshots.values().filter(|node| !node.state.is_live()) {
                 remove_file_if_exists(&self.local_path(
                     game_id,

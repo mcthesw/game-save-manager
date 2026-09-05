@@ -2,12 +2,7 @@ import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { localArchivePath } from './support/cloud-assertions';
 import { readSave, seedEmptyCloudWithLocalGame, writeSave } from './support/cloud-fixture';
-import {
-  confirmJoinKeepCloud,
-  createLibrary,
-  createPublishedSnapshot,
-  downloadAll,
-} from './support/gui';
+import { connectLibrary, createLibrary, createPublishedSnapshot, downloadAll } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
 
@@ -21,7 +16,7 @@ test('download all missing cloud copies', async ({ browser }) => {
     const one = await createPublishedSnapshot(session.pageA, session.hostA, 'One');
     await writeSave(seeded.deviceA, 'two\n');
     const two = await createPublishedSnapshot(session.pageA, session.hostA, 'Two');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
 
     const saveB = await readSave(seeded.deviceB);
     await downloadAll(session.pageB, session.hostB, [one, two]);

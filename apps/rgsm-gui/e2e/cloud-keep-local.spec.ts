@@ -3,7 +3,7 @@ import { DEVICE_A_ID, DEVICE_B_ID } from './support/constants';
 import { cloudPaths, expectDeviceHead, readJson } from './support/cloud-assertions';
 import { readSave, seedEmptyCloudWithLocalGame, writeSave } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   enableMode,
@@ -22,7 +22,7 @@ test('keep local instead of taking the other device save', async ({ browser }) =
     await createLibrary(session.pageA);
     await createPublishedSnapshot(session.pageA, session.hostA, 'Shared parent');
     await enableMode(session.pageA, session.hostA, 'Multi-device Sync', 'Keep in cloud');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     await enableMode(session.pageB, session.hostB, 'Multi-device Sync', 'Download to this device');
 
     await writeSave(seeded.deviceA, 'branch-a\n');

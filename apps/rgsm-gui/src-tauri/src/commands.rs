@@ -606,6 +606,12 @@ pub async fn inspect_cloud_library(app_handle: AppHandle) -> Result<CloudLibrary
         })
 }
 
+pub async fn connect_cloud_library(app_handle: AppHandle) -> Result<CloudLibraryStatus, String> {
+    crate::cloud_library::connect(&app_handle)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 pub async fn create_cloud_library(
     confirmed: bool,
     app_handle: AppHandle,

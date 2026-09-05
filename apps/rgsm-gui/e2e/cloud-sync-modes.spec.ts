@@ -10,7 +10,7 @@ import {
 import { readSave, seedEmptyCloudWithLocalGame, writeSave } from './support/cloud-fixture';
 import {
   changeGameMode,
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   createSnapshotViaApi,
@@ -28,7 +28,7 @@ test('sync modes and enable catch-up', async ({ browser }) => {
   try {
     await createLibrary(session.pageA);
     const existing = await createPublishedSnapshot(session.pageA, session.hostA, 'Existing cloud');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
 
     await changeGameMode(session.pageA, 'Manual');
     expect(

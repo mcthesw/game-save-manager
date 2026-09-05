@@ -22,6 +22,8 @@ const pendingMode = ref<SyncMode>('cloud_backup');
 const progressGame = ref<CloudArchiveGameView | null>(null);
 const busyGameId = ref('');
 const fleet = ref<{ load: () => Promise<void> } | null>(null);
+const definitionGameId = ref('');
+const { refreshConfig } = useConfig();
 
 const games = computed(() => {
   const keyword = search.value.trim().toLowerCase();
@@ -76,6 +78,7 @@ function needsProgressChoice(game: CloudArchiveGameView) {
 }
 
 function syncStatus(game: CloudArchiveGameView) {
+  if (game.definition_conflict) return 'conflict';
   if (!game.managed || !game.cloud_sync_enabled) return 'disabled';
   if (game.requires_choice) return 'conflict';
   if (game.has_update) return 'update_available';
@@ -94,6 +97,7 @@ function statusLabel(status: ReturnType<typeof syncStatus>) {
 }
 
 async function reload() {
+  await refreshConfig();
   await fleet.value?.load();
 }
 
@@ -233,6 +237,7 @@ function openGame(game: CloudArchiveGameView) {
       <div
         v-for="game in games"
         :key="game.game_id"
+        :data-game-id="game.game_id"
         class="grid grid-cols-[minmax(0,1fr)_5.5rem_8.5rem_16rem_4.5rem_2.25rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
       >
         <div class="min-w-0">
@@ -242,6 +247,14 @@ function openGame(game: CloudArchiveGameView) {
             @click="openGame(game)"
           >
             {{ game.name }}
+          </button>
+          <button
+            v-if="game.definition_conflict"
+            type="button"
+            class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs text-warning"
+            @click="definitionGameId = game.game_id"
+          >
+            {{ $t('sync_settings.library.definitions.action') }}
           </button>
           <button
             v-if="needsProgressChoice(game)"
@@ -281,7 +294,7 @@ function openGame(game: CloudArchiveGameView) {
         <div class="flex justify-center">
           <KSwitch
             :model-value="game.managed && game.cloud_sync_enabled"
-            :disabled="!game.managed || busyGameId === game.game_id"
+            :disabled="game.definition_conflict || !game.managed || busyGameId === game.game_id"
             :aria-label="$t('sync_settings.overview.local_sync')"
             @update:model-value="setCloudEnabled(game, Boolean($event))"
           />
@@ -291,6 +304,7 @@ function openGame(game: CloudArchiveGameView) {
           type="button"
           class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-dim transition-colors hover:border-danger hover:bg-danger/10 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent"
           :aria-label="$t('sync_settings.overview.delete_game')"
+          :disabled="game.definition_conflict"
           @click="permanentlyDelete(game)"
         >
           <Trash2 :size="14" aria-hidden="true" />
@@ -310,5 +324,12 @@ function openGame(game: CloudArchiveGameView) {
       "
     />
     <CloudSyncModeDialog v-model:game="modeGame" :mode="pendingMode" @updated="reload" />
+    <CloudLibraryJoinDialog
+      v-if="definitionGameId"
+      :model-value="Boolean(definitionGameId)"
+      :game-id="definitionGameId"
+      @update:model-value="definitionGameId = ''"
+      @joined="reload"
+    />
   </section>
 </template>

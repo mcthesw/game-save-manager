@@ -31,6 +31,7 @@ pub struct CloudArchiveLibraryView {
 pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
+    pub definition_conflict: bool,
     pub sync_mode: SyncMode,
     pub cloud_sync_enabled: bool,
     pub live_save_process_name: Option<String>,
@@ -114,6 +115,7 @@ pub struct CloudArchiveMaterializer {
     current_device_id: DeviceId,
     progress_path: PathBuf,
     max_attempts: usize,
+    excluded_games: BTreeSet<String>,
 }
 
 impl CloudArchiveMaterializer {
@@ -130,7 +132,22 @@ impl CloudArchiveMaterializer {
             current_device_id,
             progress_path,
             max_attempts: max_attempts.max(1),
+            excluded_games: BTreeSet::new(),
         }
+    }
+
+    pub fn excluding_games(mut self, game_ids: BTreeSet<String>) -> Self {
+        self.excluded_games = game_ids;
+        self
+    }
+
+    pub(crate) fn ensure_game_allowed(&self, game_id: &str) -> Result<(), MaterializationError> {
+        if self.excluded_games.contains(game_id) {
+            return Err(MaterializationError::GameDefinitionNotAccepted(
+                game_id.to_string(),
+            ));
+        }
+        Ok(())
     }
 
     pub async fn view(
@@ -138,7 +155,13 @@ impl CloudArchiveMaterializer {
         game_names: &BTreeMap<String, String>,
         local_heads: &BTreeMap<String, Option<String>>,
     ) -> Result<CloudArchiveLibraryView, MaterializationError> {
-        let manifest = self.repository().load().await?;
+        let mut manifest = self.repository().load().await?;
+        for game_id in game_names.keys() {
+            manifest
+                .games
+                .entry(game_id.clone())
+                .or_insert_with(|| super::GameManifest::new(game_id));
+        }
         let mut games = Vec::with_capacity(manifest.games.len());
         for (game_id, game) in &manifest.games {
             let mut snapshots = Vec::new();
@@ -182,6 +205,7 @@ impl CloudArchiveMaterializer {
             }
             snapshots.reverse();
             games.push(CloudArchiveGameView {
+                definition_conflict: false,
                 game_id: game_id.clone(),
                 name: game_names
                     .get(game_id)
@@ -465,6 +489,9 @@ impl CloudArchiveMaterializer {
         let manifest = self.repository().load().await?;
         let mut imported = BTreeMap::new();
         for (game_id, game) in &manifest.games {
+            if self.excluded_games.contains(game_id) {
+                continue;
+            }
             let Some(reported) = game.local_archives.get(&self.current_device_id) else {
                 continue;
             };
@@ -575,6 +602,7 @@ impl CloudArchiveMaterializer {
         snapshot_id: &str,
         confirmed: bool,
     ) -> Result<(), MaterializationError> {
+        self.ensure_game_allowed(game_id)?;
         self.converge_local_tombstones().await?;
         self.deletion_lifecycle()
             .delete_snapshot(game_id, snapshot_id, confirmed)
@@ -591,13 +619,14 @@ impl CloudArchiveMaterializer {
     ) -> Result<BTreeMap<String, BTreeSet<String>>, MaterializationError> {
         let tombstones = self
             .deletion_lifecycle()
-            .converge_local_tombstones()
+            .converge_local_tombstones_except(&self.excluded_games)
             .await?;
         if let Some(mut plan) = self.load_plan().await? {
             plan.remaining.retain(|item| {
-                !tombstones
-                    .get(&item.game_id)
-                    .is_some_and(|items| items.contains(&item.snapshot_id))
+                !self.excluded_games.contains(&item.game_id)
+                    && !tombstones
+                        .get(&item.game_id)
+                        .is_some_and(|items| items.contains(&item.snapshot_id))
             });
             if plan.remaining.is_empty() {
                 remove_file_if_exists(&self.progress_path).await?;
@@ -640,6 +669,7 @@ impl CloudArchiveMaterializer {
     }
 
     async fn download_item(&self, item: &MaterializationItem) -> Result<(), MaterializationError> {
+        self.ensure_active(&item.game_id).await?;
         let latest = self.repository().load().await?;
         if manifest_item(&latest, &item.game_id, &item.snapshot_id, true)? != *item {
             return Err(MaterializationError::TargetChanged(
@@ -684,6 +714,9 @@ impl CloudArchiveMaterializer {
         min_catalog_revision_exclusive: Option<u64>,
         persist_new: bool,
     ) -> Result<MaterializationPlan, MaterializationError> {
+        if let Some(game_id) = &scope {
+            self.ensure_game_allowed(game_id)?;
+        }
         let saved_plan = self.load_plan().await?;
         if saved_plan.as_ref().is_some_and(|plan| {
             plan.scope != scope
@@ -696,6 +729,9 @@ impl CloudArchiveMaterializer {
         let mut remaining = Vec::new();
         if let Some(saved_plan) = saved_plan {
             for saved in saved_plan.remaining {
+                if self.excluded_games.contains(&saved.game_id) {
+                    continue;
+                }
                 let Some(game) = manifest.games.get(&saved.game_id) else {
                     continue;
                 };
@@ -727,7 +763,9 @@ impl CloudArchiveMaterializer {
             }
         } else {
             for (game_id, game) in &manifest.games {
-                if scope.as_ref().is_some_and(|scope| scope != game_id) {
+                if self.excluded_games.contains(game_id)
+                    || scope.as_ref().is_some_and(|scope| scope != game_id)
+                {
                     continue;
                 }
                 for node in game.snapshots.values() {
@@ -807,6 +845,7 @@ impl CloudArchiveMaterializer {
     }
 
     async fn ensure_active(&self, game_id: &str) -> Result<(), MaterializationError> {
+        self.ensure_game_allowed(game_id)?;
         DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
             .ensure_active(&self.current_device_id, game_id)
             .await?;
@@ -980,6 +1019,8 @@ async fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
 
 #[derive(Debug, Error)]
 pub enum MaterializationError {
+    #[error("Choose the Game definition before transferring or deleting cloud archives: {0}")]
+    GameDefinitionNotAccepted(String),
     #[error("V2 Game not found: {0}")]
     GameNotFound(String),
     #[error("V2 Snapshot not found: {0}")]

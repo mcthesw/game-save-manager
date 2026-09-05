@@ -950,6 +950,13 @@
             "create_failed": "无法创建云端资料库",
             "create_success": "云端资料库已创建",
             "legacy_disabled": "此设备已切换到新的云端资料库，旧版同步操作已不可用。",
+            "definitions": {
+                "action": "选择游戏配置",
+                "description": "本机与云端的游戏配置不同，选择前仍可使用本地备份",
+                "apply": "使用所选配置",
+                "saved": "已选择游戏配置",
+                "unavailable": "云端配置已不可用，本地游戏保持不变"
+            },
             "join": {
                 "title": "确认加入云端资料库",
                 "risk_title": "加入前请确认差异",

@@ -196,6 +196,63 @@ pub(crate) fn activate_cloud_namespace_v2(
     Ok(())
 }
 
+pub(crate) fn connect_cloud_library_local(
+    library: &SharedLibrary,
+    profile: &DeviceProfile,
+    state: &LocalState,
+    remote: &SharedLibrary,
+    library_id: &str,
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    Ok(OwnerStore::runtime().connect_v2(library, profile, state, remote, library_id)?)
+}
+
+pub(crate) fn connected_cloud_profile(
+    library: &SharedLibrary,
+    profile: &DeviceProfile,
+    state: &LocalState,
+    remote: &SharedLibrary,
+) -> Result<DeviceProfile, ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    Ok(OwnerStore::runtime().connected_profile(library, profile, state, remote)?)
+}
+
+pub(crate) fn resolved_cloud_profile(
+    library: &SharedLibrary,
+    profile: &DeviceProfile,
+    state: &LocalState,
+    accepted: &SharedLibrary,
+    resolved_ids: &[String],
+) -> Result<DeviceProfile, ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    Ok(OwnerStore::runtime().resolved_profile(library, profile, state, accepted, resolved_ids)?)
+}
+
+pub(crate) fn resolve_cloud_definitions_local(
+    library: &SharedLibrary,
+    profile: &DeviceProfile,
+    state: &LocalState,
+    accepted: &SharedLibrary,
+    resolved_ids: &[String],
+) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    Ok(OwnerStore::runtime().resolve_cloud_definitions(
+        library,
+        profile,
+        state,
+        accepted,
+        resolved_ids,
+    )?)
+}
+
 pub(crate) fn activate_joined_cloud_library(
     expected_local_library: &SharedLibrary,
     expected_local_profile: &DeviceProfile,

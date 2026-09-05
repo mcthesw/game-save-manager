@@ -100,6 +100,26 @@ impl<T: CloudLibraryTransport> CloudLibraryJoin<T> {
         decisions: &[JoinGameDecision],
         confirmed_replacements: bool,
     ) -> Result<CloudLibraryJoinResult, CloudLibraryJoinError> {
+        let joined = self
+            .update_definitions(local, local_profile, decisions, confirmed_replacements)
+            .await?;
+        let profile_path = device_profile_path(&joined.device_profile.device.id);
+        self.write_verified(
+            &profile_path,
+            &serde_json::to_vec_pretty(&joined.device_profile)?,
+        )
+        .await?;
+        Ok(joined)
+    }
+
+    /// Select whole definitions without publishing unrelated local Device settings.
+    pub async fn update_definitions(
+        &self,
+        local: &SharedLibrary,
+        local_profile: &DeviceProfile,
+        decisions: &[JoinGameDecision],
+        confirmed_replacements: bool,
+    ) -> Result<CloudLibraryJoinResult, CloudLibraryJoinError> {
         let _guard = JOIN_WRITER_LOCK.lock().await;
         validate_decisions(local, decisions, confirmed_replacements)?;
 
@@ -120,9 +140,6 @@ impl<T: CloudLibraryTransport> CloudLibraryJoin<T> {
             }
 
             let profile = local_profile.for_shared_library(&accepted);
-            let profile_path = device_profile_path(&profile.device.id);
-            let profile_bytes = serde_json::to_vec_pretty(&profile)?;
-            self.write_verified(&profile_path, &profile_bytes).await?;
             return Ok(CloudLibraryJoinResult {
                 library_id: descriptor.library_id,
                 shared_library: accepted,

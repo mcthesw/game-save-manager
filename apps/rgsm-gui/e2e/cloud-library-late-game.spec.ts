@@ -9,7 +9,7 @@ import {
 } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   downloadSnapshot,
@@ -36,8 +36,8 @@ test('game added after empty V2 creation is published for the second device', as
     expect((await readJson(cloudPaths(seeded.cloudRoot).sharedLibrary)).games).toEqual([]);
     await session.pageB.reload();
     await openSyncSettings(session.pageB);
-    await expectLibraryKind(session.pageB, 'join');
-    await confirmJoinKeepCloud(session.pageB);
+    await expectLibraryKind(session.pageB, 'active');
+    await connectLibrary(session.pageB);
 
     await addGameViaApi(session.hostA, GAME_NAME, [
       { type: 'File', path: seeded.deviceA.savePath },

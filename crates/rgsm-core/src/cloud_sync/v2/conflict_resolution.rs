@@ -78,13 +78,20 @@ impl V2ConflictResolver {
         }
 
         let history = local_history(local, expected_local_snapshot_id)?;
+        let other_games = initial
+            .games
+            .keys()
+            .filter(|id| id.as_str() != game_id)
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
         let coordinator = SnapshotSyncCoordinator::new(
             self.operator.clone(),
             self.local_archive_root.clone(),
             self.current_device_id.clone(),
             self.progress_path.clone(),
             self.max_attempts,
-        );
+        )
+        .excluding_games(other_games.clone());
         for snapshot in &history {
             coordinator
                 .publish_local_node(game_id, snapshot, None)
@@ -97,7 +104,8 @@ impl V2ConflictResolver {
             self.current_device_id.clone(),
             self.progress_path.clone(),
             self.max_attempts,
-        );
+        )
+        .excluding_games(other_games);
         let mut uploaded_archives = 0;
         for snapshot in &history {
             let manifest = repository.load().await?;

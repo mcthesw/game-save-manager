@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { cloudArchivePath, localArchivePath } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   downloadSnapshot,
@@ -23,7 +23,7 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
   try {
     await createLibrary(session.pageA);
     const snapshotId = await createPublishedSnapshot(session.pageA, session.hostA, 'Keep record');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     await openGame(session.pageB);
     await downloadSnapshot(session.pageB, snapshotId);
 

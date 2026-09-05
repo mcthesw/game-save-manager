@@ -161,6 +161,7 @@ export type CloudArchiveGameView = {
   cloud_count: number;
   cloud_only_count: number;
   cloud_sync_enabled: boolean;
+  definition_conflict: boolean;
   game_id: string;
   /**
    * True when a remote head is strictly ahead of the local head on the
@@ -1773,6 +1774,28 @@ export type CloudUploadAllResponses = {
 };
 
 export type CloudUploadAllResponse = CloudUploadAllResponses[keyof CloudUploadAllResponses];
+
+export type ConnectCloudLibraryData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/connect-cloud-library';
+};
+
+export type ConnectCloudLibraryErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type ConnectCloudLibraryError = ConnectCloudLibraryErrors[keyof ConnectCloudLibraryErrors];
+
+export type ConnectCloudLibraryResponses = {
+  200: CloudLibraryStatus;
+};
+
+export type ConnectCloudLibraryResponse =
+  ConnectCloudLibraryResponses[keyof ConnectCloudLibraryResponses];
 
 export type CreateCloudLibraryData = {
   body: CreateCloudLibraryRequest;

@@ -27,6 +27,7 @@ impl ServiceContext {
         manifest_revision: u64,
         local_snapshot_id: &str,
     ) -> Result<KeepLocalProgressOutcome, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         let (_, profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
@@ -62,6 +63,7 @@ impl ServiceContext {
         expected_local_snapshot_id: Option<&str>,
         selected_snapshot_id: &str,
     ) -> Result<AcceptRemoteProgressOutcome, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         let (_, profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);

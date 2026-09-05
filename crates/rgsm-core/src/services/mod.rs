@@ -1,4 +1,5 @@
 mod cloud_archive;
+mod cloud_connection;
 mod cloud_library_metadata;
 mod cloud_library_target;
 mod config;

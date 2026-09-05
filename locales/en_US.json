@@ -950,6 +950,13 @@
             "create_failed": "Could not create the Cloud Library",
             "create_success": "Cloud Library created",
             "legacy_disabled": "This device now uses the new Cloud Library. Legacy synchronization controls are unavailable.",
+            "definitions": {
+                "action": "Choose game definition",
+                "description": "The game setup differs between this device and the cloud · Local backups remain available until you choose",
+                "apply": "Use selected definition",
+                "saved": "Game definition selected",
+                "unavailable": "The cloud definition is no longer available · Your local game is unchanged"
+            },
             "join": {
                 "title": "Confirm Cloud Library join",
                 "risk_title": "Confirm differences before joining",

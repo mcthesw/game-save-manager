@@ -14,6 +14,9 @@ use super::{
     OwnershipError, SharedLibrary, V2_CONFIG_SCHEMA_VERSION,
 };
 
+#[path = "cloud_connection.rs"]
+mod cloud_connection;
+
 pub(crate) const OWNER_DIRECTORY_NAME: &str = "GameSaveManager.config.v2";
 pub(crate) const OWNER_STAGING_DIRECTORY_NAME: &str = "GameSaveManager.config.v2.staging";
 pub(crate) const OWNER_ROLLBACK_DIRECTORY_NAME: &str = "GameSaveManager.config.v2.rollback";
@@ -103,7 +106,7 @@ impl OwnerStore {
         );
         let mut owners = ConfigurationOwners::from_legacy(config, &current_device_id);
         if let Some(existing) = existing {
-            owners.preserve_local_scope(&existing.local_state);
+            owners.preserve_local_scope(&existing);
             owners.local_state.cloud_namespace_generation =
                 existing.local_state.cloud_namespace_generation;
             owners.local_state.cloud_library_id = existing.local_state.cloud_library_id;

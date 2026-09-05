@@ -13,7 +13,7 @@ import {
 } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   downloadSnapshot,
@@ -39,8 +39,8 @@ test('one device rebuilds a deleted library and the other reconnects without del
     const snapshotId = await createPublishedSnapshot(session.pageA, session.hostA, 'Before reset');
     await session.pageB.reload();
     await openSyncSettings(session.pageB);
-    await expectLibraryKind(session.pageB, 'join');
-    await confirmJoinKeepCloud(session.pageB);
+    await expectLibraryKind(session.pageB, 'active');
+    await connectLibrary(session.pageB);
     await openGame(session.pageB);
     await downloadSnapshot(session.pageB, snapshotId);
     expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, snapshotId))).toBe(true);
