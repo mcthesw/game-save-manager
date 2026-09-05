@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { VITE_ORIGIN, VITE_PORT } from './constants';
+import { buildEnvironment, prepareBuild, preparedBinary } from './build-state';
+import { reportTiming } from './timing';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const workspaceRoot = resolve(appRoot, '../..');
@@ -44,7 +46,6 @@ type SharedVite = {
 };
 
 let sharedVite: SharedVite | undefined;
-let builtBinary: string | undefined;
 
 // The Playwright worker owns the Vite child, but global teardown runs in a
 // separate process, so the child PID is recorded here for cross-process cleanup.
@@ -84,26 +85,33 @@ function compileXxh3Helper(): void {
       xxh3HelperPath(),
       join(appRoot, 'e2e', 'support', 'xxh3.rs'),
     ],
-    { cwd: workspaceRoot, stdio: 'inherit' }
+    { cwd: workspaceRoot, stdio: 'inherit', windowsHide: true }
   );
   if (result.status !== 0) {
     throw new Error(`failed to compile e2e xxh3 helper with code ${result.status}`);
   }
 }
 
-export async function buildRgsmBinary(): Promise<string> {
-  if (builtBinary) return builtBinary;
-  const result = spawnSync('cargo', ['build', '--locked', '-p', 'rgsm'], {
-    cwd: workspaceRoot,
-    stdio: 'inherit',
-    env: process.env,
+export function prepareRgsmBuild(): void {
+  const startedAt = performance.now();
+  prepareBuild(process.env, buildPaths(), () => {
+    const result = spawnSync('cargo', ['build', '--locked', '-p', 'rgsm', '--bin', 'rgsm'], {
+      cwd: workspaceRoot,
+      stdio: 'inherit',
+      windowsHide: true,
+      env: buildEnvironment(process.env),
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`E2E host build failed with code ${result.status}`);
+    }
+    compileXxh3Helper();
   });
-  if (result.status !== 0) {
-    throw new Error(`cargo build --locked -p rgsm failed with code ${result.status}`);
-  }
-  compileXxh3Helper();
-  builtBinary = rgsmBinaryPath();
-  return builtBinary;
+  reportTiming('host and helper build', startedAt);
+}
+
+function buildPaths() {
+  return { binary: rgsmBinaryPath(), helper: xxh3HelperPath() };
 }
 
 export async function createRunRoot(label: string): Promise<string> {
@@ -119,7 +127,10 @@ export async function removeRunRoot(root: string): Promise<void> {
 export function stopProcessTree(child: ChildProcess | undefined): void {
   if (!child || child.exitCode !== null || child.pid === undefined) return;
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
     return;
   }
   child.kill('SIGTERM');
@@ -148,6 +159,7 @@ function delay(ms: number): Promise<void> {
 }
 
 export async function startTestWeb(): Promise<TestWeb> {
+  const startedAt = performance.now();
   if (sharedVite) {
     sharedVite.users += 1;
     return {
@@ -194,6 +206,7 @@ export async function startTestWeb(): Promise<TestWeb> {
     cwd: appRoot,
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
   child.stdout?.on('data', (chunk) => {
     process.stdout.write(`[vite] ${chunk}`);
@@ -215,6 +228,7 @@ export async function startTestWeb(): Promise<TestWeb> {
   }
   await writeFile(viteMarkerPath, JSON.stringify({ pid: child.pid }), 'utf8');
   sharedVite = { child, users: 1 };
+  reportTiming('Vite ready', startedAt);
   return {
     origin: VITE_ORIGIN,
     stop: async () => {
@@ -242,7 +256,10 @@ async function waitForPortFree(timeoutMs: number): Promise<void> {
 
 function stopPidTree(pid: number): void {
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
     return;
   }
   try {
@@ -281,7 +298,8 @@ async function readLogTail(logPath: string): Promise<string> {
 export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost> {
   await mkdir(options.appDataDir, { recursive: true });
   await mkdir(dirname(options.logPath), { recursive: true });
-  const binary = await buildRgsmBinary();
+  const binary = preparedBinary(process.env, buildPaths());
+  const startedAt = performance.now();
   const log = createWriteStream(options.logPath, { flags: 'a' });
   const extraEnv = options.env ?? {};
   const env: NodeJS.ProcessEnv = {
@@ -300,6 +318,7 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
     cwd: workspaceRoot,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
   // Keep the last bytes of host output in memory: the piped log file is not
   // reliably flushed when the process dies instantly (e.g. startup panic).
@@ -347,6 +366,7 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
   }
 
   let stopped = false;
+  reportTiming(`HTTP host ready (${options.deviceId})`, startedAt);
   return {
     apiBaseUrl: `http://127.0.0.1:${config.port}`,
     token: config.api_token,

@@ -2,6 +2,33 @@
 
 `pnpm web:e2e`
 
+## 本地调试循环
+
+修改功能时先跑对应单元测试，再从仓库根目录选一个相关 E2E 场景：
+
+```powershell
+pnpm web:test
+pnpm web:e2e local-main-path.spec.ts
+```
+
+运行前请停止占用 5173 端口的开发服务器。E2E 使用临时配置和本地 Fs 云目录，不需要个人存档或云账号。默认的 `pnpm web:e2e` 只运行 browser 项目，通过真实 Rust HTTP API 验证业务，不打开桌面窗口。
+
+实际窗口生命周期测试单独使用 `pnpm web:e2e:desktop`，会启动和关闭隔离配置的桌面窗口，请在允许弹窗时运行。Windows CI 使用 Playwright 的完整项目集合，仍包含此桌面覆盖。
+
+每次 E2E 的 global setup 都让 Cargo 检查代码是否需要重编译，构建一次宿主和校验工具，所有 worker 复用本轮产物，不复用未经检查的旧二进制。本地编译默认最多两个 Cargo jobs，Playwright 保持单 worker；显式设置的 `CARGO_BUILD_JOBS` 和 CI runner 默认并发不变。
+
+需要定位耗时时，启用分阶段日志，区分构建、Vite、HTTP host 和页面加载：
+
+```powershell
+$env:RGSM_E2E_TIMINGS = '1'
+pnpm web:e2e local-main-path.spec.ts
+Remove-Item Env:RGSM_E2E_TIMINGS
+```
+
+CI 自动输出这些阶段耗时。Linux 全量套件分到两个独立 runner，各自仍只有一个 worker，避免共享端口和宿主状态；`GUI Cloud Fs E2E` 汇总检查只有在两个分片都成功时才通过。失败报告按分片分别保存。Windows 平台场景保留原有覆盖。
+
+需要复现某个 CI 分片时可用 `pnpm web:e2e --shard=1/2`。调整超时、增加重试或在本机同时运行多套 E2E 不是默认加速手段；推送前仍须运行改动涉及的场景，发布前运行完整套件。
+
 ## 云端同步端到端测试
 
 覆盖旧版云配置/存档升级到新版，以及设备各自与云交互。

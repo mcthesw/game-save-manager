@@ -3,6 +3,10 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
+  projects: [
+    { name: 'browser', testIgnore: '**/desktop-*.spec.ts' },
+    { name: 'desktop', testMatch: '**/desktop-*.spec.ts' },
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,
