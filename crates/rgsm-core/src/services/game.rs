@@ -92,6 +92,11 @@ impl ServiceContext {
         config
             .quick_action
             .sync_updated_game_reference(&previous_game, &updated_game);
+        crate::config::FavoriteTreeNode::rename_game_leaves(
+            &mut config.favorites,
+            &previous_game.name,
+            &updated_game.name,
+        );
         set_config(&config).await?;
         if let Some(expected) = v2_change
             && let Err(error) = publish_v2_game_change(expected).await
@@ -342,6 +347,12 @@ async fn publish_v2_game_change(expected: ExpectedV2GameChange) -> Result<()> {
         bail!("Cloud Library ownership changed while the Game was being saved");
     }
 
+    let accepted_profile = accepted_profile.without_local_games(&accepted_state);
+    let expected_profile = expected.profile.without_local_games(&expected.local_state);
+    // Editing a local-only Game remains usable while the cloud is unavailable.
+    if expected.library == accepted_library && expected_profile == accepted_profile {
+        return Ok(());
+    }
     let operator = bound_v2_operator(&expected.local_state).await?;
     let shared = SharedLibraryRepository::new(operator.clone(), 3);
     let committed_library = shared
@@ -354,7 +365,7 @@ async fn publish_v2_game_change(expected: ExpectedV2GameChange) -> Result<()> {
         .await
     {
         let profile_rollback = profiles
-            .publish(&accepted_state.current_device_id, &expected.profile)
+            .publish(&accepted_state.current_device_id, &expected_profile)
             .await;
         let library_rollback = shared
             .compare_replace(&committed_library, &expected.library)
@@ -393,7 +404,7 @@ async fn publish_v2_game_change(expected: ExpectedV2GameChange) -> Result<()> {
             .await
         {
             let profile_rollback = profiles
-                .publish(&accepted_state.current_device_id, &expected.profile)
+                .publish(&accepted_state.current_device_id, &expected_profile)
                 .await;
             let library_rollback = shared
                 .compare_replace(&committed_library, &expected.library)

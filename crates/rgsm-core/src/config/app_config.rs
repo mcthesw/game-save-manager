@@ -115,6 +115,17 @@ pub struct FavoriteTreeNode {
 }
 
 impl FavoriteTreeNode {
+    pub(crate) fn rename_game_leaves(nodes: &mut [Self], previous: &str, next: &str) {
+        for node in nodes {
+            if node.is_leaf && node.label == previous {
+                node.label = next.to_string();
+            }
+            if let Some(children) = &mut node.children {
+                Self::rename_game_leaves(children, previous, next);
+            }
+        }
+    }
+
     fn remove_deleted_game_leaves(nodes: &mut Vec<Self>, deleted_game: &Game) -> bool {
         Self::remove_game_leaves(nodes, &deleted_game.name)
     }
@@ -211,6 +222,19 @@ mod tests {
         );
         assert_eq!(config.favorites[1].label, "Deleted Game");
         assert!(!config.favorites[1].is_leaf);
+    }
+
+    #[test]
+    fn renaming_game_updates_nested_favorites_without_renaming_folders() {
+        let mut nodes = vec![favorite_folder(
+            "Before",
+            vec![favorite_leaf("Before"), favorite_leaf("Other")],
+        )];
+        FavoriteTreeNode::rename_game_leaves(&mut nodes, "Before", "After");
+        assert_eq!(nodes[0].label, "Before");
+        let children = nodes[0].children.as_ref().unwrap();
+        assert_eq!(children[0].label, "After");
+        assert_eq!(children[1].label, "Other");
     }
 
     #[test]
