@@ -162,6 +162,9 @@ export type CloudArchiveGameView = {
   cloud_only_count: number;
   cloud_sync_enabled: boolean;
   definition_conflict: boolean;
+  device_heads: {
+    [key: string]: string;
+  };
   game_id: string;
   /**
    * True when a remote head is strictly ahead of the local head on the

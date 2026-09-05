@@ -46,6 +46,7 @@ import type {
 import { error, info } from '../utils/logger';
 import type { CloudNamespaceGeneration, Device } from '../api/commands';
 import { saveUnitPaths } from '../utils/saveUnit';
+import { applyGameOrder } from '../utils/gameOrder';
 
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
@@ -110,7 +111,17 @@ async function regenerateHttpApiToken() {
 const cloudNamespaceGeneration = ref<CloudNamespaceGeneration | null>(null);
 const v2LibraryActive = computed(() => cloudNamespaceGeneration.value === 'v2');
 const hotkeysChanged = ref(false);
-const gameOrderChanged = ref(false);
+const draftGameOrder = ref<string[] | null>(null);
+const gameOrderChanged = computed(() => draftGameOrder.value !== null);
+const orderedGames = computed({
+  get: () =>
+    draftGameOrder.value
+      ? applyGameOrder(config.value.games, draftGameOrder.value)
+      : config.value.games,
+  set: (games) => {
+    draftGameOrder.value = games.map((game) => game.storage_key || game.name);
+  },
+});
 const { withLoading } = useGlobalLoading();
 type SoundModeOption = 'default' | 'file';
 let skipQuickActionChange = true;
@@ -379,8 +390,9 @@ async function saveHotkeys() {
 // 保存游戏顺序设置
 async function saveGameOrder() {
   try {
-    await saveConfig();
-    gameOrderChanged.value = false;
+    config.value.games = orderedGames.value;
+    if (!(await saveConfig())) return;
+    draftGameOrder.value = null;
     // 只显示功能完成的消息，而不是保存成功
     notifySuccess($t('settings.game_order_saved'));
   } catch (e) {
@@ -908,18 +920,6 @@ watch(
       return;
     }
     hotkeysChanged.value = true;
-  },
-  { deep: true }
-);
-
-// 监听游戏顺序变更
-watch(
-  () => config.value.games,
-  () => {
-    if (suppressConfigChangeTracking) {
-      return;
-    }
-    gameOrderChanged.value = true;
   },
   { deep: true }
 );
@@ -1679,13 +1679,14 @@ const { linksWithGames: router_list } = useNavigationLinks();
               {{ $t('settings.edit_default_game_order') }}
             </h3>
             <draggable
-              v-model="config.games"
-              item-key="name"
+              v-model="orderedGames"
+              item-key="storage_key"
               class="max-w-md"
               :force-fallback="true"
             >
               <template #item="{ element }">
                 <div
+                  :data-game-order-id="element.storage_key"
                   class="mb-1.5 flex cursor-move select-none items-center gap-2 rounded-sm border border-border bg-surface px-3 py-2 text-sm text-text transition-colors hover:bg-surface-2"
                 >
                   <GripVertical :size="14" class="shrink-0 text-text-dim" aria-hidden="true" />

@@ -16,33 +16,41 @@ let firstLoad: Promise<boolean> | null = null;
 function whenConfigReady(): Promise<boolean> {
   return firstLoad ?? refreshConfig();
 }
-async function refreshConfig(): Promise<boolean> {
+async function readConfig(libraryOnly: boolean, isCurrent = () => true): Promise<boolean> {
   isLoading.value = true;
   try {
     const result = await commands.getLocalConfig();
     if (result.status === 'error') {
       throw new Error(result.error);
     }
-    config.value = result.data;
     const statuses = await commands.getCurrentDeviceGameStatuses();
-    deviceGameStatuses.value =
-      statuses.status === 'ok'
-        ? statuses.data
-        : config.value.games.map((game) => ({
-            game_id: game.storage_key || game.name,
-            shared: false,
-            managed: true,
-            visible: true,
-          }));
+    if (statuses.status === 'error') throw new Error(statuses.error);
+    if (!isCurrent()) return false;
+    if (libraryOnly) {
+      // Cloud metadata refresh must not replace local settings being edited.
+      config.value.games = result.data.games;
+      config.value.devices = result.data.devices;
+    } else {
+      config.value = result.data;
+    }
+    deviceGameStatuses.value = statuses.data;
     return true;
   } catch (e) {
+    if (!isCurrent()) return false;
     error(`Failed to load config: ${e}`);
     notifyError($t('error.config_load_failed'));
-    config.value = structuredClone(DEFAULT_CONFIG);
     return false;
   } finally {
     isLoading.value = false;
   }
+}
+
+function refreshConfig(): Promise<boolean> {
+  return readConfig(false);
+}
+
+function refreshLibraryConfig(isCurrent: () => boolean): Promise<boolean> {
+  return readConfig(true, isCurrent);
 }
 
 async function saveConfig(): Promise<boolean> {
@@ -85,6 +93,7 @@ export function useConfig() {
     isGameVisible,
     isLoading,
     refreshConfig,
+    refreshLibraryConfig,
     saveConfig,
     whenConfigReady,
   };

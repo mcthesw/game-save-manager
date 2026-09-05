@@ -138,9 +138,9 @@ export async function uploadSnapshot(page: Page, snapshotId: string): Promise<vo
   const row = snapshotRow(page, snapshotId);
   const upload = row.getByRole('button', { name: 'Upload to cloud' });
   const uploaded = row.getByRole('button', { name: 'Remove cloud copy' });
-  // Wait for the row to settle into either state instead of probing once.
-  await expect(upload.or(uploaded)).toBeVisible({ timeout: 30_000 });
-  if (await upload.isVisible().catch(() => false)) {
+  // Read one positive state: a refresh gap must not be mistaken for completion.
+  const action = await upload.or(uploaded).first().getAttribute('aria-label', { timeout: 30_000 });
+  if (action === 'Upload to cloud') {
     await upload.click();
   }
   await expect(uploaded).toBeVisible({ timeout: 30_000 });
@@ -150,9 +150,9 @@ export async function downloadSnapshot(page: Page, snapshotId: string): Promise<
   const row = snapshotRow(page, snapshotId);
   const download = row.getByRole('button', { name: 'Download to this device' });
   const remove = row.getByRole('button', { name: 'Remove from this device' });
-  // The row buttons render after the row itself; wait for either state first.
-  await download.or(remove).first().waitFor({ state: 'visible', timeout: 30_000 });
-  if (await download.isVisible().catch(() => false)) {
+  // Read one positive state: a refresh gap must not be mistaken for completion.
+  const action = await download.or(remove).first().getAttribute('aria-label', { timeout: 30_000 });
+  if (action === 'Download to this device') {
     await download.click();
   }
   await expect(remove).toBeVisible({ timeout: 30_000 });

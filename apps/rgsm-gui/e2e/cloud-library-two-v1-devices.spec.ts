@@ -148,7 +148,15 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
 
     const saveBeforeApply = await readSave(seeded.deviceB);
     await openGame(pageB);
-    await downloadSnapshot(pageB, aForward);
+    const [downloadResponse] = await Promise.all([
+      pageB.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/v1/download-cloud-archive') &&
+          response.request().postDataJSON().snapshotId === aForward
+      ),
+      downloadSnapshot(pageB, aForward),
+    ]);
+    expect(downloadResponse.ok()).toBe(true);
     expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, aForward))).toBe(true);
     expect(await readSave(seeded.deviceB)).toBe(saveBeforeApply);
     await applySnapshot(pageB, aForward);

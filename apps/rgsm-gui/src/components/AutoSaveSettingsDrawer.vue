@@ -196,22 +196,13 @@ async function saveDraft() {
 }
 
 watch(
-  () => visible.value,
-  async (isVisible) => {
+  [() => visible.value, () => gameIdentity(props.game)],
+  ([isVisible]) => {
     if (!isVisible) return;
     syncDraft();
-    await refreshTargets();
-    syncDraft();
-  }
-);
-
-watch(
-  () => [props.game.name, props.game.storage_key, config.value.quick_action?.game_automations],
-  () => {
-    if (visible.value) {
-      syncDraft();
-    }
-  }
+    void refreshTargets();
+  },
+  { immediate: true }
 );
 </script>
 
