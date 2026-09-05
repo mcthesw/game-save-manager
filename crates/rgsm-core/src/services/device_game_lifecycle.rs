@@ -27,6 +27,7 @@ impl ServiceContext {
         let (library, _, local_state) = cloud_bootstrap_inputs()?;
         Ok(
             local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2
+                && !local_state.is_local_game(game_id)
                 && library
                     .games
                     .iter()
@@ -56,9 +57,9 @@ impl ServiceContext {
             .map(|game| game.storage_key.clone())
             .collect::<std::collections::HashSet<_>>();
         Ok(library
+            .with_local_games(&local_state.local_games)
             .games
             .into_iter()
-            .chain(local_state.local_games)
             .map(|game| {
                 let settings = profile.games.get(&game.storage_key);
                 DeviceGameStatus {
@@ -76,6 +77,7 @@ impl ServiceContext {
         game_id: &str,
         visible: bool,
     ) -> Result<DeviceGameStatus, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         let (library, expected, local_state) = v2_inputs()?;
         if !library.games.iter().any(|game| game.storage_key == game_id) {
             return Err(CloudLibraryServiceError::GameProfileNotFound(
@@ -103,6 +105,7 @@ impl ServiceContext {
         managed: bool,
         confirmed: bool,
     ) -> Result<DeviceGameStatus, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         if !managed && !confirmed {
             return Err(CloudLibraryServiceError::ConfirmationRequired);
         }
@@ -152,6 +155,7 @@ impl ServiceContext {
         snapshot_id: &str,
         confirmed: bool,
     ) -> Result<bool, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         if !confirmed {
             return Err(CloudLibraryServiceError::ConfirmationRequired);
         }
@@ -178,6 +182,7 @@ impl ServiceContext {
         snapshot_id: &str,
         confirmed: bool,
     ) -> Result<bool, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         if !confirmed {
             return Err(CloudLibraryServiceError::ConfirmationRequired);
         }
@@ -230,6 +235,46 @@ mod tests {
         Config, ConfigTestStateGuard, activate_joined_cloud_library, set_config_local,
     };
     use crate::hooks::HookPipeline;
+
+    #[test]
+    fn pending_definition_is_one_local_row_and_cannot_use_cloud_actions() {
+        let _config_lock = crate::config::lock_config_test_file();
+        let config = Config {
+            games: serde_json::from_value(serde_json::json!([
+                {"name": "Local version", "storage_key": "conflict", "save_paths": []},
+                {"name": "Ready", "storage_key": "ready", "save_paths": []}
+            ]))
+            .unwrap(),
+            ..Config::default()
+        };
+        let _config_state = ConfigTestStateGuard::replace_with(&config).unwrap();
+        set_config_local(&config).unwrap();
+        let (before, profile, state) = cloud_bootstrap_inputs().unwrap();
+        let mut remote = before.clone();
+        remote.games[0].name = "Cloud version".into();
+        crate::config::connect_cloud_library_local(
+            &before,
+            &profile,
+            &state,
+            &remote,
+            "11111111-1111-4111-8111-111111111111",
+        )
+        .unwrap();
+        let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+        let statuses = service.current_device_game_statuses().unwrap();
+        assert_eq!(statuses.len(), 2);
+        assert_eq!(
+            statuses
+                .iter()
+                .filter(|row| row.game_id == "conflict")
+                .count(),
+            1
+        );
+        assert!(!service.is_shared_game("conflict").unwrap());
+        assert!(service.is_shared_game("ready").unwrap());
+        assert!(service.require_shared_game("conflict").is_err());
+        assert!(service.require_shared_game("ready").is_ok());
+    }
 
     #[test]
     fn shared_ownership_resolves_local_ids_before_cloud_display_names() {

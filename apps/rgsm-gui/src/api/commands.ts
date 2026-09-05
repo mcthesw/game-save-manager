@@ -189,6 +189,9 @@ export const commands = {
   async inspectCloudLibrary() {
     return unwrap<types.InspectCloudLibraryResponses[200]>(await sdk.inspectCloudLibrary());
   },
+  async connectCloudLibrary() {
+    return unwrap<types.ConnectCloudLibraryResponses[200]>(await sdk.connectCloudLibrary());
+  },
   async rebuildCloudLibraryFromLocal(
     confirmed: types.RebuildCloudLibraryFromLocalData['body']['confirmed']
   ) {

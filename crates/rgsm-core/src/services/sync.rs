@@ -27,10 +27,9 @@ use crate::cloud_sync::{
     sync_game as sync_cloud_game, upload_all_from_session,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, InitialCatchUpPolicy, SyncMode, accept_remote_shared_library,
-    activate_cloud_namespace_v2, activate_cutover_cloud_library, activate_joined_cloud_library,
-    cloud_bootstrap_inputs, cloud_namespace_generation, get_config, replace_current_device_profile,
-    resolve_backup_path,
+    CloudNamespaceGeneration, Config, InitialCatchUpPolicy, SyncMode, activate_cloud_namespace_v2,
+    activate_cutover_cloud_library, activate_joined_cloud_library, cloud_bootstrap_inputs,
+    cloud_namespace_generation, get_config, replace_current_device_profile, resolve_backup_path,
 };
 use crate::hooks::{HookSource, MetadataChangedCtx};
 use crate::preclude::BackendError;
@@ -367,15 +366,20 @@ impl ServiceContext {
         else {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         };
-        let accepted_profile = expected_profile.for_shared_library(&shared_library);
-        DeviceProfileRepository::new(operator, 3)
-            .publish(&local_state.current_device_id, &accepted_profile)
-            .await?;
-        accept_remote_shared_library(
+        let published = crate::config::connected_cloud_profile(
             &expected_library,
             &expected_profile,
+            &local_state,
             &shared_library,
-            &accepted_profile,
+        )?;
+        DeviceProfileRepository::new(operator, 3)
+            .publish(&local_state.current_device_id, &published)
+            .await?;
+        crate::config::connect_cloud_library_local(
+            &expected_library,
+            &expected_profile,
+            &local_state,
+            &shared_library,
             &descriptor.library_id,
         )?;
         Ok(CloudLibraryStatus::Active {
@@ -413,8 +417,8 @@ impl ServiceContext {
         &self,
     ) -> Result<CloudLibraryJoinReview, CloudLibraryServiceError> {
         let (local_library, _, local_state) = cloud_bootstrap_inputs()?;
-        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
-            return Err(CloudLibraryServiceError::JoinNotRequired);
+        if local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2 {
+            return self.review_pending_definitions().await;
         }
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         Ok(CloudLibraryJoin::new(session.get_op()?, 3)
@@ -428,8 +432,10 @@ impl ServiceContext {
         confirmed_replacements: bool,
     ) -> Result<CloudLibraryJoinOutcome, CloudLibraryServiceError> {
         let (local_library, local_profile, local_state) = cloud_bootstrap_inputs()?;
-        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
-            return Err(CloudLibraryServiceError::JoinNotRequired);
+        if local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2 {
+            return self
+                .resolve_pending_definitions(decisions, confirmed_replacements)
+                .await;
         }
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let joined = CloudLibraryJoin::new(session.get_op()?, 3)
@@ -564,6 +570,7 @@ impl ServiceContext {
         game_id: &str,
         snapshot_id: &str,
     ) -> Result<(), CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         let (_, profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
@@ -590,10 +597,11 @@ impl ServiceContext {
         let coordinator = SnapshotSyncCoordinator::new(
             bound_v2_operator(&local_state).await?,
             local_archive_root,
-            local_state.current_device_id,
+            local_state.current_device_id.clone(),
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
-        );
+        )
+        .excluding_games(local_state.local_game_ids());
         Ok(coordinator
             .upload_local_snapshot(game_id, &snapshot, &snapshots)
             .await?)
@@ -715,6 +723,7 @@ impl ServiceContext {
         live_save: Option<LiveSaveSyncOptions>,
         cancellation: &CancellationToken,
     ) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
+        self.require_shared_game(game_id)?;
         if let Some(options) = &live_save
             && options.process_name.trim().is_empty()
         {
@@ -812,7 +821,8 @@ impl ServiceContext {
                 local_state.current_device_id.clone(),
                 resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
                 3,
-            );
+            )
+            .excluding_games(local_state.local_game_ids());
             coordinator
                 .publish_local_game(
                     game_id,
@@ -881,9 +891,10 @@ impl ServiceContext {
             local_state.current_device_id.clone(),
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
-        );
+        )
+        .excluding_games(local_state.local_game_ids());
         for (game_id, settings) in &profile.games {
-            if !settings.cloud_sync_enabled {
+            if !settings.cloud_sync_enabled || local_state.is_local_game(game_id) {
                 continue;
             }
             let Some(game) = config
@@ -932,9 +943,10 @@ impl ServiceContext {
             local_state.current_device_id.clone(),
             resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
             3,
-        );
+        )
+        .excluding_games(local_state.local_game_ids());
         for (game_id, settings) in &profile.games {
-            if !settings.cloud_sync_enabled {
+            if !settings.cloud_sync_enabled || local_state.is_local_game(game_id) {
                 continue;
             }
             let Some(game) = config

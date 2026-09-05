@@ -11,7 +11,7 @@ import { $t } from '~/i18n';
 import { CheckCircle2, Inbox, LoaderCircle } from '@lucide/vue';
 import { KAlert, KButton, KDialog, KTag } from '../ui/kit';
 
-const props = defineProps<{ modelValue: boolean }>();
+const props = defineProps<{ modelValue: boolean; gameId?: string }>();
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
   (event: 'joined', gameCount: number): void;
@@ -83,15 +83,20 @@ async function loadReview() {
       visible.value = false;
       return;
     }
-    review.value = result.data;
+    review.value = {
+      ...result.data,
+      items: props.gameId
+        ? result.data.items.filter((item) => item.local_game_id === props.gameId)
+        : result.data.items,
+    };
     actions.value = new Map<string, JoinGameAction>(
-      result.data.items
+      review.value.items
         .filter((item) => item.classification !== 'game_definition_conflict')
         .map((item) => [item.local_game_id, 'keep_cloud'])
     );
     selectedId.value =
-      result.data.items.find((item) => item.classification !== 'same')?.local_game_id ??
-      result.data.items[0]?.local_game_id ??
+      review.value.items.find((item) => item.classification !== 'same')?.local_game_id ??
+      review.value.items[0]?.local_game_id ??
       '';
   } catch (reason) {
     notifyError(`${$t('sync_settings.library.join.review_failed')}: ${String(reason)}`);
@@ -140,7 +145,11 @@ async function submit() {
         $t('sync_settings.library.join.replace_warning', { count: replacementCount.value }),
         $t('sync_settings.library.join.replace_title'),
         {
-          confirmButtonText: $t('sync_settings.library.join.replace_confirm'),
+          confirmButtonText: $t(
+            props.gameId
+              ? 'sync_settings.library.definitions.apply'
+              : 'sync_settings.library.join.replace_confirm'
+          ),
           cancelButtonText: $t('sync_settings.cancel'),
           type: 'warning',
         }
@@ -164,7 +173,13 @@ async function submit() {
       await loadReview();
       return;
     }
-    notifySuccess($t('sync_settings.library.join.join_success'));
+    notifySuccess(
+      $t(
+        props.gameId
+          ? 'sync_settings.library.definitions.saved'
+          : 'sync_settings.library.join.join_success'
+      )
+    );
     emit('joined', result.data.game_count);
     visible.value = false;
   } catch (reason) {
@@ -178,16 +193,19 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) void loadReview();
-  }
+  },
+  { immediate: true }
 );
 </script>
 <template>
   <KDialog
     v-model:open="visible"
     :title="
-      changedCount
-        ? $t('sync_settings.library.join.title')
-        : $t('sync_settings.library.join.confirm_title')
+      props.gameId
+        ? $t('sync_settings.library.definitions.action')
+        : changedCount
+          ? $t('sync_settings.library.join.title')
+          : $t('sync_settings.library.join.confirm_title')
     "
     :width="changedCount ? 920 : 560"
     :dismissable="!joining"
@@ -197,17 +215,26 @@ watch(
     </div>
     <template v-else-if="review && !changedCount">
       <p class="text-sm leading-relaxed text-text">
-        {{ $t('sync_settings.library.join.confirm_story') }}
+        {{
+          $t(
+            props.gameId && review.items.length === 0
+              ? 'sync_settings.library.definitions.unavailable'
+              : 'sync_settings.library.join.confirm_story'
+          )
+        }}
       </p>
     </template>
     <template v-else>
-      <KAlert tone="warning" class="mb-3">
+      <p v-if="props.gameId" class="mb-3 text-sm text-text-dim">
+        {{ $t('sync_settings.library.definitions.description') }}
+      </p>
+      <KAlert v-else tone="warning" class="mb-3">
         <strong class="mb-0.5 block">{{ $t('sync_settings.library.join.risk_title') }}</strong>
         {{ $t('sync_settings.library.join.risk_description') }}
       </KAlert>
 
       <template v-if="review">
-        <p class="mb-3 text-sm text-text-dim">
+        <p v-if="!props.gameId" class="mb-3 text-sm text-text-dim">
           {{
             $t('sync_settings.library.join.summary', {
               cloud: review.cloud_game_count,
@@ -347,10 +374,21 @@ watch(
       <KButton
         variant="primary"
         :loading="joining"
-        :disabled="loading || !review || unresolvedCount > 0"
+        :disabled="
+          loading ||
+          !review ||
+          unresolvedCount > 0 ||
+          (Boolean(props.gameId) && review.items.length === 0)
+        "
         @click="submit"
       >
-        {{ $t('sync_settings.library.join.join_action') }}
+        {{
+          $t(
+            props.gameId
+              ? 'sync_settings.library.definitions.apply'
+              : 'sync_settings.library.join.join_action'
+          )
+        }}
       </KButton>
     </template>
   </KDialog>

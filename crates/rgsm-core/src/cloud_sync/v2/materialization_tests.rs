@@ -53,6 +53,167 @@ fn materializer(
 }
 
 #[tokio::test]
+async fn excluded_game_clears_its_old_scoped_plan_without_blocking_other_games() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().unwrap();
+    let mut manifest = CloudManifest::default();
+    for id in ["pending", "ready"] {
+        let mut game = GameManifest::new(id);
+        game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+        manifest.games.insert(id.into(), game);
+        operator
+            .write(
+                &cloud_archive_path(id, "snapshot", ArchiveFormat::Zip).unwrap(),
+                b"bytes".to_vec(),
+            )
+            .await
+            .unwrap();
+    }
+    write_manifest(&operator, &manifest).await;
+    let original = materializer(operator.clone(), root.path(), "deck");
+    let cancelled = CancellationToken::new();
+    cancelled.cancel();
+    assert!(matches!(
+        original.materialize_game("pending", 0, &cancelled).await,
+        Err(MaterializationError::Cancelled)
+    ));
+    let connected =
+        materializer(operator, root.path(), "deck").excluding_games(["pending".into()].into());
+    assert!(
+        connected
+            .resume_pending(&CancellationToken::new())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        connected
+            .materialize_game("ready", 0, &CancellationToken::new())
+            .await
+            .unwrap()
+            .downloaded,
+        1
+    );
+    assert!(!root.path().join("deck/pending").exists());
+}
+
+#[tokio::test]
+async fn unresolved_definitions_are_excluded_from_deletion_and_batch_transfer() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().unwrap();
+    let mut manifest = CloudManifest::default();
+    for game_id in ["pending", "ready"] {
+        let mut game = GameManifest::new(game_id);
+        game.upsert_live(live("download", b"cloud bytes", true))
+            .unwrap();
+        let mut deleted = live("deleted", b"local bytes", false);
+        deleted.state = SnapshotState::FinalTombstone {
+            kind: DeletionKind::User,
+        };
+        game.snapshots.insert("deleted".into(), deleted);
+        game.report_local_archive("pc".into(), "deleted".into(), true);
+        manifest.games.insert(game_id.into(), game);
+        let local = archive_path(
+            &root.path().join("pc").join(game_id),
+            "deleted",
+            ArchiveFormat::Zip,
+        );
+        std::fs::create_dir_all(local.parent().unwrap()).unwrap();
+        std::fs::write(local, b"local bytes").unwrap();
+        operator
+            .write(
+                &cloud_archive_path(game_id, "download", ArchiveFormat::Zip).unwrap(),
+                b"cloud bytes".to_vec(),
+            )
+            .await
+            .unwrap();
+    }
+    write_manifest(&operator, &manifest).await;
+    let client = materializer(operator.clone(), root.path(), "pc")
+        .excluding_games(["pending".into()].into());
+    let removed = client.converge_local_tombstones().await.unwrap();
+    assert!(!removed.contains_key("pending"));
+    assert!(removed.contains_key("ready"));
+    assert_eq!(
+        std::fs::read(root.path().join("pc/pending/deleted.zip")).unwrap(),
+        b"local bytes"
+    );
+    assert_eq!(
+        client
+            .preview_materialize_all()
+            .await
+            .unwrap()
+            .snapshot_count,
+        1
+    );
+    assert_eq!(
+        client
+            .materialize_all(&CancellationToken::new())
+            .await
+            .unwrap()
+            .downloaded,
+        1
+    );
+    assert!(!root.path().join("pc/pending/download.zip").exists());
+    assert_eq!(
+        std::fs::read(root.path().join("pc/ready/download.zip")).unwrap(),
+        b"cloud bytes"
+    );
+    assert!(client.download("pending", "download").await.is_err());
+    assert!(
+        client
+            .delete_snapshot("pending", "download", true)
+            .await
+            .is_err()
+    );
+    let stored: CloudManifest =
+        serde_json::from_slice(&operator.read(CLOUD_MANIFEST_PATH).await.unwrap().to_vec())
+            .unwrap();
+    assert_eq!(stored.games["pending"], manifest.games["pending"]);
+}
+
+#[tokio::test]
+async fn resumed_transfer_rechecks_definition_scope() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().unwrap();
+    let mut manifest = CloudManifest::default();
+    for game_id in ["pending", "ready"] {
+        let mut game = GameManifest::new(game_id);
+        game.upsert_live(live("snapshot", b"bytes", true)).unwrap();
+        manifest.games.insert(game_id.into(), game);
+        operator
+            .write(
+                &cloud_archive_path(game_id, "snapshot", ArchiveFormat::Zip).unwrap(),
+                b"bytes".to_vec(),
+            )
+            .await
+            .unwrap();
+    }
+    write_manifest(&operator, &manifest).await;
+    let cancelled = CancellationToken::new();
+    cancelled.cancel();
+    assert!(matches!(
+        materializer(operator.clone(), root.path(), "pc")
+            .materialize_all(&cancelled)
+            .await,
+        Err(MaterializationError::Cancelled)
+    ));
+    let client =
+        materializer(operator, root.path(), "pc").excluding_games(["pending".into()].into());
+    assert_eq!(
+        client
+            .resume_pending(&CancellationToken::new())
+            .await
+            .unwrap()
+            .unwrap()
+            .downloaded,
+        1
+    );
+    assert!(!root.path().join("pc/pending").exists());
+    assert!(root.path().join("pc/ready/snapshot.zip").exists());
+}
+
+#[tokio::test]
 async fn view_keeps_catalog_cloud_and_device_availability_separate() {
     let operator = memory_operator();
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");

@@ -22,7 +22,9 @@ The player keeps automatic local capture enabled for rollback and corruption rec
 
 The player owns multiple Devices, but only some Games overlap. Cloud sync must be enabled independently per Game and Device; one Device must not be forced to synchronize the full Shared Library.
 
-Connecting, migrating, or refreshing a cloud library preserves Games that exist only locally, including their save paths and backups. Absence from a cloud directory is not a deletion request. Local-only definitions remain separate from the accepted Shared Library, so ordinary local edits do not publish them or require a working cloud connection. Explicit shared deletion records still remove the matching identity.
+Connecting, migrating, or refreshing a cloud library preserves Games that exist only locally, including their save paths and backups. Absence from a cloud directory is not a deletion request. Local-only definitions remain separate from the accepted Shared Library, so ordinary local edits do not publish them or require a working cloud connection.
+
+An existing cloud library connects automatically from saved settings. Cloud Games appear without a separate join step. Equal definitions with the same stable identity need no choice; different identities remain distinct even when their names match. If a local definition and the cloud definition disagree for the same identity, the local version stays usable until the player selects one whole definition. Transfers and shared deletion records exclude that Game until the choice is made; unrelated Games continue normally. Choosing a definition does not apply a Snapshot to live save files.
 
 ## Domain model
 

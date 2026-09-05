@@ -9,7 +9,7 @@ import {
 } from './support/cloud-assertions';
 import { readSave, seedEmptyCloudWithLocalGame, writeSave } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   createSnapshotViaApi,
@@ -32,7 +32,7 @@ test('per-game upload download disable re-enable', async ({ browser }) => {
     await createLibrary(session.pageA);
     const baseId = await createPublishedSnapshot(session.pageA, session.hostA, 'Shared base');
     await enableMode(session.pageA, session.hostA, 'Cloud Backup', 'Keep in cloud');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     await enableMode(session.pageB, session.hostB, 'Cloud Backup', 'Keep in cloud');
     const saveB = await readSave(seeded.deviceB);
     await openGame(session.pageB);

@@ -112,6 +112,14 @@ impl V2RemoteProgressResolver {
             self.progress_path.clone(),
             self.max_attempts,
         )
+        .excluding_games(
+            initial
+                .games
+                .keys()
+                .filter(|id| id.as_str() != game_id)
+                .cloned()
+                .collect(),
+        )
         .download(game_id, selected_snapshot_id)
         .await?;
 

@@ -25,7 +25,7 @@ import {
   applySnapshot,
   changeGameMode,
   confirmCutover,
-  confirmJoinKeepCloud,
+  connectLibrary,
   deleteCurrentHead,
   downloadSnapshot,
   expectCutoverSuccess,
@@ -131,10 +131,10 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
 
     await pageB.reload();
     await openSyncSettings(pageB);
-    expect((await inspectLibrary(hostB)).data.kind).toBe('join_required');
-    await expectLibraryKind(pageB, 'join');
+    await expectLibraryKind(pageB, 'active');
+    expect((await inspectLibrary(hostB)).data.kind).toBe('active');
 
-    await confirmJoinKeepCloud(pageB);
+    await connectLibrary(pageB);
     expect(await getGeneration(hostA)).toBe('v2');
     expect(await getGeneration(hostB)).toBe('v2');
     await expectDeviceProfiles(seeded.cloudRoot);

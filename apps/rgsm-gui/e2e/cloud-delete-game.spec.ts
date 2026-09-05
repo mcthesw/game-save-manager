@@ -10,7 +10,7 @@ import {
 } from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
-  confirmJoinKeepCloud,
+  connectLibrary,
   createLibrary,
   createPublishedSnapshot,
   permanentlyDeleteGame,
@@ -26,7 +26,7 @@ test('create library then permanently delete game', async ({ browser }) => {
   try {
     await createLibrary(session.pageA);
     const snapshotId = await createPublishedSnapshot(session.pageA, session.hostA, 'To delete');
-    await confirmJoinKeepCloud(session.pageB);
+    await connectLibrary(session.pageB);
     expectSharedLibraryHasGame(await readJson(cloudPaths(seeded.cloudRoot).sharedLibrary));
 
     await permanentlyDeleteGame(session.pageA);

@@ -49,6 +49,9 @@ import type {
   CloudUploadAllData,
   CloudUploadAllErrors,
   CloudUploadAllResponses,
+  ConnectCloudLibraryData,
+  ConnectCloudLibraryErrors,
+  ConnectCloudLibraryResponses,
   CreateCloudLibraryData,
   CreateCloudLibraryErrors,
   CreateCloudLibraryResponses,
@@ -476,6 +479,15 @@ export const cloudUploadAll = <ThrowOnError extends boolean = false>(
       ...options.headers,
     },
   });
+
+export const connectCloudLibrary = <ThrowOnError extends boolean = false>(
+  options?: Options<ConnectCloudLibraryData, ThrowOnError>
+): RequestResult<ConnectCloudLibraryResponses, ConnectCloudLibraryErrors, ThrowOnError> =>
+  (options?.client ?? client).post<
+    ConnectCloudLibraryResponses,
+    ConnectCloudLibraryErrors,
+    ThrowOnError
+  >({ url: '/api/v1/connect-cloud-library', ...options });
 
 export const createCloudLibrary = <ThrowOnError extends boolean = false>(
   options: Options<CreateCloudLibraryData, ThrowOnError>

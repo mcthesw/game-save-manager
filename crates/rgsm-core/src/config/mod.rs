@@ -7,6 +7,7 @@ mod ownership;
 mod ownership_tests;
 mod quick_actions_settings;
 mod settings;
+mod shared_game;
 mod utils;
 
 pub use app_config::{Config, FavoriteTreeNode};

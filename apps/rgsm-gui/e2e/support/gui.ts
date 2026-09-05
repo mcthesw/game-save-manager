@@ -51,7 +51,7 @@ export async function openSyncSettings(page: Page): Promise<void> {
 }
 export async function expectLibraryKind(
   page: Page,
-  kind: 'cutover' | 'join' | 'active' | 'resume' | 'empty'
+  kind: 'cutover' | 'active' | 'resume' | 'empty'
 ): Promise<void> {
   if (kind === 'cutover') {
     await expect(page.getByText('Upgrade required')).toBeVisible();
@@ -63,11 +63,6 @@ export async function expectLibraryKind(
     await expect(page.getByRole('button', { name: 'Resume upgrade' })).toBeVisible();
     return;
   }
-  if (kind === 'join') {
-    await expect(page.getByText('Join required')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Join library' })).toBeVisible();
-    return;
-  }
   if (kind === 'empty') {
     await expect(
       page.getByText('This location is empty and can create a new Cloud Library.')
@@ -75,7 +70,7 @@ export async function expectLibraryKind(
     await expect(page.getByRole('button', { name: 'Create library' })).toBeVisible();
     return;
   }
-  await expect(page.getByRole('button', { name: 'Sync mode' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Search games' })).toBeVisible();
 }
 
 export async function confirmCutover(page: Page, resumable = false): Promise<void> {
@@ -100,14 +95,10 @@ export async function expectCutoverSuccess(page: Page): Promise<void> {
   await expect(page.getByText('Cloud Library upgraded').first()).toBeAttached({ timeout: 60_000 });
 }
 
-export async function confirmJoinKeepCloud(page: Page): Promise<void> {
+export async function connectLibrary(page: Page): Promise<void> {
   await page.goto('/SyncSettings');
-  await expectLibraryKind(page, 'join');
-  await page.getByRole('button', { name: 'Join library' }).first().click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Join library' }).click();
-  await expectActivity(page, 'This device joined the Cloud Library');
+  await expectLibraryKind(page, 'active');
+  await expect(page.getByRole('button', { name: 'Join library' })).toHaveCount(0);
 }
 
 export async function openGame(page: Page, gameName = GAME_NAME): Promise<void> {

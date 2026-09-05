@@ -33,8 +33,6 @@ pub enum OwnershipError {
     ProfileIdentityMismatch { key: DeviceId, embedded: DeviceId },
     #[error("Shared Library contains duplicate Game identity: {0}")]
     DuplicateSharedGame(String),
-    #[error("Game belongs to both local and shared configuration: {0}")]
-    DuplicateGameOwnership(String),
     #[error("Shared Library contains an empty Game identity")]
     EmptySharedGameId,
     #[error("Shared Game {game_id} contains duplicate Save Unit ID {save_unit_id}")]
@@ -465,7 +463,7 @@ impl ConfigurationOwners {
                 !previously_shared.contains(game_id)
             }
         });
-        incoming.preserve_local_scope(&self.local_state);
+        incoming.preserve_local_scope(self);
         self.shared_library = incoming.shared_library;
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
@@ -504,11 +502,12 @@ impl ConfigurationOwners {
             .device_profiles
             .get(current_device_id)
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
-        let games = self
+        let definitions = self
             .shared_library
+            .with_local_games(&self.local_state.local_games);
+        let games = definitions
             .games
             .iter()
-            .chain(self.local_state.local_games.iter())
             .map(|shared| self.assemble_game(shared, current_device_id))
             .collect();
         let devices = self

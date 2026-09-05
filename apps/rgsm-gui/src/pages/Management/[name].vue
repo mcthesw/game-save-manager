@@ -75,6 +75,8 @@ const sortDesc = ref(true);
 const selectedDates = ref<Set<string>>(new Set());
 const retentionProtectedDates = ref<Set<string>>(new Set());
 const cloudGame = ref<CloudArchiveGameView | null>(null);
+const definitionConflict = ref(false);
+const choosingDefinition = ref(false);
 const localCatalogDates = ref<Set<string>>(new Set());
 const activeTransfer = ref('');
 
@@ -289,8 +291,18 @@ async function loadCloudGame() {
     return null;
   }
   const next = result.data.games.find((item) => item.game_id === gameId) ?? null;
-  cloudGame.value = next;
-  return next;
+  definitionConflict.value = Boolean(next?.definition_conflict);
+  // A pending cloud definition does not describe this local game's archives.
+  cloudGame.value = definitionConflict.value ? null : next;
+  return cloudGame.value;
+}
+
+async function onDefinitionSelected() {
+  const gameId = game.value.storage_key;
+  await refreshConfig();
+  const selected = config.value.games.find((item) => item.storage_key === gameId);
+  if (selected) await router.replace(getGameManagementPath(selected.name));
+  await loadCloudGame();
 }
 
 function mergeCloudOnlySnapshots(
@@ -1333,6 +1345,13 @@ const viewModeOptions = computed(() => [
       <div class="min-w-0 flex-1">
         <h2 class="truncate text-lg font-semibold text-text">{{ game.name }}</h2>
         <KTag v-if="cloudGame" class="mt-1">{{ syncParticipationLabel }}</KTag>
+        <button
+          v-if="definitionConflict"
+          class="mt-1 block border-none bg-transparent p-0 text-xs text-warning"
+          @click="choosingDefinition = true"
+        >
+          {{ $t('sync_settings.library.definitions.action') }}
+        </button>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <KButton variant="default" @click="launch_game">
@@ -1533,6 +1552,11 @@ const viewModeOptions = computed(() => [
     />
 
     <ExtraBackupDrawer v-if="game" v-model="extraBackupDrawer" :game="game" />
+    <CloudLibraryJoinDialog
+      v-model="choosingDefinition"
+      :game-id="game.storage_key"
+      @joined="onDefinitionSelected"
+    />
     <AutoSaveSettingsDrawer
       v-model="autoSaveSettingsDrawer"
       :game="game"
