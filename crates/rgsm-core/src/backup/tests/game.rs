@@ -461,6 +461,113 @@ fn make_test_game_with_storage_key(
 }
 
 #[test]
+fn delete_snapshot_finishes_catalog_cleanup_when_archive_is_already_missing() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let root = temp_dir::TempDir::new()?;
+        let config = Config {
+            backup_path: root.path().to_string_lossy().into_owned(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+        let game = make_test_game("delete_missing", root.path())?;
+        insert_snapshot(&game, root.path(), "parent", None)?;
+        insert_v4_snapshot(&game, root.path(), "child", Some("parent"))?;
+        fs::remove_file(root.path().join("delete_missing/child.7z"))?;
+
+        let deleted = game.delete_snapshot("child").await?;
+
+        assert_eq!(deleted.snapshots.backups.len(), 1);
+        assert_eq!(
+            deleted.snapshots.current_device_head().map(String::as_str),
+            Some("parent")
+        );
+        assert_eq!(game.get_game_snapshots_info()?.backups.len(), 1);
+        assert_eq!(
+            deleted.remote_archive_path,
+            "save_data/delete_missing/child.7z"
+        );
+        Ok(())
+    })
+}
+
+#[cfg(windows)]
+#[test]
+fn delete_snapshot_can_retry_after_catalog_write_was_denied() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let root = temp_dir::TempDir::new()?;
+        let config = Config {
+            backup_path: root.path().to_string_lossy().into_owned(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+        let game = make_test_game("delete_retry", root.path())?;
+        insert_snapshot(&game, root.path(), "parent", None)?;
+        insert_v4_snapshot(&game, root.path(), "child", Some("parent"))?;
+        let catalog = root.path().join("delete_retry/Backups.json");
+        let original_permissions = fs::metadata(&catalog)?.permissions();
+        let mut readonly = original_permissions.clone();
+        readonly.set_readonly(true);
+        fs::set_permissions(&catalog, readonly)?;
+
+        let failed_delete = game.delete_snapshot("child").await;
+        fs::set_permissions(&catalog, original_permissions)?;
+        assert!(failed_delete.is_err());
+        assert!(!root.path().join("delete_retry/child.7z").exists());
+        assert_eq!(game.get_game_snapshots_info()?.backups.len(), 2);
+
+        game.delete_snapshot("child").await?;
+
+        let saved = game.get_game_snapshots_info()?;
+        assert_eq!(saved.backups.len(), 1);
+        assert_eq!(
+            saved.current_device_head().map(String::as_str),
+            Some("parent")
+        );
+        Ok(())
+    })
+}
+
+#[test]
+fn snapshot_deletion_keeps_catalog_on_an_archive_removal_error() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        for batch in [false, true] {
+            let root = temp_dir::TempDir::new()?;
+            let config = Config {
+                backup_path: root.path().to_string_lossy().into_owned(),
+                ..Config::default()
+            };
+            let _config_guard = restore_config_guard(&config)?;
+            let game = make_test_game("delete_error", root.path())?;
+            insert_v4_snapshot(&game, root.path(), "child", None)?;
+            let archive = root.path().join("delete_error/child.7z");
+            fs::remove_file(&archive)?;
+            fs::create_dir(&archive)?;
+
+            let failed = if batch {
+                game.batch_delete_snapshots(&["child".into()])
+                    .await
+                    .is_err()
+            } else {
+                game.delete_snapshot("child").await.is_err()
+            };
+
+            assert!(failed);
+            assert!(archive.is_dir());
+            let saved = game.get_game_snapshots_info()?;
+            assert_eq!(saved.backups.len(), 1);
+            assert_eq!(
+                saved.current_device_head().map(String::as_str),
+                Some("child")
+            );
+        }
+        Ok(())
+    })
+}
+
+#[test]
 fn batch_delete_removes_snapshots_and_returns_remote_paths() -> TestResult {
     let _config_lock = lock_config_file();
     run_async_test(async {
