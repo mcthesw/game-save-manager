@@ -443,6 +443,7 @@ impl ServiceContext {
         let joined = match joined {
             Ok(joined) => joined,
             Err(CloudLibraryJoinError::TargetChanged(game_name))
+            | Err(CloudLibraryJoinError::DecisionRequired(game_name))
             | Err(CloudLibraryJoinError::LocalGameChanged(game_name)) => {
                 return Ok(CloudLibraryJoinOutcome::ReviewChanged { game_name });
             }

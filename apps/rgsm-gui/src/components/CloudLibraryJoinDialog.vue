@@ -19,7 +19,7 @@ const emit = defineEmits<{
 
 const feedback = useFeedback();
 const review = ref<CloudLibraryJoinReview | null>(null);
-const actions = ref<Record<string, JoinGameAction>>({});
+const actions = ref(new Map<string, JoinGameAction>());
 const selectedId = ref('');
 const loading = ref(false);
 const joining = ref(false);
@@ -38,13 +38,20 @@ const selected = computed(
   () => review.value?.items.find((item) => item.local_game_id === selectedId.value) ?? null
 );
 const replacementCount = computed(
-  () => Object.values(actions.value).filter((action) => action === 'replace_cloud').length
+  () => [...actions.value.values()].filter((action) => action === 'replace_cloud').length
 );
 const changedCount = computed(
   () => review.value?.items.filter((item) => item.classification !== 'same').length ?? 0
 );
 const reviewItems = computed(
   () => review.value?.items.filter((item) => item.classification !== 'same') ?? []
+);
+const unresolvedCount = computed(
+  () =>
+    review.value?.items.filter(
+      (item) =>
+        item.classification === 'game_definition_conflict' && !actions.value.has(item.local_game_id)
+    ).length ?? 0
 );
 
 function classificationLabel(item: CloudLibraryJoinItem) {
@@ -77,8 +84,10 @@ async function loadReview() {
       return;
     }
     review.value = result.data;
-    actions.value = Object.fromEntries(
-      result.data.items.map((item) => [item.local_game_id, 'keep_cloud'])
+    actions.value = new Map<string, JoinGameAction>(
+      result.data.items
+        .filter((item) => item.classification !== 'game_definition_conflict')
+        .map((item) => [item.local_game_id, 'keep_cloud'])
     );
     selectedId.value =
       result.data.items.find((item) => item.classification !== 'same')?.local_game_id ??
@@ -108,16 +117,23 @@ function decisionOptions(item: CloudLibraryJoinItem): { value: JoinGameAction; l
 function decisions(): JoinGameDecision[] {
   return (review.value?.items ?? [])
     .filter((item) => item.classification !== 'same')
-    .map((item) => ({
-      local_game_id: item.local_game_id,
-      local_fingerprint: item.local_fingerprint,
-      cloud_fingerprint: item.cloud_fingerprint,
-      action: actions.value[item.local_game_id] ?? 'keep_cloud',
-    }));
+    .flatMap((item) => {
+      const action = actions.value.get(item.local_game_id);
+      return action
+        ? [
+            {
+              local_game_id: item.local_game_id,
+              local_fingerprint: item.local_fingerprint,
+              cloud_fingerprint: item.cloud_fingerprint,
+              action,
+            },
+          ]
+        : [];
+    });
 }
 
 async function submit() {
-  if (!review.value || joining.value) return;
+  if (!review.value || joining.value || unresolvedCount.value) return;
   if (replacementCount.value > 0) {
     try {
       await feedback.confirm(
@@ -293,15 +309,15 @@ watch(
                 type="button"
                 class="flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent"
                 :class="
-                  actions[selected.local_game_id] === option.value
+                  actions.get(selected.local_game_id) === option.value
                     ? 'border-accent bg-accent-soft text-text'
                     : 'border-border bg-surface text-text-dim hover:border-border-strong hover:text-text'
                 "
-                :aria-pressed="actions[selected.local_game_id] === option.value"
-                @click="actions[selected.local_game_id] = option.value"
+                :aria-pressed="actions.get(selected.local_game_id) === option.value"
+                @click="actions.set(selected.local_game_id, option.value)"
               >
                 <CheckCircle2
-                  v-if="actions[selected.local_game_id] === option.value"
+                  v-if="actions.get(selected.local_game_id) === option.value"
                   :size="14"
                   class="shrink-0 text-accent"
                   aria-hidden="true"
@@ -324,8 +340,16 @@ watch(
     </template>
 
     <template #footer>
+      <span v-if="unresolvedCount" class="mr-auto text-xs text-text-dim">
+        {{ $t('sync_settings.library.join.choice_required', { count: unresolvedCount }) }}
+      </span>
       <KButton @click="visible = false">{{ $t('sync_settings.cancel') }}</KButton>
-      <KButton variant="primary" :loading="joining" :disabled="loading || !review" @click="submit">
+      <KButton
+        variant="primary"
+        :loading="joining"
+        :disabled="loading || !review || unresolvedCount > 0"
+        @click="submit"
+      >
         {{ $t('sync_settings.library.join.join_action') }}
       </KButton>
     </template>

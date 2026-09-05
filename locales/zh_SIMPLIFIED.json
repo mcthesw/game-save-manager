@@ -976,6 +976,7 @@
                 "add_local": "将此游戏加入云端资料库",
                 "replace_cloud": "替换共享游戏定义",
                 "join_action": "加入资料库",
+                "choice_required": "请为 {count} 个冲突游戏选择版本",
                 "replace_title": "替换共享定义",
                 "replace_warning": "将替换 {count} 个共享游戏定义，并影响参与同步的设备，设备专属路径不会上传",
                 "replace_confirm": "替换并加入",
