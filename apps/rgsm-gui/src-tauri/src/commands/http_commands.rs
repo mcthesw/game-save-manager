@@ -689,6 +689,21 @@ pub async fn http_get_cloud_archive_library(
         .map_err(ApiError::from_command)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/refresh-cloud-archive-library",
+    operation_id = "refreshCloudArchiveLibrary",
+    responses((status = 200, body = CloudArchiveLibraryView), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_refresh_cloud_archive_library(
+    State(state): State<HttpHostState>,
+) -> Result<Json<CloudArchiveLibraryView>, ApiError> {
+    commands::refresh_cloud_archive_library(state.app().clone())
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewV2GameProgressRequest {
@@ -2141,6 +2156,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_get_cloud_archive_library),
         )
         .route(
+            "/api/v1/refresh-cloud-archive-library",
+            post(http_refresh_cloud_archive_library),
+        )
+        .route(
             "/api/v1/review-v2-game-progress",
             post(http_review_v2_game_progress),
         )
@@ -2369,6 +2388,7 @@ pub fn router() -> Router<HttpHostState> {
         http_review_cloud_library_cutover,
         http_cutover_cloud_library,
         http_get_cloud_archive_library,
+        http_refresh_cloud_archive_library,
         http_review_v2_game_progress,
         http_keep_v2_local_progress,
         http_accept_v2_remote_progress,

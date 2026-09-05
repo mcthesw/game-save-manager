@@ -138,7 +138,6 @@ impl CloudArchiveMaterializer {
         game_names: &BTreeMap<String, String>,
         local_heads: &BTreeMap<String, Option<String>>,
     ) -> Result<CloudArchiveLibraryView, MaterializationError> {
-        self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
         let mut games = Vec::with_capacity(manifest.games.len());
         for (game_id, game) in &manifest.games {
@@ -293,7 +292,6 @@ impl CloudArchiveMaterializer {
     pub async fn preview_materialize_all(
         &self,
     ) -> Result<MaterializationPreview, MaterializationError> {
-        self.converge_local_tombstones().await?;
         let plan = match self.load_plan().await? {
             Some(plan) => plan,
             None => self.load_or_plan(None, None, None, false).await?,

@@ -1,15 +1,31 @@
+use crate::app_dirs::resolve_app_path;
 use crate::backup::GameSnapshots;
-use crate::cloud_sync::v2::{CloudArchiveLibraryView, DeletionRegistryRepository};
-use crate::config::{cloud_bootstrap_inputs, get_config};
+use crate::cloud_sync::v2::{
+    CloudArchiveLibraryView, CloudArchiveMaterializer, DeletionRegistryRepository,
+};
+use crate::config::{CloudNamespaceGeneration, cloud_bootstrap_inputs, get_config};
 
 use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
 
 impl ServiceContext {
-    pub async fn cloud_archive_library(
+    /// Reconcile cloud metadata and pending deletions at an explicit sync boundary.
+    /// Archive transfer and live save restoration remain separate operations.
+    pub async fn refresh_cloud_archive_library(
         &self,
     ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
         super::game_deletion::converge_local_deleted_games().await?;
-        super::retention::refresh_v2_snapshot_retention().await?;
+        super::cloud_library_metadata::refresh_shared_library().await?;
+        let materializer = self.materializer().await?;
+        self.converge_local_tombstone_metadata(&materializer)
+            .await?;
+        self.cloud_archive_library().await
+    }
+
+    /// Observe catalog state without accepting configuration, publishing presence,
+    /// or deleting local archive copies.
+    pub async fn cloud_archive_library(
+        &self,
+    ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
         let (library, profile, local_state) = cloud_bootstrap_inputs()?;
         let registry = DeletionRegistryRepository::new(bound_v2_operator(&local_state).await?, 3)
             .load()
@@ -48,7 +64,7 @@ impl ServiceContext {
             })
             .collect();
         let mut view = self
-            .converged_materializer()
+            .materializer()
             .await?
             .view(&game_names, &local_heads)
             .await?;
@@ -71,5 +87,53 @@ impl ServiceContext {
                 .map(|policy| policy.automatic_snapshots_per_branch);
         }
         Ok(view)
+    }
+
+    pub(super) async fn materializer(
+        &self,
+    ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
+        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
+        }
+        let local_archive_root = profile
+            .local_archive_root
+            .as_deref()
+            .map(resolve_app_path)
+            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
+        Ok(CloudArchiveMaterializer::new(
+            bound_v2_operator(&local_state).await?,
+            local_archive_root,
+            local_state.current_device_id,
+            resolve_app_path("GameSaveManager.cloud-v2-materialization.json"),
+            3,
+        ))
+    }
+
+    pub(super) async fn converged_materializer(
+        &self,
+    ) -> Result<CloudArchiveMaterializer, CloudLibraryServiceError> {
+        super::game_deletion::converge_local_deleted_games().await?;
+        let materializer = self.materializer().await?;
+        self.converge_local_tombstone_metadata(&materializer)
+            .await?;
+        Ok(materializer)
+    }
+
+    pub(super) async fn converge_local_tombstone_metadata(
+        &self,
+        materializer: &CloudArchiveMaterializer,
+    ) -> Result<(), CloudLibraryServiceError> {
+        let tombstones = materializer.converge_local_tombstones().await?;
+        if tombstones.is_empty() {
+            return Ok(());
+        }
+        let config = get_config()?;
+        for game in &config.games {
+            if let Some(snapshot_ids) = tombstones.get(&game.storage_key) {
+                game.forget_v2_tombstones(snapshot_ids)?;
+            }
+        }
+        Ok(())
     }
 }

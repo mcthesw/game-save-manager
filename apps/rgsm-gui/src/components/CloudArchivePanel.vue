@@ -29,7 +29,7 @@ async function load(options: { silent?: boolean } = {}) {
   if (loading.value) return;
   loading.value = true;
   try {
-    const result = await commands.getCloudArchiveLibrary();
+    const result = await commands.refreshCloudArchiveLibrary();
     if (result.status === 'error') {
       if (!options.silent) {
         notifyError($t('sync_settings.archives.load_failed'), result.error);
