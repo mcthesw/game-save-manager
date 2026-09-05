@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use opendal::Operator;
@@ -448,34 +448,9 @@ impl CloudArchiveMaterializer {
             .games
             .get(game_id)
             .ok_or_else(|| MaterializationError::GameNotFound(game_id.to_string()))?;
-        let mut lineage = Vec::new();
-        let mut visited = HashSet::new();
-        let mut cursor = snapshot_id;
-        loop {
-            if !visited.insert(cursor.to_string()) {
-                return Err(MaterializationError::SnapshotUnavailable(
-                    cursor.to_string(),
-                ));
-            }
-            let node = game
-                .snapshots
-                .get(cursor)
-                .ok_or_else(|| MaterializationError::SnapshotNotFound(cursor.to_string()))?;
-            lineage.push(
-                node.local_snapshot(self.local_path(
-                    game_id,
-                    &node.snapshot_id,
-                    node.archive_format,
-                ))
-                .ok_or_else(|| MaterializationError::SnapshotUnavailable(cursor.to_string()))?,
-            );
-            let Some(parent) = node.parent.as_deref() else {
-                break;
-            };
-            cursor = parent;
-        }
-        lineage.reverse();
-        Ok(lineage)
+        Ok(game
+            .local_lineage(snapshot_id, &self.local_archive_root.join(game_id))
+            .map_err(ManifestRepositoryError::from)?)
     }
 
     pub async fn imported_local_catalog(
