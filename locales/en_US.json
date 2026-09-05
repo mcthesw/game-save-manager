@@ -976,6 +976,7 @@
                 "add_local": "Add this game to Cloud Library",
                 "replace_cloud": "Replace the shared game definition",
                 "join_action": "Join library",
+                "choice_required": "Choose a version for {count} conflicting game(s)",
                 "replace_title": "Replace shared definitions",
                 "replace_warning": "{count} shared game definitions will be replaced for participating devices. Device-specific paths are not uploaded",
                 "replace_confirm": "Replace and join",
