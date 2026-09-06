@@ -826,9 +826,9 @@
                 "incomplete": "Removal incomplete",
                 "remove_action": "Remove device",
                 "retry": "Retry cleanup",
-                "remove_title": "Permanently remove Device Profile?",
-                "remove_confirm": "Remove “{device}” from this cloud library? Its Device Profile and all of its progress pointers will be removed, and an offline stale copy cannot publish this Device ID again. Shared Snapshots and local or cloud Archive files are not deleted.",
-                "remove_success": "Device Profile removed; {count} progress pointer(s) cleared",
+                "remove_title": "Remove device from this cloud library?",
+                "remove_confirm": "Remove “{device}” and its progress positions from this cloud library? Local backups and cloud snapshots stay. Continuing sync requires confirmation on that device",
+                "remove_success": "Device removed",
                 "remove_incomplete": "Device removal is incomplete; retry remains available",
                 "load_failed": "Could not load cloud Devices"
             },
@@ -1048,10 +1048,10 @@
             "rebuild_failed": "Could not rebuild the Cloud Library",
             "rebuild_confirm": "This replaces the damaged Cloud Library with this device's games and re-uploads its available snapshots. Other devices will need to reconnect. Enter yes to confirm.",
             "reconnect": "Reconnect this device",
-            "reconnect_description": "The Cloud Library was rebuilt by another device. Reconnect this device to continue syncing.",
+            "reconnect_description": "This device needs to reconnect to the cloud library before continuing sync",
             "reconnect_success": "This device reconnected",
             "reconnect_failed": "Could not reconnect this device",
-            "reconnect_confirm": "Use the current Cloud Library on this device. Local snapshot files are kept and nothing in the cloud is deleted."
+            "reconnect_confirm": "Reconnect this device to the current cloud library? Local games and backups stay, and no cloud content or game saves are deleted"
         },
         "operations": {
             "tab": "Operations",

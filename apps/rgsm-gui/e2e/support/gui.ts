@@ -487,7 +487,7 @@ export async function removeLibraryDevice(page: Page, deviceName: string): Promi
   // Only non-current, non-removed devices offer the action, so it is unique.
   await section.getByRole('button', { name: 'Remove device' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Remove device' }).click();
-  await expectActivity(page, /Device Profile removed/);
+  await expectActivity(page, 'Device removed');
 }
 
 export async function rebuildCloudLibrary(page: Page): Promise<void> {

@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use super::metadata_read::read_complete_json;
 use super::{
-    DeletionRegistryError, DeletionRegistryRepository, V2_DEVICE_PROFILES_PREFIX,
+    DeletionRegistry, DeletionRegistryError, DeletionRegistryRepository, V2_DEVICE_PROFILES_PREFIX,
     device_profile_path,
 };
 use crate::config::{DeviceProfile, V2_CONFIG_SCHEMA_VERSION};
@@ -35,18 +35,33 @@ impl DeviceProfileRepository {
         let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
             .load()
             .await?;
+        Self::validate_profile(acting_device_id, profile, &registry)?;
         if registry.deleted_profiles.contains_key(acting_device_id) {
             return Err(DeviceProfileRepositoryError::Deleted(
                 acting_device_id.to_string(),
             ));
         }
-        if let Some(game_id) = profile
-            .games
-            .keys()
-            .find(|game_id| registry.deleted_games.contains_key(*game_id))
-        {
-            return Err(DeviceProfileRepositoryError::DeletedGame(game_id.clone()));
-        }
+        self.write_profile(acting_device_id, profile).await
+    }
+
+    /// Explicitly re-register this Device after the player confirms reconnecting.
+    /// Ordinary publication never clears a removal marker.
+    pub async fn reconnect(
+        &self,
+        acting_device_id: &str,
+        profile: &DeviceProfile,
+    ) -> Result<(), DeviceProfileRepositoryError> {
+        let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts);
+        Self::validate_profile(acting_device_id, profile, &registry.load().await?)?;
+        registry.reactivate_profile(acting_device_id).await?;
+        self.publish(acting_device_id, profile).await
+    }
+
+    fn validate_profile(
+        acting_device_id: &str,
+        profile: &DeviceProfile,
+        registry: &DeletionRegistry,
+    ) -> Result<(), DeviceProfileRepositoryError> {
         if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
             return Err(DeviceProfileRepositoryError::UnsupportedSchema(
                 profile.schema_version,
@@ -58,6 +73,21 @@ impl DeviceProfileRepository {
                 profile: profile.device.id.clone(),
             });
         }
+        if let Some(game_id) = profile
+            .games
+            .keys()
+            .find(|game_id| registry.deleted_games.contains_key(*game_id))
+        {
+            return Err(DeviceProfileRepositoryError::DeletedGame(game_id.clone()));
+        }
+        Ok(())
+    }
+
+    async fn write_profile(
+        &self,
+        acting_device_id: &str,
+        profile: &DeviceProfile,
+    ) -> Result<(), DeviceProfileRepositoryError> {
         let path = device_profile_path(acting_device_id);
         let expected = serde_json::to_vec_pretty(profile)?;
         for _ in 0..self.max_attempts {
@@ -168,7 +198,7 @@ pub enum DeviceProfileRepositoryError {
     UnsupportedSchema(u32),
     #[error("Device {acting} cannot publish Device Profile {profile}")]
     WrongDevice { acting: String, profile: String },
-    #[error("Device Profile {0} has been permanently removed")]
+    #[error("Device {0} was removed; confirm reconnection on that device to continue")]
     Deleted(DeviceId),
     #[error("Game {0} has been permanently deleted")]
     DeletedGame(String),
@@ -243,6 +273,51 @@ mod tests {
         assert_eq!(
             repository.list().await.unwrap()[0].device.name,
             "Steam Deck"
+        );
+    }
+
+    #[tokio::test]
+    async fn reconnect_validates_before_clearing_removal_and_normal_publish_stays_blocked() {
+        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let registry = DeletionRegistryRepository::new(operator.clone(), 3);
+        registry.mark_profile_deleted("deck", "pc").await.unwrap();
+        registry
+            .mark_game_deleted("deleted-game", "Deleted", "pc")
+            .await
+            .unwrap();
+        let before = registry.load().await.unwrap();
+        let repository = DeviceProfileRepository::new(operator.clone(), 3);
+        assert!(matches!(
+            repository.publish("deck", &profile()).await,
+            Err(DeviceProfileRepositoryError::Deleted(_))
+        ));
+
+        let mut wrong_device = profile();
+        wrong_device.device.id = "pc".into();
+        let mut wrong_schema = profile();
+        wrong_schema.schema_version += 1;
+        let mut deleted_game = profile();
+        deleted_game.games.insert(
+            "deleted-game".into(),
+            serde_json::from_value(serde_json::json!({
+                "visible": true, "sync_mode": crate::config::SyncMode::Manual,
+            }))
+            .unwrap(),
+        );
+        for invalid in [wrong_device, wrong_schema, deleted_game] {
+            assert!(repository.reconnect("deck", &invalid).await.is_err());
+            assert_eq!(registry.load().await.unwrap(), before);
+            assert!(!operator.exists(&device_profile_path("deck")).await.unwrap());
+        }
+        repository.reconnect("deck", &profile()).await.unwrap();
+        assert!(operator.exists(&device_profile_path("deck")).await.unwrap());
+        assert!(
+            !registry
+                .load()
+                .await
+                .unwrap()
+                .deleted_profiles
+                .contains_key("deck")
         );
     }
 

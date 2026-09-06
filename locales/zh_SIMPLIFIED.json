@@ -826,9 +826,9 @@
                 "incomplete": "移除未完成",
                 "remove_action": "移除设备",
                 "retry": "重试清理",
-                "remove_title": "永久移除此设备 Profile 吗？",
-                "remove_confirm": "要从此云端资料库移除“{device}”吗？该设备的 Profile 和全部进度指针都会被移除，离线的陈旧副本也无法再次发布同一设备 ID。共享快照以及本地或云端存档文件不会被删除。",
-                "remove_success": "设备 Profile 已移除，并清除 {count} 个进度指针",
+                "remove_title": "从云端移除此设备？",
+                "remove_confirm": "从云端移除“{device}”及其进度位置？本地备份和云端快照都会保留，继续同步需要在该设备上确认重新连接",
+                "remove_success": "设备已移除",
                 "remove_incomplete": "设备移除尚未完成，仍可直接重试",
                 "load_failed": "无法读取云端设备"
             },
@@ -1048,10 +1048,10 @@
             "rebuild_failed": "无法重建云端资料库",
             "rebuild_confirm": "这会用此设备的游戏替换损坏的云端资料库，并重新上传此设备现有的存档快照。其他设备之后需要重新连接。输入 yes 确认。",
             "reconnect": "重新连接此设备",
-            "reconnect_description": "云端资料库已由另一台设备重建。重新连接此设备后即可继续同步。",
+            "reconnect_description": "此设备需要重新连接云端资料库后才能继续同步",
             "reconnect_success": "此设备已重新连接",
             "reconnect_failed": "无法重新连接此设备",
-            "reconnect_confirm": "在此设备上使用当前云端资料库。本地存档快照会保留，云端内容不会被删除。"
+            "reconnect_confirm": "将此设备重新连接到当前云端资料库？本地游戏与备份会保留，不会删除云端内容或游戏存档"
         },
         "operations": {
             "tab": "操作",

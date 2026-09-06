@@ -148,6 +148,17 @@ impl DeletionRegistryRepository {
         .await
     }
 
+    pub(super) async fn reactivate_profile(
+        &self,
+        device_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
+        self.mutate(|registry| {
+            registry.deleted_profiles.remove(device_id);
+        })
+        .await?;
+        Ok(())
+    }
+
     async fn mutate(
         &self,
         mut change: impl FnMut(&mut DeletionRegistry),
@@ -178,7 +189,7 @@ pub enum DeletionRegistryError {
     UnsupportedSchema(u32),
     #[error("Deletion registry update was not visible after {attempts} attempts")]
     RetryExhausted { attempts: usize },
-    #[error("Device Profile has been permanently removed: {0}")]
+    #[error("Device {0} was removed; confirm reconnection on that device to continue")]
     ProfileDeleted(DeviceId),
     #[error("Shared Game has been permanently deleted: {0}")]
     GameDeleted(String),
