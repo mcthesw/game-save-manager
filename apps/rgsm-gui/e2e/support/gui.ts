@@ -159,12 +159,13 @@ export async function downloadSnapshot(page: Page, snapshotId: string): Promise<
 }
 
 export async function deleteCurrentHead(page: Page, snapshotId: string): Promise<void> {
-  await snapshotRow(page, snapshotId).getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Delete permanently' }).click();
-  const fallback = page.getByRole('dialog', { name: 'Permanently delete Snapshot' });
-  if (await fallback.isVisible().catch(() => false)) {
-    await fallback.getByRole('button', { name: 'Delete permanently' }).click();
-  }
+  await snapshotRow(page, snapshotId)
+    .getByRole('button', { name: 'Delete everywhere', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Delete snapshot everywhere?' });
+  await expect(dialog).toContainText('current position');
+  await expect(dialog).toContainText('Live game saves stay unchanged');
+  await dialog.getByRole('button', { name: 'Delete everywhere', exact: true }).click();
   await expectActivity(page, 'Successfully deleted');
 }
 

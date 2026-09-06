@@ -38,6 +38,7 @@ const props = defineProps<{
   localCatalogDates: Set<string>;
   retentionProtectedDates: Set<string>;
   activeTransfer: string;
+  deleteLabel?: string;
   devices?: Record<string, { name: string }>;
 }>();
 
@@ -354,12 +355,12 @@ const locationLabel = (date: string) =>
             </span>
 
             <span class="inline-flex h-7 w-7 items-center justify-center">
-              <KTooltip :content="$t('manage.delete')">
+              <KTooltip :content="deleteLabel ?? $t('manage.delete')">
                 <KButton
                   variant="ghost"
                   size="sm"
                   class="text-danger"
-                  :aria-label="$t('manage.delete')"
+                  :aria-label="deleteLabel ?? $t('manage.delete')"
                   @click="emit('remove', snapshot.date)"
                 >
                   <template #icon><Trash2 :size="15" aria-hidden="true" /></template>
