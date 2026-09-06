@@ -1,11 +1,5 @@
 import { error } from '../utils/logger';
-import {
-  commands,
-  DEFAULT_CONFIG,
-  events,
-  type Config,
-  type DeviceGameStatus,
-} from '../api/commands';
+import { commands, DEFAULT_CONFIG, type Config, type DeviceGameStatus } from '../api/commands';
 import { $t } from '../i18n';
 
 const config = ref<Config>(structuredClone(DEFAULT_CONFIG));
@@ -65,19 +59,6 @@ async function saveConfig(): Promise<boolean> {
     notifyError($t('error.set_config_failed'));
     return false;
   }
-}
-
-if (typeof window !== 'undefined') {
-  events.quickActionCompleted
-    .listen((event) => {
-      const payload = event.payload;
-      if (payload.status === 'Success' && payload.operation === 'Backup') {
-        void refreshConfig();
-      }
-    })
-    .catch((err) => {
-      error(`Failed to listen quick action events: ${err}`);
-    });
 }
 
 firstLoad = refreshConfig();

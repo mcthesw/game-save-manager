@@ -18,7 +18,7 @@ use super::{QuickActionType, perform_changed_auto_backup};
 pub enum SchedulerCommand {
     /// Bulk-sync scheduler state from persisted game configs.
     /// Called on startup and whenever game configs change.
-    SyncFromConfig(Vec<(String, Game, AutoBackupConfig)>),
+    SyncFromConfig(Vec<Game>),
     /// Query current scheduler status.
     GetStatus {
         respond_to: oneshot::Sender<Vec<AutoBackupGameStatus>>,
@@ -28,6 +28,7 @@ pub enum SchedulerCommand {
 /// Status of one game's auto-backup timer, returned by `GetStatus`.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct AutoBackupGameStatus {
+    pub game_id: String,
     pub game_name: String,
     pub interval_secs: u32,
 }
@@ -64,14 +65,7 @@ impl AutoBackupScheduler {
     /// Sync scheduler state from config — reads all games and enables timers for those with auto_backup.
     pub fn sync_from_config(&self) {
         let entries = match get_config() {
-            Ok(config) => config
-                .games
-                .into_iter()
-                .filter_map(|game| {
-                    let config = game.auto_backup.clone()?;
-                    Some((game.name.clone(), game, config))
-                })
-                .collect(),
+            Ok(config) => config.games,
             Err(e) => {
                 warn!(
                     target: "rgsm::scheduler",
@@ -125,46 +119,41 @@ fn handle_command(games: &mut HashMap<String, ScheduledGame>, cmd: SchedulerComm
     match cmd {
         SchedulerCommand::SyncFromConfig(entries) => {
             let now = Instant::now();
-            let new_names: std::collections::HashSet<String> =
-                entries.iter().map(|(name, _, _)| name.clone()).collect();
-
-            // Remove games no longer in config
-            games.retain(|name, _| new_names.contains(name));
-
-            for (name, game, config) in entries {
-                if let Some(existing) = games.get_mut(&name) {
-                    // Update game reference and config; keep existing schedule
-                    // if interval hasn't changed, otherwise reset
-                    if existing.config.interval_secs != config.interval_secs {
-                        existing.next_trigger =
-                            now + Duration::from_secs(config.interval_secs as u64);
-                    }
-                    existing.game = game;
-                    existing.config = config;
-                } else {
-                    // New game — schedule first trigger
-                    info!(
+            let mut previous = std::mem::take(games);
+            for game in entries {
+                let Some(config) = game.auto_backup.clone() else {
+                    continue;
+                };
+                if game.storage_key.is_empty() || config.interval_secs == 0 {
+                    warn!(
                         target: "rgsm::scheduler",
-                        "Enabling auto-backup for '{}' every {}s",
-                        name,
-                        config.interval_secs
+                        "Ignoring invalid auto-backup settings for '{}'",
+                        game.name
                     );
-                    games.insert(
-                        name,
-                        ScheduledGame {
-                            game,
-                            next_trigger: now + Duration::from_secs(config.interval_secs as u64),
-                            config,
-                        },
-                    );
+                    continue;
                 }
+                // Renaming or editing a game must not postpone its next backup.
+                let next_trigger = previous
+                    .remove(&game.storage_key)
+                    .filter(|scheduled| scheduled.config.interval_secs == config.interval_secs)
+                    .map(|scheduled| scheduled.next_trigger)
+                    .unwrap_or_else(|| now + Duration::from_secs(config.interval_secs as u64));
+                games.insert(
+                    game.storage_key.clone(),
+                    ScheduledGame {
+                        game,
+                        config,
+                        next_trigger,
+                    },
+                );
             }
         }
         SchedulerCommand::GetStatus { respond_to } => {
             let status: Vec<AutoBackupGameStatus> = games
-                .iter()
-                .map(|(name, sg)| AutoBackupGameStatus {
-                    game_name: name.clone(),
+                .values()
+                .map(|sg| AutoBackupGameStatus {
+                    game_id: sg.game.storage_key.clone(),
+                    game_name: sg.game.name.clone(),
                     interval_secs: sg.config.interval_secs,
                 })
                 .collect();
@@ -176,14 +165,14 @@ fn handle_command(games: &mut HashMap<String, ScheduledGame>, cmd: SchedulerComm
 /// Trigger auto-backups for all games whose timers have fired.
 async fn trigger_due_games(app: &AppHandle, games: &mut HashMap<String, ScheduledGame>) {
     let now = Instant::now();
-    let due_names: Vec<String> = games
+    let due_ids: Vec<String> = games
         .iter()
         .filter(|(_, sg)| sg.next_trigger <= now)
-        .map(|(name, _)| name.clone())
+        .map(|(id, _)| id.clone())
         .collect();
 
-    for name in due_names {
-        if let Some(sg) = games.get_mut(&name) {
+    for id in due_ids {
+        if let Some(sg) = games.get_mut(&id) {
             perform_timer_backup(app, &sg.game, &sg.config).await;
             sg.next_trigger = Instant::now() + Duration::from_secs(sg.config.interval_secs as u64);
         }
@@ -212,7 +201,7 @@ mod tests {
         game_paths.insert("device-1".to_string(), launch_path.to_string());
         Game {
             name: name.to_string(),
-            storage_key: String::new(),
+            storage_key: name.to_string(),
             save_paths: vec![],
             game_paths,
             next_save_unit_id: 0,
@@ -224,10 +213,30 @@ mod tests {
     }
 
     #[test]
+    fn same_title_games_keep_independent_timers() {
+        let interval = auto_backup_config(30);
+        let mut first = test_game("Same", "first.exe", Some(interval.clone()));
+        first.storage_key = "first".into();
+        let mut second = test_game("Same", "second.exe", Some(interval.clone()));
+        second.storage_key = "second".into();
+        let mut games = HashMap::new();
+
+        handle_command(
+            &mut games,
+            SchedulerCommand::SyncFromConfig(vec![first, second]),
+        );
+
+        assert_eq!(games.len(), 2);
+        assert_eq!(games["first"].game.name, "Same");
+        assert_eq!(games["second"].game.name, "Same");
+    }
+
+    #[test]
     fn sync_from_config_updates_existing_game_without_resetting_deadline_when_interval_matches() {
         let interval = auto_backup_config(30);
         let original_game = test_game("GameA", "C:\\old.exe", Some(interval.clone()));
-        let updated_game = test_game("GameA", "C:\\new.exe", Some(interval.clone()));
+        let mut updated_game = test_game("GameA", "C:\\new.exe", Some(interval.clone()));
+        updated_game.name = "Renamed".into();
         let original_deadline = Instant::now() + Duration::from_secs(123);
 
         let mut games = HashMap::new();
@@ -242,15 +251,12 @@ mod tests {
 
         handle_command(
             &mut games,
-            SchedulerCommand::SyncFromConfig(vec![(
-                "GameA".to_string(),
-                updated_game.clone(),
-                interval,
-            )]),
+            SchedulerCommand::SyncFromConfig(vec![updated_game.clone()]),
         );
 
         let synced = games.get("GameA").expect("game should still be scheduled");
         assert_eq!(synced.game.game_paths, updated_game.game_paths);
+        assert_eq!(synced.game.name, "Renamed");
         assert_eq!(synced.next_trigger, original_deadline);
     }
 
@@ -277,16 +283,45 @@ mod tests {
             },
         );
 
-        handle_command(
-            &mut games,
-            SchedulerCommand::SyncFromConfig(vec![(
-                "GameA".to_string(),
-                game_a,
-                auto_backup_config(30),
-            )]),
-        );
+        handle_command(&mut games, SchedulerCommand::SyncFromConfig(vec![game_a]));
 
         assert!(games.contains_key("GameA"));
         assert!(!games.contains_key("GameB"));
+    }
+
+    #[test]
+    fn disabled_or_invalid_timers_are_not_scheduled() {
+        let enabled = test_game("GameA", "game.exe", Some(auto_backup_config(30)));
+        let mut games = HashMap::new();
+        handle_command(
+            &mut games,
+            SchedulerCommand::SyncFromConfig(vec![enabled.clone()]),
+        );
+        assert_eq!(games.len(), 1);
+        let mut disabled = enabled;
+        disabled.auto_backup = None;
+        let zero = test_game("Zero", "game.exe", Some(auto_backup_config(0)));
+        let no_id = test_game("", "game.exe", Some(auto_backup_config(30)));
+        handle_command(
+            &mut games,
+            SchedulerCommand::SyncFromConfig(vec![disabled, zero, no_id]),
+        );
+        assert!(games.is_empty());
+    }
+
+    #[test]
+    fn changed_interval_resets_the_deadline() {
+        let mut games = HashMap::new();
+        let game = test_game("GameA", "game.exe", Some(auto_backup_config(30)));
+        handle_command(
+            &mut games,
+            SchedulerCommand::SyncFromConfig(vec![game.clone()]),
+        );
+        let mut updated = game;
+        updated.auto_backup = Some(auto_backup_config(60));
+        let before = Instant::now();
+        handle_command(&mut games, SchedulerCommand::SyncFromConfig(vec![updated]));
+        assert!(games["GameA"].next_trigger >= before + Duration::from_secs(60));
+        assert!(games["GameA"].next_trigger <= Instant::now() + Duration::from_secs(60));
     }
 }

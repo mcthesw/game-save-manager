@@ -98,7 +98,7 @@ async function refreshAutoBackup() {
   try {
     const result = await commands.getAutoBackupStatus();
     if (result.status === 'ok') {
-      autoBackupGames.value = new Set(result.data.map((row) => row.game_name));
+      autoBackupGames.value = new Set(result.data.map((row) => row.game_id));
     }
   } catch (e) {
     error(`refresh auto-backup status error: ${e}`);
@@ -109,7 +109,9 @@ onMounted(refreshAutoBackup);
 // 定时备份与进程自动化配置变化都会改变状态点;config 引用替换即触发
 watch(
   () => [
-    (config.value?.games ?? []).map((game) => `${game.name}:${game.auto_backup ? 1 : 0}`).join('|'),
+    (config.value?.games ?? [])
+      .map((game) => `${game.storage_key}:${game.auto_backup ? 1 : 0}`)
+      .join('|'),
     JSON.stringify(config.value?.quick_action?.game_automations ?? []),
   ],
   refreshAutoBackup
@@ -181,8 +183,12 @@ function navigatePage(path: string) {
           >
             <span
               class="game-dot"
-              :class="{ on: autoBackupGames.has(game.name) }"
-              :title="autoBackupGames.has(game.name) ? $t('sidebar.auto_backup_on') : undefined"
+              :class="{ on: autoBackupGames.has(game.storage_key ?? '') }"
+              :title="
+                autoBackupGames.has(game.storage_key ?? '')
+                  ? $t('sidebar.auto_backup_on')
+                  : undefined
+              "
             />
             <span class="row-text">{{ game.name }}</span>
             <span

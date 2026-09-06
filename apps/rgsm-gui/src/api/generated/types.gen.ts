@@ -64,6 +64,7 @@ export type AutoBackupConfig = {
  * Status of one game's auto-backup timer, returned by `GetStatus`.
  */
 export type AutoBackupGameStatus = {
+  game_id: string;
   game_name: string;
   interval_secs: number;
 };
