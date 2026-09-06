@@ -264,22 +264,26 @@ if (typeof window !== 'undefined') {
       @confirm="handleDeviceSetup"
     />
 
-    <Transition name="global-loading-fade">
-      <div
-        v-if="isLoading"
-        class="global-loading-overlay"
-        role="status"
-        :style="globalLoadingStyle"
-      >
-        <div class="global-loading-card">
-          <LoaderCircle class="global-loading-spinner" :size="36" />
-          <p class="global-loading-text">{{ loadingMessage }}</p>
-          <p v-if="loadingDetail" class="global-loading-detail">{{ loadingDetail }}</p>
+    <Teleport to="body">
+      <Transition name="global-loading-fade">
+        <div
+          v-if="isLoading"
+          class="global-loading-overlay"
+          role="status"
+          aria-live="polite"
+          :style="globalLoadingStyle"
+          @pointerdown.stop
+        >
+          <div class="global-loading-card">
+            <LoaderCircle class="global-loading-spinner" :size="36" />
+            <p class="global-loading-text">{{ loadingMessage }}</p>
+            <p v-if="loadingDetail" class="global-loading-detail">{{ loadingDetail }}</p>
+          </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
 
-    <ActivityDrawer />
+      <ActivityDrawer />
+    </Teleport>
     <AddGameDrawer />
     <KFeedbackHost />
     <RemoteProgressPrompt />
@@ -342,6 +346,7 @@ textarea,
 }
 
 .global-loading-overlay {
+  pointer-events: auto;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);

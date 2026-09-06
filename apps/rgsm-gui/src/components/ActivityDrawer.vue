@@ -22,7 +22,7 @@ import {
   type ActivityStatus,
 } from '../composables/useActivityCenter';
 import { LAYER } from '../ui/layers';
-import { overlayDepth } from '../ui/overlayDepth';
+import { isActivityFeedbackVisible, overlayDepth } from '../ui/overlayDepth';
 
 const { activeJobs, isSyncing, isCancelling, jobs, cancelSync } = useCloudSyncStatus();
 const { activities, activityAddSignal, dismissActivity, dismissAll, notifyError } =
@@ -222,12 +222,13 @@ function canDismiss(entry: ActivityEntry) {
 
 <template>
   <div
-    v-show="overlayDepth === 0"
+    v-show="isActivityFeedbackVisible(overlayDepth, expanded)"
     class="activity-drawer"
-    :class="{ 'is-ghost-tab': isGhostTab }"
+    :class="{ 'is-ghost-tab': isGhostTab, 'is-overlay-feedback': overlayDepth > 0 }"
     role="status"
     aria-live="polite"
     :style="{ zIndex: LAYER.activityDrawer }"
+    @pointerdown.stop
   >
     <!-- Header pill (always visible, acts as toggle + header when expanded) -->
     <div class="activity-pill" @click="handleToggleExpanded">
@@ -391,8 +392,9 @@ function canDismiss(entry: ActivityEntry) {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  min-width: 380px;
-  max-width: 560px;
+  min-width: min(380px, calc(100vw - 40px));
+  max-width: min(560px, calc(100vw - 40px));
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -408,6 +410,14 @@ function canDismiss(entry: ActivityEntry) {
     border-radius 0.28s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.2s ease,
     background-color 0.2s ease;
+}
+
+/* Keep foreground feedback away from a drawer's bottom-right footer actions. */
+.activity-drawer.is-overlay-feedback {
+  left: 20px;
+  right: auto;
+  top: 20px;
+  bottom: auto;
 }
 
 /* Ghost tab: a small floating circle anchored bottom-right */

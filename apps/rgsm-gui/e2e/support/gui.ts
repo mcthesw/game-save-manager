@@ -65,7 +65,7 @@ export async function expectLibraryKind(
   }
   if (kind === 'empty') {
     await expect(
-      page.getByText('This location is empty and can create a new Cloud Library.')
+      page.getByText('This location is empty and can create a new Cloud Library')
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create library' })).toBeVisible();
     return;

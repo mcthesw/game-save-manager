@@ -25,6 +25,7 @@ const { confirmAndRun } = useApplyConfirmation();
 const { withLoading } = useGlobalLoading();
 
 const loading = ref(false);
+const restoringDate = ref<string | null>(null);
 const items = ref<ExtraBackupItem[]>([]);
 
 const open = computed({
@@ -101,20 +102,29 @@ async function openFolder() {
 }
 
 async function restore(date: string) {
-  await confirmAndRun('snapshot', async () => {
-    await withLoading(
-      async () => {
-        const result = await commands.restoreExtraBackup(props.game, date);
-        if (result.status === 'error') {
-          notifyError($t('manage.recover_failed'));
-          return;
-        }
-        notifySuccess($t('manage.recover_success'));
-      },
-      $t('manage.restoring_backup'),
-      $t('manage.wait_for_prompt_hint')
-    );
-  });
+  if (restoringDate.value !== null) return;
+  restoringDate.value = date;
+  try {
+    await confirmAndRun('snapshot', async () => {
+      await withLoading(
+        async () => {
+          const result = await commands.restoreExtraBackup(props.game, date);
+          if (result.status === 'error') {
+            notifyError($t('manage.recover_failed'));
+            return;
+          }
+          notifySuccess($t('manage.recover_success'));
+        },
+        $t('manage.restoring_backup'),
+        $t('manage.wait_for_prompt_hint')
+      );
+    });
+  } catch (e) {
+    logError(`Failed to restore extra backup: ${e}`);
+    notifyError($t('manage.recover_failed'));
+  } finally {
+    restoringDate.value = null;
+  }
 }
 
 async function del(date: string) {
@@ -139,7 +149,12 @@ async function del(date: string) {
 </script>
 
 <template>
-  <KDrawer v-model:open="open" :title="$t('manage.extra_backups')" :width="580">
+  <KDrawer
+    v-model:open="open"
+    :title="$t('manage.extra_backups')"
+    :width="580"
+    :dismissable="restoringDate === null"
+  >
     <div class="flex h-full flex-col gap-4">
       <!-- Toolbar -->
       <div class="flex items-center justify-between gap-4 border-b border-border pb-3">
@@ -147,11 +162,17 @@ async function del(date: string) {
           {{ $t('manage.extra_backups_hint') }}
         </p>
         <div class="flex shrink-0 gap-1">
-          <KButton variant="ghost" size="sm" :loading="loading" @click="refresh">
+          <KButton
+            variant="ghost"
+            size="sm"
+            :loading="loading"
+            :disabled="restoringDate !== null"
+            @click="refresh"
+          >
             <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
             {{ $t('common.refresh') }}
           </KButton>
-          <KButton variant="ghost" size="sm" @click="openFolder">
+          <KButton variant="ghost" size="sm" :disabled="restoringDate !== null" @click="openFolder">
             <template #icon><FolderOpen :size="13" aria-hidden="true" /></template>
             {{ $t('manage.open_extra_backup_folder') }}
           </KButton>
@@ -189,11 +210,24 @@ async function del(date: string) {
             </div>
           </div>
           <div class="flex shrink-0 gap-1">
-            <KButton variant="ghost" size="sm" class="text-success" @click="restore(item.date)">
+            <KButton
+              variant="ghost"
+              size="sm"
+              class="text-success"
+              :loading="restoringDate === item.date"
+              :disabled="restoringDate !== null"
+              @click="restore(item.date)"
+            >
               <template #icon><Play :size="13" aria-hidden="true" /></template>
               {{ $t('manage.apply') }}
             </KButton>
-            <KButton variant="ghost" size="sm" class="text-danger" @click="del(item.date)">
+            <KButton
+              variant="ghost"
+              size="sm"
+              class="text-danger"
+              :disabled="restoringDate !== null"
+              @click="del(item.date)"
+            >
               <template #icon><Trash2 :size="13" aria-hidden="true" /></template>
               {{ $t('manage.delete') }}
             </KButton>

@@ -205,6 +205,28 @@ test('returning to an open game refreshes cloud snapshots without clearing known
       })
     ).toBeVisible();
     await expect(session.pageB.getByText('Synced', { exact: true })).toHaveCount(0);
+
+    // An unavailable inspection is not evidence that this device was removed.
+    await session.pageB.route('**/api/v1/inspect-cloud-library', (route) => route.abort('failed'));
+    await session.pageB.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(
+      session.pageB.getByRole('heading', { name: 'Preferences', exact: true })
+    ).toBeVisible();
+    await openSyncSettings(session.pageB);
+    await expect(
+      session.pageB
+        .getByRole('main')
+        .getByText('Could not check the Cloud Library', { exact: true })
+    ).toBeVisible();
+    await expect(session.pageB.getByRole('textbox', { name: 'Search games' })).toBeVisible({
+      timeout: 5000,
+    });
+    await expect(
+      session.pageB.getByText('Could not refresh cloud data, showing the last known information', {
+        exact: true,
+      })
+    ).toBeVisible();
+    await expect(session.pageB.getByText('Synced', { exact: true })).toHaveCount(0);
   } catch (error) {
     failed = true;
     throw error;

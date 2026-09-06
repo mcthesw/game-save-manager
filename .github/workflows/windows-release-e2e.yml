@@ -56,6 +56,9 @@ jobs:
           e2e/local-released-upgrade.spec.ts
           e2e/local-failure-surface.spec.ts
           e2e/local-extra-backup.spec.ts
+          e2e/local-overlay-feedback.spec.ts
+          e2e/cloud-empty-create.spec.ts
+          e2e/cloud-remove-device.spec.ts
           e2e/local-restore-permissions.spec.ts
           e2e/cloud-library-cutover.spec.ts
           e2e/cloud-library-two-v1-devices.spec.ts
