@@ -1,8 +1,8 @@
 # Synchronization model
 
-**Status:** design in progress
+**Status:** accepted 1.9 behavior
 
-This document records the product model while the synchronization experience is being redesigned. Confirmed decisions are normative; open questions must not be implemented as assumptions.
+This document records the agreed synchronization behavior. Local backup, cloud transfer, and restoring live game saves remain separate operations.
 
 ## User journeys
 
@@ -153,7 +153,7 @@ The Game management page contains no Permanent Shared Game Deletion entry; it is
 
 Global deletion is distinct from Local Archive eviction and Cloud Archive removal. It first commits a durable Tombstone, then removes available Archive copies locally and in cloud storage. Offline Devices process the Tombstone on their next connection, delete matching Local Archives, and cannot resurrect the Snapshot.
 
-If the initiating Device's Current Position targets the Snapshot, deletion requires an explicit precondition choice: protected Apply to another Snapshot, capture the current live save as a new Snapshot, or clear Current Position while preserving live save data.
+If the initiating Device's Current Position targets the Snapshot, the confirmation explains that its position falls back to the nearest remaining ancestor, or clears when no ancestor remains. This changes only the position: it does not restore older game saves or require an extra capture. Batch deletion follows the same rule as each selected Snapshot is removed.
 
 Matching positions on other Devices do not block deletion. They are cleared when those Devices observe the Tombstone; each affected Device can select an existing Snapshot or capture its current live save. No remote position automatically falls back to an ancestor.
 
@@ -164,7 +164,6 @@ Matching positions on other Devices do not block deletion. They are cleared when
 - [Syncthing](https://docs.syncthing.net/v1.29.0/intro/gui.html) treats pause as retained configuration and local data with synchronization activity stopped.
 - [Dropbox global deletion](https://help.dropbox.com/delete-restore/delete-files) and [OneDrive Files On-Demand](https://support.microsoft.com/en-us/office/save-disk-space-with-onedrive-files-on-demand-for-windows-0e6860d3-d9f3-4971-b321-7092438fb38e) distinguish account-wide deletion from local-copy eviction.
 - [Syncthing deletion propagation](https://docs.syncthing.net/v1.22.2/users/syncing.html) motivates a stricter durable Tombstone so stale offline Devices cannot resurrect a deleted Snapshot.
-- [Git branch deletion](https://git-scm.com/docs/git-branch/2.50.0.html) protects a checked-out worktree, supporting an explicit initiating-Device Current Position decision before deletion.
 - [Dropbox selective sync](https://help.dropbox.com/sync/selective-sync-overview) removes local copies when deselected, demonstrating why local eviction must remain separate from sync enablement.
 - [Ludusavi](https://github.com/mtkennerly/ludusavi/blob/master/docs/cli.md) keeps local backup and restore independent from cloud checks and transfer.
 - [Syncthing folder types](https://docs.syncthing.net/v1.27.2/users/foldertypes.html) expose send/receive direction because Syncthing is a generic replication tool; RGSM intentionally keeps those mechanics behind intent presets.
@@ -191,7 +190,15 @@ Matching positions on other Devices do not block deletion. They are cleared when
 - Disabling cloud sync is not Stop Managing or a deletion choice.
 - The Game management page contains no Game-level lifecycle deletion entry.
 - The Game overview uses four mutually exclusive current-Device × cloud Archive availability counts; unavailable/unavailable distinguishes another Device's last-reported copy from no known copy.
-- Global Snapshot Deletion requires the initiating Device to resolve a matching Current Position before deletion; the default is falling back to the deleted Snapshot's parent. Other Devices do not block deletion and select or capture progress after their matching positions are cleared.
-- Global Snapshot Deletion moves the initiating Device's Current Position to the deleted Snapshot's parent (or clears it if no parent exists). Other Devices' positions are cleared without automatic ancestor fallback.
+- Global Snapshot Deletion moves a matching initiating-Device Current Position to the nearest remaining ancestor, or clears it if none remains. Other Devices' matching positions clear without ancestor fallback; no live save files change.
 - Local and Cloud Archive eviction use consequence warnings rather than requiring a verified replacement copy.
 - Evicting the last known Archive leaves the Snapshot visible but unavailable; it is not Global Snapshot Deletion.
+- Removing a Device blocks ordinary background publication until the player confirms reconnecting on that Device. Reconnecting clears only its own removal marker and preserves local-only Games, backups and live saves.
+
+## Reliability and upgrade boundary
+
+Keep the model simple and practical: perform useful preflight checks, report failures, and preserve existing cleanup where possible, without promising a transaction across files, metadata and cloud storage. A failed operation may need a retry or player-directed recovery from an existing backup; a new rollback framework is not a release requirement.
+
+Restoring by overwrite keeps unrelated destination files. Delete-before-overwrite removes the selected destination first and therefore removes its extra files. Neither option promises an atomic swap of all save paths.
+
+The compatibility target is official 1.7/1.8 data upgrading to 1.9. Historical 1.7 source fixtures cover its flat archives and single position; the repository has no identified published 1.7 package. The V2 ZIP layout already exists in 1.8 and is not exclusive to a 1.9 beta. Save Unit identity and declared file/folder/registry type survive migration. Historical 1.9 intermediate configurations and direct downgrade to 1.8 do not receive a blanket compatibility promise.
