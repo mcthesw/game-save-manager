@@ -237,6 +237,7 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
 
     let view = materializer(operator, root.path(), "pc")
         .view(
+            "library",
             &BTreeMap::from([("game".into(), "Example".into())]),
             &BTreeMap::new(),
         )
@@ -416,6 +417,7 @@ async fn reconciling_pending_tombstone_removes_this_devices_local_copy() {
     assert!(removed["game"].contains("snapshot"));
     let view = pc
         .view(
+            "library",
             &BTreeMap::from([("game".into(), "Example".into())]),
             &BTreeMap::new(),
         )

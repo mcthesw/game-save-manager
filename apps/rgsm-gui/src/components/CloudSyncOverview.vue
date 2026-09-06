@@ -70,7 +70,7 @@ function normalizeMode(mode: SyncMode | string): 'manual' | 'cloud_backup' | 'mu
 }
 
 function needsProgressChoice(game: CloudArchiveGameView) {
-  return game.managed && game.cloud_sync_enabled && game.requires_choice;
+  return game.managed && game.cloud_sync_enabled && (game.requires_choice || game.has_update);
 }
 
 function syncStatus(game: CloudArchiveGameView) {
@@ -252,10 +252,17 @@ function openGame(game: CloudArchiveGameView) {
           <button
             v-if="needsProgressChoice(game)"
             type="button"
-            class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs text-warning transition-colors hover:brightness-110"
+            class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs transition-colors hover:brightness-110"
+            :class="game.requires_choice ? 'text-warning' : 'text-accent'"
             @click="progressGame = game"
           >
-            {{ $t('sync_settings.overview.progress_needed') }}
+            {{
+              $t(
+                game.requires_choice
+                  ? 'sync_settings.overview.progress_needed'
+                  : 'sync_settings.archives.progress.pending_compare'
+              )
+            }}
           </button>
         </div>
 

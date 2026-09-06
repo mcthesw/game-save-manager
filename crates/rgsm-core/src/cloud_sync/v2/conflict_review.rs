@@ -7,8 +7,8 @@ use specta::Type;
 use thiserror::Error;
 
 use super::{
-    CLOUD_MANIFEST_PATH, CloudManifestRepository, ManifestError, ManifestRepositoryError,
-    SnapshotState,
+    CLOUD_MANIFEST_PATH, CloudManifest, CloudManifestRepository, ManifestError,
+    ManifestRepositoryError, SnapshotState,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
@@ -92,6 +92,16 @@ impl V2ConflictInspector {
         )
         .load()
         .await?;
+        self.review_manifest(&manifest, game_id, local_snapshots)
+    }
+
+    /// Compare several games against one catalog read without duplicating ancestry rules.
+    pub fn review_manifest(
+        &self,
+        manifest: &CloudManifest,
+        game_id: &str,
+        local_snapshots: &GameSnapshots,
+    ) -> Result<V2ConflictReview, ConflictReviewError> {
         let game = manifest
             .games
             .get(game_id)

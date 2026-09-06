@@ -23,7 +23,9 @@ mod hooks;
 mod http;
 mod main_window;
 mod process_util;
+mod progress_notices;
 mod quick_actions;
+mod remote_progress;
 mod snapshot_sync;
 mod sound;
 
@@ -121,6 +123,7 @@ pub fn run() -> anyhow::Result<()> {
 
     // Init app
     let mut builder = tauri::Builder::default()
+        .manage(remote_progress::RemoteProgressState::new(!http_host_only))
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -169,7 +172,7 @@ pub fn run() -> anyhow::Result<()> {
             app.manage(hooks::HookPipelineState::new(pipeline));
 
             app.manage(cloud_sync_manager);
-            snapshot_sync::setup(cloud_operation_state);
+            snapshot_sync::setup(app.handle().clone(), cloud_operation_state);
 
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键

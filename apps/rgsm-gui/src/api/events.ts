@@ -1,11 +1,13 @@
 import './client';
 import { streamEvents } from './generated/sdk.gen';
+import { createEventDispatcher } from './eventDispatcher';
 import type {
   CloudSyncErrorEvent,
   CloudSyncStatusEvent,
   HostEvent,
   HostNotification,
   QuickActionCompleted,
+  PendingProgress,
 } from './generated/types.gen';
 
 export type { CloudSyncErrorEvent, CloudSyncStatusEvent, HostNotification, QuickActionCompleted };
@@ -15,18 +17,14 @@ type HostEventMap = {
   'cloud-sync-status': CloudSyncStatusEvent;
   notification: HostNotification;
   'quick-action-completed': QuickActionCompleted;
+  'remote-progress-pending': PendingProgress;
 };
 
 type Listener<T> = (event: { payload: T }) => void;
-const listeners = new Map<keyof HostEventMap, Set<Listener<never>>>();
+const dispatcher = createEventDispatcher<HostEvent>(
+  new Set(['cloud-sync-status', 'remote-progress-pending'])
+);
 let connection: AbortController | undefined;
-
-function dispatch(event: HostEvent) {
-  const eventType = event.eventType as keyof HostEventMap;
-  const payload = event.payload as HostEventMap[keyof HostEventMap];
-  const subscriptions = listeners.get(eventType);
-  subscriptions?.forEach((listener) => listener({ payload } as never));
-}
 
 async function connect(signal: AbortSignal) {
   while (!signal.aborted) {
@@ -38,7 +36,7 @@ async function connect(signal: AbortSignal) {
         },
       });
       for await (const event of stream) {
-        dispatch(event as HostEvent);
+        dispatcher.dispatch(event as HostEvent);
       }
     } catch (error) {
       if (!signal.aborted) console.warn('RGSM event stream disconnected', error);
@@ -50,22 +48,20 @@ async function connect(signal: AbortSignal) {
 }
 
 function listen<K extends keyof HostEventMap>(eventType: K, listener: Listener<HostEventMap[K]>) {
-  let subscriptions = listeners.get(eventType);
-  if (!subscriptions) {
-    subscriptions = new Set();
-    listeners.set(eventType, subscriptions);
-  }
-  subscriptions.add(listener as Listener<never>);
+  const stop = dispatcher.listen(eventType, (event) =>
+    listener({ payload: event.payload as HostEventMap[K] })
+  );
   if (!connection) {
     connection = new AbortController();
     void connect(connection.signal);
   }
-  return Promise.resolve(() => {
-    subscriptions?.delete(listener as Listener<never>);
-  });
+  return Promise.resolve(stop);
 }
 
 export const events = {
+  remoteProgressPending: {
+    listen: (listener: Listener<PendingProgress>) => listen('remote-progress-pending', listener),
+  },
   cloudSyncErrorEvent: {
     listen: (listener: Listener<CloudSyncErrorEvent>) => listen('cloud-sync-error', listener),
   },

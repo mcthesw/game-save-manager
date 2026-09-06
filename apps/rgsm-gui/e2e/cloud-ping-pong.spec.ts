@@ -28,6 +28,7 @@ import {
 } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
+import { deferPendingProgress } from './support/progress';
 
 const ROUNDS = 3;
 
@@ -63,6 +64,7 @@ test('repeated upload download round trips stay consistent', async ({ browser },
     await openGame(session.pageB);
     await downloadSnapshot(session.pageB, first);
     await enableMode(session.pageB, session.hostB, 'Multi-device Sync', 'Keep in cloud');
+    await deferPendingProgress(session.pageB);
 
     const published: string[] = [first];
     const creators = new Map([[first, DEVICE_A_ID]]);
@@ -76,6 +78,7 @@ test('repeated upload download round trips stay consistent', async ({ browser },
       creators.set(aSnap, DEVICE_A_ID);
       latestA = aSnap;
 
+      await deferPendingProgress(session.pageB);
       await openGame(session.pageB);
       await downloadSnapshot(session.pageB, aSnap);
       expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, aSnap))).toBe(true);
@@ -89,6 +92,7 @@ test('repeated upload download round trips stay consistent', async ({ browser },
       creators.set(bSnap, DEVICE_B_ID);
       latestB = bSnap;
 
+      await deferPendingProgress(session.pageA);
       await openGame(session.pageA);
       await downloadSnapshot(session.pageA, bSnap);
       expect(existsSync(localArchivePath(seeded.deviceA.appDataDir, bSnap))).toBe(true);

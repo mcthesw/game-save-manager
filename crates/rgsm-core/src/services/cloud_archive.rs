@@ -71,7 +71,14 @@ impl ServiceContext {
         let mut view = self
             .materializer()
             .await?
-            .view(&game_names, &local_heads)
+            .view(
+                local_state
+                    .cloud_library_id
+                    .as_deref()
+                    .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?,
+                &game_names,
+                &local_heads,
+            )
             .await?;
         view.games
             .retain(|game| !registry.deleted_games.contains_key(&game.game_id));

@@ -23,6 +23,7 @@ const MATERIALIZATION_PROGRESS_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, utoipa::ToSchema)]
 pub struct CloudArchiveLibraryView {
+    pub library_id: String,
     pub games: Vec<CloudArchiveGameView>,
     pub pending_materialization: bool,
 }
@@ -157,6 +158,7 @@ impl CloudArchiveMaterializer {
 
     pub async fn view(
         &self,
+        library_id: &str,
         game_names: &BTreeMap<String, String>,
         local_heads: &BTreeMap<String, Option<String>>,
     ) -> Result<CloudArchiveLibraryView, MaterializationError> {
@@ -316,6 +318,7 @@ impl CloudArchiveMaterializer {
             });
         }
         Ok(CloudArchiveLibraryView {
+            library_id: library_id.to_string(),
             games,
             pending_materialization: self.progress_path.exists(),
         })

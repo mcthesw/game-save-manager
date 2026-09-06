@@ -64,6 +64,10 @@ Controls whether Archive bytes are transferred manually or automatically. Publis
 
 Remote progress never changes live save data without an explicit player choice. Background reconciliation publishes metadata and uploads according to the selected preset; downloading and applying remote progress are separate actions. Explicit Apply retains its existing Extra Backup behavior.
 
+Multi-device Sync prompts when another Device advertises available forward or separate progress. Foreground prompts wait for existing dialogs and drawers to close. In the background, one system notification invites the player to reopen the app; it does not create a window or apply anything. Manual and Cloud Backup keep comparison available on demand without automatic prompts.
+
+`Later` defers that set of remote positions for the current application session, including closed and recreated windows. Repeated metadata reads, description changes and additional local backups do not prompt again; newly advertised remote progress can. Pending prompts are scoped to the connected Library and eligible Games. This session-only acknowledgement is not a cloud field, a live-file baseline, or a promise that the player has stopped playing.
+
 ## Archive availability
 
 The Snapshot Catalog can know a Snapshot even when the current Device and cloud storage have no Archive copy.

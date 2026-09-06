@@ -18,7 +18,7 @@ use crate::cloud_sync::v2::{
     LocalArchiveEvictionError, ManifestRepositoryError, MaterializationError,
     MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
     SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotReconcilePolicy,
-    SnapshotSyncCoordinator, SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
+    SnapshotSyncCoordinator, SnapshotSyncError, V2ConflictReview,
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
@@ -519,44 +519,10 @@ impl ServiceContext {
         &self,
         game_id: &str,
     ) -> Result<V2ConflictReview, CloudLibraryServiceError> {
-        let (library, profile, local_state) = cloud_bootstrap_inputs()?;
-        if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
-            return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
-        }
-        let game_name = library
-            .games
-            .iter()
-            .find(|game| game.storage_key == game_id)
-            .map(|game| game.name.clone())
-            .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
-        let local = get_config()?
-            .games
-            .into_iter()
-            .find(|game| game.storage_key == game_id)
-            .map(|game| match game.get_game_snapshots_info() {
-                Ok(snapshots) => Ok(snapshots),
-                Err(crate::preclude::BackupError::Io(error))
-                    if error.kind() == std::io::ErrorKind::NotFound =>
-                {
-                    Ok(GameSnapshots::new(game.name))
-                }
-                Err(error) => Err(error),
-            })
-            .transpose()?
-            .unwrap_or_else(|| GameSnapshots::new(game_name));
-        let local_archive_root = profile
-            .local_archive_root
-            .as_deref()
-            .map(resolve_app_path)
-            .ok_or(CloudLibraryServiceError::StorageLocationRequired)?;
-        Ok(V2ConflictInspector::new(
-            bound_v2_operator(&local_state).await?,
-            local_archive_root,
-            local_state.current_device_id,
-            3,
-        )
-        .review(game_id, &local)
-        .await?)
+        self.review_v2_games_progress(&[game_id.to_string()])
+            .await?
+            .remove(game_id)
+            .expect("requested game is included")
     }
 
     pub async fn preview_materialize_all(

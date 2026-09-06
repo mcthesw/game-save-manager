@@ -64,6 +64,9 @@ import type {
   CutoverCloudLibraryData,
   CutoverCloudLibraryErrors,
   CutoverCloudLibraryResponses,
+  DeferProgressNoticesData,
+  DeferProgressNoticesErrors,
+  DeferProgressNoticesResponses,
   DeleteExtraBackupData,
   DeleteExtraBackupErrors,
   DeleteExtraBackupResponses,
@@ -538,6 +541,22 @@ export const cutoverCloudLibrary = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/api/v1/cutover-cloud-library',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+export const deferProgressNotices = <ThrowOnError extends boolean = false>(
+  options: Options<DeferProgressNoticesData, ThrowOnError>
+): RequestResult<DeferProgressNoticesResponses, DeferProgressNoticesErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    DeferProgressNoticesResponses,
+    DeferProgressNoticesErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/defer-progress-notices',
     ...options,
     headers: {
       'Content-Type': 'application/json',
