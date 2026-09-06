@@ -11,6 +11,8 @@ pnpm web:test
 pnpm web:e2e local-main-path.spec.ts
 ```
 
+`pnpm web:e2e production-startup.spec.ts` 会将生产前端构建到临时目录，加载实际静态产物并访问主要懒加载页面，API 仍由隔离的真实宿主提供。此启动检查同时进入 Linux browser 套件和 Windows Release E2E；开发服务器验收不能替代它。
+
 运行前请停止占用 5173 端口的开发服务器。端口被占用时，测试会报错，不会接管或关闭原有进程。E2E 使用临时配置和本地 Fs 云目录，不需要个人存档或云账号。默认的 `pnpm web:e2e` 只运行 browser 项目，通过真实 Rust HTTP API 验证业务，不打开桌面窗口，也不注册托盘或全局快捷键。配置迁移本身不发送系统通知，升级提示由正常桌面启动负责，HTTP-only 宿主保持静默。
 
 实际窗口生命周期测试单独使用 `pnpm web:e2e:desktop`，会启动和关闭隔离配置的桌面窗口，请在允许弹窗时运行。Windows CI 使用 Playwright 的完整项目集合，仍包含此桌面覆盖。
