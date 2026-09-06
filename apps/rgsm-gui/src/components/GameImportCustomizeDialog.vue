@@ -210,6 +210,7 @@ type PathCheckState = {
 };
 
 const selectedPaths = ref<SavePath[]>([]);
+const selectionRevision = ref(0);
 const isChecking = ref(false);
 const pathChecks = ref<Array<PathCheckState | null>>([]);
 
@@ -305,6 +306,7 @@ function isRowSelected(row: SavePath) {
 }
 
 function toggleRow(row: SavePath) {
+  selectionRevision.value++;
   if (isRowSelected(row)) {
     selectedPaths.value = selectedPaths.value.filter((item) => item !== row);
   } else {
@@ -316,6 +318,7 @@ function toggleRow(row: SavePath) {
 watch(
   () => [props.gameName, props.savePaths],
   () => {
+    selectionRevision.value = 0;
     form.value = {
       gameName: props.gameName,
       savePaths: JSON.parse(JSON.stringify(props.savePaths)),
@@ -346,7 +349,7 @@ watch(
     selectedStoreUserId.value = null;
     await loadUserIdCandidates();
     await nextTick();
-    await checkAllPaths(true);
+    await checkAllPaths(selectionRevision.value === 0);
   }
 );
 
@@ -364,13 +367,14 @@ function handleCancel() {
 function handleConfirm() {
   emit('confirm', {
     gameName: form.value.gameName,
-    savePaths: selectedPaths.value,
+    savePaths: JSON.parse(JSON.stringify(selectedPaths.value)),
     storeUserId: selectedStoreUserId.value || null,
   });
   emit('update:modelValue', false);
 }
 
 function selectAllSupported() {
+  selectionRevision.value++;
   selectedPaths.value = [...form.value.savePaths];
 }
 
@@ -383,6 +387,13 @@ function applySelectionByCheck() {
 
 async function checkAllPaths(applySelection: boolean = false) {
   if (!form.value.savePaths.length) return;
+  const checkedForm = form.value;
+  const revision = selectionRevision.value;
+  const canSelect = () =>
+    applySelection &&
+    dialogVisible.value &&
+    checkedForm === form.value &&
+    revision === selectionRevision.value;
   isChecking.value = true;
   try {
     const paths = form.value.savePaths.map((p) => p.path);
@@ -416,22 +427,22 @@ async function checkAllPaths(applySelection: boolean = false) {
         }
         return {};
       });
-      if (applySelection) {
-        await nextTick();
+      await nextTick();
+      if (canSelect()) {
         applySelectionByCheck();
       }
     } else {
       pathChecks.value = form.value.savePaths.map(() => ({ error: result.error }));
-      if (applySelection) {
-        await nextTick();
+      await nextTick();
+      if (canSelect()) {
         selectAllSupported();
       }
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     pathChecks.value = form.value.savePaths.map(() => ({ error: msg }));
-    if (applySelection) {
-      await nextTick();
+    await nextTick();
+    if (canSelect()) {
       selectAllSupported();
     }
   } finally {
@@ -440,6 +451,7 @@ async function checkAllPaths(applySelection: boolean = false) {
 }
 
 async function selectByCheck() {
+  selectionRevision.value++;
   const hasAnyCheck = pathChecks.value.some((x) => x !== null);
   if (!hasAnyCheck) {
     await checkAllPaths(true);

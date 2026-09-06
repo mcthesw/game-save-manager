@@ -43,9 +43,9 @@ test('batch import with automatic favorites keeps all imported games and binds t
       dialog.getByRole('button', { name: /Import 2 selected game/ }).click(),
     ]);
     const batch = page.getByRole('dialog', { name: 'Batch Import: 2 games' });
+    await batch.getByRole('button', { name: 'Select all', exact: true }).click();
     releaseCheck();
     await expect(batch.getByRole('button', { name: 'Verify paths', exact: true })).toBeEnabled();
-    await batch.getByRole('button', { name: 'Select all', exact: true }).click();
     for (const name of ['Stardew Valley', 'Hollow Knight']) {
       await expect(batch.getByRole('checkbox', { name, exact: true })).toBeChecked();
     }
@@ -122,12 +122,12 @@ test('ludusavi import: search manifest, customize paths, game joins the library'
     const customize = page.getByRole('dialog', { name: `Customize Import: ${IMPORTED_GAME}` });
     await expect(customize).toBeVisible({ timeout: 60_000 });
     await expect.poll(() => heldCheck).toBe(true);
-    // Complete initial path detection before choosing this import's paths.
+    // A late automatic check must not undo the player's explicit path selection.
+    await customize.getByRole('button', { name: 'Select all' }).click();
     releaseCheck();
     await expect(
       customize.getByRole('button', { name: 'Verify paths', exact: true })
     ).toBeEnabled();
-    await customize.getByRole('button', { name: 'Select all' }).click();
     const paths = customize.getByRole('checkbox');
     for (const path of await paths.all()) await expect(path).toBeChecked({ timeout: 5000 });
     await customize.getByRole('button', { name: /^confirm$/i }).click();
