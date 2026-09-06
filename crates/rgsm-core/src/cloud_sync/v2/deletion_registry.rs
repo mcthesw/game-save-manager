@@ -4,6 +4,7 @@ use opendal::{ErrorKind, Operator};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use super::metadata_read::read_complete_json;
 use super::{CLOUD_ARCHIVES_PREFIX, DELETION_REGISTRY_PATH};
 use crate::device::DeviceId;
 
@@ -54,12 +55,19 @@ impl DeletionRegistryRepository {
     }
 
     pub async fn load(&self) -> Result<DeletionRegistry, DeletionRegistryError> {
-        let bytes = match self.operator.read(DELETION_REGISTRY_PATH).await {
-            Ok(bytes) => bytes.to_vec(),
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                return Ok(DeletionRegistry::default());
-            }
-            Err(error) => return Err(error.into()),
+        let bytes = read_complete_json(
+            || async {
+                match self.operator.read(DELETION_REGISTRY_PATH).await {
+                    Ok(bytes) => Ok(Some(bytes.to_vec())),
+                    Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+                    Err(error) => Err(error),
+                }
+            },
+            self.max_attempts,
+        )
+        .await?;
+        let Some(bytes) = bytes else {
+            return Ok(DeletionRegistry::default());
         };
         let registry: DeletionRegistry = serde_json::from_slice(&bytes)?;
         if registry.schema_version != DELETION_REGISTRY_SCHEMA_VERSION {
@@ -200,6 +208,38 @@ mod tests {
         let stored = repository.load().await.unwrap();
         assert_eq!(stored.deleted_profiles["deck"].deleted_by, "pc");
         assert!(operator.exists(DELETION_REGISTRY_PATH).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn deletion_registry_read_waits_for_an_in_progress_overwrite() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let operator =
+            Operator::new(services::Fs::default().root(root.path().to_string_lossy().as_ref()))
+                .unwrap()
+                .finish();
+        operator
+            .write(DELETION_REGISTRY_PATH, Vec::<u8>::new())
+            .await
+            .unwrap();
+        let writer = operator.clone();
+        let write = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            let registry = DeletionRegistry {
+                revision: 7,
+                ..DeletionRegistry::default()
+            };
+            writer
+                .write(
+                    DELETION_REGISTRY_PATH,
+                    serde_json::to_vec(&registry).unwrap(),
+                )
+                .await
+                .unwrap();
+        });
+
+        let result = DeletionRegistryRepository::new(operator, 10).load().await;
+        write.await.unwrap();
+        assert_eq!(result.unwrap().revision, 7);
     }
 
     #[tokio::test]

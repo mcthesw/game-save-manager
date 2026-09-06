@@ -5,6 +5,7 @@ use opendal::{ErrorKind, Operator};
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+use super::metadata_read::read_complete_json;
 use super::{CloudManifest, DeletionRegistryError, DeletionRegistryRepository, ManifestError};
 
 #[async_trait]
@@ -75,7 +76,8 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
     }
 
     pub async fn load(&self) -> Result<CloudManifest, ManifestRepositoryError> {
-        let manifest = match self.transport.read().await? {
+        let manifest = match read_complete_json(|| self.transport.read(), self.max_attempts).await?
+        {
             Some(bytes) => serde_json::from_slice(&bytes)?,
             None => CloudManifest::default(),
         };
@@ -231,6 +233,49 @@ mod tests {
         assert!(matches!(
             result,
             Err(ManifestRepositoryError::RetryExhausted { attempts: 2 })
+        ));
+    }
+
+    #[tokio::test]
+    async fn manifest_read_waits_for_an_in_progress_overwrite() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let operator = Operator::new(
+            opendal::services::Fs::default().root(root.path().to_string_lossy().as_ref()),
+        )
+        .unwrap()
+        .finish();
+        operator
+            .write("manifest.json", Vec::<u8>::new())
+            .await
+            .unwrap();
+        let writer = operator.clone();
+        let write = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            let manifest = CloudManifest {
+                revision: 7,
+                ..CloudManifest::default()
+            };
+            writer
+                .write("manifest.json", serde_json::to_vec(&manifest).unwrap())
+                .await
+                .unwrap();
+        });
+
+        let result = CloudManifestRepository::new(operator, "manifest.json", 10)
+            .load()
+            .await;
+        write.await.unwrap();
+        assert_eq!(result.unwrap().revision, 7);
+    }
+
+    #[tokio::test]
+    async fn an_incomplete_manifest_is_not_treated_as_an_empty_library() {
+        let transport = FakeTransport::new(0);
+        transport.state.lock().unwrap().bytes = Some(Vec::new());
+        let repository = CloudManifestRepository::with_transport(transport, 2);
+        assert!(matches!(
+            repository.load().await,
+            Err(ManifestRepositoryError::Serialization(_))
         ));
     }
 

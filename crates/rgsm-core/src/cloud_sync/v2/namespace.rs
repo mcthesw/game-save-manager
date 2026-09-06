@@ -10,6 +10,7 @@ use uuid::Uuid;
 use super::super::V1_CONFIG_PATH;
 #[cfg(test)]
 use super::super::V1_SAVE_DATA_PREFIX;
+use super::metadata_read::read_complete_json;
 use super::{CloudManifest, ManifestError};
 use crate::config::{Config, OwnershipError, SharedLibrary};
 use crate::device::encode_device_id;
@@ -24,6 +25,7 @@ pub const CLOUD_MANIFEST_PATH: &str = "v2/cloud-manifest.json";
 pub const CLOUD_ARCHIVES_PREFIX: &str = "v2/archives/";
 pub const DELETION_REGISTRY_PATH: &str = "v2/deletions.json";
 const CLASSIFICATION_ENTRY_SAMPLE_LIMIT: usize = 8;
+const NAMESPACE_READ_ATTEMPTS: usize = 3;
 
 pub fn device_profile_path(device_id: &str) -> String {
     format!(
@@ -98,17 +100,17 @@ impl CloudLibraryTarget {
     }
 
     pub(crate) async fn verify(&self) -> Result<Operator, CloudNamespaceError> {
-        let bytes = match self.operator.read(V2_NAMESPACE_DESCRIPTOR_PATH).await {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                return Err(CloudNamespaceError::MissingRequiredObject(
-                    V2_NAMESPACE_DESCRIPTOR_PATH,
-                ));
-            }
-            Err(error) => return Err(error.into()),
-        };
+        let transport = OpenDalNamespaceTransport::new(self.operator.clone());
+        let bytes = read_complete_json(
+            || transport.read(V2_NAMESPACE_DESCRIPTOR_PATH),
+            NAMESPACE_READ_ATTEMPTS,
+        )
+        .await?
+        .ok_or(CloudNamespaceError::MissingRequiredObject(
+            V2_NAMESPACE_DESCRIPTOR_PATH,
+        ))?;
         let descriptor: CloudNamespaceDescriptor =
-            parse_json(V2_NAMESPACE_DESCRIPTOR_PATH, &bytes.to_vec())?;
+            parse_json(V2_NAMESPACE_DESCRIPTOR_PATH, &bytes)?;
         descriptor.validate()?;
         if descriptor.library_id != self.expected_library_id {
             return Err(CloudNamespaceError::LibraryIdentityMismatch);
@@ -201,7 +203,7 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
     /// Classify without writing, deleting, or interpreting provider errors as
     /// absence. Empty requires a successful listing of the entire root.
     pub async fn classify(&self) -> Result<CloudNamespaceClassification, CloudNamespaceError> {
-        if let Some(bytes) = self.transport.read(V2_NAMESPACE_DESCRIPTOR_PATH).await? {
+        if let Some(bytes) = self.read_object(V2_NAMESPACE_DESCRIPTOR_PATH).await? {
             return self.classify_v2(&bytes).await;
         }
 
@@ -213,7 +215,7 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
             return Err(CloudNamespaceError::PartialV2(v2_entries));
         }
 
-        if let Some(bytes) = self.transport.read(V1_CONFIG_PATH).await? {
+        if let Some(bytes) = self.read_object(V1_CONFIG_PATH).await? {
             let config = parse_json(V1_CONFIG_PATH, &bytes)?;
             return Ok(CloudNamespaceClassification::V1Only {
                 config: Box::new(config),
@@ -255,10 +257,13 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
     }
 
     async fn required_object(&self, path: &'static str) -> Result<Vec<u8>, CloudNamespaceError> {
-        self.transport
-            .read(path)
+        self.read_object(path)
             .await?
             .ok_or(CloudNamespaceError::MissingRequiredObject(path))
+    }
+
+    async fn read_object(&self, path: &str) -> Result<Option<Vec<u8>>, CloudNamespaceError> {
+        Ok(read_complete_json(|| self.transport.read(path), NAMESPACE_READ_ATTEMPTS).await?)
     }
 }
 
@@ -371,6 +376,49 @@ mod tests {
             serde_json::to_vec(&CloudManifest::default()).unwrap(),
         );
         transport
+    }
+
+    #[tokio::test]
+    async fn classification_waits_for_an_in_progress_metadata_overwrite() {
+        struct OverwritingTransport {
+            ready: FakeTransport,
+            path: &'static str,
+            reads: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait]
+        impl NamespaceTransport for OverwritingTransport {
+            async fn read(&self, path: &str) -> Result<Option<Vec<u8>>, opendal::Error> {
+                if path == self.path
+                    && self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0
+                {
+                    return Ok(Some(Vec::new()));
+                }
+                self.ready.read(path).await
+            }
+
+            async fn list_sample(
+                &self,
+                prefix: &str,
+                limit: usize,
+            ) -> Result<Vec<String>, opendal::Error> {
+                self.ready.list_sample(prefix, limit).await
+            }
+        }
+        for path in [
+            V2_NAMESPACE_DESCRIPTOR_PATH,
+            SHARED_LIBRARY_PATH,
+            CLOUD_MANIFEST_PATH,
+        ] {
+            let classifier = CloudNamespaceClassifier::with_transport(OverwritingTransport {
+                ready: complete_v2(),
+                path,
+                reads: Default::default(),
+            });
+            assert!(matches!(
+                classifier.classify().await.unwrap(),
+                CloudNamespaceClassification::SupportedV2 { .. }
+            ));
+        }
     }
 
     #[tokio::test]

@@ -2,6 +2,7 @@ use futures_util::TryStreamExt;
 use opendal::Operator;
 use thiserror::Error;
 
+use super::metadata_read::read_complete_json;
 use super::{
     DeletionRegistryError, DeletionRegistryRepository, V2_DEVICE_PROFILES_PREFIX,
     device_profile_path,
@@ -105,20 +106,18 @@ impl DeviceProfileRepository {
         &self,
         path: &str,
     ) -> Result<DeviceProfile, DeviceProfileRepositoryError> {
-        let mut last_error = None;
-        for attempt in 0..self.max_attempts {
-            let bytes = self.operator.read(path).await?;
-            match serde_json::from_slice(&bytes.to_vec()) {
-                Ok(profile) => return Ok(profile),
-                Err(error) => last_error = Some(error),
-            }
-            if attempt + 1 < self.max_attempts {
-                tokio::time::sleep(std::time::Duration::from_millis(10 << attempt.min(4))).await;
-            }
-        }
-        Err(last_error
-            .expect("at least one profile read attempt")
-            .into())
+        let bytes = read_complete_json(
+            || async {
+                self.operator
+                    .read(path)
+                    .await
+                    .map(|bytes| Some(bytes.to_vec()))
+            },
+            self.max_attempts,
+        )
+        .await?
+        .expect("a successful profile read contains bytes");
+        Ok(serde_json::from_slice(&bytes)?)
     }
 
     pub async fn delete(&self, device_id: &str) -> Result<(), DeviceProfileRepositoryError> {
