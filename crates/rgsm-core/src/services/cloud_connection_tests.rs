@@ -88,6 +88,83 @@ fn runtime() -> tokio::runtime::Runtime {
 }
 
 #[test]
+fn removed_profile_requires_reconnect_even_when_its_stale_file_is_present() {
+    let _lock = crate::config::lock_config_test_file();
+    runtime().block_on(async {
+        let fixture = Fixture::new().await;
+        fixture.service.connect_cloud_library().await.unwrap();
+        let (_, _, state) = cloud_bootstrap_inputs().unwrap();
+        DeletionRegistryRepository::new(fixture.operator.clone(), 3)
+            .mark_profile_deleted(&state.current_device_id, "other-device")
+            .await
+            .unwrap();
+        assert!(fixture.profile_path().is_file());
+        assert!(matches!(
+            fixture.service.inspect_cloud_library().await.unwrap(),
+            CloudLibraryStatus::ReconnectRequired { .. }
+        ));
+        fixture.assert_local_protected();
+    });
+}
+
+#[test]
+fn confirmed_reconnect_reactivates_only_this_device_and_preserves_local_games() {
+    let _lock = crate::config::lock_config_test_file();
+    runtime().block_on(async {
+        let fixture = Fixture::new().await;
+        fixture.service.connect_cloud_library().await.unwrap();
+        let (_, _, state) = cloud_bootstrap_inputs().unwrap();
+        let registry = DeletionRegistryRepository::new(fixture.operator.clone(), 3);
+        registry
+            .mark_profile_deleted(&state.current_device_id, "other-device")
+            .await
+            .unwrap();
+        registry
+            .mark_profile_deleted("offline-device", "other-device")
+            .await
+            .unwrap();
+        registry
+            .mark_game_deleted("deleted-game", "Deleted", "other-device")
+            .await
+            .unwrap();
+        let before = registry.load().await.unwrap();
+        let other_path = device_profile_path("other-device");
+        let other_bytes = fixture.operator.read(&other_path).await.unwrap().to_vec();
+
+        assert!(matches!(
+            fixture.service.reconnect_cloud_library(false).await,
+            Err(CloudLibraryServiceError::ConfirmationRequired)
+        ));
+        assert_eq!(registry.load().await.unwrap(), before);
+
+        assert!(matches!(
+            fixture.service.reconnect_cloud_library(true).await.unwrap(),
+            CloudLibraryStatus::Active { .. }
+        ));
+        let after = registry.load().await.unwrap();
+        assert!(
+            !after
+                .deleted_profiles
+                .contains_key(&state.current_device_id)
+        );
+        assert_eq!(
+            after.deleted_profiles["offline-device"],
+            before.deleted_profiles["offline-device"]
+        );
+        assert_eq!(after.deleted_games, before.deleted_games);
+        assert_eq!(
+            fixture.operator.read(&other_path).await.unwrap().to_vec(),
+            other_bytes
+        );
+        fixture.assert_local_protected();
+        let profile: crate::config::DeviceProfile =
+            serde_json::from_slice(&std::fs::read(fixture.profile_path()).unwrap()).unwrap();
+        assert!(!profile.games.contains_key("pending"));
+        assert!(profile.games.contains_key("ready"));
+    });
+}
+
+#[test]
 fn failed_initial_profile_publication_can_retry_connection() {
     let _lock = crate::config::lock_config_test_file();
     runtime().block_on(async {

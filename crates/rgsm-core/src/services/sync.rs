@@ -117,7 +117,7 @@ pub enum CloudLibraryServiceError {
     CurrentPositionBlocksDeletion(String),
     #[error("The active V2 Cloud Library no longer matches the saved connection")]
     ActiveLibraryUnavailable,
-    #[error("This device must reconnect to the rebuilt Cloud Library")]
+    #[error("This device must reconnect to the Cloud Library")]
     DeviceReconnectRequired,
     #[error("This installation does not need to join a Cloud Library")]
     JoinNotRequired,
@@ -279,6 +279,14 @@ impl ServiceContext {
                 {
                     if local_state.cloud_library_id.as_deref()
                         != Some(descriptor.library_id.as_str())
+                        || crate::cloud_sync::v2::DeletionRegistryRepository::new(
+                            operator.clone(),
+                            3,
+                        )
+                        .load()
+                        .await?
+                        .deleted_profiles
+                        .contains_key(&local_state.current_device_id)
                     {
                         return Ok(CloudLibraryStatus::ReconnectRequired {
                             game_count: shared_library.games.len(),
@@ -373,7 +381,7 @@ impl ServiceContext {
             &shared_library,
         )?;
         DeviceProfileRepository::new(operator, 3)
-            .publish(&local_state.current_device_id, &published)
+            .reconnect(&local_state.current_device_id, &published)
             .await?;
         crate::config::connect_cloud_library_local(
             &expected_library,
