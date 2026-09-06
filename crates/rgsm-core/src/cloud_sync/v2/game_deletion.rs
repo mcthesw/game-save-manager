@@ -294,7 +294,6 @@ mod tests {
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             live_save_process_name: None,
             live_save_snapshot_on_exit: false,
-            multi_device_sync_suspended: false,
             game_path: Some("/games/example".into()),
             binding: None,
             auto_backup: None,

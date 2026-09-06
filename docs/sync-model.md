@@ -12,7 +12,7 @@ The player occasionally captures save data and usually uploads only selected Sna
 
 ### Multi-device continuity user
 
-The player regularly switches between a PC and a handheld. Selected overlapping Games need automatic cross-device continuity because the platform's native cloud save is unavailable or unreliable.
+The player regularly switches between a PC and a handheld. Selected overlapping Games need automatic upload and update discovery, with the player choosing which progress to restore before live save data changes.
 
 ### High-frequency recovery user
 
@@ -62,7 +62,7 @@ Controls whether Archive bytes are transferred manually or automatically. Publis
 
 ### Remote Apply policy
 
-Controls whether compatible remote progress is only shown, requires confirmation, or may be applied automatically with the required safety backup.
+Remote progress never changes live save data without an explicit player choice. Background reconciliation publishes metadata and uploads according to the selected preset; downloading and applying remote progress are separate actions. Explicit Apply retains its existing Extra Backup behavior.
 
 ## Archive availability
 
@@ -93,22 +93,22 @@ Ordinary users enable cloud sync and choose one of three remembered presets:
 | --- | --- | --- | --- |
 | Manual | Publish automatically | Transfer on demand | Explicit download and Apply only |
 | Cloud Backup | Same as Manual | Upload automatically | Explicit download and Apply only |
-| Multi-device Sync | Same as Cloud Backup | Upload automatically | Download only the unique Forward Target and perform protected Automatic Apply |
+| Multi-device Sync | Same as Cloud Backup | Upload automatically | Check for remote progress and prompt the player before downloading and applying a selected Snapshot |
 
 Local capture automation remains a separate Game setting. Scheduled capture and process-exit capture do not imply any cloud preset.
 
-The presets are additive user intents, not exposed upload/download direction matrices. No preset mirrors all historical Archives to every Device. `Download all snapshots` remains an explicit **Materialize All** action. Device path and restore mappings are prerequisites for capture and Apply, not synchronization modes. Multi-device Sync follows the unique compatible Forward Target across Device heads rather than a named Device or fixed head.
+The presets are additive user intents, not exposed upload/download direction matrices. No preset mirrors all historical Archives to every Device. `Download all snapshots` remains an explicit **Materialize All** action. Device path and restore mappings are prerequisites for capture and Apply, not synchronization modes. Multi-device Sync compares Device positions without designating one Device or timestamp as authoritative. Process detection is optional and is required only for process-exit capture, not cloud synchronization.
 
 
 ## Conflict model
 
 Different Snapshot lists, different positions on the same Branch, or an unuploaded Archive do not by themselves constitute a conflict.
 
-When one participating Device's Current Position is an ancestor of another's, the descendant is compatible forward progress. The older Device shows an available update; Multi-device Sync may advance when its safety conditions are satisfied, while other presets require an explicit Apply. If the descendant Archive is unavailable, the Device waits for an Archive copy instead of opening conflict review.
+When one participating Device's Current Position is an ancestor of another's, the descendant is compatible forward progress. The older Device shows an available update, but the player still chooses before Apply: graph ancestry does not prove that current live save data is unchanged. If the descendant Archive is unavailable, its position remains visible without offering an unavailable restore.
 
-A progress comparison is required only for a true divergence: Device positions on distinct Branches where neither position is an ancestor of the other.
+A true divergence means Device positions on distinct Branches where neither position is an ancestor of the other. The comparison flow also supports choosing compatible forward progress; an update is not itself a conflict.
 
-When Multi-device Sync detects true divergence, it enters a suspended runtime state. Automatic Archive upload, receipt, and Apply stop, but the configured preset remains Multi-device Sync. Resolving the divergence automatically resumes normal synchronization.
+Divergent progress continues to upload according to the selected preset. Backing up both branches does not choose which one replaces live save data. There is no persisted conflict-suspension state or automatic live-save baseline detector.
 
 The comparison flow offers:
 
@@ -151,7 +151,7 @@ Global deletion is distinct from Local Archive eviction and Cloud Archive remova
 
 If the initiating Device's Current Position targets the Snapshot, deletion requires an explicit precondition choice: protected Apply to another Snapshot, capture the current live save as a new Snapshot, or clear Current Position while preserving live save data.
 
-Matching positions on other Devices do not block deletion. They are cleared when those Devices observe the Tombstone; Multi-device Sync remains suspended until each affected Device selects an existing Snapshot or captures its current live save. No position automatically falls back to an ancestor.
+Matching positions on other Devices do not block deletion. They are cleared when those Devices observe the Tombstone; each affected Device can select an existing Snapshot or capture its current live save. No remote position automatically falls back to an ancestor.
 
 
 ## External precedents
@@ -174,15 +174,15 @@ Matching positions on other Devices do not block deletion. They are cleared when
 - Disabling cloud sync performs no cloud I/O but leaves local capture, restore, live save data, and Local Archives unchanged.
 - Re-enabling cloud sync immediately publishes accumulated progress before resuming the remembered preset.
 - Manual mode publishes progress metadata and Current Position but does not automatically upload Archives.
-- The three presets are additive: Manual handles records, Cloud Backup adds automatic upload, and Multi-device Sync adds only the Forward Target download and protected Apply required for convergence.
+- The three presets are additive: Manual handles records, Cloud Backup adds automatic upload, and Multi-device Sync adds update prompts. Remote Apply always requires an explicit player choice.
 - No preset automatically downloads all historical Archives; Materialize All is explicit.
 - Device mappings are prerequisites, not modes, and Multi-device Sync never binds to one named Device or fixed head.
 - Local capture automation remains independent from cloud behavior.
 - Unuploaded progress is not a conflict.
 - Different positions on one Branch are compatible forward progress, not a conflict.
 - Only mutually unreachable Device positions constitute true divergence.
-- True divergence suspends Multi-device Sync without changing the selected preset; resolving it resumes synchronization.
-- The comparison dialog handles true progress divergence only.
+- True divergence does not suspend upload; both branches remain backed up according to the selected preset.
+- The comparison dialog supports both remote updates and divergent progress without treating every update as a conflict.
 - The synchronization Game overview is the only surface for Permanent Shared Game Deletion.
 - Disabling cloud sync is not Stop Managing or a deletion choice.
 - The Game management page contains no Game-level lifecycle deletion entry.

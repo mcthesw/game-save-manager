@@ -139,10 +139,6 @@ pub struct DeviceGameProfile {
     pub live_save_process_name: Option<String>,
     #[serde(default)]
     pub live_save_snapshot_on_exit: bool,
-    /// When true, Multi-device Sync automatic transfer and Apply are paused
-    /// because Device positions have diverged. The selected preset is unchanged.
-    #[serde(default)]
-    pub multi_device_sync_suspended: bool,
     pub game_path: Option<String>,
     pub binding: Option<GameDeviceBinding>,
     pub auto_backup: Option<AutoBackupConfig>,
@@ -165,8 +161,6 @@ struct RawDeviceGameProfile {
     live_save_process_name: Option<String>,
     #[serde(default)]
     live_save_snapshot_on_exit: bool,
-    #[serde(default)]
-    multi_device_sync_suspended: bool,
     game_path: Option<String>,
     binding: Option<GameDeviceBinding>,
     auto_backup: Option<AutoBackupConfig>,
@@ -187,7 +181,6 @@ impl From<RawDeviceGameProfile> for DeviceGameProfile {
             initial_catch_up: raw.initial_catch_up,
             live_save_process_name: raw.live_save_process_name,
             live_save_snapshot_on_exit: raw.live_save_snapshot_on_exit,
-            multi_device_sync_suspended: raw.multi_device_sync_suspended,
             game_path: raw.game_path,
             binding: raw.binding,
             auto_backup: raw.auto_backup,
@@ -218,7 +211,7 @@ impl SyncMode {
         matches!(self, Self::CloudBackup | Self::MultiDeviceSync)
     }
 
-    pub fn auto_applies_forward_target(self) -> bool {
+    pub fn checks_remote_progress(self) -> bool {
         matches!(self, Self::MultiDeviceSync)
     }
 }
@@ -634,7 +627,6 @@ impl DeviceProfile {
                             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
                             live_save_process_name: None,
                             live_save_snapshot_on_exit: false,
-                            multi_device_sync_suspended: false,
                             game_path: None,
                             binding: None,
                             auto_backup: None,
@@ -773,7 +765,6 @@ impl DeviceGameProfile {
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             live_save_process_name: None,
             live_save_snapshot_on_exit: false,
-            multi_device_sync_suspended: false,
             game_path: game.game_paths.get(device_id).cloned(),
             binding: game.device_bindings.get(device_id).cloned(),
             auto_backup: game.auto_backup.clone(),

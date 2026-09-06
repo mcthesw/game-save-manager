@@ -16,11 +16,6 @@ pub struct SnapshotSyncTarget {
     pub local_baseline: BTreeSet<String>,
     pub retention_limit: Option<u32>,
     pub upload_new_archives: bool,
-    pub download_forward_target: bool,
-    /// True when the game uses Multi-device Sync. The sync loop uses this to
-    /// perform publication-only reconciliation before checking divergence,
-    /// preventing stale suspension flags from allowing transfers.
-    pub is_multi_device_sync: bool,
 }
 
 pub struct V2SnapshotSyncHook {
@@ -67,48 +62,19 @@ impl LifecycleHook for V2SnapshotSyncHook {
         let _guard = self.operation_lock.lock().await;
         self.target.verify().await?;
 
-        // Multi-device Sync: publish records first, check divergence, then
-        // transfer only when the fleet is not diverged. This prevents a stale
-        // target from uploading a new archive after suspension.
-        let allow_transfer = if target.is_multi_device_sync {
-            self.coordinator
-                .reconcile_game_with_policy(
-                    game_id.as_ref(),
-                    &ctx.snapshots,
-                    target.activation_revision,
-                    &target.local_baseline,
-                    &CancellationToken::new(),
-                    crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                        upload_new_archives: false,
-                        download_forward_target: false,
-                    },
-                )
-                .await?;
-            !self
-                .coordinator
-                .check_divergence(game_id.as_ref(), &ctx.snapshots)
-                .await?
-        } else {
-            true
-        };
-
-        let outcome = if allow_transfer {
-            self.coordinator
-                .reconcile_game_with_policy(
-                    game_id.as_ref(),
-                    &ctx.snapshots,
-                    target.activation_revision,
-                    &target.local_baseline,
-                    &CancellationToken::new(),
-                    crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                        upload_new_archives: target.upload_new_archives,
-                        download_forward_target: false,
-                    },
-                )
-                .await?
-        } else {
-            crate::cloud_sync::v2::SnapshotReconciliationOutcome::default()
-        };
+        let outcome = self
+            .coordinator
+            .reconcile_game_with_policy(
+                game_id.as_ref(),
+                &ctx.snapshots,
+                target.activation_revision,
+                &target.local_baseline,
+                &CancellationToken::new(),
+                crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                    upload_new_archives: target.upload_new_archives,
+                },
+            )
+            .await?;
         let retained = if let Some(limit) = target.retention_limit {
             let retention = self
                 .coordinator
@@ -121,11 +87,10 @@ impl LifecycleHook for V2SnapshotSyncHook {
         };
         info!(
             target: "rgsm::hooks::v2_snapshot_sync",
-            "Reconciled {} after Snapshot creation: {} published, {} uploaded, {} downloaded, {} retained-history deletions",
+            "Reconciled {} after Snapshot creation: {} published, {} uploaded, {} retained-history deletions",
             game_id,
             outcome.published,
             outcome.uploaded,
-            outcome.downloaded,
             retained,
         );
         Ok(())
