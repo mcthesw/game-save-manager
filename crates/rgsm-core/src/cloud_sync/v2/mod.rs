@@ -16,6 +16,7 @@ mod materialization_models;
 mod materialization_read_tests;
 #[cfg(test)]
 mod materialization_tests;
+mod metadata_read;
 mod namespace;
 mod profile_removal;
 mod profile_repository;

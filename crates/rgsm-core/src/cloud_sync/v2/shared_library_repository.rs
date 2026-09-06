@@ -3,6 +3,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
+use super::metadata_read::read_complete_json;
 use super::{
     DeletionRegistryError, DeletionRegistryRepository, ManifestTransport, OpenDalManifestTransport,
     SHARED_LIBRARY_PATH,
@@ -39,9 +40,7 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
     }
 
     pub async fn load(&self) -> Result<SharedLibrary, SharedLibraryRepositoryError> {
-        let bytes = self
-            .transport
-            .read()
+        let bytes = read_complete_json(|| self.transport.read(), self.max_attempts)
             .await?
             .ok_or(SharedLibraryRepositoryError::Missing)?;
         let library: SharedLibrary = serde_json::from_slice(&bytes)?;
@@ -210,6 +209,35 @@ mod tests {
                 .unwrap(),
             accepted
         );
+    }
+
+    #[tokio::test]
+    async fn shared_library_read_waits_for_an_in_progress_overwrite() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let operator = opendal::Operator::new(
+            opendal::services::Fs::default().root(root.path().to_string_lossy().as_ref()),
+        )
+        .unwrap()
+        .finish();
+        operator
+            .write(SHARED_LIBRARY_PATH, b"{\"games\":".to_vec())
+            .await
+            .unwrap();
+        let writer = operator.clone();
+        let write = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            writer
+                .write(
+                    SHARED_LIBRARY_PATH,
+                    serde_json::to_vec(&library(None)).unwrap(),
+                )
+                .await
+                .unwrap();
+        });
+
+        let result = SharedLibraryRepository::new(operator, 10).load().await;
+        write.await.unwrap();
+        assert_eq!(result.unwrap(), library(None));
     }
 
     #[tokio::test]
