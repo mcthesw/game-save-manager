@@ -2,12 +2,7 @@ import { warn } from './utils/logger';
 import { createRouter, createWebHistory } from 'vue-router';
 import { routes, handleHotUpdate } from 'vue-router/auto-routes';
 import { useConfig } from './composables/useConfig';
-import {
-  isValidAppDestination,
-  managementGameExists,
-  mapLegacyHomePage,
-  getGameNameFromRouteParam,
-} from './utils/appRoutes';
+import { isValidAppDestination, mapLegacyHomePage } from './utils/appRoutes';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -23,11 +18,10 @@ router.beforeEach(async (to) => {
   await whenConfigReady();
 
   if (to.path.startsWith('/Management')) {
-    const routeParam = 'name' in to.params ? to.params.name : undefined;
-    if (managementGameExists(config.value.games, routeParam)) {
+    if (isValidAppDestination(to.fullPath, config.value.games)) {
       return true;
     }
-    void warn(`Game ${getGameNameFromRouteParam(routeParam)} not found`);
+    void warn(`Game destination ${to.fullPath} is missing or ambiguous`);
     return '/';
   }
 

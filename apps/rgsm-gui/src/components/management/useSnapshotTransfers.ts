@@ -286,7 +286,7 @@ export function useSnapshotTransfers(deps: {
           return;
         }
       }
-      const result = await commands.setSnapshotCreatedBy(game.value.name, snapshotDate, 'Manual');
+      const result = await commands.setSnapshotCreatedBy(game.value, snapshotDate, 'Manual');
       if (result.status === 'error') {
         notifyError($t('manage.convert_to_permanent_failed'));
         return;

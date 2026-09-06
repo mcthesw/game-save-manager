@@ -15,7 +15,9 @@ import FavoriteTreeNode from './FavoriteTreeNode.vue';
 import {
   FAVORITE_TREE_CTX,
   collectFolderIds,
-  collectLeafNames,
+  collectFavoriteGameIds,
+  createGameFavorite,
+  favoriteGame,
   countLeaves,
   filterTree,
   findNode,
@@ -40,7 +42,9 @@ const addDialogOpen = ref(false);
 const searching = computed(() => !!props.searchQuery.trim());
 const rootNodes = computed(() => config.value?.favorites ?? []);
 const visibleTree = computed(() => filterTree(rootNodes.value, props.searchQuery));
-const favoriteNames = computed(() => collectLeafNames(config.value?.favorites));
+const favoriteIds = computed(() =>
+  collectFavoriteGameIds(config.value.favorites, config.value.games)
+);
 
 // ——— 持久化 ———
 const persist = useDebounceFn(async () => {
@@ -83,11 +87,12 @@ function toggleExpand(id: string) {
 
 // ——— 叶子点击：跳转游戏页；收藏指向已删除游戏时提示 ———
 function clickLeaf(node: FavNode) {
-  if (!config.value?.games.find((game) => game.name === node.label)) {
+  const game = favoriteGame(node, config.value.games);
+  if (!game) {
     notifyWarning($t('favorite.game_not_found') + ': ' + node.label);
     return;
   }
-  router.push(getGameManagementPath(node.label));
+  router.push(getGameManagementPath(game));
 }
 
 // ——— 编辑操作 ———
@@ -139,8 +144,8 @@ async function addFolder() {
 }
 
 function addGame(game: Game) {
-  if (!config.value || favoriteNames.value.has(game.name)) return;
-  rootNodes.value.push({ label: game.name, is_leaf: true, children: null, node_id: uuidv4() });
+  if (!config.value || favoriteIds.value.has(game.storage_key ?? '')) return;
+  rootNodes.value.push(createGameFavorite(game));
   commitTree();
   notifySuccess($t('favorite.add_success') + ': ' + game.name);
 }
@@ -160,15 +165,10 @@ async function addAllGames() {
     return;
   }
   if (!config.value) return;
-  const existing = favoriteNames.value;
+  const existing = favoriteIds.value;
   const fresh = config.value.games
-    .filter((game) => !existing.has(game.name))
-    .map((game) => ({
-      label: game.name,
-      is_leaf: true,
-      children: null,
-      node_id: uuidv4(),
-    }));
+    .filter((game) => !existing.has(game.storage_key ?? ''))
+    .map(createGameFavorite);
   if (fresh.length === 0) {
     notifyWarning($t('favorite.no_new_games'));
     return;
@@ -292,12 +292,16 @@ provide(FAVORITE_TREE_CTX, {
 
     <KDialog v-model:open="addDialogOpen" :title="$t('favorite.choose_game_add')" :width="560">
       <div class="add-list">
-        <div v-for="game in config?.games ?? []" :key="game.name" class="add-row">
+        <div v-for="game in config?.games ?? []" :key="game.storage_key" class="add-row">
           <div class="add-info">
             <span class="add-name">{{ game.name }}</span>
             <span class="add-path">{{ gamePathsText(game) }}</span>
           </div>
-          <KButton size="sm" :disabled="favoriteNames.has(game.name)" @click="addGame(game)">
+          <KButton
+            size="sm"
+            :disabled="favoriteIds.has(game.storage_key ?? '')"
+            @click="addGame(game)"
+          >
             {{ $t('favorite.add_to_favorite') }}
           </KButton>
         </div>

@@ -3,6 +3,7 @@ import { Check, Download, FilePlus2, RotateCcw, Search, Trash2 } from '@lucide/v
 import { computed, reactive, ref, watch } from 'vue';
 import {
   commands,
+  type Game,
   type GameDraft,
   type SaveUnitDraft,
   type Device,
@@ -11,7 +12,6 @@ import {
   type PathCheckResult,
 } from '../api/commands';
 import { $t } from '../i18n';
-import { v4 as uuidv4 } from 'uuid';
 import { error } from '../utils/logger';
 import PathVariableInput from './PathVariableInput.vue';
 import GameImportDialog from './GameImportDialog.vue';
@@ -20,6 +20,9 @@ import GameBatchImportDialog from './GameBatchImportDialog.vue';
 import { KAlert, KButton, KDrawer, KInput, KTag, KTagInput } from '../ui/kit';
 import { concreteSaveUnit, manifestSaveUnit, saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
+import { createGameFavorite, collectFavoriteGameIds } from './favoriteTreeContext';
+import { hasGameNameConflict } from '../utils/gameName';
+import { resolveGameReference } from '../utils/appRoutes';
 
 const feedback = useFeedback();
 const { config, refreshConfig, saveConfig } = useConfig();
@@ -134,7 +137,7 @@ watch(visible, (isOpen) => {
     reset_info(false);
     return;
   }
-  const gameConfig = config.value?.games.find((game) => game.name === gameName);
+  const gameConfig = resolveGameReference(config.value.games, gameName);
   if (gameConfig) {
     is_editing.value = true;
     editing_storage_key.value = gameConfig.storage_key ?? '';
@@ -580,6 +583,7 @@ interface GameConfig {
 
 async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: string | null) {
   let successCount = 0;
+  const addedGames: Game[] = [];
   const failedGames: Array<{ name: string; reason: string }> = [];
 
   // Build lookup for Ludusavi metadata from original ImportableGame list
@@ -701,16 +705,8 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
 
       if (addResult.status === 'ok') {
         successCount++;
+        addedGames.push(addResult.data);
         existingNames.add(normalized);
-        if (config.value && config.value.settings.add_new_to_favorites) {
-          config.value.favorites = config.value.favorites ?? [];
-          config.value.favorites.push({
-            label: newGame.name,
-            is_leaf: true,
-            children: [],
-            node_id: uuidv4().toString(),
-          });
-        }
       } else {
         failedGames.push({ name: gameName, reason: addResult.error });
       }
@@ -723,17 +719,9 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
     }
   }
 
-  if (config.value && config.value.settings.add_new_to_favorites) {
-    try {
-      await saveConfig();
-    } catch (e) {
-      error(`Error saving favorites after batch import: ${e}`);
-    }
-  }
-
   if (successCount > 0) {
+    if (!(await saveImportedFavorites(addedGames))) return;
     notifySuccess($t('game_import.import_success', { count: successCount }));
-    await refreshConfig();
     if (failedGames.length > 0) {
       const failedDetails = failedGames.map((f) => `${f.name}: ${f.reason}`).join('\n');
       notifyWarning(
@@ -746,6 +734,19 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
     notifyError($t('game_import.import_error'));
   }
 }
+
+async function saveImportedFavorites(games: Game[]): Promise<boolean> {
+  // Reload the saved games before persisting favorites, never submit the pre-import config.
+  if (!(await refreshConfig())) return false;
+  if (!config.value.settings.add_new_to_favorites) return true;
+  config.value.favorites ??= [];
+  const existing = collectFavoriteGameIds(config.value.favorites, config.value.games);
+  config.value.favorites.push(
+    ...games.filter((game) => !existing.has(game.storage_key ?? '')).map(createGameFavorite)
+  );
+  return saveConfig();
+}
+
 async function save() {
   const accountResourceId = await ensureSteamAccountResource(pendingStoreUserId.value);
   const normalizedInstallDirs = manualInstallDirs.value
@@ -763,15 +764,9 @@ async function save() {
     return;
   }
 
-  // Duplicate name check: when editing, allow keeping the same name
-  const duplicate = config.value?.games.find(
-    (x) => x.name.toLowerCase() == game_name.value.toLowerCase()
-  );
-  if (duplicate) {
-    if (!is_editing.value || duplicate.storage_key !== editing_storage_key.value) {
-      notifyError($t('addgame.duplicated_name_error'));
-      return;
-    }
+  if (hasGameNameConflict(config.value.games, game_name.value, editingGame.value)) {
+    notifyError($t('addgame.duplicated_name_error'));
+    return;
   }
 
   const game: GameDraft = {
@@ -802,21 +797,14 @@ async function save() {
   }
   try {
     if (is_editing.value) {
-      await commands.updateGame(editing_storage_key.value, game);
+      const result = await commands.updateGame(editing_storage_key.value, game);
+      if (result.status === 'error') throw new Error(result.error);
       is_editing.value = false;
       notifySuccess($t('addgame.add_game_success'));
     } else {
-      await commands.addGame(game);
-      if (config.value?.settings.add_new_to_favorites) {
-        await refreshConfig();
-        config.value?.favorites?.push({
-          label: game.name,
-          is_leaf: true,
-          children: [],
-          node_id: uuidv4().toString(),
-        });
-        await saveConfig();
-      }
+      const result = await commands.addGame(game);
+      if (result.status === 'error') throw new Error(result.error);
+      if (!(await saveImportedFavorites([result.data]))) return;
       notifySuccess($t('addgame.add_game_success'));
     }
     reset_info(false);

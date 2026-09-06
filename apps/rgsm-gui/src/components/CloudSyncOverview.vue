@@ -192,7 +192,7 @@ function distribution(game: CloudArchiveGameView) {
 }
 
 function openGame(game: CloudArchiveGameView) {
-  void router.push(getGameManagementPath(game.name));
+  void router.push(getGameManagementPath({ name: game.name, storage_key: game.game_id }));
 }
 </script>
 

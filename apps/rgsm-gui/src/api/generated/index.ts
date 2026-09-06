@@ -116,6 +116,7 @@ export type {
   AddGameError,
   AddGameErrors,
   AddGameRequest,
+  AddGameResponse,
   AddGameResponses,
   ApiError,
   ApiErrorCode,

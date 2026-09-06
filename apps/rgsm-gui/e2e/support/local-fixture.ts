@@ -13,6 +13,7 @@ export type LocalUnitSeed = {
 
 export type LocalGameSeed = {
   name: string;
+  storageKey?: string;
   units: LocalUnitSeed[];
 };
 
@@ -46,7 +47,7 @@ export async function seedLocalConfig(
     backup_path: forwardSlashes(device.archiveRoot),
     games: games.map((game) => ({
       name: game.name,
-      storage_key: game.name,
+      storage_key: game.storageKey ?? game.name,
       save_paths: game.units.map((unit, index) => ({
         id: index + 1,
         unit_type: unit.type,
@@ -109,9 +110,9 @@ export async function seedLocalConfig(
   // Snapshot metadata recording expects an existing Backups.json; games added
   // through the product get one at creation time.
   for (const game of games) {
-    await mkdir(join(device.archiveRoot, game.name), { recursive: true });
+    await mkdir(join(device.archiveRoot, game.storageKey ?? game.name), { recursive: true });
     await writeFile(
-      join(device.archiveRoot, game.name, 'Backups.json'),
+      join(device.archiveRoot, game.storageKey ?? game.name, 'Backups.json'),
       `${JSON.stringify({ name: game.name, backups: [], device_heads: {}, sync_version: 0 }, null, 2)}\n`,
       'utf8'
     );

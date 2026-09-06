@@ -50,6 +50,7 @@ import {
   getGameManagementPath,
   getGameNameFromRouteParam,
 } from '../../composables/useGameManagementRoute';
+import { resolveGameReference, resolveManagementGame } from '../../utils/appRoutes';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
 import { useCloudLibrary } from '../../composables/useCloudLibrary';
 import { usePathResolution } from '../../composables/usePathResolution';
@@ -248,7 +249,7 @@ const autoSaveConfigured = computed(() => isAutoSaveConfigured(config.value, gam
 
 async function onAutoSaveSettingsSaved() {
   await refreshConfig();
-  const latestGame = config.value.games.find((item) => item.name === game.value.name);
+  const latestGame = config.value.games.find((item) => item.storage_key === game.value.storage_key);
   if (latestGame) {
     game.value = latestGame;
   }
@@ -257,13 +258,11 @@ async function onAutoSaveSettingsSaved() {
 
 // Init game info
 watch(
-  () => ('name' in route.params ? route.params.name : undefined),
-  (newValue) => {
-    if (!newValue) {
-      return;
-    }
-    const name = getGameNameFromRouteParam(newValue);
-    game.value = config.value.games.find((x) => x.name == name) as Game;
+  () => route.fullPath,
+  (path) => {
+    const selected = resolveManagementGame(config.value.games, path);
+    if (!selected) return;
+    game.value = selected;
     undoInfo.value = null;
     retentionProtectedDates.value = new Set();
     refresh_backups_info();
@@ -323,7 +322,7 @@ async function onDefinitionSelected() {
   const gameId = game.value.storage_key;
   await refreshConfig();
   const selected = config.value.games.find((item) => item.storage_key === gameId);
-  if (selected) await router.replace(getGameManagementPath(selected.name));
+  if (selected) await router.replace(getGameManagementPath(selected));
   await refreshCloudLibrary(true);
 }
 
@@ -826,7 +825,9 @@ async function chooseRestoreLocation(mapping: {
       return false;
     }
     await refreshConfig();
-    const refreshedGame = config.value.games.find((item) => item.name === game.value.name);
+    const refreshedGame = config.value.games.find(
+      (item) => item.storage_key === game.value.storage_key
+    );
     if (refreshedGame) {
       game.value = refreshedGame;
     }
@@ -987,7 +988,11 @@ async function verify_archive_hashes() {
 // 设置快速备份，由快捷键和tray触发备份和恢复
 const isQuickBackupGame = computed(() => {
   const identity = config.value.quick_action?.quick_action_game_id;
-  return identity === game.value.storage_key || identity === game.value.name;
+  if (!identity) return false;
+  const selected =
+    config.value.games.find((item) => item.storage_key === identity) ??
+    resolveGameReference(config.value.games, identity);
+  return selected?.storage_key === game.value.storage_key;
 });
 
 async function set_quick_backup() {
@@ -1024,9 +1029,11 @@ async function on_drawer_save_changes(updatedGame: Game) {
       'name' in route.params ? route.params.name : undefined
     );
     if (updatedGame.name !== currentRouteGameName) {
-      await router.replace(getGameManagementPath(updatedGame.name));
+      await router.replace(getGameManagementPath(updatedGame));
     } else {
-      const refreshedGame = config.value.games.find((g) => g.name === updatedGame.name);
+      const refreshedGame = config.value.games.find(
+        (g) => g.storage_key === updatedGame.storage_key
+      );
       if (refreshedGame) {
         game.value = refreshedGame;
         await checkCurrentDeviceSavePaths();
@@ -1223,7 +1230,7 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
 
   // 如果有更新，保存配置
   if (updated) {
-    const index = config.value.games.findIndex((g) => g.name === game.value.name);
+    const index = config.value.games.findIndex((g) => g.storage_key === game.value.storage_key);
     if (index !== -1) {
       config.value.games[index] = game.value;
       try {

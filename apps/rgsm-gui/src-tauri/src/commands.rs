@@ -329,18 +329,11 @@ pub async fn get_local_config() -> Result<Config, String> {
     get_config().map_err(|e| e.to_string())
 }
 
-pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::commands", "Adding game draft: {:?}", game);
+pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<Game, String> {
     svc(&app_handle)
         .add_game(&game, HookSource::UserManual)
         .await
-        .map_err(|e| {
-            error!(target:"rgsm::commands", "Failed to add game: {:?}", e);
-            e.to_string()
-        })?;
-
-    info!(target:"rgsm::commands", "Successfully added game draft: {:?}", game.name);
-    Ok(())
+        .map_err(|e| e.to_string())
 }
 
 pub async fn update_game(
@@ -1225,6 +1218,7 @@ pub async fn set_game_auto_save_settings(
 pub async fn set_snapshot_created_by(
     app_handle: AppHandle,
     game_name: String,
+    game_id: Option<String>,
     snapshot_date: String,
     created_by: CreatedBy,
 ) -> Result<GameSnapshots, String> {
@@ -1235,6 +1229,7 @@ pub async fn set_snapshot_created_by(
     svc(&app_handle)
         .set_snapshot_created_by(
             &game_name,
+            game_id.as_deref(),
             &snapshot_date,
             created_by,
             HookSource::UserManual,

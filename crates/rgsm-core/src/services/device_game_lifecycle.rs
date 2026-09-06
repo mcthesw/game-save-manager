@@ -331,6 +331,7 @@ mod tests {
                 service
                     .set_snapshot_created_by(
                         "Old Name",
+                        None,
                         "2026-09-05_12-00-00",
                         crate::backup::CreatedBy::Manual,
                         crate::hooks::HookSource::UserManual,
@@ -341,6 +342,7 @@ mod tests {
             service
                 .set_snapshot_created_by(
                     "Renamed Local",
+                    None,
                     "2026-09-05_12-00-00",
                     crate::backup::CreatedBy::Manual,
                     crate::hooks::HookSource::UserManual,

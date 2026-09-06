@@ -1,5 +1,7 @@
 import type { InjectionKey, Ref } from 'vue';
-import type { FavoriteTreeNode } from '../api/commands';
+import type { FavoriteTreeNode, Game } from '../api/commands';
+import { resolveGameReference } from '../utils/appRoutes';
+import { v4 as uuidv4 } from 'uuid';
 
 export type DropPos = 'before' | 'after' | 'inner';
 
@@ -20,6 +22,45 @@ export interface FavoriteTreeCtx {
 }
 
 export const FAVORITE_TREE_CTX: InjectionKey<FavoriteTreeCtx> = Symbol('favorite-tree-ctx');
+
+export function createGameFavorite(game: Game): FavoriteTreeNode {
+  return {
+    node_id: uuidv4(),
+    label: game.name,
+    game_id: game.storage_key,
+    is_leaf: true,
+    children: null,
+  };
+}
+
+export function favoriteGame(node: FavoriteTreeNode, games: readonly Game[]): Game | undefined {
+  return node.is_leaf ? resolveGameReference(games, node.label, node.game_id) : undefined;
+}
+
+export function collectFavoriteGameIds(
+  nodes: FavoriteTreeNode[] | null | undefined,
+  games: readonly Game[],
+  out = new Set<string>()
+): Set<string> {
+  for (const node of nodes ?? []) {
+    const game = favoriteGame(node, games);
+    if (game?.storage_key) out.add(game.storage_key);
+    if (node.children) collectFavoriteGameIds(node.children, games, out);
+  }
+  return out;
+}
+
+export function removeFavoriteGame(
+  nodes: FavoriteTreeNode[],
+  gameId: string,
+  games: readonly Game[]
+): void {
+  for (let index = nodes.length - 1; index >= 0; index--) {
+    const node = nodes[index];
+    if (favoriteGame(node, games)?.storage_key === gameId) nodes.splice(index, 1);
+    else if (node.children) removeFavoriteGame(node.children, gameId, games);
+  }
+}
 
 // ——— 纯树操作：就地修改传入的根数组，调用方负责触发响应式并持久化 ———
 
