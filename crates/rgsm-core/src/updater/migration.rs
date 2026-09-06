@@ -1,4 +1,3 @@
-use rust_i18n::t;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -15,7 +14,7 @@ use crate::device::{DeviceResourceKind, DeviceResourceSource, get_current_device
 use crate::path_pattern::{
     ManifestPathConstraints, ManifestPathPattern, StoreKind, is_dynamic_manifest_path,
 };
-use crate::preclude::*;
+use crate::preclude::UpdaterError;
 use crate::updater::{
     probe::probe_config_version,
     versions::{
@@ -516,12 +515,6 @@ fn migrate_snapshot_created_by_fields(raw: &mut Value) -> usize {
 fn backup_config<P: AsRef<Path>>(path: P) -> Result<PathBuf, UpdaterError> {
     let path = path.as_ref();
     let backup_path = path.with_extension("json.bak");
-
-    // Show notification
-    show_notification(
-        t!("backend.config.updating_config_title"),
-        t!("backend.config.updating_config_body"),
-    );
 
     // Create backup
     fs::copy(path, &backup_path)?;

@@ -8,14 +8,12 @@ import {
   newDeviceContext,
   removeRunRoot,
   startRgsmHost,
-  startTestWeb,
 } from './support/rgsm-instance';
 import { cloudSyncNav, getCurrentDevice } from './support/gui';
 import { localOwnerPaths } from './support/cloud-assertions';
 
 test('A/B Hosts isolate device id, token, port, and browser traffic', async ({ browser }) => {
   const runRoot = await createRunRoot('isolation');
-  const vite = await startTestWeb();
   const hostA = await startRgsmHost({
     appDataDir: join(runRoot, 'app-data-a'),
     deviceId: DEVICE_A_ID,
@@ -74,7 +72,6 @@ test('A/B Hosts isolate device id, token, port, and browser traffic', async ({ b
   } finally {
     await hostA.stop();
     await hostB.stop();
-    await vite.stop();
     await removeRunRoot(runRoot);
   }
 });

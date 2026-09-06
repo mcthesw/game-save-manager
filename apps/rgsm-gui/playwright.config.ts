@@ -20,8 +20,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
   },
   outputDir: 'e2e-results',
   globalSetup: './e2e/support/global-setup.ts',
-  globalTeardown: './e2e/support/global-teardown.ts',
 });

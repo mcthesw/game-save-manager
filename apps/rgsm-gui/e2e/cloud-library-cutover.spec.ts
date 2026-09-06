@@ -35,14 +35,12 @@ import {
   newDeviceContext,
   removeRunRoot,
   startRgsmHost,
-  startTestWeb,
   type RgsmHost,
 } from './support/rgsm-instance';
 
 test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ browser }) => {
   const runRoot = await createRunRoot('cutover');
   const seeded = await seedLegacyV1Scene(runRoot);
-  const vite = await startTestWeb();
   const v1Bytes = {
     config: seeded.v1ConfigBytes,
     backups: seeded.v1BackupsBytes,
@@ -148,7 +146,6 @@ test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ brow
   } finally {
     await context?.close();
     await host?.stop();
-    await vite.stop();
     if (!failed) {
       await removeRunRoot(runRoot);
     }

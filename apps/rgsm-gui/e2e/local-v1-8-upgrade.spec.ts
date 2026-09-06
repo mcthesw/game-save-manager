@@ -11,7 +11,6 @@ import {
   newDeviceContext,
   removeRunRoot,
   startRgsmHost,
-  startTestWeb,
   workspacePath,
   type RgsmHost,
 } from './support/rgsm-instance';
@@ -196,7 +195,6 @@ test('1.8 dynamic and concrete save paths keep their V2 zip usable after the 1.9
   const runRoot = await createRunRoot('local-v1-8-upgrade');
   const scene = await seedV1_8Scene(runRoot);
   const originalArchive = await readFile(scene.releasedArchive);
-  const web = await startTestWeb();
   let host: RgsmHost | undefined;
   let context: BrowserContext | undefined;
   try {
@@ -291,7 +289,6 @@ test('1.8 dynamic and concrete save paths keep their V2 zip usable after the 1.9
   } finally {
     await context?.close();
     await host?.stop();
-    await web.stop();
     await removeRunRoot(runRoot);
   }
 });

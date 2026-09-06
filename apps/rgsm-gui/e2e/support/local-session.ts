@@ -2,14 +2,9 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { join } from 'node:path';
 import { DEVICE_A_ID } from './constants';
 import type { DeviceLayout } from './cloud-fixture';
-import {
-  newDeviceContext,
-  removeRunRoot,
-  startRgsmHost,
-  startTestWeb,
-  type RgsmHost,
-} from './rgsm-instance';
+import { newDeviceContext, removeRunRoot, startRgsmHost, type RgsmHost } from './rgsm-instance';
 import { openApp } from './gui';
+import { closeResources } from './process';
 
 export type LocalSession = {
   runRoot: string;
@@ -28,27 +23,36 @@ export async function startLocalSession(
   browser: Browser,
   options: { runRoot: string; device: DeviceLayout; label: string }
 ): Promise<LocalSession> {
-  const vite = await startTestWeb();
-  const host = await startRgsmHost({
-    appDataDir: options.device.appDataDir,
-    deviceId: DEVICE_A_ID,
-    logPath: join(options.runRoot, 'logs', `${options.label}.log`),
-  });
-  const started = await newDeviceContext(browser, host);
-  await openApp(started.page);
-  return {
-    runRoot: options.runRoot,
-    device: options.device,
-    host,
-    context: started.context,
-    page: started.page,
-    close: async (keepRoot = false) => {
-      await started.context.close();
-      await host.stop();
-      await vite.stop();
-      if (!keepRoot) {
-        await removeRunRoot(options.runRoot);
-      }
-    },
-  };
+  const closers: Array<() => Promise<unknown>> = [];
+  try {
+    const host = await startRgsmHost({
+      appDataDir: options.device.appDataDir,
+      deviceId: DEVICE_A_ID,
+      logPath: join(options.runRoot, 'logs', `${options.label}.log`),
+    });
+    closers.push(host.stop);
+    const started = await newDeviceContext(browser, host);
+    closers.push(() => started.context.close());
+    await openApp(started.page);
+    return {
+      runRoot: options.runRoot,
+      device: options.device,
+      host,
+      context: started.context,
+      page: started.page,
+      close: async (keepRoot = false) => {
+        await closeResources(closers);
+        if (!keepRoot) await removeRunRoot(options.runRoot);
+      },
+    };
+  } catch (error) {
+    try {
+      await closeResources(closers);
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Session startup and cleanup failed', {
+        cause: cleanupError,
+      });
+    }
+    throw error;
+  }
 }

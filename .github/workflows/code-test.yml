@@ -140,8 +140,8 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --dir apps/rgsm-gui exec playwright install chromium --with-deps
 
-      # The debug "host" is the full Tauri app in host-only mode; GTK and the
-      # tray stack still initialize, so the suite needs a virtual display.
+      # HTTP-only hosts still initialize GTK, so they need a virtual display.
+      # The harness gives each Linux host its own temporary D-Bus session.
       - name: Run GUI Cloud Fs E2E
         run: xvfb-run -a pnpm web:e2e --shard=${{ matrix.shard }}/2
 
