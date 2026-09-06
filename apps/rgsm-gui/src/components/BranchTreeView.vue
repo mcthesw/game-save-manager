@@ -27,6 +27,7 @@ interface Props {
   deviceHeads: DeviceHeadMarker[];
   editableDates?: string[];
   devices?: Record<string, { name: string }>;
+  deleteLabel?: string;
 }
 
 const props = defineProps<Props>();
@@ -273,6 +274,7 @@ function onFlowReady() {
       <template #node-snapshot="nodeProps">
         <SnapshotNode
           v-bind="nodeProps"
+          :delete-label="deleteLabel"
           @apply="emit('apply', $event)"
           @delete="emit('delete', $event)"
           @change-description="emit('changeDescription', $event)"

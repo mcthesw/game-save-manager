@@ -26,6 +26,7 @@ export function useSnapshotTransfers(deps: {
   selected: () => Snapshot[];
   /** All rows in the local table (legacy-namespace describe lookup). */
   allSnapshots: () => Snapshot[];
+  snapshotLabel: (date: string) => string;
   refresh: () => Promise<void>;
 }) {
   const {
@@ -36,6 +37,7 @@ export function useSnapshotTransfers(deps: {
     retentionProtectedDates,
     selected,
     allSnapshots,
+    snapshotLabel,
     refresh,
   } = deps;
   const feedback = useFeedback();
@@ -112,7 +114,7 @@ export function useSnapshotTransfers(deps: {
   async function evictSnapshot(date: string) {
     try {
       await feedback.confirm(
-        $t(evictConfirmKey(date, false), { snapshot: date }),
+        $t(evictConfirmKey(date, false), { snapshot: snapshotLabel(date) }),
         $t('sync_settings.archives.evict.title'),
         {
           confirmButtonText: $t('sync_settings.archives.evict.action'),
@@ -140,7 +142,7 @@ export function useSnapshotTransfers(deps: {
   async function evictCloudSnapshot(date: string) {
     try {
       await feedback.confirm(
-        $t(evictConfirmKey(date, true), { snapshot: date }),
+        $t(evictConfirmKey(date, true), { snapshot: snapshotLabel(date) }),
         $t('sync_settings.archives.evict_cloud.title'),
         {
           confirmButtonText: $t('sync_settings.archives.evict_cloud.action'),

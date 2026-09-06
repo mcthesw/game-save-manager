@@ -142,6 +142,59 @@ async fn deleted_ancestor_does_not_block_explicit_remote_progress() {
 }
 
 #[tokio::test]
+async fn deletion_position_skips_tombstones_and_preserves_unpublished_local_ancestry() {
+    let (_, root, manifest) = fixture().await;
+    let shared = &manifest.games["game"];
+    let mut local = GameSnapshots::new("Game");
+    local.backups = shared.local_lineage("leaf", root.path()).unwrap();
+    assert_eq!(
+        GlobalSnapshotDeletion::fallback_position(&local, Some(shared), "leaf").unwrap(),
+        Some("root".into())
+    );
+    let mut unpublished = local.backups.last().unwrap().clone();
+    unpublished.date = "unpublished".into();
+    unpublished.parent = Some("leaf".into());
+    local.backups.push(unpublished);
+    assert_eq!(
+        GlobalSnapshotDeletion::fallback_position(&local, Some(shared), "unpublished").unwrap(),
+        Some("leaf".into())
+    );
+    assert_eq!(
+        GlobalSnapshotDeletion::fallback_position(&local, None, "unpublished").unwrap(),
+        Some("leaf".into())
+    );
+    assert_eq!(
+        GlobalSnapshotDeletion::fallback_position(&local, Some(shared), "root").unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn deletion_position_does_not_resurrect_stale_rows_or_loop_on_invalid_ancestry() {
+    let (_, root, manifest) = fixture().await;
+    let mut shared = manifest.games["game"].clone();
+    let mut local = GameSnapshots::new("Game");
+    local.backups = shared.local_lineage("leaf", root.path()).unwrap();
+    shared.snapshots.get_mut("root").unwrap().state = SnapshotState::FinalTombstone {
+        kind: DeletionKind::User,
+    };
+    assert_eq!(
+        GlobalSnapshotDeletion::fallback_position(&local, Some(&shared), "leaf").unwrap(),
+        None
+    );
+    shared.snapshots.get_mut("deleted-a").unwrap().parent = Some("leaf".into());
+    assert!(matches!(
+        GlobalSnapshotDeletion::fallback_position(&local, Some(&shared), "leaf"),
+        Err(ManifestError::ParentCycle(_))
+    ));
+    shared.snapshots.get_mut("deleted-a").unwrap().parent = Some("missing".into());
+    assert_eq!(
+        GlobalSnapshotDeletion::fallback_position(&local, Some(&shared), "leaf").unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
 async fn lineage_retains_live_metadata_without_an_archive_and_rejects_invalid_chains() {
     let (_, root, manifest) = fixture().await;
     let mut game = manifest.games["game"].clone();

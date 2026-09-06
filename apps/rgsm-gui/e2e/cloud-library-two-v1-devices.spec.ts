@@ -199,6 +199,8 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
 
     await openGame(pageA);
     await deleteCurrentHead(pageA, bBranch);
+    expect(await readSave(seeded.deviceA)).toBe('branch-from-b\n');
+    expect(await readSave(seeded.deviceB)).toBe('branch-from-b\n');
     const afterDelete = await readJson(paths.manifest);
     expectFinalTombstone(afterDelete, bBranch);
     expectNoDeviceHead(afterDelete, DEVICE_A_ID, bBranch);
@@ -220,6 +222,7 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     await openSyncSettings(restartedB.page);
     await getArchiveLibrary(hostB);
     expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, bBranch))).toBe(false);
+    expect(await readSave(seeded.deviceB)).toBe('branch-from-b\n');
 
     const saveA = await readSave(seeded.deviceA);
     const saveB = await readSave(seeded.deviceB);

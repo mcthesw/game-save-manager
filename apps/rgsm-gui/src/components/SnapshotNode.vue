@@ -25,6 +25,7 @@ interface Props {
     canEditDescription?: boolean;
   };
   selected: boolean;
+  deleteLabel?: string;
 }
 
 const props = defineProps<Props>();
@@ -149,7 +150,7 @@ const actionClass =
             @click="emit('delete', data.snapshot.date)"
           >
             <Trash2 :size="13" aria-hidden="true" />
-            {{ $t('manage.delete') }}
+            {{ deleteLabel ?? $t('manage.delete') }}
           </button>
           <div class="h-px bg-border" aria-hidden="true" />
           <button

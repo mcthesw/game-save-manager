@@ -6,10 +6,10 @@ use opendal::Operator;
 use thiserror::Error;
 
 use super::{
-    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionKind, ManifestRepositoryError,
-    ManifestTransport, SnapshotState, cloud_archive_path,
+    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionKind, GameManifest, ManifestError,
+    ManifestRepositoryError, ManifestTransport, SnapshotState, cloud_archive_path,
 };
-use crate::backup::{ArchiveFormat, archive_path};
+use crate::backup::{ArchiveFormat, GameSnapshots, archive_path};
 use crate::device::DeviceId;
 use crate::preclude::BackendError;
 
@@ -248,6 +248,38 @@ async fn remove_file_if_exists(path: &Path) -> Result<(), std::io::Error> {
 }
 
 impl GlobalSnapshotDeletion {
+    /// Find the initiating device's remaining position without restoring files.
+    /// Shared tombstones retain ancestry and override stale local rows; local
+    /// rows supply ancestry for progress that has not been published yet.
+    pub(crate) fn fallback_position(
+        local: &GameSnapshots,
+        shared: Option<&GameManifest>,
+        deleted: &str,
+    ) -> Result<Option<String>, ManifestError> {
+        let mut cursor = Some(deleted);
+        let mut visited = BTreeSet::new();
+        while let Some(id) = cursor {
+            if !visited.insert(id) {
+                return Err(ManifestError::ParentCycle(id.to_string()));
+            }
+            let (parent, live) = if let Some(node) = shared.and_then(|game| game.snapshots.get(id))
+            {
+                (node.parent.as_deref(), node.state.is_live())
+            } else if let Some(snapshot) = local.backups.iter().find(|snapshot| snapshot.date == id)
+            {
+                (snapshot.parent.as_deref(), true)
+            } else {
+                // Missing ancestry is not evidence for choosing unrelated progress.
+                return Ok(None);
+            };
+            if id != deleted && live {
+                return Ok(Some(id.to_string()));
+            }
+            cursor = parent;
+        }
+        Ok(None)
+    }
+
     pub async fn execute<T: ManifestTransport, B: ArchiveDeletionBackend>(
         repository: &CloudManifestRepository<T>,
         backend: &B,

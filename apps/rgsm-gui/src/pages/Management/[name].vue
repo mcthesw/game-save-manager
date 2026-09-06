@@ -59,7 +59,7 @@ import { KButton, KInput, KMenu, KSegmented, KTag, KTooltip, type KMenuEntry } f
 
 const { addActivity, updateActivity } = useActivityCenter();
 const feedback = useFeedback();
-const { config, refreshConfig, saveConfig } = useConfig();
+const { config, deviceGameStatuses, refreshConfig, saveConfig } = useConfig();
 const { confirmAndRun } = useApplyConfirmation();
 const { markGamePlayed } = useSaveListSort();
 const { withLoading } = useGlobalLoading();
@@ -105,6 +105,14 @@ const game: Ref<Game> = ref({
   game_paths: {},
   device_bindings: {},
 });
+const isSharedGame = computed(() =>
+  deviceGameStatuses.value.some(
+    (status) => status.game_id === (game.value.storage_key || game.value.name) && status.shared
+  )
+);
+const deleteLabel = computed(() =>
+  $t(isSharedGame.value ? 'sync_settings.archives.delete_permanently' : 'manage.delete')
+);
 
 // 当前设备信息
 const currentDevice = ref<Device | null>(null);
@@ -374,6 +382,7 @@ const {
   retentionProtectedDates,
   selected: () => selected_game_snapshots.value,
   allSnapshots: () => table_data.value,
+  snapshotLabel: formatSnapshotPromptLine,
   refresh: refresh_backups_info,
 });
 
@@ -593,11 +602,14 @@ async function del_save(date: string) {
       )
     ) {
       const gameId = game.value.storage_key || game.value.name;
-      const snapshot = table_data.value.find((item) => item.date === date);
+      const isHead = currentHead.value === date;
       await feedback.confirm(
-        $t('sync_settings.archives.delete_confirm', {
-          snapshot: snapshot?.describe || date,
-        }),
+        [
+          $t('sync_settings.archives.delete_confirm', { snapshot: formatSnapshotPromptLine(date) }),
+          isHead ? $t('sync_settings.archives.delete_head_fallback') : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
         $t('sync_settings.archives.delete_title'),
         {
           confirmButtonText: $t('sync_settings.archives.delete_permanently'),
@@ -605,23 +617,7 @@ async function del_save(date: string) {
           type: 'warning',
         }
       );
-      if (currentHead.value === date) {
-        const headSnapshot = table_data.value.find((item) => item.date === date);
-        const parentDate = headSnapshot?.parent;
-        const parentLabel = parentDate
-          ? table_data.value.find((item) => item.date === parentDate)?.describe || parentDate
-          : null;
-        await feedback.confirm(
-          parentLabel
-            ? $t('sync_settings.archives.delete_head_fallback', { parent: parentLabel })
-            : $t('sync_settings.archives.delete_head_clear'),
-          $t('sync_settings.archives.delete_title'),
-          {
-            confirmButtonText: $t('sync_settings.archives.delete_permanently'),
-            cancelButtonText: $t('manage.cancel'),
-            type: 'warning',
-          }
-        );
+      if (isHead) {
         result = await commands.deleteV2Snapshot(gameId, date, true, {
           type: 'fallback_to_parent',
         });
@@ -1457,7 +1453,7 @@ const viewModeOptions = computed(() => [
             variant="danger"
             @click="batch_delete()"
           >
-            {{ $t('manage.batch_delete') }}
+            {{ isSharedGame ? deleteLabel : $t('manage.batch_delete') }}
           </KButton>
         </template>
 
@@ -1517,6 +1513,7 @@ const viewModeOptions = computed(() => [
       <!-- Table View -->
       <div v-if="viewMode === 'table'" class="h-full min-h-0 flex-1 overflow-hidden">
         <SnapshotTable
+          :delete-label="deleteLabel"
           :devices="config.devices"
           :rows="filter_table"
           :sort-desc="sortDesc"
@@ -1543,6 +1540,7 @@ const viewModeOptions = computed(() => [
       <div v-else class="h-full min-h-0 flex-1 overflow-hidden bg-surface-2">
         <BranchTreeView
           v-if="viewMode === 'branch'"
+          :delete-label="deleteLabel"
           :devices="config.devices"
           :snapshots="table_data"
           :current-head="currentHead"

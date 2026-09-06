@@ -1,13 +1,19 @@
 import { expect, test } from '@playwright/test';
 import { existsSync } from 'node:fs';
-import { GAME_NAME, STORAGE_KEY } from './support/constants';
-import { cloudArchivePath, cloudPaths, readJson } from './support/cloud-assertions';
+import { DEVICE_A_ID, GAME_NAME, STORAGE_KEY } from './support/constants';
+import {
+  cloudArchivePath,
+  cloudPaths,
+  expectDeviceHead,
+  readJson,
+} from './support/cloud-assertions';
 import { seedEmptyCloudWithLocalGame, readSave, writeSave } from './support/cloud-fixture';
 import {
   applySnapshot,
   connectLibrary,
   createLibrary,
   createPublishedSnapshot,
+  deleteCurrentHead,
   downloadSnapshot,
   evictCloudCopy,
   openGame,
@@ -75,6 +81,23 @@ test('a live descendant remains downloadable and restorable after deleting an an
     expect(game.snapshots[ancestor].state.type).toBe('final_tombstone');
     expect(game.snapshots[child].parent).toBe(ancestor);
     expect(game.snapshots[continued].parent).toBe(child);
+    const deleteChild = await hostPost(session.hostA, '/api/v1/delete-v2-snapshot', {
+      gameId: STORAGE_KEY,
+      snapshotId: child,
+      confirmed: true,
+      currentPosition: null,
+    });
+    expect(deleteChild.ok, deleteChild.raw).toBe(true);
+    await openGame(session.pageA);
+    await deleteCurrentHead(session.pageA, continued);
+    // Both intermediate ancestors have gone from the local catalog, but the
+    // shared graph still knows how to reach the original surviving snapshot.
+    expectDeviceHead(await readJson(cloudPaths(seeded.cloudRoot).manifest), DEVICE_A_ID, first);
+    expect((await readBackupsJson(seeded.deviceA.appDataDir)).device_heads?.[DEVICE_A_ID]).toBe(
+      first
+    );
+    expect(await readSave(seeded.deviceA)).toBe('continued on B\n');
+    expect(await readSave(seeded.deviceB)).toBe('continued on B\n');
   } catch (error) {
     failed = true;
     throw error;

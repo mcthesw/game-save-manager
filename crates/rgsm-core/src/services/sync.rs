@@ -14,7 +14,7 @@ use crate::cloud_sync::v2::{
     CloudLibraryJoinError, CloudLibraryJoinReview, CloudManifestRepository,
     CloudNamespaceClassification, CloudNamespaceDescriptor, CloudNamespaceError,
     ConflictReviewError, DeletionRegistryError, DeviceProfileRemovalError, DeviceProfileRepository,
-    DeviceProfileRepositoryError, JoinGameDecision, KeepLocalProgressError,
+    DeviceProfileRepositoryError, GlobalSnapshotDeletion, JoinGameDecision, KeepLocalProgressError,
     LocalArchiveEvictionError, ManifestRepositoryError, MaterializationError,
     MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
     SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotReconcilePolicy,
@@ -994,31 +994,20 @@ impl ServiceContext {
                 self.publish_current_position(game_id, &next).await?;
             }
             Some(CurrentPositionDecision::FallbackToParent) => {
-                // Walk past tombstoned/absent ancestors to find the nearest
-                // live snapshot, or clear the position if none remain.
-                let live_dates: BTreeSet<&str> = snapshots
-                    .backups
-                    .iter()
-                    .map(|snapshot| snapshot.date.as_str())
-                    .collect();
-                let mut parent = snapshots
-                    .backups
-                    .iter()
-                    .find(|snapshot| snapshot.date == snapshot_id)
-                    .and_then(|snapshot| snapshot.parent.clone());
-                while let Some(candidate) = &parent {
-                    if live_dates.contains(candidate.as_str()) {
-                        break;
-                    }
-                    // This ancestor is tombstoned/absent; walk further up.
-                    let grandparent = snapshots
-                        .backups
-                        .iter()
-                        .find(|snapshot| snapshot.date == *candidate)
-                        .and_then(|snapshot| snapshot.parent.clone());
-                    parent = grandparent;
-                }
-                let parent = parent.filter(|candidate| live_dates.contains(candidate.as_str()));
+                let (_, _, local_state) = cloud_bootstrap_inputs()?;
+                let manifest = CloudManifestRepository::new(
+                    bound_v2_operator(&local_state).await?,
+                    CLOUD_MANIFEST_PATH,
+                    3,
+                )
+                .load()
+                .await?;
+                let parent = GlobalSnapshotDeletion::fallback_position(
+                    &snapshots,
+                    manifest.games.get(game_id),
+                    snapshot_id,
+                )
+                .map_err(ManifestRepositoryError::from)?;
                 let mut next = snapshots;
                 next.set_current_device_head(parent);
                 game.set_game_snapshots_info(&next)?;
