@@ -27,7 +27,7 @@ export function useNavigationLinks() {
   const linksWithGames = computed<NavigationLink[]>(() => {
     const list = [...baseLinks.value];
     config.value?.games.forEach((game) => {
-      list.push({ text: game.name, link: getGameManagementPath(game.name), icon: Gamepad2 });
+      list.push({ text: game.name, link: getGameManagementPath(game), icon: Gamepad2 });
     });
     return list;
   });

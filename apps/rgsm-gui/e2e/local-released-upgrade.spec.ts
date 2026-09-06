@@ -41,6 +41,14 @@ for (const version of ['1.7.0', '1.8.0'] as const) {
         logPath: join(runRoot, 'host.log'),
       });
       const game = await getLocalGame(host, GAME_NAME);
+      const upgraded = await hostPost<{
+        favorites: Array<{ game_id: string }>;
+        games: Array<{ name: string; storage_key: string }>;
+        quick_action: { quick_action_game_id: string };
+      }>(host, '/api/v1/get-local-config');
+      expect(upgraded.data.favorites[0].game_id).toBe(game.storage_key);
+      expect(upgraded.data.games.find((game) => game.name === 'A_B')?.storage_key).toBe('A_B_2');
+      expect(upgraded.data.quick_action.quick_action_game_id).toBe('A_B_2');
       expect(game.save_paths.map((unit) => unit.id)).toEqual(scene.ids);
       expect(game.save_paths.map((unit) => unit.source)).toEqual([
         expect.objectContaining({ type: 'concrete', unit_type: 'Folder' }),

@@ -175,13 +175,8 @@ async function initializeApp() {
       await saveConfig();
     }
 
-    const destination = resolveStartupDestination(
-      route.path,
-      mappedHome,
-      config.value.games,
-      'name' in route.params ? route.params.name : undefined
-    );
-    if (destination !== route.path) {
+    const destination = resolveStartupDestination(route.fullPath, mappedHome, config.value.games);
+    if (destination !== route.fullPath) {
       await navigateTo(destination);
     }
 

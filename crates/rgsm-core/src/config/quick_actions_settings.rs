@@ -116,10 +116,7 @@ impl Default for QuickActionsSettings {
 impl QuickActionsSettings {
     pub fn selected_game<'a>(&self, games: &'a [Game]) -> Option<&'a Game> {
         let identity = self.quick_action_game_id.as_deref()?;
-        games
-            .iter()
-            .find(|game| !identity.is_empty() && game.storage_key == identity)
-            .or_else(|| games.iter().find(|game| game.name == identity))
+        super::game_identity::position_game_by_identity(games, identity).map(|index| &games[index])
     }
 
     pub fn remove_deleted_game_reference(&mut self, deleted_game: &Game) -> bool {
@@ -130,7 +127,9 @@ impl QuickActionsSettings {
         let should_clear = self
             .quick_action_game_id
             .as_deref()
-            .is_some_and(|identity| identity == game_id || identity == game_name);
+            .is_some_and(|identity| {
+                identity == game_id || (game_id.is_empty() && identity == game_name)
+            });
 
         if should_clear {
             self.quick_action_game_id = None;
@@ -146,7 +145,9 @@ impl QuickActionsSettings {
     pub(crate) fn references_game_identity(&self, game_id: &str, game_name: &str) -> bool {
         self.quick_action_game_id
             .as_deref()
-            .is_some_and(|identity| identity == game_id || identity == game_name)
+            .is_some_and(|identity| {
+                identity == game_id || (game_id.is_empty() && identity == game_name)
+            })
             || self
                 .game_automations
                 .iter()
@@ -155,8 +156,8 @@ impl QuickActionsSettings {
 
     pub fn sync_updated_game_reference(&mut self, previous_game: &Game, updated_game: &Game) {
         if let Some(identity) = self.quick_action_game_id.as_deref()
-            && ((!previous_game.storage_key.is_empty() && identity == previous_game.storage_key)
-                || identity == previous_game.name)
+            && (identity == previous_game.storage_key
+                || (previous_game.storage_key.is_empty() && identity == previous_game.name))
         {
             self.quick_action_game_id = Some(if updated_game.storage_key.is_empty() {
                 updated_game.name.clone()
@@ -266,6 +267,26 @@ mod tests {
                 .selected_game(&games)
                 .map(|game| game.storage_key.as_str()),
             Some("stable-key")
+        );
+    }
+
+    #[test]
+    fn stable_quick_reference_is_not_changed_by_another_games_name() {
+        let other = game("selected-id", "other-id");
+        let renamed = game("Renamed", "other-id");
+        let mut settings = QuickActionsSettings {
+            quick_action_game_id: Some("selected-id".to_string()),
+            ..Default::default()
+        };
+        settings.sync_updated_game_reference(&other, &renamed);
+        assert_eq!(
+            settings.quick_action_game_id.as_deref(),
+            Some("selected-id")
+        );
+        assert!(!settings.remove_deleted_game_reference(&other));
+        assert_eq!(
+            settings.quick_action_game_id.as_deref(),
+            Some("selected-id")
         );
     }
 }

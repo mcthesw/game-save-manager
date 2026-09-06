@@ -544,7 +544,7 @@ impl ServiceContext {
         let game = get_config()?
             .games
             .into_iter()
-            .find(|game| game.storage_key == game_id || game.name == game_id)
+            .find(|game| game.storage_key == game_id)
             .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
         let snapshots = game.get_game_snapshots_info()?;
         let snapshot = snapshots
@@ -1132,7 +1132,7 @@ fn import_downloaded_lineage(
     let game = get_config()?
         .games
         .into_iter()
-        .find(|game| game.storage_key == game_id || game.name == game_id)
+        .find(|game| game.storage_key == game_id)
         .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
     let mut local = match game.get_game_snapshots_info() {
         Ok(snapshots) => snapshots,

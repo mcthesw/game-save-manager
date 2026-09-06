@@ -987,12 +987,11 @@ impl Game {
         let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
         fs::remove_dir_all(&backup_path)?;
 
+        // Bind any legacy references while the deleted game is still present.
+        config.remove_deleted_game_references(self);
         config
             .games
             .retain(|x| x.backup_dir_name() != self.backup_dir_name());
-        // TODO(config-hooks): move this cleanup into a gated config-change hook
-        // once config commits can mutate/abort the pending write transaction.
-        config.remove_deleted_game_references(self);
         set_config_local(&config)?;
 
         info!(target:"rgsm::backup::game",

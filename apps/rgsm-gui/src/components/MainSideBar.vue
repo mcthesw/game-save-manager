@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { Cloud, Home, Info, Plus, Settings, Star } from '@lucide/vue';
-import { v4 as uuidv4 } from 'uuid';
 import { $t } from '../i18n';
 import { error } from '../utils/logger';
-import { commands, type FavoriteTreeNode, type Game } from '../api/commands';
+import { commands, type Game } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
+import { resolveManagementGame } from '../utils/appRoutes';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
 import { refreshCloudLibrary } from '../composables/useCloudLibrary';
@@ -13,7 +13,12 @@ import KButton from '../ui/kit/KButton.vue';
 import KInput from '../ui/kit/KInput.vue';
 import KSegmented from '../ui/kit/KSegmented.vue';
 import FavoriteTree from './FavoriteTree.vue';
-import { collectLeafNames } from './favoriteTreeContext';
+import {
+  collectLeafNames,
+  collectFavoriteGameIds,
+  createGameFavorite,
+  removeFavoriteGame,
+} from './favoriteTreeContext';
 
 const { config, isGameVisible, saveConfig } = useConfig();
 const { sortedGames } = useSaveListSort();
@@ -25,6 +30,9 @@ const { isResizing, startResize } = useSidebarResize({
 const router = useRouter();
 const { open: openAddGame } = useAddGameDrawer();
 const route = useRoute();
+const activeGameId = computed(
+  () => resolveManagementGame(config.value.games, route.fullPath)?.storage_key
+);
 const searchQuery = ref('');
 
 // ——— 导航（主页/云同步/设置/关于）———
@@ -52,32 +60,17 @@ const visibleGames = computed(() => {
 });
 
 // 收藏叶子集合：「全部」视图的星标状态；树本身的组织在 FavoriteTree 内
-const favoriteNames = computed(() => collectLeafNames(config.value?.favorites));
-
-function removeFavoriteLeaf(nodes: FavoriteTreeNode[], name: string): boolean {
-  const index = nodes.findIndex((node) => node.is_leaf && node.label === name);
-  if (index >= 0) {
-    nodes.splice(index, 1);
-    return true;
-  }
-  for (const node of nodes) {
-    if (!node.is_leaf && node.children && removeFavoriteLeaf(node.children, name)) return true;
-  }
-  return false;
-}
+const favoriteIds = computed(() =>
+  collectFavoriteGameIds(config.value.favorites, config.value.games)
+);
 
 async function toggleFavorite(game: Game) {
   if (!config.value) return;
   const favorites = [...(config.value.favorites ?? [])];
-  if (favoriteNames.value.has(game.name)) {
-    removeFavoriteLeaf(favorites, game.name);
+  if (favoriteIds.value.has(game.storage_key ?? '')) {
+    removeFavoriteGame(favorites, game.storage_key ?? '', config.value.games);
   } else {
-    favorites.push({
-      label: game.name,
-      is_leaf: true,
-      children: null,
-      node_id: uuidv4(),
-    });
+    favorites.push(createGameFavorite(game));
   }
   config.value.favorites = favorites;
   await saveConfig();
@@ -123,11 +116,11 @@ watch(
 );
 
 function isActive(path: string): boolean {
-  return route.path === path;
+  return route.fullPath === path;
 }
 
 function goGame(game: Game) {
-  router.push(getGameManagementPath(game.name));
+  router.push(getGameManagementPath(game));
   void refreshCloudLibrary();
 }
 
@@ -179,10 +172,10 @@ function navigatePage(path: string) {
         <div v-show="viewMode === 'all'" class="all-list">
           <button
             v-for="game in visibleGames"
-            :key="game.name"
+            :key="game.storage_key"
             type="button"
             class="side-row game-row"
-            :class="{ active: isActive(getGameManagementPath(game.name)) }"
+            :class="{ active: !!game.storage_key && activeGameId === game.storage_key }"
             :title="game.name"
             @click="goGame(game)"
           >
@@ -194,16 +187,19 @@ function navigatePage(path: string) {
             <span class="row-text">{{ game.name }}</span>
             <span
               class="game-star"
-              :class="{ faved: favoriteNames.has(game.name) }"
+              :class="{ faved: favoriteIds.has(game.storage_key ?? '') }"
               role="button"
               :aria-label="
-                favoriteNames.has(game.name)
+                favoriteIds.has(game.storage_key ?? '')
                   ? $t('favorite.remove')
                   : $t('favorite.add_to_favorite')
               "
               @click.stop="toggleFavorite(game)"
             >
-              <Star :size="13" :fill="favoriteNames.has(game.name) ? 'currentColor' : 'none'" />
+              <Star
+                :size="13"
+                :fill="favoriteIds.has(game.storage_key ?? '') ? 'currentColor' : 'none'"
+              />
             </span>
           </button>
           <p v-if="visibleGames.length === 0 && searchQuery.trim()" class="empty-hint">

@@ -9,7 +9,7 @@ use tokio::sync::Semaphore;
 
 use super::game::SnapshotCreated;
 use super::storage_key::generate_unique_storage_key;
-use super::{GameDraft, GameSnapshots};
+use super::{Game, GameDraft, GameSnapshots};
 
 async fn create_backup_folder(dir_name: &str) -> Result<(), BackupError> {
     let backup_path = get_backup_path()?.join(dir_name);
@@ -27,7 +27,7 @@ async fn create_backup_folder(dir_name: &str) -> Result<(), BackupError> {
     Ok(())
 }
 
-pub async fn create_game_backup(game: &GameDraft) -> Result<(), BackupError> {
+pub async fn create_game_backup(game: &GameDraft) -> Result<Game, BackupError> {
     let mut config = get_config()?;
 
     if config
@@ -51,10 +51,10 @@ pub async fn create_game_backup(game: &GameDraft) -> Result<(), BackupError> {
     create_backup_folder(&storage_key).await?;
     let mut new_game = game.clone().into_game(None);
     new_game.storage_key = storage_key;
-    config.games.push(new_game);
+    config.games.push(new_game.clone());
 
     set_config_local(&config)?;
-    Ok(())
+    Ok(new_game)
 }
 
 pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {

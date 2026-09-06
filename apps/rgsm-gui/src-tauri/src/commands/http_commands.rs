@@ -128,12 +128,12 @@ pub struct AddGameRequest {
     path = "/api/v1/add-game",
     operation_id = "addGame",
     request_body = AddGameRequest,
-    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 409, body = ApiError), (status = 500, body = ApiError))
+    responses((status = 200, body = Game), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 409, body = ApiError), (status = 500, body = ApiError))
 )]
 pub async fn http_add_game(
     State(state): State<HttpHostState>,
     Json(request): Json<AddGameRequest>,
-) -> Result<Json<()>, ApiError> {
+) -> Result<Json<Game>, ApiError> {
     commands::add_game(request.game, state.app().clone())
         .await
         .map(Json)
@@ -1463,6 +1463,7 @@ pub async fn http_set_game_auto_save_settings(
 #[serde(rename_all = "camelCase")]
 pub struct SetSnapshotCreatedByRequest {
     pub game_name: String,
+    pub game_id: Option<String>,
     pub snapshot_date: String,
     pub created_by: CreatedBy,
 }
@@ -1481,6 +1482,7 @@ pub async fn http_set_snapshot_created_by(
     commands::set_snapshot_created_by(
         state.app().clone(),
         request.game_name,
+        request.game_id,
         request.snapshot_date,
         request.created_by,
     )

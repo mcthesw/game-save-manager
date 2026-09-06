@@ -663,6 +663,12 @@ fn migrate_save_unit_ids(mut config: Config) -> Config {
 /// Also replaces a legacy quick-action display-name reference with the storage
 /// key assigned to that game.
 fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
+    // Resolve the old reference before newly generated keys can shadow names.
+    let quick_action_index = config
+        .quick_action
+        .quick_action_game_id
+        .as_deref()
+        .and_then(|identity| config.position_game_by_identity(identity));
     let mut assigned: std::collections::HashSet<String> = config
         .games
         .iter()
@@ -698,13 +704,9 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
         assigned.insert(key);
     }
 
-    // Legacy quick-action references without a storage key deserialize to the
-    // display name. Replace that transitional identity after keys are assigned.
-    if let Some(ref mut identity) = config.quick_action.quick_action_game_id
-        && let Some(matched) = config.games.iter().find(|game| game.name == *identity)
-    {
-        *identity = matched.storage_key.clone();
-    }
+    config.quick_action.quick_action_game_id =
+        quick_action_index.map(|index| config.games[index].storage_key.clone());
+    config.bind_legacy_game_references();
 
     config
 }
@@ -1389,6 +1391,46 @@ mod tests {
         assert_ne!(k0, k1);
         assert!(!k0.is_empty());
         assert!(!k1.is_empty());
+    }
+
+    #[test]
+    fn migrate_storage_keys_preserves_quick_action_before_generated_keys_shadow_names() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let mut config = Config::default();
+        for name in ["A__B", "A_B"] {
+            config.games.push(crate::backup::Game {
+                name: name.to_string(),
+                storage_key: String::new(),
+                save_paths: vec![],
+                game_paths: Default::default(),
+                next_save_unit_id: 0,
+                cloud_sync_enabled: false,
+                auto_backup: None,
+                ludusavi_meta: None,
+                device_bindings: Default::default(),
+            });
+        }
+        config.quick_action = serde_json::from_value(serde_json::json!({
+            "quick_action_game": config.games[1],
+        }))
+        .unwrap();
+
+        let migrated = migrate_storage_keys(config, temp_dir.path());
+
+        assert_eq!(migrated.games[0].storage_key, "A_B");
+        assert_eq!(migrated.games[1].storage_key, "A_B_2");
+        assert_eq!(
+            migrated.quick_action.quick_action_game_id.as_deref(),
+            Some("A_B_2")
+        );
+        assert_eq!(
+            migrated
+                .quick_action
+                .selected_game(&migrated.games)
+                .unwrap()
+                .name,
+            "A_B"
+        );
     }
 
     #[test]

@@ -265,7 +265,7 @@ function goAutoBackup() {
   // 定时备份是按游戏配置的:有游戏去第一个游戏的管理页,没有则引导先导入
   const first = config.value?.games?.[0];
   if (first) {
-    navigateTo(getGameManagementPath(first.name));
+    navigateTo(getGameManagementPath(first));
   } else {
     openAddGame();
   }

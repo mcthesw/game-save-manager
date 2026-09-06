@@ -29,6 +29,9 @@ export async function seedReleasedUpgrade(runRoot: string, version: '1.7.0' | '1
   const ids = version === '1.8.0' ? [7, 11, 12] : [0, 1, 2];
   config.backup_path = join(appDataDir, 'save_data').replaceAll('\\', '/');
   config.games[0].name = GAME_NAME;
+  config.favorites = [
+    { node_id: 'legacy-favorite', label: GAME_NAME, is_leaf: true, children: null },
+  ];
   config.games[0].save_paths = units.map((unit, index) => ({
     ...(version === '1.8.0' ? { id: ids[index] } : {}),
     unit_type: unit.type,
@@ -42,6 +45,16 @@ export async function seedReleasedUpgrade(runRoot: string, version: '1.7.0' | '1
   config.devices = { [DEVICE_A_ID]: { id: DEVICE_A_ID, name: 'Upgrade device' } };
   config.quick_action.enable_sound = false;
   config.quick_action.enable_notification = false;
+  // These games have no backup directories yet. The first generated key shadows
+  // the second game's old name, but must not capture its quick-action selection.
+  const collidingGames = ['A__B', 'A_B'].map((name) => ({
+    ...structuredClone(config.games[0]),
+    name,
+    save_paths: [],
+    game_paths: {},
+  }));
+  config.games.push(...collidingGames);
+  config.quick_action.quick_action_game = collidingGames[1];
   await mkdir(archiveDir, { recursive: true });
   await writeFile(join(appDataDir, 'GameSaveManager.config.json'), JSON.stringify(config));
   const savePaths: string[] = [];

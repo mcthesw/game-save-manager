@@ -109,7 +109,7 @@ impl DeviceProfile {
         let game_changed = self.games.remove(game_id).is_some();
         let quick_action_changed = self.quick_action.remove_game_reference(game_id, game_name);
         let favorites_changed =
-            FavoriteTreeNode::remove_game_leaves(&mut self.private_favorites, game_name);
+            FavoriteTreeNode::remove_game_leaves(&mut self.private_favorites, game_id);
         game_changed || quick_action_changed || favorites_changed
     }
 
@@ -287,6 +287,8 @@ impl ConfigurationOwners {
     /// Split a loaded flat configuration into explicit shared, per-device, and
     /// local owners without consulting process-global device state.
     pub fn from_legacy(config: &Config, current_device_id: &DeviceId) -> Self {
+        let mut config = config.clone();
+        config.bind_legacy_game_references();
         let shared_library = SharedLibrary {
             schema_version: V2_CONFIG_SCHEMA_VERSION,
             games: config.games.iter().map(SharedGame::from).collect(),

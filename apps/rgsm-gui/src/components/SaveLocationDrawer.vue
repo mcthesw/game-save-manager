@@ -16,6 +16,7 @@ import { usePathResolution } from '../composables/usePathResolution';
 import PathVariableInput from './PathVariableInput.vue';
 import ResourceMultiSelect from './ResourceMultiSelect.vue';
 import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
+import { hasGameNameConflict } from '../utils/gameName';
 import { KAlert, KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } from '../ui/kit';
 
 const { config } = useConfig();
@@ -300,11 +301,7 @@ function saveChanges() {
     return;
   }
 
-  const isDuplicate = config.value?.games.some(
-    (g) =>
-      g.storage_key !== props.game.storage_key && g.name.toLowerCase() === trimmedName.toLowerCase()
-  );
-  if (isDuplicate) {
+  if (hasGameNameConflict(config.value.games, trimmedName, props.game)) {
     notifyError($t('addgame.duplicated_name_error'));
     return;
   }

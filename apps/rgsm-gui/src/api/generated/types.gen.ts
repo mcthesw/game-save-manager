@@ -562,6 +562,7 @@ export type ExtraBackupItem = {
 
 export type FavoriteTreeNode = {
   children?: Array<FavoriteTreeNode> | null;
+  game_id?: string | null;
   is_leaf: boolean;
   label: string;
   node_id: string;
@@ -1342,6 +1343,7 @@ export type SetSharedSnapshotRetentionRequest = {
 
 export type SetSnapshotCreatedByRequest = {
   createdBy: CreatedBy;
+  gameId?: string | null;
   gameName: string;
   snapshotDate: string;
 };
@@ -1572,8 +1574,10 @@ export type AddGameErrors = {
 export type AddGameError = AddGameErrors[keyof AddGameErrors];
 
 export type AddGameResponses = {
-  200: unknown;
+  200: Game;
 };
+
+export type AddGameResponse = AddGameResponses[keyof AddGameResponses];
 
 export type ApplyAllData = {
   body?: never;

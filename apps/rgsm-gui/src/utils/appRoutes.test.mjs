@@ -6,9 +6,46 @@ import {
   mapLegacyHomePage,
   managementGameExists,
   resolveStartupDestination,
+  resolveGameReference,
+  resolveManagementGame,
+  getGameManagementPath,
 } from './appRoutes.ts';
 
 const games = [{ name: 'Isaac' }, { name: 'Hollow Knight' }];
+
+test('explicit references never fall back to another games name', () => {
+  const first = { name: 'second', storage_key: 'first' };
+  const second = { name: 'Title', storage_key: 'second' };
+  assert.equal(resolveGameReference([first, second], 'second', 'second'), second);
+  assert.equal(resolveGameReference([first], 'second', 'second'), undefined);
+  assert.equal(resolveGameReference([first, second], 'second'), first);
+});
+
+test('route encoding preserves percent signs and reserved characters exactly once', () => {
+  const game = { name: 'Save %2F / ? #', storage_key: 'key&one' };
+  const link = getGameManagementPath(game);
+  assert.equal(resolveManagementGame([game], link), game);
+  assert.equal(resolveManagementGame([game], `/Management/${encodeURIComponent(game.name)}`), game);
+  assert.equal(isValidAppDestination('/Management/Title/extra?gameId=key%26one', [game]), false);
+});
+
+test('same-title games require an explicit identity in management routes', () => {
+  const duplicates = [
+    { name: 'Echo Keep', storage_key: 'echo-a' },
+    { name: 'Echo Keep', storage_key: 'echo-b' },
+  ];
+  assert.equal(isValidAppDestination('/Management/Echo%20Keep', duplicates), false);
+  assert.equal(isValidAppDestination('/Management/Echo%20Keep?gameId=echo-b', duplicates), true);
+  assert.equal(isValidAppDestination('/Management/Echo%20Keep?gameId=missing', duplicates), false);
+  assert.equal(isValidAppDestination('/Management/Echo%20Keep?gameId=', duplicates), false);
+});
+
+test('startup retains stable identity after a game is renamed', () => {
+  const renamed = [{ name: 'New title', storage_key: 'echo-a' }];
+  const link = '/Management/Old%20title?gameId=echo-a';
+  assert.equal(resolveStartupDestination(link, '/', renamed), link);
+  assert.equal(resolveStartupDestination('/', link, renamed), link);
+});
 
 test('legacy AddGame homepage maps to home', () => {
   assert.equal(mapLegacyHomePage('/AddGame'), '/');

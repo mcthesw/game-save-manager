@@ -14,7 +14,7 @@ use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 use super::{ServiceContext, cloud_library_target::bound_v2_operator};
 
 impl ServiceContext {
-    pub async fn add_game(&self, game: &GameDraft, source: HookSource) -> Result<()> {
+    pub async fn add_game(&self, game: &GameDraft, source: HookSource) -> Result<Game> {
         let config = get_config()?;
         if config
             .games
@@ -26,7 +26,7 @@ impl ServiceContext {
         let previous_config = config;
         let v2_change = capture_v2_game_change()?;
 
-        backup::create_game_backup(game).await?;
+        let saved_game = backup::create_game_backup(game).await?;
         if let Some(expected) = v2_change
             && let Err(error) = publish_v2_game_change(expected).await
         {
@@ -35,24 +35,17 @@ impl ServiceContext {
         }
 
         let config = get_config()?;
-        let saved_game = config
-            .games
-            .iter()
-            .find(|existing| existing.name.eq_ignore_ascii_case(&game.name))
-            .cloned()
-            .ok_or_else(|| anyhow!("Game '{}' was not found after save", game.name))?;
-
         let snapshots = saved_game.get_game_snapshots_info()?;
         self.pipeline()
             .fire_game_added(&GameAddedCtx {
                 config,
                 source,
-                game: saved_game,
+                game: saved_game.clone(),
                 snapshots,
             })
             .await;
 
-        Ok(())
+        Ok(saved_game)
     }
 
     /// Update an existing game identified by `storage_key`.
@@ -76,12 +69,14 @@ impl ServiceContext {
             .ok_or_else(|| anyhow!("Game with storage_key '{}' not found", storage_key))?;
 
         let previous_game = config.games[index].clone();
+        config.bind_legacy_game_references();
 
         // Check for name collision with a *different* game
-        if config
-            .games
-            .iter()
-            .any(|g| g.storage_key != storage_key && g.name.eq_ignore_ascii_case(&draft.name))
+        if !previous_game.name.eq_ignore_ascii_case(&draft.name)
+            && config
+                .games
+                .iter()
+                .any(|g| g.storage_key != storage_key && g.name.eq_ignore_ascii_case(&draft.name))
         {
             bail!("Another game with name '{}' already exists", draft.name);
         }
@@ -94,7 +89,7 @@ impl ServiceContext {
             .sync_updated_game_reference(&previous_game, &updated_game);
         crate::config::FavoriteTreeNode::rename_game_leaves(
             &mut config.favorites,
-            &previous_game.name,
+            &previous_game.storage_key,
             &updated_game.name,
         );
         set_config(&config).await?;

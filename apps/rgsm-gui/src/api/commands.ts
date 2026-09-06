@@ -455,12 +455,14 @@ export const commands = {
     );
   },
   async setSnapshotCreatedBy(
-    gameName: types.SetSnapshotCreatedByRequest['gameName'],
+    game: types.Game,
     snapshotDate: types.SetSnapshotCreatedByRequest['snapshotDate'],
     createdBy: types.SetSnapshotCreatedByRequest['createdBy']
   ) {
     return unwrap<types.SetSnapshotCreatedByResponses[200]>(
-      await sdk.setSnapshotCreatedBy({ body: { gameName, snapshotDate, createdBy } })
+      await sdk.setSnapshotCreatedBy({
+        body: { gameName: game.name, gameId: game.storage_key, snapshotDate, createdBy },
+      })
     );
   },
   async getAutoBackupStatus() {

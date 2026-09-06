@@ -450,23 +450,27 @@ impl ServiceContext {
     pub async fn set_snapshot_created_by(
         &self,
         game_name: &str,
+        game_id: Option<&str>,
         snapshot_date: &str,
         created_by: CreatedBy,
         source: HookSource,
     ) -> Result<GameSnapshots, BackupError> {
         let config = get_config()?;
-        let game = config
-            .games
-            .iter()
-            .find(|game| game.name == game_name)
+        let mut matches = config.games.iter().filter(|game| match game_id {
+            Some(id) => !id.is_empty() && game.storage_key == id,
+            None => game.name == game_name,
+        });
+        let game = matches
+            .next()
+            .filter(|_| matches.next().is_none())
             .cloned()
             .ok_or_else(|| BackupError::BackupNotExist {
                 name: game_name.to_string(),
                 date: snapshot_date.to_string(),
             })?;
 
-        // Resolve the name-only legacy endpoint once before checking ownership.
-        // An unrelated local ID may be identical to this Game's display name.
+        // Resolve the authoritative Game once before both ownership and metadata writes.
+        // Name-only callers remain supported only when their name is unambiguous.
         if self
             .is_shared_game(&game.storage_key)
             .map_err(|error| BackupError::Unexpected(error.into()))?
