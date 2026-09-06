@@ -169,7 +169,7 @@ pub fn run() -> anyhow::Result<()> {
             app.manage(hooks::HookPipelineState::new(pipeline));
 
             app.manage(cloud_sync_manager);
-            snapshot_sync::setup(app.handle().clone(), cloud_operation_state);
+            snapshot_sync::setup(cloud_operation_state);
 
             sound::setup(app).expect("Cannot setup sound manager");
             // 处理快捷备份，包括托盘、定时、快捷键

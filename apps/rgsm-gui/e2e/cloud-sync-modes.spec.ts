@@ -55,6 +55,13 @@ test('sync modes and enable catch-up', async ({ browser }) => {
     expect(
       deviceGameSettings(await readDeviceProfile(seeded.cloudRoot, DEVICE_B_ID)).sync_mode
     ).toBe('multi_device_sync');
+    // Separate progress must still be backed up; transfer does not choose a live save.
+    await writeSave(seeded.deviceB, 'independent-progress-on-b\n');
+    await createSnapshotViaApi(session.hostB, 'Independent B branch');
+    const branchId = await latestSnapshotId(session.hostB, 'Independent B branch');
+    expect(existsSync(cloudArchivePath(seeded.cloudRoot, branchId))).toBe(true);
+    expect(await readSave(seeded.deviceA)).toBe('cloud-backup-auto\n');
+    expect(await readSave(seeded.deviceB)).toBe('independent-progress-on-b\n');
   } catch (error) {
     failed = true;
     throw error;

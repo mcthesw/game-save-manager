@@ -24,10 +24,9 @@ pub use game_deletion::DeletedCloudGameView;
 pub use profile_management::CloudDeviceProfileView;
 pub use retention::SnapshotRetentionOutcome;
 pub use snapshot_sync::{
-    DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES, LiveSaveApplyPlan, LiveSaveSyncTarget,
-    SnapshotSyncServiceError, build_v2_snapshot_sync_hook, resume_v2_snapshot_sync,
-    review_v2_live_save_apply, run_v2_snapshot_sync_once, v2_live_save_sync_targets,
-    v2_snapshot_sync_poll_minutes,
+    DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES, LiveSaveSyncTarget, SnapshotSyncServiceError,
+    build_v2_snapshot_sync_hook, resume_v2_snapshot_sync, run_v2_snapshot_sync_once,
+    v2_live_save_sync_targets, v2_snapshot_sync_poll_minutes,
 };
 pub use sync::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryServiceError,

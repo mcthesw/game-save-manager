@@ -52,7 +52,6 @@ impl ServiceContext {
         )
         .keep_local(game_id, manifest_revision, local_snapshot_id, &local)
         .await?;
-        self.set_multi_device_sync_suspended(game_id, false).await?;
         Ok(outcome)
     }
 
@@ -150,7 +149,6 @@ impl ServiceContext {
                 });
             }
         };
-        self.set_multi_device_sync_suspended(game_id, false).await?;
         Ok(AcceptRemoteProgressOutcome {
             snapshot_id: prepared.selected_snapshot_id,
             safety_backup_created: backup_date.is_some(),

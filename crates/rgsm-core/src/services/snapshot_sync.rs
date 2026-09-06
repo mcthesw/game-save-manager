@@ -8,8 +8,7 @@ use tokio_util::sync::CancellationToken;
 use crate::app_dirs::resolve_app_path;
 use crate::backup::GameSnapshots;
 use crate::cloud_sync::v2::{
-    CloudLibraryTarget, ProgressRelation, SnapshotReconciliationOutcome, SnapshotSyncCoordinator,
-    SnapshotSyncError, V2ConflictInspector, V2ConflictReview,
+    CloudLibraryTarget, SnapshotReconciliationOutcome, SnapshotSyncCoordinator, SnapshotSyncError,
 };
 use crate::config::{
     CloudNamespaceGeneration, Config, DeviceProfile, cloud_bootstrap_inputs, get_config,
@@ -17,7 +16,7 @@ use crate::config::{
 use crate::hooks::{SnapshotSyncTarget, V2SnapshotSyncHook};
 use crate::preclude::{BackendError, BackupError, ConfigError};
 
-use super::cloud_library_target::{bound_v2_operator, cloud_library_target};
+use super::cloud_library_target::cloud_library_target;
 
 pub const DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES: u64 = 5;
 
@@ -26,14 +25,6 @@ pub struct LiveSaveSyncTarget {
     pub game_id: String,
     pub process_name: String,
     pub snapshot_on_exit: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LiveSaveApplyPlan {
-    pub game_id: String,
-    pub manifest_revision: u64,
-    pub expected_local_snapshot_id: Option<String>,
-    pub selected_snapshot_id: String,
 }
 
 struct SnapshotSyncRuntime {
@@ -92,30 +83,6 @@ pub async fn run_v2_snapshot_sync_once(
                     .unwrap_or_else(|| game_id.clone()),
             ),
         };
-        // Multi-device Sync: publish first, check divergence, then transfer.
-        // This prevents stale suspension flags from allowing uploads/downloads
-        // when heads have diverged since the last poll.
-        if target.is_multi_device_sync {
-            let publish = runtime
-                .coordinator
-                .reconcile_game_with_policy(
-                    game_id,
-                    &snapshots,
-                    target.activation_revision,
-                    &target.local_baseline,
-                    cancellation,
-                    crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                        upload_new_archives: false,
-                        download_forward_target: false,
-                    },
-                )
-                .await?;
-            total.published += publish.published;
-            let suspended = refresh_multi_device_sync_suspension(game_id, &snapshots).await?;
-            if suspended {
-                continue;
-            }
-        }
 
         let outcome = runtime
             .coordinator
@@ -126,29 +93,12 @@ pub async fn run_v2_snapshot_sync_once(
                 &target.local_baseline,
                 cancellation,
                 crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                    // MDS games that reach here have passed the fresh divergence
-                    // check, so their transfer flags should reflect the preset
-                    // capability, not the stale suspension state.
-                    upload_new_archives: if target.is_multi_device_sync {
-                        true
-                    } else {
-                        target.upload_new_archives
-                    },
-                    download_forward_target: if target.is_multi_device_sync {
-                        true
-                    } else {
-                        target.download_forward_target
-                    },
+                    upload_new_archives: target.upload_new_archives,
                 },
             )
-            .await;
-        let import =
-            super::sync::import_local_verified_catalog(runtime.coordinator.materializer()).await;
-        let outcome = outcome?;
-        import?;
+            .await?;
         total.published += outcome.published;
         total.uploaded += outcome.uploaded;
-        total.downloaded += outcome.downloaded;
         if let Some(limit) = target.retention_limit {
             let retention = runtime
                 .coordinator
@@ -162,9 +112,6 @@ pub async fn run_v2_snapshot_sync_once(
             {
                 game.forget_v2_tombstones(&retention.tombstones)?;
             }
-        }
-        if !target.is_multi_device_sync {
-            refresh_multi_device_sync_suspension(game_id, &snapshots).await?;
         }
     }
     Ok(total)
@@ -210,16 +157,12 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
         .games
         .into_iter()
         .filter_map(|(game_id, settings)| {
-            if !settings.cloud_sync_enabled
-                || settings.multi_device_sync_suspended
-                || !settings.sync_mode.auto_applies_forward_target()
-            {
+            if !settings.cloud_sync_enabled || !settings.sync_mode.checks_remote_progress() {
                 return None;
             }
             let process_name = settings.live_save_process_name.unwrap_or_default();
             if process_name.is_empty() {
-                // Without a process name the running-process safety check
-                // always passes, so auto-apply would be unguarded.
+                // Process-exit capture needs a process; cloud sync itself does not.
                 return None;
             }
             Some(LiveSaveSyncTarget {
@@ -229,80 +172,6 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
             })
         })
         .collect())
-}
-
-pub async fn review_v2_live_save_apply(
-    game_id: &str,
-) -> Result<Option<LiveSaveApplyPlan>, SnapshotSyncServiceError> {
-    let (_, profile, local_state) = cloud_bootstrap_inputs()?;
-    if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-        || profile.games.get(game_id).is_none_or(|settings| {
-            !settings.cloud_sync_enabled
-                || settings.multi_device_sync_suspended
-                || !settings.sync_mode.auto_applies_forward_target()
-                || settings
-                    .live_save_process_name
-                    .as_deref()
-                    .unwrap_or("")
-                    .is_empty()
-        })
-    {
-        return Ok(None);
-    }
-    let config = get_config()?;
-    let Some(game) = config.games.iter().find(|game| game.storage_key == game_id) else {
-        return Ok(None);
-    };
-    let local = game.get_game_snapshots_info()?;
-    let archive_root = profile
-        .local_archive_root
-        .as_deref()
-        .map(resolve_app_path)
-        .ok_or(SnapshotSyncServiceError::StorageLocationRequired)?;
-    let review = V2ConflictInspector::new(
-        bound_v2_operator(&local_state).await?,
-        archive_root,
-        local_state.current_device_id.clone(),
-        3,
-    )
-    .review(game_id, &local)
-    .await?;
-    Ok(select_live_save_apply(
-        review,
-        &local_state.current_device_id,
-    ))
-}
-
-/// Selects only the single fail-safe graph transition that Live Save Sync may
-/// apply without asking the user. Any additional remote Head, unavailable
-/// archive, or relation other than remote-ahead/no-local-position is ambiguous
-/// and deliberately yields no plan.
-fn select_live_save_apply(
-    review: V2ConflictReview,
-    current_device_id: &str,
-) -> Option<LiveSaveApplyPlan> {
-    let mut remote = review.candidates.iter().filter(|candidate| {
-        candidate
-            .devices
-            .iter()
-            .any(|device| device != current_device_id)
-    });
-    let selected = remote.next()?;
-    if remote.next().is_some()
-        || !selected.cloud_available
-        || !matches!(
-            selected.relation,
-            ProgressRelation::RemoteAhead | ProgressRelation::NoLocalPosition
-        )
-    {
-        return None;
-    }
-    Some(LiveSaveApplyPlan {
-        game_id: review.game_id,
-        manifest_revision: review.manifest_revision,
-        expected_local_snapshot_id: review.local.map(|local| local.snapshot_id),
-        selected_snapshot_id: selected.snapshot_id.clone(),
-    })
 }
 
 fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceError> {
@@ -365,47 +234,12 @@ fn sync_targets(
                             .find(|game| game.storage_key == *game_id)
                             .and_then(|game| game.snapshot_retention)
                             .map(|policy| policy.automatic_snapshots_per_branch),
-                        upload_new_archives: settings.sync_mode.auto_uploads_archives()
-                            && !settings.multi_device_sync_suspended,
-                        download_forward_target: settings.sync_mode.auto_applies_forward_target()
-                            && !settings.multi_device_sync_suspended,
-                        is_multi_device_sync: settings.sync_mode.auto_applies_forward_target(),
+                        upload_new_archives: settings.sync_mode.auto_uploads_archives(),
                     },
                 )
             })
         })
         .collect()
-}
-
-async fn refresh_multi_device_sync_suspension(
-    game_id: &str,
-    local: &GameSnapshots,
-) -> Result<bool, SnapshotSyncServiceError> {
-    let (_, profile, local_state) = cloud_bootstrap_inputs()?;
-    let Some(settings) = profile.games.get(game_id) else {
-        return Ok(false);
-    };
-    if !settings.cloud_sync_enabled || !settings.sync_mode.auto_applies_forward_target() {
-        return Ok(settings.multi_device_sync_suspended);
-    }
-    let Some(local_archive_root) = profile.local_archive_root.as_deref().map(resolve_app_path)
-    else {
-        return Ok(settings.multi_device_sync_suspended);
-    };
-    let review = V2ConflictInspector::new(
-        bound_v2_operator(&local_state).await?,
-        local_archive_root,
-        local_state.current_device_id,
-        3,
-    )
-    .review(game_id, local)
-    .await?;
-    let diverged = review.requires_choice;
-    if settings.multi_device_sync_suspended == diverged {
-        return Ok(diverged);
-    }
-    super::sync::set_multi_device_sync_suspended(game_id, diverged).await?;
-    Ok(diverged)
 }
 
 #[derive(Debug, Error)]
@@ -423,15 +257,12 @@ pub enum SnapshotSyncServiceError {
     #[error(transparent)]
     SnapshotSync(#[from] SnapshotSyncError),
     #[error(transparent)]
-    ConflictReview(#[from] crate::cloud_sync::v2::ConflictReviewError),
-    #[error(transparent)]
     Retention(#[from] super::CloudLibraryServiceError),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cloud_sync::v2::{LocalProgressView, RemoteProgressCandidate};
     use crate::config::{DeviceGameProfile, InitialCatchUpPolicy, SyncMode};
 
     #[test]
@@ -474,7 +305,6 @@ mod tests {
             initial_catch_up: InitialCatchUpPolicy::KeepRemote,
             live_save_process_name: None,
             live_save_snapshot_on_exit: false,
-            multi_device_sync_suspended: false,
             game_path: None,
             binding: None,
             auto_backup: None,
@@ -509,95 +339,21 @@ mod tests {
         assert_eq!(targets["ready"].activation_revision, 4);
         assert!(!targets["manual"].upload_new_archives);
         assert!(targets["ready"].upload_new_archives);
-        assert!(targets["live"].download_forward_target);
-        assert!(!targets["ready"].download_forward_target);
+        assert!(targets["live"].upload_new_archives);
 
-        let mut live = game(SyncMode::MultiDeviceSync, Some(5));
-        live.multi_device_sync_suspended = true;
-        profile.games.insert("live".into(), live);
-        let suspended = sync_targets(
+        let mut legacy = serde_json::to_value(game(SyncMode::MultiDeviceSync, Some(5))).unwrap();
+        legacy["multi_device_sync_suspended"] = serde_json::json!(true);
+        profile
+            .games
+            .insert("live".into(), serde_json::from_value(legacy).unwrap());
+        let resumed = sync_targets(
             &profile,
             &crate::config::SharedLibrary {
                 schema_version: crate::config::V2_CONFIG_SCHEMA_VERSION,
                 games: Vec::new(),
             },
         );
-        assert!(!suspended["live"].upload_new_archives);
-        assert!(!suspended["live"].download_forward_target);
-    }
-
-    fn review(candidates: Vec<RemoteProgressCandidate>) -> V2ConflictReview {
-        V2ConflictReview {
-            game_id: "game".into(),
-            manifest_revision: 9,
-            local: Some(LocalProgressView {
-                snapshot_id: "local".into(),
-                description: String::new(),
-                created_at: None,
-                device_id: None,
-                local_available: true,
-                cloud_available: true,
-            }),
-            candidates,
-            requires_choice: true,
-        }
-    }
-
-    fn candidate(id: &str, device: &str, relation: ProgressRelation) -> RemoteProgressCandidate {
-        RemoteProgressCandidate {
-            snapshot_id: id.into(),
-            description: String::new(),
-            created_at: None,
-            device_id: None,
-            devices: vec![device.into()],
-            relation,
-            local_unique_snapshots: 0,
-            remote_unique_snapshots: 1,
-            common_ancestor: Some("root".into()),
-            common_ancestor_created_at: None,
-            local_available: false,
-            cloud_available: true,
-        }
-    }
-
-    #[test]
-    fn automatic_apply_accepts_one_remote_ahead_candidate() {
-        let plan = select_live_save_apply(
-            review(vec![candidate(
-                "remote",
-                "deck",
-                ProgressRelation::RemoteAhead,
-            )]),
-            "pc",
-        )
-        .unwrap();
-
-        assert_eq!(plan.selected_snapshot_id, "remote");
-        assert_eq!(plan.expected_local_snapshot_id.as_deref(), Some("local"));
-    }
-
-    #[test]
-    fn automatic_apply_never_chooses_between_multiple_or_divergent_heads() {
-        assert!(
-            select_live_save_apply(
-                review(vec![
-                    candidate("older", "deck", ProgressRelation::RemoteAhead),
-                    candidate("newer", "laptop", ProgressRelation::RemoteAhead),
-                ]),
-                "pc",
-            )
-            .is_none()
-        );
-        assert!(
-            select_live_save_apply(
-                review(vec![candidate(
-                    "fork",
-                    "deck",
-                    ProgressRelation::DifferentProgress,
-                )]),
-                "pc",
-            )
-            .is_none()
-        );
+        assert!(resumed["live"].upload_new_archives);
+        assert!(profile.games["live"].sync_mode.checks_remote_progress());
     }
 }

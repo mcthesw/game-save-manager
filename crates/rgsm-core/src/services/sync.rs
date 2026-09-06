@@ -725,6 +725,7 @@ impl ServiceContext {
     ) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
         self.require_shared_game(game_id)?;
         if let Some(options) = &live_save
+            && options.snapshot_on_exit
             && options.process_name.trim().is_empty()
         {
             return Err(CloudLibraryServiceError::LiveSaveProcessRequired);
@@ -768,7 +769,6 @@ impl ServiceContext {
             settings.snapshot_sync_activation_revision = activation_revision;
             settings.snapshot_sync_local_baseline = local_baseline.clone();
             settings.initial_catch_up = initial_catch_up;
-            settings.multi_device_sync_suspended = false;
         }
         if let Some(options) = live_save {
             settings.live_save_process_name = Some(options.process_name.trim().to_string());
@@ -965,7 +965,6 @@ impl ServiceContext {
                     cancellation,
                     SnapshotReconcilePolicy {
                         upload_new_archives: true,
-                        download_forward_target: false,
                     },
                 )
                 .await?;
@@ -1079,40 +1078,6 @@ impl ServiceContext {
         .await?;
         Ok(())
     }
-
-    pub(super) async fn set_multi_device_sync_suspended(
-        &self,
-        game_id: &str,
-        suspended: bool,
-    ) -> Result<(), CloudLibraryServiceError> {
-        set_multi_device_sync_suspended(game_id, suspended).await
-    }
-}
-
-pub(super) async fn set_multi_device_sync_suspended(
-    game_id: &str,
-    suspended: bool,
-) -> Result<(), CloudLibraryServiceError> {
-    let (_, expected, local_state) = cloud_bootstrap_inputs()?;
-    if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
-        return Ok(());
-    }
-    let mut accepted = expected.clone();
-    let Some(settings) = accepted.games.get_mut(game_id) else {
-        return Ok(());
-    };
-    if settings.multi_device_sync_suspended == suspended {
-        return Ok(());
-    }
-    settings.multi_device_sync_suspended = suspended;
-    DeviceProfileRepository::new(bound_v2_operator(&local_state).await?, 3)
-        .publish(
-            &local_state.current_device_id,
-            &accepted.without_local_games(&local_state),
-        )
-        .await?;
-    replace_current_device_profile(&expected, &accepted)?;
-    Ok(())
 }
 
 fn cutover_progress_path(

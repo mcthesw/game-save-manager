@@ -110,7 +110,6 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
     .expect("first reconciliation should publish and upload");
     assert_eq!(first.published, 1);
     assert_eq!(first.uploaded, 1);
-    assert_eq!(first.downloaded, 0);
 
     let fresh_operator = cloud.new_operator();
     let manifest =
@@ -208,5 +207,4 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
     .expect("repeated reconciliation should succeed");
     assert_eq!(repeated.published, 0);
     assert_eq!(repeated.uploaded, 0);
-    assert_eq!(repeated.downloaded, 0);
 }

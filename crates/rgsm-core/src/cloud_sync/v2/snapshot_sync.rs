@@ -8,9 +8,9 @@ use tokio_util::sync::CancellationToken;
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer,
     CloudManifest, CloudManifestRepository, DeletionKind, DeletionRegistryError,
-    DeletionRegistryRepository, GameManifest, ManifestError, ManifestRepositoryError,
-    SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotNode,
-    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState, V2ConflictInspector,
+    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
+    SnapshotDeletionLifecycleError, SnapshotNode, SnapshotRetentionPlanner,
+    SnapshotRetentionPlannerError, SnapshotState,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
@@ -19,16 +19,11 @@ use crate::device::DeviceId;
 pub struct SnapshotReconciliationOutcome {
     pub published: usize,
     pub uploaded: usize,
-    pub downloaded: usize,
-    /// Snapshot that was downloaded as the Forward Target, if any.
-    /// The service layer uses this to trigger Automatic Apply.
-    pub forward_target: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SnapshotReconcilePolicy {
     pub upload_new_archives: bool,
-    pub download_forward_target: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -89,7 +84,6 @@ impl SnapshotSyncCoordinator {
             cancellation,
             SnapshotReconcilePolicy {
                 upload_new_archives: true,
-                download_forward_target: true,
             },
         )
         .await
@@ -214,29 +208,6 @@ impl SnapshotSyncCoordinator {
             }
         }
 
-        if policy.download_forward_target {
-            if cancellation.is_cancelled() {
-                return Err(SnapshotSyncError::Cancelled);
-            }
-            manifest = self.repository().load().await?;
-            if let Some(target_id) = unique_forward_target(
-                manifest.games.get(game_id),
-                local
-                    .head_for_device(&self.current_device_id)
-                    .map(String::as_str),
-            )? {
-                let already_local = manifest.games.get(game_id).is_some_and(|game| {
-                    game.local_archives
-                        .get(&self.current_device_id)
-                        .is_some_and(|items| items.contains(&target_id))
-                });
-                if !already_local {
-                    self.materializer.download(game_id, &target_id).await?;
-                    outcome.downloaded = 1;
-                    outcome.forward_target = Some(target_id);
-                }
-            }
-        }
         Ok(outcome)
     }
 
@@ -464,21 +435,6 @@ impl SnapshotSyncCoordinator {
         Ok(())
     }
 
-    pub async fn check_divergence(
-        &self,
-        game_id: &str,
-        local: &GameSnapshots,
-    ) -> Result<bool, SnapshotSyncError> {
-        let inspector = V2ConflictInspector::new(
-            self.operator.clone(),
-            self.local_archive_root.clone(),
-            self.current_device_id.clone(),
-            self.max_attempts,
-        );
-        let review = inspector.review(game_id, local).await?;
-        Ok(review.requires_choice)
-    }
-
     async fn ensure_active_or_converge_deleted_game(
         &self,
         game_id: &str,
@@ -633,55 +589,6 @@ fn visit_snapshot(
     Ok(())
 }
 
-/// Unique compatible descendant of this Device's Current Position.
-///
-/// Returns `None` when there is no unique Forward Target: same position,
-/// true divergence, or a missing/unverified Archive.
-fn unique_forward_target(
-    game: Option<&GameManifest>,
-    local_head: Option<&str>,
-) -> Result<Option<String>, SnapshotSyncError> {
-    let Some(game) = game else {
-        return Ok(None);
-    };
-    let maximal = game.maximal_heads()?;
-    let candidates = match local_head {
-        None => maximal,
-        Some(local) => {
-            let mut descendants = BTreeSet::new();
-            for head in maximal {
-                if game.is_ancestor_or_equal(local, &head)? {
-                    if head != local {
-                        descendants.insert(head);
-                    }
-                } else if !game.is_ancestor_or_equal(&head, local)? {
-                    // Divergent head: neither ancestor nor descendant of local.
-                    return Ok(None);
-                }
-                // head is an ancestor of local: behind us, not a candidate.
-            }
-            descendants
-        }
-    };
-    if candidates.len() != 1 {
-        return Ok(None);
-    }
-    let target = candidates
-        .into_iter()
-        .next()
-        .expect("checked unique target");
-    let Some(node) = game.snapshots.get(&target) else {
-        return Ok(None);
-    };
-    if !matches!(
-        &node.state,
-        SnapshotState::Live(live) if live.cloud_archive_verified
-    ) {
-        return Ok(None);
-    }
-    Ok(Some(target))
-}
-
 #[derive(Debug, Error)]
 pub enum SnapshotSyncError {
     #[error("Local Snapshot graph is missing ancestor {0}")]
@@ -807,8 +714,6 @@ mod tests {
             SnapshotReconciliationOutcome {
                 published: 2,
                 uploaded: 1,
-                downloaded: 0,
-                forward_target: None,
             }
         );
         let stored = coordinator.repository().load().await.unwrap();
@@ -838,7 +743,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reconciliation_downloads_only_the_unique_forward_target() {
+    async fn reconciliation_leaves_remote_archives_until_the_player_requests_one() {
         let operator = memory_operator();
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("deck");
@@ -894,7 +799,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(publish_only.downloaded, 0);
+        assert_eq!(publish_only, SnapshotReconciliationOutcome::default());
         assert!(!archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).exists());
 
         let outcome = coordinator
@@ -908,8 +813,14 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(outcome.downloaded, 1);
+        assert_eq!(outcome, SnapshotReconciliationOutcome::default());
         assert!(!archive_path(&archive_root.join("game"), "old", ArchiveFormat::Zip).exists());
+        assert!(!archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).exists());
+        coordinator
+            .materializer()
+            .download("game", "new")
+            .await
+            .unwrap();
         assert!(archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).is_file());
     }
 
@@ -1136,8 +1047,8 @@ mod tests {
     }
 
     #[test]
-    fn unique_forward_target_rejects_divergent_maximal_head() {
-        // Local head A, descendant B, and divergent C — no forward target.
+    fn divergent_progress_remains_distinct_in_the_shared_graph() {
+        // Transfer policy must not flatten distinct branches into one chosen head.
         let mut game = GameManifest::new("game");
         let root = temp_dir::TempDir::new().unwrap();
         for (id, parent) in [("a", None), ("b", Some("a")), ("c", None)] {
@@ -1159,6 +1070,9 @@ mod tests {
         game.set_head("deck".into(), "b".into());
         game.set_head("other".into(), "c".into());
 
-        assert_eq!(unique_forward_target(Some(&game), Some("a")).unwrap(), None);
+        assert_eq!(
+            game.maximal_heads().unwrap(),
+            BTreeSet::from(["b".into(), "c".into()])
+        );
     }
 }
