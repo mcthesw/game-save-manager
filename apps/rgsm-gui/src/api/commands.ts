@@ -238,6 +238,9 @@ export const commands = {
       await sdk.refreshCloudArchiveLibrary()
     );
   },
+  async deferProgressNotices(ids: string[]) {
+    return unwrap(await sdk.deferProgressNotices({ body: { ids } }));
+  },
   async reviewV2GameProgress(gameId: types.ReviewV2GameProgressRequest['gameId']) {
     return unwrap<types.ReviewV2GameProgressResponses[200]>(
       await sdk.reviewV2GameProgress({ body: { gameId } })

@@ -189,6 +189,7 @@ export type CloudArchiveGameView = {
 
 export type CloudArchiveLibraryView = {
   games: Array<CloudArchiveGameView>;
+  library_id: string;
   pending_materialization: boolean;
 };
 
@@ -445,6 +446,10 @@ export type CurrentPositionDecision =
 
 export type CutoverCloudLibraryRequest = {
   confirmed: boolean;
+};
+
+export type DeferProgressNoticesRequest = {
+  ids: Array<string>;
 };
 
 export type DeleteExtraBackupRequest = {
@@ -963,6 +968,11 @@ export type PathPlaceholderDescriptor = {
 
 export type PendingAction = 'none' | 'retry_required' | 'user_decision_required';
 
+export type PendingProgress = {
+  library_id: string;
+  notices: Array<ProgressNotice>;
+};
+
 export type PermanentlyDeleteCloudGameRequest = {
   confirmed: boolean;
   gameId: string;
@@ -973,6 +983,12 @@ export type PlatformKind = 'windows' | 'linux' | 'macOs';
 export type PreviewSaveUnitResolutionRequest = {
   game: Game;
   saveUnit: SaveUnit;
+};
+
+export type ProgressNotice = {
+  game_id: string;
+  game_name: string;
+  id: string;
 };
 
 export type ProgressRelation =
@@ -1892,6 +1908,27 @@ export type CutoverCloudLibraryResponses = {
 
 export type CutoverCloudLibraryResponse =
   CutoverCloudLibraryResponses[keyof CutoverCloudLibraryResponses];
+
+export type DeferProgressNoticesData = {
+  body: DeferProgressNoticesRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/defer-progress-notices';
+};
+
+export type DeferProgressNoticesErrors = {
+  401: ApiError;
+};
+
+export type DeferProgressNoticesError =
+  DeferProgressNoticesErrors[keyof DeferProgressNoticesErrors];
+
+export type DeferProgressNoticesResponses = {
+  200: PendingProgress;
+};
+
+export type DeferProgressNoticesResponse =
+  DeferProgressNoticesResponses[keyof DeferProgressNoticesResponses];
 
 export type DeleteExtraBackupData = {
   body: DeleteExtraBackupRequest;

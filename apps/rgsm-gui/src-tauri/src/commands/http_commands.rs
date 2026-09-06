@@ -725,6 +725,25 @@ pub struct ReviewV2GameProgressRequest {
     pub game_id: String,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct DeferProgressNoticesRequest {
+    pub ids: Vec<String>,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/defer-progress-notices",
+    operation_id = "deferProgressNotices",
+    request_body = DeferProgressNoticesRequest,
+    responses((status = 200, body = crate::progress_notices::PendingProgress), (status = 401, body = ApiError))
+)]
+pub async fn http_defer_progress_notices(
+    State(state): State<HttpHostState>,
+    Json(request): Json<DeferProgressNoticesRequest>,
+) -> Json<crate::progress_notices::PendingProgress> {
+    Json(crate::remote_progress::defer(state.app(), &request.ids))
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/review-v2-game-progress",
@@ -2179,6 +2198,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_refresh_cloud_archive_library),
         )
         .route(
+            "/api/v1/defer-progress-notices",
+            post(http_defer_progress_notices),
+        )
+        .route(
             "/api/v1/review-v2-game-progress",
             post(http_review_v2_game_progress),
         )
@@ -2409,6 +2432,7 @@ pub fn router() -> Router<HttpHostState> {
         http_cutover_cloud_library,
         http_get_cloud_archive_library,
         http_refresh_cloud_archive_library,
+        http_defer_progress_notices,
         http_review_v2_game_progress,
         http_keep_v2_local_progress,
         http_accept_v2_remote_progress,

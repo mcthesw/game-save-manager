@@ -388,9 +388,13 @@ export async function enableMode(
   await expect(dialog).toBeVisible();
   await dialog.getByText(catchUp, { exact: true }).click();
   await dialog.getByRole('button', { name: 'Enable' }).click();
-  await expect(page.getByRole('button', { name: 'Sync mode' })).toContainText(modeLabel, {
-    timeout: 30_000,
-  });
+  // A pending-progress dialog may now cover the overview immediately after enabling.
+  await expect(page.getByRole('button', { name: 'Sync mode', includeHidden: true })).toContainText(
+    modeLabel,
+    {
+      timeout: 30_000,
+    }
+  );
   if (catchUp === 'Download to this device') {
     await expect
       .poll(

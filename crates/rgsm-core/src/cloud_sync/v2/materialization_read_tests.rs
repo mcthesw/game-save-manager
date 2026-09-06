@@ -53,7 +53,7 @@ async fn assert_read_does_not_reconcile(preview: bool) {
         );
     } else {
         let view = materializer
-            .view(&BTreeMap::new(), &BTreeMap::new())
+            .view("library", &BTreeMap::new(), &BTreeMap::new())
             .await
             .unwrap();
         assert!(view.games[0].snapshots.is_empty());
@@ -109,7 +109,11 @@ async fn catalog_reports_device_positions_without_treating_our_stale_position_as
         2,
     );
     let view = materializer
-        .view(&BTreeMap::new(), &BTreeMap::from([("game".into(), None)]))
+        .view(
+            "library",
+            &BTreeMap::new(),
+            &BTreeMap::from([("game".into(), None)]),
+        )
         .await
         .unwrap();
     assert_eq!(

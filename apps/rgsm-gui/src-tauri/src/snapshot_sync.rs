@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use log::{info, warn};
+use tauri::{AppHandle, Manager};
 use tokio::time::{Instant, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 
@@ -8,11 +9,11 @@ use crate::cloud_operation::CloudOperationState;
 
 const CONTROL_POLL_INTERVAL: Duration = Duration::from_secs(15);
 
-pub fn setup(state: CloudOperationState) {
-    tauri::async_runtime::spawn(run(state));
+pub fn setup(app: AppHandle, state: CloudOperationState) {
+    tauri::async_runtime::spawn(run(app, state));
 }
 
-async fn run(state: CloudOperationState) {
+async fn run(app: AppHandle, state: CloudOperationState) {
     let cancellation = CancellationToken::new();
     state
         .run(async {
@@ -27,7 +28,7 @@ async fn run(state: CloudOperationState) {
                     "V2 Snapshot download recovery failed: {error}"
                 ),
             }
-            run_reconciliation(&cancellation).await;
+            run_reconciliation(&app, &cancellation).await;
         })
         .await;
 
@@ -57,14 +58,14 @@ async fn run(state: CloudOperationState) {
         }
         state
             .run(async {
-                run_reconciliation(&cancellation).await;
+                run_reconciliation(&app, &cancellation).await;
             })
             .await;
         last_run = Instant::now();
     }
 }
 
-async fn run_reconciliation(cancellation: &CancellationToken) {
+async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
     match rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await {
         Ok(outcome) if outcome != Default::default() => info!(
             target: "rgsm::cloud::v2_snapshot_sync",
@@ -77,5 +78,13 @@ async fn run_reconciliation(cancellation: &CancellationToken) {
             target: "rgsm::cloud::v2_snapshot_sync",
             "V2 Snapshot Sync reconciliation failed: {error}"
         ),
+    }
+    let service = rgsm_core::services::ServiceContext::new(
+        app.state::<crate::hooks::HookPipelineState>().snapshot(),
+    );
+    if rgsm_core::services::v2_snapshot_sync_poll_minutes().is_ok_and(|minutes| minutes.is_some())
+        && let Err(error) = crate::remote_progress::refresh(app, &service).await
+    {
+        warn!("Remote progress refresh failed: {error}");
     }
 }

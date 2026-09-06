@@ -32,6 +32,11 @@ const loading = ref(false);
 const resolving = ref(false);
 const acceptingSnapshotId = ref('');
 const busy = computed(() => resolving.value || acceptingSnapshotId.value !== '');
+const hasRemoteProgress = computed(() =>
+  review.value?.candidates.some((candidate) =>
+    ['remote_ahead', 'different_progress', 'no_local_position'].includes(candidate.relation)
+  )
+);
 
 const visible = computed({
   get: () => props.modelValue,
@@ -195,11 +200,19 @@ watch(
       <LoaderCircle :size="22" class="animate-spin" aria-hidden="true" />
     </div>
     <template v-else>
-      <KAlert v-if="review" :tone="review.requires_choice ? 'warning' : 'success'" class="mb-4">
+      <KAlert
+        v-if="review"
+        :tone="review.requires_choice ? 'warning' : hasRemoteProgress ? 'info' : 'success'"
+        class="mb-4"
+      >
         {{
           review.requires_choice
             ? $t('sync_settings.archives.progress.choice_required')
-            : $t('sync_settings.archives.progress.aligned')
+            : $t(
+                hasRemoteProgress
+                  ? 'sync_settings.archives.progress.remote_available'
+                  : 'sync_settings.archives.progress.aligned'
+              )
         }}
       </KAlert>
 

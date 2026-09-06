@@ -9,6 +9,7 @@ mod game;
 mod game_deletion;
 mod path_resolution;
 mod profile_management;
+mod progress_review;
 mod retention;
 mod snapshot;
 mod snapshot_sync;

@@ -61,7 +61,7 @@ async fn transfer_preserves_original_creator_and_time_without_changing_archive_i
     );
     let view = serde_json::to_value(
         receiver
-            .view(&BTreeMap::new(), &BTreeMap::new())
+            .view("library", &BTreeMap::new(), &BTreeMap::new())
             .await
             .unwrap(),
     )

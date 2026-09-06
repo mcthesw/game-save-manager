@@ -4,6 +4,7 @@ import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
 import AddGameDrawer from './components/AddGameDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
+import RemoteProgressPrompt from './components/RemoteProgressPrompt.vue';
 import KFeedbackHost from './ui/kit/KFeedbackHost.vue';
 import { commands, events } from './api/commands';
 import type { Device } from './api/commands';
@@ -286,6 +287,7 @@ if (typeof window !== 'undefined') {
     <ActivityDrawer />
     <AddGameDrawer />
     <KFeedbackHost />
+    <RemoteProgressPrompt />
   </div>
 </template>
 

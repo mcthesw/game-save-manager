@@ -105,7 +105,7 @@ impl HostEventHub {
 }
 
 fn is_stateful_event(event_type: &str) -> bool {
-    event_type == "cloud-sync-status"
+    matches!(event_type, "cloud-sync-status" | "remote-progress-pending")
 }
 
 pub fn emit<T: Serialize>(app: &AppHandle, event_type: &str, payload: &T) {
@@ -444,5 +444,27 @@ mod tests {
             "cloud-sync-status"
         );
         assert!(reconnected.try_recv().is_err());
+    }
+
+    #[test]
+    fn reconnect_replays_pending_progress_and_its_acknowledgement() {
+        let mut hub = HostEventHub::default();
+        hub.publish(HostEvent {
+            event_type: "remote-progress-pending".into(),
+            payload: serde_json::json!({ "notices": ["game"] }),
+        });
+        let mut reconnected = hub.subscribe(2);
+        assert_eq!(
+            reconnected.try_recv().unwrap().payload["notices"],
+            serde_json::json!(["game"])
+        );
+        hub.publish(HostEvent {
+            event_type: "remote-progress-pending".into(),
+            payload: serde_json::json!({ "notices": [] }),
+        });
+        assert_eq!(
+            hub.subscribe(2).try_recv().unwrap().payload["notices"],
+            serde_json::json!([])
+        );
     }
 }

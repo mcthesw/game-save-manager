@@ -677,8 +677,7 @@ pub async fn refresh_cloud_archive_library(
     app_handle: AppHandle,
 ) -> Result<CloudArchiveLibraryView, String> {
     run_cloud_operation(&app_handle, async {
-        svc(&app_handle)
-            .refresh_cloud_archive_library()
+        crate::remote_progress::refresh(&app_handle, &svc(&app_handle))
             .await
             .map_err(|error| error.to_string())
     })
