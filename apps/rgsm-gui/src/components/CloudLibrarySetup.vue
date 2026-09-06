@@ -4,6 +4,8 @@ import { commands, type CloudLibraryStatus } from '~/api/commands';
 import { $t } from '~/i18n';
 import { KButton } from '../ui/kit';
 import { connectSavedCloudLibrary } from '../composables/useCloudConnection';
+import { refreshCloudLibrary } from '../composables/useCloudLibrary';
+import { cloudLibraryNotice } from '../utils/cloudLibraryNotice';
 
 interface InspectOptions {
   createWhenEmpty?: boolean;
@@ -28,42 +30,13 @@ const inspectionFailed = ref(false);
 const recovering = ref(false);
 const feedback = useFeedback();
 
-const requiresAction = computed(
-  () =>
-    props.enabled &&
-    !props.dirty &&
-    !inspecting.value &&
-    !initializing.value &&
-    (inspectionFailed.value ||
-      status.value?.kind === 'empty' ||
-      status.value?.kind === 'rebuild_required' ||
-      status.value?.kind === 'reconnect_required')
+const notice = computed(() =>
+  cloudLibraryNotice(status.value, inspectionFailed.value, initializationFailed.value)
 );
+const busy = computed(() => inspecting.value || initializing.value || recovering.value);
+const requiresAction = computed(() => props.enabled && !props.dirty && notice.value !== null);
 
-watch(
-  () => initializing.value,
-  (busy) => emit('busy', busy),
-  { immediate: true }
-);
-
-const statusText = computed(() => {
-  if (inspectionFailed.value) return $t('sync_settings.library.inspect_failed');
-  const current = status.value;
-  if (!current) return '';
-  switch (current.kind) {
-    case 'join_required':
-    case 'cutover_required':
-    case 'active':
-      return '';
-    case 'reconnect_required':
-      return $t('sync_settings.library.reconnect_description');
-    case 'rebuild_required':
-      return $t('sync_settings.library.rebuild_description');
-    case 'empty':
-      return $t('sync_settings.library.create_failed');
-  }
-  return '';
-});
+watch(busy, (busy) => emit('busy', busy), { immediate: true });
 
 function updateStatus(value: CloudLibraryStatus | null) {
   status.value = value;
@@ -208,6 +181,7 @@ async function reconnect() {
       return;
     }
     notifySuccess($t('sync_settings.library.reconnect_success'));
+    await refreshCloudLibrary(true);
     updateStatus(result.data);
   } catch {
     // User cancelled the confirmation dialog.
@@ -216,50 +190,35 @@ async function reconnect() {
   }
 }
 
+function runAction() {
+  if (busy.value || !requiresAction.value) return;
+  switch (notice.value?.action) {
+    case 'inspect':
+      return inspect();
+    case 'create':
+      return create();
+    case 'rebuild':
+      return rebuild();
+    case 'reconnect':
+      return reconnect();
+  }
+}
+
 defineExpose({ inspect, create, rebuild, reconnect });
 </script>
 <template>
   <section
-    v-if="requiresAction"
+    v-if="requiresAction && notice"
     class="flex flex-wrap items-center justify-between gap-4 rounded-md border border-[color-mix(in_oklab,var(--warning)_38%,transparent)] bg-[color-mix(in_oklab,var(--warning)_10%,transparent)] px-5 py-4"
   >
     <div class="min-w-0">
       <p class="mb-1 text-xs font-bold tracking-wide text-warning">
         {{ $t('sync_settings.library.title') }}
       </p>
-      <p class="text-sm font-medium leading-relaxed text-text">{{ statusText }}</p>
+      <p class="text-sm font-medium leading-relaxed text-text">{{ $t(notice.messageKey) }}</p>
     </div>
-    <div class="flex shrink-0 gap-2">
-      <KButton v-if="inspectionFailed" variant="primary" size="sm" @click="inspect()">
-        {{ $t('sync_settings.library.inspect') }}
-      </KButton>
-      <KButton
-        v-if="status?.kind === 'rebuild_required'"
-        variant="default"
-        size="sm"
-        :loading="recovering"
-        @click="rebuild()"
-      >
-        {{ $t('sync_settings.library.rebuild') }}
-      </KButton>
-      <KButton
-        v-else-if="status?.kind === 'reconnect_required'"
-        variant="primary"
-        size="sm"
-        :loading="recovering"
-        @click="reconnect()"
-      >
-        {{ $t('sync_settings.library.reconnect') }}
-      </KButton>
-      <KButton
-        v-else-if="status?.kind === 'empty'"
-        variant="primary"
-        size="sm"
-        :loading="initializing"
-        @click="create()"
-      >
-        {{ $t('sync_settings.library.retry_create') }}
-      </KButton>
-    </div>
+    <KButton variant="primary" size="sm" :loading="busy" @click="runAction">
+      {{ $t(notice.actionKey) }}
+    </KButton>
   </section>
 </template>

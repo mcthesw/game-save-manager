@@ -22,6 +22,7 @@ import { useSnapshotTransfers } from '../../components/management/useSnapshotTra
 import { $t } from '../../i18n';
 import { error, info } from '../../utils/logger';
 import {
+  Cloud,
   Copy,
   Download,
   Ellipsis,
@@ -1353,8 +1354,21 @@ const viewModeOptions = computed(() => [
     <!-- Page Header -->
     <div class="flex shrink-0 items-center justify-between gap-3">
       <div class="min-w-0 flex-1">
-        <h2 class="truncate text-lg font-semibold text-text">{{ game.name }}</h2>
-        <KTag v-if="cloudGame" class="mt-1">{{ syncParticipationLabel }}</KTag>
+        <div class="flex items-center gap-2">
+          <span class="flex h-5 w-5 shrink-0 items-center justify-center text-text-dim">
+            <KTooltip v-if="cloudGame" :content="syncParticipationLabel">
+              <span
+                role="img"
+                :aria-label="syncParticipationLabel"
+                tabindex="0"
+                class="inline-flex"
+              >
+                <Cloud :size="17" aria-hidden="true" />
+              </span>
+            </KTooltip>
+          </span>
+          <h2 class="truncate text-lg font-semibold text-text">{{ game.name }}</h2>
+        </div>
         <button
           v-if="definitionConflict"
           class="mt-1 block border-none bg-transparent p-0 text-xs text-warning"

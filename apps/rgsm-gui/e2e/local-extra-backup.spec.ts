@@ -24,6 +24,7 @@ test('extra backups: created on apply, undo restores content and head, retention
   const session = await startLocalSession(browser, { runRoot, device, label: 'local-extra' });
   const { page, host } = session;
   let failed = false;
+  let releaseResponse = () => {};
   try {
     const firstId = await createSnapshotForGame(host, GAME_NAME, 'first');
     await writeSaveText(device.savePath, 'v2\n');
@@ -61,12 +62,27 @@ test('extra backups: created on apply, undo restores content and head, retention
     await page.getByRole('menuitem', { name: 'Extra backups' }).click();
     const drawer = page.getByRole('dialog', { name: 'Extra backups' });
     await expect(drawer).toBeVisible();
-    await drawer.getByRole('button', { name: 'Apply' }).first().click();
+
+    // Files can already be restored while the frontend is still awaiting the response.
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    await page.route('**/api/v1/restore-extra-backup', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      await responseGate;
+      await route.fulfill({ response });
+    });
+    const restore = drawer.getByRole('button', { name: 'Apply' }).first();
+    await restore.click();
     await expect
       .poll(async () => readFile(device.savePath, 'utf8'), { timeout: 30_000 })
       .toBe('v3-unsaved\n');
     expect((await listSnapshotsFor(host, GAME_NAME)).length).toBe(2);
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, secondId);
+    await expect(restore).toBeDisabled();
+    releaseResponse();
+    await expect(restore).toBeEnabled();
     await page.keyboard.press('Escape');
     await expect(drawer).toBeHidden({ timeout: 10_000 });
 
@@ -100,6 +116,7 @@ test('extra backups: created on apply, undo restores content and head, retention
     failed = true;
     throw error;
   } finally {
+    releaseResponse();
     await session.close(failed);
   }
 });

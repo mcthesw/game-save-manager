@@ -486,7 +486,9 @@ onMounted(async () => {
       <div class="min-w-0 max-w-[820px] flex-1 pb-16">
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="flex flex-col gap-4">
-          <CloudSyncOverview v-if="v2LibraryActive" />
+          <CloudSyncOverview
+            v-if="v2LibraryActive && (!cloudLibraryStatus || cloudLibraryStatus.kind === 'active')"
+          />
           <template v-else>
             <CloudLibraryUpgradeCard
               v-if="cutoverRequired && cloudLibraryStatus?.kind === 'cutover_required'"
@@ -517,20 +519,12 @@ onMounted(async () => {
               @action="joiningLibrary = true"
             />
             <CloudLibraryUpgradeCard
-              v-else-if="cloudLibraryStatus?.kind === 'empty'"
-              :kicker="$t('sync_settings.library.title')"
-              :title="$t('sync_settings.library.empty')"
-              :hint="$t('sync_settings.library.description')"
-              :action="$t('sync_settings.library.create')"
-              @action="void cloudLibrarySetup?.create()"
-            />
-            <CloudLibraryUpgradeCard
-              v-else
+              v-else-if="!savedBackendEnabled"
               :kicker="$t('sync_settings.library.title')"
               :title="$t('sync_settings.library.not_checked')"
               :hint="$t('sync_settings.library.description')"
-              :action="$t('sync_settings.library.inspect')"
-              @action="void cloudLibrarySetup?.inspect()"
+              :action="$t('sync_settings.console.connection_tab')"
+              @action="activeTab = 'backend'"
             />
           </template>
         </div>

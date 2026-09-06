@@ -18,6 +18,7 @@ import {
   enableMode,
   downloadSnapshot,
   openGame,
+  openSyncSettings,
   reconnectCloudLibrary,
   removeLibraryDevice,
 } from './support/gui';
@@ -26,7 +27,7 @@ import { startDualSession } from './support/session';
 
 test('a removed device reconnects only after confirmation and keeps existing backups', async ({
   browser,
-}) => {
+}, testInfo) => {
   const runRoot = await createRunRoot('remove-device');
   const seeded = await seedEmptyCloudWithLocalGame(runRoot);
   const session = await startDualSession(browser, { ...seeded, runRoot, label: 'remove-device' });
@@ -48,7 +49,19 @@ test('a removed device reconnects only after confirmation and keeps existing bac
     expect(existsSync(cloudArchivePath(seeded.cloudRoot, snapshotId))).toBe(true);
     expectDeviceHasNoHead(await readJson(cloudPaths(seeded.cloudRoot).manifest), DEVICE_B_ID);
 
+    await openSyncSettings(session.pageB);
+    await expect(
+      session.pageB.getByRole('button', { name: 'Reconnect this device' })
+    ).toBeVisible();
+    await expect(
+      session.pageB.getByText('Could not refresh cloud data, showing the last known information')
+    ).toHaveCount(0, { timeout: 5000 });
+    await expect(
+      session.pageB.getByRole('button', { name: 'Download all to this device' })
+    ).toHaveCount(0);
+    await session.pageB.screenshot({ path: testInfo.outputPath('acceptance-reconnect.png') });
     await reconnectCloudLibrary(session.pageB);
+    await expect(session.pageB.getByRole('textbox', { name: 'Search games' })).toBeVisible();
     await expectDeviceProfiles(seeded.cloudRoot, [DEVICE_A_ID, DEVICE_B_ID]);
     expect(await readFile(cloudArchivePath(seeded.cloudRoot, snapshotId))).toEqual(archive);
     expect(await readFile(localArchivePath(seeded.deviceA.appDataDir, snapshotId))).toEqual(
