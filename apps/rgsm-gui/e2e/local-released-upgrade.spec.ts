@@ -12,7 +12,6 @@ import {
   newDeviceContext,
   removeRunRoot,
   startRgsmHost,
-  startTestWeb,
   type RgsmHost,
 } from './support/rgsm-instance';
 
@@ -22,7 +21,6 @@ for (const version of ['1.7.0', '1.8.0'] as const) {
   }) => {
     const runRoot = await createRunRoot(`released-${version}`);
     const scene = await seedReleasedUpgrade(runRoot, version);
-    const web = await startTestWeb();
     let host: RgsmHost | undefined;
     let context: BrowserContext | undefined;
     let failed = false;
@@ -104,7 +102,6 @@ for (const version of ['1.7.0', '1.8.0'] as const) {
     } finally {
       await context?.close();
       await host?.stop();
-      await web.stop();
       if (!failed) await removeRunRoot(runRoot);
     }
   });

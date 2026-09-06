@@ -11,11 +11,15 @@ pnpm web:test
 pnpm web:e2e local-main-path.spec.ts
 ```
 
-运行前请停止占用 5173 端口的开发服务器。E2E 使用临时配置和本地 Fs 云目录，不需要个人存档或云账号。默认的 `pnpm web:e2e` 只运行 browser 项目，通过真实 Rust HTTP API 验证业务，不打开桌面窗口。
+运行前请停止占用 5173 端口的开发服务器。端口被占用时，测试会报错，不会接管或关闭原有进程。E2E 使用临时配置和本地 Fs 云目录，不需要个人存档或云账号。默认的 `pnpm web:e2e` 只运行 browser 项目，通过真实 Rust HTTP API 验证业务，不打开桌面窗口，也不注册托盘或全局快捷键。配置迁移本身不发送系统通知，升级提示由正常桌面启动负责，HTTP-only 宿主保持静默。
 
 实际窗口生命周期测试单独使用 `pnpm web:e2e:desktop`，会启动和关闭隔离配置的桌面窗口，请在允许弹窗时运行。Windows CI 使用 Playwright 的完整项目集合，仍包含此桌面覆盖。
 
 每次 E2E 的 global setup 都让 Cargo 检查代码是否需要重编译，构建一次宿主和校验工具，所有 worker 复用本轮产物，不复用未经检查的旧二进制。本地编译默认最多两个 Cargo jobs，Playwright 保持单 worker；显式设置的 `CARGO_BUILD_JOBS` 和 CI runner 默认并发不变。
+
+Vite 由整轮测试持有，worker 重启或重复运行场景时不重新启动，结束时统一关闭。各场景负责关闭自己的宿主和浏览器上下文，部分启动失败也会清理已经启动的资源。HTTP 启动探测和操作请求有超时，失败场景保留临时目录及宿主日志。
+
+Linux 还需要 `xvfb-run` 和 `dbus-run-session`，CI 已安装相应依赖。每个宿主使用独立的临时 D-Bus 会话，退出时清理该宿主的进程组，不共享桌面会话。
 
 需要定位耗时时，启用分阶段日志，区分构建、Vite、HTTP host 和页面加载：
 

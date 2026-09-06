@@ -24,7 +24,7 @@ use tray::setup_tray;
 
 use rgsm_core::config::get_config;
 
-pub fn setup(app: &mut tauri::App) -> anyhow::Result<()> {
+pub fn setup(app: &mut tauri::App, desktop_enabled: bool) -> anyhow::Result<()> {
     let manager = QuickActionManager::new(app.handle());
     app.manage(manager);
 
@@ -36,8 +36,10 @@ pub fn setup(app: &mut tauri::App) -> anyhow::Result<()> {
     process_monitor.sync_from_config();
     app.manage(process_monitor);
 
-    let config = get_config()?;
-    setup_tray(app)?;
-    setup_hotkeys(&config, app)?;
+    if desktop_enabled {
+        let config = get_config()?;
+        setup_tray(app)?;
+        setup_hotkeys(&config, app)?;
+    }
     Ok(())
 }

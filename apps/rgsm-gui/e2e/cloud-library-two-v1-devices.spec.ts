@@ -48,14 +48,12 @@ import {
   newDeviceContext,
   removeRunRoot,
   startRgsmHost,
-  startTestWeb,
   type RgsmHost,
 } from './support/rgsm-instance';
 
 test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ browser }) => {
   const runRoot = await createRunRoot('two-devices');
   const seeded = await seedLegacyV1Scene(runRoot);
-  const vite = await startTestWeb();
   const v1Bytes = {
     config: seeded.v1ConfigBytes,
     backups: seeded.v1BackupsBytes,
@@ -264,7 +262,6 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     await contextB?.close();
     await hostA?.stop();
     await hostB?.stop();
-    await vite.stop();
     if (!failed) {
       await removeRunRoot(runRoot);
     }

@@ -3,11 +3,11 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { seedLocalConfig } from './support/local-fixture';
+import { waitForCdpPage } from './support/cdp-page';
 import {
   createRunRoot,
   removeRunRoot,
   rgsmBinaryPath,
-  startTestWeb,
   stopProcessTree,
   workspacePath,
 } from './support/rgsm-instance';
@@ -73,7 +73,9 @@ async function connectDesktop(
           );
         }
         try {
-          const response = await fetch(`${endpoint}/json/list`);
+          const response = await fetch(`${endpoint}/json/list`, {
+            signal: AbortSignal.timeout(1_000),
+          });
           if (!response.ok) return false;
           const targets = (await response.json()) as Array<{ url: string }>;
           return targets.some((target) => target.url === 'http://localhost:5173/');
@@ -86,15 +88,13 @@ async function connectDesktop(
     .toBe(true);
 
   const browser = await chromium.connectOverCDP(endpoint);
-  const page = browser
-    .contexts()
-    .flatMap((context) => context.pages())
-    .find((candidate) => candidate.url() === 'http://localhost:5173/');
-  if (!page) {
-    await browser.close();
-    throw new Error('Desktop WebView page was not available after CDP connected');
+  try {
+    const page = await waitForCdpPage(browser, 'http://localhost:5173/');
+    return { browser, page };
+  } catch (error) {
+    await browser.close().catch(() => undefined);
+    throw error;
   }
-  return { browser, page };
 }
 
 async function closeDesktopWindow(browser: Browser, process: DesktopProcess): Promise<void> {
@@ -108,7 +108,7 @@ async function closeDesktopWindow(browser: Browser, process: DesktopProcess): Pr
       '-Command',
       `$process = Get-Process -Id ${pid}; if (-not $process.CloseMainWindow()) { exit 1 }`,
     ],
-    { stdio: 'pipe', encoding: 'utf8' }
+    { stdio: 'pipe', encoding: 'utf8', windowsHide: true }
   );
   if (close.status !== 0) {
     throw new Error(`Could not close desktop window: ${close.stderr || close.stdout}`);
@@ -128,7 +128,6 @@ async function readBuildInfo(page: Page): Promise<{ version: string; git_hash: s
 test('desktop recreates a destroyed window with live runtime credentials', async () => {
   const runRoot = await createRunRoot('desktop-window-lifecycle');
   const deviceId = `desktop-window-${process.pid}`;
-  const vite = await startTestWeb();
   let failed = false;
   let primary: DesktopProcess | undefined;
   let second: DesktopProcess | undefined;
@@ -172,7 +171,6 @@ test('desktop recreates a destroyed window with live runtime credentials', async
     stopProcessTree(second?.child);
     stopProcessTree(primary?.child);
     stopProcessTree(exitDisabled?.child);
-    await vite.stop();
     if (!failed) await removeRunRoot(runRoot);
   }
 });

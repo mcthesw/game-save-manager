@@ -227,7 +227,7 @@ impl QuickActionWorker {
             state.current_game = Some(game.clone());
         }
 
-        self.set_tray_title(&current_game_label(Some(&game)))?;
+        self.refresh_tray_title(&current_game_label(Some(&game)));
 
         self.refresh_tray_game_label();
         Ok(())
@@ -243,23 +243,21 @@ impl QuickActionWorker {
             state.current_game = current_game;
         }
 
-        if let Err(err) = self.set_tray_title(&label) {
+        self.refresh_tray_title(&label);
+        self.refresh_tray_game_label();
+        Ok(())
+    }
+
+    fn refresh_tray_title(&self, label: &str) {
+        // HTTP-only hosts have no tray; selection and persistence remain available.
+        if let Some(tray) = self.manager.app_handle().tray_by_id("tray_icon")
+            && let Err(err) = tray.set_title(Some(label))
+        {
             warn!(
                 target: "rgsm::quick_action::manager",
                 "Failed to refresh quick action tray title: {err:?}"
             );
         }
-        self.refresh_tray_game_label();
-        Ok(())
-    }
-
-    fn set_tray_title(&self, label: &str) -> anyhow::Result<()> {
-        self.manager
-            .app_handle()
-            .tray_by_id("tray_icon")
-            .ok_or_else(|| anyhow::anyhow!("Cannot get tray"))?
-            .set_title(Some(label))?;
-        Ok(())
     }
 
     fn refresh_tray_game_label(&self) {

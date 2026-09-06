@@ -95,7 +95,13 @@ pub fn run() -> anyhow::Result<()> {
     configure_development_data_dir()?;
 
     info!("{}", t!("home.hello_world"));
-    config_check()?;
+    let config_outcome = config_check()?;
+    if should_notify_config_update(http_host_only, config_outcome.config_migrated) {
+        rgsm_core::preclude::show_notification(
+            t!("backend.config.updating_config_title"),
+            t!("backend.config.updating_config_body"),
+        );
+    }
 
     // 将 panic 信息记录到日志中
     std::panic::set_hook(Box::new(|panic_info| {
@@ -138,47 +144,47 @@ pub fn run() -> anyhow::Result<()> {
     // Dual Host E2E starts two HTTP-only processes. The desktop single-instance
     // lock would silently exit the second process before it can bind.
     if !http_host_only {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // Windows delivers this callback inside the synchronous WM_COPYDATA
-            // request sent by the second process. Defer WebView construction until
-            // the callback returns so the sender can complete and release its lock.
-            main_window::defer_show_main_window(app);
-        }));
+        builder = builder
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                // Windows delivers this callback inside the synchronous WM_COPYDATA
+                // request sent by the second process. Defer WebView construction until
+                // the callback returns so the sender can complete and release its lock.
+                main_window::defer_show_main_window(app);
+            }));
     }
-    let app = builder
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .setup(move |app| {
-            let http_host = tauri::async_runtime::block_on(http::start(app.handle().clone()))?;
-            info!(
-                target: "rgsm::http",
-                "HTTP Host listening on {}",
-                http_host.base_url
-            );
-            if !http_host_only {
-                main_window::show_main_window(app.handle())?;
-            }
-            let emitter = std::sync::Arc::new(TauriSyncEmitter {
-                app: app.handle().clone(),
-            });
-            let cloud_sync_manager = rgsm_core::cloud_sync::CloudSyncTaskManager::new(emitter);
-            let cloud_sync_worker = cloud_sync_manager.clone();
-            tauri::async_runtime::spawn(async move {
-                cloud_sync_worker.run().await;
-            });
-            let config = get_config().expect("Failed to load config while building hooks");
-            let cloud_operation_state = cloud_operation::CloudOperationState::default();
-            app.manage(cloud_operation_state.clone());
-            let pipeline = hooks::build_builtin_pipeline(app.handle(), &config);
-            app.manage(hooks::HookPipelineState::new(pipeline));
-
-            app.manage(cloud_sync_manager);
-            snapshot_sync::setup(app.handle().clone(), cloud_operation_state);
-
-            sound::setup(app).expect("Cannot setup sound manager");
-            // 处理快捷备份，包括托盘、定时、快捷键
-            quick_actions::setup(app).expect("Cannot setup quick actions");
-            Ok(())
+    let app = builder.setup(move |app| {
+        let http_host = tauri::async_runtime::block_on(http::start(app.handle().clone()))?;
+        info!(
+            target: "rgsm::http",
+            "HTTP Host listening on {}",
+            http_host.base_url
+        );
+        if !http_host_only {
+            main_window::show_main_window(app.handle())?;
+        }
+        let emitter = std::sync::Arc::new(TauriSyncEmitter {
+            app: app.handle().clone(),
         });
+        let cloud_sync_manager = rgsm_core::cloud_sync::CloudSyncTaskManager::new(emitter);
+        let cloud_sync_worker = cloud_sync_manager.clone();
+        tauri::async_runtime::spawn(async move {
+            cloud_sync_worker.run().await;
+        });
+        let config = get_config().expect("Failed to load config while building hooks");
+        let cloud_operation_state = cloud_operation::CloudOperationState::default();
+        app.manage(cloud_operation_state.clone());
+        let pipeline = hooks::build_builtin_pipeline(app.handle(), &config);
+        app.manage(hooks::HookPipelineState::new(pipeline));
+
+        app.manage(cloud_sync_manager);
+        snapshot_sync::setup(app.handle().clone(), cloud_operation_state);
+
+        sound::setup(app).expect("Cannot setup sound manager");
+        // 处理快捷备份，包括托盘、定时、快捷键
+        quick_actions::setup(app, !http_host_only).expect("Cannot setup quick actions");
+        Ok(())
+    });
 
     // 处理退出到托盘（关闭窗口不退出）
     let config = get_config()?;
@@ -218,6 +224,10 @@ fn should_prevent_exit(http_host_only: bool, exit_to_tray: bool, code: Option<i3
     code.is_none() && (http_host_only || exit_to_tray)
 }
 
+fn should_notify_config_update(http_host_only: bool, config_migrated: bool) -> bool {
+    !http_host_only && config_migrated
+}
+
 #[cfg(debug_assertions)]
 fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
     rgsm_core::cloud_sync::v2::validate_e2e_cutover_interrupt_env()
@@ -232,7 +242,15 @@ fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod lifecycle_tests {
-    use super::should_prevent_exit;
+    use super::{should_notify_config_update, should_prevent_exit};
+
+    #[test]
+    fn configuration_update_notice_is_owned_by_desktop_startup() {
+        assert!(should_notify_config_update(false, true));
+        assert!(!should_notify_config_update(false, false));
+        assert!(!should_notify_config_update(true, true));
+        assert!(!should_notify_config_update(true, false));
+    }
 
     #[test]
     fn windowless_http_host_stays_alive_until_explicitly_stopped() {

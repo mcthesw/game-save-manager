@@ -1,21 +1,18 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createWriteStream, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { VITE_ORIGIN, VITE_PORT } from './constants';
+import { setTimeout as delay } from 'node:timers/promises';
+import { finished } from 'node:stream/promises';
+import { hostCommand, spawnTestProcess } from './process';
 import { buildEnvironment, prepareBuild, preparedBinary } from './build-state';
 import { reportTiming } from './timing';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const workspaceRoot = resolve(appRoot, '../..');
-
-export type TestWeb = {
-  origin: string;
-  stop: () => Promise<void>;
-};
 
 export type RgsmHost = {
   apiBaseUrl: string;
@@ -39,17 +36,6 @@ type HostFile = {
   port: number;
   api_token: string;
 };
-
-type SharedVite = {
-  child: ChildProcess | undefined;
-  users: number;
-};
-
-let sharedVite: SharedVite | undefined;
-
-// The Playwright worker owns the Vite child, but global teardown runs in a
-// separate process, so the child PID is recorded here for cross-process cleanup.
-const viteMarkerPath = join(tmpdir(), 'rgsm-gui-e2e-vite.json');
 
 export function workspacePath(...parts: string[]): string {
   return resolve(workspaceRoot, ...parts);
@@ -136,155 +122,6 @@ export function stopProcessTree(child: ChildProcess | undefined): void {
   child.kill('SIGTERM');
 }
 
-async function waitForHttpOk(url: string, timeoutMs: number, label: string): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  let lastError: unknown;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-      lastError = new Error(`${label} returned HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-    await delay(250);
-  }
-  throw new Error(`Timed out waiting for ${label}: ${String(lastError)}`);
-}
-
-function delay(ms: number): Promise<void> {
-  const { promise, resolve } = Promise.withResolvers<void>();
-  setTimeout(resolve, ms);
-  return promise;
-}
-
-export async function startTestWeb(): Promise<TestWeb> {
-  const startedAt = performance.now();
-  if (sharedVite) {
-    sharedVite.users += 1;
-    return {
-      origin: VITE_ORIGIN,
-      stop: async () => {
-        await releaseTestWeb();
-      },
-    };
-  }
-
-  try {
-    const response = await fetch(`${VITE_ORIGIN}/`);
-    if (response.ok) {
-      // A marker means the listener is a stale orphan from a crashed run; it
-      // can die mid-test when its dead parent's stdio closes. Replace it.
-      let stalePid: number | undefined;
-      try {
-        const marker = JSON.parse(await readFile(viteMarkerPath, 'utf8')) as { pid?: number };
-        stalePid = marker.pid;
-      } catch {
-        // No marker: a foreign dev server owns the port; adopt it.
-      }
-      if (stalePid !== undefined) {
-        stopPidTree(stalePid);
-        await rm(viteMarkerPath, { force: true });
-        await waitForPortFree(10_000);
-      } else {
-        sharedVite = { child: undefined, users: 1 };
-        return {
-          origin: VITE_ORIGIN,
-          stop: async () => {
-            await releaseTestWeb();
-          },
-        };
-      }
-    }
-  } catch {
-    // No leftover Vite on the shared port.
-  }
-
-  // Spawn Vite's node binary directly (no cmd/pnpm wrappers): the recorded PID
-  // is then the port owner itself, so teardown can kill it reliably.
-  const child = spawn(process.execPath, [join(appRoot, 'node_modules', 'vite', 'bin', 'vite.js')], {
-    cwd: appRoot,
-    env: { ...process.env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
-  child.stdout?.on('data', (chunk) => {
-    process.stdout.write(`[vite] ${chunk}`);
-  });
-  child.stderr?.on('data', (chunk) => {
-    process.stderr.write(`[vite] ${chunk}`);
-  });
-  child.once('exit', (code) => {
-    if (sharedVite?.child === child) sharedVite = undefined;
-    if (code && code !== 0) {
-      process.stderr.write(`Vite exited with code ${code}\n`);
-    }
-  });
-  try {
-    await waitForHttpOk(`${VITE_ORIGIN}/`, 60_000, `Vite on port ${VITE_PORT}`);
-  } catch (error) {
-    stopProcessTree(child);
-    throw error;
-  }
-  await writeFile(viteMarkerPath, JSON.stringify({ pid: child.pid }), 'utf8');
-  sharedVite = { child, users: 1 };
-  reportTiming('Vite ready', startedAt);
-  return {
-    origin: VITE_ORIGIN,
-    stop: async () => {
-      await releaseTestWeb();
-    },
-  };
-}
-
-async function releaseTestWeb(): Promise<void> {
-  if (!sharedVite) return;
-  sharedVite.users = Math.max(0, sharedVite.users - 1);
-}
-
-async function waitForPortFree(timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      await fetch(`${VITE_ORIGIN}/`);
-    } catch {
-      return;
-    }
-    await delay(250);
-  }
-}
-
-function stopPidTree(pid: number): void {
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], {
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    return;
-  }
-  try {
-    process.kill(pid, 'SIGTERM');
-  } catch {
-    // Already gone.
-  }
-}
-
-export async function stopSharedTestWeb(): Promise<void> {
-  const child = sharedVite?.child;
-  sharedVite = undefined;
-  stopProcessTree(child);
-  try {
-    const marker = JSON.parse(await readFile(viteMarkerPath, 'utf8')) as { pid?: number };
-    if (marker.pid !== undefined && marker.pid !== child?.pid) {
-      stopPidTree(marker.pid);
-    }
-  } catch {
-    // No marker: nothing this suite spawned is still alive.
-  }
-  await rm(viteMarkerPath, { force: true });
-  await waitForPortFree(10_000);
-}
-
 async function readLogTail(logPath: string): Promise<string> {
   try {
     const content = await readFile(logPath, 'utf8');
@@ -314,74 +151,75 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
     else env[key] = value;
   }
 
-  const child = spawn(binary, [], {
-    cwd: workspaceRoot,
-    env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
-  // Keep the last bytes of host output in memory: the piped log file is not
-  // reliably flushed when the process dies instantly (e.g. startup panic).
+  const command = hostCommand(binary, process.platform);
+  const owned = spawnTestProcess(command.command, command.args, { cwd: workspaceRoot, env });
+  const { child } = owned;
   let outputTail = '';
   const capture = (chunk: Buffer) => {
-    outputTail = (outputTail + chunk.toString('utf8')).slice(-16384);
+    outputTail = (outputTail + chunk.toString('utf8')).slice(-16_384);
   };
-  child.stdout?.on('data', capture);
-  child.stderr?.on('data', capture);
-  child.stdout?.pipe(log);
-  child.stderr?.pipe(log);
+  child.stdout.on('data', capture);
+  child.stderr.on('data', capture);
+  child.stdout.pipe(log, { end: false });
+  child.stderr.pipe(log, { end: false });
+  let stopping: Promise<void> | undefined;
+  const stop = () =>
+    (stopping ??= (async () => {
+      try {
+        await owned.stop();
+      } finally {
+        log.end();
+        await finished(log);
+      }
+    })());
 
-  const hostConfigPath = join(options.appDataDir, 'GameSaveManager.host.json');
-  const timeoutMs = options.readyTimeoutMs ?? 60_000;
-  const deadline = Date.now() + timeoutMs;
-  let config: HostFile | undefined;
-  let lastError: unknown;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      const tail = outputTail.trim() || (await readLogTail(options.logPath));
+  try {
+    const hostConfigPath = join(options.appDataDir, 'GameSaveManager.host.json');
+    const deadline = Date.now() + (options.readyTimeoutMs ?? 60_000);
+    let config: HostFile | undefined;
+    let lastError: unknown;
+    while (Date.now() < deadline) {
+      const failure = owned.failure();
+      if (failure) {
+        const tail = outputTail.trim() || (await readLogTail(options.logPath));
+        throw new Error(`RGSM Host for ${options.deviceId} failed: ${failure.message}.\n${tail}`);
+      }
+      try {
+        config = JSON.parse(await readFile(hostConfigPath, 'utf8')) as HostFile;
+        const response = await fetch(`http://127.0.0.1:${config.port}/api/v1/get-build-info`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${config.api_token}` },
+          signal: AbortSignal.timeout(Math.max(1, Math.min(1_000, deadline - Date.now()))),
+        });
+        await response.body?.cancel();
+        if (response.ok) break;
+        lastError = new Error(`get-build-info returned HTTP ${response.status}`);
+        config = undefined;
+      } catch (error) {
+        lastError = error;
+        config = undefined;
+      }
+      await delay(Math.max(0, Math.min(250, deadline - Date.now())));
+    }
+    if (!config) {
       throw new Error(
-        `RGSM Host for ${options.deviceId} exited with code ${child.exitCode}. Host output tail:\n${tail}`
+        `Timed out waiting for RGSM Host ${options.deviceId}: ${String(lastError)}. See ${options.logPath}`
       );
     }
-    try {
-      config = JSON.parse(await readFile(hostConfigPath, 'utf8')) as HostFile;
-      const response = await fetch(`http://127.0.0.1:${config.port}/api/v1/get-build-info`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${config.api_token}` },
-      });
-      if (response.ok) break;
-      lastError = new Error(`get-build-info returned HTTP ${response.status}`);
-      config = undefined;
-    } catch (error) {
-      lastError = error;
-      config = undefined;
-    }
-    await delay(250);
+    reportTiming(`HTTP host ready (${options.deviceId})`, startedAt);
+    return {
+      apiBaseUrl: `http://127.0.0.1:${config.port}`,
+      token: config.api_token,
+      port: config.port,
+      appDataDir: options.appDataDir,
+      deviceId: options.deviceId,
+      logPath: options.logPath,
+      stop,
+    };
+  } catch (error) {
+    await stop();
+    throw error;
   }
-  if (!config) {
-    stopProcessTree(child);
-    throw new Error(
-      `Timed out waiting for RGSM Host ${options.deviceId}: ${String(lastError)}. See ${options.logPath}`
-    );
-  }
-
-  let stopped = false;
-  reportTiming(`HTTP host ready (${options.deviceId})`, startedAt);
-  return {
-    apiBaseUrl: `http://127.0.0.1:${config.port}`,
-    token: config.api_token,
-    port: config.port,
-    appDataDir: options.appDataDir,
-    deviceId: options.deviceId,
-    logPath: options.logPath,
-    stop: async () => {
-      if (stopped) return;
-      stopped = true;
-      stopProcessTree(child);
-      await delay(200);
-      log.end();
-    },
-  };
 }
 
 export async function newDeviceContext(
@@ -389,14 +227,19 @@ export async function newDeviceContext(
   host: RgsmHost
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext();
-  await context.addInitScript(
-    ({ apiBaseUrl, token }) => {
-      window.__RGSM_RUNTIME__ = { apiBaseUrl, token };
-    },
-    { apiBaseUrl: host.apiBaseUrl, token: host.token }
-  );
-  const page = await context.newPage();
-  return { context, page };
+  try {
+    await context.addInitScript(
+      ({ apiBaseUrl, token }) => {
+        window.__RGSM_RUNTIME__ = { apiBaseUrl, token };
+      },
+      { apiBaseUrl: host.apiBaseUrl, token: host.token }
+    );
+    const page = await context.newPage();
+    return { context, page };
+  } catch (error) {
+    await context.close();
+    throw error;
+  }
 }
 
 export async function hostPost<T>(
@@ -411,6 +254,7 @@ export async function hostPost<T>(
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
   const raw = await response.text();
   let data = undefined as T;
