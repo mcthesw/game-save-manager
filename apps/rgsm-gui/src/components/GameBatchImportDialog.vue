@@ -95,7 +95,12 @@
               :class="{ 'rotate-90': activeGames.includes(game.name) }"
               aria-hidden="true"
             />
-            <KCheckbox v-model="game.selected" :aria-label="game.name" @click.stop />
+            <KCheckbox
+              v-model="game.selected"
+              :aria-label="game.name"
+              @update:model-value="selectionRevision++"
+              @click.stop
+            />
             <span class="min-w-0 flex-1 truncate text-sm font-medium text-text">
               {{ game.name }}
             </span>
@@ -123,7 +128,11 @@
                   :key="pathIndex"
                   class="flex items-center gap-2"
                 >
-                  <KCheckbox v-model="path.selected" :aria-label="path.path" />
+                  <KCheckbox
+                    v-model="path.selected"
+                    :aria-label="path.path"
+                    @update:model-value="selectionRevision++"
+                  />
                   <KInput
                     v-model="path.path"
                     size="sm"
@@ -256,6 +265,7 @@ const isChecking = ref(false);
 const searchText = ref('');
 const onlySelected = ref(false);
 const autoCheckedOnce = ref(false);
+const selectionRevision = ref(0);
 
 // Store user ID selection (datalist: 候选补全 + 允许任意输入)
 const selectedStoreUserId = ref<string | null>(null);
@@ -308,6 +318,7 @@ function formatTimeAgo(epochSecs: number): string {
 watch(
   () => [props.games, props.gamePaths],
   () => {
+    selectionRevision.value = 0;
     gameConfigs.value = props.games.map((game) => {
       const paths = props.gamePaths[game.name] || [];
       return {
@@ -347,7 +358,7 @@ watch(
     if (!open || loading || loadingUserIds) return;
     if (autoCheckedOnce.value) return;
     autoCheckedOnce.value = true;
-    await checkAllPaths(true);
+    await checkAllPaths(selectionRevision.value === 0);
   },
   { immediate: true }
 );
@@ -403,7 +414,8 @@ function handleCancel() {
 
 function handleConfirm() {
   const selected = gameConfigs.value.filter((g) => g.selected);
-  emit('confirm', selected, selectedStoreUserId.value || null);
+  // The importer owns a fixed selection, independent of late checks or another editing session.
+  emit('confirm', JSON.parse(JSON.stringify(selected)), selectedStoreUserId.value || null);
   emit('update:modelValue', false);
 }
 
@@ -416,10 +428,17 @@ async function handleStoreUserIdChange() {
 
 async function checkAllPaths(applySelection: boolean = false) {
   if (gameConfigs.value.length === 0) return;
+  const checkedGames = gameConfigs.value;
+  const revision = selectionRevision.value;
+  const canSelect = () =>
+    applySelection &&
+    dialogVisible.value &&
+    checkedGames === gameConfigs.value &&
+    revision === selectionRevision.value;
 
   isChecking.value = true;
   try {
-    for (const game of gameConfigs.value) {
+    for (const game of checkedGames) {
       const paths = game.paths.map((pathItem) => pathItem.path);
       if (paths.length === 0) continue;
 
@@ -455,7 +474,7 @@ async function checkAllPaths(applySelection: boolean = false) {
       }
     }
 
-    if (applySelection) {
+    if (canSelect()) {
       applySelectionByCheck();
     }
   } catch (e) {
@@ -465,7 +484,7 @@ async function checkAllPaths(applySelection: boolean = false) {
         p.check = { error: msg };
       });
     });
-    if (applySelection) {
+    if (canSelect()) {
       selectAllSupported();
     }
   } finally {
@@ -474,6 +493,7 @@ async function checkAllPaths(applySelection: boolean = false) {
 }
 
 function selectAllSupported() {
+  selectionRevision.value++;
   gameConfigs.value.forEach((game) => {
     game.selected = true;
     game.paths.forEach((p) => {
@@ -497,6 +517,7 @@ function applySelectionByCheck() {
 }
 
 async function selectByCheck() {
+  selectionRevision.value++;
   const hasAnyCheck = gameConfigs.value.some((g) => g.paths.some((p) => p.check));
   if (!hasAnyCheck) {
     await checkAllPaths(true);
