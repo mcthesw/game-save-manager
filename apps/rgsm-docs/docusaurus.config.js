@@ -10,7 +10,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 const config = {
   title: '游戏存档管理器',
   tagline: '一个简单易用的开源存档管理工具，兼具云同步功能',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/rgsm.ico',
 
   // Set the production url of your site here
   url: 'https://help.sworld.club',
@@ -26,7 +26,7 @@ const config = {
   onBrokenLinks: 'throw',
   markdown: {
     hooks: {
-      onBrokenMarkdownLinks: 'warn',
+      onBrokenMarkdownLinks: 'throw',
     },
   },
 
@@ -65,12 +65,12 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/docusaurus-social-card.jpg',
+      image: 'img/guide/snapshots.png',
       navbar: {
         title: '存档管理器',
         logo: {
-          alt: 'My Site Logo',
-          src: 'img/logo.svg',
+          alt: '游戏存档管理器',
+          src: 'img/rgsm.png',
         },
         items: [
           {
@@ -128,8 +128,8 @@ const config = {
                 href: 'https://github.com/mcthesw/game-save-manager',
               },
               {
-                label: '主页源代码',
-                href: 'https://github.com/mcthesw/hello-gsm',
+                label: '文档源代码',
+                href: 'https://github.com/mcthesw/game-save-manager/tree/dev/apps/rgsm-docs',
               },
             ],
           },
