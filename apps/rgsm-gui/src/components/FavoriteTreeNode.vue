@@ -15,6 +15,7 @@ const ctx = inject(FAVORITE_TREE_CTX)!;
 const { editMode } = ctx;
 
 const isOpen = computed(() => ctx.searching.value || ctx.expandedIds.value.has(props.node.node_id));
+const isActive = computed(() => ctx.isActiveLeaf(props.node));
 const dropClass = computed(() => {
   const target = ctx.dropTarget.value;
   return target && target.id === props.node.node_id ? `drop-${target.pos}` : '';
@@ -24,7 +25,9 @@ const dropClass = computed(() => {
 <template>
   <div
     class="fav-row"
-    :class="[node.is_leaf ? 'leaf' : 'folder', dropClass]"
+    :class="[node.is_leaf ? 'leaf' : 'folder', dropClass, { active: isActive }]"
+    :aria-current="isActive ? 'page' : undefined"
+    :title="node.label"
     :style="{ paddingLeft: `${8 + depth * 16}px` }"
     :draggable="editMode"
     @click="node.is_leaf ? ctx.clickLeaf(node) : ctx.toggleExpand(node.node_id)"
@@ -80,6 +83,11 @@ const dropClass = computed(() => {
 
 .fav-row:hover {
   background-color: var(--surface-2);
+}
+
+.fav-row.active {
+  background-color: var(--surface-2);
+  font-weight: 600;
 }
 
 .fav-chevron {

@@ -53,6 +53,7 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
     await expect(firstRow).not.toContainText(firstId);
     expect((await snapshotMeta(device.appDataDir, firstId)).describe).toBe('');
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, firstId);
+    await expect(firstRow).toHaveAttribute('aria-current', 'true');
     await expect(firstRow.getByText('This device', { exact: true })).toBeVisible();
 
     // Second snapshot with a description, over newer save content.
@@ -95,6 +96,13 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
       .poll(async () => readFile(device.savePath, 'utf8'), { timeout: 30_000 })
       .toBe(CONTENT_V1);
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, firstId);
+
+    await expect(firstRow).toHaveAttribute('aria-current', 'true');
+    await expect(snapshotRow(page, secondId)).not.toHaveAttribute('aria-current', 'true');
+    await firstRow.getByRole('checkbox').check();
+    await expect(firstRow).toHaveAttribute('aria-current', 'true');
+    await page.screenshot({ path: test.info().outputPath('current-snapshot.png') });
+    await firstRow.getByRole('checkbox').uncheck();
 
     // "Don't ask again" only disables the snapshot-entry confirmation; the
     // Apply latest entry keeps its own setting.

@@ -38,6 +38,7 @@ const props = defineProps<{
   localCatalogDates: Set<string>;
   retentionProtectedDates: Set<string>;
   activeTransfer: string;
+  currentHead?: string | null;
   deleteLabel?: string;
   devices?: Record<string, { name: string }>;
 }>();
@@ -173,9 +174,17 @@ const locationLabel = (date: string) =>
           v-for="snapshot in rows"
           :key="snapshot.date"
           :data-snapshot-id="snapshot.date"
+          :aria-current="snapshot.date === currentHead ? 'true' : undefined"
+          :title="snapshot.date === currentHead ? $t('manage.current_position') : undefined"
           role="row"
           class="grid h-11 items-center gap-2 border-b border-border px-3 transition-colors hover:bg-surface-2/60"
-          :class="[GRID_COLS, { 'bg-surface-2/40': selectedDates.has(snapshot.date) }]"
+          :class="[
+            GRID_COLS,
+            {
+              'bg-surface-2/40': selectedDates.has(snapshot.date),
+              'current-position': snapshot.date === currentHead,
+            },
+          ]"
         >
           <div role="cell" class="flex items-center justify-center">
             <KCheckbox
@@ -373,3 +382,14 @@ const locationLabel = (date: string) =>
     </div>
   </div>
 </template>
+
+<style scoped>
+.current-position {
+  background-color: color-mix(in oklab, var(--accent) 8%, var(--surface));
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+.current-position:hover {
+  background-color: color-mix(in oklab, var(--accent) 12%, var(--surface));
+}
+</style>

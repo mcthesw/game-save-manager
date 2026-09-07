@@ -62,6 +62,13 @@ test('favorites: star persists to config, survives reload, unstar removes', asyn
       .poll(async () => readFavoriteLabels(device.appDataDir), { timeout: 15_000 })
       .toEqual([GAME_NAME]);
 
+    const favorite = page.locator('.fav-row.leaf').filter({ hasText: GAME_NAME });
+    await favorite.click();
+    await expect(favorite).toHaveAttribute('aria-current', 'page');
+    await page.screenshot({ path: test.info().outputPath('favorite-selection.png') });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(favorite).not.toHaveAttribute('aria-current', 'page');
+
     // Unstarring removes the leaf from the config file.
     await page.getByRole('tab', { name: 'All', exact: true }).click();
     await page
