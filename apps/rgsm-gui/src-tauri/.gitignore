@@ -13,9 +13,7 @@ save_data/
 /ludusavi_manifest.yaml
 /ludusavi_manifest.meta.json
 
-.vscode/*
-!.vscode/i18n-ally-custom-framework.yml
-!.vscode/launch.json
+.vscode/
 .idea/
 
 log/

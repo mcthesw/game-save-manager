@@ -17,10 +17,6 @@
     "web:lint:fix": "pnpm --dir apps/rgsm-gui web:lint:fix",
     "docs:dev": "pnpm --dir apps/rgsm-docs dev",
     "docs:build": "pnpm --dir apps/rgsm-docs build",
-    "portable": "pnpm --dir apps/rgsm-gui portable",
-    "prepare": "husky"
-  },
-  "devDependencies": {
-    "husky": "^9.1.7"
+    "portable": "pnpm --dir apps/rgsm-gui portable"
   }
 }

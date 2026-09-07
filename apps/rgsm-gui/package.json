@@ -53,7 +53,6 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "10.9.2",
     "fs-extra": "11.3.4",
-    "lint-staged": "^16.4.0",
     "prettier": "^3.8.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
@@ -62,14 +61,5 @@
     "unplugin-vue-components": "32.1.0",
     "vite": "8.2.2",
     "vue-tsc": "3.3.5"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx,vue}": [
-      "prettier --write",
-      "eslint --fix"
-    ],
-    "*.{json,md,css,scss,html,yaml,yml}": [
-      "prettier --write"
-    ]
   }
 }
