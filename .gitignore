@@ -38,9 +38,7 @@ GameSaveManager.config.json.backup.*
 !.env.example
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-!.vscode/i18n-ally-custom-framework.yml
+.vscode/
 .idea
 .DS_Store
 *.suo
