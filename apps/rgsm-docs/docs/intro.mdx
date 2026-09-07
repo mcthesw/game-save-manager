@@ -1,34 +1,39 @@
 ---
 sidebar_position: 1
+description: 下载游戏存档管理器，添加游戏并创建第一个存档点。
 ---
 
-# 快速了解
+import Screenshot from '@site/src/components/Screenshot';
+
+# 快速入门
+
+游戏存档管理器支持备份、恢复和云同步。本指南适用于 **1.9 系列**。
 
 ## 下载
-:::warning
-只有Windows系统下的存档管理器经过了测试，其他系统的版本可能存在未知的问题。
-:::
-:::warning
-如果你无法打开便携版，可能需要安装[Webview2](https://developer.microsoft.com/microsoft-edge/webview2/)，而安装版在检查到没有环境会联网下载
-:::
 
-- [蓝奏云](https://sworld.lanzouw.com/b01jsy96yd?pwd=g2oy) 密码:g2oy
-dev- [123云盘](https://www.123pan.com/s/xdcDjv-mq9l.html) (V1.8.0 文件夹)
-- [Github Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.8.0) 包含源码和其他操作系统的版本
+- [正式版](https://github.com/mcthesw/game-save-manager/releases/latest)：推荐日常使用，目前为 1.8。
+- [测试版](https://github.com/mcthesw/game-save-manager/releases/tag/latest)：提前体验正在开发的功能。
 
-## 一分钟快速介绍
-### 添加游戏
-:::tip
-自 V1.7.5 起，采用 V2 存档格式，不同存档单元中允许包含同名的文件或文件夹。
-:::
-进入添加游戏页面，依次输入对应的信息，点击右下角绿色的按钮即可添加游戏。
-![添加游戏](/img/intro/add_game.jpg)
+Windows 用户可选择安装版，或解压便携版后运行。便携版需要 [WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)。
 
-添加游戏后，点击存档管理，在这个界面你可以快捷地管理游戏存档
-![管理](/img/intro/manage.jpg)
+从旧版升级前，先阅读[升级到 1.9](./help/upgrade.mdx)。
 
-退出到托盘功能默认开启，你可以使用托盘图标进行管理（需要预先在管理页面点击“启用快捷备份”）
-![设置](/img/intro/exit_to_tray.jpg)
+## 添加游戏
 
-自动备份功能默认会产生提醒，你也可以在配置里关掉
-![托盘](/img/intro/tray.jpg)
+点击左侧的 **添加游戏**，填写游戏名称并选择存档位置，或使用 **自动识别本地游戏**。游戏启动文件选填。
+
+<Screenshot src="/img/guide/add-game.png" alt="添加游戏抽屉中的名称、启动位置与存档位置" caption="支持添加多个存档文件或文件夹" />
+
+## 保存一个进度点
+
+从左侧选择游戏，填写描述，点击 **创建新快照**。
+
+<Screenshot src="/img/guide/snapshots.png" alt="星露谷物语的存档列表及当前进度高亮" caption="当前存档点在列表中高亮" />
+
+## 恢复旧存档
+
+退出游戏后，点击存档右侧的 **应用**，或顶部的 **应用最新快照**。
+
+恢复前默认保留一份 **额外备份**，可用来找回覆盖前的存档。
+
+接下来可以设置[自动备份](./backups/automatic.mdx)、[快捷操作](./backups/shortcuts.md)，或连接[云同步](./extras/cloud.mdx)。

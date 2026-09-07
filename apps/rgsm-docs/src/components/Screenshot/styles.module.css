@@ -1,0 +1,30 @@
+.figure {
+  margin: 1.5rem 0 2rem;
+}
+
+.frame {
+  display: block;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 6%);
+}
+
+.frame:focus-visible {
+  outline: 3px solid var(--ifm-color-primary);
+  outline-offset: 4px;
+}
+
+.frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.figure figcaption {
+  margin-top: 0.6rem;
+  color: var(--ifm-color-emphasis-700);
+  text-align: center;
+  font-size: 0.8rem;
+}
