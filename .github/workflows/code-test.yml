@@ -53,8 +53,8 @@ jobs:
           node-version: 24
           cache: "pnpm"
 
-      - name: Run portable script tests
-        run: node --test scripts/portable.test.mjs
+      - name: Run repository script tests
+        run: node --test scripts/portable.test.mjs scripts/acceptance/acceptance.test.mjs
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile

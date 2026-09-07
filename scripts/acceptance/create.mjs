@@ -1,0 +1,76 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const repository = resolve(scriptDir, "../..");
+
+export async function createPacket(
+  name,
+  { repoRoot = repository, target = process.platform } = {},
+) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name ?? "")) {
+    throw new Error(
+      "Use a lowercase packet name, for example linux-save-paths",
+    );
+  }
+  if (!["linux", "win32", "darwin"].includes(target))
+    throw new Error("Target must be linux, win32 or darwin");
+  const root = join(repoRoot, ".rgsm-dev", "acceptance", name);
+  await mkdir(dirname(root), { recursive: true });
+  // Never overwrite an earlier acceptance session, including reviewer edits.
+  await mkdir(root);
+  const git = (...args) =>
+    execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      windowsHide: true,
+    }).trim();
+  const metadata = {
+    kind: "rgsm-acceptance",
+    name,
+    revision: git("rev-parse", "HEAD"),
+    dirty: Boolean(git("status", "--porcelain", "--untracked-files=normal")),
+    preparedOn: process.platform,
+    target,
+    createdAt: new Date().toISOString(),
+  };
+  await writeFile(
+    join(root, "session.json"),
+    JSON.stringify(metadata, null, 2) + "\n",
+  );
+  const runtime = relative(
+    root,
+    join(repoRoot, "scripts", "acceptance", "session.mjs"),
+  ).replaceAll("\\", "/");
+  const starter = await readFile(join(scriptDir, "run.template.mjs"), "utf8");
+  await writeFile(
+    join(root, "run.mjs"),
+    starter.replace("__SESSION_MODULE__", runtime),
+  );
+  await writeFile(
+    join(root, "ACCEPTANCE.md"),
+    await readFile(join(scriptDir, "packet.template.md")),
+  );
+  await mkdir(join(root, "evidence"));
+  return root;
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  const [name, target, ...extra] = process.argv.slice(2);
+  try {
+    if (extra.length || !name)
+      throw new Error("Usage: pnpm acceptance:new <name> [linux|win32|darwin]");
+    console.log(await createPacket(name, { target }));
+    console.log(
+      "Scaffold only: adapt ACCEPTANCE.md and run.mjs before offering this packet for review",
+    );
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}

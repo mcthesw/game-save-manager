@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "acceptance:new": "node scripts/acceptance/create.mjs",
+    "acceptance:test": "node --test scripts/acceptance/acceptance.test.mjs",
     "dev": "pnpm --dir apps/rgsm-gui dev",
     "build": "pnpm --dir apps/rgsm-gui build",
     "web:dev": "pnpm --dir apps/rgsm-gui web:dev",
