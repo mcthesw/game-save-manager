@@ -38,6 +38,7 @@ export const DEFAULT_CONFIG: Config = {
     appearance: {
       custom_font_enabled: false,
       ui_font_family: '',
+      snapshot_time_format: 'absolute',
     },
     compression_preset: 'Standard',
     compute_archive_hash: false,

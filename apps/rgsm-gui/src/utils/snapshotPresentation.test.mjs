@@ -3,9 +3,47 @@ import test from 'node:test';
 import {
   compareSnapshotTime,
   formatSnapshotTime,
+  formatRelativeSnapshotTime,
   findSnapshotByInput,
   snapshotDeviceName,
 } from './snapshotPresentation.ts';
+
+const relativeLabels = {
+  justNow: 'Just now',
+  minutesAgo: (count) => `${count} minutes ago`,
+  hoursAgo: (count) => `${count} hours ago`,
+  yesterday: (time) => `Yesterday ${time}`,
+};
+const relativeTime = (date, now) =>
+  formatRelativeSnapshotTime({ date }, new Date(now).getTime(), relativeLabels);
+
+test('relative time uses elapsed minutes, today hours, then calendar dates', () => {
+  const now = '2026-09-07T14:30:00';
+  assert.equal(relativeTime('2026-09-07_14-29-01', now), 'Just now');
+  assert.equal(relativeTime('2026-09-07_14-29-00', now), '1 minutes ago');
+  assert.equal(relativeTime('2026-09-07_13-31-00', now), '59 minutes ago');
+  assert.equal(relativeTime('2026-09-07_13-30-00', now), '1 hours ago');
+  assert.equal(relativeTime('2026-09-07_12-31-00', now), '1 hours ago');
+  assert.equal(relativeTime('2026-09-06_22-15-42', now), 'Yesterday 22:15');
+  assert.equal(relativeTime('2026-09-04_20-08-11', now), '09-04 20:08');
+  assert.equal(relativeTime('2025-09-04_20-08-11', now), '2025-09-04 20:08');
+});
+
+test('recent minutes cross midnight while yesterday follows local calendar boundaries', () => {
+  assert.equal(relativeTime('2026-09-06_23-50-00', '2026-09-07T00:10:00'), '20 minutes ago');
+  assert.equal(relativeTime('2026-09-06_23-10-00', '2026-09-07T00:10:00'), 'Yesterday 23:10');
+  assert.equal(relativeTime('2025-12-31_22-10-00', '2026-01-01T00:10:00'), 'Yesterday 22:10');
+});
+
+test('future and unknown times never pretend to be recent snapshots', () => {
+  const now = new Date('2026-09-07T14:30:00').getTime();
+  assert.equal(formatRelativeSnapshotTime({ date: 'opaque' }, now, relativeLabels), null);
+  assert.equal(relativeTime('2026-09-07_14-31-00', '2026-09-07T14:30:00'), '2026-09-07 14:31:00');
+  assert.equal(
+    formatRelativeSnapshotTime({ date: 'opaque', created_at: now - 120000 }, now, relativeLabels),
+    '2 minutes ago'
+  );
+});
 
 test('opaque identities do not determine display time or chronological order', () => {
   const older = { date: 'zzzz', created_at: 1000 };

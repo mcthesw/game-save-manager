@@ -6,12 +6,22 @@ use crate::cloud_sync::CloudSettings;
 use crate::default_value;
 use crate::preclude::*;
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SnapshotTimeFormat {
+    #[default]
+    Absolute,
+    Relative,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct AppearanceSettings {
     #[serde(default = "default_value::default_false")]
     pub custom_font_enabled: bool,
     #[serde(default = "default_value::default")]
     pub ui_font_family: String,
+    #[serde(default)]
+    pub snapshot_time_format: SnapshotTimeFormat,
 }
 
 impl Default for AppearanceSettings {
@@ -19,6 +29,7 @@ impl Default for AppearanceSettings {
         Self {
             custom_font_enabled: default_value::default_false(),
             ui_font_family: default_value::default(),
+            snapshot_time_format: SnapshotTimeFormat::default(),
         }
     }
 }
@@ -146,5 +157,34 @@ impl Sanitizable for Settings {
             cloud_settings: self.cloud_settings.sanitize(),
             ..self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppearanceSettings;
+
+    #[test]
+    fn snapshot_time_defaults_to_absolute_in_old_appearance_settings() {
+        let settings: AppearanceSettings = serde_json::from_value(serde_json::json!({
+            "custom_font_enabled": true,
+            "ui_font_family": "Example Font"
+        }))
+        .unwrap();
+        let saved = serde_json::to_value(settings).unwrap();
+        assert_eq!(saved["snapshot_time_format"], "absolute");
+        assert_eq!(saved["ui_font_family"], "Example Font");
+    }
+
+    #[test]
+    fn snapshot_time_preference_survives_serialization() {
+        let settings: AppearanceSettings = serde_json::from_value(serde_json::json!({
+            "snapshot_time_format": "relative"
+        }))
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(settings).unwrap()["snapshot_time_format"],
+            "relative"
+        );
     }
 }

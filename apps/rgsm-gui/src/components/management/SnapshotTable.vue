@@ -15,9 +15,11 @@ import {
   Upload,
 } from '@lucide/vue';
 import type { CloudArchiveGameView, Snapshot } from '../../api/commands';
+import type { SnapshotTimeFormat } from '../../api/generated/types.gen';
 import { $t } from '../../i18n';
 import { KButton, KCheckbox, KTag, KTooltip } from '../../ui/kit';
-import { formatSnapshotTime, snapshotDeviceName } from '../../utils/snapshotPresentation';
+import { snapshotDeviceName } from '../../utils/snapshotPresentation';
+import { useSnapshotTime } from '../../composables/useSnapshotTime';
 import {
   canApplySnapshot,
   canDownloadSnapshot,
@@ -39,6 +41,7 @@ const props = defineProps<{
   retentionProtectedDates: Set<string>;
   activeTransfer: string;
   currentHead?: string | null;
+  timeFormat?: SnapshotTimeFormat;
   deleteLabel?: string;
   devices?: Record<string, { name: string }>;
 }>();
@@ -81,9 +84,7 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-function timeLabel(snapshot: Snapshot) {
-  return formatSnapshotTime(snapshot) ?? $t('manage.unknown_snapshot_time');
-}
+const { timeLabel, exactTimeLabel } = useSnapshotTime(() => props.timeFormat);
 
 function creatorLabel(snapshot: Snapshot) {
   return $t('manage.snapshot_creator', {
@@ -195,7 +196,9 @@ const locationLabel = (date: string) =>
           </div>
 
           <div role="cell" class="flex min-w-0 flex-col gap-0.5">
-            <span class="truncate font-mono text-xs text-text">{{ timeLabel(snapshot) }}</span>
+            <time class="truncate font-mono text-xs text-text" :title="exactTimeLabel(snapshot)">
+              {{ timeLabel(snapshot) }}
+            </time>
             <span
               class="truncate text-[11px] leading-tight text-text-dim"
               :title="creatorLabel(snapshot)"

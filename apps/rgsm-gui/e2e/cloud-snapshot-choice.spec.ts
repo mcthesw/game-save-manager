@@ -31,12 +31,8 @@ test('a device without a position selects downloaded remote progress by displaye
       (await readBackupsJson(seeded.deviceB.appDataDir)).device_heads?.[DEVICE_B_ID]
     ).toBeUndefined();
     expect((await readBackupsJson(seeded.deviceB.appDataDir)).device_heads).toEqual({});
-    const displayedTime = await snapshotRow(session.pageB, parent)
-      .getByRole('cell')
-      .nth(1)
-      .locator('span')
-      .first()
-      .innerText();
+    const displayedTime = await snapshotRow(session.pageB, parent).locator('time').innerText();
+    expect(displayedTime).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     await session.pageB.getByPlaceholder('New backup description').fill('Continued here');
     await session.pageB.getByRole('button', { name: 'Create new snapshot' }).click();
     const base = session.pageB.getByRole('dialog', { name: 'Choose first snapshot base' });
