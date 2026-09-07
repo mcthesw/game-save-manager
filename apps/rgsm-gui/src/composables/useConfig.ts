@@ -1,4 +1,6 @@
 import { error } from '../utils/logger';
+import { isEqual } from 'lodash-unified';
+import { shareUnchangedItems } from '../utils/stableCollections';
 import { commands, DEFAULT_CONFIG, type Config, type DeviceGameStatus } from '../api/commands';
 import { $t } from '../i18n';
 
@@ -22,12 +24,20 @@ async function readConfig(libraryOnly: boolean, isCurrent = () => true): Promise
     if (!isCurrent()) return false;
     if (libraryOnly) {
       // Cloud metadata refresh must not replace local settings being edited.
-      config.value.games = result.data.games;
-      config.value.devices = result.data.devices;
+      config.value.games = shareUnchangedItems(
+        config.value.games,
+        result.data.games,
+        (game) => game.storage_key || game.name
+      );
+      if (!isEqual(config.value.devices, result.data.devices)) {
+        config.value.devices = result.data.devices;
+      }
     } else {
       config.value = result.data;
     }
-    deviceGameStatuses.value = statuses.data;
+    if (!isEqual(deviceGameStatuses.value, statuses.data)) {
+      deviceGameStatuses.value = statuses.data;
+    }
     return true;
   } catch (e) {
     if (!isCurrent()) return false;

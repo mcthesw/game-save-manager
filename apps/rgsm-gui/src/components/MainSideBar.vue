@@ -8,7 +8,7 @@ import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { resolveManagementGame } from '../utils/appRoutes';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
-import { refreshCloudLibrary } from '../composables/useCloudLibrary';
+import { refreshCloudLibraryIfStale } from '../composables/useCloudLibrary';
 import KButton from '../ui/kit/KButton.vue';
 import KInput from '../ui/kit/KInput.vue';
 import KSegmented from '../ui/kit/KSegmented.vue';
@@ -123,12 +123,11 @@ function isActive(path: string): boolean {
 
 function goGame(game: Game) {
   router.push(getGameManagementPath(game));
-  void refreshCloudLibrary();
 }
 
 function navigatePage(path: string) {
   void router.push(path);
-  if (path === '/SyncSettings') void refreshCloudLibrary();
+  if (path === '/SyncSettings') void refreshCloudLibraryIfStale();
 }
 </script>
 

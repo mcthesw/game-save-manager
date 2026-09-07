@@ -168,6 +168,7 @@ test('returning to an open game refreshes cloud snapshots without clearing known
     await openGame(session.pageB);
     await expect(snapshotRow(session.pageB, first)).toBeVisible();
     const next = await createPublishedSnapshot(session.pageA, session.hostA, 'New on A');
+    await session.pageB.clock.setSystemTime(new Date(Date.now() + 10 * 60_000));
     await session.pageB.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(snapshotRow(session.pageB, next)).toBeVisible({ timeout: 10_000 });
     let reads = 0;
@@ -194,6 +195,7 @@ test('returning to an open game refreshes cloud snapshots without clearing known
         new URL(response.url()).pathname === '/api/v1/refresh-cloud-archive-library' &&
         response.status() === 503
     );
+    await session.pageB.clock.setSystemTime(new Date(Date.now() + 20 * 60_000));
     await session.pageB.evaluate(() => window.dispatchEvent(new Event('focus')));
     await failedRefresh;
     await expect(snapshotRow(session.pageB, first)).toBeVisible();
