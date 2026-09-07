@@ -52,17 +52,7 @@ You can make suggestions or submit feedback from the following platforms, I will
 
 ## Developer Guide 🐱
 
-> If you are looking for the old developer guide based on the Electron framework, please see the [old branch](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
-
-If you can personally participate in this project, it would be great. Whether it's solving problems or adding new features, we are very welcome. The documentation used by developers will be placed in the `doc/<language>` folder of this repository. Please click [this link](doc/en/README.md) to view
-
-The technologies used in this project:
-
-- Rust
-- TypeScript
-- Vue3
-- Element Plus
-- Tauri
+Contributions to code, usability, and documentation are welcome. The [Developer Guide](https://help.sworld.club/docs/developers/en) covers local setup, project structure, debugging, and contributing.
 
 ## Donate
 

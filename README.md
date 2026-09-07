@@ -52,17 +52,7 @@
 
 ## 开发者指南 🐱
 
-> 如果你在寻找旧版基于Electron框架的开发者指南，请看[旧版分支](https://github.com/mcthesw/game-save-manager/tree/v0-electron)
-
-如果你能亲自参与这个项目，那真的太好了，不论是解决问题，还是说添加新功能，我们都是非常欢迎的，开发者使用的文档将会放置于本仓库的 `doc/<language>` 文件夹下，请点[此链接](doc/zh-CN/README.md)查看
-
-本项目使用的技术：
-
-- Rust
-- TypeScript
-- Vue3
-- Element Plus
-- Tauri
+欢迎修复问题、改进体验和完善文档。[开发者指南](https://help.sworld.club/docs/developers)介绍了本地运行、项目结构、调试和贡献流程。
 
 ## 捐赠
 

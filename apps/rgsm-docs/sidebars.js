@@ -30,11 +30,24 @@ const sidebars = {
       type: 'category',
       label: '参与贡献',
       link: {type: 'generated-index'},
-      items: ['contribute/develop', 'contribute/document', 'contribute/translate'],
+      items: ['contribute/document', 'contribute/translate'],
     },
     'about',
   ],
-
+  developerSidebar: [
+    'developers/intro',
+    'developers/architecture',
+    'developers/debugging',
+    'developers/testing',
+    'developers/contributing',
+  ],
+  developerEnglishSidebar: [
+    'developers/en/intro',
+    'developers/en/architecture',
+    'developers/en/debugging',
+    'developers/en/testing',
+    'developers/en/contributing',
+  ],
 };
 
 export default sidebars;

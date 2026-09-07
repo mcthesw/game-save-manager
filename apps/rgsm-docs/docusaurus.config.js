@@ -79,6 +79,12 @@ const config = {
             position: 'left',
             label: '帮助文档',
           },
+          {
+            to: '/docs/developers',
+            label: '开发者指南',
+            position: 'left',
+            activeBasePath: 'docs/developers',
+          },
           {to: '/blog', label: '更新日志', position: 'left'},
           {
             href: 'https://github.com/mcthesw/game-save-manager',
@@ -98,8 +104,8 @@ const config = {
                 to: '/docs/intro',
               },
               {
-                label: '开发文档',
-                href: 'https://github.com/mcthesw/game-save-manager/tree/dev/docs',
+                label: '开发者指南',
+                to: '/docs/developers',
               },
             ],
           },
