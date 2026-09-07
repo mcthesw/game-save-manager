@@ -19,6 +19,7 @@ export interface FavoriteTreeCtx {
   onDragEnd: () => void;
   removeNode: (id: string) => void;
   clickLeaf: (node: FavoriteTreeNode) => void;
+  isActiveLeaf: (node: FavoriteTreeNode) => boolean;
 }
 
 export const FAVORITE_TREE_CTX: InjectionKey<FavoriteTreeCtx> = Symbol('favorite-tree-ctx');

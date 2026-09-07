@@ -146,6 +146,7 @@ function navigatePage(path: string) {
           type="button"
           class="side-row nav-row"
           :class="{ active: isActive(link.link) }"
+          :aria-current="isActive(link.link) ? 'page' : undefined"
           @click="navigatePage(link.link)"
         >
           <component :is="link.icon" :size="15" class="row-icon" />
@@ -169,7 +170,11 @@ function navigatePage(path: string) {
       />
 
       <div class="games-scroll">
-        <FavoriteTree v-show="viewMode === 'favorites'" :search-query="searchQuery" />
+        <FavoriteTree
+          v-show="viewMode === 'favorites'"
+          :search-query="searchQuery"
+          :active-game-id="activeGameId"
+        />
 
         <div v-show="viewMode === 'all'" class="all-list">
           <button
@@ -178,6 +183,7 @@ function navigatePage(path: string) {
             type="button"
             class="side-row game-row"
             :class="{ active: !!game.storage_key && activeGameId === game.storage_key }"
+            :aria-current="activeGameId === game.storage_key ? 'page' : undefined"
             :title="game.name"
             @click="goGame(game)"
           >
@@ -246,7 +252,9 @@ function navigatePage(path: string) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 8px 4px;
+  margin: 0 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .side-row {
@@ -330,7 +338,7 @@ function navigatePage(path: string) {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  border: 1px solid var(--border-strong);
+  border: 1px solid transparent;
 }
 
 .game-dot.on {

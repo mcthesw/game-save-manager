@@ -363,6 +363,9 @@ const { currentHead, headEntries, branchDeviceHeads } = useDeviceHeads({
   config,
   cloudGame,
 });
+const otherDeviceHeads = computed(() =>
+  headEntries.value.filter((entry) => !entry.isCurrentDevice)
+);
 
 const {
   selectedUploadable,
@@ -1472,16 +1475,16 @@ const viewModeOptions = computed(() => [
         </template>
 
         <div
-          v-if="headEntries.length"
+          v-if="otherDeviceHeads.length"
           class="ms-auto flex flex-wrap items-center justify-end gap-1.5"
         >
           <KTooltip
-            v-for="entry in headEntries"
+            v-for="entry in otherDeviceHeads"
             :key="entry.deviceId"
             :content="entry.fullText"
             side="bottom"
           >
-            <KTag :tone="entry.isCurrentDevice ? 'accent' : 'neutral'">
+            <KTag tone="neutral">
               <span class="font-semibold">{{ entry.label }}</span>
               <span v-if="entry.description" class="max-w-28 truncate">{{
                 entry.description
@@ -1527,6 +1530,7 @@ const viewModeOptions = computed(() => [
       <!-- Table View -->
       <div v-if="viewMode === 'table'" class="h-full min-h-0 flex-1 overflow-hidden">
         <SnapshotTable
+          :current-head="currentHead"
           :delete-label="deleteLabel"
           :devices="config.devices"
           :rows="filter_table"

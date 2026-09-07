@@ -27,7 +27,10 @@ import {
   type DropPos,
 } from './favoriteTreeContext';
 
-const props = withDefaults(defineProps<{ searchQuery?: string }>(), { searchQuery: '' });
+const props = withDefaults(defineProps<{ searchQuery?: string; activeGameId?: string }>(), {
+  searchQuery: '',
+  activeGameId: undefined,
+});
 
 const { config, saveConfig } = useConfig();
 const feedback = useFeedback();
@@ -242,6 +245,9 @@ provide(FAVORITE_TREE_CTX, {
   onDragEnd: clearDrag,
   removeNode,
   clickLeaf,
+  isActiveLeaf: (node) =>
+    !!props.activeGameId &&
+    favoriteGame(node, config.value.games)?.storage_key === props.activeGameId,
 });
 </script>
 
