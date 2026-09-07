@@ -1530,6 +1530,7 @@ const viewModeOptions = computed(() => [
       <!-- Table View -->
       <div v-if="viewMode === 'table'" class="h-full min-h-0 flex-1 overflow-hidden">
         <SnapshotTable
+          :time-format="config.settings.appearance?.snapshot_time_format"
           :current-head="currentHead"
           :delete-label="deleteLabel"
           :devices="config.devices"

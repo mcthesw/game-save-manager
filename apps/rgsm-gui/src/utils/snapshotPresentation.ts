@@ -38,6 +38,29 @@ export function snapshotDeviceName(
   );
 }
 
+/** Recent elapsed time, then local calendar dates; never infer time from opaque IDs. */
+export function formatRelativeSnapshotTime(
+  snapshot: SnapshotTime,
+  now: number,
+  labels: {
+    justNow: string;
+    minutesAgo: (count: number) => string;
+    hoursAgo: (count: number) => string;
+    yesterday: (time: string) => string;
+  }
+): string | null {
+  const time = creationTime(snapshot);
+  if (!time) return null;
+  const current = dayjs(now);
+  const elapsed = now - time.valueOf();
+  if (!current.isValid() || elapsed < 0) return time.format('YYYY-MM-DD HH:mm:ss');
+  if (elapsed < 60_000) return labels.justNow;
+  if (elapsed < 3_600_000) return labels.minutesAgo(Math.floor(elapsed / 60_000));
+  if (time.isSame(current, 'day')) return labels.hoursAgo(Math.floor(elapsed / 3_600_000));
+  if (time.isSame(current.subtract(1, 'day'), 'day')) return labels.yesterday(time.format('HH:mm'));
+  return time.format(time.year() === current.year() ? 'MM-DD HH:mm' : 'YYYY-MM-DD HH:mm');
+}
+
 export function findSnapshotByInput<T extends SnapshotTime & { describe: string }>(
   snapshots: T[],
   rawInput: string

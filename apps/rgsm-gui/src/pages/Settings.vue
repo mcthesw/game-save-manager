@@ -32,6 +32,7 @@ import {
 } from '@lucide/vue';
 import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '../ui/kit';
 import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue';
+import SnapshotTimeSettings from '../components/SnapshotTimeSettings.vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -1587,6 +1588,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <PanelsTopLeft :size="15" class="text-text-dim" aria-hidden="true" />
               <h2 class="text-sm font-semibold text-text">{{ $t('settings.ui_settings') }}</h2>
             </div>
+            <SnapshotTimeSettings v-model="config.settings.appearance!.snapshot_time_format" />
             <div class="flex items-center justify-between gap-4 py-1.5">
               <span class="shrink-0 text-sm text-text">{{
                 $t('settings.save_list_expand_behavior')

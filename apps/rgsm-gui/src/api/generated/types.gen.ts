@@ -37,6 +37,7 @@ export type ApiErrorCode =
 
 export type AppearanceSettings = {
   custom_font_enabled?: boolean;
+  snapshot_time_format?: SnapshotTimeFormat;
   ui_font_family?: string;
 };
 
@@ -1448,6 +1449,8 @@ export type SnapshotRetentionOutcome = {
   deleted: number;
   limit?: number | null;
 };
+
+export type SnapshotTimeFormat = 'absolute' | 'relative';
 
 export type SortDirection = 'asc' | 'desc';
 

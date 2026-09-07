@@ -721,6 +721,7 @@ export type {
   SharedGameDeletionOutcome,
   Snapshot,
   SnapshotRetentionOutcome,
+  SnapshotTimeFormat,
   SortDirection,
   StopSoundPlaybackData,
   StopSoundPlaybackError,
