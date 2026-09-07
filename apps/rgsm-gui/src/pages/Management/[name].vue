@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { computed, ref, watch, onBeforeUnmount, onMounted, h } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { isEqual } from 'lodash-unified';
 import {
   commands,
   events,
@@ -272,9 +273,14 @@ watch(
     const selected = resolveManagementGame(config.value.games, path);
     if (!selected) return;
     game.value = selected;
+    gameSnapshots.value = null;
+    table_data.value = [];
+    table_data_desc.value = [];
+    localCatalogDates.value = new Set();
     undoInfo.value = null;
     retentionProtectedDates.value = new Set();
-    refresh_backups_info();
+    selectedDates.value = new Set();
+    void refresh_backups_info(false);
     // 检查当前设备的存档路径是否为空
     checkCurrentDeviceSavePaths();
   },
@@ -295,9 +301,12 @@ async function refresh_backups_info(refreshCloud = true) {
   const cloud = cloudGame.value;
   const merged = mergeCloudOnlySnapshots(result.data.backups, cloud);
   localCatalogDates.value = new Set(result.data.backups.map((snapshot) => snapshot.date));
-  gameSnapshots.value = { ...result.data, backups: merged };
-  table_data.value = merged;
-  table_data_desc.value = [...merged].reverse();
+  const next = { ...result.data, backups: merged };
+  if (!isEqual(gameSnapshots.value, next)) {
+    gameSnapshots.value = next;
+    table_data.value = merged;
+    table_data_desc.value = [...merged].reverse();
+  }
   selectedDates.value = refreshCloud
     ? new Set()
     : new Set(
@@ -310,17 +319,20 @@ async function refresh_backups_info(refreshCloud = true) {
   );
 }
 
-watch(cloudLibrary, () => {
-  void refresh_backups_info(false);
+watch(cloudLibrary, (current, previous) => {
+  const gameId = game.value.storage_key || game.value.name;
+  const before = previous?.games.find((item) => item.game_id === gameId);
+  const after = current?.games.find((item) => item.game_id === gameId);
+  if (!isEqual(before, after)) void refresh_backups_info(false);
 });
 
 watch(
   () => config.value.games.find((item) => item.storage_key === game.value?.storage_key),
   (latest) => {
-    if (latest) {
+    if (latest && latest !== game.value) {
       game.value = latest;
       void refresh_backups_info(false);
-    } else if (game.value?.name) {
+    } else if (!latest && game.value?.name) {
       // Remote deletion must not leave actions bound to an obsolete definition.
       void router.replace('/');
     }

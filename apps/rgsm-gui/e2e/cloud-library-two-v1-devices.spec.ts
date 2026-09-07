@@ -190,6 +190,15 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
 
     const review = await reviewProgress(hostA);
     expect(review.requires_choice).toBe(true);
+    // Direct host writes bypass the UI's mutation refresh. Returning after the
+    // passive refresh interval must discover both devices' new progress.
+    const expiredTime = await pageA.evaluate(() => Date.now() + 10 * 60_000);
+    await pageA.clock.setSystemTime(new Date(expiredTime));
+    const refreshed = pageA.waitForResponse((response) =>
+      response.url().endsWith('/api/v1/refresh-cloud-archive-library')
+    );
+    await pageA.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await refreshed).ok()).toBe(true);
     await openProgressReview(pageA);
     await acceptRemoteProgress(pageA, bBranch);
     const afterAccept = await readJson(paths.manifest);
