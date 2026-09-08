@@ -1,5 +1,7 @@
 mod cloud_archive;
 mod cloud_connection;
+mod cloud_join_code;
+pub use cloud_join_code::{CloudJoinError, CloudJoinPreview};
 mod cloud_library_metadata;
 mod cloud_library_target;
 mod config;
@@ -9,6 +11,8 @@ mod game;
 mod game_deletion;
 mod path_resolution;
 mod profile_management;
+mod profile_reuse;
+pub use profile_reuse::ProfileReuseError;
 mod progress_review;
 mod retention;
 mod snapshot;

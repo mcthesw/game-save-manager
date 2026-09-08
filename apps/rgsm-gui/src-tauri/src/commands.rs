@@ -42,7 +42,9 @@ use tauri::{AppHandle, Manager};
 
 use crate::hooks::HookPipelineState;
 
+pub mod cloud_join;
 pub mod http_commands;
+pub mod profile_reuse;
 
 /// Adapter: emits operation progress as HostNotification events through the Host event stream.
 struct HostNotifier {

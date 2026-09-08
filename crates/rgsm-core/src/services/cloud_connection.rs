@@ -76,6 +76,7 @@ impl ServiceContext {
                 &state,
                 &shared_library,
                 &descriptor.library_id,
+                &state.cloud_settings,
             )?;
         }
         Ok(CloudLibraryStatus::Active {

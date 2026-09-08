@@ -246,6 +246,15 @@ export type CloudDownloadAllRequest = {
   session: CloudSyncSessionConfig;
 };
 
+export type CloudJoinPreview = {
+  backend: string;
+  bucket?: string | null;
+  endpoint: string;
+  game_count: number;
+  library_id: string;
+  root_path: string;
+};
+
 export type CloudLibraryCutoverOutcome = {
   game_count: number;
   snapshot_count: number;
@@ -769,6 +778,11 @@ export type JoinCloudLibraryRequest = {
   decisions: Array<JoinGameDecision>;
 };
 
+export type JoinCodeRequest = {
+  code: string;
+  confirmed?: boolean;
+};
+
 export type JoinGameAction = 'keep_cloud' | 'add_local' | 'replace_cloud';
 
 export type JoinGameDecision = {
@@ -1203,6 +1217,11 @@ export type RestoreMappingRule = {
 export type RestoreSnapshotRequest = {
   date: string;
   game: Game;
+};
+
+export type ReuseLocationsRequest = {
+  confirmed?: boolean;
+  deviceId: string;
 };
 
 export type ReviewV2GameProgressRequest = {
@@ -2167,6 +2186,26 @@ export type EvictLocalArchiveResponses = {
 export type EvictLocalArchiveResponse =
   EvictLocalArchiveResponses[keyof EvictLocalArchiveResponses];
 
+export type ExportCloudJoinCodeData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/export-cloud-join-code';
+};
+
+export type ExportCloudJoinCodeErrors = {
+  400: ApiError;
+};
+
+export type ExportCloudJoinCodeError = ExportCloudJoinCodeErrors[keyof ExportCloudJoinCodeErrors];
+
+export type ExportCloudJoinCodeResponses = {
+  200: string;
+};
+
+export type ExportCloudJoinCodeResponse =
+  ExportCloudJoinCodeResponses[keyof ExportCloudJoinCodeResponses];
+
 export type FetchLudusaviGamesData = {
   body: FetchLudusaviGamesRequest;
   path?: never;
@@ -2585,6 +2624,26 @@ export type GetSystemFontsResponses = {
 
 export type GetSystemFontsResponse = GetSystemFontsResponses[keyof GetSystemFontsResponses];
 
+export type ImportCloudJoinCodeData = {
+  body: JoinCodeRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/import-cloud-join-code';
+};
+
+export type ImportCloudJoinCodeErrors = {
+  400: ApiError;
+};
+
+export type ImportCloudJoinCodeError = ImportCloudJoinCodeErrors[keyof ImportCloudJoinCodeErrors];
+
+export type ImportCloudJoinCodeResponses = {
+  200: CloudLibraryStatus;
+};
+
+export type ImportCloudJoinCodeResponse =
+  ImportCloudJoinCodeResponses[keyof ImportCloudJoinCodeResponses];
+
 export type InspectCloudLibraryData = {
   body?: never;
   path?: never;
@@ -2825,6 +2884,27 @@ export type PermanentlyDeleteCloudGameResponses = {
 
 export type PermanentlyDeleteCloudGameResponse =
   PermanentlyDeleteCloudGameResponses[keyof PermanentlyDeleteCloudGameResponses];
+
+export type PreviewCloudJoinCodeData = {
+  body: JoinCodeRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/preview-cloud-join-code';
+};
+
+export type PreviewCloudJoinCodeErrors = {
+  400: ApiError;
+};
+
+export type PreviewCloudJoinCodeError =
+  PreviewCloudJoinCodeErrors[keyof PreviewCloudJoinCodeErrors];
+
+export type PreviewCloudJoinCodeResponses = {
+  200: CloudJoinPreview;
+};
+
+export type PreviewCloudJoinCodeResponse =
+  PreviewCloudJoinCodeResponses[keyof PreviewCloudJoinCodeResponses];
 
 export type PreviewMaterializeAllData = {
   body?: never;
@@ -3128,6 +3208,27 @@ export type RestoreSnapshotError = RestoreSnapshotErrors[keyof RestoreSnapshotEr
 export type RestoreSnapshotResponses = {
   200: unknown;
 };
+
+export type ReuseCloudDeviceLocationsData = {
+  body: ReuseLocationsRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/reuse-cloud-device-locations';
+};
+
+export type ReuseCloudDeviceLocationsErrors = {
+  400: ApiError;
+};
+
+export type ReuseCloudDeviceLocationsError =
+  ReuseCloudDeviceLocationsErrors[keyof ReuseCloudDeviceLocationsErrors];
+
+export type ReuseCloudDeviceLocationsResponses = {
+  200: number;
+};
+
+export type ReuseCloudDeviceLocationsResponse =
+  ReuseCloudDeviceLocationsResponses[keyof ReuseCloudDeviceLocationsResponses];
 
 export type ReviewCloudLibraryCutoverData = {
   body?: never;

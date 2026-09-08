@@ -107,6 +107,11 @@ _Avoid_: Device Profile, Shared Library, Cloud Manifest
 The connection of one installation to a cloud library. Saved settings connect an existing V2 **Cloud Namespace** automatically; **Cloud Cutover** from V1 and replacement of a different namespace retain their explicit confirmations. Connecting does not choose between conflicting Game definitions or apply Snapshots.
 _Avoid_: save cloud settings, ordinary sync, overwrite upload, Bootstrap Choice
 
+**Cloud Join Code**:
+Portable connection information, including access credentials, for accessing a player-configured cloud library from another installation. It grants access to existing cloud data rather than containing a complete configuration backup or Snapshot Archives.
+_Player-facing_: 云加入码
+_Avoid_: official account, Snapshot Archive
+
 **Game Definition Conflict**:
 A decision required when one candidate **Game** identity has different proposed and accepted portable definitions.
 _Avoid_: Cloud Sync Conflict, Save conflict, automatic merge

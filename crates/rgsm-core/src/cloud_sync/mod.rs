@@ -3,6 +3,7 @@ mod cloud_settings;
 #[allow(dead_code)]
 pub mod conflict;
 mod facade;
+pub(crate) mod join_code;
 mod recovery;
 mod state_recording;
 pub mod sync_state;

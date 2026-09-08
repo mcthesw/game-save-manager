@@ -1,4 +1,41 @@
 {
+    "cloud_join": {
+        "reuse": {
+            "title": "复用设备存档位置",
+            "action": "复用存档位置",
+            "confirm": "为共享游戏复制 {device} 已发布的存档位置和游戏启动路径？这些路径可能属于另一台电脑或 Windows 用户，请检查后再使用，有歧义的恢复映射需要重新选择。涉及的游戏将使用手动模式并关闭自动备份，不会恢复存档或替换本机身份和备份目录",
+            "success": "已复用 {count} 个游戏的位置，请检查路径后再使用",
+            "confirm_required": "请确认后再复用其他设备的存档位置",
+            "unavailable": "此设备已发布的设置不可用",
+            "save_failed": "无法保存复用的位置，请刷新后重试"
+        },
+        "errors": {
+            "invalid": "云加入码无效",
+            "version": "暂不支持此版本的云加入码",
+            "backend": "云加入码支持 WebDAV 和 S3 连接",
+            "size": "云加入码过长",
+            "not_connected": "尚未连接可分享的云端资料库",
+            "unavailable": "无法访问加入码中的资料库，请检查连接和凭据",
+            "library": "此加入码未指向现有且兼容的云端资料库",
+            "confirmation": "请确认云端资料库后再连接",
+            "registration": "无法注册此设备，如已被移除，请重新连接设备",
+            "local_changed": "本机设置已变更或无法保存，请重新检查连接"
+        },
+        "import": "使用云加入码",
+        "export": "获取云加入码",
+        "code": "云加入码",
+        "scope": "连接已有云端资料库，找回共享游戏，不是此设备的完整配置备份",
+        "sensitive": "包含未加密的云端密码或密钥，持有码的人可能读取、修改或删除云端数据，请像密码一样保管",
+        "preview": "预览资料库",
+        "connect": "连接此资料库",
+        "copy": "复制加入码",
+        "copied": "已复制加入码",
+        "copy_failed": "复制失败，请手动选择并复制加入码",
+        "failed": "无法访问此云端资料库",
+        "connected": "已连接云端资料库",
+        "games": "{count} 个共享游戏",
+        "confirm_hint": "替换本机的云连接？本地独有游戏会保留，不会应用游戏存档"
+    },
     "settings": {
         "store_accounts_title": "游戏商店账号",
         "store_accounts_hint": "供存档路径使用的本设备账号 ID；导入时也可以识别 Steam 账号。",

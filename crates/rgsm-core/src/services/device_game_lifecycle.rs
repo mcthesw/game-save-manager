@@ -258,6 +258,7 @@ mod tests {
             &state,
             &remote,
             "11111111-1111-4111-8111-111111111111",
+            &state.cloud_settings,
         )
         .unwrap();
         let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
