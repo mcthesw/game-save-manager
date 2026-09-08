@@ -47,6 +47,18 @@ function unwrap<T>(result: { data?: T; error?: unknown }): CommandResult<T> {
 }
 
 export const commands = {
+  async exportCloudJoinCode() {
+    return unwrap(await sdk.exportCloudJoinCode());
+  },
+  async reuseCloudDeviceLocations(deviceId: string) {
+    return unwrap(await sdk.reuseCloudDeviceLocations({ body: { deviceId, confirmed: true } }));
+  },
+  async previewCloudJoinCode(code: string) {
+    return unwrap(await sdk.previewCloudJoinCode({ body: { code, confirmed: false } }));
+  },
+  async importCloudJoinCode(code: string) {
+    return unwrap(await sdk.importCloudJoinCode({ body: { code, confirmed: true } }));
+  },
   async getHttpHostInfo() {
     return unwrap<types.GetHttpHostInfoResponses[200]>(await sdk.getHttpHostInfo());
   },

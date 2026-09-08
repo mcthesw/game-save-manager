@@ -1740,7 +1740,11 @@ const { linksWithGames: router_list } = useNavigationLinks();
               />
             </div>
 
-            <CloudDeviceProfilesPanel v-if="v2LibraryActive" class="mt-5" />
+            <CloudDeviceProfilesPanel
+              v-if="v2LibraryActive"
+              class="mt-5"
+              @reused="fetchDeviceInfo"
+            />
 
             <h3 class="mb-2 mt-5 text-xs font-medium text-text">
               {{ $t('settings.other_devices') }}

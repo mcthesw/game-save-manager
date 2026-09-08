@@ -3,7 +3,7 @@
         "reuse": {
             "title": "Reuse device save locations",
             "action": "Reuse save locations",
-            "confirm": "Copy published save locations and game launch paths from {device} for shared games? These paths may belong to another computer or Windows user. Check them before use; restore mappings must be reselected when ambiguous. Copied games will use Manual mode with automatic backups off. This does not restore saves or replace this device's identity and archive folder",
+            "confirm": "Use save and game paths from {device}? Check that they work on this computer first. Affected games will switch to manual sync with automatic backups off",
             "success": "Reused locations for {count} games; check the paths before use",
             "confirm_required": "Confirm before reusing another device's save locations",
             "unavailable": "This device's published settings are unavailable",
@@ -24,8 +24,8 @@
         "import": "Use cloud join code",
         "export": "Get cloud join code",
         "code": "Cloud join code",
-        "scope": "Connect an existing cloud library to recover shared games, not a complete backup of this device",
-        "sensitive": "Contains unencrypted cloud passwords or keys. Anyone holding this code may read, modify, or delete cloud data. Keep it as safe as a password",
+        "scope": "Connect to the same cloud and recover your game list",
+        "sensitive": "Anyone with this code can access and delete cloud saves. Do not share it with others",
         "preview": "Preview library",
         "connect": "Connect this library",
         "copy": "Copy code",
@@ -34,7 +34,7 @@
         "failed": "Could not access this cloud library",
         "connected": "Cloud library connected",
         "games": "{count} shared games",
-        "confirm_hint": "Replace this device's cloud connection? Local-only games stay on this device; no game saves will be applied"
+        "confirm_hint": "Connecting replaces the current cloud settings. Local games and saves are kept"
     },
     "settings": {
         "store_accounts_title": "Game store accounts",

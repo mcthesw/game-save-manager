@@ -17,6 +17,7 @@ import CloudLibrarySetup from '../components/CloudLibrarySetup.vue';
 import CloudLibraryUpgradeCard from '../components/CloudLibraryUpgradeCard.vue';
 import BackendCheckResult from '../components/BackendCheckResult.vue';
 import CloudSyncOverview from '../components/CloudSyncOverview.vue';
+import CloudJoinCodeDialog from '../components/CloudJoinCodeDialog.vue';
 import { resolveCloudUiMode } from '../utils/cloudNamespace';
 
 interface WebDAV {
@@ -721,13 +722,30 @@ onMounted(async () => {
               <KNumberInput v-model="snapshotSyncInterval" :min="1" :max="1440" class="w-28" />
             </div>
 
-            <div class="mt-3 flex gap-2 border-t border-border pt-4">
-              <KButton variant="primary" :disabled="cloudSettingsActionBusy" @click="save">
-                {{ $t('sync_settings.save_button') }}
-              </KButton>
-              <KButton :disabled="cloudSettingsActionBusy" @click="abort_change">
-                {{ $t('sync_settings.abort_button') }}
-              </KButton>
+            <div
+              class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+            >
+              <div class="flex flex-wrap gap-2">
+                <KButton variant="primary" :disabled="cloudSettingsActionBusy" @click="save">
+                  {{ $t('sync_settings.save_button') }}
+                </KButton>
+                <KButton :disabled="cloudSettingsActionBusy" @click="abort_change">
+                  {{ $t('sync_settings.abort_button') }}
+                </KButton>
+              </div>
+              <CloudJoinCodeDialog
+                :can-export="
+                  cloudNamespaceGeneration === 'v2' &&
+                  ['WebDAV', 'S3'].includes(config?.settings.cloud_settings?.backend?.type ?? '')
+                "
+                @connected="
+                  async () => {
+                    await load_config();
+                    await loadCloudNamespaceGeneration();
+                    await cloudLibrarySetup?.inspect();
+                  }
+                "
+              />
             </div>
           </div>
         </div>

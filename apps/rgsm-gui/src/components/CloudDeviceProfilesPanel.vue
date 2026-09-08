@@ -1,15 +1,52 @@
 <script setup lang="ts">
-import { RefreshCw, Trash2 } from '@lucide/vue';
+import { Copy, RefreshCw, Trash2 } from '@lucide/vue';
 
 import { commands, type CloudDeviceProfileView } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { KButton, KTag } from '../ui/kit';
+import { useConfig } from '../composables/useConfig';
+import { clearCloudLibrary, refreshCloudLibrary } from '../composables/useCloudLibrary';
 
 const feedback = useFeedback();
+const emit = defineEmits<{ reused: [] }>();
 const profiles = ref<CloudDeviceProfileView[]>([]);
 const loading = ref(false);
 const removing = ref('');
+const reusing = ref('');
+
+async function reuse(profile: CloudDeviceProfileView) {
+  try {
+    await feedback.confirm(
+      $t('cloud_join.reuse.confirm', { device: profile.name }),
+      $t('cloud_join.reuse.title'),
+      {
+        confirmButtonText: $t('cloud_join.reuse.action'),
+        cancelButtonText: $t('common.cancel'),
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+  reusing.value = profile.device_id;
+  try {
+    const result = await commands.reuseCloudDeviceLocations(profile.device_id);
+    if (result.status === 'error') {
+      notifyError($t('cloud_join.reuse.save_failed'), result.error);
+      return;
+    }
+    await useConfig().refreshConfig();
+    clearCloudLibrary();
+    await refreshCloudLibrary();
+    emit('reused');
+    notifySuccess($t('cloud_join.reuse.success', { count: result.data }));
+  } catch {
+    notifyError($t('cloud_join.reuse.save_failed'));
+  } finally {
+    reusing.value = '';
+  }
+}
 
 async function load() {
   loading.value = true;
@@ -95,6 +132,17 @@ onMounted(load);
           <div class="truncate font-mono text-[11px] text-text-dim">{{ profile.device_id }}</div>
         </div>
         <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          <KButton
+            v-if="!profile.current && !profile.deleted"
+            variant="ghost"
+            size="sm"
+            :disabled="!!removing || !!reusing"
+            :loading="reusing === profile.device_id"
+            @click="reuse(profile)"
+          >
+            <template #icon><Copy :size="13" aria-hidden="true" /></template>
+            {{ $t('cloud_join.reuse.action') }}
+          </KButton>
           <KTag v-if="profile.current" tone="accent">
             {{ $t('sync_settings.archives.profiles.current') }}
           </KTag>
