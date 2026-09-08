@@ -126,11 +126,7 @@ async function keepLocal() {
       await load();
       return;
     }
-    notifySuccess(
-      $t('sync_settings.archives.progress.keep_local_success', {
-        count: result.data.uploaded_archives,
-      })
-    );
+    notifySuccess($t('sync_settings.archives.progress.keep_local_success'));
     emit('resolved');
     visible.value = false;
   } finally {

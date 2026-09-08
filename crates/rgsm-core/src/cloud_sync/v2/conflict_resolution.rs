@@ -7,9 +7,9 @@ use specta::Type;
 use thiserror::Error;
 
 use super::{
-    CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifestRepository, DeletionRegistryError,
-    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, MaterializationError,
-    OpenDalManifestTransport, SnapshotState, SnapshotSyncCoordinator, SnapshotSyncError,
+    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionRegistryError,
+    DeletionRegistryRepository, ManifestRepositoryError, OpenDalManifestTransport,
+    SnapshotSyncCoordinator, SnapshotSyncError,
 };
 use crate::backup::{GameSnapshots, Snapshot};
 use crate::device::DeviceId;
@@ -18,7 +18,6 @@ use crate::device::DeviceId;
 pub struct KeepLocalProgressOutcome {
     pub snapshot_id: String,
     pub prepared_snapshots: usize,
-    pub uploaded_archives: usize,
     pub manifest_revision: u64,
 }
 
@@ -91,90 +90,21 @@ impl V2ConflictResolver {
             self.progress_path.clone(),
             self.max_attempts,
         )
-        .excluding_games(other_games.clone());
+        .excluding_games(other_games);
         for snapshot in &history {
             coordinator
                 .publish_local_node(game_id, snapshot, None)
                 .await?;
         }
 
-        let materializer = CloudArchiveMaterializer::new(
-            self.operator.clone(),
-            self.local_archive_root.clone(),
-            self.current_device_id.clone(),
-            self.progress_path.clone(),
-            self.max_attempts,
-        )
-        .excluding_games(other_games);
-        let mut uploaded_archives = 0;
-        for snapshot in &history {
-            let manifest = repository.load().await?;
-            let cloud_verified = manifest
-                .games
-                .get(game_id)
-                .and_then(|game| game.snapshots.get(&snapshot.date))
-                .is_some_and(|node| {
-                    matches!(
-                        &node.state,
-                        SnapshotState::Live(live) if live.cloud_archive_verified
-                    )
-                });
-            if !cloud_verified && coordinator.local_path(game_id, snapshot).is_file() {
-                materializer.upload(game_id, &snapshot.date).await?;
-                uploaded_archives += 1;
-            }
-        }
-
-        let prepared = repository.load().await?;
-        let selected_is_available = prepared
-            .games
-            .get(game_id)
-            .and_then(|game| game.snapshots.get(expected_local_snapshot_id))
-            .is_some_and(|node| {
-                matches!(
-                    &node.state,
-                    SnapshotState::Live(live) if live.cloud_archive_verified
-                )
-            });
-        if !selected_is_available {
-            return Err(KeepLocalProgressError::SelectedArchiveUnavailable(
-                expected_local_snapshot_id.to_string(),
-            ));
-        }
-        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
-            .ensure_active(&self.current_device_id, game_id)
-            .await?;
-
-        let game_id = game_id.to_string();
-        let selected_snapshot_id = expected_local_snapshot_id.to_string();
-        let current_device_id = self.current_device_id.clone();
-        let stored = repository
-            .mutate(move |manifest| {
-                let game = manifest
-                    .games
-                    .get_mut(&game_id)
-                    .ok_or_else(|| ManifestError::MissingGame(game_id.clone()))?;
-                let selected = game
-                    .snapshots
-                    .get(&selected_snapshot_id)
-                    .ok_or_else(|| ManifestError::MissingSnapshot(selected_snapshot_id.clone()))?;
-                if !matches!(
-                    &selected.state,
-                    SnapshotState::Live(live) if live.cloud_archive_verified
-                ) {
-                    return Err(ManifestError::InvalidIntegrity(
-                        selected_snapshot_id.clone(),
-                    ));
-                }
-                game.set_head(current_device_id.clone(), selected_snapshot_id.clone());
-                Ok(())
-            })
-            .await?;
+        // Choosing a position publishes metadata, not archive contents. Explicit
+        // transfers and the selected sync mode own archive availability.
+        coordinator.publish_current_head(game_id, local).await?;
+        let stored = repository.load().await?;
 
         Ok(KeepLocalProgressOutcome {
             snapshot_id: expected_local_snapshot_id.to_string(),
             prepared_snapshots: history.len(),
-            uploaded_archives,
             manifest_revision: stored.revision,
         })
     }
@@ -237,12 +167,8 @@ pub enum KeepLocalProgressError {
     MissingLocalSnapshot(String),
     #[error("Local Snapshot parent cycle contains {0}")]
     LocalParentCycle(String),
-    #[error("Selected local Snapshot Archive is not available locally or in the cloud: {0}")]
-    SelectedArchiveUnavailable(String),
     #[error(transparent)]
     SnapshotSync(#[from] SnapshotSyncError),
-    #[error(transparent)]
-    Materialization(#[from] MaterializationError),
     #[error(transparent)]
     Repository(#[from] ManifestRepositoryError),
     #[error(transparent)]
@@ -258,7 +184,8 @@ mod tests {
     use super::*;
     use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
     use crate::cloud_sync::v2::{
-        ArchiveIntegrity, CloudManifest, GameManifest, SnapshotNode, cloud_archive_path,
+        ArchiveIntegrity, CloudManifest, GameManifest, SnapshotNode, SnapshotState,
+        cloud_archive_path,
     };
 
     fn snapshot(id: &str, parent: Option<&str>) -> Snapshot {
@@ -339,7 +266,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn uploads_selected_lineage_before_moving_only_current_device_head() {
+    async fn publishes_selected_lineage_without_uploading_archives() {
         let (operator, _root, resolver, local) = fixture().await;
 
         let outcome = resolver
@@ -348,16 +275,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(outcome.prepared_snapshots, 2);
-        assert_eq!(outcome.uploaded_archives, 2);
         let manifest = resolver.repository().load().await.unwrap();
         let game = &manifest.games["game"];
         assert_eq!(game.device_heads["pc"], "local");
         assert_eq!(game.device_heads["deck"], "remote");
         assert!(game.snapshots.get("local").is_some_and(
-            |node| matches!(&node.state, SnapshotState::Live(live) if live.cloud_archive_verified)
+            |node| matches!(&node.state, SnapshotState::Live(live) if !live.cloud_archive_verified)
         ));
         assert!(
-            operator
+            !operator
                 .exists(&cloud_archive_path("game", "local", ArchiveFormat::Zip).unwrap())
                 .await
                 .unwrap()
@@ -381,7 +307,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unavailable_selected_archive_never_moves_the_device_head() {
+    async fn keeping_recorded_position_does_not_require_archive_availability() {
         let (_operator, _root, resolver, local) = fixture().await;
         std::fs::remove_file(archive_path(
             &resolver.local_archive_root.join("game"),
@@ -390,12 +316,12 @@ mod tests {
         ))
         .unwrap();
 
-        assert!(matches!(
-            resolver.keep_local("game", 7, "local", &local).await,
-            Err(KeepLocalProgressError::SelectedArchiveUnavailable(id)) if id == "local"
-        ));
+        resolver
+            .keep_local("game", 7, "local", &local)
+            .await
+            .unwrap();
         let manifest = resolver.repository().load().await.unwrap();
-        assert_eq!(manifest.games["game"].device_heads["pc"], "remote");
+        assert_eq!(manifest.games["game"].device_heads["pc"], "local");
         assert_eq!(manifest.games["game"].device_heads["deck"], "remote");
     }
 }

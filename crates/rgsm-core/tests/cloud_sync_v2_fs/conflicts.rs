@@ -216,7 +216,6 @@ async fn keep_local_publishes_complete_lineage_and_preserves_remote_position() {
         .get(GAME_ID)
         .expect("game should remain in manifest");
     assert_eq!(outcome.prepared_snapshots, 2);
-    assert_eq!(outcome.uploaded_archives, 1);
     assert!(outcome.manifest_revision > review.manifest_revision);
     assert_eq!(
         game.device_heads
@@ -230,27 +229,24 @@ async fn keep_local_publishes_complete_lineage_and_preserves_remote_position() {
             .map(String::as_str),
         Some(REMOTE_HEAD_ID)
     );
-    for (snapshot, expected) in [
-        (&histories.parent, PARENT_BYTES),
-        (&histories.local_head, LOCAL_BYTES),
-    ] {
+    for snapshot in [&histories.parent, &histories.local_head] {
         let node = game
             .snapshots
             .get(&snapshot.date)
             .expect("lineage node should persist");
+        let should_be_uploaded = snapshot.date == PARENT_ID;
         assert!(matches!(
             &node.state,
-            SnapshotState::Live(live) if live.cloud_archive_verified
+            SnapshotState::Live(live) if live.cloud_archive_verified == should_be_uploaded
         ));
         assert_eq!(
             histories
                 .cloud
                 .new_operator()
-                .read(&cloud_archive(GAME_ID, snapshot))
+                .exists(&cloud_archive(GAME_ID, snapshot))
                 .await
-                .expect("published archive should be readable")
-                .to_vec(),
-            expected
+                .expect("archive availability should be observable"),
+            should_be_uploaded
         );
     }
     assert_eq!(
