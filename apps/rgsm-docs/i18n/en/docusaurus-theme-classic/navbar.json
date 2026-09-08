@@ -1,0 +1,20 @@
+{
+  "title": {
+    "message": "Game Save Manager"
+  },
+  "logo.alt": {
+    "message": "Game Save Manager"
+  },
+  "item.label.帮助文档": {
+    "message": "User Guide"
+  },
+  "item.label.开发者指南": {
+    "message": "Developer Guide"
+  },
+  "item.label.更新日志": {
+    "message": "Changelog"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub"
+  }
+}

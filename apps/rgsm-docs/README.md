@@ -17,7 +17,9 @@ pnpm docs:dev
 pnpm docs:build
 ```
 
-用户指南位于 `docs/`，更新日志位于 `blog/`。架构决策和内部设计文档保留在仓库根目录的 `docs/`。
+用户指南和开发者指南位于 `docs/`，更新日志位于 `blog/`，英文翻译位于 `i18n/en/`。架构决策和内部设计文档保留在仓库根目录的 `docs/`。
+
+使用 `pnpm --dir apps/rgsm-docs dev --locale en` 预览英文站点。生产构建会同时生成中英文站点。
 
 ---
 
@@ -40,4 +42,6 @@ Create a production build:
 pnpm docs:build
 ```
 
-User guides live in `docs/`, and release posts live in `blog/`. Architecture decisions and internal design documents remain in the repository root `docs/`.
+User and developer guides live in `docs/`, release posts in `blog/`, and English translations in `i18n/en/`. Architecture decisions and internal design documents remain in the repository root `docs/`.
+
+Use `pnpm --dir apps/rgsm-docs dev --locale en` to preview the English site. Production builds include both languages.

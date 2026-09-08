@@ -1,0 +1,35 @@
+{
+  "link.title.文档": {
+    "message": "Documentation"
+  },
+  "link.title.社区": {
+    "message": "Community"
+  },
+  "link.title.源代码": {
+    "message": "Source"
+  },
+  "link.item.label.使用文档": {
+    "message": "User Guide"
+  },
+  "link.item.label.开发者指南": {
+    "message": "Developer Guide"
+  },
+  "link.item.label.软件主页": {
+    "message": "Project website"
+  },
+  "link.item.label.讨论区": {
+    "message": "Discussions"
+  },
+  "link.item.label.Bilibili账号": {
+    "message": "Bilibili"
+  },
+  "link.item.label.项目源代码": {
+    "message": "Application source"
+  },
+  "link.item.label.文档源代码": {
+    "message": "Documentation source"
+  },
+  "copyright": {
+    "message": "Game Save Manager is an open-source project by Sworld and contributors, made for players."
+  }
+}

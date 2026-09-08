@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
+import Translate, {translate} from '@docusaurus/Translate';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
@@ -21,10 +22,10 @@ function HomepageHeader() {
           <Link
             className="button button--secondary button--lg"
             to="/docs/intro">
-            快速入门
+            <Translate id="home.getStarted">快速入门</Translate>
           </Link>
           <Link className="button button--outline button--lg" to="/docs/extras/cloud">
-            配置云同步
+            <Translate id="home.cloudSync">配置云同步</Translate>
           </Link>
         </div>
       </div>
@@ -33,16 +34,16 @@ function HomepageHeader() {
 }
 
 export default function Home() {
-  const {siteConfig} = useDocusaurusContext();
+  const {siteConfig, i18n} = useDocusaurusContext();
   return (
     <Layout
       title={siteConfig.title}
-      description="保存重要进度，随时恢复旧存档。游戏存档管理器 1.9 使用指南与下载入口。">
+      description={translate({id: 'home.description', message: '保存重要进度，随时恢复旧存档。游戏存档管理器 1.9 使用指南与下载入口。'})}>
       <HomepageHeader />
       <main>
         <HomepageFeatures />
         <div className="container">
-          <Screenshot src="/img/guide/snapshots.png" alt="游戏存档管理器 1.9 中文界面" />
+          <Screenshot src={i18n.currentLocale === 'en' ? '/img/guide/en/snapshots.png' : '/img/guide/snapshots.png'} alt={translate({id: 'home.screenshot', message: '游戏存档管理器 1.9 中文界面'})} />
         </div>
       </main>
     </Layout>

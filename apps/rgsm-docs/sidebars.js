@@ -41,13 +41,6 @@ const sidebars = {
     'developers/testing',
     'developers/contributing',
   ],
-  developerEnglishSidebar: [
-    'developers/en/intro',
-    'developers/en/architecture',
-    'developers/en/debugging',
-    'developers/en/testing',
-    'developers/en/contributing',
-  ],
 };
 
 export default sidebars;

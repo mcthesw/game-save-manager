@@ -6,8 +6,8 @@
 
 This is a simple and easy-to-use open source game save manager. It can help you manage your game save files, and describe, save, delete, and overwrite your saves in a user-friendly graphical window. The current version supports features such as cloud backup (WebDAV) and quick operations, and considering the performance needs of players, the software has a very small footprint.
 
-- [Official Website](https://help.sworld.club): Provides resources such as help documentation and downloads
-- [Changelog](https://help.sworld.club/blog): Recent updates can be viewed on Github and here
+- [Official Website](https://help.sworld.club/en): Provides resources such as help documentation and downloads
+- [Changelog](https://help.sworld.club/en/blog): Recent updates can be viewed on Github and here
 - [Milestone](https://github.com/mcthesw/game-save-manager/milestone/3): Records the functions planned to be implemented in the future
 - [Roadmap](ROADMAP.md): Development direction and architecture decisions for V2.0 and beyond
 - [QQ Group](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=2zkfioUwcqA-Y2ZZqfnhjhQcOUEfcYFD&authKey=7eFKqarle0w7QUsFXZbp%2BLkIvEI0ORoggsnNATOSU6maYiu9mSWSTRxcSorp9eex&noverify=0&group_code=837390423): 837390423
@@ -25,11 +25,11 @@ This software uses [Weblate](https://weblate.org/) for translation, and you can 
 
 ## User Guide 👻
 
-> It is recommended to read the guide on the [official website](https://help.sworld.club), this is a simplified version
+> It is recommended to read the guide on the [official website](https://help.sworld.club/en), this is a simplified version
 
 ### Download the software 😎
 
-You can download the software from the [download page of the official website](https://help.sworld.club/docs/intro), and you can download the latest test version from the [Release Page](https://github.com/mcthesw/game-save-manager/releases). Users of Win10 or above are recommended to use the portable version. It is worth noting that this software depends on WebView2. If you are not using it on Windows, please install it manually. If you are using Win7 or your system does not come with WebView2, please read the text below carefully.
+You can download the software from the [download page of the official website](https://help.sworld.club/en/docs/intro), and you can download the latest test version from the [Release Page](https://github.com/mcthesw/game-save-manager/releases). Users of Win10 or above are recommended to use the portable version. It is worth noting that this software depends on WebView2. If you are not using it on Windows, please install it manually. If you are using Win7 or your system does not come with WebView2, please read the text below carefully.
 
 #### Win7 users please note ⚠️
 
@@ -40,7 +40,7 @@ This software depends on WebView2 to run, and Win7 and some special versions of 
 
 #### Msi installation package users please note ⚠️
 
-This software will install all content to the location specified by the installer, will not create additional folders, and will empty the folder when "Delete application data" is checked during uninstallation. If you installed it in the wrong location, you can refer to [this tutorial](https://help.sworld.club/docs/help/install_to_wrong_location) to solve the problem
+This software will install all content to the location specified by the installer, will not create additional folders, and will empty the folder when "Delete application data" is checked during uninstallation. If you installed it in the wrong location, you can refer to [this tutorial](https://help.sworld.club/en/docs/help/install_to_wrong_location) to solve the problem
 
 ### Submit issues | Feature suggestions 😕
 
@@ -52,7 +52,7 @@ You can make suggestions or submit feedback from the following platforms, I will
 
 ## Developer Guide 🐱
 
-Contributions to code, usability, and documentation are welcome. The [Developer Guide](https://help.sworld.club/docs/developers/en) covers local setup, project structure, debugging, and contributing.
+Contributions to code, usability, and documentation are welcome. The [Developer Guide](https://help.sworld.club/en/docs/developers) covers local setup, project structure, debugging, and contributing.
 
 ## Donate
 

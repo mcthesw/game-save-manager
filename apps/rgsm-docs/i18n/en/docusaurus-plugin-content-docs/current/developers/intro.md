@@ -1,9 +1,7 @@
 ---
 title: Getting started
-slug: /developers/en
+slug: /developers
 ---
-
-[简体中文](../intro.md)
 
 ## Prerequisites
 

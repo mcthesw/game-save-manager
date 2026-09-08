@@ -1,0 +1,35 @@
+{
+  "home.getStarted": {
+    "message": "Get started"
+  },
+  "home.cloudSync": {
+    "message": "Set up cloud sync"
+  },
+  "home.description": {
+    "message": "Save important progress and restore earlier saves. Guides and downloads for Game Save Manager 1.9."
+  },
+  "home.screenshot": {
+    "message": "Game Save Manager 1.9 in English"
+  },
+  "home.features.save.title": {
+    "message": "Save important progress"
+  },
+  "home.features.save.description": {
+    "message": "Back up manually or on a schedule. Add a short description to find the right save later."
+  },
+  "home.features.restore.title": {
+    "message": "Return to the moment you want"
+  },
+  "home.features.restore.description": {
+    "message": "Browse snapshots and branches, choose a save to restore, and keep an extra backup before replacing it."
+  },
+  "home.features.cloud.title": {
+    "message": "Continue on another device"
+  },
+  "home.features.cloud.description": {
+    "message": "Connect your own WebDAV or S3 storage to back up and restore saves across devices."
+  },
+  "screenshot.open": {
+    "message": "{alt}, view full-size image"
+  }
+}

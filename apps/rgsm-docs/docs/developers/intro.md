@@ -3,8 +3,6 @@ title: 开始开发
 slug: /developers
 ---
 
-[English](./en/intro.md)
-
 ## 准备环境
 
 - Node.js 24、pnpm 11

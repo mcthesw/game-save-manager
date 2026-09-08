@@ -1,0 +1,35 @@
+---
+sidebar_label: Connecting cloud storage
+description: Configure WebDAV or S3-compatible storage.
+---
+
+# Connecting cloud storage
+
+Supported backends include **WebDAV** and **S3-compatible storage**, such as Nutstore, MinIO, and Cloudflare R2.
+
+## Enter connection details
+
+1. Open **Cloud sync → Cloud settings**.
+2. Select a storage type and enter its connection details.
+3. Test the connection and save.
+
+| Storage type | Connection details |
+| --- | --- |
+| WebDAV | Server URL, username, and password or application password |
+| S3 | Endpoint, Bucket, Region, Access Key ID, and Secret Access Key |
+
+Create a bucket before using S3. Devices that sync together use the same cloud root path.
+
+## Connect a library
+
+Follow the prompt to create a library in an empty location. An existing compatible library connects automatically. For an older library, follow the [upgrade guide](../help/upgrade.mdx).
+
+Once connected, [choose a sync mode](../cloud/modes.mdx) for each game.
+
+## Continue on another device
+
+Follow the [cross-device workflow](../cloud/progress.mdx) to save, upload, and apply progress.
+
+## Deletion and cleanup
+
+See [Copies and cleanup](../cloud/copies.md) for uploading, downloading, and deleting copies.

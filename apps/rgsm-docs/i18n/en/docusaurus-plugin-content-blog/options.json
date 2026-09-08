@@ -1,0 +1,11 @@
+{
+  "title": {
+    "message": "Changelog"
+  },
+  "description": {
+    "message": "Game Save Manager release notes"
+  },
+  "sidebar.title": {
+    "message": "Recent releases"
+  }
+}

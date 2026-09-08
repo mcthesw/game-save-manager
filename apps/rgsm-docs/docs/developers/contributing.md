@@ -44,4 +44,4 @@ git rebase upstream/dev
 
 - [改进文档](../contribute/document.md)：用简短步骤说明当前行为
 - [参与翻译](../contribute/translate.md)：通过 Weblate 完善软件翻译
-- 开发者指南的中英文页面位于 `apps/rgsm-docs/docs/developers`
+- 中文开发者指南位于 `apps/rgsm-docs/docs/developers`，英文对应页面位于 `i18n/en/docusaurus-plugin-content-docs/current/developers`
