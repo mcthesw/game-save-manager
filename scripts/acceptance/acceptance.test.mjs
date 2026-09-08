@@ -266,6 +266,27 @@ test("packet generator records provenance, rejects traversal and never overwrite
     createPacket("bad-platform", { repoRoot: root, target: "unknown" }),
     /Target/,
   );
+  const example = await createPacket("cloud-example", {
+    repoRoot: root,
+    target: "win32",
+    example: true,
+  });
+  const recipe = await readFile(join(example, "run.mjs"), "utf8");
+  assert.match(recipe, /cloud-fixture\.ts/);
+  assert.match(recipe, /startExampleDevice/);
+  assert.doesNotMatch(recipe, /__[A-Z_]+__/);
+  assert.match(
+    await readFile(join(example, "ACCEPTANCE.md"), "utf8"),
+    /Not run/,
+  );
+  await assert.rejects(
+    createPacket("unsupported-example", {
+      repoRoot: root,
+      target: "linux",
+      example: true,
+    }),
+    /win32/,
+  );
 });
 
 test("generated packet runs on its target, resumes edits, and rejects a different platform", async (t) => {

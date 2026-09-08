@@ -59,23 +59,40 @@ Packets are local, ignored output, not deployment bundles. If copying a packet, 
 Platform recording does not establish compatibility. This tool does not provision other
 machines or provide Linux acceptance support.
 
-## Reuse before adding adapters
+## Start from a runnable example when useful
 
-Existing fixture builders live in `apps/rgsm-gui/e2e/support/`: `released-upgrade.ts`,
-`local-fixture.ts`, and `cloud-fixture.ts`. HTTP host readiness and browser runtime wiring
-are in `rgsm-instance.ts`; process ownership is in `process.ts`. These TypeScript modules
-have different runtime dependencies: importing a fixture that transitively imports
-extensionless TS modules needs a compatible runner. Do not assume plain Node can run all
-E2E modules merely because it can strip TypeScript types.
+```sh
+pnpm acceptance:new cloud-journey --example
+node .rgsm-dev/acceptance/cloud-journey/run.mjs
+```
 
-Prefer a narrowly shared helper when repeated acceptance needs justify extracting one.
-Do not duplicate RGSM's cloud model, add a scenario DSL, or refactor all E2E support for
-an initial packet. An HTML control page, multiple devices, Playwright, and desktop launch
-are optional choices for the particular request, not requirements of the scaffold.
+Currently verified on Windows, with Node 24, installed pnpm dependencies and the repository's
+Rust build prerequisites. This builds one HTTP-only host binary and one web bundle, starts
+two isolated hosts with a shared local Fs cloud, and prints each device's GUI and text-panel
+links. Ports are assigned by the OS; existing dev servers are not adopted or stopped.
+No browser or desktop window opens automatically. The panel reads/writes only its fixed
+artificial save file, never arbitrary paths. It is local tooling, not a product UI.
 
-Linux file/permission behavior needs a Linux backend; tray and window behavior additionally
-need a real desktop session. An HTTP-only browser session does not establish either desktop
-compatibility or packaged-app startup. Existing `production-startup.spec.ts` covers built web
-startup separately. Do not install VMs or operate remote machines merely to fill a coverage gap.
+Edit the generated `run.mjs` directly: remove B, replace the seed, or change initial bytes.
+`ACCEPTANCE.md` is a suggested human outline, not machine-parsed input. Store actual state
+in fixture code and sample files, not Markdown/YAML encodings. Keep sample assets small and
+synthetic. The example intentionally leaves library creation, snapshots, transfers and
+restore for real RGSM interactions; it makes no WebDAV/S3 or desktop-shell claims.
 
-Run the lightweight scaffold/lifecycle tests with `pnpm acceptance:test`.
+`apps/rgsm-gui/scripts/acceptance/` contains the app-specific build/preview/text helpers.
+The example directly imports `e2e/support/cloud-fixture.ts`; readiness uses the same
+`scripts/wait-http-host.ts` helper as E2E, and process ownership uses `e2e/support/process.ts`.
+Other E2E fixture modules may require a compatible runner for extensionless TS imports:
+do not assume all E2E code runs in plain Node. No scenario registry or generic adapter layer
+is needed to write another packet.
+
+Each launch records the actual revision, dirty files, artifact and environment under
+`evidence/runtime.json`. Creation metadata alone is not execution evidence. Restart preserves
+data but rebuilds incrementally and prints new URLs/tokens; reload through the new links.
+Use either text panel's stop button or Ctrl+C. Generated configs/logs remain private local
+data and can contain credentials; share only redacted evidence.
+
+Run lightweight scaffold/readiness tests with `pnpm acceptance:test`. The opt-in
+`pnpm acceptance:test:example` additionally builds and exercises the generated example
+against the real backend with headless Chromium (Playwright browser installation required).
+Neither command records a human acceptance result.

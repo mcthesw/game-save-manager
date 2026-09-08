@@ -54,7 +54,7 @@ jobs:
           cache: "pnpm"
 
       - name: Run repository script tests
-        run: node --test scripts/portable.test.mjs scripts/acceptance/acceptance.test.mjs
+        run: node --test scripts/portable.test.mjs scripts/acceptance/acceptance.test.mjs apps/rgsm-gui/scripts/wait-http-host.test.mjs apps/rgsm-gui/scripts/acceptance/build-task.test.mjs
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile

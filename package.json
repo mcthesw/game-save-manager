@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "acceptance:new": "node scripts/acceptance/create.mjs",
-    "acceptance:test": "node --test scripts/acceptance/acceptance.test.mjs",
+    "acceptance:test": "node --test scripts/acceptance/acceptance.test.mjs apps/rgsm-gui/scripts/wait-http-host.test.mjs apps/rgsm-gui/scripts/acceptance/build-task.test.mjs",
+    "acceptance:test:example": "node --test apps/rgsm-gui/scripts/acceptance/example.test.mjs",
     "dev": "pnpm --dir apps/rgsm-gui dev",
     "build": "pnpm --dir apps/rgsm-gui build",
     "web:dev": "pnpm --dir apps/rgsm-gui web:dev",

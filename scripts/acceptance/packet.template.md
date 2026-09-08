@@ -1,5 +1,7 @@
 # Acceptance proposal
 
+Suggested outline, not a required format; delete sections that do not help this change
+
 Not ready for review until adapted to the actual change
 
 ## Purpose and environment
@@ -19,7 +21,7 @@ The generated script only seeds an example text file until it has been adapted
 
 Write a few numbered actions in user terms, pairing each with an observable result
 Identify device A/B and expected file contents only when the scenario needs them
-Keep setup out of the reviewer's steps; do not repeat assertions already covered adequately by CI
+Keep setup out of the reviewer's steps; overlap with automated tests is fine when useful for human judgment
 
 ## Stop and continue
 

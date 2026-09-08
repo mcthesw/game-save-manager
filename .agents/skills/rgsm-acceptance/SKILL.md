@@ -1,60 +1,53 @@
 ---
 name: rgsm-acceptance
-description: Offer and prepare optional, change-specific human acceptance for RGSM after implementation, or when asked for an acceptance environment such as Linux compatibility, upgrade recovery, or multi-device use
+description: Offer and prepare optional, change-specific human acceptance for RGSM after implementation, or when asked for an acceptance environment for recovery, multi-device use or another changed journey
 ---
 
 # Optional RGSM acceptance
 
-Help the implementer decide whether human use can reveal something meaningful beyond
-the existing automatic checks, then prepare a small usable acceptance packet if wanted.
-This is not a mandatory PR gate, a replacement for tests, or a fixed scenario catalog.
+Offer useful human acceptance, then prepare a small usable packet if wanted.
+This is optional, not a PR gate, a replacement for tests or a fixed scenario catalog.
 
 ## Offer only when useful
 
-Inspect the actual change and existing verification. When human acceptance adds value,
-offer the proposed journey, environment requirements and approximate effort briefly.
-Wait for the implementer to opt in before building or starting the acceptance environment.
-A direct request to prepare an acceptance environment already opts in; do not ask again.
-If existing evidence is sufficient, skip the offer rather than manufacturing work.
+Inspect the change and existing verification. If human judgment adds value, briefly offer
+the journey, environment requirements and approximate effort; otherwise skip the offer.
+Wait for opt-in before preparing or starting an environment. A direct request already
+opts in; do not ask again. Overlap with automated coverage is fine when useful.
 
-Match the environment to the claim. Linux path/permission behavior requires a Linux
-backend, not a Linux-labelled browser on Windows. Window, tray and file-picker behavior
-needs the actual desktop shell. Distinguish dev frontend, built web output and packaged app.
-For an unavailable platform, offer portable preparation materials and mark execution as
-not run. Do not install a VM, use a remote host, open desktop windows or use personal data
-without the corresponding authorization.
+Match evidence to the environment: dev frontend, built web and packaged desktop are distinct.
+Tray/window behavior needs the desktop shell. Windows browser use is not Linux proof;
+this scaffold does not provision Linux. Mark unavailable execution as not run.
+Do not install VMs, use remote hosts, open windows or use personal data without authorization.
 
 ## Prepare the packet
 
-Read `scripts/acceptance/README.md` from the repository root for the scaffolding command,
-lifecycle helpers and existing fixture locations. Use `pnpm acceptance:new <name> [platform]`
-when its structure fits. It produces local ignored output, not a permanent test case.
+Read `scripts/acceptance/README.md` for commands, lifecycle helpers and fixture locations.
+Use `pnpm acceptance:new <name> [platform]` when it fits. Add `--example` on Windows for
+a runnable A/B + local Fs cloud + text-file starting point; freely trim or replace it.
+Generated packets are local ignored output, not permanent test cases.
 
-Adapt `ACCEPTANCE.md` and `run.mjs` to the changed journey. Markdown explains player-visible
-state and results; trusted fixture code and small sample assets create actual state.
-Do not invent a JSON/YAML action language. A browser control page is useful for some
-multi-device tasks, but unnecessary for others. Prepare at most five focused scenarios
-by default; fewer is better when they cover the relevant behavior.
+Adapt `ACCEPTANCE.md` and `run.mjs` to the change. Markdown describes initial state,
+numbered actions and observable results; its headings are suggestions, not a schema.
+Trusted fixture code and small synthetic assets create actual state, not a JSON/YAML
+action language. A control page is optional. Use at most five focused scenarios by default.
 
-Use artificial saves, isolated app data and local test cloud storage. Reuse existing
-fixtures and process helpers where practical; do not mirror product logic in the scaffold.
-Prepare prerequisites automatically, but leave the behavior being accepted for the human
-to exercise. Keep process counts and builds small, reuse valid builds, and avoid OS
-notifications or automatic browser/window launch. Stopping must preserve the reviewer's
-changes; a fresh baseline is a separate, explicit operation.
+Use isolated app data, artificial saves and local test cloud storage. Reuse fixture and
+process helpers; do not mirror product logic. Automate prerequisites, leaving the behavior
+being accepted for the human to exercise. Keep builds/process counts small and reuse valid
+builds. No OS notifications or automatic browser/window launch. Stop/resume must preserve
+reviewer changes; a fresh baseline is a separately named packet.
 
-Smoke-test the adapted setup before presenting it as ready. Confirm entry points, initial
-state, readiness and shutdown; verify restart retains modified test files. An unmodified
-generated script is only a scaffold. Record the actual source/artifact and environment,
-including uncommitted changes, rather than treating creation-time metadata as proof.
+Before handoff, smoke-test entry points, initial state, readiness, shutdown and restart
+with modified test files. Record the actual source/artifact, environment and dirty files;
+packet creation metadata and a runnable example alone do not prove the changed journey.
 
 ## Hand off and follow up
 
-Give the entry point, short paired actions/expected results, stop/resume instructions and
-known coverage boundaries. The reviewer should not need to edit application configuration.
-Ask for the step number, actual outcome and a screenshot when helpful, not full logs with
-tokens. Separate setup checks, human results and not-run items in the final report.
+Give links, short paired actions/results, stop/resume instructions and coverage boundaries.
+The reviewer should not need to edit app configuration. Ask for the step number, actual
+outcome and useful screenshots, not logs containing tokens. Separate setup checks, human
+results and not-run items; only the human's report establishes human acceptance.
 
-Follow up on reported issues within the implementation's scope. Promote a reusable helper,
-fixture or regression test into tracked source when real use justifies it; do not permanently
-add every generated packet. Never mark acceptance complete before the human reports results.
+Follow up within the implementation's scope. Promote helpers, fixtures or regression tests
+into tracked source when reuse justifies it; do not permanently add every generated packet.

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acceptance fixture</title>
+    <style>
+      body {
+        font: 16px system-ui;
+        max-width: 50rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        color-scheme: light dark;
+      }
+      textarea {
+        box-sizing: border-box;
+        width: 100%;
+        height: 12rem;
+        margin: 0.5rem 0;
+      }
+      button,
+      a {
+        margin-right: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="device"></h1>
+    <p>
+      <a href="/" target="_blank" rel="noopener">Open RGSM</a>Artificial files only · no personal
+      saves or remote cloud
+    </p>
+    <label for="save">Simulated game progress (UTF-8 text, up to 64 KiB)</label>
+    <textarea id="save" spellcheck="false"></textarea>
+    <button id="read">Read saved file</button>
+    <button id="write">Write edited text</button>
+    <p id="status" role="status"></p>
+    <p>
+      Use RGSM to create, upload, download and apply snapshots<br />Writing here simulates playing
+      the game, not creating a snapshot
+    </p>
+    <button id="stop">Stop entire session</button>
+    <p>Data is retained · run the same launcher to continue · use the newly printed links</p>
+    <script>
+      const device = __DEVICE__;
+      document.getElementById('device').textContent = device.name;
+      const save = document.getElementById('save');
+      const status = document.getElementById('status');
+      async function request(action, method = 'GET', body) {
+        const response = await fetch(`/__acceptance/${action}`, {
+          method,
+          body,
+          headers: { Authorization: `Bearer ${device.token}` },
+        });
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        return response.text();
+      }
+      async function act(callback) {
+        try {
+          await callback();
+        } catch (error) {
+          status.textContent = error.message;
+        }
+      }
+      document.getElementById('read').onclick = () =>
+        act(async () => {
+          save.value = await request('text');
+          status.textContent = 'Read from disk';
+        });
+      document.getElementById('write').onclick = () =>
+        act(async () => {
+          await request('text', 'POST', save.value);
+          status.textContent = 'Written to disk';
+        });
+      document.getElementById('stop').onclick = () =>
+        act(async () => {
+          status.textContent = await request('stop', 'POST');
+        });
+      document.getElementById('read').click();
+    </script>
+  </body>
+</html>

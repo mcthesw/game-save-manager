@@ -5,11 +5,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { setTimeout as delay } from 'node:timers/promises';
 import { finished } from 'node:stream/promises';
 import { hostCommand, spawnTestProcess } from './process';
 import { buildEnvironment, prepareBuild, preparedBinary } from './build-state';
 import { reportTiming } from './timing';
+import { waitForHttpHost } from '../../scripts/wait-http-host';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const workspaceRoot = resolve(appRoot, '../..');
@@ -30,11 +30,6 @@ export type HostStartOptions = {
   logPath: string;
   env?: Record<string, string | undefined>;
   readyTimeoutMs?: number;
-};
-
-type HostFile = {
-  port: number;
-  api_token: string;
 };
 
 export function workspacePath(...parts: string[]): string {
@@ -174,43 +169,13 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
     })());
 
   try {
-    const hostConfigPath = join(options.appDataDir, 'GameSaveManager.host.json');
-    const deadline = Date.now() + (options.readyTimeoutMs ?? 60_000);
-    let config: HostFile | undefined;
-    let lastError: unknown;
-    while (Date.now() < deadline) {
-      const failure = owned.failure();
-      if (failure) {
-        const tail = outputTail.trim() || (await readLogTail(options.logPath));
-        throw new Error(`RGSM Host for ${options.deviceId} failed: ${failure.message}.\n${tail}`);
-      }
-      try {
-        config = JSON.parse(await readFile(hostConfigPath, 'utf8')) as HostFile;
-        const response = await fetch(`http://127.0.0.1:${config.port}/api/v1/get-build-info`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${config.api_token}` },
-          signal: AbortSignal.timeout(Math.max(1, Math.min(1_000, deadline - Date.now()))),
-        });
-        await response.body?.cancel();
-        if (response.ok) break;
-        lastError = new Error(`get-build-info returned HTTP ${response.status}`);
-        config = undefined;
-      } catch (error) {
-        lastError = error;
-        config = undefined;
-      }
-      await delay(Math.max(0, Math.min(250, deadline - Date.now())));
-    }
-    if (!config) {
-      throw new Error(
-        `Timed out waiting for RGSM Host ${options.deviceId}: ${String(lastError)}. See ${options.logPath}`
-      );
-    }
+    const runtime = await waitForHttpHost(options.appDataDir, {
+      timeoutMs: options.readyTimeoutMs,
+      failure: owned.failure,
+    });
     reportTiming(`HTTP host ready (${options.deviceId})`, startedAt);
     return {
-      apiBaseUrl: `http://127.0.0.1:${config.port}`,
-      token: config.api_token,
-      port: config.port,
+      ...runtime,
       appDataDir: options.appDataDir,
       deviceId: options.deviceId,
       logPath: options.logPath,
@@ -218,7 +183,8 @@ export async function startRgsmHost(options: HostStartOptions): Promise<RgsmHost
     };
   } catch (error) {
     await stop();
-    throw error;
+    const tail = outputTail.trim() || (await readLogTail(options.logPath));
+    throw new Error(`RGSM Host for ${options.deviceId} failed.\n${tail}`, { cause: error });
   }
 }
 

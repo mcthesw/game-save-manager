@@ -12,7 +12,7 @@ import {
   PARENT_SAVE_BYTES,
   PARENT_SNAPSHOT_ID,
   STORAGE_KEY,
-} from './constants';
+} from './constants.ts';
 
 const fixtureRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/legacy-cloud-v1');
 
