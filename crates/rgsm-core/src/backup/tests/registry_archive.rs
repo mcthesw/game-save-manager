@@ -32,6 +32,136 @@ mod tests {
     }
 
     #[test]
+    fn registry_restore_uses_device_target_not_archived_root()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::backup::registry::{
+            RegistryData, RegistryKeyEntry, RegistryValue, serialize_reg_file,
+        };
+
+        let _config_lock = lock_config_file();
+        let _config_guard = ConfigFileGuard::write_default_config()?;
+        let temp = temp_dir::TempDir::new()?;
+        let (owned_subkey, owned_path) = unique_registry_path("RGSM_TEST")?;
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            let source_path = format!("{owned_path}\\OldName");
+            let target_path = format!("{owned_path}\\NewName");
+            let (source, _) = hkcu.create_subkey(format!("{owned_subkey}\\OldName"))?;
+            source.set_value("Untouched", &"original")?;
+            let data = RegistryData {
+                format_version: 1,
+                root_key: source_path,
+                entries: vec![
+                    RegistryKeyEntry {
+                        subkey: String::new(),
+                        values: vec![],
+                    },
+                    RegistryKeyEntry {
+                        subkey: "Nested".into(),
+                        values: vec![RegistryValue::Sz {
+                            name: "Value".into(),
+                            data: "S-1-5-21-old-user-must-stay".into(),
+                        }],
+                    },
+                ],
+            };
+            for (date, filename, bytes) in [
+                ("reg", "registry.reg", serialize_reg_file(&data)?),
+                ("json", "registry.json", serde_json::to_vec(&data)?),
+            ] {
+                let mut writer =
+                    ZipWriter::new(File::create(temp.path().join(format!("{date}.zip")))?);
+                writer.start_file(format!("0/{filename}"), SimpleFileOptions::default())?;
+                writer.write_all(&bytes)?;
+                writer.set_comment(ArchiveMeta::new(CompressionPreset::Standard).to_comment());
+                writer.finish()?;
+                decompress_from_file(
+                    &[build_registry_save_unit_with_id(&target_path, 0)],
+                    temp.path(),
+                    date,
+                    None,
+                )?;
+                let restored = hkcu.open_subkey(format!("{owned_subkey}\\NewName\\Nested"))?;
+                assert_eq!(
+                    restored.get_value::<String, _>("Value")?,
+                    "S-1-5-21-old-user-must-stay"
+                );
+                assert!(source.open_subkey("Nested").is_err());
+                assert_eq!(source.get_value::<String, _>("Untouched")?, "original");
+                hkcu.delete_subkey_all(format!("{owned_subkey}\\NewName"))?;
+            }
+            Ok(())
+        })();
+        let _ = hkcu.delete_subkey_all(&owned_subkey);
+        result
+    }
+
+    #[test]
+    fn capture_archives_restore_registry_to_each_mapped_target()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::backup::archive::{ArchiveBackend, SevenZBackend, ZipBackend};
+        use crate::backup::{
+            CaptureGroup, CapturePlan, CaptureSourceKind, RestoreEntry, RestorePlan,
+        };
+        let temp = temp_dir::TempDir::new()?;
+        let (owned_subkey, owned_path) = unique_registry_path("RGSM_TEST")?;
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            let (source, _) = hkcu.create_subkey(format!("{owned_subkey}\\OldName\\Nested"))?;
+            let capture = CapturePlan {
+                groups: vec![CaptureGroup {
+                    id: 0,
+                    save_unit_id: 0,
+                    candidate_id: "source".into(),
+                    dimensions: Default::default(),
+                    logical_anchor: owned_path.clone().into(),
+                    source_path: format!("{owned_path}\\OldName"),
+                    relative_path: "OldName".into(),
+                    archive_path: "0/0/data/registry.reg".into(),
+                    kind: CaptureSourceKind::Registry,
+                    delete_before_apply: false,
+                }],
+            };
+            for backend in [&ZipBackend as &dyn ArchiveBackend, &SevenZBackend] {
+                source.set_value("Value", &"archived")?;
+                let archive = temp.path().join(format!("capture.{}", backend.extension()));
+                backend.compress_capture_plan(
+                    &capture,
+                    &archive,
+                    CompressionPreset::Standard,
+                    None,
+                )?;
+                source.set_value("Value", &"live-unchanged")?;
+                let targets = ["FirstTarget", "SecondTarget"];
+                let restore = RestorePlan {
+                    entries: targets
+                        .iter()
+                        .map(|name| RestoreEntry {
+                            save_unit_id: 0,
+                            group_id: 0,
+                            archive_path: "0/0/data/registry.reg".into(),
+                            target_path: format!("{owned_path}\\{name}").into(),
+                            kind: CaptureSourceKind::Registry,
+                            delete_before_apply: false,
+                        })
+                        .collect(),
+                    ..Default::default()
+                };
+                backend.restore_capture_plan(&restore, &archive)?;
+                for name in targets {
+                    let restored = hkcu.open_subkey(format!("{owned_subkey}\\{name}\\Nested"))?;
+                    assert_eq!(restored.get_value::<String, _>("Value")?, "archived");
+                    hkcu.delete_subkey_all(format!("{owned_subkey}\\{name}"))?;
+                }
+                assert_eq!(source.get_value::<String, _>("Value")?, "live-unchanged");
+            }
+            Ok(())
+        })();
+        let _ = hkcu.delete_subkey_all(&owned_subkey);
+        result
+    }
+
+    #[test]
     fn registry_snapshot_writes_reg_file() -> Result<(), Box<dyn std::error::Error>> {
         use crate::backup::registry;
 

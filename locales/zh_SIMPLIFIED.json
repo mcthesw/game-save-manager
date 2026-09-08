@@ -1234,6 +1234,10 @@
         "resolved_to": "解析结果: {path}",
         "resolving": "解析中…",
         "not_found": "路径不存在",
+        "current_user_hint": "此键属于当前 Windows 用户，可改用 HKEY_CURRENT_USER，随运行应用的用户解析",
+        "use_current_user": "使用当前 Windows 用户",
+        "saved_unavailable": "部分存档位置在本机不可用，仍可保存配置",
+        "check_unavailable": "暂时无法检查存档位置，仍可保存配置",
         "registry_not_supported": "不支持注册表路径",
         "editor_badge_tooltip": "此字段支持路径变量，输入 < 可自动补全。",
         "placeholder": "输入路径，或键入 < 插入变量"

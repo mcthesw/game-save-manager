@@ -4,7 +4,7 @@ import { DEVICE_A_ID, DEVICE_A_NAME, GAME_NAME } from './constants';
 import { deviceLayout, type DeviceLayout } from './cloud-fixture';
 
 export type LocalUnitSeed = {
-  type: 'File' | 'Folder';
+  type: 'File' | 'Folder' | 'WinRegistry';
   /** Absolute path for the current device. */
   path: string;
   deleteBeforeApply?: boolean;

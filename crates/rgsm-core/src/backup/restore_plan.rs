@@ -65,8 +65,17 @@ impl RestorePlan {
                     save_unit_id: group.save_unit_id,
                     group_id: group.id,
                     archive_path: group.archive_path.clone(),
-                    target_path: PathBuf::from(&candidate.logical_anchor)
-                        .join(PathBuf::from(&group.relative_path)),
+                    target_path: if group.kind == CaptureSourceKind::Registry {
+                        candidate.exact_target_path().ok_or_else(|| {
+                            RestorePlanError::MappingRequired {
+                                save_unit_id: group.save_unit_id,
+                                group_id: group.id,
+                                source_dimensions: group.dimensions.clone(),
+                            }
+                        })?
+                    } else {
+                        PathBuf::from(&candidate.logical_anchor).join(&group.relative_path)
+                    },
                     kind: group.kind,
                     delete_before_apply: group.delete_before_apply,
                 });
@@ -219,6 +228,23 @@ mod tests {
                 .collect(),
             locations: Vec::new(),
             diagnostics: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn registry_target_uses_current_key_even_when_its_name_changed() {
+        let mut capture = group();
+        capture.kind = CaptureSourceKind::Registry;
+        capture.relative_path = "OldName".into();
+        let target = "HKEY_CURRENT_USER/Software/NewName";
+        let mut current = report(&[("registry", "HKEY_CURRENT_USER/Software")]);
+        current.candidates[0].expression = target.into();
+        let reports = BTreeMap::from([(7, current)]);
+        for plan in [
+            RestorePlan::build(&[capture.clone()], &reports, &[]),
+            RestorePlan::build_legacy_v2(&[capture], &reports, &[]),
+        ] {
+            assert_eq!(plan.unwrap().entries[0].target_path, PathBuf::from(target));
         }
     }
 

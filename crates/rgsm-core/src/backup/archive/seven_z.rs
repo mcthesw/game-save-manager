@@ -251,8 +251,13 @@ pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<()
                 source.read_to_end(&mut bytes)?;
                 let data = crate::backup::registry::deserialize_reg_file(&bytes)
                     .map_err(|error| sevenz_io(error.to_string()))?;
-                crate::backup::registry::import_registry_data(&data)
+                for (planned, _) in matches {
+                    crate::backup::registry::import_registry_data(
+                        &data,
+                        &planned.target_path.to_string_lossy(),
+                    )
                     .map_err(|error| sevenz_io(error.to_string()))?;
+                }
                 return Ok(true);
             }
 

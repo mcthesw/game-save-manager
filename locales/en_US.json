@@ -1234,6 +1234,10 @@
         "resolved_to": "Resolved to: {path}",
         "resolving": "Resolving…",
         "not_found": "path not found",
+        "current_user_hint": "This key belongs to your Windows account; use HKEY_CURRENT_USER to follow the account running the app",
+        "use_current_user": "Use current Windows user",
+        "saved_unavailable": "Some save locations are unavailable on this device; the configuration can still be saved",
+        "check_unavailable": "Could not check save locations; the configuration can still be saved",
         "registry_not_supported": "Registry paths are not supported",
         "editor_badge_tooltip": "This field supports path variables. Type < to autocomplete.",
         "placeholder": "Path, or type < for variables"
