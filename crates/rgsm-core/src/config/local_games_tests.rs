@@ -60,6 +60,7 @@ fn automatic_connection_retains_only_conflicts_and_explicit_choices_resolve_one_
             &before.local_state,
             &remote,
             "library-a",
+            &before.local_state.cloud_settings,
         )
         .unwrap();
     let pending = store.load().unwrap();
@@ -118,6 +119,7 @@ fn equal_definition_connects_without_a_choice_and_stale_connection_cannot_replac
             &before.local_state,
             &before.shared_library,
             "library-a",
+            &before.local_state.cloud_settings,
         )
         .unwrap();
     assert!(store.load().unwrap().local_state.local_games.is_empty());
@@ -127,7 +129,8 @@ fn equal_definition_connects_without_a_choice_and_stale_connection_cannot_replac
             &before.device_profiles["pc"],
             &before.local_state,
             &remote_library(&before),
-            "library-b"
+            "library-b",
+            &before.local_state.cloud_settings,
         ),
         Err(OwnerStoreError::JoinInputsChanged)
     ));

@@ -2166,6 +2166,11 @@ pub fn router() -> Router<HttpHostState> {
             "/api/v1/connect-cloud-library",
             post(http_connect_cloud_library),
         )
+        .merge(super::cloud_join::router())
+        .route(
+            "/api/v1/reuse-cloud-device-locations",
+            post(super::profile_reuse::reuse),
+        )
         .route(
             "/api/v1/create-cloud-library",
             post(http_create_cloud_library),
@@ -2425,6 +2430,10 @@ pub fn router() -> Router<HttpHostState> {
         http_check_cloud_backend,
         http_inspect_cloud_library,
         http_connect_cloud_library,
+        super::cloud_join::export,
+        super::profile_reuse::reuse,
+        super::cloud_join::preview,
+        super::cloud_join::import,
         http_create_cloud_library,
         http_rebuild_cloud_library_from_local,
         http_reconnect_cloud_library,

@@ -97,6 +97,9 @@ import type {
   EvictLocalArchiveData,
   EvictLocalArchiveErrors,
   EvictLocalArchiveResponses,
+  ExportCloudJoinCodeData,
+  ExportCloudJoinCodeErrors,
+  ExportCloudJoinCodeResponses,
   FetchLudusaviGamesData,
   FetchLudusaviGamesErrors,
   FetchLudusaviGamesResponses,
@@ -154,6 +157,9 @@ import type {
   GetSystemFontsData,
   GetSystemFontsErrors,
   GetSystemFontsResponses,
+  ImportCloudJoinCodeData,
+  ImportCloudJoinCodeErrors,
+  ImportCloudJoinCodeResponses,
   InspectCloudLibraryData,
   InspectCloudLibraryErrors,
   InspectCloudLibraryResponses,
@@ -187,6 +193,9 @@ import type {
   PermanentlyDeleteCloudGameData,
   PermanentlyDeleteCloudGameErrors,
   PermanentlyDeleteCloudGameResponses,
+  PreviewCloudJoinCodeData,
+  PreviewCloudJoinCodeErrors,
+  PreviewCloudJoinCodeResponses,
   PreviewMaterializeAllData,
   PreviewMaterializeAllErrors,
   PreviewMaterializeAllResponses,
@@ -229,6 +238,9 @@ import type {
   RestoreSnapshotData,
   RestoreSnapshotErrors,
   RestoreSnapshotResponses,
+  ReuseCloudDeviceLocationsData,
+  ReuseCloudDeviceLocationsErrors,
+  ReuseCloudDeviceLocationsResponses,
   ReviewCloudLibraryCutoverData,
   ReviewCloudLibraryCutoverErrors,
   ReviewCloudLibraryCutoverResponses,
@@ -701,6 +713,15 @@ export const evictLocalArchive = <ThrowOnError extends boolean = false>(
     },
   });
 
+export const exportCloudJoinCode = <ThrowOnError extends boolean = false>(
+  options?: Options<ExportCloudJoinCodeData, ThrowOnError>
+): RequestResult<ExportCloudJoinCodeResponses, ExportCloudJoinCodeErrors, ThrowOnError> =>
+  (options?.client ?? client).post<
+    ExportCloudJoinCodeResponses,
+    ExportCloudJoinCodeErrors,
+    ThrowOnError
+  >({ url: '/api/v1/export-cloud-join-code', ...options });
+
 export const fetchLudusaviGames = <ThrowOnError extends boolean = false>(
   options: Options<FetchLudusaviGamesData, ThrowOnError>
 ): RequestResult<FetchLudusaviGamesResponses, FetchLudusaviGamesErrors, ThrowOnError> =>
@@ -906,6 +927,22 @@ export const getSystemFonts = <ThrowOnError extends boolean = false>(
     ...options,
   });
 
+export const importCloudJoinCode = <ThrowOnError extends boolean = false>(
+  options: Options<ImportCloudJoinCodeData, ThrowOnError>
+): RequestResult<ImportCloudJoinCodeResponses, ImportCloudJoinCodeErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ImportCloudJoinCodeResponses,
+    ImportCloudJoinCodeErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/import-cloud-join-code',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
 export const inspectCloudLibrary = <ThrowOnError extends boolean = false>(
   options?: Options<InspectCloudLibraryData, ThrowOnError>
 ): RequestResult<InspectCloudLibraryResponses, InspectCloudLibraryErrors, ThrowOnError> =>
@@ -1039,6 +1076,22 @@ export const permanentlyDeleteCloudGame = <ThrowOnError extends boolean = false>
     ThrowOnError
   >({
     url: '/api/v1/permanently-delete-cloud-game',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+export const previewCloudJoinCode = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewCloudJoinCodeData, ThrowOnError>
+): RequestResult<PreviewCloudJoinCodeResponses, PreviewCloudJoinCodeErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    PreviewCloudJoinCodeResponses,
+    PreviewCloudJoinCodeErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/preview-cloud-join-code',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -1235,6 +1288,26 @@ export const restoreSnapshot = <ThrowOnError extends boolean = false>(
 ): RequestResult<RestoreSnapshotResponses, RestoreSnapshotErrors, ThrowOnError> =>
   (options.client ?? client).post<RestoreSnapshotResponses, RestoreSnapshotErrors, ThrowOnError>({
     url: '/api/v1/restore-snapshot',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+export const reuseCloudDeviceLocations = <ThrowOnError extends boolean = false>(
+  options: Options<ReuseCloudDeviceLocationsData, ThrowOnError>
+): RequestResult<
+  ReuseCloudDeviceLocationsResponses,
+  ReuseCloudDeviceLocationsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    ReuseCloudDeviceLocationsResponses,
+    ReuseCloudDeviceLocationsErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/reuse-cloud-device-locations',
     ...options,
     headers: {
       'Content-Type': 'application/json',

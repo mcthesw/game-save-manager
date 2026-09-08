@@ -8,11 +8,13 @@ impl OwnerStore {
         expected_state: &LocalState,
         remote: &SharedLibrary,
         library_id: &str,
+        settings: &crate::cloud_sync::CloudSettings,
     ) -> Result<(), OwnerStoreError> {
         let mut owners =
             self.connected_owners(expected_library, expected_profile, expected_state, remote)?;
         owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
         owners.local_state.cloud_library_id = Some(library_id.to_string());
+        owners.local_state.cloud_settings = settings.clone();
         self.write(&owners)
     }
 

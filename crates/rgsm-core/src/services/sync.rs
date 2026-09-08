@@ -389,6 +389,7 @@ impl ServiceContext {
             &local_state,
             &shared_library,
             &descriptor.library_id,
+            &local_state.cloud_settings,
         )?;
         Ok(CloudLibraryStatus::Active {
             game_count: shared_library.games.len(),

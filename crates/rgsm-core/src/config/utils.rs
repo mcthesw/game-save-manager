@@ -202,11 +202,12 @@ pub(crate) fn connect_cloud_library_local(
     state: &LocalState,
     remote: &SharedLibrary,
     library_id: &str,
+    settings: &crate::cloud_sync::CloudSettings,
 ) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
-    Ok(OwnerStore::runtime().connect_v2(library, profile, state, remote, library_id)?)
+    Ok(OwnerStore::runtime().connect_v2(library, profile, state, remote, library_id, settings)?)
 }
 
 pub(crate) fn connected_cloud_profile(

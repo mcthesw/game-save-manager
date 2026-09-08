@@ -4,6 +4,8 @@ mod game_identity;
 mod local_games;
 pub(crate) mod owner_store;
 mod ownership;
+mod profile_reuse;
+pub(crate) use profile_reuse::reuse_profile_locations;
 #[cfg(test)]
 mod ownership_tests;
 mod quick_actions_settings;
