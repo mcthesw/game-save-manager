@@ -1,0 +1,100 @@
+---
+title: V1.8.0 Cloud sync, save detection, and Archive V2
+slug: v1_8_0
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+date: 2026-03-08
+---
+
+# Cloud sync, save detection, and Archive V2
+
+This release adds cloud-sync status management, Ludusavi save detection, Archive V2, and Windows registry backups. These features, together with security, performance, and architecture changes, bring the version directly to V1.8.0.
+
+## Highlights
+
+### Ludusavi save detection
+
+- Match save locations automatically when adding games using the Ludusavi database
+- Embed a compressed manifest through `rust-embed`; a smaller build without the manifest is under consideration
+- Explain batch-import failures and registry paths
+
+![Ludusavi save detection](/img/blog/v1.8.0_ludusavi.png)
+
+### Cloud sync
+
+- Add an overview of sync results, pending work, and the latest sync time
+- Track each device's position separately, supporting parallel branches and divergence on the same device
+- Run synchronization through background tasks to keep the interface responsive
+- Unify uploads and downloads through a streaming layer with hook extension points
+
+![Cloud-sync overview](/img/blog/v1.8.0_cloud_sync.png)
+
+### Archives and backups
+
+- **Archive V2:** replace BZip2 with Zstd and offer Store, Fast, Standard, and Maximum compression presets
+- Support files with the same name
+- **Integrity checks:** verify archives with XXH3 before restoring to reject corrupted backups
+- **Windows registry:** back up and restore registry save data with source fingerprints
+- **Unchanged files:** skip scheduled backups when XXH3 fingerprints show no changes
+
+### Undo and extra backups
+
+- Add **Undo last applied snapshot** to the management page
+
+![Undo restore](/img/blog/v1.8.0_undo.png)
+
+- Add management for extra overwrite backups
+
+![Extra-backup management](/img/blog/v1.8.0_extra_backup.png)
+
+## Interface improvements
+
+- Custom fonts and appearance settings
+- Redesigned path-variable editor with clearer status information
+- Batch deletion of selected snapshots
+- Centralized feedback and notifications with shared z-index management
+
+![Interface improvements](/img/blog/v1.8.0_ui.png)
+
+## Fixes
+
+- Preserve existing files after failed cloud downloads or writes and strengthen atomic rollback
+- Fix upload protection for backends that cannot overwrite files
+- Fix ZIP timestamp compatibility
+- Prevent ZIP path traversal (Zip Slip)
+- Propagate semaphore-acquisition errors in `backup_all`
+- Fix unknown-backend errors when cloud sync is disabled
+- Fix the log button's position and improve log rotation
+- Remove the obsolete same-name file restriction when adding games
+
+## Performance
+
+- Reduce unnecessary I/O during scheduled and batch backups
+- Reduce sidebar rendering overhead and expand it during search
+- Improve snapshot-table sorting and selection
+
+## Developer changes
+
+- Add a typed lifecycle-hook pipeline for snapshot creation, deletion, and restoration
+- Refactor IPC around game-draft input and backend-assigned IDs; expose typed hook and sync commands
+- Add pre-commit checks with Husky, lint-staged, Clippy fixes, and typechecking
+- Update rgsm core to 1.8.0
+- Track multiple device positions in sync metadata
+- Upgrade archive metadata to V2, including compression presets and XXH3 hashes
+- Add `save_unit_id` to save configuration
+- Add Criterion benchmarks for compression algorithms
+
+## Download
+
+The portable build is recommended. If it will not start, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+- [Lanzou](https://sworld.lanzouw.com/b01jsy96yd?pwd=g2oy), password: `g2oy`
+- [123pan](https://www.123pan.com/s/xdcDjv-mq9l.html), V1.8.0 folder
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.8.0)
+
+[Full changelog](https://github.com/mcthesw/game-save-manager/compare/v1.6.0...v1.8.0)
+
+## Discussions
+
+- [Feature ideas and feedback](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug reports](https://github.com/mcthesw/game-save-manager/issues)

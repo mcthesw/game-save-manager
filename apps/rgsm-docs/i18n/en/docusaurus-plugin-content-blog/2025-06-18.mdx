@@ -1,0 +1,86 @@
+---
+title: V1.5.0 Path variables, multiple devices, and Tauri 2
+slug: v1_5_0
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}, {label: Major update, permalink: /重要更新}]
+date: 2025-06-18
+---
+
+# V1.5.0: Tauri 2 and core improvements
+
+This release upgrades the application from Tauri 1 to Tauri 2.
+
+- **Upgrading from v1.4.x or earlier:** back up your data first. Manually select your existing installation directory in the installer. For portable installations, back up your data and replace the executable.
+- **New users:** download and install the latest release.
+
+## Highlights
+
+- **Multiple devices and path variables:** the backend supports device management and custom path variables. New interface controls let you configure variables and view device information.
+- **Tauri 2 migration:** the application moves to Tauri 2, with typed Specta exports for backend communication.
+- **Window state and device setup:** window size and position are restored on startup, and the new-device setup flow is improved.
+- **Configuration upgrades:** configuration from v1.4.x can be upgraded to v1.5.0.
+
+## Other improvements
+
+### Features
+
+- Redesign the home page
+- Add all unrecognized games to favorites in one action
+- Submit backup descriptions with Enter
+- Improve editing the game launch path under **Game management → View managed files**
+- Detect new devices and offer to copy another device's path settings
+- Improve the sidebar, language switcher, and logs
+- Improve internationalization initialization and language settings
+- Adapt hotkeys to Tauri 2
+- Record panics and use local time in logs
+- Improve settings interactions and cloud-backend checks
+- Upgrade to Rust Edition 2024 and target ES2022 in Nuxt
+
+### Fixes
+
+- Fix styling, navigation, dark mode, and translated text
+- Fix incomplete panic capture, incorrect notifications, and tray icon IDs
+- Fix dependency installation and runner configuration in CI/CD [#187](https://github.com/mcthesw/game-save-manager/pull/187), [#189](https://github.com/mcthesw/game-save-manager/pull/189)
+
+### Refactoring and maintenance
+
+- Replace frontend `invoke` calls with typed Specta exports
+- Convert callbacks to `async/await`
+- Manage temporary directories with `temp-dir`
+- Refactor the backend, introduce a `preclude` module, and improve notification handling
+- Update major dependencies, README files, and the developer guide
+- Update `.gitignore` and GitHub Actions workflows
+
+[Full changelog](https://github.com/mcthesw/game-save-manager/compare/v1.4.0...v1.5.0)
+
+## Plans for the next release
+
+- Improve synchronization and management across devices
+- Add practical path-variable presets and improve their interface
+- Expand automated test coverage
+- Detect file changes with XXH3 and improve automatic backups [#190](https://github.com/mcthesw/game-save-manager/issues/190)
+- Detect save locations automatically [#8](https://github.com/mcthesw/game-save-manager/issues/8)
+- Improve cloud saves [#162](https://github.com/mcthesw/game-save-manager/issues/162)
+
+## Developer changes
+
+- **Tauri 2:** update window management, system integration, and IPC APIs; see the [Tauri documentation](https://tauri.app/v2/guide/)
+- **Specta:** generate TypeScript types for frontend/backend communication with [Specta](https://specta.dev/)
+- **Backend architecture:** revise configuration and device identification for multiple devices and path variables
+- **Configuration:** add `devices` and `path_variables` to `GameSaveManager.config.json`
+- **Language standards:** use Rust Edition 2024 and ES2022
+
+## Download
+
+The portable build is recommended. If it will not start, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+- [Lanzou](https://sworld.lanzouw.com/b01js7yjwh), password: `gaq5`
+- [123pan](https://www.123pan.com/s/xdcDjv-mq9l.html), V1.5.0 folder
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.5.0)
+
+## Discussions
+
+- [Feature ideas and feedback](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug reports](https://github.com/mcthesw/game-save-manager/issues)
+- [A possible plugin system](https://github.com/mcthesw/game-save-manager/issues/126)
+- [Icon designs](https://github.com/mcthesw/game-save-manager/discussions/34)

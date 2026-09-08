@@ -1,0 +1,46 @@
+---
+title: V1.3.0 Maintenance update
+slug: v1_3_0
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+---
+
+# Changes
+
+- Add logging with optional log files
+- Add batch deletion
+- Improve display and interaction issues
+- Improve configuration upgrades
+- Keep the warning visible until backup or restore finishes
+- Fix dark-mode colors
+- Fix table overflow with many saves
+- Reject duplicate game names without regard to letter case
+
+## Plans for the next release
+
+- Environment-based path variables
+- Automatic save detection
+- Further bug fixes
+- Explore another cloud backend and macOS improvements
+- [Milestone details](https://github.com/mcthesw/game-save-manager/milestone/6)
+
+## Developer changes
+
+- Document Vue DevTools setup
+- Update dependencies and recommended VS Code extensions
+- Add `Settings.log_to_file` in `GameSaveManager.config.json`
+- Add `SemverError(#[from] semver::Error)` in `src-tauri/src/errors.rs` for semantic-version parsing failures, usually caused by configuration issues
+
+## Download
+
+- [Lanzou](https://sworld.lanzouw.com/b01jrfhf1c), password: `38mz`
+- [123pan](https://www.123pan.com/s/xdcDjv-mq9l.html), V1.3.0 folder
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.3.0)
+
+## Discussions
+
+- [Favorites](https://github.com/mcthesw/game-save-manager/issues/133)
+- [A possible plugin system](https://github.com/mcthesw/game-save-manager/issues/126)
+- [Editing configured save paths](https://github.com/mcthesw/game-save-manager/issues/119)
+- [Language for code comments](https://github.com/mcthesw/game-save-manager/discussions/33)
+- [Icon designs](https://github.com/mcthesw/game-save-manager/discussions/34)

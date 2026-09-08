@@ -1,0 +1,55 @@
+---
+title: V1.6.0 Snapshot branches and portable-mode fixes
+slug: v1_6_0
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+date: 2025-11-30
+---
+
+# V1.6.0: Snapshot branches and portable-mode fixes
+
+This release adds snapshot branches, fixes the portable build's data location, and improves storage policies for automatic backups.
+
+## Highlights
+
+- **Snapshot branches:** create separate branches for different storylines or playthroughs and switch between them
+
+  ![Branch view](/img/blog/2025-12-01_00-37-13.png)
+
+- **Automatic-backup retention:** set a maximum count or age and clean up older automatic backups
+- **Timestamps:** preserve file modification times during backup and restore; folder timestamps remain unsupported in this release
+- **Interface:** improve the appearance and clarity of the game-management page
+
+## Fixes
+
+- Store portable data beside the executable instead of in the current working directory
+
+[Full changelog](https://github.com/mcthesw/game-save-manager/compare/v1.5.4...v1.6.0)
+
+## Plans for the next release
+
+- Further cloud-sync improvements
+- Begin work on undo operations
+- [Milestone details](https://github.com/mcthesw/game-save-manager/milestones)
+
+## Developer changes
+
+- Add `pkg-config` and `libasound2-dev` to the Ubuntu build environment
+- Add the `copilot-setup-steps.yml` workflow and refresh build workflows
+- Introduce consistent linting and formatting across the project
+- Upgrade Nuxt from 3.16.0 to 3.19.0 and rgsm core to 1.6.0
+- Add `head` to JSON files under `save_data/game name`, pointing to the backup timestamp at the current branch position
+
+## Download
+
+The portable build is recommended. If it will not start, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+- [Lanzou](https://sworld.lanzouw.com/b01jspttcf), password: `4hz8`
+- [123pan](https://www.123pan.com/s/xdcDjv-mq9l.html), V1.6.0 folder
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.6.0)
+
+## Discussions
+
+- [Feature ideas and feedback](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug reports](https://github.com/mcthesw/game-save-manager/issues)
+- [A possible plugin system](https://github.com/mcthesw/game-save-manager/issues/126)
