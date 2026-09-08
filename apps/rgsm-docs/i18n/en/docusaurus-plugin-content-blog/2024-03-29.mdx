@@ -1,0 +1,23 @@
+---
+title: V1.0.2
+slug: v1_0_2
+authors: [Sworld]
+tags: [{label: Preview, permalink: /前沿版本}]
+---
+
+# Changes
+
+- Add an option to delete existing files before restoring
+- Provide a workaround for restoring hidden files
+- Allow restoration to continue after a single `SaveUnit` fails
+- Reject invalid game names
+
+## Configuration changes
+
+In `GameSaveManager.config.json`, `SaveUnit` gains a `delete_before_apply: bool` field.
+
+## Preview release
+
+These minor updates are distributed through the preview channel, which keeps only the latest build.
+
+[Latest preview](https://github.com/mcthesw/game-save-manager/releases/tag/latest)

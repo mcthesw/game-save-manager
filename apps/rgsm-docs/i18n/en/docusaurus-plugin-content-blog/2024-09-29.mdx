@@ -1,0 +1,51 @@
+---
+title: V1.4.0 Favorites and hotkeys
+slug: v1_4_0
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+---
+
+# Changes
+
+- Add hotkeys for quick actions at the bottom of settings
+- Add an option to favorite new games automatically
+- Manage favorites directly in the sidebar and remove the separate management page
+- Add Amazon S3 cloud sync support
+- Log successful completion of long tasks, improve IPC error handling, and remove unused error types
+- Fix the dark-mode toggle display
+- Improve quick actions
+- Remove the save-editing feature because of its bugs
+- Fix quick-backup display issues [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([commit](https://github.com/mcthesw/game-save-manager/commit/7b69cc67e14f227a94a5db56cbfdc0483bea7de7))
+- Fix state types, timer conditions, and configuration upgrades affected by refactoring [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([commit](https://github.com/mcthesw/game-save-manager/commit/cbdb54b6aafbeadc3784f6228da3280d8dadb73a))
+- Refactor the backend extensively
+- Add logs for applying and backing up all games [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([commit](https://github.com/mcthesw/game-save-manager/commit/7a814471b5bdc9fd70e2589c4794306bc0eedb00))
+- Refresh outdated documentation [#151](https://github.com/mcthesw/game-save-manager/pull/151) ([commit](https://github.com/mcthesw/game-save-manager/commit/97eda0fe603bc6c45b005191b3cbdf71a3e4804e))
+
+[Full changelog](https://github.com/mcthesw/game-save-manager/compare/v1.3.0...v1.4.0)
+
+## Plans for the next release
+
+- Environment-based path variables
+- Automatic save detection
+- Further bug fixes
+- Explore macOS improvements
+- [Milestone details](https://github.com/mcthesw/game-save-manager/milestone/6)
+
+## Developer changes
+
+- Update dependencies and restructure the backend; see the [changelog](https://github.com/mcthesw/game-save-manager/compare/v1.3.0...v1.4.0)
+- Add `quick_action` in `GameSaveManager.config.json` to store hotkeys and their selected games
+
+## Download
+
+- [Lanzou](https://sworld.lanzouw.com/b01jrj7y6f?pwd=2m0o), password: `2m0o`
+- [123pan](https://www.123pan.com/s/xdcDjv-mq9l.html), V1.4.0 folder
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.4.0)
+
+## Discussions
+
+- [Favorites](https://github.com/mcthesw/game-save-manager/issues/133)
+- [A possible plugin system](https://github.com/mcthesw/game-save-manager/issues/126)
+- [Editing configured save paths](https://github.com/mcthesw/game-save-manager/issues/119)
+- [Language for code comments](https://github.com/mcthesw/game-save-manager/discussions/33)
+- [Icon designs](https://github.com/mcthesw/game-save-manager/discussions/34)

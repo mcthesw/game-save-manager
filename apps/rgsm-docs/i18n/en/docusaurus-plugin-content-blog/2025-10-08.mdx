@@ -1,0 +1,58 @@
+---
+title: V1.5.4 Quick backups and usability improvements
+slug: v1_5_4
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+date: 2025-10-08
+---
+
+# V1.5.4: Quick backups and usability improvements
+
+:::warning
+This release has no Linux build because of a dependency-related CI failure. A fix is planned for the next version.
+:::
+
+## Highlights
+
+- **Sound notifications:** add sound feedback for quick actions, with custom sounds and previews
+- **Interface:** add a global loading indicator and a preference for expanding save lists
+- **Devices:** allow secondary devices to be deleted
+
+## Fixes
+
+- Fix extra-backup errors and missing backend events
+- Show the current backup interval in the tray
+- Improve error handling when checking cloud settings
+- Fix setting a game as the home page
+- Fix quick-backup display issues
+
+[Full changelog](https://github.com/mcthesw/game-save-manager/compare/v1.5.0...v1.5.4)
+
+## Plans for the next release
+
+- Multiple devices and cloud sync
+- Quick backups
+- Usability improvements
+- Save-location detection
+- [Milestone details](https://github.com/mcthesw/game-save-manager/milestones)
+
+## Developer changes
+
+- Update Tauri and related dependencies
+- Centralize quick-backup features and asynchronous audio handling
+- Add device-management settings, sound-notification settings, and save-list expansion preferences to `GameSaveManager.config.json`
+
+## Download
+
+The portable build is recommended. If it will not start, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+- [Lanzou](https://sworld.lanzouw.com/b01jslovde), password: `6otj`
+- [123pan](https://www.123pan.com/s/xdcDjv-mq9l.html), V1.5.4 folder
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.5.4)
+
+## Discussions
+
+- [Feature ideas and feedback](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug reports](https://github.com/mcthesw/game-save-manager/issues)
+- [A possible plugin system](https://github.com/mcthesw/game-save-manager/issues/126)
+- [Icon designs](https://github.com/mcthesw/game-save-manager/discussions/34)
