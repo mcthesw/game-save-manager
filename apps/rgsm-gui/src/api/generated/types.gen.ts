@@ -782,7 +782,6 @@ export type KeepLocalProgressOutcome = {
   manifest_revision: number;
   prepared_snapshots: number;
   snapshot_id: string;
-  uploaded_archives: number;
 };
 
 export type KeepV2LocalProgressRequest = {
