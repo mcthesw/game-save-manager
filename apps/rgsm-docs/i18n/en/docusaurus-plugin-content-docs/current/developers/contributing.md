@@ -42,6 +42,6 @@ Resolve conflicts and rerun relevant checks. Maintainers handle version numbers 
 
 ## Documentation and translations
 
-- [Improve documentation](../../contribute/document.md) with concise steps describing current behavior
-- [Translate the application](../../contribute/translate.md) through Weblate
-- Chinese and English developer guides live in `apps/rgsm-docs/docs/developers`
+- [Improve documentation](../contribute/document.md) with concise steps describing current behavior
+- [Translate the application](../contribute/translate.md) through Weblate
+- Chinese developer guides live in `apps/rgsm-docs/docs/developers`; English guides live in the matching `i18n/en/docusaurus-plugin-content-docs/current/developers` directory

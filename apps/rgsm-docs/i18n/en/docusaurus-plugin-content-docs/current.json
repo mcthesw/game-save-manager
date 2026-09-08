@@ -1,0 +1,20 @@
+{
+  "version.label": {
+    "message": "Next"
+  },
+  "sidebar.tutorialSidebar.category.游戏管理": {
+    "message": "Game management"
+  },
+  "sidebar.tutorialSidebar.category.备份与恢复": {
+    "message": "Backup and restore"
+  },
+  "sidebar.tutorialSidebar.category.云同步": {
+    "message": "Cloud sync"
+  },
+  "sidebar.tutorialSidebar.category.设置与维护": {
+    "message": "Settings and maintenance"
+  },
+  "sidebar.tutorialSidebar.category.参与贡献": {
+    "message": "Contributing"
+  }
+}

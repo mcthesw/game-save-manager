@@ -19,12 +19,28 @@ import {
   workspacePath,
 } from '../e2e/support/rgsm-instance';
 import { closeResources } from '../e2e/support/process';
+import english from '../../../locales/en_US.json' with { type: 'json' };
+import chinese from '../../../locales/zh_SIMPLIFIED.json' with { type: 'json' };
 
-const output = workspacePath('apps', 'rgsm-docs', 'static', 'img', 'guide');
-const gameName = '星露谷物语';
+const isEnglish = process.env.DOCS_LOCALE === 'en';
+const messages = isEnglish ? english : chinese;
+const output = workspacePath(
+  'apps',
+  'rgsm-docs',
+  'static',
+  'img',
+  'guide',
+  ...(isEnglish ? ['en'] : [])
+);
+const gameName = isEnglish ? 'Stardew Valley' : '星露谷物语';
+const pcName = isEnglish ? 'My PC' : '我的电脑';
+const handheldName = isEnglish ? 'Handheld' : '掌机';
 
 async function capture(page: Page, name: string) {
-  const dismiss = page.getByRole('button', { name: '全部清除', exact: true });
+  const dismiss = page.getByRole('button', {
+    name: messages.activity_center.dismiss_all,
+    exact: true,
+  });
   if (await dismiss.isVisible()) await dismiss.click();
   await expect(page.locator('.activity-panel')).toBeHidden();
   await page.evaluate(() => document.fonts.ready);
@@ -38,32 +54,37 @@ async function capture(page: Page, name: string) {
   await page.screenshot({ path: join(output, name), animations: 'disabled' });
 }
 
-async function showChineseSync(page: Page) {
+async function showSync(page: Page) {
   const settings = page.getByRole('button', { name: 'Settings', exact: true });
-  if (await settings.isVisible()) {
+  if (!isEnglish && (await settings.isVisible())) {
     await settings.click();
     await page.getByRole('combobox', { name: 'Choose language' }).click();
     await page.getByRole('option', { name: /zh_SIMPLIFIED/ }).click();
   }
-  await page.getByRole('button', { name: '同步', exact: true }).click();
-  await expect(page.getByRole('button', { name: '同步方式', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: messages.sidebar.sync_settings, exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: messages.sync_settings.overview.mode, exact: true })
+  ).toBeVisible();
 }
 
 // This opt-in capture uses the real host with disposable sample saves. It is not
 // part of the regression suite and never opens the player's application data.
-test('capture the Chinese 1.9 user guide', async ({ browser }) => {
+test('capture the 1.9 user guide', async ({ browser }) => {
   const runRoot = await createRunRoot('docs');
   const savePath = join(runRoot, 'saves', 'farm.txt');
   const device = await seedLocalConfig(runRoot, {
-    games: ['星露谷物语', '艾尔登法环', '空洞骑士'].map((name) => ({
+    games: (isEnglish
+      ? ['Stardew Valley', 'Elden Ring', 'Hollow Knight']
+      : ['星露谷物语', '艾尔登法环', '空洞骑士']
+    ).map((name) => ({
       name,
       units: [{ type: 'File', path: savePath }],
     })),
-    settings: { locale: 'zh_SIMPLIFIED' },
+    settings: { locale: isEnglish ? 'en_US' : 'zh_SIMPLIFIED' },
   });
   const configPath = join(device.appDataDir, 'GameSaveManager.config.json');
   const config = JSON.parse(await readFile(configPath, 'utf8'));
-  config.devices[DEVICE_A_ID].name = '我的电脑';
+  config.devices[DEVICE_A_ID].name = pcName;
   await writeFile(configPath, JSON.stringify(config));
   await mkdir(output, { recursive: true });
   await writeSaveText(savePath, 'spring day 1');
@@ -80,38 +101,61 @@ test('capture the Chinese 1.9 user guide', async ({ browser }) => {
       mobile: false,
     });
     await page.goto(`/Management/${encodeURIComponent(gameName)}`);
-    await expect(page.getByRole('button', { name: '创建新快照', exact: true })).toBeVisible();
-    for (const [index, description] of [
-      '春季第 1 天 · 初到农场',
-      '春季第 8 天 · 修好桥梁',
-      '春季第 13 天 · 参加复活节',
-      '夏季第 1 天 · 新的开始',
-    ].entries()) {
+    await expect(
+      page.getByRole('button', { name: messages.manage.create_new_save, exact: true })
+    ).toBeVisible();
+    for (const [index, description] of (isEnglish
+      ? [
+          'Spring 1 · A new farm',
+          'Spring 8 · Bridge repaired',
+          'Spring 13 · Egg Festival',
+          'Summer 1 · A fresh start',
+        ]
+      : [
+          '春季第 1 天 · 初到农场',
+          '春季第 8 天 · 修好桥梁',
+          '春季第 13 天 · 参加复活节',
+          '夏季第 1 天 · 新的开始',
+        ]
+    ).entries()) {
       await writeSaveText(savePath, `sample progress ${index}`);
-      await page.getByPlaceholder('请输入新存档描述信息').fill(description);
-      await page.getByRole('button', { name: '创建新快照', exact: true }).click();
+      await page.getByPlaceholder(messages.manage.input_description_prompt).fill(description);
+      await page
+        .getByRole('button', { name: messages.manage.create_new_save, exact: true })
+        .click();
       await expect
         .poll(async () => (await listSnapshotsFor(host, gameName)).length)
         .toBe(index + 1);
     }
     await capture(page, 'snapshots.png');
-    await page.getByRole('button', { name: '更多操作', exact: true }).click();
-    await page.getByRole('menuitem', { name: '自动保存设置' }).click();
-    const automatic = page.getByRole('dialog', { name: '自动保存设置' });
+    await page.getByRole('button', { name: messages.manage.more_actions, exact: true }).click();
+    await page.getByRole('menuitem', { name: messages.manage.auto_save_settings }).click();
+    const automatic = page.getByRole('dialog', { name: messages.manage.auto_save_settings });
     await automatic.getByRole('switch').first().click();
     await automatic.getByRole('switch').last().click();
     await capture(page, 'automatic.png');
-    await automatic.getByRole('button', { name: '取消', exact: true }).click();
-    await page.getByRole('button', { name: '设置', exact: true }).click();
-    await page.getByRole('button', { name: '界面与外观', exact: true }).click();
-    await expect(page.getByRole('combobox', { name: '存档时间显示' })).toBeVisible();
+    await automatic.getByRole('button', { name: messages.manage.cancel, exact: true }).click();
+    await page.getByRole('button', { name: messages.sidebar.settings, exact: true }).click();
+    await page.getByRole('button', { name: messages.settings.ui_appearance, exact: true }).click();
+    await expect(
+      page.getByRole('combobox', { name: messages.settings.snapshot_time_format })
+    ).toBeVisible();
     await capture(page, 'appearance.png');
-    await page.getByRole('button', { name: '备份设置', exact: true }).click();
-    await expect(page.getByRole('combobox', { name: '备份压缩级别' })).toBeVisible();
+    await page
+      .getByRole('button', { name: messages.settings.backup_settings, exact: true })
+      .click();
+    await expect(
+      page.getByRole('combobox', { name: messages.settings.compression_preset })
+    ).toBeVisible();
     await capture(page, 'backup-settings.png');
     await page.goto('/');
-    await page.getByRole('button', { name: '添加游戏', exact: true }).first().click();
-    await expect(page.getByRole('dialog', { name: '添加游戏', exact: true })).toBeVisible();
+    await page
+      .getByRole('button', { name: messages.sidebar.add_game, exact: true })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('dialog', { name: messages.addgame.drawer_title_add, exact: true })
+    ).toBeVisible();
     await capture(page, 'add-game.png');
   } catch (error) {
     failed = true;
@@ -127,8 +171,8 @@ test('capture the connected cloud library', async ({ browser }) => {
   for (const device of [seeded.deviceA, seeded.deviceB]) {
     const configPath = join(device.appDataDir, 'GameSaveManager.config.json');
     const config = JSON.parse(await readFile(configPath, 'utf8'));
-    config.devices[DEVICE_A_ID].name = '我的电脑';
-    config.devices[DEVICE_B_ID].name = '掌机';
+    config.devices[DEVICE_A_ID].name = pcName;
+    config.devices[DEVICE_B_ID].name = handheldName;
     await writeFile(configPath, JSON.stringify(config));
   }
   const session = await startLocalSession(browser, {
@@ -149,9 +193,9 @@ test('capture the connected cloud library', async ({ browser }) => {
       mobile: false,
     });
     await createLibrary(page);
-    await createPublishedSnapshot(page, host, '到达回声要塞');
+    await createPublishedSnapshot(page, host, isEnglish ? 'Reached Echo Keep' : '到达回声要塞');
     await changeGameMode(page, 'Cloud Backup');
-    await showChineseSync(page);
+    await showSync(page);
     await capture(page, 'cloud-library.png');
     const hostB = await startRgsmHost({
       appDataDir: seeded.deviceB.appDataDir,
@@ -162,17 +206,32 @@ test('capture the connected cloud library', async ({ browser }) => {
     const deviceB = await newDeviceContext(browser, hostB);
     closers.push(() => deviceB.context.close());
     await openApp(deviceB.page);
-    await createPublishedSnapshot(deviceB.page, hostB, '击败守门人');
+    await createPublishedSnapshot(
+      deviceB.page,
+      hostB,
+      isEnglish ? 'Defeated the gatekeeper' : '击败守门人'
+    );
     await page.bringToFront();
     await page.reload();
     await expect(page.getByRole('button', { name: /^(Settings|设置)$/ })).toBeVisible();
-    await showChineseSync(page);
+    await showSync(page);
     await page
-      .getByRole('button', { name: /^(比较进度|进度已分叉，点此比较)$/ })
+      .getByRole('button', {
+        name: isEnglish
+          ? /^(Compare progress|Progress diverged, compare)$/
+          : /^(比较进度|进度已分叉，点此比较)$/,
+      })
       .first()
       .click({ timeout: 20_000 });
-    await expect(page.getByRole('dialog', { name: '比较 Echo Keep 的进度' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '使用此进度', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('dialog', { name: isEnglish ? /Compare progress/ : '比较 Echo Keep 的进度' })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: messages.sync_settings.archives.progress.accept_remote,
+        exact: true,
+      })
+    ).toBeVisible();
     await capture(page, 'progress.png');
   } catch (error) {
     failed = true;

@@ -6,10 +6,12 @@
 
 import {themes as prismThemes} from 'prism-react-renderer';
 
+const isEnglish = process.env.DOCUSAURUS_CURRENT_LOCALE === 'en';
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: '游戏存档管理器',
-  tagline: '一个简单易用的开源存档管理工具，兼具云同步功能',
+  title: isEnglish ? 'Game Save Manager' : '游戏存档管理器',
+  tagline: isEnglish ? 'A simple, open-source game save manager with cloud sync' : '一个简单易用的开源存档管理工具，兼具云同步功能',
   favicon: 'img/rgsm.ico',
 
   // Set the production url of your site here
@@ -35,7 +37,11 @@ const config = {
   // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'zh-CN',
-    locales: ['zh-CN'],
+    locales: ['zh-CN', 'en'],
+    localeConfigs: {
+      'zh-CN': {label: '简体中文', htmlLang: 'zh-CN'},
+      en: {label: 'English', htmlLang: 'en'},
+    },
   },
 
   presets: [
@@ -45,11 +51,13 @@ const config = {
       ({
         docs: {
           sidebarPath: './sidebars.js',
+          editLocalizedFiles: true,
           editUrl:
             'https://github.com/mcthesw/game-save-manager/edit/dev/apps/rgsm-docs/',
         },
         blog: {
           showReadingTime: true,
+          editLocalizedFiles: true,
           onUntruncatedBlogPosts: 'ignore',
           editUrl:
             'https://github.com/mcthesw/game-save-manager/edit/dev/apps/rgsm-docs/',
@@ -80,12 +88,13 @@ const config = {
             label: '帮助文档',
           },
           {
-            to: '/docs/developers',
+            type: 'docSidebar',
+            sidebarId: 'developerSidebar',
             label: '开发者指南',
             position: 'left',
-            activeBasePath: 'docs/developers',
           },
           {to: '/blog', label: '更新日志', position: 'left'},
+          {type: 'localeDropdown', position: 'right'},
           {
             href: 'https://github.com/mcthesw/game-save-manager',
             label: 'GitHub',

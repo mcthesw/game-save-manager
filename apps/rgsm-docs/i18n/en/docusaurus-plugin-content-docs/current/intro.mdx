@@ -1,0 +1,39 @@
+---
+sidebar_position: 1
+description: Download Game Save Manager, add a game, and create your first snapshot.
+---
+
+import Screenshot from '@site/src/components/Screenshot';
+
+# Getting started
+
+Game Save Manager backs up, restores, and syncs game saves. This guide covers the **1.9 series**.
+
+## Download
+
+- [Stable release](https://github.com/mcthesw/game-save-manager/releases/latest): recommended for everyday use, currently 1.8.
+- [Development build](https://github.com/mcthesw/game-save-manager/releases/tag/latest): try upcoming features.
+
+On Windows, use the installer or extract and run the portable build. The portable build requires the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+Before updating an older version, read [Upgrading to 1.9](./help/upgrade.mdx).
+
+## Add a game
+
+Click **Add game** in the sidebar, enter a name, and choose the save locations, or use **Detect local games**. The game executable is optional.
+
+<Screenshot src="/img/guide/en/add-game.png" alt="Game name, executable, and save locations in the Add Game panel" caption="Add multiple save files or folders" />
+
+## Save your progress
+
+Select a game in the sidebar, enter a description, and click **Create new snapshot**.
+
+<Screenshot src="/img/guide/en/snapshots.png" alt="Stardew Valley snapshots with the current position highlighted" caption="The current snapshot is highlighted in the list" />
+
+## Restore a save
+
+Exit the game, then click **Apply** beside a snapshot or **Apply latest** at the top.
+
+An **extra backup** is kept before restoring by default, so you can recover the save that was replaced.
+
+Next, set up [automatic backups](./backups/automatic.mdx), [quick actions](./backups/shortcuts.md), or [cloud sync](./extras/cloud.mdx).
