@@ -12,6 +12,7 @@ import type {
 } from '../api/commands';
 import { commands } from '../api/commands';
 import { useConfig } from '../composables/useConfig';
+import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import { usePathResolution } from '../composables/usePathResolution';
 import PathVariableInput from './PathVariableInput.vue';
 import ResourceMultiSelect from './ResourceMultiSelect.vue';
@@ -21,6 +22,7 @@ import { KAlert, KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } fr
 
 const { config } = useConfig();
 const feedback = useFeedback();
+const { warnUnavailableLocations } = useSaveLocationCheck();
 const { resourceLabel } = usePathResolution();
 
 const props = defineProps<{
@@ -294,7 +296,7 @@ function switchDeleteBeforeApply(_unit: SaveUnit) {
   hasUnsavedChanges.value = true;
 }
 
-function saveChanges() {
+async function saveChanges() {
   const trimmedName = tempGame.value.name.trim();
   if (!trimmedName) {
     notifyError($t('addgame.no_name_error'));
@@ -307,6 +309,9 @@ function saveChanges() {
   }
 
   tempGame.value.name = trimmedName;
+  if (currentDevice.value) {
+    await warnUnavailableLocations(tempGame.value.save_paths, currentDevice.value.id);
+  }
   emits('saveChanges', JSON.parse(JSON.stringify(tempGame.value)));
   hasUnsavedChanges.value = false;
 }
@@ -392,18 +397,6 @@ async function addSaveFile() {
   }
 }
 
-async function validateRegistryPath(path: string) {
-  const checkResult = await commands.checkPaths([path], null, null, null);
-  if (checkResult.status !== 'ok') {
-    return;
-  }
-
-  const [check] = checkResult.data;
-  if (check && check.status === 'registryPath' && !check.supported) {
-    notifyWarning($t('addgame.registry_non_windows_warning'));
-  }
-}
-
 async function promptRegistryPath(initialValue = '') {
   try {
     const result = await feedback.prompt(
@@ -427,7 +420,6 @@ async function addRegistryKey() {
     return;
   }
 
-  await validateRegistryPath(path);
   tempGame.value.save_paths.push(createSaveUnit('WinRegistry', path));
   hasUnsavedChanges.value = true;
 }
@@ -453,7 +445,6 @@ async function chooseUnitPath(unit: SaveUnit) {
       return;
     }
 
-    await validateRegistryPath(path);
     updateDevicePath(unit, selectedDeviceId.value, path);
     return;
   }
@@ -643,7 +634,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         </div>
         <PathVariableInput
           :model-value="getGameLaunchPath(selectedDeviceId)"
-          status-mode="below"
+          :status-mode="selectedDeviceId === currentDevice?.id ? 'below' : 'none'"
           @update:model-value="updateGameLaunchPath(selectedDeviceId, String($event ?? ''))"
         />
       </section>
@@ -713,7 +704,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
 
           <PathVariableInput
             :model-value="getDevicePath(unit, selectedDeviceId)"
-            status-mode="tooltip"
+            :status-mode="selectedDeviceId === currentDevice?.id ? 'tooltip' : 'none'"
             @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
           />
 
@@ -791,7 +782,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
 
             <PathVariableInput
               :model-value="getDevicePath(unit, selectedDeviceId)"
-              status-mode="tooltip"
+              :status-mode="selectedDeviceId === currentDevice?.id ? 'tooltip' : 'none'"
               @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
             />
 

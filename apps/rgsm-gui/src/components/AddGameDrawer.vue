@@ -20,11 +20,13 @@ import GameBatchImportDialog from './GameBatchImportDialog.vue';
 import { KAlert, KButton, KDrawer, KInput, KTag, KTagInput } from '../ui/kit';
 import { concreteSaveUnit, manifestSaveUnit, saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
+import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import { createGameFavorite, collectFavoriteGameIds } from './favoriteTreeContext';
 import { hasGameNameConflict } from '../utils/gameName';
 import { resolveGameReference } from '../utils/appRoutes';
 
 const feedback = useFeedback();
+const { warnUnavailableLocations } = useSaveLocationCheck();
 const { config, refreshConfig, saveConfig } = useConfig();
 const { visible, editGameName, close } = useAddGameDrawer();
 
@@ -256,15 +258,6 @@ async function add_registry_key() {
     const path = result.value?.trim();
     if (!path) return;
     if (!check_save_unit_unique(path)) return;
-
-    // Validate registry path on current platform
-    const checkResult = await commands.checkPaths([path], null, null, null);
-    if (checkResult.status === 'ok') {
-      const [check] = checkResult.data;
-      if (check && check.status === 'registryPath' && !check.supported) {
-        notifyWarning($t('addgame.registry_non_windows_warning'));
-      }
-    }
 
     save_paths.push(generate_save_unit('WinRegistry', path));
   } catch {
@@ -767,6 +760,10 @@ async function save() {
   if (hasGameNameConflict(config.value.games, game_name.value, editingGame.value)) {
     notifyError($t('addgame.duplicated_name_error'));
     return;
+  }
+
+  if (currentDevice.value) {
+    await warnUnavailableLocations(save_paths, currentDevice.value.id);
   }
 
   const game: GameDraft = {

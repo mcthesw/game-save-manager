@@ -929,6 +929,10 @@ export type PathCheckResult =
     }
   | {
       /**
+       * Optional portable spelling for this process's own user, never another SID.
+       */
+      currentUserPath?: string | null;
+      /**
        * Whether the registry key exists (always `false` on non-Windows).
        */
       exists: boolean;

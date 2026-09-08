@@ -3,7 +3,7 @@ import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { $t } from '../i18n';
 import { commands } from '../api/commands';
 import { LAYER } from '../ui/layers';
-import { KTooltip } from '../ui/kit';
+import { KButton, KTooltip } from '../ui/kit';
 
 type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 
@@ -448,11 +448,19 @@ defineExpose({ insertAtCursor });
 
 const pathStatus = ref<PathStatus>('idle');
 const resolvedPathText = ref('');
+const currentUserPath = ref<string | null>(null);
 let resolveTimer: ReturnType<typeof setTimeout> | null = null;
+let resolveGeneration = 0;
 
 function scheduleResolve(path: string) {
-  if (effectiveStatusMode.value === 'none') return;
+  const generation = ++resolveGeneration;
+  currentUserPath.value = null;
   if (resolveTimer) clearTimeout(resolveTimer);
+  if (effectiveStatusMode.value === 'none') {
+    pathStatus.value = 'idle';
+    resolvedPathText.value = '';
+    return;
+  }
 
   if (!path) {
     pathStatus.value = 'idle';
@@ -471,7 +479,7 @@ function scheduleResolve(path: string) {
         props.steamId
       );
       // Guard against stale responses
-      if (path !== props.modelValue) return;
+      if (generation !== resolveGeneration || path !== props.modelValue) return;
       if (result.status === 'error') {
         resolvedPathText.value = result.error;
         pathStatus.value = 'error';
@@ -496,6 +504,7 @@ function scheduleResolve(path: string) {
           pathStatus.value = 'error';
           break;
         case 'registryPath':
+          currentUserPath.value = check.currentUserPath ?? null;
           if (check.supported) {
             resolvedPathText.value = check.rawPath;
             pathStatus.value = check.exists ? 'ok' : 'not-found';
@@ -506,7 +515,7 @@ function scheduleResolve(path: string) {
           break;
       }
     } catch {
-      if (path !== props.modelValue) return;
+      if (generation !== resolveGeneration || path !== props.modelValue) return;
       pathStatus.value = 'error';
       resolvedPathText.value = '';
     }
@@ -530,6 +539,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  resolveGeneration += 1;
   window.removeEventListener('scroll', onWindowScroll, true);
   if (resolveTimer) clearTimeout(resolveTimer);
 });
@@ -545,7 +555,12 @@ watch(
 );
 
 watch(
-  () => [props.storeUserId, props.steamId, props.installDirs.join('\u0000')],
+  () => [
+    props.storeUserId,
+    props.steamId,
+    props.installDirs.join('\u0000'),
+    effectiveStatusMode.value,
+  ],
   () => {
     scheduleResolve(props.modelValue);
   }
@@ -592,6 +607,15 @@ watch(
     >
       <span class="pvi-status-dot" />
       <span class="pvi-status-text">{{ resolvedPathText }}</span>
+    </div>
+    <div
+      v-if="currentUserPath && effectiveStatusMode !== 'none'"
+      class="mt-1 text-xs text-text-muted"
+    >
+      {{ $t('path_variable.current_user_hint') }}
+      <KButton size="sm" @click="emit('update:modelValue', currentUserPath)">
+        {{ $t('path_variable.use_current_user') }}
+      </KButton>
     </div>
   </div>
 

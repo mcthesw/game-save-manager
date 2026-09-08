@@ -11,7 +11,11 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+#[cfg(any(windows, test))]
+mod current_user;
 mod reg_file;
+#[cfg(windows)]
+pub use current_user::suggest_current_user_path;
 
 pub use reg_file::{deserialize_reg_file, serialize_reg_file};
 
@@ -426,9 +430,10 @@ mod platform {
         }
     }
 
-    /// Import `RegistryData` back into the Windows Registry.
-    pub fn import_registry_data(data: &RegistryData) -> Result<(), RegistryError> {
-        let (hive, base_subkey) = parse_registry_path(&data.root_key)?;
+    /// Restore relative keys and values under an explicitly selected device target.
+    /// The archived root records origin only; value contents are never rewritten.
+    pub fn import_registry_data(data: &RegistryData, target: &str) -> Result<(), RegistryError> {
+        let (hive, base_subkey) = parse_registry_path(target)?;
         let root = RegKey::predef(hive);
 
         for entry in &data.entries {
@@ -459,7 +464,7 @@ mod platform {
         Err(RegistryError::UnsupportedPlatform)
     }
 
-    pub fn import_registry_data(_data: &RegistryData) -> Result<(), RegistryError> {
+    pub fn import_registry_data(_data: &RegistryData, _target: &str) -> Result<(), RegistryError> {
         Err(RegistryError::UnsupportedPlatform)
     }
 }
@@ -552,35 +557,41 @@ mod tests {
     #[cfg(target_os = "windows")]
     mod windows_tests {
         use super::*;
-        use std::sync::Mutex;
         use winreg::RegKey;
         use winreg::enums::*;
 
-        const TEST_KEY: &str = "HKEY_CURRENT_USER\\Software\\RGSM_TEST";
-        static TEST_MUTEX: Mutex<()> = Mutex::new(());
-
-        fn cleanup_test_key() {
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let _ = hkcu.delete_subkey_all("Software\\RGSM_TEST");
+        struct TestKey(String);
+        impl TestKey {
+            fn path(&self) -> String {
+                format!("HKEY_CURRENT_USER\\{}", self.0)
+            }
+            fn clear(&self) {
+                let _ = RegKey::predef(HKEY_CURRENT_USER).delete_subkey_all(&self.0);
+            }
+        }
+        impl Drop for TestKey {
+            fn drop(&mut self) {
+                self.clear();
+            }
         }
 
-        fn setup_test_key() {
-            cleanup_test_key();
+        fn setup_test_key() -> TestKey {
+            let owned = TestKey(format!("Software\\RGSM_TEST_{}", uuid::Uuid::new_v4()));
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let (key, _) = hkcu.create_subkey("Software\\RGSM_TEST").unwrap();
+            let (key, _) = hkcu.create_subkey(&owned.0).unwrap();
             key.set_value("TestString", &"hello").unwrap();
             key.set_value("TestDword", &42u32).unwrap();
-            let (child, _) = hkcu.create_subkey("Software\\RGSM_TEST\\Child").unwrap();
+            let (child, _) = key.create_subkey("Child").unwrap();
             child.set_value("ChildVal", &"world").unwrap();
+            owned
         }
 
         #[test]
         fn export_and_import_roundtrip() {
-            let _guard = TEST_MUTEX.lock().unwrap();
-            setup_test_key();
+            let owned = setup_test_key();
 
             // Export
-            let data = export_registry_key(TEST_KEY).unwrap();
+            let data = export_registry_key(&owned.path()).unwrap();
             assert_eq!(data.format_version, 1);
             assert!(!data.entries.is_empty());
 
@@ -594,27 +605,25 @@ mod tests {
             assert!(child_entry.values.iter().any(|v| matches!(v, RegistryValue::Sz { name, data } if name == "ChildVal" && data == "world")));
 
             // Clean and re-import
-            cleanup_test_key();
-            import_registry_data(&data).unwrap();
+            owned.clear();
+            import_registry_data(&data, &data.root_key).unwrap();
 
             // Verify re-imported data matches
-            let reimported = export_registry_key(TEST_KEY).unwrap();
+            let reimported = export_registry_key(&owned.path()).unwrap();
             assert_eq!(data.entries.len(), reimported.entries.len());
-
-            cleanup_test_key();
         }
 
         #[test]
         fn export_nonexistent_key_errors() {
-            let _guard = TEST_MUTEX.lock().unwrap();
-            let result =
-                export_registry_key("HKEY_CURRENT_USER\\Software\\RGSM_NONEXISTENT_KEY_12345");
+            let result = export_registry_key(&format!(
+                "HKEY_CURRENT_USER\\Software\\RGSM_TEST_{}",
+                uuid::Uuid::new_v4()
+            ));
             assert!(result.is_err());
         }
 
         #[test]
         fn parse_ludusavi_registry_prefix() {
-            let _guard = TEST_MUTEX.lock().unwrap();
             let (_, subkey) =
                 platform::parse_registry_path("REGISTRY:HKEY_CURRENT_USER/Software/Game").unwrap();
             assert_eq!(subkey, "Software\\Game");
@@ -622,11 +631,10 @@ mod tests {
 
         #[test]
         fn export_ludusavi_style_path_uses_normalized_subkey() {
-            let _guard = TEST_MUTEX.lock().unwrap();
-            setup_test_key();
-            let result = export_registry_key("REGISTRY:HKEY_CURRENT_USER/Software/RGSM_TEST");
+            let owned = setup_test_key();
+            let result =
+                export_registry_key(&format!("REGISTRY:{}", owned.path().replace('\\', "/")));
             assert!(result.is_ok());
-            cleanup_test_key();
         }
     }
 }

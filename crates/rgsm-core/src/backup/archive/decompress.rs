@@ -290,7 +290,7 @@ fn restore_registry_capture(
     let data = crate::backup::registry::deserialize_reg_file(&bytes).map_err(|error| {
         CompressError::Single(BackupFileError::RegistryError(error.to_string()))
     })?;
-    crate::backup::registry::import_registry_data(&data)
+    crate::backup::registry::import_registry_data(&data, &entry.target_path.to_string_lossy())
         .map_err(|error| CompressError::Single(BackupFileError::RegistryError(error.to_string())))
 }
 
@@ -503,6 +503,7 @@ fn restore_registry_unit(
     unit: &SaveUnit,
     version: ArchiveVersion,
     temp_root: &Path,
+    path_ctx: Option<&PathContext>,
 ) -> Result<RestoreOutcome, BackupFileError> {
     use crate::backup::registry;
 
@@ -528,7 +529,8 @@ fn restore_registry_unit(
             .map_err(|e| BackupFileError::Unexpected(e.into()))?
     };
 
-    match registry::import_registry_data(&reg_data) {
+    let target = unit.resolve_path_for_current_device(path_ctx)?;
+    match registry::import_registry_data(&reg_data, &target.to_string_lossy()) {
         Ok(()) => Ok(RestoreOutcome::Restored),
         Err(registry::RegistryError::UnsupportedPlatform) => {
             Ok(RestoreOutcome::Skipped(SkipReason::UnsupportedPlatform))
@@ -574,7 +576,7 @@ fn restore_save_unit_from_temp(
     path_ctx: Option<&PathContext>,
 ) -> Result<RestoreOutcome, BackupFileError> {
     if matches!(unit.unit_type(), Some(SaveUnitType::WinRegistry)) {
-        return restore_registry_unit(unit, version, temp_root);
+        return restore_registry_unit(unit, version, temp_root, path_ctx);
     }
 
     let unit_path = unit.resolve_path_for_current_device(path_ctx)?;

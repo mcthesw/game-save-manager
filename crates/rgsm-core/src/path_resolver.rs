@@ -63,6 +63,9 @@ pub enum PathCheckResult {
         exists: bool,
         /// Whether registry operations are supported on this platform.
         supported: bool,
+        /// Optional portable spelling for this process's own user, never another SID.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        current_user_path: Option<String>,
     },
     /// Failed to resolve path variables
     #[serde(rename_all = "camelCase")]
@@ -75,11 +78,20 @@ pub fn check_path(raw_path: &str, ctx: Option<&PathContext>, _config: &Config) -
     if crate::backup::registry::is_registry_path(raw_path) {
         #[cfg(target_os = "windows")]
         {
-            let exists = crate::backup::registry::registry_key_exists(raw_path).unwrap_or(false);
+            let exists = match crate::backup::registry::registry_key_exists(raw_path) {
+                Ok(exists) => exists,
+                Err(error) => {
+                    return PathCheckResult::ResolveFailed {
+                        raw_path: raw_path.to_string(),
+                        error: error.to_string(),
+                    };
+                }
+            };
             return PathCheckResult::RegistryPath {
                 raw_path: raw_path.to_string(),
                 exists,
                 supported: true,
+                current_user_path: crate::backup::registry::suggest_current_user_path(raw_path),
             };
         }
         #[cfg(not(target_os = "windows"))]
@@ -88,6 +100,7 @@ pub fn check_path(raw_path: &str, ctx: Option<&PathContext>, _config: &Config) -
                 raw_path: raw_path.to_string(),
                 exists: false,
                 supported: false,
+                current_user_path: None,
             };
         }
     }

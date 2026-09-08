@@ -438,8 +438,10 @@ fn resolve_concrete(
             SaveUnitType::File => source.is_file(),
             SaveUnitType::Folder => source.is_dir(),
             SaveUnitType::WinRegistry => {
-                crate::backup::registry::registry_key_exists(&resolved.to_string_lossy())
-                    .unwrap_or(false)
+                match crate::backup::registry::registry_key_exists(&resolved.to_string_lossy()) {
+                    Ok(exists) => exists,
+                    Err(error) => return blocked_report(path, &error.to_string()),
+                }
             }
         };
         if !exists {
