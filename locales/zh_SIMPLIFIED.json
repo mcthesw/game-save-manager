@@ -222,6 +222,7 @@
         "undo_last_apply": "撤销上次应用",
         "undo_success": "已成功撤销上次应用的快照",
         "undo_failed": "撤销失败",
+        "undo_position_failed": "存档文件已恢复，但未能恢复之前的位置",
         "undo_confirm": "确定要撤销上次应用的快照并恢复到之前的状态吗？",
         "undo_not_available": "没有可撤销的操作",
         "undo_requires_extra_backup": "请在设置中开启「应用前额外备份」以使用撤销功能",
