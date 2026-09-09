@@ -2,7 +2,7 @@ use crate::cloud_sync::CloudSyncSessionConfig;
 use crate::cloud_sync::v2::{
     CloudLibraryBootstrap, CloudLibraryJoin, CloudLibraryJoinError, CloudLibraryJoinReview,
     CloudNamespaceClassification, DeletionRegistryError, DeletionRegistryRepository,
-    DeviceProfileRepository, GameJoinClassification, JoinGameDecision,
+    DeviceProfileRepository, JoinGameDecision,
 };
 use crate::config::{
     CloudNamespaceGeneration, SharedLibrary, cloud_bootstrap_inputs, connect_cloud_library_local,
@@ -89,17 +89,7 @@ impl ServiceContext {
         let (library, _, state) = cloud_bootstrap_inputs()?;
         let candidates = SharedLibrary {
             schema_version: library.schema_version,
-            games: state
-                .local_games
-                .iter()
-                .filter(|local| {
-                    library
-                        .games
-                        .iter()
-                        .any(|remote| remote.storage_key == local.storage_key)
-                })
-                .cloned()
-                .collect(),
+            games: state.local_games.clone(),
         };
         let operator = bound_v2_operator(&state).await?;
         let registry = DeletionRegistryRepository::new(operator.clone(), 3)
@@ -108,15 +98,11 @@ impl ServiceContext {
         let mut review = CloudLibraryJoin::new(operator, 3)
             .review(&candidates)
             .await?;
-        // An active library only offers a choice for the same live identity.
-        // An absent/deleted cloud definition leaves its local copy independent.
-        review.items.retain(|item| {
-            !registry.deleted_games.contains_key(&item.local_game_id)
-                && matches!(
-                    item.classification,
-                    GameJoinClassification::Same | GameJoinClassification::GameDefinitionConflict
-                )
-        });
+        // Local-only definitions need an explicit AddLocal decision too. A
+        // remotely deleted identity must never be offered for republication.
+        review
+            .items
+            .retain(|item| !registry.deleted_games.contains_key(&item.local_game_id));
         Ok(review)
     }
 

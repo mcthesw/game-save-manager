@@ -11,7 +11,7 @@ import { $t } from '~/i18n';
 import { CheckCircle2, Inbox, LoaderCircle } from '@lucide/vue';
 import { KAlert, KButton, KDialog, KTag } from '../ui/kit';
 
-const props = defineProps<{ modelValue: boolean; gameId?: string }>();
+const props = defineProps<{ modelValue: boolean; gameId?: string; publishLocal?: boolean }>();
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
   (event: 'joined', gameCount: number): void;
@@ -36,6 +36,12 @@ const visible = computed({
 });
 const selected = computed(
   () => review.value?.items.find((item) => item.local_game_id === selectedId.value) ?? null
+);
+const simplePublication = computed(
+  () =>
+    props.publishLocal &&
+    review.value?.items.length === 1 &&
+    selected.value?.classification === 'local_only'
 );
 const replacementCount = computed(
   () => [...actions.value.values()].filter((action) => action === 'replace_cloud').length
@@ -92,7 +98,12 @@ async function loadReview() {
     actions.value = new Map<string, JoinGameAction>(
       review.value.items
         .filter((item) => item.classification !== 'game_definition_conflict')
-        .map((item) => [item.local_game_id, 'keep_cloud'])
+        .map((item) => [
+          item.local_game_id,
+          props.publishLocal && ['local_only', 'possible_duplicate'].includes(item.classification)
+            ? 'add_local'
+            : 'keep_cloud',
+        ])
     );
     selectedId.value =
       review.value.items.find((item) => item.classification !== 'same')?.local_game_id ??
@@ -121,7 +132,7 @@ function decisionOptions(item: CloudLibraryJoinItem): { value: JoinGameAction; l
 
 function decisions(): JoinGameDecision[] {
   return (review.value?.items ?? [])
-    .filter((item) => item.classification !== 'same')
+    .filter((item) => props.gameId || item.classification !== 'same')
     .flatMap((item) => {
       const action = actions.value.get(item.local_game_id);
       return action
@@ -201,18 +212,23 @@ watch(
   <KDialog
     v-model:open="visible"
     :title="
-      props.gameId
-        ? $t('sync_settings.library.definitions.action')
-        : changedCount
-          ? $t('sync_settings.library.join.title')
-          : $t('sync_settings.library.join.confirm_title')
+      props.publishLocal
+        ? $t('sync_settings.overview.enable_local_title')
+        : props.gameId
+          ? $t('sync_settings.library.definitions.action')
+          : changedCount
+            ? $t('sync_settings.library.join.title')
+            : $t('sync_settings.library.join.confirm_title')
     "
-    :width="changedCount ? 920 : 560"
+    :width="changedCount && !simplePublication ? 920 : 560"
     :dismissable="!joining"
   >
     <div v-if="loading || joining" class="flex justify-center py-6 text-text-dim">
       <LoaderCircle :size="22" class="animate-spin" aria-hidden="true" />
     </div>
+    <p v-else-if="simplePublication" class="text-sm leading-relaxed text-text">
+      {{ $t('sync_settings.overview.enable_local_description', { game: selected?.local_name }) }}
+    </p>
     <template v-else-if="review && !changedCount">
       <p class="text-sm leading-relaxed text-text">
         {{
@@ -384,9 +400,11 @@ watch(
       >
         {{
           $t(
-            props.gameId
-              ? 'sync_settings.library.definitions.apply'
-              : 'sync_settings.library.join.join_action'
+            props.publishLocal
+              ? 'sync_settings.overview.enable_local_title'
+              : props.gameId
+                ? 'sync_settings.library.definitions.apply'
+                : 'sync_settings.library.join.join_action'
           )
         }}
       </KButton>

@@ -176,6 +176,10 @@ export type CloudArchiveGameView = {
   live_save_process_name?: string | null;
   live_save_snapshot_on_exit: boolean;
   local_count: number;
+  /**
+   * A local definition that has not been published to this library.
+   */
+  local_only: boolean;
   local_only_count: number;
   managed: boolean;
   name: string;
