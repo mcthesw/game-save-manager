@@ -6,10 +6,12 @@
 //! - Backup creation
 //! - Component updates
 
+mod cloud_config;
 pub mod migration;
 pub mod probe;
 
 #[allow(dead_code)]
 pub mod versions;
 
+pub(crate) use cloud_config::decode_legacy_cloud_config;
 pub use migration::update_config;
