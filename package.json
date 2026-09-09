@@ -7,7 +7,7 @@
     "build": "pnpm --dir apps/rgsm-gui build",
     "web:dev": "pnpm --dir apps/rgsm-gui web:dev",
     "web:build": "pnpm --dir apps/rgsm-gui web:build",
-    "web:test": "pnpm --dir apps/rgsm-gui web:test",
+    "web:test": "pnpm --dir apps/rgsm-gui web:test && node --test .agents/skills/rgsm-gui-acceptance/scripts/device.test.mjs",
     "web:e2e": "pnpm --dir apps/rgsm-gui web:e2e",
     "web:e2e:desktop": "pnpm --dir apps/rgsm-gui web:e2e:desktop",
     "web:typecheck": "pnpm --dir apps/rgsm-gui web:typecheck",

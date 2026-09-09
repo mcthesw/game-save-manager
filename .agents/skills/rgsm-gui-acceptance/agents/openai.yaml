@@ -1,0 +1,4 @@
+interface:
+  display_name: "RGSM GUI acceptance"
+  short_description: "Prepare isolated GUI scenarios for human acceptance"
+  default_prompt: "Use $rgsm-gui-acceptance to prepare a small local acceptance packet for these changes"
