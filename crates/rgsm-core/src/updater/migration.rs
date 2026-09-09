@@ -47,7 +47,6 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     let current = Version::parse(CURRENT_VERSION)?;
     let min_supported = Version::parse(MIN_SUPPORTED_VERSION)?;
     let version_1_6_0 = Version::parse(VERSION_1_6_0)?;
-    let version_1_7_5 = Version::parse(VERSION_1_7_5)?;
     let version_1_8_1 = Version::parse(VERSION_1_8_1)?;
     let version_1_9_0 = Version::parse(VERSION_1_9_0)?;
 
@@ -89,13 +88,11 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     backup_config(path)?;
 
     // Migrate based on version
-    let mut new_cfg = migrate_config(&content, &version)?;
-    new_cfg = migrate_legacy_cloud_sync(&content, new_cfg)?;
     let detected_steam_roots = crate::steam::detect_game_roots().unwrap_or_default();
-    migrate_path_resource_schema(
+    let mut new_cfg = migrate_config_schema(
         &content,
-        &mut new_cfg,
-        get_current_device_id(),
+        &version,
+        Some(get_current_device_id()),
         &detected_steam_roots,
     )?;
 
@@ -112,11 +109,6 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
         migrate_game_snapshots_to_chain(&backup_path)?;
     }
 
-    // Assign stable IDs to save units if upgrading from before 1.7.5
-    if version < version_1_7_5 {
-        new_cfg = migrate_save_unit_ids(new_cfg);
-    }
-
     // Backfill storage_key for all games if upgrading from before 1.9.0
     if version < version_1_9_0 {
         new_cfg = migrate_storage_keys(new_cfg, &backup_path);
@@ -125,6 +117,27 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     write_config_transactionally(path, serde_json::to_string_pretty(&new_cfg)?.as_bytes())?;
     info!(target: "rgsm::updater", "Config updated successfully to version {}", CURRENT_VERSION);
     Ok(true)
+}
+
+/// Upgrade configuration fields without reading or writing local/remote files.
+/// Storage identities are assigned separately using each storage layout's rules.
+pub(super) fn migrate_config_schema(
+    content: &str,
+    version: &Version,
+    current_device_id: Option<&str>,
+    detected_steam_roots: &[String],
+) -> Result<Config, UpdaterError> {
+    let mut config = migrate_legacy_cloud_sync(content, migrate_config(content, version)?)?;
+    migrate_path_resource_schema(
+        content,
+        &mut config,
+        current_device_id,
+        detected_steam_roots,
+    )?;
+    if version < &Version::parse(VERSION_1_7_5)? {
+        config = migrate_save_unit_ids(config);
+    }
+    Ok(config)
 }
 
 fn has_legacy_path_schema(content: &str) -> Result<bool, UpdaterError> {
@@ -170,7 +183,7 @@ fn has_legacy_path_schema(content: &str) -> Result<bool, UpdaterError> {
 fn migrate_path_resource_schema(
     content: &str,
     config: &mut Config,
-    current_device_id: &str,
+    current_device_id: Option<&str>,
     detected_steam_roots: &[String],
 ) -> Result<(), UpdaterError> {
     let raw: Value = serde_json::from_str(content)?;
@@ -194,7 +207,7 @@ fn migrate_path_resource_schema(
                 {
                     continue;
                 }
-                let store = if device_id == current_device_id
+                let store = if Some(device_id.as_str()) == current_device_id
                     && detected_steam_roots.contains(&normalized_path_identity(path))
                 {
                     StoreKind::Steam
@@ -1186,7 +1199,7 @@ mod tests {
         migrate_path_resource_schema(
             &raw.to_string(),
             &mut config,
-            "device",
+            Some("device"),
             &["d:/steamlibrary/".to_string()],
         )
         .unwrap();
@@ -1243,7 +1256,7 @@ mod tests {
             }]
         });
 
-        migrate_path_resource_schema(&raw.to_string(), &mut config, &device_id, &[]).unwrap();
+        migrate_path_resource_schema(&raw.to_string(), &mut config, Some(&device_id), &[]).unwrap();
 
         assert!(!config.games[0].device_bindings.contains_key(&device_id));
         assert!(matches!(

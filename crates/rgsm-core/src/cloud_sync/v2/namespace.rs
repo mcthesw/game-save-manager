@@ -216,7 +216,9 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
         }
 
         if let Some(bytes) = self.read_object(V1_CONFIG_PATH).await? {
-            let config = parse_json(V1_CONFIG_PATH, &bytes)?;
+            let raw: serde_json::Value = parse_json(V1_CONFIG_PATH, &bytes)?;
+            let config = crate::updater::decode_legacy_cloud_config(&raw.to_string())
+                .map_err(|error| CloudNamespaceError::LegacyConfiguration(error.to_string()))?;
             return Ok(CloudNamespaceClassification::V1Only {
                 config: Box::new(config),
             });
@@ -277,6 +279,8 @@ fn parse_json<T: for<'de> Deserialize<'de>>(
 
 #[derive(Debug, Error)]
 pub enum CloudNamespaceError {
+    #[error("Cannot migrate legacy cloud configuration: {0}")]
+    LegacyConfiguration(String),
     #[error("Cloud namespace transport error: {0}")]
     Transport(#[from] opendal::Error),
     #[error("Malformed cloud object {path}: {source}")]

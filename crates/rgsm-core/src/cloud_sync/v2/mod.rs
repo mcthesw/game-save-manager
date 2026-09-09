@@ -8,6 +8,8 @@ mod game_comparison;
 pub(crate) mod game_deletion;
 mod integrity;
 mod join;
+#[cfg(test)]
+mod legacy_config_tests;
 mod local_eviction;
 mod manifest;
 mod materialization;
