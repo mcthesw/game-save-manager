@@ -11,6 +11,9 @@ use log::{debug, warn};
 use serde::Deserialize;
 use thiserror::Error;
 
+mod libraries;
+pub use libraries::get_steam_library_paths;
+
 /// Errors specific to Steam integration.
 #[derive(Debug, Error)]
 pub enum SteamError {
@@ -107,49 +110,6 @@ impl StringOrNumber {
 pub fn get_steam_root() -> Result<PathBuf, SteamError> {
     let root = crate::path_resolver::get_steam_root().map_err(|_| SteamError::SteamNotFound)?;
     Ok(PathBuf::from(root))
-}
-
-/// Discover all Steam library paths from `libraryfolders.vdf`.
-///
-/// Returns a list of library root paths (e.g. `D:\SteamLibrary`).
-/// The Steam root itself is always included as the first library.
-pub fn get_steam_library_paths() -> Result<Vec<PathBuf>, SteamError> {
-    let steam_root = get_steam_root()?;
-    let vdf_path = steam_root.join("steamapps").join("libraryfolders.vdf");
-
-    if !vdf_path.exists() {
-        // Fallback: just use the steam root as the only library
-        warn!(
-            target: "rgsm::steam",
-            "libraryfolders.vdf not found at {}, using Steam root as only library",
-            vdf_path.display()
-        );
-        return Ok(vec![steam_root]);
-    }
-
-    let content = std::fs::read_to_string(&vdf_path).map_err(|e| SteamError::VdfRead {
-        path: vdf_path.clone(),
-        source: e,
-    })?;
-
-    let library_folders: HashMap<String, LibraryFolder> = keyvalues_serde::from_str(&content)
-        .map_err(|e| SteamError::VdfParse {
-            path: vdf_path.clone(),
-            reason: e.to_string(),
-        })?;
-
-    let mut libraries = vec![steam_root.clone()];
-    for library in library_folders.into_values().map(|folder| {
-        let p = folder.path.replace('\\', "/");
-        PathBuf::from(p)
-    }) {
-        if library.exists() && !libraries.contains(&library) {
-            libraries.push(library);
-        }
-    }
-
-    debug!(target: "rgsm::steam", "Found {} Steam libraries", libraries.len());
-    Ok(libraries)
 }
 
 /// Scan a single Steam library for installed games via `appmanifest_*.acf` files.

@@ -189,7 +189,7 @@
         "delete_device_success": "设备已删除",
         "delete_device_failed": "删除设备失败",
         "game_roots_title": "游戏库根目录",
-        "game_roots_hint": "类似 SteamLibrary 的游戏库文件夹,用于解析 <root> 路径变量;留空时将自动检测 Steam 库",
+        "game_roots_hint": "添加游戏库文件夹，或自动检测 Steam 游戏库",
         "game_roots_path_placeholder": "例如 D:\\Steam",
         "game_roots_add": "添加根目录",
         "game_roots_auto_detect": "自动检测",

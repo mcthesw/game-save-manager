@@ -48,6 +48,7 @@ import { error, info } from '../utils/logger';
 import type { CloudNamespaceGeneration, Device } from '../api/commands';
 import { saveUnitPaths } from '../utils/saveUnit';
 import { applyGameOrder } from '../utils/gameOrder';
+import { mergeDuplicateGameRoots, newGameRootPaths } from '../utils/gameRoots';
 
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
@@ -504,7 +505,10 @@ function addGameRoot() {
 let gameRootsSaveQueue = Promise.resolve();
 
 function saveGameRoots() {
-  gameRootsSaveQueue = gameRootsSaveQueue.then(() => persistDeviceInfo(false));
+  gameRootsSaveQueue = gameRootsSaveQueue.then(() => {
+    mergeDuplicateGameRoots(currentDevice.value, config.value.games);
+    return persistDeviceInfo(false);
+  });
   return gameRootsSaveQueue;
 }
 
@@ -541,9 +545,9 @@ async function autoDetectGameRoots() {
   try {
     const result = await commands.detectGameRoots();
     if (result.status === 'ok') {
-      const existing = new Set(getCurrentGameRoots());
-      const newRoots = result.data.filter((r) => !existing.has(r));
+      const newRoots = newGameRootPaths(getCurrentGameRoots(), result.data);
       if (newRoots.length === 0) {
+        await saveGameRoots();
         notifyInfo($t('settings.game_roots_no_new'));
         return;
       }

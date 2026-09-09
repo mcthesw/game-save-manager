@@ -58,6 +58,7 @@ jobs:
           e2e/local-v1-8-upgrade.spec.ts
           e2e/local-released-upgrade.spec.ts
           e2e/cloud-released-upgrade.spec.ts
+          e2e/local-game-roots.spec.ts
           e2e/local-failure-surface.spec.ts
           e2e/local-extra-backup.spec.ts
           e2e/local-undo-feedback.spec.ts
