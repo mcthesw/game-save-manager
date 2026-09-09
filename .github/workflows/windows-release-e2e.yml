@@ -43,6 +43,9 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --dir apps/rgsm-gui exec playwright install chromium
 
+      - name: Test Windows file replacement
+        run: cargo test -p rgsm-core --lib atomic_file::tests
+
       - name: Run release-critical E2E
         run: >-
           pnpm --dir apps/rgsm-gui exec playwright test

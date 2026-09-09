@@ -99,17 +99,29 @@ fn replace_file(source: &Path, target: &Path) -> io::Result<()> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
-    let result = unsafe {
-        MoveFileExW(
-            source.as_ptr(),
-            target.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    if result == 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
+    // Windows readers without FILE_SHARE_DELETE can briefly block replacement
+    // with ACCESS_DENIED (not just SHARING_VIOLATION). Retry this filesystem
+    // operation only, for at most 310 ms of backoff; never delete the target.
+    let mut delays = [10, 20, 40, 80, 160].into_iter();
+    loop {
+        let result = unsafe {
+            MoveFileExW(
+                source.as_ptr(),
+                target.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        };
+        if result != 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if !matches!(error.raw_os_error(), Some(5 | 32)) {
+            return Err(error);
+        }
+        let Some(delay) = delays.next() else {
+            return Err(error);
+        };
+        std::thread::sleep(std::time::Duration::from_millis(delay));
     }
 }
 
@@ -126,6 +138,69 @@ mod tests {
         super::write_bytes_atomically(&path, b"new").unwrap();
 
         assert_eq!(fs::read(&path).unwrap(), b"new");
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn replaces_file_after_a_short_lived_windows_reader_releases_it() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let root = temp_dir::TempDir::new().unwrap();
+        let path = root.path().join("state.json");
+        fs::write(&path, b"old").unwrap();
+        // A reader that does not share DELETE prevents MoveFileExW from
+        // replacing the catalog even though the directory is writable.
+        let reader = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&path)
+            .unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            drop(reader);
+        });
+        let result = super::write_bytes_atomically(&path, b"new");
+        release.join().unwrap();
+        result.unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn locked_target_preserves_original_and_cleans_temporary_file() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let root = temp_dir::TempDir::new().unwrap();
+        let path = root.path().join("state.json");
+        fs::write(&path, b"old").unwrap();
+        let _reader = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&path)
+            .unwrap();
+        let error = super::write_bytes_atomically(&path, b"new").unwrap_err();
+        assert!(matches!(error.raw_os_error(), Some(5 | 32)));
+        assert_eq!(fs::read(&path).unwrap(), b"old");
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn readonly_target_is_not_removed_or_made_writable() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let path = root.path().join("state.json");
+        fs::write(&path, b"old").unwrap();
+        let original_permissions = fs::metadata(&path).unwrap().permissions();
+        let mut permissions = original_permissions.clone();
+        permissions.set_readonly(true);
+        fs::set_permissions(&path, permissions.clone()).unwrap();
+        let result = super::write_bytes_atomically(&path, b"new");
+        let still_readonly = fs::metadata(&path).unwrap().permissions().readonly();
+        // Restore only this test's attribute so its temporary directory can clean up.
+        fs::set_permissions(&path, original_permissions).unwrap();
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(5));
+        assert!(still_readonly);
+        assert_eq!(fs::read(&path).unwrap(), b"old");
         assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
     }
 }
