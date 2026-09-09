@@ -20,6 +20,7 @@ import SnapshotTable from '../../components/management/SnapshotTable.vue';
 import { canApplySnapshot } from '../../components/management/snapshotAvailability';
 import { useDeviceHeads, type DeviceHeadEntry } from '../../components/management/useDeviceHeads';
 import { useSnapshotTransfers } from '../../components/management/useSnapshotTransfers';
+import { runUndoRestore } from '../../components/management/undoRestore';
 import { $t } from '../../i18n';
 import { error, info } from '../../utils/logger';
 import {
@@ -867,23 +868,30 @@ async function undo_last_apply() {
   const activityId = addActivity({ title: $t('manage.restoring_backup'), status: 'running' });
   try {
     await withLoading(async () => {
-      const result = await commands.restoreExtraBackup(game.value, extraBackupDate);
+      const result = await runUndoRestore(
+        () => commands.restoreExtraBackup(game.value, extraBackupDate),
+        async () => {
+          // Clearing an originally absent HEAD is not yet supported by the API.
+          return previousHead
+            ? commands.setSnapshotHead(game.value, previousHead)
+            : { status: 'ok' };
+        }
+      );
+      if (result.status === 'ok' || result.stage === 'position') {
+        // Files were restored. Do not offer another file overwrite to retry
+        // a failed position update.
+        undoInfo.value = null;
+      }
       if (result.status === 'error') {
-        updateActivity(activityId, { status: 'error', title: $t('manage.undo_failed') });
+        error(`Undo ${result.stage} failed: ${result.error}`);
+        updateActivity(activityId, {
+          status: 'error',
+          title: $t(
+            result.stage === 'position' ? 'manage.undo_position_failed' : 'manage.undo_failed'
+          ),
+        });
         return;
       }
-
-      // 恢复之前的 HEAD 指针
-      // TODO: 当 previousHead 为 null 时（首次应用前 HEAD 未设置），
-      // 需要后端支持 clearSnapshotHead 命令才能完全恢复状态
-      if (previousHead) {
-        const headResult = await commands.setSnapshotHead(game.value, previousHead);
-        if (headResult.status === 'error') {
-          error(`Failed to restore HEAD on undo: ${headResult.error}`);
-        }
-      }
-
-      undoInfo.value = null;
       updateActivity(activityId, { status: 'success', title: $t('manage.undo_success') });
     }, $t('manage.restoring_backup'));
   } catch {
