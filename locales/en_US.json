@@ -189,7 +189,7 @@
         "delete_device_success": "Device removed successfully",
         "delete_device_failed": "Failed to remove device",
         "game_roots_title": "Game Library Roots",
-        "game_roots_hint": "Library folders like SteamLibrary, used to resolve the <root> path variable; Steam libraries are auto-detected when empty",
+        "game_roots_hint": "Add game library folders or detect your Steam libraries",
         "game_roots_path_placeholder": "e.g. D:\\Steam",
         "game_roots_add": "Add Root",
         "game_roots_auto_detect": "Auto-detect",
