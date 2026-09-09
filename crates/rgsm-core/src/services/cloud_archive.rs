@@ -36,11 +36,10 @@ impl ServiceContext {
             .map(|game| (game.storage_key.clone(), game.name.clone()))
             .collect::<std::collections::BTreeMap<_, _>>();
         for local in &local_state.local_games {
-            if let Some(name) = game_names.get_mut(&local.storage_key) {
-                *name = local.name.clone();
-            }
+            game_names.insert(local.storage_key.clone(), local.name.clone());
         }
         let current_device = local_state.current_device_id.clone();
+        let mut local_counts = std::collections::BTreeMap::new();
         let local_heads = get_config()?
             .games
             .into_iter()
@@ -52,6 +51,7 @@ impl ServiceContext {
                 };
                 match game.get_game_snapshots_info() {
                     Ok(snapshots) => {
+                        local_counts.insert(game_id.clone(), snapshots.backups.len());
                         Some((game_id, snapshots.head_for_device(&current_device).cloned()))
                     }
                     Err(crate::preclude::BackupError::Io(error))
@@ -83,7 +83,13 @@ impl ServiceContext {
         view.games
             .retain(|game| !registry.deleted_games.contains_key(&game.game_id));
         for game in &mut view.games {
-            game.definition_conflict = local_state.is_local_game(&game.game_id);
+            let local_definition = local_state.is_local_game(&game.game_id);
+            game.local_only = local_definition
+                && !library
+                    .games
+                    .iter()
+                    .any(|shared| shared.storage_key == game.game_id);
+            game.definition_conflict = local_definition && !game.local_only;
             if let Some(settings) = profile.games.get(&game.game_id) {
                 game.managed = true;
                 game.visible = settings.visible;
@@ -92,8 +98,12 @@ impl ServiceContext {
                 game.live_save_process_name = settings.live_save_process_name.clone();
                 game.live_save_snapshot_on_exit = settings.live_save_snapshot_on_exit;
             }
-            if game.definition_conflict {
+            if local_definition {
                 game.cloud_sync_enabled = false;
+            }
+            if game.local_only {
+                game.local_count = local_counts.get(&game.game_id).copied().unwrap_or_default();
+                game.local_only_count = game.local_count;
             }
             game.retention_limit = library
                 .games

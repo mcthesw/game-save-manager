@@ -19,6 +19,7 @@ const progressGame = ref<CloudArchiveGameView | null>(null);
 const busyGameId = ref('');
 const fleet = ref<{ load: () => Promise<void> } | null>(null);
 const definitionGameId = ref('');
+const publishingGame = ref(false);
 const { refreshConfig } = useConfig();
 
 const games = computed(() => {
@@ -76,6 +77,7 @@ function needsProgressChoice(game: CloudArchiveGameView) {
 function syncStatus(game: CloudArchiveGameView) {
   if (lastError.value) return 'unavailable';
   if (game.definition_conflict) return 'conflict';
+  if (game.local_only) return 'local_only';
   if (!game.managed || !game.cloud_sync_enabled) return 'disabled';
   if (game.requires_choice) return 'conflict';
   if (game.has_update) return 'update_available';
@@ -125,6 +127,11 @@ async function changeMode(game: CloudArchiveGameView, mode: string | number | bo
 
 async function setCloudEnabled(game: CloudArchiveGameView, enabled: boolean) {
   if (!game.managed) return;
+  if (enabled && game.local_only) {
+    publishingGame.value = true;
+    definitionGameId.value = game.game_id;
+    return;
+  }
   busyGameId.value = game.game_id;
   try {
     const result = await commands.setGameSyncMode(
@@ -142,6 +149,16 @@ async function setCloudEnabled(game: CloudArchiveGameView, enabled: boolean) {
     await reload();
   } finally {
     busyGameId.value = '';
+  }
+}
+
+async function finishDefinitionChoice() {
+  const gameId = definitionGameId.value;
+  const enable = publishingGame.value;
+  await reload();
+  const accepted = library.value?.games.find((game) => game.game_id === gameId);
+  if (enable && accepted && !accepted.local_only && !accepted.definition_conflict) {
+    await setCloudEnabled({ ...accepted, sync_mode: 'manual' }, true);
   }
 }
 
@@ -245,7 +262,10 @@ function openGame(game: CloudArchiveGameView) {
             v-if="game.definition_conflict"
             type="button"
             class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs text-warning"
-            @click="definitionGameId = game.game_id"
+            @click="
+              publishingGame = false;
+              definitionGameId = game.game_id;
+            "
           >
             {{ $t('sync_settings.library.definitions.action') }}
           </button>
@@ -304,7 +324,7 @@ function openGame(game: CloudArchiveGameView) {
           type="button"
           class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-dim transition-colors hover:border-danger hover:bg-danger/10 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent"
           :aria-label="$t('sync_settings.overview.delete_game')"
-          :disabled="game.definition_conflict"
+          :disabled="game.definition_conflict || game.local_only"
           @click="permanentlyDelete(game)"
         >
           <Trash2 :size="14" aria-hidden="true" />
@@ -328,8 +348,9 @@ function openGame(game: CloudArchiveGameView) {
       v-if="definitionGameId"
       :model-value="Boolean(definitionGameId)"
       :game-id="definitionGameId"
+      :publish-local="publishingGame"
       @update:model-value="definitionGameId = ''"
-      @joined="reload"
+      @joined="finishDefinitionChoice"
     />
   </section>
 </template>

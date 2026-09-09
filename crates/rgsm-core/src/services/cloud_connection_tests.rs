@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use super::*;
 use crate::cloud_sync::v2::{
-    CloudNamespaceDescriptor, DeletionRegistryRepository, JoinGameAction, SharedLibraryRepository,
-    device_profile_path,
+    CloudNamespaceDescriptor, DeletionRegistryRepository, GameJoinClassification, JoinGameAction,
+    SharedLibraryRepository, device_profile_path,
 };
 use crate::cloud_sync::{Backend, CloudSettings};
 use crate::config::{Config, ConfigTestStateGuard, get_config, set_config_local};
@@ -85,6 +85,88 @@ fn runtime() -> tokio::runtime::Runtime {
         .enable_all()
         .build()
         .unwrap()
+}
+
+#[test]
+fn independent_local_game_can_be_reviewed_published_and_enabled_after_connecting() {
+    let _lock = crate::config::lock_config_test_file();
+    runtime().block_on(async {
+        let fixture = Fixture::new().await;
+        let repository = SharedLibraryRepository::new(fixture.operator.clone(), 2);
+        let before = repository.load().await.unwrap();
+        let mut remote = before.clone();
+        remote.games.retain(|game| game.storage_key != "ready");
+        repository.compare_replace(&before, &remote).await.unwrap();
+        std::fs::create_dir_all(fixture.archives.path().join("ready")).unwrap();
+        std::fs::write(
+            fixture.archives.path().join("ready/Backups.json"),
+            serde_json::to_vec(&crate::backup::GameSnapshots::new("Ready")).unwrap(),
+        )
+        .unwrap();
+        fixture.service.connect_cloud_library().await.unwrap();
+        let original = get_config().unwrap();
+        let (_, original_profile, original_state) = cloud_bootstrap_inputs().unwrap();
+        let view = fixture.service.cloud_archive_library().await.unwrap();
+        let local = view
+            .games
+            .iter()
+            .find(|game| game.game_id == "ready")
+            .expect("independent local games must be visible before publishing");
+        assert!(!local.cloud_sync_enabled);
+        assert!(!local.definition_conflict);
+        let review = fixture.service.review_pending_definitions().await.unwrap();
+        let item = review
+            .items
+            .iter()
+            .find(|item| item.local_game_id == "ready")
+            .unwrap();
+        assert_eq!(item.classification, GameJoinClassification::LocalOnly);
+        // Merely displaying/reviewing the local game cannot publish it.
+        assert_eq!(repository.load().await.unwrap(), remote);
+        assert_eq!(
+            serde_json::to_value(get_config().unwrap()).unwrap(),
+            serde_json::to_value(original).unwrap()
+        );
+        fixture
+            .service
+            .resolve_pending_definitions(
+                &[JoinGameDecision {
+                    local_game_id: item.local_game_id.clone(),
+                    local_fingerprint: item.local_fingerprint.clone(),
+                    cloud_fingerprint: item.cloud_fingerprint.clone(),
+                    action: JoinGameAction::AddLocal,
+                }],
+                false,
+            )
+            .await
+            .unwrap();
+        let (shared, profile, state) = cloud_bootstrap_inputs().unwrap();
+        assert!(shared.games.iter().any(|game| game.storage_key == "ready"));
+        assert!(!state.is_local_game("ready"));
+        assert_eq!(profile.device, original_profile.device);
+        assert_eq!(
+            profile.local_archive_root,
+            original_profile.local_archive_root
+        );
+        assert_eq!(state.current_device_id, original_state.current_device_id);
+        assert!(!profile.games["ready"].cloud_sync_enabled);
+        fixture.assert_local_protected();
+        let result = fixture
+            .service
+            .set_game_cloud_policy(
+                "ready",
+                true,
+                crate::config::SyncMode::Manual,
+                crate::config::InitialCatchUpPolicy::KeepRemote,
+                None,
+                &tokio_util::sync::CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(result.cloud_sync_enabled);
+        assert_eq!(result.downloaded, 0);
+        assert_eq!(result.published, 0);
+    });
 }
 
 #[test]
