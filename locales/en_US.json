@@ -259,7 +259,7 @@
         "undo_last_apply": "Undo last apply",
         "undo_success": "Successfully undone the last applied snapshot",
         "undo_failed": "Failed to undo",
-        "undo_position_failed": "Files restored, but the previous position could not be restored",
+        "undo_position_failed": "Game saves restored, but the snapshot list's \"Current Position\" marker was not updated",
         "undo_confirm": "Are you sure you want to undo the last applied snapshot and restore to the previous state?",
         "undo_not_available": "No recent apply to undo",
         "undo_requires_extra_backup": "Enable \"Extra backup before apply\" in Settings to use the undo feature",

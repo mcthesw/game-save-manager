@@ -62,7 +62,7 @@ for (const failure of ['files', 'position', 'connection'] as const) {
         activity.getByText(
           failure === 'files'
             ? 'Failed to undo'
-            : 'Files restored, but the previous position could not be restored',
+            : 'Game saves restored, but the snapshot list\u0027s "Current Position" marker was not updated',
           { exact: true }
         )
       ).toBeVisible();
