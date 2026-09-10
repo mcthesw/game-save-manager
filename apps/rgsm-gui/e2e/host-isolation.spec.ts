@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEVICE_A_ID, DEVICE_B_ID, deviceProfileFileName } from './support/constants';
+import { DEVICE_A_ID, DEVICE_B_ID } from './support/constants';
 import {
   createRunRoot,
   hostPost,
@@ -36,9 +36,7 @@ test('A/B Hosts isolate device id, token, port, and browser traffic', async ({ b
 
     expect(existsSync(localOwnerPaths(hostA.appDataDir, DEVICE_A_ID).profile)).toBe(true);
     expect(existsSync(localOwnerPaths(hostB.appDataDir, DEVICE_B_ID).profile)).toBe(true);
-    expect(
-      existsSync(join(hostA.appDataDir, 'device-profiles', deviceProfileFileName(DEVICE_B_ID)))
-    ).toBe(false);
+    expect(existsSync(localOwnerPaths(hostA.appDataDir, DEVICE_B_ID).profile)).toBe(false);
 
     const rejected = await fetch(`${hostA.apiBaseUrl}/api/v1/get-build-info`, {
       method: 'POST',

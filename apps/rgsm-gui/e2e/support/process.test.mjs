@@ -13,7 +13,10 @@ test('resource cleanup runs in reverse acquisition order even after a close fail
     },
     async () => calls.push('page'),
   ];
-  await assert.rejects(closeResources(closers), AggregateError);
+  await assert.rejects(closeResources(closers), {
+    name: 'AggregateError',
+    message: /close failed/,
+  });
   assert.deepEqual(calls, ['page', 'context', 'host']);
   await closeResources(closers);
   assert.equal(calls.length, 3);
