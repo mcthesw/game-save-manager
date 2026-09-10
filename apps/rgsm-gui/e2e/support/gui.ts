@@ -8,7 +8,11 @@ import { reportTiming } from './timing';
 
 export async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
   const drawer = page.locator('.activity-drawer');
-  const text = drawer.getByText(pattern).first();
+  const text = page
+    .locator('.activity-toast, .activity-drawer')
+    .getByText(pattern)
+    .filter({ visible: true })
+    .first();
   // The drawer may be collapsed; a loading overlay can also swallow the first
   // click on the pill. Retry until the entry shows or the deadline passes.
   const deadline = Date.now() + 30_000;

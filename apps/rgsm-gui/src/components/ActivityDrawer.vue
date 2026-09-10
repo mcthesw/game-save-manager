@@ -12,7 +12,7 @@ import {
   X,
   XCircle,
 } from '@lucide/vue';
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { $t } from '../i18n';
 import { useCloudSyncStatus } from '../composables/useCloudSyncStatus';
 import type { CloudSyncJobStatus } from '../composables/useCloudSyncStatus';
@@ -22,16 +22,12 @@ import {
   type ActivityStatus,
 } from '../composables/useActivityCenter';
 import { LAYER } from '../ui/layers';
-import { isActivityFeedbackVisible, overlayDepth } from '../ui/overlayDepth';
+import { overlayDepth } from '../ui/overlayDepth';
 
-const { activeJobs, isSyncing, isCancelling, jobs, cancelSync } = useCloudSyncStatus();
-const { activities, activityAddSignal, dismissActivity, dismissAll, notifyError } =
-  useActivityCenter();
+const { isSyncing, isCancelling, jobs, cancelSync } = useCloudSyncStatus();
+const { activities, dismissActivity, dismissAll, notifyError } = useActivityCenter();
 
 const expanded = ref(false);
-let collapseTimer: ReturnType<typeof setTimeout> | null = null;
-const collapseCountdown = ref(false);
-const collapseDuration = ref(0);
 
 // Two states only: ghost ball (collapsed) or full panel (expanded)
 const isGhostTab = computed(() => !expanded.value);
@@ -43,70 +39,13 @@ const activeActivityCount = computed(
   () => activities.value.filter((e) => e.status === 'pending' || e.status === 'running').length
 );
 
-const totalActiveCount = computed(() => activeJobs.value + activeActivityCount.value);
 const hasActiveWork = computed(() => isSyncing.value || activeActivityCount.value > 0);
-const hasErrors = computed(() => activities.value.some((e) => e.status === 'error'));
-// All active work done — trigger auto-collapse timer
-const isIdle = computed(() => !isSyncing.value && activeActivityCount.value === 0);
-
-function clearCollapseTimer() {
-  if (collapseTimer !== null) {
-    clearTimeout(collapseTimer);
-    collapseTimer = null;
-  }
-  collapseCountdown.value = false;
-}
-
-function scheduleCollapse() {
-  clearCollapseTimer();
-  const delay = hasErrors.value ? 20_000 : 3_000;
-  collapseDuration.value = delay;
-  collapseCountdown.value = true;
-  collapseTimer = setTimeout(() => {
-    expanded.value = false;
-    collapseTimer = null;
-    collapseCountdown.value = false;
-  }, delay);
-}
-
-// Auto-collapse when all active work finishes
-watch(isIdle, (idle) => {
-  if (idle && expanded.value) {
-    scheduleCollapse();
-  } else {
-    clearCollapseTimer();
-  }
+// History is user-opened; dialogs never move or automatically reopen it.
+watch(overlayDepth, (depth) => {
+  if (depth > 0) expanded.value = false;
 });
-
-// Auto-expand on any new activity — watch the add-signal (not length) so eviction at MAX_HISTORY
-// doesn't suppress the trigger.
-watch(activityAddSignal, () => {
-  clearCollapseTimer();
-  expanded.value = true;
-  if (isIdle.value) {
-    scheduleCollapse();
-  }
-});
-
-// Auto-expand when cloud sync starts
-watch(isSyncing, (syncing) => {
-  if (syncing) {
-    clearCollapseTimer();
-    expanded.value = true;
-  }
-});
-
-// Re-evaluate collapse delay when errors are dismissed (may switch from 20s to 5s window)
-watch(hasErrors, (nowHasErrors) => {
-  if (!nowHasErrors && isIdle.value && collapseTimer !== null) {
-    scheduleCollapse();
-  }
-});
-
-onUnmounted(() => clearCollapseTimer());
 
 function handleToggleExpanded() {
-  clearCollapseTimer();
   expanded.value = !expanded.value;
 }
 
@@ -222,9 +161,9 @@ function canDismiss(entry: ActivityEntry) {
 
 <template>
   <div
-    v-show="isActivityFeedbackVisible(overlayDepth, expanded)"
+    v-show="overlayDepth === 0"
     class="activity-drawer"
-    :class="{ 'is-ghost-tab': isGhostTab, 'is-overlay-feedback': overlayDepth > 0 }"
+    :class="{ 'is-ghost-tab': isGhostTab }"
     role="status"
     aria-live="polite"
     :style="{ zIndex: LAYER.activityDrawer }"
@@ -248,9 +187,6 @@ function canDismiss(entry: ActivityEntry) {
             aria-hidden="true"
           />
           <span class="activity-pill-title">{{ $t('activity_center.title') }}</span>
-          <span v-if="!expanded && totalActiveCount > 0" class="activity-pill-count">
-            {{ $t('activity_center.active_count', { count: totalActiveCount }) }}
-          </span>
         </div>
         <div class="activity-pill-right">
           <button
@@ -270,17 +206,6 @@ function canDismiss(entry: ActivityEntry) {
           >
             {{ $t('cloud_sync.cancel') }}
           </button>
-          <svg
-            v-if="collapseCountdown"
-            class="collapse-ring"
-            :style="{ '--collapse-duration': collapseDuration + 'ms' }"
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-          >
-            <circle class="collapse-ring-track" cx="9" cy="9" r="7" />
-            <circle class="collapse-ring-progress" cx="9" cy="9" r="7" />
-          </svg>
           <component
             :is="expanded ? ChevronDown : ChevronUp"
             :size="14"
@@ -412,14 +337,6 @@ function canDismiss(entry: ActivityEntry) {
     background-color 0.2s ease;
 }
 
-/* Keep foreground feedback away from a drawer's bottom-right footer actions. */
-.activity-drawer.is-overlay-feedback {
-  left: 20px;
-  right: auto;
-  top: 20px;
-  bottom: auto;
-}
-
 /* Ghost tab: a small floating circle anchored bottom-right */
 .activity-drawer.is-ghost-tab {
   min-width: 40px;
@@ -511,48 +428,11 @@ function canDismiss(entry: ActivityEntry) {
   white-space: nowrap;
 }
 
-.activity-pill-count {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
 .activity-pill-right {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-}
-
-.collapse-ring {
-  --circumference: 43.98;
-}
-
-.collapse-ring-track {
-  fill: none;
-  stroke: var(--border);
-  stroke-width: 2;
-}
-
-.collapse-ring-progress {
-  fill: none;
-  stroke: var(--text-dim);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: var(--circumference);
-  stroke-dashoffset: 0;
-  transform: rotate(-90deg);
-  transform-origin: center;
-  animation: collapse-ring-drain var(--collapse-duration) linear forwards;
-}
-
-@keyframes collapse-ring-drain {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: var(--circumference);
-  }
 }
 
 .activity-pill-chevron {

@@ -356,6 +356,10 @@ impl CloudSyncTaskManager {
         status: CloudSyncJobStatus,
         error: Option<String>,
     ) {
+        let auto_clear = matches!(
+            status,
+            CloudSyncJobStatus::Completed | CloudSyncJobStatus::Cancelled
+        );
         let mut state = self.state.lock().await;
         state.running_jobs.retain(|j| j.id != id);
         state.history.push_back(CloudSyncJobInfo {
@@ -369,8 +373,10 @@ impl CloudSyncTaskManager {
         }
         drop(state);
 
-        // Auto-clear completed/cancelled jobs from history so the drawer
-        // doesn't accumulate stale entries.
+        // Failures remain available for inspection within the bounded history.
+        if !auto_clear {
+            return;
+        }
         let this = Arc::clone(self);
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -746,6 +752,9 @@ async fn execute_job_once(
         }
     }
 }
+
+#[cfg(test)]
+mod history_tests;
 
 #[cfg(test)]
 mod tests {

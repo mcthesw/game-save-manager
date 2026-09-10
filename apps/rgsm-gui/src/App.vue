@@ -2,6 +2,7 @@
 import { LoaderCircle } from '@lucide/vue';
 import { useDark } from '@vueuse/core';
 import ActivityDrawer from './components/ActivityDrawer.vue';
+import ActivityToast from './components/ActivityToast.vue';
 import AddGameDrawer from './components/AddGameDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
 import RemoteProgressPrompt from './components/RemoteProgressPrompt.vue';
@@ -283,6 +284,7 @@ if (typeof window !== 'undefined') {
       </Transition>
 
       <ActivityDrawer />
+      <ActivityToast />
     </Teleport>
     <AddGameDrawer />
     <KFeedbackHost />
@@ -409,12 +411,11 @@ textarea,
 
 .page-enter-active,
 .page-leave-active {
-  transition: all 0.2s ease-out;
+  transition: opacity 0.15s ease-out;
 }
 
 .page-enter-from,
 .page-leave-to {
   opacity: 0.4;
-  filter: blur(0.2rem);
 }
 </style>

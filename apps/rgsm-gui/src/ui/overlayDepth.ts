@@ -7,10 +7,6 @@ import { ref } from 'vue';
  */
 export const overlayDepth = ref(0);
 
-export function isActivityFeedbackVisible(openOverlays: number, expanded: boolean): boolean {
-  return openOverlays === 0 || expanded;
-}
-
 /** Register an overlay's open state; balanced via watch cleanup on close/unmount. */
 export function useOverlayDepth(open: Ref<boolean>) {
   watch(
