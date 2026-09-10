@@ -1,14 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { effectScope, nextTick, ref } from 'vue';
-import { isActivityFeedbackVisible, overlayDepth, useOverlayDepth } from './overlayDepth.ts';
-
-test('overlays hide the idle activity shortcut but not newly expanded feedback', () => {
-  assert.equal(isActivityFeedbackVisible(0, false), true);
-  assert.equal(isActivityFeedbackVisible(1, false), false);
-  assert.equal(isActivityFeedbackVisible(1, true), true);
-  assert.equal(isActivityFeedbackVisible(2, true), true);
-});
+import { overlayDepth, useOverlayDepth } from './overlayDepth.ts';
 
 test('nested overlay counts remain balanced on cancel and unmount', async () => {
   const scope = effectScope();

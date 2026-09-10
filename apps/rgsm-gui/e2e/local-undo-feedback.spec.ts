@@ -57,7 +57,7 @@ for (const failure of ['files', 'position', 'connection'] as const) {
         .getByRole('dialog', { name: 'Warning' })
         .getByRole('button', { name: 'Confirm' })
         .click();
-      const activity = page.locator('.activity-drawer');
+      const activity = page.locator('.activity-toast');
       await expect(
         activity.getByText(
           failure === 'files'

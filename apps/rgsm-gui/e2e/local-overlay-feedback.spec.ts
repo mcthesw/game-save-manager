@@ -8,6 +8,48 @@ import { createRunRoot } from './support/rgsm-instance';
 import { createSnapshotForGame, getLocalGame, updateSettings } from './support/local-gui';
 import { openGame, snapshotRow } from './support/gui';
 
+test('cloud completion feedback uses the newest history entry', async ({ browser }) => {
+  const runRoot = await createRunRoot('cloud-completion-feedback');
+  const device = await seedLocalConfig(runRoot);
+  const session = await startLocalSession(browser, {
+    runRoot,
+    device,
+    label: 'cloud-completion-feedback',
+  });
+  let failed = false;
+  try {
+    const { page } = session;
+    // Exercise the status-event view model without requiring a slow cloud transfer.
+    await page.evaluate(async () => {
+      const path = '/src/composables/useCloudSyncStatus.ts';
+      const { useCloudSyncStatus } = await import(path);
+      const state = useCloudSyncStatus();
+      state.jobs.value = [{ id: 2, description: 'Current upload', status: 'Running' }];
+      state.activeJobs.value = 1;
+    });
+    const toast = page.locator('.activity-toast');
+    await expect(toast).toContainText('Current upload');
+    await page.evaluate(async () => {
+      const path = '/src/composables/useCloudSyncStatus.ts';
+      const { useCloudSyncStatus } = await import(path);
+      const state = useCloudSyncStatus();
+      state.jobs.value = [
+        { id: 2, description: 'Current upload', status: 'Completed' },
+        { id: 1, description: 'Previous upload', status: 'Failed', error: 'Old failure' },
+      ];
+      state.activeJobs.value = 0;
+    });
+    await expect(toast).toContainText('Current upload');
+    await expect(toast).not.toContainText('Old failure');
+    await expect(toast.locator('.text-success')).toBeVisible();
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    await session.close(failed);
+  }
+});
+
 test('rename errors remain readable without closing the edit drawer', async ({
   browser,
 }, testInfo) => {
@@ -27,19 +69,30 @@ test('rename errors remain readable without closing the edit drawer', async ({
     const drawer = page.getByRole('dialog');
     await drawer.getByRole('textbox', { name: 'Game name', exact: true }).fill('OTHER GAME');
     await drawer.getByRole('button', { name: 'save', exact: true }).click();
-    const activity = page.locator('.activity-drawer');
+    const activity = page.locator('.activity-toast');
     await expect(activity.getByText('Game name duplicated', { exact: false })).toBeVisible({
       timeout: 5000,
     });
     await expect(drawer).toBeVisible();
+    await expect(page.locator('.activity-drawer')).toBeHidden();
+    await expect(drawer.getByRole('button', { name: 'save', exact: true })).toBeFocused();
     await page.screenshot({
       path: testInfo.outputPath('acceptance-rename-feedback.png'),
       animations: 'disabled',
     });
     await drawer.getByRole('button', { name: 'save', exact: true }).click({ trial: true });
     expect((await getLocalGame(host, GAME_NAME)).name).toBe(GAME_NAME);
-    await activity.locator('.activity-pill').click({ position: { x: 10, y: 10 } });
+    await activity.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(drawer).toBeVisible();
+    await expect(activity).toHaveCount(0);
+    await drawer.getByRole('button', { name: 'Close', exact: true }).click();
+    const history = page.locator('.activity-drawer');
+    await expect(history).toHaveClass(/is-ghost-tab/);
+    await history.locator('.activity-pill').click();
+    await expect(history.getByText('Game name duplicated', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'View managed files' }).click();
+    await expect(history).toBeHidden();
+    await expect(activity).toHaveCount(0);
   } catch (error) {
     failed = true;
     throw error;
@@ -117,7 +170,7 @@ test('extra restore keeps confirmation, loading and result above the drawer', as
     releaseResponse();
     await expect(loading).toBeHidden();
     await expect(
-      page.locator('.activity-drawer').getByText('Successfully restored', { exact: true })
+      page.locator('.activity-toast').getByText('Successfully restored', { exact: true })
     ).toBeVisible();
     await expect(drawer).toBeVisible();
     await expect(restore).toBeEnabled();
