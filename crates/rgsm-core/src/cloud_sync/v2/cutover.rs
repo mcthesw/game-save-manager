@@ -503,20 +503,29 @@ fn e2e_cutover_interrupt_after_archives() -> Result<Option<usize>, CloudLibraryC
     #[cfg(debug_assertions)]
     {
         match std::env::var("RGSM_E2E_CUTOVER_INTERRUPT_AFTER_ARCHIVES") {
-            Err(std::env::VarError::NotPresent) => Ok(None),
+            Err(std::env::VarError::NotPresent) => parse_interrupt_after_archives(None),
             Err(_) => Err(CloudLibraryCutoverError::InvalidCutoverInterruptFailpoint),
-            Ok(raw) => {
-                let parsed = raw.parse::<i64>().ok().filter(|&value| value > 0);
-                parsed
-                    .map(|value| Some(value as usize))
-                    .ok_or(CloudLibraryCutoverError::InvalidCutoverInterruptFailpoint)
-            }
+            Ok(raw) => parse_interrupt_after_archives(Some(&raw)),
         }
     }
     #[cfg(not(debug_assertions))]
     {
         Ok(None)
     }
+}
+
+#[cfg(any(debug_assertions, test))]
+fn parse_interrupt_after_archives(
+    raw: Option<&str>,
+) -> Result<Option<usize>, CloudLibraryCutoverError> {
+    raw.map(|value| {
+        value
+            .parse::<usize>()
+            .ok()
+            .filter(|&value| value > 0)
+            .ok_or(CloudLibraryCutoverError::InvalidCutoverInterruptFailpoint)
+    })
+    .transpose()
 }
 async fn remove_path_if_exists(path: &Path) -> Result<(), std::io::Error> {
     match tokio::fs::remove_file(path).await {
@@ -755,40 +764,19 @@ mod tests {
         assert!(op.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());
     }
 
-    fn with_interrupt_env<T>(value: Option<&str>, body: impl FnOnce() -> T) -> T {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = LOCK.lock().expect("interrupt env lock");
-        unsafe {
-            match value {
-                Some(value) => {
-                    std::env::set_var("RGSM_E2E_CUTOVER_INTERRUPT_AFTER_ARCHIVES", value)
-                }
-                None => std::env::remove_var("RGSM_E2E_CUTOVER_INTERRUPT_AFTER_ARCHIVES"),
-            }
-        }
-        let result = body();
-        unsafe {
-            std::env::remove_var("RGSM_E2E_CUTOVER_INTERRUPT_AFTER_ARCHIVES");
-        }
-        result
-    }
-
     #[test]
-    fn unset_interrupt_failpoint_is_ignored() {
-        with_interrupt_env(None, || {
-            assert_eq!(e2e_cutover_interrupt_after_archives().unwrap(), None);
-        });
+    fn interrupt_failpoint_is_optional_and_accepts_positive_counts() {
+        assert_eq!(parse_interrupt_after_archives(None).unwrap(), None);
+        assert_eq!(parse_interrupt_after_archives(Some("1")).unwrap(), Some(1));
     }
 
     #[test]
     fn invalid_interrupt_failpoint_is_a_hard_error() {
         for value in ["0", "-1", "nope", ""] {
-            with_interrupt_env(Some(value), || {
-                assert!(matches!(
-                    e2e_cutover_interrupt_after_archives(),
-                    Err(CloudLibraryCutoverError::InvalidCutoverInterruptFailpoint)
-                ));
-            });
+            assert!(matches!(
+                parse_interrupt_after_archives(Some(value)),
+                Err(CloudLibraryCutoverError::InvalidCutoverInterruptFailpoint)
+            ));
         }
     }
 }

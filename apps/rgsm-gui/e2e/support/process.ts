@@ -80,7 +80,11 @@ export async function closeResources(closers: Array<() => Promise<unknown>>): Pr
       errors.push(error);
     }
   }
-  if (errors.length) throw new AggregateError(errors, 'Could not close all test resources');
+  if (errors.length)
+    throw new AggregateError(
+      errors,
+      `Could not close all test resources: ${errors.map(String).join('; ')}`
+    );
 }
 
 /** A Linux host gets its own bus, so duplicate GTK application IDs cannot share one. */

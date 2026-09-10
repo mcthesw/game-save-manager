@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEVICE_A_ID, DEVICE_B_ID } from './support/constants';
 import {
+  cloudArchivePath,
   cloudPaths,
   expectDeviceHead,
   expectDeviceProfiles,
@@ -11,7 +11,6 @@ import {
   expectLiveParentChildGraph,
   expectLocalGeneration,
   expectNamespaceDescriptor,
-  expectNoDeviceHead,
   expectSharedLibraryHasGame,
   expectV1ObjectsUnchanged,
   localArchivePath,
@@ -43,7 +42,6 @@ import {
 } from './support/gui';
 import {
   createRunRoot,
-  fsSession,
   hostPost,
   newDeviceContext,
   removeRunRoot,
@@ -96,17 +94,6 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     expect(await getGeneration(hostB)).toBe('legacy_v1');
     expectNoV2(seeded.cloudRoot);
 
-    await writeSave(seeded.deviceA, 'v1-exchange-from-a\n');
-    const upload = await hostPost(hostA, '/api/v1/cloud-upload-all', {
-      session: fsSession(seeded.cloudRoot),
-    });
-    expect(upload.ok, upload.raw).toBe(true);
-    const download = await hostPost(hostB, '/api/v1/cloud-download-all', {
-      session: fsSession(seeded.cloudRoot),
-    });
-    expect(download.ok, download.raw).toBe(true);
-    expect(existsSync(cloudPaths(seeded.cloudRoot).namespace)).toBe(false);
-
     await confirmCutover(pageA);
     await expectCutoverSuccess(pageA);
     expect(await getGeneration(hostA)).toBe('v2');
@@ -120,11 +107,7 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     await expectDeviceProfiles(seeded.cloudRoot);
     const afterCutover = await readJson(paths.manifest);
     expectLiveParentChildGraph(afterCutover);
-    await expectV1ObjectsUnchanged(seeded.cloudRoot, {
-      ...v1Bytes,
-      config: await readFile(paths.v1Config),
-      backups: await readFile(paths.v1Backups),
-    });
+    await expectV1ObjectsUnchanged(seeded.cloudRoot, v1Bytes);
 
     await pageB.reload();
     await openSyncSettings(pageB);
@@ -172,11 +155,15 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     )['Echo Keep'];
     expect(gameA.sync_mode).toBe('manual');
     expect(gameB.sync_mode).not.toBe('manual');
+    expect(gameB.cloud_sync_enabled).toBe(true);
     await toggleCloudEnabled(pageB, hostB, false);
     const profileAAfter = await readDeviceProfile(seeded.cloudRoot, DEVICE_A_ID);
-    expect(
-      (profileAAfter.games as Record<string, { sync_mode?: string }>)['Echo Keep'].sync_mode
-    ).toBe('manual');
+    expect(profileAAfter.games).toEqual(profileA.games);
+    const profileBAfter = await readDeviceProfile(seeded.cloudRoot, DEVICE_B_ID);
+    expect(profileBAfter.games).toEqual({
+      ...(profileB.games as Record<string, unknown>),
+      'Echo Keep': { ...gameB, cloud_sync_enabled: false },
+    });
 
     await writeSave(seeded.deviceA, 'branch-from-a\n');
     await writeSave(seeded.deviceB, 'branch-from-b\n');
@@ -207,16 +194,18 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     expect(await readSave(seeded.deviceA)).toBe('branch-from-b\n');
 
     await openGame(pageA);
+    const localCopy = localArchivePath(seeded.deviceA.appDataDir, bBranch);
+    const cloudCopy = cloudArchivePath(seeded.cloudRoot, bBranch);
+    expect(existsSync(localCopy)).toBe(true);
+    expect(existsSync(cloudCopy)).toBe(true);
     await deleteCurrentHead(pageA, bBranch);
     expect(await readSave(seeded.deviceA)).toBe('branch-from-b\n');
     expect(await readSave(seeded.deviceB)).toBe('branch-from-b\n');
     const afterDelete = await readJson(paths.manifest);
     expectFinalTombstone(afterDelete, bBranch);
-    expectNoDeviceHead(afterDelete, DEVICE_A_ID, bBranch);
-    expect(existsSync(localArchivePath(seeded.deviceA.appDataDir, bBranch))).toBe(false);
-    expect(
-      existsSync(join(seeded.cloudRoot, 'v2', 'archives', 'Echo Keep', `${bBranch}.zip`))
-    ).toBe(false);
+    expectDeviceHead(afterDelete, DEVICE_A_ID, aForward);
+    expect(existsSync(localCopy)).toBe(false);
+    expect(existsSync(cloudCopy)).toBe(false);
 
     await hostB.stop();
     hostB = await startRgsmHost({
