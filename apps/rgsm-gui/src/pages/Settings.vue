@@ -49,9 +49,25 @@ import type { CloudNamespaceGeneration, Device } from '../api/commands';
 import { saveUnitPaths } from '../utils/saveUnit';
 import { applyGameOrder } from '../utils/gameOrder';
 import { mergeDuplicateGameRoots, newGameRootPaths } from '../utils/gameRoots';
+import { initialGameListView } from '../utils/sidebarView';
+import { collectLeafNames } from '../components/favoriteTreeContext';
 
 const isDark = useDark();
 const { config, refreshConfig, saveConfig } = useConfig();
+const defaultGameList = computed({
+  get: () =>
+    initialGameListView(
+      config.value.settings.appearance?.default_game_list,
+      collectLeafNames(config.value.favorites).size > 0
+    ),
+  set: (value: 'favorites' | 'all') => {
+    config.value.settings.appearance!.default_game_list = value;
+  },
+});
+const gameListOptions = computed(() => [
+  { value: 'favorites', label: $t('misc.favorites') },
+  { value: 'all', label: $t('sidebar.all_games') },
+]);
 const feedback = useFeedback();
 const currentQuickActionGame = computed(() => {
   const identity = config.value.quick_action?.quick_action_game_id;
@@ -1593,6 +1609,16 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <h2 class="text-sm font-semibold text-text">{{ $t('settings.ui_settings') }}</h2>
             </div>
             <SnapshotTimeSettings v-model="config.settings.appearance!.snapshot_time_format" />
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('settings.default_game_list') }}</span>
+              <KSelect
+                :model-value="defaultGameList"
+                class="w-56"
+                :options="gameListOptions"
+                :aria-label="$t('settings.default_game_list')"
+                @update:model-value="defaultGameList = $event === 'all' ? 'all' : 'favorites'"
+              />
+            </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
               <span class="shrink-0 text-sm text-text">{{
                 $t('settings.save_list_expand_behavior')

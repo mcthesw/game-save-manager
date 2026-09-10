@@ -39,6 +39,7 @@ export const DEFAULT_CONFIG: Config = {
       custom_font_enabled: false,
       ui_font_family: '',
       snapshot_time_format: 'absolute',
+      default_game_list: null,
     },
     compression_preset: 'Standard',
     compute_archive_hash: false,

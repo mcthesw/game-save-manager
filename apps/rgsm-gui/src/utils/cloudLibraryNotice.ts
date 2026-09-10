@@ -20,8 +20,6 @@ export function cloudLibraryNotice(
   });
   if (inspectionFailed) return notice('inspect_failed', 'inspect', 'inspect');
   switch (status?.kind) {
-    case undefined:
-      return notice('not_checked', 'inspect', 'inspect');
     case 'empty':
       return initializationFailed
         ? notice('create_failed', 'retry_create', 'create')

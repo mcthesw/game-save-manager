@@ -111,32 +111,16 @@ async function confirm() {
     :width="480"
     :dismissable="!changingMode"
   >
-    <KAlert tone="warning" class="mb-3">
+    <KAlert v-if="isLive" tone="warning" class="mb-3">
+      {{ $t('sync_settings.archives.live_save_sync_risk') }}
+    </KAlert>
+    <p class="mb-4 text-sm leading-relaxed text-text-dim">
       {{
         isLive
-          ? $t('sync_settings.archives.live_save_sync_risk')
-          : $t('sync_settings.archives.snapshot_sync_risk')
+          ? $t('sync_settings.archives.live_save_sync_description')
+          : $t('sync_settings.archives.snapshot_sync_description')
       }}
-    </KAlert>
-    <ul class="mb-4 list-disc pl-5 text-sm leading-relaxed text-text-dim">
-      <li>
-        {{
-          isLive
-            ? $t('sync_settings.archives.live_save_sync_description')
-            : $t('sync_settings.archives.snapshot_sync_description')
-        }}
-      </li>
-      <li>
-        {{
-          isLive
-            ? $t('sync_settings.archives.live_save_sync_description_2')
-            : $t('sync_settings.archives.snapshot_sync_description_2')
-        }}
-      </li>
-      <li v-if="isLive">
-        {{ $t('sync_settings.archives.live_save_sync_description_3') }}
-      </li>
-    </ul>
+    </p>
 
     <div v-if="isLive" class="mb-4 flex flex-col gap-3">
       <div>

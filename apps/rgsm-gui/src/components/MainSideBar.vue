@@ -6,6 +6,7 @@ import { error } from '../utils/logger';
 import { commands, type Game } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { resolveManagementGame } from '../utils/appRoutes';
+import { initialGameListView } from '../utils/sidebarView';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
 import { refreshCloudLibraryIfStale } from '../composables/useCloudLibrary';
@@ -20,7 +21,7 @@ import {
   removeFavoriteGame,
 } from './favoriteTreeContext';
 
-const { config, isGameVisible, saveConfig } = useConfig();
+const { config, isGameVisible, saveConfig, whenConfigReady } = useConfig();
 const { sortedGames } = useSaveListSort();
 const { isResizing, startResize } = useSidebarResize({
   minWidth: 200,
@@ -76,20 +77,17 @@ async function toggleFavorite(game: Game) {
   await saveConfig();
 }
 
-// ——— 视图切换：收藏夹 / 全部。无收藏的用户默认落在「全部」 ———
-// config 初值是同步 DEFAULT_CONFIG（空），必须等真实配置到达再判断
 const viewMode = ref<'favorites' | 'all'>('favorites');
-let viewInitialized = false;
-watch(
-  () => config.value,
-  (cfg) => {
-    if (viewInitialized || !cfg) return;
-    if (cfg.games.length === 0 && collectLeafNames(cfg.favorites).size === 0) return;
-    viewInitialized = true;
-    if (collectLeafNames(cfg.favorites).size === 0) viewMode.value = 'all';
-  },
-  { immediate: true }
-);
+function applyDefaultGameList() {
+  viewMode.value = initialGameListView(
+    config.value.settings.appearance?.default_game_list,
+    collectLeafNames(config.value.favorites).size > 0
+  );
+}
+onMounted(async () => {
+  if (await whenConfigReady()) applyDefaultGameList();
+});
+watch(() => config.value.settings.appearance?.default_game_list, applyDefaultGameList);
 
 // ——— 状态：自动备份圆点 ———
 const autoBackupGames = ref<Set<string>>(new Set());
@@ -155,8 +153,8 @@ function navigatePage(path: string) {
 
       <div class="games-head">
         <span class="games-title">{{ $t('sidebar.games') }}</span>
-        <KButton size="sm" @click="openAddGame()">
-          <template #icon><Plus :size="13" /></template>
+        <KButton variant="ghost" size="sm" @click="openAddGame()">
+          <template #icon><Plus :size="16" /></template>
           {{ $t('sidebar.add_game') }}
         </KButton>
       </div>

@@ -336,6 +336,7 @@ export type {
   GameDeviceBinding,
   GameDraft,
   GameJoinClassification,
+  GameListView,
   GameSnapshots,
   GameSyncModeOutcome,
   GameSyncState,

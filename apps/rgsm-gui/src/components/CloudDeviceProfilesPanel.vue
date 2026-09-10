@@ -107,9 +107,6 @@ onMounted(load);
         <h3 class="text-sm font-medium text-text">
           {{ $t('sync_settings.archives.profiles.title') }}
         </h3>
-        <p class="mt-1 text-xs leading-relaxed text-text-dim">
-          {{ $t('sync_settings.archives.profiles.description') }}
-        </p>
       </div>
       <KButton
         variant="ghost"

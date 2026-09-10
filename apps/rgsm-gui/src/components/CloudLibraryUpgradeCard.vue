@@ -4,7 +4,7 @@ import { KButton } from '../ui/kit';
 defineProps<{
   kicker: string;
   title: string;
-  hint: string;
+  hint?: string;
   action: string;
 }>();
 
@@ -20,7 +20,7 @@ const emit = defineEmits<{
     <div class="min-w-0">
       <p class="mb-1 text-xs font-bold tracking-wide text-warning">{{ kicker }}</p>
       <p class="text-base font-semibold text-text">{{ title }}</p>
-      <p class="mt-1.5 text-[13px] leading-relaxed text-text-dim">{{ hint }}</p>
+      <p v-if="hint" class="mt-1.5 text-[13px] leading-relaxed text-text-dim">{{ hint }}</p>
     </div>
     <KButton variant="primary" class="shrink-0" @click="emit('action')">
       {{ action }}

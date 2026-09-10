@@ -43,5 +43,8 @@ test('active, joining and upgrading libraries do not display setup error cards',
   for (const kind of ['active', 'join_required', 'cutover_required']) {
     assert.equal(cloudLibraryNotice({ kind }, false, true), null);
   }
-  assert.equal(cloudLibraryNotice(null, false, false).action, 'inspect');
+});
+
+test('an inspection without a result does not flash a setup warning', () => {
+  assert.equal(cloudLibraryNotice(null, false, false), null);
 });

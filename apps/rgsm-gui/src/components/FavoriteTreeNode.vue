@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Folder, X } from '@lucide/vue';
 import { $t } from '../i18n';
 import type { FavoriteTreeNode } from '../api/commands';
 import { FAVORITE_TREE_CTX } from './favoriteTreeContext';
+import { KButton, KTooltip } from '../ui/kit';
 
 const props = defineProps<{
   node: FavoriteTreeNode;
@@ -43,15 +44,17 @@ const dropClass = computed(() => {
     </template>
     <span v-else class="fav-leaf-indent" />
     <span class="fav-label">{{ node.label }}</span>
-    <button
-      v-if="editMode"
-      type="button"
-      class="fav-remove"
-      :aria-label="$t('favorite.remove')"
-      @click.stop="ctx.removeNode(node.node_id)"
-    >
-      <X :size="12" />
-    </button>
+    <KTooltip v-if="editMode" :content="$t('favorite.remove')">
+      <KButton
+        variant="ghost"
+        size="sm"
+        class="fav-remove"
+        :aria-label="$t('favorite.remove')"
+        @click.stop="ctx.removeNode(node.node_id)"
+      >
+        <template #icon><X :size="16" aria-hidden="true" /></template>
+      </KButton>
+    </KTooltip>
   </div>
   <template v-if="!node.is_leaf && isOpen">
     <FavoriteTreeNode
@@ -65,6 +68,7 @@ const dropClass = computed(() => {
 
 <style scoped>
 .fav-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -73,6 +77,8 @@ const dropClass = computed(() => {
      嵌套层级越深 × 按钮被裁掉越多(depth≥1 时完全不可见) */
   box-sizing: border-box;
   padding: 5px 8px;
+  padding-right: 40px;
+  min-height: 30px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -115,21 +121,15 @@ const dropClass = computed(() => {
 }
 
 .fav-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--danger);
-  cursor: pointer;
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
 }
 
 .fav-remove:hover {
-  background-color: var(--surface);
+  color: var(--danger);
 }
 
 /* 拖拽落点反馈（中性色，不占琥珀） */
