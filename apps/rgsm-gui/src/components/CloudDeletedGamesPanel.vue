@@ -57,9 +57,6 @@ onMounted(load);
       <strong class="text-sm font-medium text-text">{{
         $t('sync_settings.archives.games.deleted_title')
       }}</strong>
-      <p class="mt-1 text-xs leading-relaxed text-text-dim">
-        {{ $t('sync_settings.archives.games.deleted_description') }}
-      </p>
     </div>
     <div v-if="loading" class="flex justify-center py-2 text-text-dim">
       <LoaderCircle :size="16" class="animate-spin" aria-hidden="true" />

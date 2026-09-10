@@ -37,6 +37,7 @@ export type ApiErrorCode =
 
 export type AppearanceSettings = {
   custom_font_enabled?: boolean;
+  default_game_list?: null | GameListView;
   snapshot_time_format?: SnapshotTimeFormat;
   ui_font_family?: string;
 };
@@ -679,6 +680,8 @@ export type GameJoinClassification =
   | 'local_only'
   | 'possible_duplicate'
   | 'game_definition_conflict';
+
+export type GameListView = 'favorites' | 'all';
 
 /**
  * A backup list info is a json file in a backup folder for a game.

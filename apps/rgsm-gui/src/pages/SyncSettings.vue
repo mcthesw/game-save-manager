@@ -9,8 +9,8 @@ import {
   type CloudNamespaceGeneration,
 } from '../api/commands';
 import { error } from '../utils/logger';
-import { Cable, ExternalLink, Eye, EyeOff, Layers } from '@lucide/vue';
-import { KAlert, KButton, KInput, KNumberInput, KSelect } from '../ui/kit';
+import { Cable, CircleHelp, Eye, EyeOff, Layers } from '@lucide/vue';
+import { KButton, KInput, KNumberInput, KSelect, KTooltip } from '../ui/kit';
 import CloudLibraryCutoverDialog from '../components/CloudLibraryCutoverDialog.vue';
 import CloudLibraryJoinDialog from '../components/CloudLibraryJoinDialog.vue';
 import CloudLibrarySetup from '../components/CloudLibrarySetup.vue';
@@ -445,14 +445,16 @@ onMounted(async () => {
       <aside class="sticky top-6 w-44 shrink-0 self-start">
         <div class="mb-4 flex items-center justify-between px-2">
           <h1 class="text-lg font-semibold text-text">{{ $t('sync_settings.title') }}</h1>
-          <KButton
-            variant="ghost"
-            size="sm"
-            :aria-label="$t('sync_settings.manual_link')"
-            @click="open_manual"
-          >
-            <template #icon><ExternalLink :size="14" aria-hidden="true" /></template>
-          </KButton>
+          <KTooltip :content="$t('sync_settings.manual_link')">
+            <KButton
+              variant="ghost"
+              size="sm"
+              :aria-label="$t('sync_settings.manual_link')"
+              @click="open_manual"
+            >
+              <template #icon><CircleHelp :size="16" aria-hidden="true" /></template>
+            </KButton>
+          </KTooltip>
         </div>
         <nav class="flex flex-col gap-0.5" :aria-label="$t('sync_settings.title')">
           <button
@@ -501,7 +503,6 @@ onMounted(async () => {
               :title="
                 $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
               "
-              :hint="$t('sync_settings.library.cutover.card_hint')"
               :action="
                 cloudLibraryStatus.resumable
                   ? $t('sync_settings.library.cutover.resume_action')
@@ -515,7 +516,6 @@ onMounted(async () => {
               :title="
                 $t('sync_settings.library.join.card', { count: cloudLibraryStatus.game_count })
               "
-              :hint="$t('sync_settings.library.join.card_hint')"
               :action="$t('sync_settings.library.join.action')"
               @action="joiningLibrary = true"
             />
@@ -542,7 +542,6 @@ onMounted(async () => {
             :title="
               $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
             "
-            :hint="$t('sync_settings.library.cutover.card_hint')"
             :action="
               cloudLibraryStatus.resumable
                 ? $t('sync_settings.library.cutover.resume_action')
@@ -554,11 +553,9 @@ onMounted(async () => {
             v-else-if="joinRequired && cloudLibraryStatus?.kind === 'join_required'"
             :kicker="$t('sync_settings.library.join.card_kicker')"
             :title="$t('sync_settings.library.join.card', { count: cloudLibraryStatus.game_count })"
-            :hint="$t('sync_settings.library.join.card_hint')"
             :action="$t('sync_settings.library.join.action')"
             @action="joiningLibrary = true"
           />
-          <KAlert tone="warning">{{ $t('sync_settings.warning') }}</KAlert>
 
           <div class="flex flex-col">
             <div class="flex items-center justify-between gap-4 py-1.5">

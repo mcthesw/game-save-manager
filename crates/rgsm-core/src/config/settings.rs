@@ -14,6 +14,13 @@ pub enum SnapshotTimeFormat {
     Relative,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Type, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GameListView {
+    Favorites,
+    All,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct AppearanceSettings {
     #[serde(default = "default_value::default_false")]
@@ -22,6 +29,8 @@ pub struct AppearanceSettings {
     pub ui_font_family: String,
     #[serde(default)]
     pub snapshot_time_format: SnapshotTimeFormat,
+    #[serde(default)]
+    pub default_game_list: Option<GameListView>,
 }
 
 impl Default for AppearanceSettings {
@@ -30,6 +39,7 @@ impl Default for AppearanceSettings {
             custom_font_enabled: default_value::default_false(),
             ui_font_family: default_value::default(),
             snapshot_time_format: SnapshotTimeFormat::default(),
+            default_game_list: None,
         }
     }
 }
@@ -163,6 +173,22 @@ impl Sanitizable for Settings {
 #[cfg(test)]
 mod tests {
     use super::AppearanceSettings;
+
+    #[test]
+    fn sidebar_preference_survives_serialization_without_changing_old_defaults() {
+        for view in ["favorites", "all"] {
+            let settings: AppearanceSettings = serde_json::from_value(serde_json::json!({
+                "default_game_list": view
+            }))
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(settings).unwrap()["default_game_list"],
+                view
+            );
+        }
+        let old: AppearanceSettings = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(serde_json::to_value(old).unwrap()["default_game_list"].is_null());
+    }
 
     #[test]
     fn snapshot_time_defaults_to_absolute_in_old_appearance_settings() {

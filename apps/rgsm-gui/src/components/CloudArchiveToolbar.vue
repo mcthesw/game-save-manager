@@ -21,9 +21,6 @@ defineEmits<{
   <section class="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
     <div class="min-w-0">
       <h3 class="text-sm font-semibold text-text">{{ $t('sync_settings.archives.title') }}</h3>
-      <p class="mt-1 text-xs leading-relaxed text-text-dim">
-        {{ $t('sync_settings.archives.purpose') }}
-      </p>
       <p class="mt-1 text-xs text-text-dim">
         {{
           $t('sync_settings.archives.game_summary', {

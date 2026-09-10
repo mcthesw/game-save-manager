@@ -73,7 +73,7 @@ test('favorites: star persists to config, survives reload, unstar removes', asyn
     await page.getByRole('tab', { name: 'All', exact: true }).click();
     await page
       .locator(`button[title="${GAME_NAME}"]`)
-      .getByRole('button', { name: 'Remove' })
+      .getByRole('button', { name: 'Remove from favorites', exact: true })
       .click();
     await expect
       .poll(async () => readFavoriteLabels(device.appDataDir), { timeout: 15_000 })

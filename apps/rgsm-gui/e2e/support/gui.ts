@@ -167,7 +167,7 @@ export async function deleteCurrentHead(page: Page, snapshotId: string): Promise
     .getByRole('button', { name: 'Delete everywhere', exact: true })
     .click();
   const dialog = page.getByRole('dialog', { name: 'Delete snapshot everywhere?' });
-  await expect(dialog).toContainText('current position');
+  await expect(dialog).toContainText('current backup marker');
   await expect(dialog).toContainText('Live game saves stay unchanged');
   await dialog.getByRole('button', { name: 'Delete everywhere', exact: true }).click();
   await expectActivity(page, 'Successfully deleted');
