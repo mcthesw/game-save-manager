@@ -704,6 +704,12 @@ export type GameSnapshots = {
   last_sync_timestamp?: string | null;
   name: string;
   /**
+   * Explicit local edits awaiting publication to their original Cloud Library.
+   */
+  pending_descriptions?: {
+    [key: string]: PendingDescription;
+  };
+  /**
    * Monotonically increasing version for sync conflict detection.
    */
   sync_version?: number;
@@ -994,6 +1000,11 @@ export type PathPlaceholderDescriptor = {
 };
 
 export type PendingAction = 'none' | 'retry_required' | 'user_decision_required';
+
+export type PendingDescription = {
+  description: string;
+  library_id: string;
+};
 
 export type PendingProgress = {
   library_id: string;
@@ -1472,6 +1483,10 @@ export type Snapshot = {
   parent?: string | null;
   path: string;
   size?: number;
+};
+
+export type SnapshotDescriptionOutcome = {
+  cloud_sync_pending: boolean;
 };
 
 export type SnapshotRetentionOutcome = {
@@ -3591,8 +3606,11 @@ export type SetSnapshotDescriptionError =
   SetSnapshotDescriptionErrors[keyof SetSnapshotDescriptionErrors];
 
 export type SetSnapshotDescriptionResponses = {
-  200: unknown;
+  200: SnapshotDescriptionOutcome;
 };
+
+export type SetSnapshotDescriptionResponse =
+  SetSnapshotDescriptionResponses[keyof SetSnapshotDescriptionResponses];
 
 export type SetSnapshotHeadData = {
   body: SetSnapshotHeadRequest;

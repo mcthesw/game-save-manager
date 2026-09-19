@@ -1003,22 +1003,6 @@ impl Game {
             remote_game_dir_path: self.remote_path_prefix(),
         })
     }
-    pub async fn set_snapshot_description(
-        &self,
-        date: &str,
-        describe: &str,
-    ) -> Result<GameSnapshots, BackupError> {
-        let mut saves = self.get_game_snapshots_info()?;
-        let pos = saves.backups.iter().position(|x| x.date == date).ok_or(
-            BackupError::BackupNotExist {
-                name: self.name.clone(),
-                date: date.to_string(),
-            },
-        )?;
-        saves.backups[pos].describe = describe.to_string();
-        self.set_game_snapshots_info(&saves)?;
-        Ok(saves)
-    }
 }
 
 fn remove_snapshot_archive(path: &Path) -> std::io::Result<()> {

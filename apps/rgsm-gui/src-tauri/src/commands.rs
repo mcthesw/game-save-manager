@@ -1075,18 +1075,14 @@ pub async fn set_snapshot_description(
     date: String,
     describe: String,
     app_handle: AppHandle,
-) -> Result<(), String> {
-    info!(target:"rgsm::commands", "Setting backup describe for game: {:?}", game);
-    svc(&app_handle)
-        .set_snapshot_description(&game, &date, &describe, HookSource::UserManual)
-        .await
-        .map_err(|e| {
-            error!(target:"rgsm::commands", "Failed to set backup describe: {:?}", e);
-            e.to_string()
-        })?;
-
-    info!(target:"rgsm::commands", "Successfully set backup {} describe for game: {:?}", date,game);
-    Ok(())
+) -> Result<rgsm_core::services::SnapshotDescriptionOutcome, String> {
+    run_cloud_operation(&app_handle, async {
+        svc(&app_handle)
+            .set_snapshot_description(&game, &date, &describe)
+            .await
+            .map_err(|error| error.to_string())
+    })
+    .await
 }
 
 pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {

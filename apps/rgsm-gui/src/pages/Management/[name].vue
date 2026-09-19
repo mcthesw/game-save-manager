@@ -920,7 +920,11 @@ async function change_describe(date: string) {
       return;
     }
     refresh_backups_info();
-    notifySuccess($t('manage.change_description_success'));
+    if (result.data.cloud_sync_pending) {
+      notifyWarning($t('manage.description_sync_pending'));
+    } else {
+      notifySuccess($t('manage.change_description_success'));
+    }
   } catch {
     notifyInfo($t('manage.operation_canceled'));
   }

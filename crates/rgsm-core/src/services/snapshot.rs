@@ -425,28 +425,6 @@ impl ServiceContext {
         Ok(())
     }
 
-    pub async fn set_snapshot_description(
-        &self,
-        game: &Game,
-        date: &str,
-        describe: &str,
-        source: HookSource,
-    ) -> Result<(), BackupError> {
-        let snapshots = game.set_snapshot_description(date, describe).await?;
-        let config = get_config()?;
-
-        self.pipeline()
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshots,
-            })
-            .await;
-
-        Ok(())
-    }
-
     pub async fn set_snapshot_created_by(
         &self,
         game_name: &str,

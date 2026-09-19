@@ -287,6 +287,9 @@ export function useSnapshotTransfers(deps: {
           notifyError($t('manage.change_description_failed'));
           return;
         }
+        if (descResult.data.cloud_sync_pending) {
+          notifyWarning($t('manage.description_sync_pending'));
+        }
       }
       const result = await commands.setSnapshotCreatedBy(game.value, snapshotDate, 'Manual');
       if (result.status === 'error') {

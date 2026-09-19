@@ -18,6 +18,7 @@ impl ServiceContext {
         let materializer = self.materializer().await?;
         self.converge_local_tombstone_metadata(&materializer)
             .await?;
+        super::snapshot_description::refresh_snapshot_descriptions().await?;
         self.cloud_archive_library().await
     }
 
