@@ -81,7 +81,7 @@ impl From<Config> for CurrentConfig {
         devices.insert(current_device_id, current_device);
 
         CurrentConfig {
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: super::CURRENT_VERSION.into(),
             backup_path: old.backup_path,
             games,
             settings: old.settings,

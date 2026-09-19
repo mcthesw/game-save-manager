@@ -2,8 +2,9 @@
 
 /// Minimum supported version for auto-migration
 pub const MIN_SUPPORTED_VERSION: &str = "1.0.0";
-/// Current version from Cargo.toml
-pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Configuration format understood and written by this application.
+/// Change only when the persisted format changes, not for releases or RCs.
+pub const CURRENT_VERSION: &str = "1.9.0";
 /// Version 1.6.0 - introduced branch/tree view for snapshots
 pub const VERSION_1_6_0: &str = "1.6.0";
 /// Version 1.7.5 - introduced stable save-unit IDs

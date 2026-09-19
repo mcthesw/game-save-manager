@@ -34,6 +34,27 @@ const STABLE_SAVE_UNIT_IDS: &str = include_str!("fixtures/config-upgrade/config_
 const RELEASED_SNAPSHOT_DATE: &str = "2025-01-02_03-04-05";
 const RELEASED_SAVE_CONTENT: &[u8] = b"released-save-content";
 
+#[test]
+fn release_candidates_preserve_the_current_configuration_format()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = temp_dir::TempDir::new()?;
+    let path = temp.path().join("GameSaveManager.config.json");
+    // Existing dogfood installations already use this data format, even when
+    // the executable being tested is a 1.9.0-rc.N build.
+    let config = Config {
+        version: "1.9.0".into(),
+        ..Config::default()
+    };
+    let original = serde_json::to_vec_pretty(&config)?;
+    fs::write(&path, &original)?;
+
+    assert!(!update_config(&path)?);
+    assert_eq!(fs::read(&path)?, original);
+    assert_eq!(fs::read_dir(temp.path())?.count(), 1);
+    assert_eq!(Config::default().version, "1.9.0");
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 enum ReleasedSaveData {
     V1_0FlatFile,
