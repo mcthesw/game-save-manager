@@ -1,0 +1,65 @@
+name: Build Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: "Open release PR number to build"
+        type: number
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Resolve the release PR
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pull_number }}
+        run: |
+          IFS=$'\t' read -r state base repo sha < <(
+            gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
+              --jq '[.state, .base.ref, .head.repo.full_name, .head.sha] | @tsv'
+          )
+          [[ "$state" == open && "$base" == dev && "$repo" == "$GITHUB_REPOSITORY" ]] || {
+            echo "Expected an open release PR from this repository to dev" >&2
+            exit 1
+          }
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Verify the candidate version
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { parseWorkspaceVersion } from './scripts/portable.mjs';
+          import { parseReleaseVersion } from './scripts/release-policy.mjs';
+          const version = parseWorkspaceVersion(readFileSync('Cargo.toml', 'utf8'));
+          parseReleaseVersion(version);
+          const manifest = JSON.parse(readFileSync('.release-please-manifest.json', 'utf8'))['.'];
+          const versionFile = readFileSync('.release-version', 'utf8').trim();
+          if (version !== manifest || version !== versionFile)
+            throw new Error('The release PR version files do not match');
+          NODE
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/build-gui.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.sha }}
+      win: true
+      linux: true
+      macos: true
+      windows_portable_slim: true

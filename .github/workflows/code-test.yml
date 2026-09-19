@@ -54,7 +54,12 @@ jobs:
           cache: "pnpm"
 
       - name: Run portable script tests
-        run: node --test scripts/portable.test.mjs
+        run: node --test scripts/portable.test.mjs scripts/release-policy.test.mjs
+
+      - name: Verify release version updates
+        run: |
+          npm install --prefix "$RUNNER_TEMP/release-tools" --no-package-lock --ignore-scripts release-please@17.3.0
+          RELEASE_PLEASE_ROOT="$RUNNER_TEMP/release-tools/node_modules/release-please" node --test scripts/release-config.test.mjs
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile

@@ -21,6 +21,9 @@ on:
         default: false
   workflow_call:
     inputs:
+      source_ref:
+        type: string
+        default: ""
       win:
         type: boolean
         default: false
@@ -41,7 +44,7 @@ on:
         default: ""
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: build-gui-${{ github.workflow }}-${{ inputs.release_tag || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -52,6 +55,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -86,6 +91,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -128,6 +135,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -190,6 +199,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-node@v5
         with:
           node-version: 24

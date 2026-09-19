@@ -1,62 +1,70 @@
-name: Publish Stable
+name: Publish Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing draft tag to retry, for example v1.9.0"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  checks: read
+
+concurrency:
+  group: publish-release-${{ inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
-  create-release:
-    permissions:
-      contents: write
+  prepare:
     runs-on: ubuntu-latest
     outputs:
-      release_id: ${{ steps.release-metadata.outputs.release_id }}
-      release_tag: ${{ steps.release-metadata.outputs.release_tag }}
+      id: ${{ steps.source.outputs.id }}
+      sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
-      - name: Create GitHub release
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Resolve the immutable release source
+        id: source
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          RELEASE_TAG="${{ github.ref_name }}"
-          GENERATED_NOTES="$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
-            --method POST \
-            -f tag_name="${RELEASE_TAG}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            --jq '.body')"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/release-github.mjs prepare
 
-          if gh release view "${RELEASE_TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" \
-              --notes "${GENERATED_NOTES}" \
-              --repo "${{ github.repository }}"
-          else
-            gh release create "${RELEASE_TAG}" \
-              --notes "${GENERATED_NOTES}" \
-              --repo "${{ github.repository }}"
-          fi
-
-          gh release upload "${RELEASE_TAG}" LICENSE --clobber --repo "${{ github.repository }}"
-      - id: release-metadata
-        name: Resolve release metadata
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_TAG="${{ github.ref_name }}"
-          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-
-  build-release:
-    needs: create-release
-    permissions:
-      contents: write
+  build:
+    needs: prepare
     uses: ./.github/workflows/build-gui.yml
     with:
+      source_ref: ${{ needs.prepare.outputs.sha }}
       win: true
       linux: true
       macos: true
       windows_portable_slim: true
-      release_id: ${{ needs.create-release.outputs.release_id }}
-      release_tag: ${{ needs.create-release.outputs.release_tag }}
+      release_id: ${{ needs.prepare.outputs.id }}
+      release_tag: ${{ inputs.tag }}
     secrets: inherit
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Publish only after checks and attachments are complete
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: node scripts/release-github.mjs publish

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "654e1b5e2fd295849582eb4ea92eca08fc4e4e30",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "version-file": ".release-version",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'rgsm' || @.name.value == 'rgsm-core' || @.name.value == 'rgsm-cli' || @.name.value == 'rgsm-tui' || @.name.value == 'rgsm-ffi')].version"
+        }
+      ],
+      "include-component-in-tag": false,
+      "draft": true,
+      "force-tag-creation": true,
+      "pull-request-header": "Prepare the next RGSM release",
+      "pull-request-footer": "Merge after reviewing the version and release notes",
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Fixes" },
+        { "type": "perf", "section": "Performance" }
+      ]
+    }
+  }
+}

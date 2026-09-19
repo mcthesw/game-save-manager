@@ -1,0 +1,75 @@
+name: Prepare Release
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Next stable version, for example 1.9.0"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Validate requested version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { assertNextRelease } from './scripts/release-policy.mjs';
+          const previous = JSON.parse(readFileSync('.release-please-manifest.json', 'utf8'))['.'];
+          assertNextRelease(previous, process.env.RELEASE_VERSION);
+          NODE
+      - name: Install and verify the release updater
+        run: |
+          npm install --prefix "$RUNNER_TEMP/release-tools" --no-package-lock --ignore-scripts release-please@17.3.0
+          RELEASE_PLEASE_ROOT="$RUNNER_TEMP/release-tools/node_modules/release-please" node --test scripts/release-config.test.mjs
+      - name: Open or update the release PR
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          RELEASE_PLEASE_ROOT="$RUNNER_TEMP/release-tools/node_modules/release-please" node scripts/prepare-release.mjs
+
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: dev
+          skip-github-pull-request: true
+
+  publish:
+    needs: release
+    if: needs.release.outputs.created == 'true'
+    permissions:
+      contents: write
+      checks: read
+    uses: ./.github/workflows/publish-stable.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+    secrets: inherit
