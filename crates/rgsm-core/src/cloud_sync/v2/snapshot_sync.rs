@@ -315,7 +315,6 @@ impl SnapshotSyncCoordinator {
                 let game = manifest.game_mut(&game_id);
                 if let Some(existing) = game.snapshots.get_mut(&snapshot.date) {
                     merge_local_snapshot(existing, &snapshot, integrity.clone())?;
-                    existing.description = snapshot.describe.clone();
                 } else {
                     let mut node = SnapshotNode::from_snapshot(&snapshot, integrity.clone());
                     node.catalog_revision = catalog_revision;

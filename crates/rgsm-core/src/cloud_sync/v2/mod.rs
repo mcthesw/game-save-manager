@@ -4,6 +4,8 @@ mod conflict_review;
 mod cutover;
 mod deletion;
 mod deletion_registry;
+mod descriptions;
+pub(crate) use descriptions::sync_descriptions;
 mod game_comparison;
 pub(crate) mod game_deletion;
 mod integrity;

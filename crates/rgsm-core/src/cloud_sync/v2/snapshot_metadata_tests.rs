@@ -194,4 +194,12 @@ async fn legacy_cloud_metadata_can_be_filled_but_transfers_never_relabel_known_o
         repository.load().await.unwrap().games["game"].snapshots[SNAPSHOT_ID],
         recorded
     );
+    coordinator
+        .publish_local_node("game", &original, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        repository.load().await.unwrap().games["game"].snapshots[SNAPSHOT_ID],
+        recorded
+    );
 }

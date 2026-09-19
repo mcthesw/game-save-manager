@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -35,6 +35,15 @@ pub struct GameSnapshots {
     /// ISO 8601 timestamp of the last sync operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_sync_timestamp: Option<String>,
+    /// Explicit local edits awaiting publication to their original Cloud Library.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pending_descriptions: BTreeMap<String, PendingDescription>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Type, utoipa::ToSchema, Clone, PartialEq, Eq)]
+pub struct PendingDescription {
+    pub library_id: String,
+    pub description: String,
 }
 
 impl GameSnapshots {
@@ -47,6 +56,7 @@ impl GameSnapshots {
             sync_version: 0,
             last_sync_device: None,
             last_sync_timestamp: None,
+            pending_descriptions: BTreeMap::new(),
         }
     }
 
@@ -61,6 +71,8 @@ impl GameSnapshots {
         let previous = self.backups.len();
         self.backups
             .retain(|snapshot| !snapshot_ids.contains(&snapshot.date));
+        self.pending_descriptions
+            .retain(|id, _| !snapshot_ids.contains(id));
         self.device_heads
             .retain(|_, head| !snapshot_ids.contains(head));
         previous - self.backups.len()
@@ -159,6 +171,7 @@ mod tests {
             sync_version: 0,
             last_sync_device: Some("remote-device".into()),
             last_sync_timestamp: None,
+            pending_descriptions: BTreeMap::new(),
         };
 
         snapshots.normalize_heads();

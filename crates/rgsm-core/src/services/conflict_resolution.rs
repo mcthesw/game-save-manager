@@ -187,7 +187,9 @@ pub(crate) fn merge_remote_lineage(
             if existing.archive_hash.is_none() {
                 existing.archive_hash = remote.archive_hash.clone();
             }
-            if existing.describe.is_empty() {
+            if existing.describe.is_empty()
+                && !local.pending_descriptions.contains_key(&remote.date)
+            {
                 existing.describe = remote.describe.clone();
             }
             existing.created_at = existing.created_at.or(remote.created_at);

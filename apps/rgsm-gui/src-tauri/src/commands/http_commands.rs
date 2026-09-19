@@ -1315,12 +1315,12 @@ pub struct SetSnapshotDescriptionRequest {
     path = "/api/v1/set-snapshot-description",
     operation_id = "setSnapshotDescription",
     request_body = SetSnapshotDescriptionRequest,
-    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+    responses((status = 200, body = rgsm_core::services::SnapshotDescriptionOutcome), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
 )]
 pub async fn http_set_snapshot_description(
     State(state): State<HttpHostState>,
     Json(request): Json<SetSnapshotDescriptionRequest>,
-) -> Result<Json<()>, ApiError> {
+) -> Result<Json<rgsm_core::services::SnapshotDescriptionOutcome>, ApiError> {
     commands::set_snapshot_description(
         request.game,
         request.date,

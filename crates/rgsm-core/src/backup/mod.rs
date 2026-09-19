@@ -34,7 +34,7 @@ pub use game::{
     AutoBackupConfig, CaptureSnapshotOptions, Game, GameDraft, LudusaviMeta, StoreGameId,
     TimerSnapshotDecision,
 };
-pub use game_snapshots::GameSnapshots;
+pub use game_snapshots::{GameSnapshots, PendingDescription};
 pub use restore_plan::{RestoreEntry, RestorePlan, RestorePlanError};
 pub use save_unit::{SaveUnit, SaveUnitDraft, SaveUnitSource, SaveUnitType};
 pub use snapshot::{ArchiveFormat, CreatedBy, Snapshot};

@@ -297,6 +297,7 @@
         "change_describe": "Modify",
         "change_description": "Enter new description",
         "change_description_success": "Successfully modified",
+        "description_sync_pending": "Description saved, but cloud sync failed · Will retry automatically",
         "change_description_failed": "Modification failed",
         "set_quick_backup": "Enable quick backup",
         "set_quick_backup_success": "Settings saved. You can now use keyboard shortcuts or the tray icon for quick operations",
