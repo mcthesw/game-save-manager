@@ -5,7 +5,6 @@ use super::contexts::{
     MetadataChangedCtx, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotDeletedCtx,
     SyncCompletedCtx, SyncConflictCtx,
 };
-use crate::cloud_sync::CloudSyncJob;
 use crate::preclude::BackupError;
 
 pub type HookResult<T> = anyhow::Result<T>;
@@ -54,8 +53,3 @@ pub trait LifecycleHook: Send + Sync {
 }
 
 pub use LifecycleHook as SnapshotHook;
-
-#[async_trait]
-pub trait SyncJobQueue: Send + Sync {
-    async fn enqueue(&self, job: CloudSyncJob);
-}

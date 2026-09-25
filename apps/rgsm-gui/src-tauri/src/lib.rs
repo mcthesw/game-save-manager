@@ -167,10 +167,6 @@ pub fn run() -> anyhow::Result<()> {
             app: app.handle().clone(),
         });
         let cloud_sync_manager = rgsm_core::cloud_sync::CloudSyncTaskManager::new(emitter);
-        let cloud_sync_worker = cloud_sync_manager.clone();
-        tauri::async_runtime::spawn(async move {
-            cloud_sync_worker.run().await;
-        });
         let config = get_config().expect("Failed to load config while building hooks");
         let cloud_operation_state = cloud_operation::CloudOperationState::default();
         app.manage(cloud_operation_state.clone());

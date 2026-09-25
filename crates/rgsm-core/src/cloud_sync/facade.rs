@@ -1,5 +1,4 @@
-use super::{Backend, CloudSyncSessionConfig};
-use crate::config::get_config;
+use super::CloudSyncSessionConfig;
 use crate::preclude::BackendError;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -56,13 +55,4 @@ pub async fn sync_game(
     _game: &crate::backup::Game,
 ) -> Result<SyncGameOutcome, BackendError> {
     Err(BackendError::LegacyCloudOperationUnavailable)
-}
-
-pub fn session_from_backend(backend: &Backend) -> Result<CloudSyncSessionConfig, BackendError> {
-    let config = get_config()?;
-    Ok(CloudSyncSessionConfig {
-        root_path: config.settings.cloud_settings.root_path,
-        max_concurrency: config.settings.cloud_settings.max_concurrency.max(1),
-        backend: backend.clone(),
-    })
 }
