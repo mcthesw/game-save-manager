@@ -96,7 +96,7 @@ impl OwnerStore {
                     .iter()
                     .any(|remote| remote.storage_key == game.storage_key)
         });
-        let profile = expected_profile.for_shared_library(accepted);
+        let profile = expected_profile.for_updated_library(expected_library, accepted);
         owners.accept_library(
             accepted,
             &HashMap::from([(profile.device.id.clone(), profile)]),

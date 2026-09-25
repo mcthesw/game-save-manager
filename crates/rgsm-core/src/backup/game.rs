@@ -181,11 +181,6 @@ pub struct BatchSnapshotsDeleted {
     pub deleted_remote_paths: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
-pub struct GameDeleted {
-    pub remote_game_dir_path: String,
-}
-
 impl GameDraft {
     /// Convert frontend/IPC draft to persisted game model with stable save-unit IDs.
     pub fn into_game(self, existing: Option<&Game>) -> Game {
@@ -982,10 +977,13 @@ impl Game {
         })
     }
 
-    pub async fn delete_game(&self) -> Result<GameDeleted, BackupError> {
+    pub async fn delete_game(&self) -> Result<(), BackupError> {
         let mut config = get_config()?;
         let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
-        fs::remove_dir_all(&backup_path)?;
+        match fs::remove_dir_all(&backup_path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            result => result?,
+        }
 
         // Bind any legacy references while the deleted game is still present.
         config.remove_deleted_game_references(self);
@@ -999,9 +997,7 @@ impl Game {
             backup_path.to_str().ok_or(BackupError::NonePathError)?
         );
 
-        Ok(GameDeleted {
-            remote_game_dir_path: self.remote_path_prefix(),
-        })
+        Ok(())
     }
 }
 

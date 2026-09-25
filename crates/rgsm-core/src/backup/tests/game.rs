@@ -889,6 +889,38 @@ fn opaque_snapshot_selection_uses_creation_time() -> TestResult {
 }
 
 #[test]
+fn delete_game_without_backups_still_removes_management() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let root = temp_dir::TempDir::new()?;
+        let backup_root = root.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+        let game = Game {
+            name: "No backups".into(),
+            storage_key: "no-backups".into(),
+            save_paths: Vec::new(),
+            game_paths: HashMap::new(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: false,
+            auto_backup: None,
+            ludusavi_meta: None,
+            device_bindings: HashMap::new(),
+        };
+        let config = Config {
+            backup_path: backup_root.to_string_lossy().into_owned(),
+            games: vec![game.clone()],
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+
+        game.delete_game().await?;
+
+        assert!(get_config()?.games.is_empty());
+        Ok(())
+    })
+}
+
+#[test]
 fn delete_game_clears_quick_action_reference_by_storage_key() -> TestResult {
     let _config_lock = lock_config_file();
     run_async_test(async {

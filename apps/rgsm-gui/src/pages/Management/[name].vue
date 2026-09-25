@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { useGameDeletion } from '../../composables/useGameDeletion';
 import { computed, ref, watch, onBeforeUnmount, onMounted, h } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { isEqual } from 'lodash-unified';
@@ -108,11 +109,12 @@ const game: Ref<Game> = ref({
   game_paths: {},
   device_bindings: {},
 });
-const isSharedGame = computed(() =>
-  deviceGameStatuses.value.some(
-    (status) => status.game_id === (game.value.storage_key || game.value.name) && status.shared
+const gameStatus = computed(() =>
+  deviceGameStatuses.value.find(
+    (status) => status.game_id === (game.value.storage_key || game.value.name)
   )
 );
+const isSharedGame = computed(() => gameStatus.value?.shared === true);
 const deleteLabel = computed(() =>
   $t(isSharedGame.value ? 'sync_settings.archives.delete_permanently' : 'manage.delete')
 );
@@ -1341,26 +1343,42 @@ const syncParticipationLabel = computed(() => {
   return $t('sync_settings.overview.mode_manual');
 });
 
-// 头部工具区：低频/破坏性动作收纳进溢出菜单，主按钮只留高频
-const headerMenuEntries = computed<KMenuEntry[]>(() => [
-  { type: 'item', key: 'openFolder', label: $t('manage.open_backup_folder'), icon: FolderOpen },
-  { type: 'item', key: 'verify', label: $t('manage.verify_archive_hashes'), icon: ShieldCheck },
-  { type: 'item', key: 'extraBackups', label: $t('manage.extra_backups'), icon: Copy },
-  {
-    type: 'item',
-    key: 'quickBackup',
-    label: $t('manage.set_quick_backup'),
-    icon: Zap,
-    active: isQuickBackupGame.value,
-  },
-  {
-    type: 'item',
-    key: 'autoSave',
-    label: $t('manage.auto_save_settings'),
-    icon: Timer,
-    active: autoSaveConfigured.value,
-  },
-]);
+const gameDeletion = useGameDeletion();
+const deletionTarget = computed(() => ({
+  id: game.value.storage_key || game.value.name,
+  name: game.value.name,
+  shared: isSharedGame.value,
+  hasLocalData: gameStatus.value?.managed === true || localCatalogDates.value.size > 0,
+}));
+
+async function deleteGame(key: string) {
+  if (await gameDeletion.remove(deletionTarget.value, key)) await router.push('/');
+}
+
+const headerMenuEntries = computed<KMenuEntry[]>(() => {
+  const entries: KMenuEntry[] = [
+    { type: 'item', key: 'openFolder', label: $t('manage.open_backup_folder'), icon: FolderOpen },
+    { type: 'item', key: 'verify', label: $t('manage.verify_archive_hashes'), icon: ShieldCheck },
+    { type: 'item', key: 'extraBackups', label: $t('manage.extra_backups'), icon: Copy },
+    {
+      type: 'item',
+      key: 'quickBackup',
+      label: $t('manage.set_quick_backup'),
+      icon: Zap,
+      active: isQuickBackupGame.value,
+    },
+    {
+      type: 'item',
+      key: 'autoSave',
+      label: $t('manage.auto_save_settings'),
+      icon: Timer,
+      active: autoSaveConfigured.value,
+    },
+  ];
+  const deletionEntries = gameDeletion.entries(deletionTarget.value);
+  if (deletionEntries.length) entries.push({ type: 'separator' }, ...deletionEntries);
+  return entries;
+});
 
 function onHeaderMenuSelect(key: string) {
   if (key === 'openFolder') open_backup_folder();
@@ -1368,6 +1386,7 @@ function onHeaderMenuSelect(key: string) {
   else if (key === 'extraBackups') extraBackupDrawer.value = true;
   else if (key === 'quickBackup') set_quick_backup();
   else if (key === 'autoSave') autoSaveSettingsDrawer.value = true;
+  else if (key === 'deleteLocal' || key === 'deleteEverywhere') void deleteGame(key);
 }
 
 const viewModeOptions = computed(() => [

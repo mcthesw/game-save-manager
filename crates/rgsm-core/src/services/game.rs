@@ -113,20 +113,43 @@ impl ServiceContext {
     }
 
     pub async fn delete_game(&self, game: &Game, source: HookSource) -> Result<()> {
-        if cloud_namespace_generation()? == CloudNamespaceGeneration::V2 {
-            bail!(
-                "V2 requires the distinct Stop Managing or Permanent Shared Game Deletion action"
-            );
+        let config = get_config()?;
+        let identity = if game.storage_key.is_empty() {
+            game.name.as_str()
+        } else {
+            game.storage_key.as_str()
+        };
+        let index = config
+            .position_game_by_identity(identity)
+            .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
+        let current_game = &config.games[index];
+        let v2 = cloud_namespace_generation()? == CloudNamespaceGeneration::V2;
+        if v2
+            && !cloud_bootstrap_inputs()?
+                .2
+                .is_local_game(&current_game.storage_key)
+        {
+            let (_, expected, _) = cloud_bootstrap_inputs()?;
+            let mut accepted = expected.clone();
+            accepted.remove_game_state(&current_game.storage_key, &current_game.name);
+            crate::config::replace_current_device_profile(&expected, &accepted)?;
+            // Commit the local opt-out first so a retry cannot restart synchronization.
+            // The next cloud refresh publishes this Device's updated profile.
+            crate::cloud_sync::v2::game_deletion::remove_local_game_directory(
+                &crate::app_dirs::resolve_app_path(&config.backup_path),
+                &current_game.storage_key,
+            )
+            .await?;
+        } else {
+            current_game.delete_game().await?;
         }
-        let deleted = game.delete_game().await?;
         let config = get_config()?;
 
         self.pipeline()
             .fire_game_deleted(&GameDeletedCtx {
                 config,
                 source,
-                game_name: game.name.clone(),
-                remote_game_dir_path: deleted.remote_game_dir_path,
+                game_name: current_game.name.clone(),
             })
             .await;
 
@@ -443,4 +466,99 @@ fn validate_game_automation_config(automation: Option<&GameAutomationSettingsDra
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod delete_tests {
+    use std::{fs, sync::Arc};
+
+    use crate::config::{
+        ConfigTestStateGuard, activate_cloud_namespace_v2, activate_joined_cloud_library,
+    };
+    use crate::hooks::HookPipeline;
+
+    use super::*;
+
+    fn fixture(root: &std::path::Path) -> Result<(ConfigTestStateGuard, Game)> {
+        let game: Game = serde_json::from_value(serde_json::json!({
+            "name": "Local game",
+            "storage_key": "local-game",
+            "save_paths": [],
+            "cloud_sync_enabled": false
+        }))?;
+        let config = Config {
+            backup_path: root.join("archives").to_string_lossy().into_owned(),
+            games: vec![game.clone()],
+            ..Config::default()
+        };
+        let guard = ConfigTestStateGuard::replace_with(&config)?;
+        set_config_local(&config)?;
+        fs::create_dir_all(root.join("archives/local-game"))?;
+        fs::write(root.join("archives/local-game/backup.zip"), b"local backup")?;
+        fs::write(root.join("live.sav"), b"live save")?;
+        Ok((guard, game))
+    }
+
+    #[test]
+    fn deleting_unshared_v2_game_keeps_live_save_and_cloud_library() -> Result<()> {
+        let _lock = crate::config::lock_config_test_file();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        runtime.block_on(async {
+            let root = temp_dir::TempDir::new()?;
+            let (_guard, game) = fixture(root.path())?;
+            let (library, profile, _) = cloud_bootstrap_inputs()?;
+            let mut remote = library.clone();
+            remote.games.clear();
+            activate_joined_cloud_library(
+                &library,
+                &profile,
+                &remote,
+                &profile.for_shared_library(&remote),
+                "test-library",
+            )?;
+            let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+
+            service.delete_game(&game, HookSource::UserManual).await?;
+
+            let (shared, _, local) = cloud_bootstrap_inputs()?;
+            assert!(shared.games.is_empty());
+            assert!(local.local_games.is_empty());
+            assert!(get_config()?.games.is_empty());
+            assert!(!root.path().join("archives/local-game").exists());
+            assert_eq!(fs::read(root.path().join("live.sav"))?, b"live save");
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn shared_v2_game_local_delete_preserves_shared_history() -> Result<()> {
+        let _lock = crate::config::lock_config_test_file();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        runtime.block_on(async {
+            let root = temp_dir::TempDir::new()?;
+            let (_guard, game) = fixture(root.path())?;
+            let (library, profile, _) = cloud_bootstrap_inputs()?;
+            activate_cloud_namespace_v2(&library, &profile, "test-library")?;
+            let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+
+            service.delete_game(&game, HookSource::UserManual).await?;
+            let (shared, current, _) = cloud_bootstrap_inputs()?;
+            assert_eq!(shared, library);
+            assert!(!current.games.contains_key(&game.storage_key));
+            assert!(!root.path().join("archives/local-game").exists());
+            assert_eq!(fs::read(root.path().join("live.sav"))?, b"live save");
+            let mut updated = shared.clone();
+            let mut discovered = shared.games[0].clone();
+            discovered.storage_key = "newly-shared".into();
+            updated.games.push(discovered);
+            let refreshed = current.for_updated_library(&shared, &updated);
+            assert!(!refreshed.games.contains_key(&game.storage_key));
+            assert!(refreshed.games.contains_key("newly-shared"));
+            Ok(())
+        })
+    }
 }

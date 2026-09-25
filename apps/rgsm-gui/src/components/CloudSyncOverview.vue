@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useGameDeletion } from '../composables/useGameDeletion';
 import { computed, ref, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import { commands, type CloudArchiveGameView, type SyncMode } from '../api/commands';
@@ -10,8 +11,8 @@ import { Archive, ChevronDown, Hand, Trash2, Zap } from '@lucide/vue';
 import { KInput, KMenu, KSwitch, KTag, type KMenuEntry } from '../ui/kit';
 
 const router = useRouter();
-const feedback = useFeedback();
-const { library, lastError } = useCloudLibrary();
+const gameDeletion = useGameDeletion();
+const { library, lastError, refresh: refreshLibrary } = useCloudLibrary();
 const search = ref('');
 const modeGame = ref<CloudArchiveGameView | null>(null);
 const pendingMode = ref<SyncMode>('cloud_backup');
@@ -162,30 +163,26 @@ async function finishDefinitionChoice() {
   }
 }
 
-async function permanentlyDelete(game: CloudArchiveGameView) {
-  try {
-    await feedback.confirm(
-      $t('sync_settings.archives.games.delete_confirm', { game: game.name }),
-      $t('sync_settings.archives.games.delete_title'),
-      {
-        confirmButtonText: $t('sync_settings.archives.games.delete_action'),
-        cancelButtonText: $t('sync_settings.cancel'),
-        type: 'error',
-      }
-    );
-  } catch {
-    return;
+function deletionTarget(game: CloudArchiveGameView) {
+  return {
+    id: game.game_id,
+    name: game.name,
+    shared: !game.local_only && !game.definition_conflict,
+    hasLocalData: game.managed || game.local_count > 0,
+  };
+}
+
+async function deleteGame(game: CloudArchiveGameView, key: string) {
+  if (await gameDeletion.remove(deletionTarget(game), key)) {
+    await refreshLibrary();
+    await reload();
   }
-  const result = await commands.permanentlyDeleteCloudGame(game.game_id, true);
-  if (result.status === 'error') {
-    notifyError($t('sync_settings.archives.games.delete_incomplete'), result.error);
-    return;
-  }
-  notifySuccess(
-    $t('sync_settings.archives.games.delete_success', {
-      snapshots: result.data.removed_snapshots,
-    })
-  );
+}
+
+async function manageHere(game: CloudArchiveGameView) {
+  const result = await commands.setDeviceGameManaged(game.game_id, true, true);
+  if (result.status === 'error') return notifyError(result.error);
+  await refreshLibrary();
   await reload();
 }
 
@@ -320,15 +317,29 @@ function openGame(game: CloudArchiveGameView) {
           />
         </div>
 
-        <button
-          type="button"
-          class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-dim transition-colors hover:border-danger hover:bg-danger/10 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent"
-          :aria-label="$t('sync_settings.overview.delete_game')"
-          :disabled="game.definition_conflict || game.local_only"
-          @click="permanentlyDelete(game)"
-        >
-          <Trash2 :size="14" aria-hidden="true" />
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            v-if="!game.managed && !game.local_only && !game.definition_conflict"
+            type="button"
+            class="text-xs text-accent"
+            @click="manageHere(game)"
+          >
+            {{ $t('manage.add_to_device') }}
+          </button>
+          <KMenu
+            :entries="gameDeletion.entries(deletionTarget(game))"
+            :aria-label="$t('manage.delete_actions')"
+            @select="(key: string) => deleteGame(game, key)"
+          >
+            <button
+              type="button"
+              class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-dim hover:border-danger hover:text-danger"
+              :aria-label="$t('manage.delete_actions')"
+            >
+              <Trash2 :size="14" aria-hidden="true" />
+            </button>
+          </KMenu>
+        </div>
       </div>
     </div>
 
