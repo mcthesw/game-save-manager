@@ -1,26 +1,14 @@
 use std::collections::VecDeque;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(test)]
 use std::time::Duration;
 
-use log::{error, info, warn};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tokio::sync::{Mutex, Notify, Semaphore};
+use tokio::sync::{Mutex, Notify};
 use tokio_util::sync::CancellationToken;
-
-use super::state_recording::{log_config_sync_failure, log_game_sync_failure};
-use super::sync_state::{
-    GameSyncState, PendingAction, SyncResult, build_game_sync_state, update_config_sync_state,
-    update_game_sync_state, with_sync_state,
-};
-use crate::backup::GameSnapshots;
-use crate::cloud_sync::{Backend, session_from_backend};
-use crate::config::get_config;
-use crate::hooks::SyncJobQueue;
-use crate::preclude::*;
 
 /// Trait for emitting cloud sync events to the frontend.
 ///
@@ -31,94 +19,6 @@ pub trait SyncEventEmitter: Send + Sync {
 }
 
 const MAX_HISTORY_SIZE: usize = 20;
-
-#[derive(Debug, Clone)]
-pub enum CloudSyncJob {
-    UploadSnapshot {
-        backend: Backend,
-        game_name: String,
-        storage_key: String,
-        snapshots: GameSnapshots,
-        local_archive_path: PathBuf,
-        remote_archive_path: String,
-    },
-    UploadMetadata {
-        backend: Backend,
-        game_name: String,
-        storage_key: String,
-        snapshots: GameSnapshots,
-    },
-    DeleteSnapshotAndUploadMetadata {
-        backend: Backend,
-        game_name: String,
-        storage_key: String,
-        snapshots: GameSnapshots,
-        remote_archive_path: String,
-    },
-    DeleteFilesAndUploadMetadata {
-        backend: Backend,
-        game_name: String,
-        storage_key: String,
-        snapshots: GameSnapshots,
-        remote_archive_paths: Vec<String>,
-    },
-    DeleteGameAndUploadConfig {
-        backend: Backend,
-        game_name: String,
-        remote_game_dir_path: String,
-    },
-    UploadConfig {
-        backend: Backend,
-        context: String,
-    },
-}
-
-impl CloudSyncJob {
-    fn description(&self) -> String {
-        match self {
-            CloudSyncJob::UploadSnapshot { game_name, .. } => {
-                format!("Uploading snapshot for {game_name}")
-            }
-            CloudSyncJob::UploadMetadata { game_name, .. } => {
-                format!("Uploading metadata for {game_name}")
-            }
-            CloudSyncJob::DeleteSnapshotAndUploadMetadata { game_name, .. } => {
-                format!("Deleting remote snapshot for {game_name}")
-            }
-            CloudSyncJob::DeleteFilesAndUploadMetadata { game_name, .. } => {
-                format!("Cleaning old backups for {game_name}")
-            }
-            CloudSyncJob::DeleteGameAndUploadConfig { game_name, .. } => {
-                format!("Deleting game {game_name} from cloud")
-            }
-            CloudSyncJob::UploadConfig { context, .. } => {
-                format!("Uploading cloud config ({context})")
-            }
-        }
-    }
-
-    fn game_name(&self) -> Option<String> {
-        match self {
-            CloudSyncJob::UploadSnapshot { game_name, .. }
-            | CloudSyncJob::UploadMetadata { game_name, .. }
-            | CloudSyncJob::DeleteSnapshotAndUploadMetadata { game_name, .. }
-            | CloudSyncJob::DeleteFilesAndUploadMetadata { game_name, .. }
-            | CloudSyncJob::DeleteGameAndUploadConfig { game_name, .. } => Some(game_name.clone()),
-            CloudSyncJob::UploadConfig { .. } => None,
-        }
-    }
-
-    fn backend(&self) -> &Backend {
-        match self {
-            CloudSyncJob::UploadSnapshot { backend, .. }
-            | CloudSyncJob::UploadMetadata { backend, .. }
-            | CloudSyncJob::DeleteSnapshotAndUploadMetadata { backend, .. }
-            | CloudSyncJob::DeleteFilesAndUploadMetadata { backend, .. }
-            | CloudSyncJob::DeleteGameAndUploadConfig { backend, .. }
-            | CloudSyncJob::UploadConfig { backend, .. } => backend,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub enum CloudSyncJobStatus {
@@ -158,17 +58,8 @@ pub enum CancelCloudSyncResult {
 }
 
 #[derive(Debug)]
-struct QueuedJob {
-    id: u64,
-    job: CloudSyncJob,
-}
-
-#[derive(Debug)]
 struct CloudSyncState {
-    queue: VecDeque<QueuedJob>,
-    queue_cancel_token: CancellationToken,
     manual_cancel_token: CancellationToken,
-    shutdown: bool,
     next_id: u64,
     running_jobs: Vec<CloudSyncJobInfo>,
     history: VecDeque<CloudSyncJobInfo>,
@@ -177,10 +68,7 @@ struct CloudSyncState {
 impl Default for CloudSyncState {
     fn default() -> Self {
         Self {
-            queue: VecDeque::new(),
-            queue_cancel_token: CancellationToken::new(),
             manual_cancel_token: CancellationToken::new(),
-            shutdown: false,
             next_id: 1,
             running_jobs: Vec::new(),
             history: VecDeque::new(),
@@ -205,41 +93,10 @@ impl CloudSyncTaskManager {
         })
     }
 
-    pub async fn run(self: Arc<Self>) {
-        self.run_worker().await;
-    }
-
-    pub async fn enqueue(&self, job: CloudSyncJob) {
-        {
-            let mut state = self.state.lock().await;
-            let id = state.next_id;
-            state.next_id += 1;
-            state.queue.push_back(QueuedJob { id, job });
-        }
-
-        self.notify.notify_one();
-        self.emit_full_status(Some("Queued cloud sync job".to_string()))
-            .await;
-    }
-
     pub async fn cancel_all(&self) -> CancelCloudSyncResult {
-        let mut had_active = self.running_count.load(Ordering::Relaxed) > 0;
+        let had_active = self.running_count.load(Ordering::Relaxed) > 0;
         {
             let mut state = self.state.lock().await;
-            had_active |= !state.queue.is_empty();
-            while let Some(queued) = state.queue.pop_front() {
-                state.history.push_back(CloudSyncJobInfo {
-                    id: queued.id,
-                    description: queued.job.description(),
-                    status: CloudSyncJobStatus::Cancelled,
-                    error: None,
-                });
-                while state.history.len() > MAX_HISTORY_SIZE {
-                    state.history.pop_front();
-                }
-            }
-            state.queue_cancel_token.cancel();
-            state.queue_cancel_token = CancellationToken::new();
             state.manual_cancel_token.cancel();
             state.manual_cancel_token = CancellationToken::new();
         }
@@ -300,18 +157,10 @@ impl CloudSyncTaskManager {
             let state = self.state.lock().await;
             let mut jobs: Vec<CloudSyncJobInfo> = Vec::new();
             jobs.extend(state.running_jobs.iter().cloned());
-            for q in &state.queue {
-                jobs.push(CloudSyncJobInfo {
-                    id: q.id,
-                    description: q.job.description(),
-                    status: CloudSyncJobStatus::Queued,
-                    error: None,
-                });
-            }
             for h in state.history.iter().rev() {
                 jobs.push(h.clone());
             }
-            let active = state.queue.len() + self.running_count.load(Ordering::Relaxed);
+            let active = self.running_count.load(Ordering::Relaxed);
             (active, jobs)
         };
 
@@ -327,23 +176,6 @@ impl CloudSyncTaskManager {
                 "Failed to emit cloud sync status: {err:?}"
             );
         }
-    }
-
-    fn emit_error(&self, game_name: Option<String>, error_message: String) {
-        self.emitter.emit_error(&CloudSyncError {
-            game_name,
-            error: error_message,
-        });
-    }
-
-    async fn mark_running(&self, id: u64, description: &str) {
-        let mut state = self.state.lock().await;
-        state.running_jobs.push(CloudSyncJobInfo {
-            id,
-            description: description.to_string(),
-            status: CloudSyncJobStatus::Running,
-            error: None,
-        });
     }
 
     async fn finish_job(
@@ -383,236 +215,12 @@ impl CloudSyncTaskManager {
             this.emit_full_status(None).await;
         });
     }
-
-    async fn run_worker(self: Arc<Self>) {
-        let max_concurrency = get_config()
-            .map(|c| c.settings.cloud_settings.max_concurrency.max(1))
-            .unwrap_or(1);
-        let semaphore = Arc::new(Semaphore::new(max_concurrency));
-
-        loop {
-            let (queued_job, cancel_token) = {
-                let mut state = self.state.lock().await;
-
-                while state.queue.is_empty() && !state.shutdown {
-                    drop(state);
-                    self.notify.notified().await;
-                    state = self.state.lock().await;
-                }
-
-                if state.shutdown {
-                    return;
-                }
-
-                let Some(queued_job) = state.queue.pop_front() else {
-                    continue;
-                };
-                self.running_count.fetch_add(1, Ordering::Release);
-                (queued_job, state.queue_cancel_token.child_token())
-            };
-
-            let permit = semaphore.clone().acquire_owned().await;
-            if permit.is_err() {
-                self.running_count.fetch_sub(1, Ordering::Release);
-                self.notify.notify_waiters();
-                return;
-            }
-            let permit = permit.unwrap();
-
-            let job_id = queued_job.id;
-            let job = queued_job.job;
-            let description = job.description();
-
-            self.mark_running(job_id, &description).await;
-            self.emit_full_status(Some(description.clone())).await;
-
-            info!(
-                target: "rgsm::cloud::task_manager",
-                "Start cloud sync job: {description}"
-            );
-
-            let me = Arc::clone(&self);
-            tokio::spawn(async move {
-                let result = execute_job_with_retry(&job, &cancel_token).await;
-
-                me.running_count.fetch_sub(1, Ordering::Relaxed);
-                drop(permit);
-                record_job_sync_state(&job, &result);
-
-                match &result {
-                    Ok(()) => {
-                        info!(
-                            target: "rgsm::cloud::task_manager",
-                            "Finished cloud sync job: {description}"
-                        );
-                        me.finish_job(job_id, &description, CloudSyncJobStatus::Completed, None)
-                            .await;
-                    }
-                    Err(CloudSyncExecuteError::Cancelled) => {
-                        info!(
-                            target: "rgsm::cloud::task_manager",
-                            "Cancelled cloud sync job: {description}"
-                        );
-                        me.finish_job(job_id, &description, CloudSyncJobStatus::Cancelled, None)
-                            .await;
-                    }
-                    Err(CloudSyncExecuteError::Backend(err)) => {
-                        let err_str = err.to_string();
-                        error!(
-                            target: "rgsm::cloud::task_manager",
-                            "Cloud sync job failed after retry: {description}: {err:?}"
-                        );
-                        me.finish_job(
-                            job_id,
-                            &description,
-                            CloudSyncJobStatus::Failed,
-                            Some(err_str.clone()),
-                        )
-                        .await;
-                        me.emit_error(job.game_name(), err_str);
-                    }
-                }
-
-                me.emit_full_status(None).await;
-                me.notify.notify_waiters();
-            });
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl SyncJobQueue for CloudSyncTaskManager {
-    async fn enqueue(&self, job: CloudSyncJob) {
-        CloudSyncTaskManager::enqueue(self, job).await;
-    }
 }
 
 impl Drop for CloudSyncTaskManager {
     fn drop(&mut self) {
-        let state = self.state.get_mut();
-        state.shutdown = true;
-        state.queue_cancel_token.cancel();
-        state.manual_cancel_token.cancel();
-        self.notify.notify_waiters();
+        self.state.get_mut().manual_cancel_token.cancel();
     }
-}
-
-fn record_job_sync_state(job: &CloudSyncJob, result: &Result<(), CloudSyncExecuteError>) {
-    let Ok(session) = session_from_backend(job.backend()) else {
-        return;
-    };
-
-    match job {
-        CloudSyncJob::UploadSnapshot {
-            game_name,
-            snapshots,
-            ..
-        }
-        | CloudSyncJob::UploadMetadata {
-            game_name,
-            snapshots,
-            ..
-        }
-        | CloudSyncJob::DeleteSnapshotAndUploadMetadata {
-            game_name,
-            snapshots,
-            ..
-        }
-        | CloudSyncJob::DeleteFilesAndUploadMetadata {
-            game_name,
-            snapshots,
-            ..
-        } => {
-            let state = build_state_for_result(snapshots.current_device_head_cloned(), result);
-            if let Err(CloudSyncExecuteError::Backend(err)) = result {
-                log_game_sync_failure(
-                    &session,
-                    game_name,
-                    "queued_game_upload",
-                    PendingAction::RetryRequired,
-                    &err.to_string(),
-                );
-            }
-            if let Err(err) = with_sync_state(|sync_state| {
-                update_game_sync_state(sync_state, &session, game_name, state);
-            }) {
-                warn!("Failed to record queue sync state for {game_name}: {err}");
-            }
-        }
-        CloudSyncJob::DeleteGameAndUploadConfig { game_name, .. } => {
-            let config_state = build_state_for_result(None, result);
-            if let Err(CloudSyncExecuteError::Backend(err)) = result {
-                log_game_sync_failure(
-                    &session,
-                    game_name,
-                    "queued_delete_game",
-                    PendingAction::RetryRequired,
-                    &err.to_string(),
-                );
-                log_config_sync_failure(
-                    &session,
-                    "queued_delete_game_config_upload",
-                    &err.to_string(),
-                );
-            }
-            if let Err(err) = with_sync_state(|sync_state| {
-                update_config_sync_state(sync_state, &session, config_state.clone());
-                if result.is_ok() {
-                    sync_state.games.remove(game_name);
-                }
-            }) {
-                warn!("Failed to record config sync state for deleted game {game_name}: {err}");
-            }
-        }
-        CloudSyncJob::UploadConfig { .. } => {
-            let config_state = build_state_for_result(None, result);
-            if let Err(CloudSyncExecuteError::Backend(err)) = result {
-                log_config_sync_failure(&session, "queued_config_upload", &err.to_string());
-            }
-            if let Err(err) = with_sync_state(|sync_state| {
-                update_config_sync_state(sync_state, &session, config_state);
-            }) {
-                warn!("Failed to record config upload state: {err}");
-            }
-        }
-    }
-}
-
-fn build_state_for_result(
-    head: Option<String>,
-    result: &Result<(), CloudSyncExecuteError>,
-) -> GameSyncState {
-    match result {
-        Ok(()) => {
-            build_game_sync_state(head.clone(), head, SyncResult::Success, PendingAction::None)
-        }
-        Err(CloudSyncExecuteError::Cancelled) => {
-            build_game_sync_state(head, None, SyncResult::Cancelled, PendingAction::None)
-        }
-        Err(CloudSyncExecuteError::Backend(err)) => build_game_sync_state(
-            head,
-            None,
-            SyncResult::Error(err.to_string()),
-            PendingAction::RetryRequired,
-        ),
-    }
-}
-
-enum CloudSyncExecuteError {
-    Cancelled,
-    Backend(BackendError),
-}
-
-async fn execute_job_with_retry(
-    _job: &CloudSyncJob,
-    token: &CancellationToken,
-) -> Result<(), CloudSyncExecuteError> {
-    if token.is_cancelled() {
-        return Err(CloudSyncExecuteError::Cancelled);
-    }
-    Err(CloudSyncExecuteError::Backend(
-        BackendError::LegacyCloudOperationUnavailable,
-    ))
 }
 
 #[cfg(test)]
