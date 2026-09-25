@@ -26,7 +26,7 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
         .load()
         .await?;
     if remote != expected_library {
-        let accepted_profile = expected_profile.for_shared_library(&remote);
+        let accepted_profile = expected_profile.for_updated_library(&expected_library, &remote);
         accept_remote_shared_library(
             &expected_library,
             &expected_profile,

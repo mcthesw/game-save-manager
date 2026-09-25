@@ -431,17 +431,13 @@ pub fn get_cloud_namespace_generation() -> Result<CloudNamespaceGeneration, Stri
 }
 
 pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::commands", "Deleting game: {:?}", game);
-    svc(&app_handle)
-        .delete_game(&game, HookSource::UserManual)
-        .await
-        .map_err(|e| {
-            error!(target:"rgsm::commands", "Failed to delete game: {:?}", e);
-            e.to_string()
-        })?;
-
-    info!(target:"rgsm::commands", "Successfully deleted game: {:?}", game);
-    Ok(())
+    crate::cloud_operation::run_after_cancelling(&app_handle, async {
+        svc(&app_handle)
+            .delete_game(&game, HookSource::UserManual)
+            .await
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String> {

@@ -86,7 +86,6 @@ pub struct GameDeletedCtx {
     pub config: Config,
     pub source: HookSource,
     pub game_name: String,
-    pub remote_game_dir_path: String,
 }
 
 #[allow(dead_code)]

@@ -467,9 +467,12 @@ export async function downloadAll(
 
 export async function permanentlyDeleteGame(page: Page): Promise<void> {
   await openSyncSettings(page);
-  await page.getByRole('button', { name: 'Permanently delete shared game' }).click();
-  await page.getByRole('button', { name: 'Delete Game permanently' }).click();
-  await expectActivity(page, /Shared Game permanently deleted/);
+  await page.getByRole('button', { name: 'Delete game', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Delete from cloud and all devices' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete from cloud and all devices' });
+  await dialog.getByRole('textbox').fill('yes');
+  await dialog.getByRole('button', { name: 'Delete from cloud and all devices' }).click();
+  await expectActivity(page, /Successfully deleted/);
 }
 
 export function libraryDevices(page: Page): Locator {

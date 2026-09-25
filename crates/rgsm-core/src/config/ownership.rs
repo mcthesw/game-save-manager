@@ -112,6 +112,20 @@ impl DeviceProfile {
         profile
     }
 
+    /// Keep explicit opt-outs for known Games, while retaining discovery defaults.
+    pub(crate) fn for_updated_library(
+        &self,
+        previous: &SharedLibrary,
+        accepted: &SharedLibrary,
+    ) -> Self {
+        let mut profile = self.for_shared_library(accepted);
+        profile.games.retain(|id, _| {
+            self.games.contains_key(id)
+                || !previous.games.iter().any(|game| game.storage_key == *id)
+        });
+        profile
+    }
+
     pub(crate) fn remove_game_state(&mut self, game_id: &str, game_name: &str) -> bool {
         let game_changed = self.games.remove(game_id).is_some();
         let quick_action_changed = self.quick_action.remove_game_reference(game_id, game_name);
