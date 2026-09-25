@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
 use crate::app_dirs::resolve_app_path;
-use crate::backup::{Game, GameSnapshots};
+use crate::backup::GameSnapshots;
 use crate::cloud_sync::v2::{
     AcceptRemoteProgressError, CLOUD_MANIFEST_PATH, CloudArchiveEvictionError,
     CloudArchiveMaterializer, CloudLibraryBootstrap, CloudLibraryBootstrapError,
@@ -22,40 +22,17 @@ use crate::cloud_sync::v2::{
 };
 use crate::cloud_sync::{
     BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
-    ConflictResolutionOutcome, SyncGameOutcome, download_all_from_session,
-    resolve_game_conflict as resolve_cloud_conflict, sync_config as sync_cloud_config,
-    sync_game as sync_cloud_game, upload_all_from_session,
+    ConflictResolutionOutcome, SyncGameOutcome, download_all_from_session, upload_all_from_session,
 };
 use crate::config::{
-    CloudNamespaceGeneration, Config, InitialCatchUpPolicy, SyncMode, activate_cloud_namespace_v2,
+    CloudNamespaceGeneration, InitialCatchUpPolicy, SyncMode, activate_cloud_namespace_v2,
     activate_cutover_cloud_library, activate_joined_cloud_library, cloud_bootstrap_inputs,
-    cloud_namespace_generation, get_config, replace_current_device_profile, resolve_backup_path,
+    get_config, replace_current_device_profile, resolve_backup_path,
 };
-use crate::hooks::{HookSource, MetadataChangedCtx};
+use crate::hooks::HookSource;
 use crate::preclude::BackendError;
 
 use super::{ServiceContext, cloud_library_target::bound_v2_operator};
-
-fn cloud_session(config: &Config) -> CloudSyncSessionConfig {
-    CloudSyncSessionConfig::from(&config.settings.cloud_settings)
-}
-
-fn find_game(config: &Config, game_name: &str) -> Result<Game, BackendError> {
-    config
-        .games
-        .iter()
-        .find(|game| game.name == game_name)
-        .cloned()
-        .ok_or_else(|| BackendError::GameNotFound(game_name.to_string()))
-}
-
-fn ensure_legacy_cloud_sync() -> Result<(), BackendError> {
-    if cloud_namespace_generation()? == CloudNamespaceGeneration::V2 {
-        Err(BackendError::V2CloudLibraryActive)
-    } else {
-        Ok(())
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -202,7 +179,6 @@ impl ServiceContext {
         session: &CloudSyncSessionConfig,
         token: Option<CancellationToken>,
     ) -> Result<BatchSyncReport, BackendError> {
-        ensure_legacy_cloud_sync()?;
         upload_all_from_session(session, token).await
     }
 
@@ -211,52 +187,23 @@ impl ServiceContext {
         session: &CloudSyncSessionConfig,
         token: Option<CancellationToken>,
     ) -> Result<BatchSyncReport, BackendError> {
-        ensure_legacy_cloud_sync()?;
         download_all_from_session(session, token).await
     }
 
-    pub async fn sync_game(&self, game_name: &str) -> Result<SyncGameOutcome, BackendError> {
-        ensure_legacy_cloud_sync()?;
-        let config = get_config()?;
-        let session = cloud_session(&config);
-        let op = session.get_op()?;
-        let game = find_game(&config, game_name)?;
-        sync_cloud_game(&session, &op, &game).await
+    pub async fn sync_game(&self, _game_name: &str) -> Result<SyncGameOutcome, BackendError> {
+        Err(BackendError::LegacyCloudOperationUnavailable)
     }
 
     pub async fn resolve_game_conflict(
         &self,
-        game_name: &str,
-        resolution: ConflictResolution,
+        _game_name: &str,
+        _resolution: ConflictResolution,
     ) -> Result<ConflictResolutionOutcome, BackendError> {
-        ensure_legacy_cloud_sync()?;
-        let config = get_config()?;
-        let session = cloud_session(&config);
-        let op = session.get_op()?;
-        let game = find_game(&config, game_name)?;
-        let outcome = resolve_cloud_conflict(&session, &op, &game, resolution).await?;
-
-        if outcome == ConflictResolutionOutcome::AcceptedRemote {
-            let snapshots = game.get_game_snapshots_info()?;
-            self.pipeline()
-                .fire_metadata_changed(&MetadataChangedCtx {
-                    config,
-                    source: HookSource::CloudSync,
-                    game,
-                    snapshots,
-                })
-                .await;
-        }
-
-        Ok(outcome)
+        Err(BackendError::LegacyCloudOperationUnavailable)
     }
 
     pub async fn sync_config(&self) -> Result<(), BackendError> {
-        ensure_legacy_cloud_sync()?;
-        let config = get_config()?;
-        let session = cloud_session(&config);
-        let op = session.get_op()?;
-        sync_cloud_config(&session, &op, &config).await
+        Err(BackendError::LegacyCloudOperationUnavailable)
     }
 
     pub async fn inspect_cloud_library(

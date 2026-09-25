@@ -369,6 +369,23 @@ impl CloudSyncSessionConfig {
             }
         };
 
+        use super::v2::{CloudLibraryBootstrap, CloudNamespaceClassification};
+        let inspection = CloudLibraryBootstrap::new(op.clone(), 3).inspect().await;
+        let error = match inspection {
+            Ok(CloudNamespaceClassification::V1Only { .. }) => {
+                Some(BackendError::LegacyCloudOperationUnavailable.to_string())
+            }
+            Ok(_) => None,
+            Err(error) => Some(error.to_string()),
+        };
+        if let Some(error) = error {
+            items.push(CloudBackendCheckItem::failed(
+                CloudBackendCheckStep::ListFiles,
+                error,
+            ));
+            return CloudBackendCheckReport::from_items(items);
+        }
+
         match op.list(".").await {
             Ok(_) => items.push(CloudBackendCheckItem::passed(
                 CloudBackendCheckStep::ListFiles,
@@ -644,6 +661,31 @@ mod tests {
 
         assert_eq!(report.outcome, CloudBackendCheckOutcome::Available);
         assert!(std::fs::read_dir(root.path()).unwrap().next().is_none());
+    }
+
+    #[tokio::test]
+    async fn legacy_cloud_health_check_requires_migration() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let config = serde_json::to_vec(&crate::config::Config::default()).unwrap();
+        std::fs::write(root.path().join("GameSaveManager.config.json"), &config).unwrap();
+        let session = CloudSyncSessionConfig {
+            root_path: root.path().to_string_lossy().into_owned(),
+            max_concurrency: 1,
+            backend: Backend::Fs,
+        };
+        let report = session.check_report().await;
+        assert!(report.blocking_error_message().is_some());
+        assert!(
+            !report
+                .items
+                .iter()
+                .any(|item| item.step == CloudBackendCheckStep::WriteFile)
+        );
+        assert_eq!(
+            std::fs::read(root.path().join("GameSaveManager.config.json")).unwrap(),
+            config
+        );
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
     }
 
     #[test]

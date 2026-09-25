@@ -219,6 +219,27 @@ fn cutover_retains_local_games_omitted_from_the_remote_library() {
 }
 
 #[test]
+fn cutover_keeps_cloud_history_without_managing_remote_only_games() {
+    let (_root, store, before) = fixture();
+    let remote = remote_library(&before);
+    let profile = &before.device_profiles["pc"];
+    let profiles = HashMap::from([("pc".into(), profile.for_shared_library(&remote))]);
+    store
+        .activate_cutover_v2(
+            &before.shared_library,
+            profile,
+            &remote,
+            &profiles,
+            "library-a",
+        )
+        .unwrap();
+    let after = store.load().unwrap();
+    assert_eq!(after.shared_library, remote);
+    assert!(!after.device_profiles["pc"].games.contains_key("cloud-game"));
+    assert!(after.device_profiles["pc"].games.contains_key("local-game"));
+}
+
+#[test]
 fn local_profile_projection_and_explicit_deletion_keep_the_boundary() {
     let (_root, store, before) = fixture();
     let remote = remote_library(&before);

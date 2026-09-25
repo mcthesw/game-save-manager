@@ -1133,6 +1133,7 @@
         "active_count": "{count} 个进行中"
     },
     "error": {
+        "legacy_cloud_operation_unavailable": "旧版云库操作已停用，请前往云同步页面升级或加入当前云库。",
         "open_url_failed": "无法打开链接",
         "open_path_failed": "无法打开路径",
         "config_load_failed": "配置文件加载失败，可能是因为配置文件损坏或者不存在",

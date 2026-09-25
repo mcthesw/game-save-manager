@@ -232,7 +232,7 @@ impl OwnerStore {
             return Err(OwnerStoreError::CutoverInputsChanged);
         }
 
-        let accepted_current_profile = current_profile.for_shared_library(accepted_library);
+        let accepted_current_profile = current_profile.for_managed_games_in(accepted_library);
         let mut profiles = accepted_profiles.clone();
         profiles.insert(current_device_id, accepted_current_profile);
         owners.accept_library(accepted_library, &profiles);

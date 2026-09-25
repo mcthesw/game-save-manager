@@ -105,6 +105,13 @@ pub struct DeviceProfile {
 }
 
 impl DeviceProfile {
+    /// Project existing management settings without enrolling newly discovered Games.
+    pub(crate) fn for_managed_games_in(&self, library: &SharedLibrary) -> Self {
+        let mut profile = self.for_shared_library(library);
+        profile.games.retain(|id, _| self.games.contains_key(id));
+        profile
+    }
+
     pub(crate) fn remove_game_state(&mut self, game_id: &str, game_name: &str) -> bool {
         let game_changed = self.games.remove(game_id).is_some();
         let quick_action_changed = self.quick_action.remove_game_reference(game_id, game_name);

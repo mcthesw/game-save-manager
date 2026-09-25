@@ -157,7 +157,7 @@ impl CloudLibraryCutover {
         owners.device_profiles.insert(
             self.current_device_id.clone(),
             self.current_device_profile
-                .for_shared_library(&owners.shared_library),
+                .for_managed_games_in(&owners.shared_library),
         );
         owners.validate()?;
         let mut games = Vec::with_capacity(config.games.len());
@@ -455,7 +455,7 @@ impl CloudLibraryCutover {
         plan.device_profiles.insert(
             self.current_device_id.clone(),
             self.current_device_profile
-                .for_shared_library(&plan.shared_library),
+                .for_managed_games_in(&plan.shared_library),
         );
         Ok(Some(plan))
     }
@@ -688,6 +688,15 @@ mod tests {
         let runner = cutover(op.clone(), root.path());
         let result = runner.execute().await.unwrap();
         assert_eq!(result.snapshot_count, 2);
+        assert!(result.device_profiles["current-device"].games.is_empty());
+        let published: DeviceProfile = serde_json::from_slice(
+            &op.read(&device_profile_path("current-device"))
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(published.games.is_empty());
         assert_eq!(result.unavailable_archives, 1);
         assert_eq!(
             result.device_profiles["current-device"]
