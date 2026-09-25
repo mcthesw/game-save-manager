@@ -1133,6 +1133,7 @@
         "active_count": "{count} active"
     },
     "error": {
+        "legacy_cloud_operation_unavailable": "Legacy cloud operations are unavailable. Open Cloud Sync to upgrade or join the current cloud library.",
         "open_url_failed": "Unable to open url",
         "open_path_failed": "Unable to open path",
         "update_device_failed": "Failed to update device information",

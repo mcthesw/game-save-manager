@@ -47,8 +47,8 @@ pub enum BackendError {
     GameNotFound(String),
     #[error("No unresolved cloud sync conflict for game: {0}")]
     InvalidConflictState(String),
-    #[error("Legacy cloud synchronization is unavailable after V2 Cloud Library activation")]
-    V2CloudLibraryActive,
+    #[error("{}", rust_i18n::t!("error.legacy_cloud_operation_unavailable"))]
+    LegacyCloudOperationUnavailable,
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
     #[error("Opendal error: {0:#?}")]

@@ -1,15 +1,14 @@
 use std::collections::VecDeque;
-use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
 use std::time::Duration;
 
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tokio::sync::{Mutex, Notify, Semaphore};
-use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
 use super::state_recording::{log_config_sync_failure, log_game_sync_failure};
@@ -18,8 +17,7 @@ use super::sync_state::{
     update_game_sync_state, with_sync_state,
 };
 use crate::backup::GameSnapshots;
-use crate::cloud_sync::transfer::CloudTransfer;
-use crate::cloud_sync::{Backend, session_from_backend, upload_config, upload_game_snapshots};
+use crate::cloud_sync::{Backend, session_from_backend};
 use crate::config::get_config;
 use crate::hooks::SyncJobQueue;
 use crate::preclude::*;
@@ -32,7 +30,6 @@ pub trait SyncEventEmitter: Send + Sync {
     fn emit_error(&self, error: &CloudSyncError);
 }
 
-const TASK_LEVEL_MAX_RETRIES: u8 = 2;
 const MAX_HISTORY_SIZE: usize = 20;
 
 #[derive(Debug, Clone)]
@@ -606,151 +603,16 @@ enum CloudSyncExecuteError {
     Backend(BackendError),
 }
 
-async fn run_cancellable<T, F>(
-    token: &CancellationToken,
-    future: F,
-) -> Result<T, CloudSyncExecuteError>
-where
-    F: Future<Output = Result<T, BackendError>>,
-{
-    tokio::select! {
-        _ = token.cancelled() => Err(CloudSyncExecuteError::Cancelled),
-        res = future => res.map_err(CloudSyncExecuteError::Backend),
-    }
-}
-
 async fn execute_job_with_retry(
-    job: &CloudSyncJob,
+    _job: &CloudSyncJob,
     token: &CancellationToken,
 ) -> Result<(), CloudSyncExecuteError> {
-    let mut attempt: u8 = 0;
-
-    loop {
-        if token.is_cancelled() {
-            return Err(CloudSyncExecuteError::Cancelled);
-        }
-
-        match execute_job_once(job, token).await {
-            Ok(()) => return Ok(()),
-            Err(CloudSyncExecuteError::Cancelled) => return Err(CloudSyncExecuteError::Cancelled),
-            Err(CloudSyncExecuteError::Backend(err)) => {
-                if attempt >= TASK_LEVEL_MAX_RETRIES {
-                    return Err(CloudSyncExecuteError::Backend(err));
-                }
-
-                let wait_duration = if attempt == 0 {
-                    Duration::from_secs(1)
-                } else {
-                    Duration::from_secs(3)
-                };
-
-                warn!(
-                    target: "rgsm::cloud::task_manager",
-                    "Cloud sync attempt {} failed, retrying in {:?}: {err:?}",
-                    attempt + 1,
-                    wait_duration
-                );
-
-                tokio::select! {
-                    _ = token.cancelled() => return Err(CloudSyncExecuteError::Cancelled),
-                    _ = sleep(wait_duration) => {}
-                }
-
-                attempt += 1;
-            }
-        }
+    if token.is_cancelled() {
+        return Err(CloudSyncExecuteError::Cancelled);
     }
-}
-
-async fn execute_job_once(
-    job: &CloudSyncJob,
-    token: &CancellationToken,
-) -> Result<(), CloudSyncExecuteError> {
-    match job {
-        CloudSyncJob::UploadSnapshot {
-            backend,
-            snapshots,
-            storage_key,
-            local_archive_path,
-            remote_archive_path,
-            ..
-        } => {
-            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
-            let transfer = CloudTransfer::new(&op);
-            run_cancellable(
-                token,
-                transfer.upload_file_streaming(local_archive_path, remote_archive_path),
-            )
-            .await?;
-            Ok(())
-        }
-        CloudSyncJob::UploadMetadata {
-            backend,
-            snapshots,
-            storage_key,
-            ..
-        } => {
-            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
-            Ok(())
-        }
-        CloudSyncJob::DeleteSnapshotAndUploadMetadata {
-            backend,
-            snapshots,
-            storage_key,
-            remote_archive_path,
-            ..
-        } => {
-            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, async {
-                op.delete(remote_archive_path)
-                    .await
-                    .map_err(BackendError::from)
-            })
-            .await?;
-            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
-            Ok(())
-        }
-        CloudSyncJob::DeleteFilesAndUploadMetadata {
-            backend,
-            snapshots,
-            storage_key,
-            remote_archive_paths,
-            ..
-        } => {
-            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            for remote_path in remote_archive_paths {
-                run_cancellable(token, async {
-                    op.delete(remote_path).await.map_err(BackendError::from)
-                })
-                .await?;
-            }
-            run_cancellable(token, upload_game_snapshots(&op, storage_key, snapshots)).await?;
-            Ok(())
-        }
-        CloudSyncJob::DeleteGameAndUploadConfig {
-            backend,
-            remote_game_dir_path,
-            ..
-        } => {
-            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, async {
-                op.delete_with(remote_game_dir_path)
-                    .recursive(true)
-                    .await
-                    .map_err(BackendError::from)
-            })
-            .await?;
-            run_cancellable(token, upload_config(&op)).await?;
-            Ok(())
-        }
-        CloudSyncJob::UploadConfig { backend, .. } => {
-            let op = backend.get_op().map_err(CloudSyncExecuteError::Backend)?;
-            run_cancellable(token, upload_config(&op)).await?;
-            Ok(())
-        }
-    }
+    Err(CloudSyncExecuteError::Backend(
+        BackendError::LegacyCloudOperationUnavailable,
+    ))
 }
 
 #[cfg(test)]
