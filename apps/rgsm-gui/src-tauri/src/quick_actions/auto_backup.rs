@@ -77,8 +77,9 @@ async fn cleanup_old_auto_backups(
     config: rgsm_core::config::Config,
     trigger: QuickActionType,
 ) {
-    let effective_max = retention
-        .and_then(|retention| retention.max_backup_count)
+    let effective_max = game
+        .auto_backup_limit
+        .or_else(|| retention.and_then(|retention| retention.max_backup_count))
         .unwrap_or(config.settings.max_auto_backup_count);
 
     if effective_max == 0 {

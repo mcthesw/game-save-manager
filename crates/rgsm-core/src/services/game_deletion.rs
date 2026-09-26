@@ -326,6 +326,7 @@ mod tests {
                     next_save_unit_id: 0,
                     cloud_sync_enabled: true,
                     auto_backup: None,
+                    auto_backup_limit: None,
                     ludusavi_meta: None,
                     device_bindings: Default::default(),
                 }],

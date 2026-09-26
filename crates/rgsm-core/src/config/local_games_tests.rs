@@ -20,6 +20,7 @@ fn fixture() -> (temp_dir::TempDir, OwnerStore, ConfigurationOwners) {
             game_paths: HashMap::from([("pc".into(), "D:/Games/game.exe".into())]),
             cloud_sync_enabled: false,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: HashMap::new(),
         }],

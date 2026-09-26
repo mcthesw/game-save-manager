@@ -121,6 +121,8 @@ for (const editor of ['managed files', 'auto-save settings'] as const) {
         await path.fill(changedPath);
       } else {
         await timer.click();
+        await drawer.getByRole('combobox', { name: 'Automatic backups on this device' }).click();
+        await page.getByRole('option', { name: 'Set for this game', exact: true }).click();
         await drawer.getByRole('spinbutton', { name: 'Max auto backups' }).fill('7');
       }
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -143,7 +145,8 @@ for (const editor of ['managed files', 'auto-save settings'] as const) {
         await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
         await expect
           .poll(async () => (await getLocalGame(host, GAME_NAME)).auto_backup)
-          .toEqual({ interval_secs: 300, max_backup_count: 7 });
+          .toEqual({ interval_secs: 300 });
+        expect((await getLocalGame(host, GAME_NAME)).auto_backup_limit).toBe(7);
       }
     } catch (error) {
       failed = true;
@@ -431,6 +434,88 @@ test('game order remains a draft while refreshing current game definitions', asy
     await save.click();
     await expect(save).toBeDisabled();
     expect(await savedNames()).toEqual(['Second game', GAME_NAME, 'Added while editing']);
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    await session.close(failed);
+  }
+});
+
+test('retention remains independent of the timer and retries only the failed shared save', async ({
+  browser,
+}) => {
+  const runRoot = await createRunRoot('retention-save');
+  const seeded = await seedEmptyCloudWithLocalGame(runRoot);
+  const session = await startDualSession(browser, { ...seeded, runRoot, label: 'retention-save' });
+  const { pageA: page, hostA: host } = session;
+  let failed = false;
+  try {
+    await createLibrary(page);
+    const game = await getLocalGame(host, GAME_NAME);
+    await hostPost(host, '/api/v1/set-shared-snapshot-retention', {
+      gameId: game.storage_key,
+      limit: 10,
+      confirmed: true,
+    });
+    await page.reload();
+    await openGame(page);
+    // Drop only the remote view; device status still comes from the local owner store.
+    await page.evaluate(async () => {
+      const modulePath = '/src/composables/useCloudLibrary.ts';
+      (await import(modulePath)).clearCloudLibrary();
+    });
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
+    const drawer = page.getByRole('dialog');
+    await expect(
+      drawer.getByRole('heading', { name: 'Automatic snapshots in shared history' })
+    ).toBeVisible();
+    await drawer.getByRole('combobox', { name: 'Automatic backups on this device' }).click();
+    await page.getByRole('option', { name: 'Set for this game', exact: true }).click();
+    await drawer.getByRole('spinbutton', { name: 'Max auto backups' }).fill('7');
+    const sharedSwitch = drawer
+      .getByRole('heading', { name: 'Automatic snapshots in shared history' })
+      .locator('xpath=..')
+      .locator('xpath=..')
+      .getByRole('switch');
+    await sharedSwitch.click();
+    let localWrites = 0;
+    let sharedWrites = 0;
+    page.on('request', (request) => {
+      if (request.url().endsWith('/set-game-auto-save-settings')) localWrites++;
+    });
+    await page.route('**/api/v1/set-shared-snapshot-retention', (route) => {
+      sharedWrites++;
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Test cloud unavailable' }),
+      });
+    });
+    await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
+    await expect.poll(() => sharedWrites).toBe(1);
+    await expect.poll(async () => (await getLocalGame(host, GAME_NAME)).auto_backup_limit).toBe(7);
+    expect((await getLocalGame(host, GAME_NAME)).auto_backup ?? null).toBeNull();
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole('button', { name: 'Save settings', exact: true })).toBeEnabled();
+    await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
+    await expect.poll(() => sharedWrites).toBe(2);
+    expect(localWrites).toBe(1);
+    await page.unroute('**/api/v1/set-shared-snapshot-retention');
+    await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
+    await expect(drawer).not.toBeVisible();
+    expect(localWrites).toBe(1);
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
+    await expect(drawer.getByRole('spinbutton', { name: 'Max auto backups' })).toHaveValue('7');
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await expect(page.getByText('Auto-save settings saved', { exact: true })).not.toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath('automatic-backup-settings.png'),
+      fullPage: true,
+      animations: 'disabled',
+    });
   } catch (error) {
     failed = true;
     throw error;

@@ -13,6 +13,7 @@ use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::boun
 pub struct DeviceGameStatus {
     pub game_id: String,
     pub shared: bool,
+    pub retention_limit: Option<u32>,
     pub managed: bool,
     pub visible: bool,
 }
@@ -46,6 +47,7 @@ impl ServiceContext {
                 .map(|game| DeviceGameStatus {
                     game_id: game.storage_key,
                     shared: false,
+                    retention_limit: None,
                     managed: true,
                     visible: true,
                 })
@@ -64,6 +66,9 @@ impl ServiceContext {
                 let settings = profile.games.get(&game.storage_key);
                 DeviceGameStatus {
                     shared: !local_ids.contains(&game.storage_key),
+                    retention_limit: game
+                        .snapshot_retention
+                        .map(|policy| policy.automatic_snapshots_per_branch),
                     game_id: game.storage_key,
                     managed: settings.is_some(),
                     visible: settings.is_some_and(|settings| settings.visible),
@@ -94,6 +99,11 @@ impl ServiceContext {
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
             shared: true,
+            retention_limit: self
+                .current_device_game_statuses()?
+                .into_iter()
+                .find(|game| game.game_id == game_id)
+                .and_then(|game| game.retention_limit),
             managed: true,
             visible,
         })
@@ -144,6 +154,11 @@ impl ServiceContext {
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
             shared: true,
+            retention_limit: self
+                .current_device_game_statuses()?
+                .into_iter()
+                .find(|game| game.game_id == game_id)
+                .and_then(|game| game.retention_limit),
             managed,
             visible: managed,
         })

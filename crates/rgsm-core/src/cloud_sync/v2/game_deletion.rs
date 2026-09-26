@@ -297,6 +297,7 @@ mod tests {
             game_path: Some("/games/example".into()),
             binding: None,
             auto_backup: None,
+            auto_backup_limit: None,
             save_units: Default::default(),
         }
     }

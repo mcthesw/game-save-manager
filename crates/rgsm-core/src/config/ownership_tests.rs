@@ -45,6 +45,7 @@ fn dual_device_config() -> (Config, DeviceId, DeviceId) {
         next_save_unit_id: 8,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: HashMap::new(),
     };
@@ -307,4 +308,56 @@ fn validation_rejects_unsupported_owner_schema() {
         result,
         Err(OwnershipError::UnsupportedSchema { found: 99, .. })
     ));
+}
+#[test]
+fn device_retention_survives_disabling_timer() {
+    let mut profile: DeviceGameProfile = serde_json::from_value(serde_json::json!({
+        "visible": true, "sync_mode": "manual", "game_path": null, "binding": null,
+        "auto_backup": { "interval_secs": 300, "max_backup_count": 12 }, "save_units": {}
+    }))
+    .unwrap();
+    profile.auto_backup = None;
+    let saved = serde_json::to_value(&profile).unwrap();
+    assert_eq!(saved["auto_backup_limit"], 12);
+}
+
+#[test]
+fn explicit_unlimited_retention_overrides_legacy_timer_limit() {
+    let profile: DeviceGameProfile = serde_json::from_value(serde_json::json!({
+        "visible": true, "sync_mode": "manual", "game_path": null, "binding": null,
+        "auto_backup_limit": 0,
+        "auto_backup": { "interval_secs": 300, "max_backup_count": 12 }, "save_units": {}
+    }))
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(profile).unwrap()["auto_backup_limit"],
+        0
+    );
+}
+#[test]
+fn retention_is_device_owned_and_can_return_to_global_inheritance() {
+    let (mut config, device_id, _) = dual_device_config();
+    config.games[0].auto_backup_limit = Some(7);
+    let mut owners = ConfigurationOwners::from_legacy(&config, &device_id);
+    assert_eq!(
+        owners.assemble_effective().unwrap().games[0].auto_backup_limit,
+        Some(7)
+    );
+    assert!(
+        serde_json::to_value(&owners.shared_library).unwrap()["games"][0]
+            .get("auto_backup_limit")
+            .is_none()
+    );
+    owners
+        .device_profiles
+        .get_mut(&device_id)
+        .unwrap()
+        .games
+        .get_mut("example-game")
+        .unwrap()
+        .auto_backup_limit = None;
+    assert_eq!(
+        owners.assemble_effective().unwrap().games[0].auto_backup_limit,
+        None
+    );
 }

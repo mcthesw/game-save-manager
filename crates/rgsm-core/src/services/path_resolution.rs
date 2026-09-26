@@ -95,6 +95,7 @@ impl ServiceContext {
             next_save_unit_id: 0,
             cloud_sync_enabled: false,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: Some(crate::backup::LudusaviMeta {
                 install_dirs: install_dirs.to_vec(),
                 store_game_ids: steam_id

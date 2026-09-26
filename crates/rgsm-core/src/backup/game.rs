@@ -91,6 +91,9 @@ pub struct Game {
     /// Per-game auto-backup configuration. `None` = disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_backup: Option<AutoBackupConfig>,
+    /// Device-owned automatic retention. None inherits the global limit; zero is unlimited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_backup_limit: Option<u32>,
     /// Metadata from Ludusavi manifest import. `None` for manually added games.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ludusavi_meta: Option<LudusaviMeta>,
@@ -261,6 +264,7 @@ impl GameDraft {
             next_save_unit_id,
             cloud_sync_enabled: existing.map(|game| game.cloud_sync_enabled).unwrap_or(true),
             auto_backup: existing.and_then(|game| game.auto_backup.clone()),
+            auto_backup_limit: existing.and_then(|game| game.auto_backup_limit),
             ludusavi_meta: self
                 .ludusavi_meta
                 .or_else(|| existing.and_then(|g| g.ludusavi_meta.clone())),

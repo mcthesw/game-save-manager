@@ -481,10 +481,13 @@ export const commands = {
   async setGameAutoSaveSettings(
     storageKey: types.SetGameAutoSaveSettingsRequest['storageKey'],
     autoBackup: types.SetGameAutoSaveSettingsRequest['autoBackup'],
-    automation: types.SetGameAutoSaveSettingsRequest['automation']
+    automation: types.SetGameAutoSaveSettingsRequest['automation'],
+    autoBackupLimit: number | null = autoBackup?.max_backup_count ?? null
   ) {
     return unwrap<types.SetGameAutoSaveSettingsResponses[200]>(
-      await sdk.setGameAutoSaveSettings({ body: { storageKey, autoBackup, automation } })
+      await sdk.setGameAutoSaveSettings({
+        body: { storageKey, autoBackup, automation, autoBackupLimit },
+      })
     );
   },
   async setSnapshotCreatedBy(

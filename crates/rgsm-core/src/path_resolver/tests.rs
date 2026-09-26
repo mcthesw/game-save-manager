@@ -277,6 +277,7 @@ fn test_path_context_from_game_includes_device_game_roots() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -310,6 +311,7 @@ fn test_path_context_from_game_without_device() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -360,6 +362,7 @@ fn test_path_context_includes_store_user_id_from_game() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings,
     };
@@ -402,6 +405,7 @@ fn test_path_context_no_store_user_id_for_unknown_device() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings,
     };
