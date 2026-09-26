@@ -5,11 +5,17 @@ const props = withDefaults(defineProps<{ noticeOnly?: boolean }>(), { noticeOnly
 const {
   update,
   checking,
+  busy,
+  ready,
   status,
+  state,
+  progressPercent,
   showBanner,
   checkForUpdates,
+  applyUpdate,
   openRelease,
   manualDownload,
+  cancelInstall,
   dismiss,
 } = useAppUpdates();
 </script>
@@ -31,6 +37,19 @@ const {
       <span v-else-if="status === 'install-error'" class="block text-xs text-text-dim">{{
         $t('updates.update_failed')
       }}</span>
+      <span v-else-if="state?.stage === 'waiting'" class="block text-xs text-text-dim">{{
+        $t('updates.waiting')
+      }}</span>
+      <span v-else-if="state?.stage === 'installing'" class="block text-xs text-text-dim">{{
+        $t('updates.installing')
+      }}</span>
+      <span v-else-if="ready" class="block text-xs text-text-dim">{{
+        $t('updates.ready', { version: update?.latestVersion })
+      }}</span>
+      <span v-else-if="state?.stage === 'downloading'" class="block text-xs text-text-dim">
+        {{ $t('updates.downloading')
+        }}<span v-if="progressPercent !== null"> {{ progressPercent }}%</span>
+      </span>
       <span v-else-if="update?.available" class="block text-xs text-text-dim">{{
         $t('updates.available', { version: update.latestVersion })
       }}</span>
@@ -39,21 +58,38 @@ const {
       }}</span>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <KButton v-if="!props.noticeOnly" size="sm" :loading="checking" @click="checkForUpdates()">{{
-        $t('updates.check')
-      }}</KButton>
+      <KButton
+        v-if="!props.noticeOnly && !ready"
+        size="sm"
+        :loading="checking"
+        :disabled="busy"
+        @click="checkForUpdates()"
+        >{{ $t('updates.check') }}</KButton
+      >
       <KButton
         v-if="update?.available"
         :variant="props.noticeOnly ? 'default' : 'primary'"
         size="sm"
+        :loading="busy"
         :disabled="checking"
-        @click="manualDownload"
-        >{{ $t('updates.download') }}</KButton
+        @click="applyUpdate"
       >
-      <KButton v-if="update?.available" variant="ghost" size="sm" @click="openRelease">{{
+        {{ ready ? $t('updates.install') : $t('updates.download') }}
+      </KButton>
+      <KButton v-if="state?.stage === 'waiting'" variant="ghost" size="sm" @click="cancelInstall">{{
+        $t('updates.cancel_wait')
+      }}</KButton>
+      <KButton v-if="update?.available && !busy" variant="ghost" size="sm" @click="openRelease">{{
         $t('updates.release_notes')
       }}</KButton>
-      <KButton v-if="props.noticeOnly" variant="ghost" size="sm" @click="dismiss">{{
+      <KButton
+        v-if="status === 'install-error' && update?.action === 'install'"
+        variant="ghost"
+        size="sm"
+        @click="manualDownload"
+        >{{ $t('updates.manual_download') }}</KButton
+      >
+      <KButton v-if="props.noticeOnly && !busy" variant="ghost" size="sm" @click="dismiss">{{
         $t('updates.later')
       }}</KButton>
     </div>

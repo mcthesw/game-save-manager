@@ -78,6 +78,24 @@ export const commands = {
   async checkAppUpdate() {
     return unwrapDirect<types.CheckAppUpdateResponses[200]>(await sdk.checkAppUpdate());
   },
+  async getAppUpdateState() {
+    return unwrapDirect<types.GetAppUpdateStateResponses[200]>(await sdk.getAppUpdateState());
+  },
+  async downloadAppUpdate(expectedVersion: string) {
+    return unwrapDirect<types.DownloadAppUpdateResponses[200]>(
+      await sdk.downloadAppUpdate({ body: { expectedVersion } })
+    );
+  },
+  async cancelAppUpdateInstall() {
+    return unwrapDirect<types.CancelAppUpdateInstallResponses[200]>(
+      await sdk.cancelAppUpdateInstall()
+    );
+  },
+  async installAppUpdate(expectedVersion: string) {
+    return unwrapDirect<types.InstallAppUpdateResponses[200]>(
+      await sdk.installAppUpdate({ body: { expectedVersion } })
+    );
+  },
   async openFileOrFolder(path: types.OpenFileOrFolderRequest['path']) {
     return unwrap<types.OpenFileOrFolderResponses[200]>(
       await sdk.openFileOrFolder({ body: { path } })

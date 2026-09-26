@@ -30,7 +30,7 @@ import { mapLegacyHomePage, resolveStartupDestination } from './utils/appRoutes'
 import { error as logError } from './utils/logger';
 
 const { config, refreshConfig, saveConfig } = useConfig();
-const { checkForUpdates } = useAppUpdates();
+const { checkForUpdates, initializeUpdates } = useAppUpdates();
 useCloudLibraryRefresh();
 const route = useRoute();
 useDark();
@@ -171,6 +171,7 @@ async function initializeApp() {
       i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
     }
     applyUiFont(uiFontStack.value);
+    void initializeUpdates();
     if (config.value.settings.auto_check_for_updates) void checkForUpdates(false);
 
     const configuredHome = config.value.settings.home_page;

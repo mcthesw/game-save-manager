@@ -15,6 +15,13 @@ pub fn setup(app: AppHandle, state: CloudOperationState) {
 
 async fn run(app: AppHandle, state: CloudOperationState) {
     let cancellation = CancellationToken::new();
+    let operations = app
+        .state::<crate::app_operations::AppOperations>()
+        .inner()
+        .clone();
+    let Some(startup) = operations.begin() else {
+        return;
+    };
     state
         .run(async {
             match rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
@@ -32,6 +39,7 @@ async fn run(app: AppHandle, state: CloudOperationState) {
         })
         .await;
 
+    drop(startup);
     let mut last_run = Instant::now();
     let mut control_tick = tokio::time::interval(CONTROL_POLL_INTERVAL);
     control_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -56,6 +64,9 @@ async fn run(app: AppHandle, state: CloudOperationState) {
         if last_run.elapsed() < poll_interval {
             continue;
         }
+        let Some(_operation) = operations.begin() else {
+            continue;
+        };
         state
             .run(async {
                 run_reconciliation(&app, &cancellation).await;

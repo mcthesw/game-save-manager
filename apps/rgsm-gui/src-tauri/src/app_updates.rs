@@ -1,5 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
+mod runtime;
+pub use runtime::{InstallState, UpdateProgress, cancel_install, download, install, snapshot};
+
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -14,6 +17,7 @@ const MANIFEST_URL: &str =
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum UpdateAction {
+    Install,
     Download,
 }
 
@@ -45,8 +49,8 @@ fn package_target(
         return ("windows-x86_64-portable-slim", UpdateAction::Download);
     }
     match (bundle, arch) {
-        (Some(BundleType::Nsis), "x86_64") => ("windows-x86_64-nsis", UpdateAction::Download),
-        (Some(BundleType::Msi), "x86_64") => ("windows-x86_64-msi", UpdateAction::Download),
+        (Some(BundleType::Nsis), "x86_64") => ("windows-x86_64-nsis", UpdateAction::Install),
+        (Some(BundleType::Msi), "x86_64") => ("windows-x86_64-msi", UpdateAction::Install),
         (Some(BundleType::AppImage), "x86_64") => ("linux-x86_64-appimage", UpdateAction::Download),
         (Some(BundleType::Deb), "x86_64") => ("linux-x86_64-deb", UpdateAction::Download),
         (Some(BundleType::Rpm), "x86_64") => ("linux-x86_64-rpm", UpdateAction::Download),
