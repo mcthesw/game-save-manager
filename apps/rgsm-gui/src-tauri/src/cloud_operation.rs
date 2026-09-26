@@ -76,10 +76,6 @@ impl CloudOperationState {
             _ = operation(cancellation.clone()) => {},
         }
     }
-
-    pub fn lock_handle(&self) -> Arc<Mutex<()>> {
-        Arc::clone(&self.operation_lock)
-    }
 }
 
 #[cfg(test)]

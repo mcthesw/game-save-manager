@@ -1,5 +1,6 @@
 mod archive;
 mod capture_plan;
+mod catalog;
 mod device_binding;
 mod extra_backups;
 mod extra_info;
