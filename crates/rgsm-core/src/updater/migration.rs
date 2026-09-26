@@ -1041,10 +1041,11 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         let temp_dir = temp_dir::TempDir::new()?;
         let config_path = temp_dir.path().join("GameSaveManager.config.json");
-        fs::write(
-            &config_path,
-            serde_json::to_string_pretty(&Config::default())?,
-        )?;
+        let config = Config {
+            version: VERSION_1_9_0.to_string(),
+            ..Default::default()
+        };
+        fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;
 
         let migrated = update_config(&config_path)?;
 

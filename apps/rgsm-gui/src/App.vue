@@ -5,6 +5,7 @@ import ActivityDrawer from './components/ActivityDrawer.vue';
 import ActivityToast from './components/ActivityToast.vue';
 import AddGameDrawer from './components/AddGameDrawer.vue';
 import DeviceSetupDialog from './components/DeviceSetupDialog.vue';
+import AppUpdatePanel from './components/AppUpdatePanel.vue';
 import RemoteProgressPrompt from './components/RemoteProgressPrompt.vue';
 import KFeedbackHost from './ui/kit/KFeedbackHost.vue';
 import { commands, events } from './api/commands';
@@ -16,6 +17,7 @@ import {
   routeStageUpdate,
 } from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
+import { useAppUpdates } from './composables/useAppUpdates';
 import { connectSavedCloudLibrary } from './composables/useCloudConnection';
 import { useCloudLibraryRefresh } from './composables/useCloudLibrary';
 import { useGlobalLoading } from './composables/useGlobalLoading';
@@ -28,6 +30,7 @@ import { mapLegacyHomePage, resolveStartupDestination } from './utils/appRoutes'
 import { error as logError } from './utils/logger';
 
 const { config, refreshConfig, saveConfig } = useConfig();
+const { checkForUpdates } = useAppUpdates();
 useCloudLibraryRefresh();
 const route = useRoute();
 useDark();
@@ -168,6 +171,7 @@ async function initializeApp() {
       i18n.global.locale.value = currentLocale as typeof i18n.global.locale.value;
     }
     applyUiFont(uiFontStack.value);
+    if (config.value.settings.auto_check_for_updates) void checkForUpdates(false);
 
     const configuredHome = config.value.settings.home_page;
     const mappedHome = mapLegacyHomePage(configuredHome);
@@ -249,6 +253,7 @@ if (typeof window !== 'undefined') {
         <MainSideBar />
       </aside>
       <main class="app-main">
+        <AppUpdatePanel v-if="route.path !== '/Settings'" notice-only class="mb-4" />
         <RouterView v-slot="{ Component }">
           <Transition name="page" mode="out-in">
             <component :is="Component" />

@@ -14,6 +14,7 @@ export const DEFAULT_CONFIG: Config = {
     show_edit_button: false,
     prompt_when_auto_backup: true,
     exit_to_tray: true,
+    auto_check_for_updates: false,
     cloud_settings: {
       auto_sync_interval: 0,
       root_path: '/game-save-manager',

@@ -1,4 +1,7 @@
 {
   "productName": "RGSM Slim",
-  "identifier": "com.game-save-manager-slim"
+  "identifier": "com.game-save-manager-slim",
+  "bundle": {
+    "createUpdaterArtifacts": false
+  }
 }

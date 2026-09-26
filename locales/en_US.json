@@ -1,4 +1,16 @@
 {
+    "updates": {
+        "title": "App updates",
+        "auto_check": "Check for updates at startup",
+        "check": "Check now",
+        "available": "Version {version} is available",
+        "current": "You're up to date",
+        "check_failed": "Couldn't check for updates. Try again later.",
+        "update_failed": "The update couldn't start or finish. Try again.",
+        "download": "Download",
+        "later": "Later",
+        "release_notes": "What’s new"
+    },
     "cloud_join": {
         "reuse": {
             "title": "Reuse device save locations",

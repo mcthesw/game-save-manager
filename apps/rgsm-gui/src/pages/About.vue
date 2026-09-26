@@ -4,13 +4,13 @@ import { commands } from '~/api/commands';
 import { $t } from '../i18n';
 import { debug } from '../utils/logger';
 
-const { config } = useConfig();
-
+const appVersion = ref('');
 const gitHash = ref('');
 
 onMounted(async () => {
   try {
     const info = await commands.getBuildInfo();
+    appVersion.value = info.version;
     gitHash.value = info.git_hash;
   } catch {
     gitHash.value = '';
@@ -95,7 +95,7 @@ const headerLinks = [
         <img src="/orange.png" alt="App Logo" class="mb-4 h-20 w-20" />
         <h1 class="text-2xl font-semibold text-text">{{ $t('home.name') }}</h1>
         <div class="mt-2 rounded-full bg-surface-2 px-2.5 py-0.5 font-mono text-xs text-text-dim">
-          v{{ config?.version }}<span v-if="gitHash" class="opacity-70"> ({{ gitHash }})</span>
+          v{{ appVersion }}<span v-if="gitHash" class="opacity-70"> ({{ gitHash }})</span>
         </div>
         <p class="mt-3 max-w-md text-sm leading-relaxed text-text-dim">
           {{ $t('about.content_1') }}

@@ -32,6 +32,7 @@ import {
 } from '@lucide/vue';
 import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '../ui/kit';
 import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue';
+import AppUpdatePanel from '../components/AppUpdatePanel.vue';
 import SnapshotTimeSettings from '../components/SnapshotTimeSettings.vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
@@ -1135,6 +1136,11 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <span class="shrink-0 text-sm text-text">{{ $t('settings.exit_to_tray') }}</span>
               <KSwitch v-model="config.settings.exit_to_tray" />
             </div>
+            <div class="flex items-center justify-between gap-4 py-1.5">
+              <span class="shrink-0 text-sm text-text">{{ $t('updates.auto_check') }}</span>
+              <KSwitch v-model="config.settings.auto_check_for_updates" />
+            </div>
+            <AppUpdatePanel />
             <div class="flex items-center justify-between gap-4 py-1.5">
               <span class="shrink-0 text-sm text-text">{{ $t('settings.log_to_file') }}</span>
               <KSwitch v-model="config.settings.log_to_file" />

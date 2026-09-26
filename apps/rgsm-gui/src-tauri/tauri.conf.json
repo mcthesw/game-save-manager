@@ -31,6 +31,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -39,5 +40,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc1OUQzMjMzODc3ODNBMApSV1NnZzNjNEk5TlpCMENGNGFvSTEzVjhCam50bnNMRndsTGs0aDlyUnJWVGxpanZadi9rZjV2MQo=",
+      "endpoints": [
+        "https://github.com/mcthesw/game-save-manager/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

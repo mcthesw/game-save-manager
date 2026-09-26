@@ -1,4 +1,16 @@
 {
+    "updates": {
+        "title": "软件更新",
+        "auto_check": "启动时检查更新",
+        "check": "立即检查",
+        "available": "发现新版本 {version}",
+        "current": "已是最新版本",
+        "check_failed": "检查更新失败，请稍后重试",
+        "update_failed": "更新未能开始或完成，请重试",
+        "download": "下载",
+        "later": "稍后",
+        "release_notes": "更新内容"
+    },
     "cloud_join": {
         "reuse": {
             "title": "复用设备存档位置",

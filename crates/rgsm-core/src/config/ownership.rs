@@ -293,6 +293,8 @@ pub struct LocalState {
 pub struct LocalInterfaceSettings {
     pub show_edit_button: bool,
     pub exit_to_tray: bool,
+    #[serde(default = "crate::default_value::default_false")]
+    pub auto_check_for_updates: bool,
     pub locale: String,
     pub default_expend_favorites_tree: bool,
     pub home_page: String,
@@ -821,6 +823,7 @@ impl From<&Settings> for LocalInterfaceSettings {
         Self {
             show_edit_button: settings.show_edit_button,
             exit_to_tray: settings.exit_to_tray,
+            auto_check_for_updates: settings.auto_check_for_updates,
             locale: settings.locale.clone(),
             default_expend_favorites_tree: settings.default_expend_favorites_tree,
             home_page: settings.home_page.clone(),
@@ -844,6 +847,7 @@ impl Settings {
             show_edit_button: local.interface.show_edit_button,
             prompt_when_auto_backup: behavior.prompt_when_auto_backup,
             exit_to_tray: local.interface.exit_to_tray,
+            auto_check_for_updates: local.interface.auto_check_for_updates,
             cloud_settings: local.cloud_settings.clone(),
             locale: local.interface.locale.clone(),
             default_delete_before_apply: behavior.default_delete_before_apply,
