@@ -48,7 +48,9 @@ impl ConfigurationOwners {
         self.local_state.local_games = self
             .shared_library
             .with_local_games(&self.local_state.local_games)
+            .with_local_games(&self.local_state.pending_definitions())
             .games;
+        self.local_state.pending_game_metadata.clear();
         self.accept_library(library, profiles);
     }
 
@@ -147,6 +149,7 @@ impl LocalState {
         self.local_games
             .iter()
             .map(|game| game.storage_key.clone())
+            .chain(self.pending_game_metadata.keys().cloned())
             .collect()
     }
 

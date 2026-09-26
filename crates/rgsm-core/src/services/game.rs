@@ -1,17 +1,13 @@
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 
 use crate::backup::{self, AutoBackupConfig, Game, GameDeviceBinding, GameDraft};
-use crate::cloud_sync::v2::{
-    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeviceProfileRepository, SharedLibraryRepository,
-};
 use crate::config::{
-    CloudNamespaceGeneration, Config, DeviceProfile, GameAutomationSettingsDraft, LocalState,
-    SharedLibrary, cloud_bootstrap_inputs, cloud_namespace_generation, get_config, set_config,
-    set_config_local,
+    CloudNamespaceGeneration, GameAutomationSettingsDraft, cloud_bootstrap_inputs,
+    cloud_namespace_generation, get_config, set_config,
 };
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
-use super::{ServiceContext, cloud_library_target::bound_v2_operator};
+use super::ServiceContext;
 
 impl ServiceContext {
     pub async fn add_game(&self, game: &GameDraft, source: HookSource) -> Result<Game> {
@@ -23,16 +19,8 @@ impl ServiceContext {
         {
             bail!("Game '{}' already exists", game.name);
         }
-        let previous_config = config;
-        let v2_change = capture_v2_game_change()?;
 
         let saved_game = backup::create_game_backup(game).await?;
-        if let Some(expected) = v2_change
-            && let Err(error) = publish_v2_game_change(expected).await
-        {
-            rollback_local_game_change(&previous_config, &error)?;
-            return Err(error);
-        }
 
         let config = get_config()?;
         let snapshots = saved_game.get_game_snapshots_info()?;
@@ -60,8 +48,6 @@ impl ServiceContext {
         source: HookSource,
     ) -> Result<()> {
         let mut config = get_config()?;
-        let previous_config = config.clone();
-        let v2_change = capture_v2_game_change()?;
         let index = config
             .games
             .iter()
@@ -93,12 +79,6 @@ impl ServiceContext {
             &updated_game.name,
         );
         set_config(&config).await?;
-        if let Some(expected) = v2_change
-            && let Err(error) = publish_v2_game_change(expected).await
-        {
-            rollback_local_game_change(&previous_config, &error)?;
-            return Err(error);
-        }
 
         self.pipeline()
             .fire_game_updated(&GameUpdatedCtx {
@@ -341,117 +321,6 @@ impl ServiceContext {
     }
 }
 
-struct ExpectedV2GameChange {
-    library: SharedLibrary,
-    profile: DeviceProfile,
-    local_state: LocalState,
-}
-
-fn capture_v2_game_change() -> Result<Option<ExpectedV2GameChange>> {
-    let (library, profile, local_state) = cloud_bootstrap_inputs()?;
-    Ok(
-        (local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2).then_some(
-            ExpectedV2GameChange {
-                library,
-                profile,
-                local_state,
-            },
-        ),
-    )
-}
-
-async fn publish_v2_game_change(expected: ExpectedV2GameChange) -> Result<()> {
-    let (accepted_library, accepted_profile, accepted_state) = cloud_bootstrap_inputs()?;
-    if accepted_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-        || accepted_state.current_device_id != expected.local_state.current_device_id
-        || accepted_state.cloud_settings != expected.local_state.cloud_settings
-        || accepted_state.cloud_library_id != expected.local_state.cloud_library_id
-    {
-        bail!("Cloud Library ownership changed while the Game was being saved");
-    }
-
-    let accepted_profile = accepted_profile.without_local_games(&accepted_state);
-    let expected_profile = expected.profile.without_local_games(&expected.local_state);
-    // Editing a local-only Game remains usable while the cloud is unavailable.
-    if expected.library == accepted_library && expected_profile == accepted_profile {
-        return Ok(());
-    }
-    let operator = bound_v2_operator(&expected.local_state).await?;
-    let shared = SharedLibraryRepository::new(operator.clone(), 3);
-    let committed_library = shared
-        .compare_replace(&expected.library, &accepted_library)
-        .await
-        .context("failed to publish the updated V2 Shared Library")?;
-    let profiles = DeviceProfileRepository::new(operator.clone(), 3);
-    if let Err(error) = profiles
-        .publish(&accepted_state.current_device_id, &accepted_profile)
-        .await
-    {
-        let profile_rollback = profiles
-            .publish(&accepted_state.current_device_id, &expected_profile)
-            .await;
-        let library_rollback = shared
-            .compare_replace(&committed_library, &expected.library)
-            .await;
-        bail!(
-            "failed to publish the updated V2 Device Profile: {error}; Device Profile rollback: {}; Shared Library rollback: {}",
-            profile_rollback
-                .err()
-                .map_or_else(|| "completed".to_string(), |reason| reason.to_string()),
-            library_rollback
-                .err()
-                .map_or_else(|| "completed".to_string(), |reason| reason.to_string())
-        );
-    }
-    let added_game_ids = accepted_library
-        .games
-        .iter()
-        .filter(|game| {
-            !expected
-                .library
-                .games
-                .iter()
-                .any(|previous| previous.storage_key == game.storage_key)
-        })
-        .map(|game| game.storage_key.clone())
-        .collect::<Vec<_>>();
-    if !added_game_ids.is_empty() {
-        let manifest = CloudManifestRepository::new(operator, CLOUD_MANIFEST_PATH, 3);
-        if let Err(error) = manifest
-            .mutate(move |manifest| {
-                for game_id in &added_game_ids {
-                    manifest.game_mut(game_id);
-                }
-                Ok(())
-            })
-            .await
-        {
-            let profile_rollback = profiles
-                .publish(&accepted_state.current_device_id, &expected_profile)
-                .await;
-            let library_rollback = shared
-                .compare_replace(&committed_library, &expected.library)
-                .await;
-            bail!(
-                "failed to initialize the updated V2 Cloud Manifest: {error}; Device Profile rollback: {}; Shared Library rollback: {}",
-                profile_rollback
-                    .err()
-                    .map_or_else(|| "completed".to_string(), |reason| reason.to_string()),
-                library_rollback
-                    .err()
-                    .map_or_else(|| "completed".to_string(), |reason| reason.to_string())
-            );
-        }
-    }
-    Ok(())
-}
-
-fn rollback_local_game_change(previous: &Config, operation: &anyhow::Error) -> Result<()> {
-    set_config_local(previous).with_context(|| {
-        format!("{operation}; additionally failed to roll back the local Game definition")
-    })
-}
-
 fn validate_auto_backup_config(auto_backup: Option<&AutoBackupConfig>) -> Result<()> {
     if let Some(cfg) = auto_backup
         && cfg.interval_secs == 0
@@ -478,7 +347,8 @@ mod delete_tests {
     use std::{fs, sync::Arc};
 
     use crate::config::{
-        ConfigTestStateGuard, activate_cloud_namespace_v2, activate_joined_cloud_library,
+        Config, ConfigTestStateGuard, activate_cloud_namespace_v2, activate_joined_cloud_library,
+        set_config_local,
     };
     use crate::hooks::HookPipeline;
 

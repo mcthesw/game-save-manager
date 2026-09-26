@@ -373,3 +373,65 @@ fn deleted_cloud_identity_cannot_remove_pending_local_protection() {
         );
     });
 }
+
+#[test]
+fn offline_edit_survives_failed_refresh_and_publishes_after_reconnect() {
+    let _lock = crate::config::lock_config_test_file();
+    runtime().block_on(async {
+        let fixture = Fixture::new().await;
+        fixture.service.connect_cloud_library().await.unwrap();
+        let repo = SharedLibraryRepository::new(fixture.operator.clone(), 2);
+        let original = repo.load().await.unwrap();
+        let path = fixture
+            .cloud
+            .path()
+            .join(crate::cloud_sync::v2::SHARED_LIBRARY_PATH);
+        let bytes = std::fs::read(&path).unwrap();
+        std::fs::write(&path, b"offline test").unwrap();
+        let draft =
+            serde_json::from_value(serde_json::json!({"name":"Offline edit", "save_paths":[]}))
+                .unwrap();
+        let saved = fixture
+            .service
+            .update_game("ready", &draft, crate::hooks::HookSource::UserManual)
+            .await;
+        assert!(saved.is_ok(), "local save must succeed: {saved:?}");
+        assert_eq!(
+            get_config()
+                .unwrap()
+                .games
+                .iter()
+                .find(|game| game.storage_key == "ready")
+                .unwrap()
+                .name,
+            "Offline edit"
+        );
+        assert!(
+            super::super::cloud_library_metadata::refresh_shared_library()
+                .await
+                .is_err()
+        );
+        std::fs::write(&path, bytes).unwrap();
+        super::super::cloud_library_metadata::refresh_shared_library()
+            .await
+            .unwrap();
+        let remote = repo.load().await.unwrap();
+        assert_eq!(
+            remote
+                .games
+                .iter()
+                .find(|game| game.storage_key == "ready")
+                .unwrap()
+                .name,
+            "Offline edit"
+        );
+        assert_eq!(remote.games[0], original.games[0]);
+        assert!(
+            cloud_bootstrap_inputs()
+                .unwrap()
+                .2
+                .pending_game_metadata
+                .is_empty()
+        );
+    });
+}

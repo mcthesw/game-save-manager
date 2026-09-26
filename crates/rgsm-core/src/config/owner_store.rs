@@ -16,6 +16,8 @@ use super::{
 
 #[path = "cloud_connection.rs"]
 mod cloud_connection;
+#[path = "metadata_reconciliation.rs"]
+mod metadata_reconciliation;
 
 pub(crate) const OWNER_DIRECTORY_NAME: &str = "GameSaveManager.config.v2";
 pub(crate) const OWNER_STAGING_DIRECTORY_NAME: &str = "GameSaveManager.config.v2.staging";
@@ -280,36 +282,6 @@ impl OwnerStore {
         self.write(&owners)
     }
 
-    pub(crate) fn accept_remote_shared_library(
-        &self,
-        expected_library: &SharedLibrary,
-        expected_profile: &DeviceProfile,
-        accepted_library: &SharedLibrary,
-        accepted_profile: &DeviceProfile,
-        library_id: &str,
-    ) -> Result<(), OwnerStoreError> {
-        let mut owners = self.load()?;
-        let current_device_id = owners.local_state.current_device_id.clone();
-        let current_profile = owners
-            .device_profiles
-            .get(&current_device_id)
-            .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
-        if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-            || owners.shared_library != *expected_library
-            || current_profile != expected_profile
-            || accepted_profile.device.id != current_device_id
-        {
-            return Err(OwnerStoreError::SharedLibraryInputsChanged);
-        }
-        accepted_library.validate()?;
-        owners.accept_library(
-            accepted_library,
-            &HashMap::from([(current_device_id, accepted_profile.clone())]),
-        );
-        owners.local_state.cloud_library_id = Some(library_id.to_string());
-        self.write(&owners)
-    }
-
     pub(crate) fn remove_device_profile(&self, device_id: &str) -> Result<(), OwnerStoreError> {
         let mut owners = self.load()?;
         if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
@@ -337,6 +309,11 @@ impl OwnerStore {
             .games
             .retain(|game| game.storage_key != game_id);
         let mut changed = owners.shared_library.games.len() != previous_game_count;
+        changed |= owners
+            .local_state
+            .pending_game_metadata
+            .remove(game_id)
+            .is_some();
         let previous_local_count = owners.local_state.local_games.len();
         owners
             .local_state
