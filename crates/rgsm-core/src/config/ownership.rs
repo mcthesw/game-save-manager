@@ -493,11 +493,11 @@ impl ConfigurationOwners {
             }
         });
         incoming.preserve_local_scope(self);
+        incoming.capture_metadata_changes(self);
         self.shared_library = incoming.shared_library;
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
         incoming.local_state.cloud_library_id = self.local_state.cloud_library_id.clone();
-        incoming.local_state.pending_game_metadata = self.local_state.pending_game_metadata.clone();
         self.local_state = incoming.local_state;
         self.device_profiles.retain(|device_id, _| {
             device_id == &current_device_id || incoming_device_ids.contains(device_id)
