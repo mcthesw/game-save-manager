@@ -55,8 +55,9 @@ for (const mode of ['Manual', 'Multi-device Sync'] as const) {
         expect(existsSync(cloudArchivePath(seeded.cloudRoot, aBranch))).toBe(false);
       }
 
-      const review = await reviewProgress(session.hostA);
-      expect(review.requires_choice).toBe(true);
+      await expect
+        .poll(async () => (await reviewProgress(session.hostA)).requires_choice)
+        .toBe(true);
       const prompt = session.pageA.getByRole('dialog', {
         name: 'Progress available from other devices',
       });

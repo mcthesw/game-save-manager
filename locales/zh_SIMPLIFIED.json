@@ -329,7 +329,7 @@
         "change_describe": "修改",
         "change_description": "输入新的描述信息",
         "change_description_success": "修改成功",
-        "description_sync_pending": "描述已保存，云端同步失败，将自动重试",
+        "description_sync_pending": "描述已保存到本机，等待云端同步",
         "change_description_failed": "修改失败",
         "set_quick_backup": "启用快捷备份",
         "set_quick_backup_success": "设置成功，可以用快捷键或托盘图标快捷操作",

@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use thiserror::Error;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::app_dirs::resolve_app_path;
@@ -36,16 +35,10 @@ struct SnapshotSyncRuntime {
 }
 
 pub fn build_v2_snapshot_sync_hook(
-    operation_lock: Arc<Mutex<()>>,
+    request: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<Option<V2SnapshotSyncHook>, SnapshotSyncServiceError> {
-    Ok(load_runtime()?.map(|runtime| {
-        V2SnapshotSyncHook::new(
-            runtime.target,
-            runtime.coordinator,
-            runtime.targets,
-            operation_lock,
-        )
-    }))
+    Ok(load_runtime()?
+        .map(|runtime| V2SnapshotSyncHook::new(runtime.targets.into_keys().collect(), request)))
 }
 
 pub async fn run_v2_snapshot_sync_once(
@@ -59,6 +52,11 @@ pub async fn run_v2_snapshot_sync_once(
     };
     runtime.target.verify().await.map_err(BackendError::from)?;
     let tombstones = runtime.coordinator.converge_local_tombstones().await?;
+    for game in &runtime.config.games {
+        if let Some(ids) = tombstones.get(&game.storage_key) {
+            game.forget_v2_tombstones(ids)?;
+        }
+    }
     let mut total = SnapshotReconciliationOutcome::default();
     for (game_id, target) in &runtime.targets {
         if cancellation.is_cancelled() {
@@ -70,12 +68,13 @@ pub async fn run_v2_snapshot_sync_once(
             .iter()
             .find(|game| game.storage_key == *game_id)
         {
-            Some(game) => {
-                if let Some(snapshot_ids) = tombstones.get(game_id) {
-                    game.forget_v2_tombstones(snapshot_ids)?;
+            Some(game) => match game.get_game_snapshots_info() {
+                Ok(snapshots) => snapshots,
+                Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                    GameSnapshots::new(game.name.clone())
                 }
-                game.get_game_snapshots_info()?
-            }
+                Err(error) => return Err(error.into()),
+            },
             None => GameSnapshots::new(
                 runtime
                     .game_names
@@ -125,6 +124,9 @@ pub async fn resume_v2_snapshot_sync(
     let Some(runtime) = load_runtime()? else {
         return Ok(0);
     };
+    if runtime.targets.is_empty() {
+        return Ok(0);
+    }
     runtime.target.verify().await.map_err(BackendError::from)?;
     let downloaded = runtime.coordinator.resume_pending(cancellation).await;
     let import =
@@ -182,9 +184,6 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
     }
     let mut targets = sync_targets(&profile, &library);
     targets.retain(|game_id, _| !local_state.is_local_game(game_id));
-    if targets.is_empty() {
-        return Ok(None);
-    }
     let archive_root = profile
         .local_archive_root
         .as_deref()

@@ -91,7 +91,6 @@ impl ServiceContext {
 
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
             notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
-            game.set_game_snapshots_info(&created.snapshots)?;
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
                 config,
                 source,
@@ -102,7 +101,17 @@ impl ServiceContext {
                 remote_archive_path: created.remote_archive_path,
             };
             self.pipeline().fire_snapshot_created(&mut ctx).await;
-            game.set_game_snapshots_info(&ctx.snapshots)?;
+            ctx.snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
+                if let Some(snapshot) = current
+                    .backups
+                    .iter_mut()
+                    .find(|s| s.date == ctx.snapshot.date)
+                {
+                    snapshot.archive_hash.clone_from(&ctx.snapshot.archive_hash);
+                }
+                Ok(())
+            })?;
+            self.pipeline().fire_snapshot_committed(&ctx).await;
         }
 
         Ok(())
@@ -155,7 +164,6 @@ impl ServiceContext {
             .await?;
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
             notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
-            game.set_game_snapshots_info(&created.snapshots)?;
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
                 config,
                 source,
@@ -166,7 +174,17 @@ impl ServiceContext {
                 remote_archive_path: created.remote_archive_path,
             };
             self.pipeline().fire_snapshot_created(&mut ctx).await;
-            game.set_game_snapshots_info(&ctx.snapshots)?;
+            ctx.snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
+                if let Some(snapshot) = current
+                    .backups
+                    .iter_mut()
+                    .find(|s| s.date == ctx.snapshot.date)
+                {
+                    snapshot.archive_hash.clone_from(&ctx.snapshot.archive_hash);
+                }
+                Ok(())
+            })?;
+            self.pipeline().fire_snapshot_committed(&ctx).await;
         }
         Ok(TimerSnapshotDecision::Created)
     }
@@ -207,10 +225,10 @@ impl ServiceContext {
 
         let snapshots = if snapshot.archive_format == ArchiveFormat::SevenZ {
             self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)?;
-            let mut snapshots = game.get_game_snapshots_info()?;
-            snapshots.set_current_device_head(Some(date.to_string()));
-            game.set_game_snapshots_info(&snapshots)?;
-            snapshots
+            game.update_game_snapshots_info::<BackupError>(|current| {
+                current.set_current_device_head(Some(date.to_string()));
+                Ok(())
+            })?
         } else {
             match ZipBackend.archive_version(&archive_path)? {
                 ArchiveVersion::V2 | ArchiveVersion::V3 => {

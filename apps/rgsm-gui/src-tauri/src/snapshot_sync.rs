@@ -13,39 +13,62 @@ pub fn setup(app: AppHandle, state: CloudOperationState) {
     tauri::async_runtime::spawn(run(app, state));
 }
 
+/// Explicit refresh waits for the same cancellable reconciliation as the worker.
+pub async fn refresh(
+    app: &AppHandle,
+) -> Result<rgsm_core::cloud_sync::v2::CloudArchiveLibraryView, String> {
+    let state = app
+        .state::<crate::cloud_operation::CloudOperationState>()
+        .inner()
+        .clone();
+    state
+        .run_sync(|cancellation| async move {
+            rgsm_core::services::run_v2_snapshot_sync_once(&cancellation)
+                .await
+                .map_err(|error| error.to_string())?;
+            crate::remote_progress::refresh(
+                app,
+                &rgsm_core::services::ServiceContext::new(
+                    app.state::<crate::hooks::HookPipelineState>().snapshot(),
+                ),
+            )
+            .await
+            .map_err(|error| error.to_string())
+        })
+        .await
+        .unwrap_or_else(
+            || Err(rgsm_core::services::SnapshotSyncServiceError::Cancelled.to_string()),
+        )
+}
+
 async fn run(app: AppHandle, state: CloudOperationState) {
-    let cancellation = CancellationToken::new();
     let operations = app
         .state::<crate::app_operations::AppOperations>()
         .inner()
         .clone();
-    let Some(startup) = operations.begin() else {
-        return;
-    };
+    let app = &app;
+    let operations = &operations;
     state
-        .run(async {
-            match rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
-                Ok(downloaded) if downloaded > 0 => info!(
-                    target: "rgsm::cloud::v2_snapshot_sync",
-                    "Resumed {downloaded} pending Snapshot downloads at startup"
-                ),
-                Ok(_) => {}
-                Err(error) => warn!(
-                    target: "rgsm::cloud::v2_snapshot_sync",
-                    "V2 Snapshot download recovery failed: {error}"
-                ),
+        .run_sync(|cancellation| async move {
+            let Some(_operation) = operations.begin() else {
+                return;
+            };
+            if let Err(error) = rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
+                warn!("Snapshot download recovery failed: {error}");
             }
-            run_reconciliation(&app, &cancellation).await;
+            run_reconciliation(app, &cancellation).await;
         })
         .await;
 
-    drop(startup);
     let mut last_run = Instant::now();
     let mut control_tick = tokio::time::interval(CONTROL_POLL_INTERVAL);
     control_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
     control_tick.tick().await;
     loop {
-        control_tick.tick().await;
+        let requested = tokio::select! {
+            _ = state.requested() => true,
+            _ = control_tick.tick() => false,
+        };
         let poll_minutes = match rgsm_core::services::v2_snapshot_sync_poll_minutes() {
             Ok(Some(minutes)) => minutes,
             Ok(None) => {
@@ -61,15 +84,15 @@ async fn run(app: AppHandle, state: CloudOperationState) {
             }
         };
         let poll_interval = Duration::from_secs(poll_minutes.saturating_mul(60));
-        if last_run.elapsed() < poll_interval {
+        if !requested && last_run.elapsed() < poll_interval {
             continue;
         }
-        let Some(_operation) = operations.begin() else {
-            continue;
-        };
         state
-            .run(async {
-                run_reconciliation(&app, &cancellation).await;
+            .run_sync(|cancellation| async move {
+                let Some(_operation) = operations.begin() else {
+                    return;
+                };
+                run_reconciliation(app, &cancellation).await;
             })
             .await;
         last_run = Instant::now();
@@ -77,7 +100,10 @@ async fn run(app: AppHandle, state: CloudOperationState) {
 }
 
 async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
-    match rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await {
+    let state = app.state::<CloudOperationState>();
+    let result = rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await;
+    state.report_background_result(app, result.as_ref().err().map(|error| error.to_string()));
+    match result {
         Ok(outcome) if outcome != Default::default() => info!(
             target: "rgsm::cloud::v2_snapshot_sync",
             "V2 Snapshot Sync completed: {} published, {} uploaded",
@@ -85,10 +111,10 @@ async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
             outcome.uploaded
         ),
         Ok(_) => {}
-        Err(error) => warn!(
-            target: "rgsm::cloud::v2_snapshot_sync",
-            "V2 Snapshot Sync reconciliation failed: {error}"
-        ),
+        Err(error) => {
+            warn!(target: "rgsm::cloud::v2_snapshot_sync", "V2 Snapshot Sync reconciliation failed: {error}");
+            return;
+        }
     }
     let service = rgsm_core::services::ServiceContext::new(
         app.state::<crate::hooks::HookPipelineState>().snapshot(),

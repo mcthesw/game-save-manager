@@ -1,14 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
-
+use super::{HookSource, LifecycleHook, SnapshotAppliedCtx, SnapshotCreatedCtx};
 use anyhow::Result;
 use async_trait::async_trait;
-use log::info;
-use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
-
-use super::{HookSource, LifecycleHook, SnapshotCreatedCtx};
-use crate::cloud_sync::v2::{CloudLibraryTarget, SnapshotSyncCoordinator};
+use std::collections::BTreeSet;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnapshotSyncTarget {
@@ -18,25 +12,21 @@ pub struct SnapshotSyncTarget {
     pub upload_new_archives: bool,
 }
 
+/// Application-supplied wakeup only: no network I/O belongs in a local operation hook.
 pub struct V2SnapshotSyncHook {
-    target: CloudLibraryTarget,
-    coordinator: SnapshotSyncCoordinator,
-    targets: BTreeMap<String, SnapshotSyncTarget>,
-    operation_lock: Arc<Mutex<()>>,
+    games: BTreeSet<String>,
+    request: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl V2SnapshotSyncHook {
-    pub(crate) fn new(
-        target: CloudLibraryTarget,
-        coordinator: SnapshotSyncCoordinator,
-        targets: BTreeMap<String, SnapshotSyncTarget>,
-        operation_lock: Arc<Mutex<()>>,
-    ) -> Self {
-        Self {
-            target,
-            coordinator,
-            targets,
-            operation_lock,
+    pub(crate) fn new(games: BTreeSet<String>, request: Arc<dyn Fn() + Send + Sync>) -> Self {
+        Self { games, request }
+    }
+
+    fn changed(&self, source: &HookSource, game: &crate::backup::Game) {
+        if *source != HookSource::CloudSync && self.games.contains(game.backup_dir_name().as_ref())
+        {
+            (self.request)();
         }
     }
 }
@@ -46,53 +36,42 @@ impl LifecycleHook for V2SnapshotSyncHook {
     fn name(&self) -> &str {
         "V2SnapshotSyncHook"
     }
-
     fn priority(&self) -> u32 {
         50
     }
-
-    async fn on_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) -> Result<()> {
-        if ctx.source == HookSource::CloudSync {
-            return Ok(());
-        }
-        let game_id = ctx.game.backup_dir_name();
-        let Some(target) = self.targets.get(game_id.as_ref()) else {
-            return Ok(());
-        };
-        let _guard = self.operation_lock.lock().await;
-        self.target.verify().await?;
-
-        let outcome = self
-            .coordinator
-            .reconcile_game_with_policy(
-                game_id.as_ref(),
-                &ctx.snapshots,
-                target.activation_revision,
-                &target.local_baseline,
-                &CancellationToken::new(),
-                crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                    upload_new_archives: target.upload_new_archives,
-                },
-            )
-            .await?;
-        let retained = if let Some(limit) = target.retention_limit {
-            let retention = self
-                .coordinator
-                .enforce_retention(game_id.as_ref(), limit)
-                .await?;
-            ctx.snapshots.forget_v2_tombstones(&retention.tombstones);
-            retention.deleted
-        } else {
-            0
-        };
-        info!(
-            target: "rgsm::hooks::v2_snapshot_sync",
-            "Reconciled {} after Snapshot creation: {} published, {} uploaded, {} retained-history deletions",
-            game_id,
-            outcome.published,
-            outcome.uploaded,
-            retained,
-        );
+    async fn on_snapshot_committed(&self, ctx: &SnapshotCreatedCtx) -> Result<()> {
+        self.changed(&ctx.source, &ctx.game);
         Ok(())
+    }
+    async fn on_snapshot_applied(&self, ctx: &SnapshotAppliedCtx) -> Result<()> {
+        self.changed(&ctx.source, &ctx.game);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn local_changes_only_signal_and_cloud_changes_do_not_loop() {
+        let requests = Arc::new(AtomicUsize::new(0));
+        let recorder = requests.clone();
+        let hook = V2SnapshotSyncHook::new(
+            BTreeSet::from(["game".into()]),
+            Arc::new(move || {
+                recorder.fetch_add(1, Ordering::SeqCst);
+            }),
+        );
+        let mut game: crate::backup::Game = serde_json::from_value(
+            serde_json::json!({"name":"game", "storage_key":"game", "save_paths":[]}),
+        )
+        .unwrap();
+        hook.changed(&HookSource::UserManual, &game);
+        hook.changed(&HookSource::CloudSync, &game);
+        game.storage_key = "other".into();
+        hook.changed(&HookSource::UserManual, &game);
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
     }
 }

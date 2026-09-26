@@ -1,13 +1,18 @@
 use std::future::Future;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use rgsm_core::cloud_sync::CloudSyncTaskManager;
 use tauri::{AppHandle, Manager};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Default)]
 pub struct CloudOperationState {
     operation_lock: Arc<Mutex<()>>,
+    wakeup: Arc<Notify>,
+    background_failed: Arc<AtomicBool>,
+    sync_cancellation: Arc<std::sync::Mutex<CancellationToken>>,
 }
 
 pub async fn run<T>(app: &AppHandle, operation: impl Future<Output = T>) -> T {
@@ -17,10 +22,15 @@ pub async fn run<T>(app: &AppHandle, operation: impl Future<Output = T>) -> T {
 
 pub async fn run_after_cancelling<T>(app: &AppHandle, operation: impl Future<Output = T>) -> T {
     let manager = Arc::clone(app.state::<Arc<CloudSyncTaskManager>>().inner());
+    let state = app.state::<CloudOperationState>().inner().clone();
+    state.cancel_sync();
     manager.cancel_all().await;
     run(app, async move {
         manager.cancel_all_and_wait().await;
-        operation.await
+        state.reset_sync();
+        let result = operation.await;
+        state.request_sync();
+        result
     })
     .await
 }
@@ -31,8 +41,72 @@ impl CloudOperationState {
         operation.await
     }
 
-    pub fn lock_handle(&self) -> Arc<Mutex<()>> {
-        Arc::clone(&self.operation_lock)
+    /// A Notify permit coalesces requests and retains one wakeup during an active pass.
+    pub fn request_sync(&self) {
+        self.wakeup.notify_one();
+    }
+
+    pub async fn requested(&self) {
+        self.wakeup.notified().await;
+    }
+
+    pub fn cancel_current_sync(&self) {
+        let mut token = self
+            .sync_cancellation
+            .lock()
+            .expect("sync cancellation lock");
+        token.cancel();
+        *token = CancellationToken::new();
+    }
+
+    pub fn report_background_result(&self, app: &AppHandle, error: Option<String>) {
+        let was_failed = self
+            .background_failed
+            .swap(error.is_some(), Ordering::Relaxed);
+        if let Some(error) = error
+            && !was_failed
+        {
+            crate::http::emit(
+                app,
+                "cloud-sync-error",
+                &crate::commands::CloudSyncErrorEvent {
+                    game_name: None,
+                    error,
+                },
+            );
+        }
+    }
+
+    fn cancel_sync(&self) {
+        self.sync_cancellation
+            .lock()
+            .expect("sync cancellation lock")
+            .cancel();
+    }
+
+    fn reset_sync(&self) {
+        *self
+            .sync_cancellation
+            .lock()
+            .expect("sync cancellation lock") = CancellationToken::new();
+    }
+
+    pub async fn run_sync<T, F, Fut>(&self, operation: F) -> Option<T>
+    where
+        F: FnOnce(CancellationToken) -> Fut,
+        Fut: Future<Output = T>,
+    {
+        let _guard = self.operation_lock.lock().await;
+        let cancellation = self
+            .sync_cancellation
+            .lock()
+            .expect("sync cancellation lock")
+            .clone();
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => None,
+            result = operation(cancellation.clone()) => Some(result),
+        }
     }
 }
 
@@ -43,6 +117,58 @@ mod tests {
     use tokio::sync::oneshot;
 
     use super::*;
+
+    #[tokio::test]
+    async fn requests_coalesce_and_survive_an_active_pass() {
+        let state = CloudOperationState::default();
+        state.request_sync();
+        state.request_sync();
+        tokio::time::timeout(Duration::from_millis(50), state.requested())
+            .await
+            .unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(10), state.requested())
+                .await
+                .is_err()
+        );
+        state
+            .run_sync(|_| async {
+                state.request_sync();
+            })
+            .await;
+        tokio::time::timeout(Duration::from_millis(50), state.requested())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancelling_background_releases_cloud_boundary() {
+        let state = CloudOperationState::default();
+        let worker = state.clone();
+        let (started, ready) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            worker
+                .run_sync(|_| async {
+                    started.send(()).unwrap();
+                    std::future::pending::<()>().await;
+                })
+                .await;
+        });
+        ready.await.unwrap();
+        state.cancel_sync();
+        tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap();
+        state.reset_sync();
+        let mut ran = false;
+        state
+            .run_sync(|_| async {
+                ran = true;
+            })
+            .await;
+        assert!(ran);
+    }
 
     #[tokio::test]
     async fn operations_enter_one_at_a_time() {
