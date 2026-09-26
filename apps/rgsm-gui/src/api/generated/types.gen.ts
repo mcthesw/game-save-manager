@@ -786,6 +786,10 @@ export type ImportableGame = {
 
 export type InitialCatchUpPolicy = 'keep_remote' | 'download_existing';
 
+export type InstallUpdateRequest = {
+  expectedVersion: string;
+};
+
 export type JoinCloudLibraryRequest = {
   confirmedReplacements: boolean;
   decisions: Array<JoinGameDecision>;
@@ -1558,7 +1562,7 @@ export type ToggleQuickActionSoundPreviewRequest = {
   preferences: QuickActionSoundPreferences;
 };
 
-export type UpdateAction = 'download';
+export type UpdateAction = 'install' | 'download';
 
 export type UpdateCheck = {
   action: UpdateAction;
@@ -1573,6 +1577,16 @@ export type UpdateGameRequest = {
   game: GameDraft;
   storageKey: string;
 };
+
+export type UpdateProgress = {
+  downloadedBytes: number;
+  error?: string | null;
+  stage: UpdateStage;
+  totalBytes?: number | null;
+  update?: null | UpdateCheck;
+};
+
+export type UpdateStage = 'idle' | 'downloading' | 'ready' | 'waiting' | 'installing' | 'failed';
 
 export type UploadCloudArchiveRequest = {
   gameId: string;
@@ -1695,6 +1709,17 @@ export type BatchDeleteSnapshotsError =
   BatchDeleteSnapshotsErrors[keyof BatchDeleteSnapshotsErrors];
 
 export type BatchDeleteSnapshotsResponses = {
+  200: unknown;
+};
+
+export type CancelAppUpdateInstallData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/cancel-app-update-install';
+};
+
+export type CancelAppUpdateInstallResponses = {
   200: unknown;
 };
 
@@ -2153,6 +2178,23 @@ export type DetectStoreUserIdsResponses = {
 export type DetectStoreUserIdsResponse =
   DetectStoreUserIdsResponses[keyof DetectStoreUserIdsResponses];
 
+export type DownloadAppUpdateData = {
+  body: InstallUpdateRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/download-app-update';
+};
+
+export type DownloadAppUpdateErrors = {
+  400: ApiError;
+};
+
+export type DownloadAppUpdateError = DownloadAppUpdateErrors[keyof DownloadAppUpdateErrors];
+
+export type DownloadAppUpdateResponses = {
+  200: unknown;
+};
+
 export type DownloadCloudArchiveData = {
   body: DownloadCloudArchiveRequest;
   path?: never;
@@ -2301,6 +2343,20 @@ export type GetAppLogDirResponses = {
 };
 
 export type GetAppLogDirResponse = GetAppLogDirResponses[keyof GetAppLogDirResponses];
+
+export type GetAppUpdateStateData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/get-app-update-state';
+};
+
+export type GetAppUpdateStateResponses = {
+  200: UpdateProgress;
+};
+
+export type GetAppUpdateStateResponse =
+  GetAppUpdateStateResponses[keyof GetAppUpdateStateResponses];
 
 export type GetAutoBackupStatusData = {
   body?: never;
@@ -2718,6 +2774,25 @@ export type InspectCloudLibraryResponses = {
 
 export type InspectCloudLibraryResponse =
   InspectCloudLibraryResponses[keyof InspectCloudLibraryResponses];
+
+export type InstallAppUpdateData = {
+  body: InstallUpdateRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/install-app-update';
+};
+
+export type InstallAppUpdateErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type InstallAppUpdateError = InstallAppUpdateErrors[keyof InstallAppUpdateErrors];
+
+export type InstallAppUpdateResponses = {
+  200: unknown;
+};
 
 export type JoinCloudLibraryData = {
   body: JoinCloudLibraryRequest;

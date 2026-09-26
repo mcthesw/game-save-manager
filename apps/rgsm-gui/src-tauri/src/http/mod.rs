@@ -105,7 +105,10 @@ impl HostEventHub {
 }
 
 fn is_stateful_event(event_type: &str) -> bool {
-    matches!(event_type, "cloud-sync-status" | "remote-progress-pending")
+    matches!(
+        event_type,
+        "cloud-sync-status" | "remote-progress-pending" | "app-update-progress"
+    )
 }
 
 pub fn emit<T: Serialize>(app: &AppHandle, event_type: &str, payload: &T) {
@@ -358,7 +361,28 @@ async fn require_authentication(
         return Err(ApiError::unauthorized());
     }
 
-    Ok(next.run(request).await)
+    let control = matches!(
+        request.uri().path(),
+        "/api/v1/events"
+            | "/api/v1/check-app-update"
+            | "/api/v1/download-app-update"
+            | "/api/v1/install-app-update"
+            | "/api/v1/get-app-update-state"
+            | "/api/v1/cancel-app-update-install"
+            | "/api/v1/cancel-cloud-sync"
+    );
+    if control {
+        return Ok(next.run(request).await);
+    }
+    let operation = state
+        .app()
+        .state::<crate::app_operations::AppOperations>()
+        .begin()
+        .ok_or_else(|| ApiError::conflict(rust_i18n::t!("updates.waiting").to_string()))?;
+    operation
+        .spawn(next.run(request))
+        .await
+        .map_err(ApiError::from_display)
 }
 
 #[cfg(test)]

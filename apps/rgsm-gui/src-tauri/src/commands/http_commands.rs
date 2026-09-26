@@ -2405,6 +2405,10 @@ pub fn router() -> Router<HttpHostState> {
 #[openapi(
     paths(
         super::app_updates_http::check,
+        super::app_updates_http::install,
+        super::app_updates_http::download,
+        super::app_updates_http::status,
+        super::app_updates_http::cancel,
         http_open_url,
         http_get_build_info,
         http_open_file_or_folder,
@@ -2514,6 +2518,8 @@ pub fn router() -> Router<HttpHostState> {
     components(schemas(
         crate::app_updates::UpdateCheck,
         crate::app_updates::UpdateAction,
+        crate::app_updates::UpdateProgress,
+        super::app_updates_http::InstallUpdateRequest,
         ApiError,
         crate::http::ApiErrorCode,
         HttpHostInfo,

@@ -16,6 +16,7 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use rgsm_core::config::config_check;
 
 // GUI-specific modules
+mod app_operations;
 mod app_updates;
 mod cloud_library;
 mod cloud_operation;
@@ -130,6 +131,8 @@ pub fn run() -> anyhow::Result<()> {
 
     // Init app
     let mut builder = tauri::Builder::default()
+        .manage(app_operations::AppOperations::default())
+        .manage(app_updates::InstallState::default())
         .manage(remote_progress::RemoteProgressState::new(!http_host_only))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())

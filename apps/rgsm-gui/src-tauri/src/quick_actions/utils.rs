@@ -164,6 +164,9 @@ pub fn notify_backup_failed(
 }
 
 pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
+    let Some(_operation) = app.state::<crate::app_operations::AppOperations>().begin() else {
+        return;
+    };
     info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}", t.generate_describe());
     let config = match get_config() {
         Ok(config) => config,
@@ -207,6 +210,9 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
 }
 
 pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
+    let Some(_operation) = app.state::<crate::app_operations::AppOperations>().begin() else {
+        return;
+    };
     info!(target:"rgsm::quick_action", "Auto backup triggered: {:#?}", t.generate_describe());
     let config = match get_config() {
         Ok(config) => config,

@@ -7,9 +7,16 @@
         "current": "已是最新版本",
         "check_failed": "检查更新失败，请稍后重试",
         "update_failed": "更新未能开始或完成，请重试",
+        "install": "重启并安装",
         "download": "下载",
+        "installing": "正在安装更新",
         "later": "稍后",
-        "release_notes": "更新内容"
+        "downloading": "正在下载更新",
+        "ready": "版本 {version} 已下载，可在方便时重启安装",
+        "waiting": "正在等待当前任务结束，随后重启安装",
+        "cancel_wait": "暂不重启",
+        "release_notes": "更新内容",
+        "manual_download": "手动下载"
     },
     "cloud_join": {
         "reuse": {
