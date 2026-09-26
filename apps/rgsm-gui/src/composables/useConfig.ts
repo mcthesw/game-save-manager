@@ -7,12 +7,21 @@ import { $t } from '../i18n';
 const config = ref<Config>(structuredClone(DEFAULT_CONFIG));
 const deviceGameStatuses = ref<DeviceGameStatus[]>([]);
 const isLoading = ref(false);
-let firstLoad: Promise<boolean> | null = null;
+let latestRead: Promise<boolean> | null = null;
+let readSequence = 0;
 
-function whenConfigReady(): Promise<boolean> {
-  return firstLoad ?? refreshConfig();
+async function whenConfigReady(): Promise<boolean> {
+  while (true) {
+    const pending = latestRead ?? refreshConfig();
+    const loaded = await pending;
+    if (pending === latestRead) return loaded;
+  }
 }
 async function readConfig(libraryOnly: boolean, isCurrent = () => true): Promise<boolean> {
+  if (!isCurrent()) return false;
+  const sequence = ++readSequence;
+  const externalIsCurrent = isCurrent;
+  isCurrent = () => sequence === readSequence && externalIsCurrent();
   isLoading.value = true;
   try {
     const result = await commands.getLocalConfig();
@@ -45,16 +54,18 @@ async function readConfig(libraryOnly: boolean, isCurrent = () => true): Promise
     notifyError($t('error.config_load_failed'));
     return false;
   } finally {
-    isLoading.value = false;
+    if (sequence === readSequence) isLoading.value = false;
   }
 }
 
 function refreshConfig(): Promise<boolean> {
-  return readConfig(false);
+  latestRead = readConfig(false);
+  return latestRead;
 }
 
 function refreshLibraryConfig(isCurrent: () => boolean): Promise<boolean> {
-  return readConfig(true, isCurrent);
+  latestRead = readConfig(true, isCurrent);
+  return latestRead;
 }
 
 async function saveConfig(): Promise<boolean> {
@@ -71,7 +82,7 @@ async function saveConfig(): Promise<boolean> {
   }
 }
 
-firstLoad = refreshConfig();
+void refreshConfig();
 
 export function useConfig() {
   const isGameVisible = (gameId: string | undefined, fallbackName?: string) => {

@@ -163,6 +163,14 @@ test('a definition changed during selection reloads the pending choice', async (
     ).toBeEnabled();
     const game = await getLocalGame(session.hostB, GAME_NAME);
     await updateGameViaApi(session.hostB, STORAGE_KEY, { ...game, name: 'Changed cloud title' });
+    await expect
+      .poll(async () => {
+        const library = await readJson(cloudPaths(seeded.cloudRoot).sharedLibrary);
+        return (library.games as Array<{ storage_key: string; name: string }>).find(
+          (game) => game.storage_key === STORAGE_KEY
+        )?.name;
+      })
+      .toBe('Changed cloud title');
     const remoteBefore = await readFile(cloudPaths(seeded.cloudRoot).sharedLibrary);
     await original.getByRole('button', { name: 'Use selected definition', exact: true }).click();
     const changed = session.pageA.getByRole('dialog', { name: 'Choose game definition' });

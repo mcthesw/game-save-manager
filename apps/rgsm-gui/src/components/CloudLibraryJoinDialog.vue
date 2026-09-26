@@ -9,7 +9,7 @@ import {
 } from '~/api/commands';
 import { $t } from '~/i18n';
 import { CheckCircle2, Inbox, LoaderCircle } from '@lucide/vue';
-import { KAlert, KButton, KDialog, KTag } from '../ui/kit';
+import { KAlert, KButton, KDialog } from '../ui/kit';
 
 const props = defineProps<{ modelValue: boolean; gameId?: string; publishLocal?: boolean }>();
 const emit = defineEmits<{
@@ -23,13 +23,6 @@ const actions = ref(new Map<string, JoinGameAction>());
 const selectedId = ref('');
 const loading = ref(false);
 const joining = ref(false);
-const tagTones = {
-  same: 'success',
-  local_only: 'neutral',
-  possible_duplicate: 'warning',
-  game_definition_conflict: 'danger',
-} as const;
-
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
@@ -62,10 +55,6 @@ const unresolvedCount = computed(
 
 function classificationLabel(item: CloudLibraryJoinItem) {
   return $t(`sync_settings.library.join.classification.${item.classification}`);
-}
-
-function classificationTone(item: CloudLibraryJoinItem) {
-  return tagTones[item.classification];
 }
 
 function cloudName(item: CloudLibraryJoinItem) {
@@ -220,7 +209,7 @@ watch(
             ? $t('sync_settings.library.join.title')
             : $t('sync_settings.library.join.confirm_title')
     "
-    :width="changedCount && !simplePublication ? 920 : 560"
+    :width="simplePublication || !changedCount ? 560 : reviewItems.length > 1 ? 880 : 640"
     :dismissable="!joining"
   >
     <div v-if="loading || joining" class="flex justify-center py-6 text-text-dim">
@@ -259,8 +248,13 @@ watch(
           }}
         </p>
 
-        <div v-if="reviewItems.length" class="grid grid-cols-[13rem_minmax(0,1fr)] gap-4">
+        <div
+          v-if="reviewItems.length"
+          class="grid gap-5"
+          :class="{ 'md:grid-cols-[11rem_minmax(0,1fr)]': reviewItems.length > 1 }"
+        >
           <nav
+            v-if="reviewItems.length > 1"
             class="flex max-h-80 flex-col gap-1 overflow-y-auto"
             :aria-label="$t('sync_settings.library.join.games_label')"
           >
@@ -268,28 +262,33 @@ watch(
               v-for="item in reviewItems"
               :key="item.local_game_id"
               type="button"
-              class="flex cursor-pointer flex-col gap-1 rounded-sm border px-2.5 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+              class="flex cursor-pointer flex-col gap-1 rounded-sm border-0 px-2.5 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-accent"
               :class="
                 selectedId === item.local_game_id
-                  ? 'border-accent bg-accent-soft'
-                  : 'border-border bg-surface hover:border-border-strong'
+                  ? 'bg-accent-soft'
+                  : 'bg-transparent hover:bg-surface-2'
               "
               @click="selectedId = item.local_game_id"
             >
               <span class="truncate text-sm font-medium text-text">{{ item.local_name }}</span>
-              <KTag :tone="classificationTone(item)">{{ classificationLabel(item) }}</KTag>
+              <span class="text-xs text-text-dim">{{ classificationLabel(item) }}</span>
             </button>
           </nav>
 
           <section v-if="selected" class="min-w-0">
-            <div class="mb-2 flex items-center gap-2">
-              <h4 class="truncate text-sm font-semibold text-text">{{ selected.local_name }}</h4>
-              <KTag :tone="classificationTone(selected)">{{ classificationLabel(selected) }}</KTag>
-            </div>
-
-            <div class="rounded-md border border-border text-sm">
+            <h4
+              v-if="
+                reviewItems.length === 1 &&
+                !selected.difference.name_changed &&
+                selected.cloud_names.length
+              "
+              class="mb-3 text-sm font-semibold text-text"
+            >
+              {{ selected.local_name }}
+            </h4>
+            <div class="text-sm">
               <div
-                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-border px-3 py-1.5 text-xs font-medium text-text-dim"
+                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-border pb-2 text-xs font-medium text-text-dim"
               >
                 <span></span>
                 <strong>{{ $t('sync_settings.library.join.local') }}</strong>
@@ -297,17 +296,17 @@ watch(
               </div>
               <div
                 v-if="selected.difference.name_changed || !selected.cloud_names.length"
-                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-border px-3 py-1.5"
+                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-3 py-3"
               >
                 <span class="text-xs text-text-dim">{{
                   $t('sync_settings.library.join.game_name')
                 }}</span>
-                <span class="truncate">{{ selected.local_name }}</span>
-                <span class="truncate">{{ cloudName(selected) }}</span>
+                <span class="break-words font-medium">{{ selected.local_name }}</span>
+                <span class="break-words font-medium">{{ cloudName(selected) }}</span>
               </div>
               <div
                 v-if="selected.difference.save_units_changed"
-                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-border px-3 py-1.5"
+                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-3 py-3"
               >
                 <span class="text-xs text-text-dim">{{
                   $t('sync_settings.library.join.save_units')
@@ -325,7 +324,7 @@ watch(
               </div>
               <div
                 v-if="selected.difference.recognition_changed"
-                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-border px-3 py-1.5"
+                class="grid grid-cols-[6rem_minmax(0,1fr)_minmax(0,1fr)] gap-3 py-3"
               >
                 <span class="text-xs text-text-dim">{{
                   $t('sync_settings.library.join.recognition')
@@ -345,16 +344,19 @@ watch(
               </p>
             </div>
 
-            <div v-if="selected.classification !== 'same'" class="mt-3 flex flex-col gap-1.5">
+            <div
+              v-if="selected.classification !== 'same'"
+              class="mt-4 flex flex-col items-start gap-1"
+            >
               <button
                 v-for="option in decisionOptions(selected)"
                 :key="option.value"
                 type="button"
-                class="flex cursor-pointer items-center gap-2 rounded-sm border px-2.5 py-1.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+                class="flex cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent py-2 pr-3 pl-0 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-accent"
                 :class="
                   actions.get(selected.local_game_id) === option.value
-                    ? 'border-accent bg-accent-soft text-text'
-                    : 'border-border bg-surface text-text-dim hover:border-border-strong hover:text-text'
+                    ? 'text-accent'
+                    : 'text-text-dim hover:text-text'
                 "
                 :aria-pressed="actions.get(selected.local_game_id) === option.value"
                 @click="actions.set(selected.local_game_id, option.value)"
@@ -383,7 +385,7 @@ watch(
     </template>
 
     <template #footer>
-      <span v-if="unresolvedCount" class="mr-auto text-xs text-text-dim">
+      <span v-if="unresolvedCount && reviewItems.length > 1" class="mr-auto text-xs text-text-dim">
         {{ $t('sync_settings.library.join.choice_required', { count: unresolvedCount }) }}
       </span>
       <KButton @click="visible = false">{{ $t('sync_settings.cancel') }}</KButton>
