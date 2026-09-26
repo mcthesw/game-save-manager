@@ -526,18 +526,20 @@ export async function protectSnapshot(page: Page, snapshotId: string): Promise<v
 export async function setSharedRetention(page: Page, limit: number): Promise<void> {
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
-  await expect(page.getByText('Shared automatic snapshot limit')).toBeVisible();
+  await expect(page.getByText('Automatic snapshots in shared history')).toBeVisible();
   const block = page
-    .getByRole('heading', { name: 'Shared automatic snapshot limit' })
+    .getByRole('heading', { name: 'Automatic snapshots in shared history' })
     .locator('xpath=ancestor::div[contains(@class,"justify-between")][1]');
   const enabled = block.getByRole('switch');
   if (!(await enabled.isChecked())) {
     await enabled.click();
   }
-  await block.getByLabel('Shared automatic snapshot limit').fill(String(limit));
+  await block.getByLabel('Automatic snapshots in shared history').fill(String(limit));
   await page.getByRole('button', { name: 'Save settings' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Allow permanent cleanup' }).click();
-  await expect(page.getByText('Shared automatic snapshot limit')).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByText('Automatic snapshots in shared history')).toBeHidden({
+    timeout: 15_000,
+  });
 }
 
 export async function createPublishedSnapshot(
