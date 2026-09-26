@@ -28,6 +28,9 @@ import type {
   CancelCloudSyncData,
   CancelCloudSyncErrors,
   CancelCloudSyncResponses,
+  CheckAppUpdateData,
+  CheckAppUpdateErrors,
+  CheckAppUpdateResponses,
   CheckCloudBackendData,
   CheckCloudBackendErrors,
   CheckCloudBackendResponses,
@@ -411,6 +414,14 @@ export const cancelCloudSync = <ThrowOnError extends boolean = false>(
 ): RequestResult<CancelCloudSyncResponses, CancelCloudSyncErrors, ThrowOnError> =>
   (options?.client ?? client).post<CancelCloudSyncResponses, CancelCloudSyncErrors, ThrowOnError>({
     url: '/api/v1/cancel-cloud-sync',
+    ...options,
+  });
+
+export const checkAppUpdate = <ThrowOnError extends boolean = false>(
+  options?: Options<CheckAppUpdateData, ThrowOnError>
+): RequestResult<CheckAppUpdateResponses, CheckAppUpdateErrors, ThrowOnError> =>
+  (options?.client ?? client).post<CheckAppUpdateResponses, CheckAppUpdateErrors, ThrowOnError>({
+    url: '/api/v1/check-app-update',
     ...options,
   });
 

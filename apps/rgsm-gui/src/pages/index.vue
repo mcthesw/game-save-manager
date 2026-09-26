@@ -145,11 +145,12 @@ const currentLanguageName = computed(() => {
   return lang?.name ?? currentLocale.value;
 });
 
-const appVersion = computed(() => config.value?.version ?? '');
+const appVersion = ref('');
 const gitHash = ref('');
 onMounted(async () => {
   try {
     const info = await commands.getBuildInfo();
+    appVersion.value = info.version;
     gitHash.value = info.git_hash;
   } catch {
     gitHash.value = '';

@@ -16,6 +16,7 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use rgsm_core::config::config_check;
 
 // GUI-specific modules
+mod app_updates;
 mod cloud_library;
 mod cloud_operation;
 mod commands;
@@ -130,6 +131,7 @@ pub fn run() -> anyhow::Result<()> {
     // Init app
     let mut builder = tauri::Builder::default()
         .manage(remote_progress::RemoteProgressState::new(!http_host_only))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -229,11 +231,6 @@ fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
     rgsm_core::cloud_sync::v2::validate_e2e_cutover_interrupt_env()
         .map(|_| ())
         .map_err(|error| anyhow::anyhow!("{error}"))
-}
-
-#[cfg(not(debug_assertions))]
-fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
-    Ok(())
 }
 
 #[cfg(test)]

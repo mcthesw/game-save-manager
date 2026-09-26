@@ -1411,6 +1411,7 @@ export type SetSnapshotRetentionProtectedRequest = {
 export type Settings = {
   add_new_to_favorites?: boolean;
   appearance?: AppearanceSettings;
+  auto_check_for_updates?: boolean;
   cloud_settings?: CloudSettings;
   compression_preset?: CompressionPreset;
   /**
@@ -1555,6 +1556,17 @@ export type SyncState = {
 export type ToggleQuickActionSoundPreviewRequest = {
   effect: QuickActionSoundEffect;
   preferences: QuickActionSoundPreferences;
+};
+
+export type UpdateAction = 'download';
+
+export type UpdateCheck = {
+  action: UpdateAction;
+  available: boolean;
+  currentVersion: string;
+  downloadUrl?: string | null;
+  latestVersion: string;
+  releaseUrl: string;
 };
 
 export type UpdateGameRequest = {
@@ -1706,6 +1718,26 @@ export type CancelCloudSyncResponses = {
 };
 
 export type CancelCloudSyncResponse = CancelCloudSyncResponses[keyof CancelCloudSyncResponses];
+
+export type CheckAppUpdateData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/check-app-update';
+};
+
+export type CheckAppUpdateErrors = {
+  401: ApiError;
+  500: ApiError;
+};
+
+export type CheckAppUpdateError = CheckAppUpdateErrors[keyof CheckAppUpdateErrors];
+
+export type CheckAppUpdateResponses = {
+  200: UpdateCheck;
+};
+
+export type CheckAppUpdateResponse = CheckAppUpdateResponses[keyof CheckAppUpdateResponses];
 
 export type CheckCloudBackendData = {
   body: CheckCloudBackendRequest;

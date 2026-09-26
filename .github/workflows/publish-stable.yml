@@ -1,62 +1,88 @@
 name: Publish Stable
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Stable version from Cargo.toml (for example 1.9.1)"
+        required: true
+        type: string
+
+concurrency:
+  group: publish-stable
+  cancel-in-progress: false
 
 jobs:
-  create-release:
-    permissions:
-      contents: write
+  prepare:
+    if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
-      release_id: ${{ steps.release-metadata.outputs.release_id }}
-      release_tag: ${{ steps.release-metadata.outputs.release_tag }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
-      - name: Create GitHub release
+      - id: version
+        name: Verify release version
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          RELEASE_TAG="${{ github.ref_name }}"
-          GENERATED_NOTES="$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
-            --method POST \
-            -f tag_name="${RELEASE_TAG}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            --jq '.body')"
-
-          if gh release view "${RELEASE_TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" \
-              --notes "${GENERATED_NOTES}" \
-              --repo "${{ github.repository }}"
-          else
-            gh release create "${RELEASE_TAG}" \
-              --notes "${GENERATED_NOTES}" \
-              --repo "${{ github.repository }}"
-          fi
-
-          gh release upload "${RELEASE_TAG}" LICENSE --clobber --repo "${{ github.repository }}"
-      - id: release-metadata
-        name: Resolve release metadata
+          python scripts/check_stable_version.py "$VERSION"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Verify signing key exists
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_TAG="${{ github.ref_name }}"
-          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: test -n "$SIGNING_KEY"
 
-  build-release:
-    needs: create-release
-    permissions:
-      contents: write
+  build:
+    needs: prepare
     uses: ./.github/workflows/build-gui.yml
     with:
       win: true
       linux: true
       macos: true
       windows_portable_slim: true
-      release_id: ${{ needs.create-release.outputs.release_id }}
-      release_tag: ${{ needs.create-release.outputs.release_tag }}
     secrets: inherit
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: stable-*
+          path: release-assets
+          merge-multiple: true
+      - name: Assemble stable update manifest
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          cp LICENSE release-assets/LICENSE
+          python scripts/build_stable_manifest.py \
+            --assets release-assets \
+            --tag "$RELEASE_TAG" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output release-assets/latest.json
+      - name: Create complete stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          git fetch --tags --quiet
+          if git rev-parse "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists" >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            --title "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY"
+          mapfile -d '' files < <(find release-assets -type f -print0)
+          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY"
+          gh release edit "$RELEASE_TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"

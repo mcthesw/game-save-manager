@@ -43,7 +43,7 @@ impl Sanitizable for Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            version: String::from(std::env!("CARGO_PKG_VERSION")),
+            version: String::from(crate::updater::versions::CURRENT_VERSION),
             backup_path: String::from("save_data"),
             games: Vec::new(),
             settings: Settings {
@@ -55,6 +55,7 @@ impl Default for Config {
                 prompt_when_auto_backup: true,
                 cloud_settings: CloudSettings::default(),
                 exit_to_tray: true,
+                auto_check_for_updates: false,
                 locale: default_value::default_locale(),
                 default_delete_before_apply: false,
                 default_expend_favorites_tree: false,

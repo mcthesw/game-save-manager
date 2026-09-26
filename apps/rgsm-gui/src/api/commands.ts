@@ -75,6 +75,9 @@ export const commands = {
   async getBuildInfo() {
     return unwrapDirect<types.GetBuildInfoResponses[200]>(await sdk.getBuildInfo());
   },
+  async checkAppUpdate() {
+    return unwrapDirect<types.CheckAppUpdateResponses[200]>(await sdk.checkAppUpdate());
+  },
   async openFileOrFolder(path: types.OpenFileOrFolderRequest['path']) {
     return unwrap<types.OpenFileOrFolderResponses[200]>(
       await sdk.openFileOrFolder({ body: { path } })

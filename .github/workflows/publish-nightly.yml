@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: publish-nightly
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   detect-changes:
@@ -32,117 +32,130 @@ jobs:
         name: Check changes since latest successful nightly
         run: python scripts/should_publish_nightly.py --event-name "${{ github.event_name }}"
 
-  create-release:
+  build-release:
     needs: detect-changes
     if: needs.detect-changes.outputs.should_publish == 'true'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.release-metadata.outputs.release_id }}
-      release_tag: ${{ steps.release-metadata.outputs.release_tag }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - name: Create GitHub pre-release
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          RELEASE_TAG="latest"
-          RELEASE_TITLE="Bleeding edge/前沿版本"
-
-          if gh api "repos/${{ github.repository }}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh api "repos/${{ github.repository }}/git/refs/tags/${RELEASE_TAG}" \
-              --method PATCH \
-              -f sha="${GITHUB_SHA}" \
-              -F force=true >/dev/null
-          else
-            gh api "repos/${{ github.repository }}/git/refs" \
-              --method POST \
-              -f ref="refs/tags/${RELEASE_TAG}" \
-              -f sha="${GITHUB_SHA}" >/dev/null
-          fi
-
-          GENERATED_NOTES="$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
-            --method POST \
-            -f tag_name="${RELEASE_TAG}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            --jq '.body')"
-
-          if gh release view "${RELEASE_TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" \
-              --title "${RELEASE_TITLE}" \
-              --prerelease \
-              --notes "${GENERATED_NOTES}" \
-              --repo "${{ github.repository }}"
-          else
-            gh release create "${RELEASE_TAG}" \
-              --title "${RELEASE_TITLE}" \
-              --prerelease \
-              --notes "${GENERATED_NOTES}" \
-              --repo "${{ github.repository }}"
-          fi
-
-          gh release upload "${RELEASE_TAG}" LICENSE --clobber --repo "${{ github.repository }}"
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.x"
-
-      - name: Update release notes with changes since last stable release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LAST_STABLE="$(gh api "repos/${{ github.repository }}/releases/latest" \
-            --jq '.tag_name' \
-            2>/dev/null || echo "")"
-
-          if [ -z "$LAST_STABLE" ] || [ "$LAST_STABLE" = "null" ]; then
-            echo "No stable release found, keeping auto-generated release notes."
-            exit 0
-          fi
-
-          echo "Generating changelog since stable release: $LAST_STABLE"
-          git fetch --tags --force --quiet
-          python scripts/nightly_changelog.py \
-            --stable-tag "$LAST_STABLE" \
-            --output /tmp/release-notes.md
-
-          gh release edit "latest" \
-            --notes-file /tmp/release-notes.md \
-            --repo "${{ github.repository }}"
-      - id: release-metadata
-        name: Resolve release metadata
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_TAG="latest"
-          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-
-  build-release:
-    needs: create-release
-    permissions:
-      contents: write
     uses: ./.github/workflows/build-gui.yml
     with:
       win: true
       linux: true
       macos: true
+      macos_archive: true
       windows_portable_slim: true
-      release_id: ${{ needs.create-release.outputs.release_id }}
-      release_tag: ${{ needs.create-release.outputs.release_tag }}
+      artifact_prefix: nightly
     secrets: inherit
 
-  mark-nightly-success:
-    name: Mark successful nightly
+  publish:
+    name: Publish complete nightly
     needs: build-release
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Update successful nightly baseline tag
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: nightly-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify complete nightly packages
+        run: |
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          python scripts/build_stable_manifest.py \
+            --assets release-assets \
+            --tag "v${VERSION}" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output "$RUNNER_TEMP/nightly-verification.json"
+          mapfile -d '' macos_archives < <(find release-assets -maxdepth 1 -name '*.app.tar.gz' -print0)
+          test "${#macos_archives[@]}" -eq 1
+          archive_name="release-assets/RGSM_${VERSION}_aarch64.app.tar.gz"
+          if [ "${macos_archives[0]}" != "$archive_name" ]; then
+            mv "${macos_archives[0]}" "$archive_name"
+          fi
+          cp LICENSE release-assets/LICENSE
+      - name: Prepare nightly notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_STABLE="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" \
+            --jq '.tag_name' 2>/dev/null || true)"
+          if [ -n "$LAST_STABLE" ] && [ "$LAST_STABLE" != "null" ]; then
+            git fetch --tags --force --quiet
+            python scripts/nightly_changelog.py \
+              --stable-tag "$LAST_STABLE" \
+              --output "$RUNNER_TEMP/nightly-notes.md"
+          else
+            printf 'Automated nightly build of `%s`.\n' "$GITHUB_SHA" > "$RUNNER_TEMP/nightly-notes.md"
+          fi
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          RELEASE_TAG=latest
+          RELEASE_TITLE='Bleeding edge/前沿版本'
+          python scripts/build_stable_manifest.py --assets release-assets \
+            --nightly-files > "$RUNNER_TEMP/nightly-files"
+          mapfile -d '' files < "$RUNNER_TEMP/nightly-files"
+          if [ "${#files[@]}" -ne 9 ]; then
+            echo "Expected seven installers, macOS archive, and LICENSE; found ${#files[@]} files" >&2
+            exit 1
+          fi
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft --repo "$GITHUB_REPOSITORY"
+          fi
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG" \
+              --method PATCH -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+              --method POST -f ref="refs/tags/$RELEASE_TAG" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --draft --prerelease --verify-tag \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$RUNNER_TEMP/nightly-notes.md" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          declare -A expected
+          for file in "${files[@]}"; do expected["${file##*/}"]=1; done
+          mapfile -t current_assets < <(gh release view "$RELEASE_TAG" \
+            --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY")
+          for asset in "${current_assets[@]}"; do
+            if [[ -z "${expected[$asset]+x}" ]]; then
+              gh release delete-asset "$RELEASE_TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+          actual="$(gh release view "$RELEASE_TAG" \
+            --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY" | sort)"
+          wanted="$(printf '%s\n' "${!expected[@]}" | sort)"
+          if [ "$actual" != "$wanted" ]; then
+            echo "Nightly release assets do not match the verified build" >&2
+            exit 1
+          fi
+          gh release edit "$RELEASE_TAG" \
+            --draft=false --prerelease \
+            --title "$RELEASE_TITLE" \
+            --notes-file "$RUNNER_TEMP/nightly-notes.md" \
+            --repo "$GITHUB_REPOSITORY"
+      - name: Verify nightly stays out of stable updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh release view latest --json isPrerelease --jq '.isPrerelease' --repo "$GITHUB_REPOSITORY")" = true
+          STABLE_TAG="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
+          test "$STABLE_TAG" != latest
+      - name: Mark successful nightly
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |

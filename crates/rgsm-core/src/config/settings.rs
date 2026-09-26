@@ -87,6 +87,8 @@ pub struct Settings {
     pub prompt_when_auto_backup: bool,
     #[serde(default = "default_value::default_true")]
     pub exit_to_tray: bool,
+    #[serde(default = "default_value::default_false")]
+    pub auto_check_for_updates: bool,
     #[serde(default = "default_value::default")]
     pub cloud_settings: CloudSettings,
     #[serde(default = "default_value::default_locale")]
@@ -139,6 +141,7 @@ impl Default for Settings {
             show_edit_button: default_value::default_false(),
             prompt_when_auto_backup: default_value::default_true(),
             exit_to_tray: default_value::default_true(),
+            auto_check_for_updates: default_value::default_false(),
             cloud_settings: CloudSettings::default(),
             locale: default_value::default_locale(),
             default_delete_before_apply: default_value::default_false(),
@@ -173,6 +176,48 @@ impl Sanitizable for Settings {
 #[cfg(test)]
 mod tests {
     use super::AppearanceSettings;
+
+    #[test]
+    fn update_checks_require_opt_in_and_preserve_saved_choice() {
+        use super::Settings;
+        use crate::config::{Config, ownership::LocalInterfaceSettings};
+
+        assert!(!Settings::default().auto_check_for_updates);
+        assert!(!Config::default().settings.auto_check_for_updates);
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        old.as_object_mut()
+            .unwrap()
+            .remove("auto_check_for_updates");
+        assert!(
+            !serde_json::from_value::<Settings>(old)
+                .unwrap()
+                .auto_check_for_updates
+        );
+        let mut local =
+            serde_json::to_value(LocalInterfaceSettings::from(&Settings::default())).unwrap();
+        local
+            .as_object_mut()
+            .unwrap()
+            .remove("auto_check_for_updates");
+        assert!(
+            !serde_json::from_value::<LocalInterfaceSettings>(local)
+                .unwrap()
+                .auto_check_for_updates
+        );
+        for enabled in [false, true] {
+            let settings = Settings {
+                auto_check_for_updates: enabled,
+                ..Settings::default()
+            };
+            let saved = serde_json::to_value(&settings).unwrap();
+            assert_eq!(
+                serde_json::from_value::<Settings>(saved)
+                    .unwrap()
+                    .auto_check_for_updates,
+                enabled
+            );
+        }
+    }
 
     #[test]
     fn sidebar_preference_survives_serialization_without_changing_old_defaults() {

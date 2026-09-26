@@ -2098,6 +2098,7 @@ pub async fn http_regenerate_http_api_token(
 
 pub fn router() -> Router<HttpHostState> {
     Router::new()
+        .merge(super::app_updates_http::router())
         .route("/api/v1/open-url", post(http_open_url))
         .route("/api/v1/get-build-info", post(http_get_build_info))
         .route("/api/v1/get-http-host-info", post(http_get_http_host_info))
@@ -2403,6 +2404,7 @@ pub fn router() -> Router<HttpHostState> {
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        super::app_updates_http::check,
         http_open_url,
         http_get_build_info,
         http_open_file_or_folder,
@@ -2510,6 +2512,8 @@ pub fn router() -> Router<HttpHostState> {
         crate::http::stream_events,
     ),
     components(schemas(
+        crate::app_updates::UpdateCheck,
+        crate::app_updates::UpdateAction,
         ApiError,
         crate::http::ApiErrorCode,
         HttpHostInfo,
