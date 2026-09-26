@@ -183,6 +183,7 @@ export type CloudArchiveGameView = {
   local_only: boolean;
   local_only_count: number;
   managed: boolean;
+  metadata_sync_pending: boolean;
   name: string;
   other_device_only_count: number;
   pending_deletions: Array<CloudArchiveDeletionView>;
@@ -508,8 +509,10 @@ export type Device = {
 };
 
 export type DeviceGameStatus = {
+  definition_conflict: boolean;
   game_id: string;
   managed: boolean;
+  metadata_sync_pending: boolean;
   retention_limit?: number | null;
   shared: boolean;
   visible: boolean;

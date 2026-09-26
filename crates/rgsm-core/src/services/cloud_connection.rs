@@ -27,7 +27,7 @@ impl ServiceContext {
         if state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
             return Err(CloudLibraryServiceError::ActiveLibraryUnavailable);
         }
-        if state.is_local_game(game_id) {
+        if state.is_local_game(game_id) || state.pending_game_metadata.contains_key(game_id) {
             return Err(
                 crate::cloud_sync::v2::MaterializationError::GameDefinitionNotAccepted(
                     game_id.to_string(),
@@ -90,7 +90,7 @@ impl ServiceContext {
         let (library, _, state) = cloud_bootstrap_inputs()?;
         let candidates = SharedLibrary {
             schema_version: library.schema_version,
-            games: state.local_games.clone(),
+            games: state.definition_candidates(),
         };
         let operator = bound_v2_operator(&state).await?;
         let registry = DeletionRegistryRepository::new(operator.clone(), 3)
@@ -116,7 +116,7 @@ impl ServiceContext {
         let candidates = SharedLibrary {
             schema_version: library.schema_version,
             games: state
-                .local_games
+                .definition_candidates()
                 .iter()
                 .filter(|local| {
                     decisions

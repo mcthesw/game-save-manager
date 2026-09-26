@@ -15,6 +15,7 @@ export type { CloudSyncErrorEvent, CloudSyncStatusEvent, HostNotification, Quick
 
 type HostEventMap = {
   'cloud-sync-error': CloudSyncErrorEvent;
+  'cloud-metadata-changed': boolean;
   'cloud-sync-status': CloudSyncStatusEvent;
   notification: HostNotification;
   'quick-action-completed': QuickActionCompleted;
@@ -61,6 +62,9 @@ function listen<K extends keyof HostEventMap>(eventType: K, listener: Listener<H
 }
 
 export const events = {
+  cloudMetadataChanged: {
+    listen: (listener: Listener<boolean>) => listen('cloud-metadata-changed', listener),
+  },
   remoteProgressPending: {
     listen: (listener: Listener<PendingProgress>) => listen('remote-progress-pending', listener),
   },

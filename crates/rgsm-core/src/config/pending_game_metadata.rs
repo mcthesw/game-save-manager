@@ -81,6 +81,17 @@ impl PendingGameMetadata {
 }
 
 impl LocalState {
+    pub(crate) fn definition_candidates(&self) -> Vec<SharedGame> {
+        let mut candidates = self.local_games.clone();
+        candidates.extend(
+            self.pending_game_metadata
+                .values()
+                .filter(|edit| edit.conflict)
+                .map(|edit| edit.desired.clone()),
+        );
+        candidates
+    }
+
     pub(crate) fn pending_definitions(&self) -> Vec<SharedGame> {
         self.pending_game_metadata
             .values()
