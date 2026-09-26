@@ -37,8 +37,11 @@ struct SnapshotSyncRuntime {
 pub fn build_v2_snapshot_sync_hook(
     request: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<Option<V2SnapshotSyncHook>, SnapshotSyncServiceError> {
-    Ok(load_runtime()?
-        .map(|runtime| V2SnapshotSyncHook::new(runtime.targets.into_keys().collect(), request)))
+    let (_, _, state) = cloud_bootstrap_inputs()?;
+    Ok(
+        (state.cloud_namespace_generation == CloudNamespaceGeneration::V2)
+            .then(|| V2SnapshotSyncHook::new(request)),
+    )
 }
 
 pub async fn run_v2_snapshot_sync_once(
@@ -139,7 +142,8 @@ pub async fn resume_v2_snapshot_sync(
 pub fn v2_snapshot_sync_poll_minutes() -> Result<Option<u64>, SnapshotSyncServiceError> {
     let (_, profile, local_state) = cloud_bootstrap_inputs()?;
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-        || !profile.games.values().any(|game| game.cloud_sync_enabled)
+        || (!profile.games.values().any(|game| game.cloud_sync_enabled)
+            && local_state.pending_game_metadata.is_empty())
     {
         return Ok(None);
     }
@@ -160,7 +164,10 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
         .games
         .into_iter()
         .filter_map(|(game_id, settings)| {
-            if !settings.cloud_sync_enabled || !settings.sync_mode.checks_remote_progress() {
+            if local_state.pending_game_metadata.contains_key(&game_id)
+                || !settings.cloud_sync_enabled
+                || !settings.sync_mode.checks_remote_progress()
+            {
                 return None;
             }
             let process_name = settings.live_save_process_name.unwrap_or_default();
@@ -183,7 +190,7 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
         return Ok(None);
     }
     let mut targets = sync_targets(&profile, &library);
-    targets.retain(|game_id, _| !local_state.is_local_game(game_id));
+    targets.retain(|game_id, _| !local_state.local_game_ids().contains(game_id));
     let archive_root = profile
         .local_archive_root
         .as_deref()

@@ -316,23 +316,16 @@ pub(crate) fn replace_shared_library(
     Ok(())
 }
 
-pub(crate) fn accept_remote_shared_library(
-    expected_library: &SharedLibrary,
-    expected_profile: &DeviceProfile,
-    accepted_library: &SharedLibrary,
-    accepted_profile: &DeviceProfile,
-    library_id: &str,
+pub(crate) fn reconcile_game_metadata(
+    expected: &LocalState,
+    remote: &SharedLibrary,
+    completed: &[String],
+    conflicts: &[String],
 ) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
-    OwnerStore::runtime().accept_remote_shared_library(
-        expected_library,
-        expected_profile,
-        accepted_library,
-        accepted_profile,
-        library_id,
-    )?;
+    OwnerStore::runtime().reconcile_game_metadata(expected, remote, completed, conflicts)?;
     Ok(())
 }
 

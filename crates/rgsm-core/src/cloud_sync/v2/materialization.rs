@@ -33,6 +33,7 @@ pub struct CloudArchiveGameView {
     pub game_id: String,
     pub name: String,
     pub definition_conflict: bool,
+    pub metadata_sync_pending: bool,
     /// A local definition that has not been published to this library.
     pub local_only: bool,
     pub sync_mode: SyncMode,
@@ -217,6 +218,7 @@ impl CloudArchiveMaterializer {
             snapshots.reverse();
             games.push(CloudArchiveGameView {
                 definition_conflict: false,
+                metadata_sync_pending: false,
                 local_only: false,
                 game_id: game_id.clone(),
                 name: game_names

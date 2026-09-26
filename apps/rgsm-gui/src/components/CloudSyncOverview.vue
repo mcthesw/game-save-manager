@@ -76,8 +76,9 @@ function needsProgressChoice(game: CloudArchiveGameView) {
 }
 
 function syncStatus(game: CloudArchiveGameView) {
-  if (lastError.value) return 'unavailable';
   if (game.definition_conflict) return 'conflict';
+  if (game.metadata_sync_pending) return 'metadata_pending';
+  if (lastError.value) return 'unavailable';
   if (game.local_only) return 'local_only';
   if (!game.managed || !game.cloud_sync_enabled) return 'disabled';
   if (game.requires_choice) return 'conflict';
@@ -311,7 +312,12 @@ function openGame(game: CloudArchiveGameView) {
         <div class="flex justify-center">
           <KSwitch
             :model-value="game.managed && game.cloud_sync_enabled"
-            :disabled="game.definition_conflict || !game.managed || busyGameId === game.game_id"
+            :disabled="
+              game.definition_conflict ||
+              game.metadata_sync_pending ||
+              !game.managed ||
+              busyGameId === game.game_id
+            "
             :aria-label="$t('sync_settings.overview.local_sync')"
             @update:model-value="setCloudEnabled(game, Boolean($event))"
           />
