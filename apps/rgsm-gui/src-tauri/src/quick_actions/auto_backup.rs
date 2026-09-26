@@ -14,6 +14,9 @@ pub async fn perform_changed_auto_backup(
     retention: Option<&AutoBackupConfig>,
     trigger: QuickActionType,
 ) {
+    let Some(_operation) = app.state::<crate::app_operations::AppOperations>().begin() else {
+        return;
+    };
     let describe = trigger.generate_describe();
     let created_by = trigger.to_created_by();
 

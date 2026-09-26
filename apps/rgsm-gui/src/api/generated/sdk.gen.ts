@@ -25,6 +25,8 @@ import type {
   BatchDeleteSnapshotsData,
   BatchDeleteSnapshotsErrors,
   BatchDeleteSnapshotsResponses,
+  CancelAppUpdateInstallData,
+  CancelAppUpdateInstallResponses,
   CancelCloudSyncData,
   CancelCloudSyncErrors,
   CancelCloudSyncResponses,
@@ -91,6 +93,9 @@ import type {
   DetectStoreUserIdsData,
   DetectStoreUserIdsErrors,
   DetectStoreUserIdsResponses,
+  DownloadAppUpdateData,
+  DownloadAppUpdateErrors,
+  DownloadAppUpdateResponses,
   DownloadCloudArchiveData,
   DownloadCloudArchiveErrors,
   DownloadCloudArchiveResponses,
@@ -109,6 +114,8 @@ import type {
   GetAppLogDirData,
   GetAppLogDirErrors,
   GetAppLogDirResponses,
+  GetAppUpdateStateData,
+  GetAppUpdateStateResponses,
   GetAutoBackupStatusData,
   GetAutoBackupStatusErrors,
   GetAutoBackupStatusResponses,
@@ -166,6 +173,9 @@ import type {
   InspectCloudLibraryData,
   InspectCloudLibraryErrors,
   InspectCloudLibraryResponses,
+  InstallAppUpdateData,
+  InstallAppUpdateErrors,
+  InstallAppUpdateResponses,
   JoinCloudLibraryData,
   JoinCloudLibraryErrors,
   JoinCloudLibraryResponses,
@@ -407,6 +417,14 @@ export const batchDeleteSnapshots = <ThrowOnError extends boolean = false>(
       'Content-Type': 'application/json',
       ...options.headers,
     },
+  });
+
+export const cancelAppUpdateInstall = <ThrowOnError extends boolean = false>(
+  options?: Options<CancelAppUpdateInstallData, ThrowOnError>
+): RequestResult<CancelAppUpdateInstallResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).post<CancelAppUpdateInstallResponses, unknown, ThrowOnError>({
+    url: '/api/v1/cancel-app-update-install',
+    ...options,
   });
 
 export const cancelCloudSync = <ThrowOnError extends boolean = false>(
@@ -668,6 +686,22 @@ export const detectStoreUserIds = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({ url: '/api/v1/detect-store-user-ids', ...options });
 
+export const downloadAppUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<DownloadAppUpdateData, ThrowOnError>
+): RequestResult<DownloadAppUpdateResponses, DownloadAppUpdateErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    DownloadAppUpdateResponses,
+    DownloadAppUpdateErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/download-app-update',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
 export const downloadCloudArchive = <ThrowOnError extends boolean = false>(
   options: Options<DownloadCloudArchiveData, ThrowOnError>
 ): RequestResult<DownloadCloudArchiveResponses, DownloadCloudArchiveErrors, ThrowOnError> =>
@@ -754,6 +788,14 @@ export const getAppLogDir = <ThrowOnError extends boolean = false>(
 ): RequestResult<GetAppLogDirResponses, GetAppLogDirErrors, ThrowOnError> =>
   (options?.client ?? client).post<GetAppLogDirResponses, GetAppLogDirErrors, ThrowOnError>({
     url: '/api/v1/get-app-log-dir',
+    ...options,
+  });
+
+export const getAppUpdateState = <ThrowOnError extends boolean = false>(
+  options?: Options<GetAppUpdateStateData, ThrowOnError>
+): RequestResult<GetAppUpdateStateResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).post<GetAppUpdateStateResponses, unknown, ThrowOnError>({
+    url: '/api/v1/get-app-update-state',
     ...options,
   });
 
@@ -962,6 +1004,18 @@ export const inspectCloudLibrary = <ThrowOnError extends boolean = false>(
     InspectCloudLibraryErrors,
     ThrowOnError
   >({ url: '/api/v1/inspect-cloud-library', ...options });
+
+export const installAppUpdate = <ThrowOnError extends boolean = false>(
+  options: Options<InstallAppUpdateData, ThrowOnError>
+): RequestResult<InstallAppUpdateResponses, InstallAppUpdateErrors, ThrowOnError> =>
+  (options.client ?? client).post<InstallAppUpdateResponses, InstallAppUpdateErrors, ThrowOnError>({
+    url: '/api/v1/install-app-update',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
 export const joinCloudLibrary = <ThrowOnError extends boolean = false>(
   options: Options<JoinCloudLibraryData, ThrowOnError>

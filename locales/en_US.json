@@ -7,9 +7,16 @@
         "current": "You're up to date",
         "check_failed": "Couldn't check for updates. Try again later.",
         "update_failed": "The update couldn't start or finish. Try again.",
+        "install": "Restart and install",
         "download": "Download",
+        "installing": "Installing the update",
         "later": "Later",
-        "release_notes": "What’s new"
+        "downloading": "Downloading the update",
+        "ready": "Version {version} is downloaded. Install when you are ready to restart.",
+        "waiting": "Waiting for current tasks to finish before restarting",
+        "cancel_wait": "Keep using the app",
+        "release_notes": "What’s new",
+        "manual_download": "Download manually"
     },
     "cloud_join": {
         "reuse": {
