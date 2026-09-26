@@ -36,6 +36,10 @@ test('many pending games keep the last comparison and Later accessible in a smal
     for (const name of names) {
       await createSnapshotForGame(session.hostA, name, 'Remote progress');
     }
+    // Local capture completes before background publication. Prepare all remote
+    // heads before checking the multi-game reminder layout on the second device.
+    const published = await hostPost(session.hostA, '/api/v1/refresh-cloud-archive-library');
+    expect(published.ok, published.raw).toBe(true);
     await connectLibrary(session.pageB);
     for (const name of names) {
       const result = await hostPost(session.hostB, '/api/v1/set-game-sync-mode', {

@@ -13,6 +13,34 @@ pub fn setup(app: AppHandle, state: CloudOperationState) {
     tauri::async_runtime::spawn(run(app, state));
 }
 
+/// Explicit refresh waits for the same cancellable reconciliation as the worker.
+pub async fn refresh(
+    app: &AppHandle,
+) -> Result<rgsm_core::cloud_sync::v2::CloudArchiveLibraryView, String> {
+    let state = app
+        .state::<crate::cloud_operation::CloudOperationState>()
+        .inner()
+        .clone();
+    state
+        .run_sync(|cancellation| async move {
+            rgsm_core::services::run_v2_snapshot_sync_once(&cancellation)
+                .await
+                .map_err(|error| error.to_string())?;
+            crate::remote_progress::refresh(
+                app,
+                &rgsm_core::services::ServiceContext::new(
+                    app.state::<crate::hooks::HookPipelineState>().snapshot(),
+                ),
+            )
+            .await
+            .map_err(|error| error.to_string())
+        })
+        .await
+        .unwrap_or_else(
+            || Err(rgsm_core::services::SnapshotSyncServiceError::Cancelled.to_string()),
+        )
+}
+
 async fn run(app: AppHandle, state: CloudOperationState) {
     let operations = app
         .state::<crate::app_operations::AppOperations>()
@@ -21,7 +49,7 @@ async fn run(app: AppHandle, state: CloudOperationState) {
     let app = &app;
     let operations = &operations;
     state
-        .run_background(|cancellation| async move {
+        .run_sync(|cancellation| async move {
             let Some(_operation) = operations.begin() else {
                 return;
             };
@@ -60,7 +88,7 @@ async fn run(app: AppHandle, state: CloudOperationState) {
             continue;
         }
         state
-            .run_background(|cancellation| async move {
+            .run_sync(|cancellation| async move {
                 let Some(_operation) = operations.begin() else {
                     return;
                 };
@@ -72,7 +100,10 @@ async fn run(app: AppHandle, state: CloudOperationState) {
 }
 
 async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
-    match rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await {
+    let state = app.state::<CloudOperationState>();
+    let result = rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await;
+    state.report_background_result(app, result.as_ref().err().map(|error| error.to_string()));
+    match result {
         Ok(outcome) if outcome != Default::default() => info!(
             target: "rgsm::cloud::v2_snapshot_sync",
             "V2 Snapshot Sync completed: {} published, {} uploaded",
@@ -80,10 +111,10 @@ async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
             outcome.uploaded
         ),
         Ok(_) => {}
-        Err(error) => warn!(
-            target: "rgsm::cloud::v2_snapshot_sync",
-            "V2 Snapshot Sync reconciliation failed: {error}"
-        ),
+        Err(error) => {
+            warn!(target: "rgsm::cloud::v2_snapshot_sync", "V2 Snapshot Sync reconciliation failed: {error}");
+            return;
+        }
     }
     let service = rgsm_core::services::ServiceContext::new(
         app.state::<crate::hooks::HookPipelineState>().snapshot(),
