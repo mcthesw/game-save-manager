@@ -14,38 +14,33 @@ pub fn setup(app: AppHandle, state: CloudOperationState) {
 }
 
 async fn run(app: AppHandle, state: CloudOperationState) {
-    let cancellation = CancellationToken::new();
     let operations = app
         .state::<crate::app_operations::AppOperations>()
         .inner()
         .clone();
-    let Some(startup) = operations.begin() else {
-        return;
-    };
+    let app = &app;
+    let operations = &operations;
     state
-        .run(async {
-            match rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
-                Ok(downloaded) if downloaded > 0 => info!(
-                    target: "rgsm::cloud::v2_snapshot_sync",
-                    "Resumed {downloaded} pending Snapshot downloads at startup"
-                ),
-                Ok(_) => {}
-                Err(error) => warn!(
-                    target: "rgsm::cloud::v2_snapshot_sync",
-                    "V2 Snapshot download recovery failed: {error}"
-                ),
+        .run_background(|cancellation| async move {
+            let Some(_operation) = operations.begin() else {
+                return;
+            };
+            if let Err(error) = rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
+                warn!("Snapshot download recovery failed: {error}");
             }
-            run_reconciliation(&app, &cancellation).await;
+            run_reconciliation(app, &cancellation).await;
         })
         .await;
 
-    drop(startup);
     let mut last_run = Instant::now();
     let mut control_tick = tokio::time::interval(CONTROL_POLL_INTERVAL);
     control_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
     control_tick.tick().await;
     loop {
-        control_tick.tick().await;
+        let requested = tokio::select! {
+            _ = state.requested() => true,
+            _ = control_tick.tick() => false,
+        };
         let poll_minutes = match rgsm_core::services::v2_snapshot_sync_poll_minutes() {
             Ok(Some(minutes)) => minutes,
             Ok(None) => {
@@ -61,15 +56,15 @@ async fn run(app: AppHandle, state: CloudOperationState) {
             }
         };
         let poll_interval = Duration::from_secs(poll_minutes.saturating_mul(60));
-        if last_run.elapsed() < poll_interval {
+        if !requested && last_run.elapsed() < poll_interval {
             continue;
         }
-        let Some(_operation) = operations.begin() else {
-            continue;
-        };
         state
-            .run(async {
-                run_reconciliation(&app, &cancellation).await;
+            .run_background(|cancellation| async move {
+                let Some(_operation) = operations.begin() else {
+                    return;
+                };
+                run_reconciliation(app, &cancellation).await;
             })
             .await;
         last_run = Instant::now();
