@@ -78,6 +78,9 @@ test('editing a shared description updates existing copies without transferring 
       describe: '',
     });
     expect(cleared.ok, cleared.raw).toBe(true);
+    await expect
+      .poll(async () => (await manifest()).games[STORAGE_KEY]!.snapshots[id]!.description)
+      .toBe('');
     await hostPost(session.hostA, '/api/v1/refresh-cloud-archive-library');
     expect((await listSnapshots(session.hostA)).find((s) => s.date === id)?.describe).toBe('');
     const after = await manifest();
@@ -120,10 +123,14 @@ test('failed description sync survives restart and retries on refresh', async ({
       .click();
     const dialog = session.pageA.getByRole('dialog', { name: 'Enter new description' });
     await dialog.getByRole('textbox').fill('Saved while offline');
-    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-    await expect(session.pageA.locator('.activity-toast')).toContainText(
-      'Description saved, but cloud sync failed'
+    const saved = session.pageA.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/v1/set-snapshot-description') &&
+        response.request().method() === 'POST'
     );
+    await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+    expect((await (await saved).json()).cloud_sync_pending).toBe(true);
+    await expect(dialog).toBeHidden();
     expect((await listSnapshots(session.hostA)).find((s) => s.date === id)?.describe).toBe(
       'Saved while offline'
     );

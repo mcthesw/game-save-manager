@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use rgsm_core::cloud_sync::CloudSyncTaskManager;
 use tauri::{AppHandle, Manager};
@@ -10,7 +11,8 @@ use tokio_util::sync::CancellationToken;
 pub struct CloudOperationState {
     operation_lock: Arc<Mutex<()>>,
     wakeup: Arc<Notify>,
-    background: Arc<std::sync::Mutex<CancellationToken>>,
+    background_failed: Arc<AtomicBool>,
+    sync_cancellation: Arc<std::sync::Mutex<CancellationToken>>,
 }
 
 pub async fn run<T>(app: &AppHandle, operation: impl Future<Output = T>) -> T {
@@ -21,11 +23,11 @@ pub async fn run<T>(app: &AppHandle, operation: impl Future<Output = T>) -> T {
 pub async fn run_after_cancelling<T>(app: &AppHandle, operation: impl Future<Output = T>) -> T {
     let manager = Arc::clone(app.state::<Arc<CloudSyncTaskManager>>().inner());
     let state = app.state::<CloudOperationState>().inner().clone();
-    state.cancel_background();
+    state.cancel_sync();
     manager.cancel_all().await;
     run(app, async move {
         manager.cancel_all_and_wait().await;
-        state.reset_background();
+        state.reset_sync();
         let result = operation.await;
         state.request_sync();
         result
@@ -48,32 +50,62 @@ impl CloudOperationState {
         self.wakeup.notified().await;
     }
 
-    fn cancel_background(&self) {
-        self.background
+    pub fn cancel_current_sync(&self) {
+        let mut token = self
+            .sync_cancellation
             .lock()
-            .expect("background token lock")
+            .expect("sync cancellation lock");
+        token.cancel();
+        *token = CancellationToken::new();
+    }
+
+    pub fn report_background_result(&self, app: &AppHandle, error: Option<String>) {
+        let was_failed = self
+            .background_failed
+            .swap(error.is_some(), Ordering::Relaxed);
+        if let Some(error) = error
+            && !was_failed
+        {
+            crate::http::emit(
+                app,
+                "cloud-sync-error",
+                &crate::commands::CloudSyncErrorEvent {
+                    game_name: None,
+                    error,
+                },
+            );
+        }
+    }
+
+    fn cancel_sync(&self) {
+        self.sync_cancellation
+            .lock()
+            .expect("sync cancellation lock")
             .cancel();
     }
 
-    fn reset_background(&self) {
-        *self.background.lock().expect("background token lock") = CancellationToken::new();
+    fn reset_sync(&self) {
+        *self
+            .sync_cancellation
+            .lock()
+            .expect("sync cancellation lock") = CancellationToken::new();
     }
 
-    pub async fn run_background<F, Fut>(&self, operation: F)
+    pub async fn run_sync<T, F, Fut>(&self, operation: F) -> Option<T>
     where
         F: FnOnce(CancellationToken) -> Fut,
-        Fut: Future<Output = ()>,
+        Fut: Future<Output = T>,
     {
         let _guard = self.operation_lock.lock().await;
         let cancellation = self
-            .background
+            .sync_cancellation
             .lock()
-            .expect("background token lock")
+            .expect("sync cancellation lock")
             .clone();
         tokio::select! {
             biased;
-            _ = cancellation.cancelled() => {},
-            _ = operation(cancellation.clone()) => {},
+            _ = cancellation.cancelled() => None,
+            result = operation(cancellation.clone()) => Some(result),
         }
     }
 }
@@ -100,7 +132,7 @@ mod tests {
                 .is_err()
         );
         state
-            .run_background(|_| async {
+            .run_sync(|_| async {
                 state.request_sync();
             })
             .await;
@@ -116,22 +148,22 @@ mod tests {
         let (started, ready) = oneshot::channel();
         let task = tokio::spawn(async move {
             worker
-                .run_background(|_| async {
+                .run_sync(|_| async {
                     started.send(()).unwrap();
                     std::future::pending::<()>().await;
                 })
                 .await;
         });
         ready.await.unwrap();
-        state.cancel_background();
+        state.cancel_sync();
         tokio::time::timeout(Duration::from_secs(1), task)
             .await
             .unwrap()
             .unwrap();
-        state.reset_background();
+        state.reset_sync();
         let mut ran = false;
         state
-            .run_background(|_| async {
+            .run_sync(|_| async {
                 ran = true;
             })
             .await;

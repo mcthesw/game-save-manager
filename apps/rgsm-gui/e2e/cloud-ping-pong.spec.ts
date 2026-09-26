@@ -68,7 +68,6 @@ test('repeated upload download round trips stay consistent', async ({ browser },
 
     const published: string[] = [first];
     const creators = new Map([[first, DEVICE_A_ID]]);
-    let latestA = first;
     let latestB = first;
     for (let round = 1; round <= ROUNDS; round += 1) {
       const aSave = `round-${round}-from-a\n`;
@@ -76,7 +75,6 @@ test('repeated upload download round trips stay consistent', async ({ browser },
       const aSnap = await createPublishedSnapshot(session.pageA, session.hostA, `Round ${round} A`);
       published.push(aSnap);
       creators.set(aSnap, DEVICE_A_ID);
-      latestA = aSnap;
 
       await deferPendingProgress(session.pageB);
       await openGame(session.pageB);
@@ -100,9 +98,9 @@ test('repeated upload download round trips stay consistent', async ({ browser },
       expect(await readSave(seeded.deviceA)).toBe(bSave);
     }
 
-    // A device head tracks that device's last published progress; applying the
-    // other device's snapshot does not republish the head.
-    await expectDeviceHeadEventually(seeded.cloudRoot, DEVICE_A_ID, latestA);
+    // Reconciliation advertises the current local head, including the snapshot
+    // most recently restored from the other device.
+    await expectDeviceHeadEventually(seeded.cloudRoot, DEVICE_A_ID, latestB);
     await expectDeviceHeadEventually(seeded.cloudRoot, DEVICE_B_ID, latestB);
     expect(await readSave(seeded.deviceA)).toBe(`round-${ROUNDS}-from-b\n`);
     expect(await readSave(seeded.deviceB)).toBe(`round-${ROUNDS}-from-b\n`);
