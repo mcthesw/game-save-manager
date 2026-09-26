@@ -1079,17 +1079,9 @@ fn import_downloaded_lineage(
         .into_iter()
         .find(|game| game.storage_key == game_id)
         .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
-    let mut local = match game.get_game_snapshots_info() {
-        Ok(snapshots) => snapshots,
-        Err(crate::preclude::BackupError::Io(error))
-            if error.kind() == std::io::ErrorKind::NotFound =>
-        {
-            GameSnapshots::new(game.name.clone())
-        }
-        Err(error) => return Err(error.into()),
-    };
-    super::conflict_resolution::merge_remote_lineage(&mut local, lineage)?;
-    game.set_game_snapshots_info(&local)?;
+    game.update_game_snapshots_info::<CloudLibraryServiceError>(|local| {
+        super::conflict_resolution::merge_remote_lineage(local, lineage)
+    })?;
     Ok(())
 }
 

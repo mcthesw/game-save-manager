@@ -1073,13 +1073,16 @@ pub async fn set_snapshot_description(
     describe: String,
     app_handle: AppHandle,
 ) -> Result<rgsm_core::services::SnapshotDescriptionOutcome, String> {
-    run_cloud_operation(&app_handle, async {
-        svc(&app_handle)
-            .set_snapshot_description(&game, &date, &describe)
-            .await
-            .map_err(|error| error.to_string())
-    })
-    .await
+    let result = svc(&app_handle)
+        .set_snapshot_description(&game, &date, &describe)
+        .await
+        .map_err(|error| error.to_string())?;
+    if result.cloud_sync_pending {
+        app_handle
+            .state::<crate::cloud_operation::CloudOperationState>()
+            .request_sync();
+    }
+    Ok(result)
 }
 
 pub async fn backup_all(app_handle: AppHandle) -> Result<(), String> {

@@ -83,8 +83,13 @@ pub fn build_builtin_pipeline(app: &AppHandle, config: &Config) -> HookPipeline 
                 "Automatic legacy cloud writes are paused until Cloud Library activation"
             ),
             Ok(CloudNamespaceGeneration::V2) => {
-                let state = app.state::<crate::cloud_operation::CloudOperationState>();
-                match rgsm_core::services::build_v2_snapshot_sync_hook(state.lock_handle()) {
+                let state = app
+                    .state::<crate::cloud_operation::CloudOperationState>()
+                    .inner()
+                    .clone();
+                match rgsm_core::services::build_v2_snapshot_sync_hook(Arc::new(move || {
+                    state.request_sync()
+                })) {
                     Ok(Some(hook)) => hooks.push(Box::new(hook)),
                     Ok(None) => {}
                     Err(error) => warn!(
