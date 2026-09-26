@@ -28,7 +28,7 @@ pub async fn refresh(
     app: &AppHandle,
     service: &ServiceContext,
 ) -> Result<CloudArchiveLibraryView, CloudLibraryServiceError> {
-    let view = service.refresh_cloud_archive_library().await?;
+    let view = service.cloud_archive_library().await?;
     let eligible = view
         .games
         .iter()

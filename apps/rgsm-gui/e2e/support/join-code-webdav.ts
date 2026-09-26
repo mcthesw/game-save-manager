@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 
 /** Loopback-only WebDAV fixture for joining metadata. Not a provider compatibility suite. */
-export async function startJoinCodeWebDav() {
+export async function startJoinCodeWebDav(beforeRequest?: () => Promise<void>) {
   const files = new Map<string, Buffer>();
   const directories = new Set(['/']);
   const writes: string[] = [];
@@ -12,6 +12,7 @@ export async function startJoinCodeWebDav() {
   const xml = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
   const server = createServer(async (request, response) => {
     try {
+      await beforeRequest?.();
       if (request.headers.authorization !== authorization) {
         response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="test"' }).end();
         return;

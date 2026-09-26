@@ -923,7 +923,7 @@ async function change_describe(date: string) {
     }
     refresh_backups_info();
     if (result.data.cloud_sync_pending) {
-      notifyWarning($t('manage.description_sync_pending'));
+      notifyInfo($t('manage.description_sync_pending'));
     } else {
       notifySuccess($t('manage.change_description_success'));
     }

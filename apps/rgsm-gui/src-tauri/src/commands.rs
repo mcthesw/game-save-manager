@@ -668,12 +668,7 @@ pub async fn get_cloud_archive_library(
 pub async fn refresh_cloud_archive_library(
     app_handle: AppHandle,
 ) -> Result<CloudArchiveLibraryView, String> {
-    run_cloud_operation(&app_handle, async {
-        crate::remote_progress::refresh(&app_handle, &svc(&app_handle))
-            .await
-            .map_err(|error| error.to_string())
-    })
-    .await
+    crate::snapshot_sync::refresh(&app_handle).await
 }
 
 pub async fn review_v2_game_progress(
@@ -1423,6 +1418,9 @@ fn handle_backup_err<T>(res: Result<T, BackupError>, app_handle: &AppHandle) -> 
 }
 
 pub async fn cancel_cloud_sync(app_handle: AppHandle) -> Result<CancelCloudSyncResult, String> {
+    app_handle
+        .state::<crate::cloud_operation::CloudOperationState>()
+        .cancel_current_sync();
     let manager_state: tauri::State<Arc<CloudSyncTaskManager>> = app_handle.state();
     Ok(Arc::clone(manager_state.inner()).cancel_all().await)
 }
