@@ -230,6 +230,7 @@ impl ServiceContext {
         &self,
         identity: &str,
         auto_backup: Option<AutoBackupConfig>,
+        auto_backup_limit: Option<u32>,
         automation: Option<GameAutomationSettingsDraft>,
         source: HookSource,
     ) -> Result<()> {
@@ -242,7 +243,11 @@ impl ServiceContext {
             .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
 
         let previous_game = config.games[index].clone();
-        config.games[index].auto_backup = auto_backup;
+        config.games[index].auto_backup = auto_backup.map(|mut timer| {
+            timer.max_backup_count = None;
+            timer
+        });
+        config.games[index].auto_backup_limit = auto_backup_limit;
         let updated_game = config.games[index].clone();
 
         match automation {

@@ -143,6 +143,7 @@ fn timer_backup_skips_when_unchanged() -> TestResult {
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         };
@@ -190,6 +191,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         };
@@ -245,6 +247,7 @@ fn timer_backup_compares_only_latest_auto_backup() -> TestResult {
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         };
@@ -299,6 +302,7 @@ fn legacy_auto_snapshot_creates_once_before_dedup() -> TestResult {
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         };
@@ -347,6 +351,7 @@ fn fingerprint_source_and_zip_match_for_fresh_snapshot() -> TestResult {
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         };
@@ -439,6 +444,7 @@ fn make_test_game(game_name: &str, backup_root: &Path) -> Result<Game, Box<dyn s
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     })
@@ -458,6 +464,7 @@ fn make_test_game_with_storage_key(
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     })
@@ -903,6 +910,7 @@ fn delete_game_without_backups_still_removes_management() -> TestResult {
             next_save_unit_id: 0,
             cloud_sync_enabled: false,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: HashMap::new(),
         };
@@ -1033,6 +1041,7 @@ fn normalize_save_unit_ids_reassigns_duplicates() {
         next_save_unit_id: 1,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1082,6 +1091,7 @@ fn normalize_save_unit_ids_assigns_sequential_from_legacy_defaults() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1103,6 +1113,7 @@ fn game_draft_into_game_preserves_existing_cloud_sync_enabled() {
         next_save_unit_id: 1,
         cloud_sync_enabled: false,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1156,6 +1167,7 @@ fn game_draft_into_game_reuses_existing_ids_and_allocates_new_ones() {
         next_save_unit_id: 8,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1218,6 +1230,7 @@ fn game_draft_into_game_preserves_explicit_id_when_path_changes() {
         next_save_unit_id: 6,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1271,6 +1284,7 @@ fn game_draft_into_game_allocates_new_id_after_existing_row_path_edit() {
         next_save_unit_id: 8,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1370,6 +1384,7 @@ fn game_with_colon_in_name_can_create_snapshot() -> TestResult {
             next_save_unit_id: 1,
             cloud_sync_enabled: true,
             auto_backup: None,
+            auto_backup_limit: None,
             ludusavi_meta: None,
             device_bindings: std::collections::HashMap::new(),
         };
@@ -1398,6 +1413,7 @@ fn backup_dir_name_uses_storage_key_over_raw_name() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };
@@ -1414,6 +1430,7 @@ fn renamed_game_backup_folder_uses_stable_storage_key() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: HashMap::new(),
     };
@@ -1434,6 +1451,7 @@ fn backup_dir_name_fallback_sanitizes_when_storage_key_empty() {
         next_save_unit_id: 0,
         cloud_sync_enabled: true,
         auto_backup: None,
+        auto_backup_limit: None,
         ludusavi_meta: None,
         device_bindings: std::collections::HashMap::new(),
     };

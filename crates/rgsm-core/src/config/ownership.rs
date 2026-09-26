@@ -163,6 +163,7 @@ pub struct DeviceGameProfile {
     pub game_path: Option<String>,
     pub binding: Option<GameDeviceBinding>,
     pub auto_backup: Option<AutoBackupConfig>,
+    pub auto_backup_limit: Option<u32>,
     pub save_units: HashMap<u32, DeviceSaveUnitSettings>,
 }
 
@@ -186,6 +187,8 @@ struct RawDeviceGameProfile {
     binding: Option<GameDeviceBinding>,
     auto_backup: Option<AutoBackupConfig>,
     #[serde(default)]
+    auto_backup_limit: Option<u32>,
+    #[serde(default)]
     save_units: HashMap<u32, DeviceSaveUnitSettings>,
 }
 
@@ -204,6 +207,11 @@ impl From<RawDeviceGameProfile> for DeviceGameProfile {
             live_save_snapshot_on_exit: raw.live_save_snapshot_on_exit,
             game_path: raw.game_path,
             binding: raw.binding,
+            auto_backup_limit: raw.auto_backup_limit.or_else(|| {
+                raw.auto_backup
+                    .as_ref()
+                    .and_then(|timer| timer.max_backup_count)
+            }),
             auto_backup: raw.auto_backup,
             save_units: raw.save_units,
         }
@@ -619,6 +627,7 @@ impl ConfigurationOwners {
             next_save_unit_id: shared.next_save_unit_id,
             cloud_sync_enabled: current.is_some_and(|game| game.cloud_sync_enabled),
             auto_backup: current.and_then(|game| game.auto_backup.clone()),
+            auto_backup_limit: current.and_then(|game| game.auto_backup_limit),
             ludusavi_meta: shared.ludusavi_meta.clone(),
             device_bindings,
         }
@@ -655,6 +664,7 @@ impl DeviceProfile {
                             game_path: None,
                             binding: None,
                             auto_backup: None,
+                            auto_backup_limit: None,
                             save_units: HashMap::new(),
                         });
                 settings
@@ -793,6 +803,11 @@ impl DeviceGameProfile {
             game_path: game.game_paths.get(device_id).cloned(),
             binding: game.device_bindings.get(device_id).cloned(),
             auto_backup: game.auto_backup.clone(),
+            auto_backup_limit: game.auto_backup_limit.or_else(|| {
+                game.auto_backup
+                    .as_ref()
+                    .and_then(|timer| timer.max_backup_count)
+            }),
             save_units,
         }
     }

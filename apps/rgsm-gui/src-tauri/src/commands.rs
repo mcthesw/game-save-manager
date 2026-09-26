@@ -1177,6 +1177,7 @@ pub async fn set_game_auto_save_settings(
     app_handle: AppHandle,
     storage_key: String,
     auto_backup: Option<backup::AutoBackupConfig>,
+    auto_backup_limit: Option<u32>,
     automation: Option<GameAutomationSettingsDraft>,
 ) -> Result<(), String> {
     info!(
@@ -1197,6 +1198,7 @@ pub async fn set_game_auto_save_settings(
         .set_game_auto_save_settings(
             &storage_key,
             auto_backup,
+            auto_backup_limit,
             automation,
             HookSource::UserManual,
         )

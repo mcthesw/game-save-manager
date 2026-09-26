@@ -1434,6 +1434,7 @@ pub async fn http_set_game_automation(
 pub struct SetGameAutoSaveSettingsRequest {
     pub storage_key: String,
     pub auto_backup: Option<backup::AutoBackupConfig>,
+    pub auto_backup_limit: Option<u32>,
     pub automation: Option<GameAutomationSettingsDraft>,
 }
 
@@ -1452,6 +1453,7 @@ pub async fn http_set_game_auto_save_settings(
         state.app().clone(),
         request.storage_key,
         request.auto_backup,
+        request.auto_backup_limit,
         request.automation,
     )
     .await

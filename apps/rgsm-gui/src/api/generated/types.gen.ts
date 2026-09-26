@@ -510,6 +510,7 @@ export type Device = {
 export type DeviceGameStatus = {
   game_id: string;
   managed: boolean;
+  retention_limit?: number | null;
   shared: boolean;
   visible: boolean;
 };
@@ -593,6 +594,10 @@ export type FetchLudusaviGamesRequest = {
  */
 export type Game = {
   auto_backup?: null | AutoBackupConfig;
+  /**
+   * Device-owned automatic retention. None inherits the global limit; zero is unlimited.
+   */
+  auto_backup_limit?: number | null;
   /**
    * Whether this game participates in cloud sync.
    * Defaults to true so existing games are automatically included.
@@ -1355,6 +1360,7 @@ export type SetGameAutoBackupRequest = {
 
 export type SetGameAutoSaveSettingsRequest = {
   autoBackup?: null | AutoBackupConfig;
+  autoBackupLimit?: number | null;
   automation?: null | GameAutomationSettingsDraft;
   storageKey: string;
 };

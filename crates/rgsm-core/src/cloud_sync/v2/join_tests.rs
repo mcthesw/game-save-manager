@@ -230,6 +230,7 @@ fn profile(local: &SharedLibrary) -> DeviceProfile {
                 next_save_unit_id: game.next_save_unit_id,
                 cloud_sync_enabled: false,
                 auto_backup: None,
+                auto_backup_limit: None,
                 ludusavi_meta: None,
                 device_bindings: HashMap::new(),
             })
