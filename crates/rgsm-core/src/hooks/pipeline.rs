@@ -70,6 +70,9 @@ impl HookPipeline {
     pub async fn fire_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) {
         fire!(self, on_snapshot_created, ctx);
     }
+    pub async fn fire_snapshot_committed(&self, ctx: &SnapshotCreatedCtx) {
+        fire!(self, on_snapshot_committed, ctx);
+    }
     pub async fn fire_snapshot_deleted(&self, ctx: &SnapshotDeletedCtx) {
         fire!(self, on_snapshot_deleted, ctx);
     }

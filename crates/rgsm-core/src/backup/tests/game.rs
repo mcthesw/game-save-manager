@@ -1461,3 +1461,77 @@ fn backup_dir_name_fallback_sanitizes_when_storage_key_empty() {
     assert!(!dir_name.contains('>'));
     assert!(!dir_name.is_empty());
 }
+
+#[test]
+fn backup_finalization_preserves_concurrent_catalog_changes() -> TestResult {
+    struct EditDuringFinalize;
+    #[async_trait::async_trait]
+    impl crate::hooks::LifecycleHook for EditDuringFinalize {
+        fn name(&self) -> &str {
+            "EditDuringFinalize"
+        }
+        async fn on_snapshot_created(
+            &self,
+            ctx: &mut crate::hooks::SnapshotCreatedCtx,
+        ) -> anyhow::Result<()> {
+            let mut current = ctx.game.get_game_snapshots_info()?;
+            current.backups[0].describe = "Edited while hashing".into();
+            current.pending_descriptions.insert(
+                current.backups[0].date.clone(),
+                crate::backup::PendingDescription {
+                    library_id: "library".into(),
+                    description: "Edited while hashing".into(),
+                },
+            );
+            let mut imported = current.backups[0].clone();
+            imported.date = "downloaded-in-background".into();
+            current.backups.push(imported);
+            ctx.game.set_game_snapshots_info(&current)?;
+            Ok(())
+        }
+    }
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let root = temp_dir::TempDir::new()?;
+        let backup_root = root.path().join("backup");
+        fs::create_dir_all(&backup_root)?;
+        let mut game = make_test_game("overlapping-backup", &backup_root)?;
+        let save = root.path().join("save.dat");
+        fs::write(&save, b"save")?;
+        game.save_paths = vec![build_file_save_unit(&save)];
+        let config = Config {
+            backup_path: backup_root.to_string_lossy().into_owned(),
+            games: vec![game.clone()],
+            ..Config::default()
+        };
+        let _guard = restore_config_guard(&config)?;
+        insert_snapshot(&game, &backup_root, "existing", None)?;
+        let service = crate::services::ServiceContext::new(std::sync::Arc::new(
+            crate::hooks::HookPipeline::new(vec![Box::new(EditDuringFinalize)]),
+        ));
+        service
+            .create_snapshot(
+                &game,
+                "New backup",
+                crate::hooks::HookSource::UserManual,
+                None,
+            )
+            .await?;
+        let saved = game.get_game_snapshots_info()?;
+        assert_eq!(saved.backups[0].describe, "Edited while hashing");
+        assert!(saved.pending_descriptions.contains_key("existing"));
+        assert!(
+            saved
+                .backups
+                .iter()
+                .any(|snapshot| snapshot.date == "downloaded-in-background")
+        );
+        assert!(
+            saved
+                .backups
+                .iter()
+                .any(|snapshot| snapshot.describe == "New backup")
+        );
+        Ok(())
+    })
+}

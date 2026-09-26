@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use thiserror::Error;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::app_dirs::resolve_app_path;
@@ -36,16 +35,10 @@ struct SnapshotSyncRuntime {
 }
 
 pub fn build_v2_snapshot_sync_hook(
-    operation_lock: Arc<Mutex<()>>,
+    request: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<Option<V2SnapshotSyncHook>, SnapshotSyncServiceError> {
-    Ok(load_runtime()?.map(|runtime| {
-        V2SnapshotSyncHook::new(
-            runtime.target,
-            runtime.coordinator,
-            runtime.targets,
-            operation_lock,
-        )
-    }))
+    Ok(load_runtime()?
+        .map(|runtime| V2SnapshotSyncHook::new(runtime.targets.into_keys().collect(), request)))
 }
 
 pub async fn run_v2_snapshot_sync_once(

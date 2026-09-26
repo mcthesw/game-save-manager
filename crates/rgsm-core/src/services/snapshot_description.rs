@@ -41,50 +41,29 @@ impl ServiceContext {
                     .get(&game.storage_key)
                     .is_some_and(|p| p.cloud_sync_enabled)
         });
-        let mut local = game.get_game_snapshots_info()?;
-        let snapshot = local
-            .backups
-            .iter_mut()
-            .find(|s| s.date == date)
-            .ok_or_else(|| BackupError::BackupNotExist {
-                name: game.name.clone(),
-                date: date.into(),
-            })?;
-        snapshot.describe = description.into();
-        local.pending_descriptions.remove(date);
-        if let Some(library_id) = library_id {
-            local.pending_descriptions.insert(
-                date.into(),
-                PendingDescription {
-                    library_id: library_id.into(),
-                    description: description.into(),
-                },
-            );
-        }
-        // Save the text and its retry marker together, before any network access.
-        game.set_game_snapshots_info(&local)?;
-        if let Some(library_id) = library_id {
-            let sync = async {
-                let repository = CloudManifestRepository::new(
-                    bound_v2_operator(&state).await?,
-                    CLOUD_MANIFEST_PATH,
-                    3,
+        let local = game.update_game_snapshots_info::<BackupError>(|local| {
+            let snapshot = local
+                .backups
+                .iter_mut()
+                .find(|s| s.date == date)
+                .ok_or_else(|| BackupError::BackupNotExist {
+                    name: game.name.clone(),
+                    date: date.into(),
+                })?;
+            snapshot.describe = description.into();
+            local.pending_descriptions.remove(date);
+            if let Some(library_id) = library_id {
+                local.pending_descriptions.insert(
+                    date.into(),
+                    PendingDescription {
+                        library_id: library_id.into(),
+                        description: description.into(),
+                    },
                 );
-                sync_descriptions(&repository, library_id, &game.storage_key, &mut local).await?;
-                game.set_game_snapshots_info(&local)?;
-                Ok::<_, CloudLibraryServiceError>(())
             }
-            .await;
-            if let Err(error) = sync {
-                log::warn!(
-                    "Description saved locally; cloud sync pending for {}: {error}",
-                    game.storage_key
-                );
-                return Ok(SnapshotDescriptionOutcome {
-                    cloud_sync_pending: true,
-                });
-            }
-        }
+            // Save the text and its retry marker together, before any network access.
+            Ok(())
+        })?;
         Ok(SnapshotDescriptionOutcome {
             cloud_sync_pending: local.pending_descriptions.contains_key(date),
         })
@@ -132,8 +111,103 @@ pub(super) async fn refresh_snapshot_descriptions() -> Result<(), CloudLibrarySe
         let before = local.clone();
         sync_descriptions(&repository, library_id, &game.storage_key, &mut local).await?;
         if before != local {
-            game.set_game_snapshots_info(&local)?;
+            game.update_game_snapshots_info::<BackupError>(|current| {
+                merge_synced_descriptions(current, &before, &local);
+                Ok(())
+            })?;
         }
     }
     Ok(())
+}
+
+/// Apply only description results whose local input still matches. Never replace
+/// ancestry, current position, new snapshots, or a newer unsent description.
+fn merge_synced_descriptions(
+    current: &mut crate::backup::GameSnapshots,
+    before: &crate::backup::GameSnapshots,
+    synced: &crate::backup::GameSnapshots,
+) {
+    for snapshot in &mut current.backups {
+        let id = &snapshot.date;
+        let Some(previous) = before.backups.iter().find(|old| old.date == *id) else {
+            continue;
+        };
+        if snapshot.describe != previous.describe
+            || current.pending_descriptions.get(id) != before.pending_descriptions.get(id)
+        {
+            continue;
+        }
+        let Some(result) = synced.backups.iter().find(|result| result.date == *id) else {
+            continue;
+        };
+        snapshot.describe.clone_from(&result.describe);
+        if let Some(pending) = synced.pending_descriptions.get(id) {
+            current
+                .pending_descriptions
+                .insert(id.clone(), pending.clone());
+        } else {
+            current.pending_descriptions.remove(id);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backup::{GameSnapshots, PendingDescription};
+
+    fn fixture() -> GameSnapshots {
+        let mut snapshots = GameSnapshots::new("game");
+        snapshots.backups.push(
+            serde_json::from_value(serde_json::json!({
+                "date": "one", "describe": "old", "path": "one.zip"
+            }))
+            .unwrap(),
+        );
+        snapshots.pending_descriptions.insert(
+            "one".into(),
+            PendingDescription {
+                library_id: "library".into(),
+                description: "old".into(),
+            },
+        );
+        snapshots
+    }
+
+    #[test]
+    fn background_description_result_preserves_new_local_work() {
+        let before = fixture();
+        let mut synced = before.clone();
+        synced.pending_descriptions.clear();
+        let mut current = before.clone();
+        current.backups[0].describe = "newer".into();
+        current
+            .pending_descriptions
+            .get_mut("one")
+            .unwrap()
+            .description = "newer".into();
+        current.backups.push(
+            serde_json::from_value(serde_json::json!({
+                "date": "two", "describe": "new snapshot", "path": "two.zip"
+            }))
+            .unwrap(),
+        );
+        current.set_current_device_head(Some("two".into()));
+        let expected = current.clone();
+        merge_synced_descriptions(&mut current, &before, &synced);
+        assert_eq!(current, expected);
+    }
+
+    #[test]
+    fn background_description_result_clears_only_the_published_edit() {
+        let before = fixture();
+        let mut synced = before.clone();
+        synced.pending_descriptions.clear();
+        let mut current = before.clone();
+        merge_synced_descriptions(&mut current, &before, &synced);
+        assert!(current.pending_descriptions.is_empty());
+        current.backups.clear();
+        merge_synced_descriptions(&mut current, &before, &synced);
+        assert!(current.backups.is_empty());
+    }
 }

@@ -466,8 +466,6 @@ impl Game {
             }
         };
 
-        let mut infos = infos;
-
         let parent = parent_date.or_else(|| infos.current_device_head().cloned());
 
         let game_snapshots_info = Snapshot {
@@ -485,11 +483,11 @@ impl Game {
             device_id: Some(get_current_device_id().clone()),
             created_by,
         };
-        infos.backups.push(game_snapshots_info);
-
-        infos.set_current_device_head(Some(date.clone()));
-
-        self.set_game_snapshots_info(&infos)?;
+        let infos = self.update_game_snapshots_info::<BackupError>(|current| {
+            current.backups.push(game_snapshots_info);
+            current.set_current_device_head(Some(date.clone()));
+            Ok(())
+        })?;
 
         Ok(SnapshotCreated {
             snapshots: infos,
@@ -532,11 +530,10 @@ impl Game {
             options.source_fingerprint,
         )?;
 
-        let mut infos = infos;
         let parent = options
             .parent_date
             .or_else(|| infos.current_device_head().cloned());
-        infos.backups.push(Snapshot {
+        let snapshot = Snapshot {
             date: date.clone(),
             describe: options.describe.to_string(),
             path: archive_path.to_string_lossy().into_owned(),
@@ -547,9 +544,12 @@ impl Game {
             created_at,
             device_id: Some(get_current_device_id().clone()),
             created_by: options.created_by,
-        });
-        infos.set_current_device_head(Some(date.clone()));
-        self.set_game_snapshots_info(&infos)?;
+        };
+        let infos = self.update_game_snapshots_info::<BackupError>(|current| {
+            current.backups.push(snapshot);
+            current.set_current_device_head(Some(date.clone()));
+            Ok(())
+        })?;
 
         Ok(SnapshotCreated {
             snapshots: infos,
