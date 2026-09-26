@@ -92,7 +92,9 @@ const cloudDefinition = computed(
       (item) => item.game_id === (game.value?.storage_key || game.value?.name)
     ) ?? null
 );
-const definitionConflict = computed(() => Boolean(cloudDefinition.value?.definition_conflict));
+const definitionConflict = computed(
+  () => gameStatus.value?.definition_conflict ?? Boolean(cloudDefinition.value?.definition_conflict)
+);
 const cloudGame = computed(() => (definitionConflict.value ? null : cloudDefinition.value));
 const choosingDefinition = ref(false);
 const localCatalogDates = ref<Set<string>>(new Set());
@@ -1415,6 +1417,12 @@ const viewModeOptions = computed(() => [
           </span>
           <h2 class="truncate text-lg font-semibold text-text">{{ game.name }}</h2>
         </div>
+        <p
+          v-if="gameStatus?.metadata_sync_pending && !definitionConflict"
+          class="mt-1 text-xs text-text-dim"
+        >
+          {{ $t('sync_settings.overview.status_metadata_pending') }}
+        </p>
         <button
           v-if="definitionConflict"
           class="mt-1 block border-none bg-transparent p-0 text-xs text-warning"

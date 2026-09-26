@@ -295,6 +295,8 @@ pub struct LocalState {
     pub cloud_library_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub local_games: Vec<SharedGame>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub game_order: Vec<String>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub pending_game_metadata: std::collections::BTreeMap<String, super::PendingGameMetadata>,
 }
@@ -397,6 +399,11 @@ impl ConfigurationOwners {
                 cloud_namespace_generation: CloudNamespaceGeneration::LegacyV1,
                 cloud_library_id: None,
                 local_games: Vec::new(),
+                game_order: config
+                    .games
+                    .iter()
+                    .map(|game| game.storage_key.clone())
+                    .collect(),
                 pending_game_metadata: Default::default(),
             },
         }
@@ -538,10 +545,17 @@ impl ConfigurationOwners {
             .device_profiles
             .get(current_device_id)
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
-        let definitions = self
+        let mut definitions = self
             .shared_library
             .with_local_games(&self.local_state.local_games)
             .with_local_games(&self.local_state.pending_definitions());
+        definitions.games.sort_by_key(|game| {
+            self.local_state
+                .game_order
+                .iter()
+                .position(|id| *id == game.storage_key)
+                .unwrap_or(usize::MAX)
+        });
         let games = definitions
             .games
             .iter()

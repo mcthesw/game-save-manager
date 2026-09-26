@@ -13,6 +13,8 @@ use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::boun
 pub struct DeviceGameStatus {
     pub game_id: String,
     pub shared: bool,
+    pub metadata_sync_pending: bool,
+    pub definition_conflict: bool,
     pub retention_limit: Option<u32>,
     pub managed: bool,
     pub visible: bool,
@@ -47,6 +49,8 @@ impl ServiceContext {
                 .map(|game| DeviceGameStatus {
                     game_id: game.storage_key,
                     shared: false,
+                    metadata_sync_pending: false,
+                    definition_conflict: false,
                     retention_limit: None,
                     managed: true,
                     visible: true,
@@ -60,14 +64,34 @@ impl ServiceContext {
             .collect::<std::collections::HashSet<_>>();
         Ok(library
             .with_local_games(&local_state.local_games)
+            .with_local_games(&local_state.pending_definitions())
             .games
             .into_iter()
             .map(|game| {
                 let settings = profile.games.get(&game.storage_key);
                 DeviceGameStatus {
-                    shared: !local_ids.contains(&game.storage_key),
-                    retention_limit: game
-                        .snapshot_retention
+                    shared: !local_ids.contains(&game.storage_key)
+                        && library
+                            .games
+                            .iter()
+                            .any(|shared| shared.storage_key == game.storage_key),
+                    metadata_sync_pending: local_state
+                        .pending_game_metadata
+                        .contains_key(&game.storage_key),
+                    definition_conflict: local_state
+                        .pending_game_metadata
+                        .get(&game.storage_key)
+                        .is_some_and(|edit| edit.conflict)
+                        || (local_ids.contains(&game.storage_key)
+                            && library
+                                .games
+                                .iter()
+                                .any(|shared| shared.storage_key == game.storage_key)),
+                    retention_limit: library
+                        .games
+                        .iter()
+                        .find(|shared| shared.storage_key == game.storage_key)
+                        .and_then(|shared| shared.snapshot_retention)
                         .map(|policy| policy.automatic_snapshots_per_branch),
                     game_id: game.storage_key,
                     managed: settings.is_some(),
@@ -99,6 +123,8 @@ impl ServiceContext {
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
             shared: true,
+            metadata_sync_pending: false,
+            definition_conflict: false,
             retention_limit: self
                 .current_device_game_statuses()?
                 .into_iter()
@@ -154,6 +180,8 @@ impl ServiceContext {
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
             shared: true,
+            metadata_sync_pending: false,
+            definition_conflict: false,
             retention_limit: self
                 .current_device_game_statuses()?
                 .into_iter()

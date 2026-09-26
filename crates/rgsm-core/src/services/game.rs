@@ -2,8 +2,8 @@ use anyhow::{Result, anyhow, bail};
 
 use crate::backup::{self, AutoBackupConfig, Game, GameDeviceBinding, GameDraft};
 use crate::config::{
-    CloudNamespaceGeneration, GameAutomationSettingsDraft, cloud_bootstrap_inputs,
-    cloud_namespace_generation, get_config, set_config,
+    CloudNamespaceGeneration, GameAutomationSettingsDraft, cloud_bootstrap_inputs, get_config,
+    set_config,
 };
 use crate::hooks::{GameAddedCtx, GameDeletedCtx, GameUpdatedCtx, HookSource};
 
@@ -103,13 +103,14 @@ impl ServiceContext {
             .position_game_by_identity(identity)
             .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
         let current_game = &config.games[index];
-        let v2 = cloud_namespace_generation()? == CloudNamespaceGeneration::V2;
-        if v2
-            && !cloud_bootstrap_inputs()?
-                .2
-                .is_local_game(&current_game.storage_key)
+        let (library, expected, state) = cloud_bootstrap_inputs()?;
+        if state.cloud_namespace_generation == CloudNamespaceGeneration::V2
+            && !state.is_local_game(&current_game.storage_key)
+            && library
+                .games
+                .iter()
+                .any(|shared| shared.storage_key == current_game.storage_key)
         {
-            let (_, expected, _) = cloud_bootstrap_inputs()?;
             let mut accepted = expected.clone();
             accepted.remove_game_state(&current_game.storage_key, &current_game.name);
             crate::config::replace_current_device_profile(&expected, &accepted)?;
@@ -435,5 +436,44 @@ mod delete_tests {
             assert!(refreshed.games.contains_key("newly-shared"));
             Ok(())
         })
+    }
+    #[test]
+    fn deleting_an_unpublished_offline_game_cancels_its_metadata_publication() -> Result<()> {
+        let _lock = crate::config::lock_config_test_file();
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(async {
+                let root = temp_dir::TempDir::new()?;
+                let (_guard, _) = fixture(root.path())?;
+                let (library, profile, _) = cloud_bootstrap_inputs()?;
+                activate_cloud_namespace_v2(&library, &profile, "test-library")?;
+                let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+                let draft = serde_json::from_value(
+                    serde_json::json!({"name":"Unpublished", "save_paths":[]}),
+                )?;
+                let game = service.add_game(&draft, HookSource::UserManual).await?;
+                assert!(
+                    cloud_bootstrap_inputs()?
+                        .2
+                        .pending_game_metadata
+                        .contains_key(&game.storage_key)
+                );
+                service.delete_game(&game, HookSource::UserManual).await?;
+                assert!(
+                    !cloud_bootstrap_inputs()?
+                        .2
+                        .pending_game_metadata
+                        .contains_key(&game.storage_key)
+                );
+                assert!(
+                    !get_config()?
+                        .games
+                        .iter()
+                        .any(|item| item.storage_key == game.storage_key)
+                );
+                assert_eq!(cloud_bootstrap_inputs()?.0, library);
+                Ok(())
+            })
     }
 }
