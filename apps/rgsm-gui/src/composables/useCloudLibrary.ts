@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { isEqual } from 'lodash-unified';
 import { commands, type CloudArchiveLibraryView } from '../api/commands';
+import { events } from '../api/events';
 import { useConfig } from './useConfig';
 import { $t } from '../i18n';
 import { shareUnchangedItems } from '../utils/stableCollections';
@@ -104,6 +105,44 @@ export function useCloudLibrary() {
 export function useCloudLibraryRefresh() {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  const subscription = events.cloudMetadataChanged.listen(async ({ payload: succeeded }) => {
+    await useConfig().whenConfigReady();
+    const expectedGeneration = generation;
+    const isCurrent = () => !stopped && generation === expectedGeneration;
+    await useConfig().refreshLibraryConfig(isCurrent);
+    if (!isCurrent() || !library.value) return;
+    const statuses = useConfig().deviceGameStatuses.value;
+    if (succeeded) {
+      lastError.value = null;
+      if (
+        statuses.some(
+          (status) =>
+            status.shared && !library.value?.games.some((game) => game.game_id === status.game_id)
+        )
+      ) {
+        lastRefreshFinishedAt.value = null;
+      }
+    } else {
+      lastError.value = $t('sync_settings.overview.status_unavailable');
+    }
+    library.value = {
+      ...library.value,
+      games: library.value.games.map((game) => {
+        const status = statuses.find((item) => item.game_id === game.game_id);
+        const local = useConfig().config.value.games.find(
+          (item) => item.storage_key === game.game_id
+        );
+        return status
+          ? {
+              ...game,
+              name: local?.name ?? game.name,
+              metadata_sync_pending: status.metadata_sync_pending,
+              definition_conflict: status.definition_conflict,
+            }
+          : game;
+      }),
+    };
+  });
   const refresh = () => {
     void refreshCloudLibraryIfStale();
   };
@@ -140,6 +179,7 @@ export function useCloudLibraryRefresh() {
   });
   onUnmounted(() => {
     stopped = true;
+    void subscription.then((stop) => stop());
     if (timer !== undefined) clearTimeout(timer);
     window.removeEventListener('focus', refresh);
     document.removeEventListener('visibilitychange', onVisible);

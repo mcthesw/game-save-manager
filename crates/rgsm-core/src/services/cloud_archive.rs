@@ -36,7 +36,12 @@ impl ServiceContext {
             .iter()
             .map(|game| (game.storage_key.clone(), game.name.clone()))
             .collect::<std::collections::BTreeMap<_, _>>();
-        for local in &local_state.local_games {
+        for local in local_state.local_games.iter().chain(
+            local_state
+                .pending_game_metadata
+                .values()
+                .map(|edit| &edit.desired),
+        ) {
             game_names.insert(local.storage_key.clone(), local.name.clone());
         }
         let current_device = local_state.current_device_id.clone();
@@ -90,7 +95,10 @@ impl ServiceContext {
                     .games
                     .iter()
                     .any(|shared| shared.storage_key == game.game_id);
-            game.definition_conflict = local_definition && !game.local_only;
+            let pending = local_state.pending_game_metadata.get(&game.game_id);
+            game.metadata_sync_pending = pending.is_some();
+            game.definition_conflict =
+                (local_definition && !game.local_only) || pending.is_some_and(|edit| edit.conflict);
             if let Some(settings) = profile.games.get(&game.game_id) {
                 game.managed = true;
                 game.visible = settings.visible;

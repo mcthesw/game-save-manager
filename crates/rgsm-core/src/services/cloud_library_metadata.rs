@@ -75,7 +75,14 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
     }
     reconcile_game_metadata(&local_state, &accepted, &completed, &conflicts)?;
     let (_, current, state) = cloud_bootstrap_inputs()?;
-    let desired = current.without_local_games(&state);
+    let mut desired = current.without_local_games(&state);
+    for id in state.pending_game_metadata.keys() {
+        if let Some(previous) = published.games.get(id) {
+            desired.games.insert(id.clone(), previous.clone());
+        } else {
+            desired.games.remove(id);
+        }
+    }
     if *published != desired {
         DeviceProfileRepository::new(operator, 3)
             .publish(&state.current_device_id, &desired)

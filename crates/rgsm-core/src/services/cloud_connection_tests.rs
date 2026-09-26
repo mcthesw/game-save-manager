@@ -72,7 +72,16 @@ impl Fixture {
     fn assert_local_protected(&self) {
         let (_, _, state) = cloud_bootstrap_inputs().unwrap();
         assert!(state.is_local_game("pending"));
-        assert_eq!(get_config().unwrap().games[0].name, "Local version");
+        assert_eq!(
+            get_config()
+                .unwrap()
+                .games
+                .iter()
+                .find(|game| game.storage_key == "pending")
+                .unwrap()
+                .name,
+            "Local version"
+        );
         assert_eq!(
             std::fs::read(self.archives.path().join("pending/snapshot.zip")).unwrap(),
             b"local archive"
@@ -432,6 +441,145 @@ fn offline_edit_survives_failed_refresh_and_publishes_after_reconnect() {
                 .2
                 .pending_game_metadata
                 .is_empty()
+        );
+    });
+}
+
+#[test]
+fn metadata_conflict_uses_existing_choice_while_other_games_publish() {
+    let _lock = crate::config::lock_config_test_file();
+    runtime().block_on(async {
+        let fixture = Fixture::new().await;
+        fixture.service.connect_cloud_library().await.unwrap();
+        let draft =
+            serde_json::from_value(serde_json::json!({"name":"Local edit", "save_paths":[]}))
+                .unwrap();
+        fixture
+            .service
+            .update_game("ready", &draft, crate::hooks::HookSource::UserManual)
+            .await
+            .unwrap();
+        let added = fixture
+            .service
+            .add_game(
+                &serde_json::from_value(
+                    serde_json::json!({"name":"New offline game", "save_paths":[]}),
+                )
+                .unwrap(),
+                crate::hooks::HookSource::UserManual,
+            )
+            .await
+            .unwrap();
+        let repository = SharedLibraryRepository::new(fixture.operator.clone(), 2);
+        let before = repository.load().await.unwrap();
+        let mut remote = before.clone();
+        remote
+            .games
+            .iter_mut()
+            .find(|game| game.storage_key == "ready")
+            .unwrap()
+            .name = "Remote edit".into();
+        repository.compare_replace(&before, &remote).await.unwrap();
+        super::super::cloud_library_metadata::refresh_shared_library()
+            .await
+            .unwrap();
+        let state = cloud_bootstrap_inputs().unwrap().2;
+        assert!(state.pending_game_metadata["ready"].conflict);
+        assert!(!state.pending_game_metadata.contains_key(&added.storage_key));
+        assert!(
+            repository
+                .load()
+                .await
+                .unwrap()
+                .games
+                .iter()
+                .any(|game| game.storage_key == added.storage_key)
+        );
+        assert_eq!(
+            get_config()
+                .unwrap()
+                .games
+                .iter()
+                .find(|game| game.storage_key == "ready")
+                .unwrap()
+                .name,
+            "Local edit"
+        );
+        let statuses = fixture.service.current_device_game_statuses().unwrap();
+        assert!(
+            statuses
+                .iter()
+                .find(|game| game.game_id == "ready")
+                .unwrap()
+                .definition_conflict
+        );
+        let item = fixture
+            .service
+            .review_pending_definitions()
+            .await
+            .unwrap()
+            .items
+            .into_iter()
+            .find(|item| item.local_game_id == "ready")
+            .unwrap();
+        assert_eq!(
+            item.classification,
+            GameJoinClassification::GameDefinitionConflict
+        );
+        let outcome = fixture
+            .service
+            .resolve_pending_definitions(
+                &[JoinGameDecision {
+                    local_game_id: item.local_game_id,
+                    local_fingerprint: item.local_fingerprint,
+                    cloud_fingerprint: item.cloud_fingerprint,
+                    action: JoinGameAction::KeepCloud,
+                }],
+                false,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(outcome, CloudLibraryJoinOutcome::Active { .. }));
+        assert!(
+            cloud_bootstrap_inputs()
+                .unwrap()
+                .2
+                .pending_game_metadata
+                .is_empty()
+        );
+        assert_eq!(
+            get_config()
+                .unwrap()
+                .games
+                .iter()
+                .find(|game| game.storage_key == "ready")
+                .unwrap()
+                .name,
+            "Remote edit"
+        );
+        fixture.assert_local_protected();
+        // With no local edit, the next remote change is accepted directly.
+        let before = repository.load().await.unwrap();
+        let mut remote = before.clone();
+        remote
+            .games
+            .iter_mut()
+            .find(|game| game.storage_key == "ready")
+            .unwrap()
+            .name = "Remote later".into();
+        repository.compare_replace(&before, &remote).await.unwrap();
+        super::super::cloud_library_metadata::refresh_shared_library()
+            .await
+            .unwrap();
+        assert_eq!(
+            get_config()
+                .unwrap()
+                .games
+                .iter()
+                .find(|game| game.storage_key == "ready")
+                .unwrap()
+                .name,
+            "Remote later"
         );
     });
 }

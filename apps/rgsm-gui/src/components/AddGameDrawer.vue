@@ -797,12 +797,12 @@ async function save() {
       const result = await commands.updateGame(editing_storage_key.value, game);
       if (result.status === 'error') throw new Error(result.error);
       is_editing.value = false;
-      notifySuccess($t('addgame.add_game_success'));
+      notifySuccess($t('addgame.game_saved_locally'));
     } else {
       const result = await commands.addGame(game);
       if (result.status === 'error') throw new Error(result.error);
       if (!(await saveImportedFavorites([result.data]))) return;
-      notifySuccess($t('addgame.add_game_success'));
+      notifySuccess($t('addgame.game_saved_locally'));
     }
     reset_info(false);
     await refreshConfig();

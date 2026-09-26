@@ -37,8 +37,11 @@ struct SnapshotSyncRuntime {
 pub fn build_v2_snapshot_sync_hook(
     request: Arc<dyn Fn() + Send + Sync>,
 ) -> Result<Option<V2SnapshotSyncHook>, SnapshotSyncServiceError> {
-    Ok(load_runtime()?
-        .map(|runtime| V2SnapshotSyncHook::new(runtime.targets.into_keys().collect(), request)))
+    let (_, _, state) = cloud_bootstrap_inputs()?;
+    Ok(
+        (state.cloud_namespace_generation == CloudNamespaceGeneration::V2)
+            .then(|| V2SnapshotSyncHook::new(request)),
+    )
 }
 
 pub async fn run_v2_snapshot_sync_once(
@@ -161,7 +164,10 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
         .games
         .into_iter()
         .filter_map(|(game_id, settings)| {
-            if !settings.cloud_sync_enabled || !settings.sync_mode.checks_remote_progress() {
+            if local_state.pending_game_metadata.contains_key(&game_id)
+                || !settings.cloud_sync_enabled
+                || !settings.sync_mode.checks_remote_progress()
+            {
                 return None;
             }
             let process_name = settings.live_save_process_name.unwrap_or_default();

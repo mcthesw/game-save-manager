@@ -96,7 +96,12 @@ impl OwnerStore {
                     .iter()
                     .any(|remote| remote.storage_key == game.storage_key)
         });
-        let profile = expected_profile.for_updated_library(expected_library, accepted);
+        owners
+            .local_state
+            .pending_game_metadata
+            .retain(|id, _| !resolved_ids.contains(id));
+        let effective = accepted.with_local_games(&owners.local_state.pending_definitions());
+        let profile = expected_profile.for_updated_library(expected_library, &effective);
         owners.accept_library(
             accepted,
             &HashMap::from([(profile.device.id.clone(), profile)]),
@@ -118,6 +123,7 @@ impl OwnerStore {
                 != expected_state.cloud_namespace_generation
             || owners.local_state.cloud_library_id != expected_state.cloud_library_id
             || owners.local_state.local_games != expected_state.local_games
+            || owners.local_state.pending_game_metadata != expected_state.pending_game_metadata
             || owners
                 .device_profiles
                 .get(&expected_state.current_device_id)

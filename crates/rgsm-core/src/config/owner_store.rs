@@ -109,6 +109,7 @@ impl OwnerStore {
         let mut owners = ConfigurationOwners::from_legacy(config, &current_device_id);
         if let Some(existing) = existing {
             owners.preserve_local_scope(&existing);
+            owners.capture_metadata_changes(&existing);
             owners.local_state.cloud_namespace_generation =
                 existing.local_state.cloud_namespace_generation;
             owners.local_state.cloud_library_id = existing.local_state.cloud_library_id;
