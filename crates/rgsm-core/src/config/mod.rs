@@ -2,6 +2,8 @@ mod app_config;
 pub mod backup;
 mod game_identity;
 mod local_games;
+mod pending_game_metadata;
+pub use pending_game_metadata::{MetadataDecision, PendingGameMetadata};
 pub(crate) mod owner_store;
 mod ownership;
 mod profile_reuse;

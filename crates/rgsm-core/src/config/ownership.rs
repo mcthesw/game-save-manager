@@ -295,6 +295,8 @@ pub struct LocalState {
     pub cloud_library_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub local_games: Vec<SharedGame>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub pending_game_metadata: std::collections::BTreeMap<String, super::PendingGameMetadata>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
@@ -395,6 +397,7 @@ impl ConfigurationOwners {
                 cloud_namespace_generation: CloudNamespaceGeneration::LegacyV1,
                 cloud_library_id: None,
                 local_games: Vec::new(),
+                pending_game_metadata: Default::default(),
             },
         }
     }
@@ -494,6 +497,7 @@ impl ConfigurationOwners {
         incoming.local_state.cloud_namespace_generation =
             self.local_state.cloud_namespace_generation;
         incoming.local_state.cloud_library_id = self.local_state.cloud_library_id.clone();
+        incoming.local_state.pending_game_metadata = self.local_state.pending_game_metadata.clone();
         self.local_state = incoming.local_state;
         self.device_profiles.retain(|device_id, _| {
             device_id == &current_device_id || incoming_device_ids.contains(device_id)
@@ -509,6 +513,12 @@ impl ConfigurationOwners {
             .games
             .iter()
             .chain(self.local_state.local_games.iter())
+            .chain(
+                self.local_state
+                    .pending_game_metadata
+                    .values()
+                    .map(|change| &change.desired),
+            )
             .map(|game| game.storage_key.as_str())
             .collect::<HashSet<_>>();
         for profile in self.device_profiles.values_mut() {
@@ -530,7 +540,8 @@ impl ConfigurationOwners {
             .ok_or_else(|| OwnershipError::MissingDeviceProfile(current_device_id.clone()))?;
         let definitions = self
             .shared_library
-            .with_local_games(&self.local_state.local_games);
+            .with_local_games(&self.local_state.local_games)
+            .with_local_games(&self.local_state.pending_definitions());
         let games = definitions
             .games
             .iter()
