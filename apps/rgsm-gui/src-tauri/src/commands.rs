@@ -333,10 +333,14 @@ pub async fn get_local_config() -> Result<Config, String> {
 }
 
 pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<Game, String> {
-    svc(&app_handle)
+    let saved = svc(&app_handle)
         .add_game(&game, HookSource::UserManual)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    app_handle
+        .state::<crate::cloud_operation::CloudOperationState>()
+        .request_sync();
+    Ok(saved)
 }
 
 pub async fn update_game(
@@ -353,6 +357,9 @@ pub async fn update_game(
             e.to_string()
         })?;
 
+    app_handle
+        .state::<crate::cloud_operation::CloudOperationState>()
+        .request_sync();
     info!(target:"rgsm::commands", "Successfully updated game: {:?}", game.name);
     Ok(())
 }

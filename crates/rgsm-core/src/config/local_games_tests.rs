@@ -294,18 +294,10 @@ fn accepted_local_identity_is_not_duplicated_and_preserves_its_paths() {
             "library-a",
         )
         .unwrap();
-    let current = store.load().unwrap();
     let mut accepted = remote.clone();
     accepted.games.extend(before.shared_library.games.clone());
-    let current_profile = &current.device_profiles["pc"];
     store
-        .accept_remote_shared_library(
-            &remote,
-            current_profile,
-            &accepted,
-            &current_profile.for_shared_library(&accepted),
-            "library-a",
-        )
+        .reconcile_game_metadata(&store.load().unwrap().local_state, &accepted, &[], &[])
         .unwrap();
     let after = store.load().unwrap();
     assert!(after.local_state.local_games.is_empty());
@@ -325,25 +317,11 @@ fn reconnect_and_refresh_retain_local_games_without_publishing_them() {
         .unwrap();
     let remote = remote_library(&before);
     store
-        .accept_remote_shared_library(
-            &before.shared_library,
-            profile,
-            &remote,
-            &profile.for_shared_library(&remote),
-            "library-b",
-        )
+        .reconcile_game_metadata(&store.load().unwrap().local_state, &remote, &[], &[])
         .unwrap();
     assert_local_preserved(&store, &before);
-    let current = store.load().unwrap();
-    let current_profile = &current.device_profiles["pc"];
     store
-        .accept_remote_shared_library(
-            &remote,
-            current_profile,
-            &remote,
-            &current_profile.for_shared_library(&remote),
-            "library-b",
-        )
+        .reconcile_game_metadata(&store.load().unwrap().local_state, &remote, &[], &[])
         .unwrap();
     assert_local_preserved(&store, &before);
 }
@@ -362,20 +340,12 @@ fn discovering_a_conflicting_local_id_keeps_the_local_version_until_a_choice() {
             "library-a",
         )
         .unwrap();
-    let joined = store.load().unwrap();
     let mut discovered = remote.clone();
     let mut conflicting = before.shared_library.games[0].clone();
     conflicting.name = "Different cloud definition".into();
     discovered.games.push(conflicting.clone());
-    let current_profile = &joined.device_profiles["pc"];
     store
-        .accept_remote_shared_library(
-            &remote,
-            current_profile,
-            &discovered,
-            &current_profile.for_shared_library(&discovered),
-            "library-a",
-        )
+        .reconcile_game_metadata(&store.load().unwrap().local_state, &discovered, &[], &[])
         .unwrap();
     let accepted = store.load().unwrap();
     let effective = accepted.assemble_effective().unwrap();
@@ -402,4 +372,149 @@ fn discovering_a_conflicting_local_id_keeps_the_local_version_until_a_choice() {
         round_trip.local_state.local_games,
         accepted.local_state.local_games
     );
+}
+
+#[test]
+fn pending_metadata_keeps_newer_edits_when_an_earlier_publication_finishes() {
+    let (_root, store, before) = fixture();
+    store
+        .activate_v2(
+            &before.shared_library,
+            &before.device_profiles["pc"],
+            "library-a",
+        )
+        .unwrap();
+    let mut config = store.load_effective().unwrap();
+    config.games[0].name = "First edit".into();
+    store.merge_effective(&config).unwrap();
+    let sent = store.load().unwrap().local_state;
+    assert_eq!(
+        sent.pending_game_metadata["local-game"]
+            .base
+            .as_ref()
+            .unwrap()
+            .name,
+        "Local adventure"
+    );
+    assert_eq!(store.load().unwrap().shared_library, before.shared_library);
+    config.games[0].name = "Second edit".into();
+    config.games[0].auto_backup_limit = Some(9);
+    store.merge_effective(&config).unwrap();
+    let mut remote = before.shared_library.clone();
+    remote.games[0].name = "First edit".into();
+    remote.games[0].snapshot_retention = Some(super::super::SharedSnapshotRetentionPolicy {
+        automatic_snapshots_per_branch: 4,
+    });
+    store
+        .reconcile_game_metadata(&sent, &remote, &["local-game".into()], &[])
+        .unwrap();
+    let current = store.load().unwrap();
+    let pending = &current.local_state.pending_game_metadata["local-game"];
+    assert_eq!(pending.base.as_ref().unwrap().name, "First edit");
+    assert_eq!(pending.desired.name, "Second edit");
+    assert!(pending.desired.snapshot_retention.is_none());
+    assert_eq!(
+        current.assemble_effective().unwrap().games[0].auto_backup_limit,
+        Some(9)
+    );
+    // A regular refresh cannot overwrite the still-pending local definition.
+    store
+        .reconcile_game_metadata(&current.local_state, &remote, &[], &[])
+        .unwrap();
+    assert_eq!(store.load_effective().unwrap().games[0].name, "Second edit");
+    remote.games[0].name = "Second edit".into();
+    store
+        .reconcile_game_metadata(&current.local_state, &remote, &["local-game".into()], &[])
+        .unwrap();
+    assert!(
+        store
+            .load()
+            .unwrap()
+            .local_state
+            .pending_game_metadata
+            .is_empty()
+    );
+    assert_eq!(
+        store.load().unwrap().shared_library.games[0]
+            .snapshot_retention
+            .unwrap()
+            .automatic_snapshots_per_branch,
+        4
+    );
+}
+
+#[test]
+fn reconnect_preserves_unsent_definitions_but_rejects_results_from_old_library() {
+    let (_root, store, before) = fixture();
+    store
+        .activate_v2(
+            &before.shared_library,
+            &before.device_profiles["pc"],
+            "library-a",
+        )
+        .unwrap();
+    let mut config = store.load_effective().unwrap();
+    config.games[0].name = "Unsent edit".into();
+    store.merge_effective(&config).unwrap();
+    let old = store.load().unwrap();
+    let other = remote_library(&before);
+    store
+        .connect_v2(
+            &old.shared_library,
+            &old.device_profiles["pc"],
+            &old.local_state,
+            &other,
+            "library-b",
+            &old.local_state.cloud_settings,
+        )
+        .unwrap();
+    let connected = store.load().unwrap();
+    assert!(connected.local_state.pending_game_metadata.is_empty());
+    assert!(
+        connected
+            .local_state
+            .local_games
+            .iter()
+            .any(|game| game.name == "Unsent edit")
+    );
+    assert!(
+        store
+            .reconcile_game_metadata(
+                &old.local_state,
+                &old.shared_library,
+                &["local-game".into()],
+                &[]
+            )
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .load()
+            .unwrap()
+            .local_state
+            .cloud_library_id
+            .as_deref(),
+        Some("library-b")
+    );
+}
+
+#[test]
+fn global_deletion_clears_pending_metadata_without_republishing_it() {
+    let (_root, store, before) = fixture();
+    store
+        .activate_v2(
+            &before.shared_library,
+            &before.device_profiles["pc"],
+            "library-a",
+        )
+        .unwrap();
+    let mut config = store.load_effective().unwrap();
+    config.games[0].name = "Unsent edit".into();
+    store.merge_effective(&config).unwrap();
+    store
+        .remove_shared_game("local-game", "Unsent edit")
+        .unwrap();
+    let after = store.load().unwrap();
+    assert!(after.local_state.pending_game_metadata.is_empty());
+    assert!(after.assemble_effective().unwrap().games.is_empty());
 }

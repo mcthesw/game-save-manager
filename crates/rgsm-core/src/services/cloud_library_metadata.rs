@@ -1,14 +1,17 @@
-use crate::cloud_sync::v2::{DeviceProfileRepository, SharedLibraryRepository};
+use crate::cloud_sync::v2::{
+    CLOUD_MANIFEST_PATH, CloudManifestRepository, DeletionRegistryRepository,
+    DeviceProfileRepository, SharedLibraryRepository,
+};
 use crate::config::{
-    CloudNamespaceGeneration, accept_remote_shared_library, cloud_bootstrap_inputs,
+    CloudNamespaceGeneration, MetadataDecision, cloud_bootstrap_inputs, reconcile_game_metadata,
 };
 
 use super::{CloudLibraryServiceError, cloud_library_target::bound_v2_operator};
 
-/// Accept portable definitions for a registered Device while keeping configuration
-/// reconciliation separate from archive queries and retention policy changes.
+/// Publish per-game local edits and accept remote definitions. No local store
+/// guard is held across network I/O; the final merge reads current local state.
 pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceError> {
-    let (expected_library, expected_profile, local_state) = cloud_bootstrap_inputs()?;
+    let (_, _, local_state) = cloud_bootstrap_inputs()?;
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
         return Ok(());
     }
@@ -22,22 +25,55 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
     else {
         return Err(CloudLibraryServiceError::DeviceReconnectRequired);
     };
-    let remote = SharedLibraryRepository::new(operator.clone(), 3)
+    let repository = SharedLibraryRepository::new(operator.clone(), 3);
+    let remote = repository.load().await?;
+    let mut accepted = remote.clone();
+    let mut completed = Vec::new();
+    let mut conflicts = Vec::new();
+    let registry = DeletionRegistryRepository::new(operator.clone(), 3)
         .load()
         .await?;
-    if remote != expected_library {
-        let accepted_profile = expected_profile.for_updated_library(&expected_library, &remote);
-        accept_remote_shared_library(
-            &expected_library,
-            &expected_profile,
-            &remote,
-            &accepted_profile,
-            local_state
-                .cloud_library_id
-                .as_deref()
-                .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?,
-        )?;
+    for (id, edit) in &local_state.pending_game_metadata {
+        if registry.deleted_games.contains_key(id) {
+            // Existing deletion convergence owns local cleanup; never republish.
+            continue;
+        }
+        let existing = remote.games.iter().find(|game| game.storage_key == *id);
+        match edit.decision(existing) {
+            MetadataDecision::Conflict => conflicts.push(id.clone()),
+            MetadataDecision::Accept => completed.push(id.clone()),
+            MetadataDecision::Publish => {
+                let mut desired = edit.desired.clone();
+                desired.snapshot_retention = existing.and_then(|game| game.snapshot_retention);
+                if let Some(game) = accepted
+                    .games
+                    .iter_mut()
+                    .find(|game| game.storage_key == *id)
+                {
+                    *game = desired;
+                } else {
+                    accepted.games.push(desired);
+                }
+                completed.push(id.clone());
+            }
+        }
     }
+    if accepted != remote {
+        accepted = repository.compare_replace(&remote, &accepted).await?;
+    }
+    // Idempotent after an interrupted publication, including an empty new Game.
+    if !completed.is_empty() {
+        let ids = completed.clone();
+        CloudManifestRepository::new(operator.clone(), CLOUD_MANIFEST_PATH, 3)
+            .mutate(move |manifest| {
+                for id in &ids {
+                    manifest.game_mut(id);
+                }
+                Ok(())
+            })
+            .await?;
+    }
+    reconcile_game_metadata(&local_state, &accepted, &completed, &conflicts)?;
     let (_, current, state) = cloud_bootstrap_inputs()?;
     let desired = current.without_local_games(&state);
     if *published != desired {

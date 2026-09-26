@@ -139,7 +139,8 @@ pub async fn resume_v2_snapshot_sync(
 pub fn v2_snapshot_sync_poll_minutes() -> Result<Option<u64>, SnapshotSyncServiceError> {
     let (_, profile, local_state) = cloud_bootstrap_inputs()?;
     if local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2
-        || !profile.games.values().any(|game| game.cloud_sync_enabled)
+        || (!profile.games.values().any(|game| game.cloud_sync_enabled)
+            && local_state.pending_game_metadata.is_empty())
     {
         return Ok(None);
     }
@@ -183,7 +184,7 @@ fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceErro
         return Ok(None);
     }
     let mut targets = sync_targets(&profile, &library);
-    targets.retain(|game_id, _| !local_state.is_local_game(game_id));
+    targets.retain(|game_id, _| !local_state.local_game_ids().contains(game_id));
     let archive_root = profile
         .local_archive_root
         .as_deref()

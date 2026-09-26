@@ -1,6 +1,52 @@
 use serde::{Deserialize, Serialize};
 
-use super::{LocalState, SharedGame};
+use super::{CloudNamespaceGeneration, ConfigurationOwners, LocalState, SharedGame};
+
+impl ConfigurationOwners {
+    pub(crate) fn capture_metadata_changes(&mut self, previous: &Self) {
+        if previous.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+            return;
+        }
+        self.local_state.pending_game_metadata = previous.local_state.pending_game_metadata.clone();
+        self.local_state.pending_game_metadata.retain(|id, _| {
+            self.shared_library
+                .games
+                .iter()
+                .any(|game| game.storage_key == *id)
+        });
+        for game in &self.shared_library.games {
+            let base = previous
+                .shared_library
+                .games
+                .iter()
+                .find(|base| base.storage_key == game.storage_key)
+                .map(SharedGame::normalized_portable);
+            let desired = game.normalized_portable();
+            if let Some(pending) = self
+                .local_state
+                .pending_game_metadata
+                .get_mut(&game.storage_key)
+            {
+                if pending.desired != desired {
+                    pending.desired = desired;
+                    pending.conflict = false;
+                }
+            } else if base.as_ref() != Some(&desired) {
+                self.local_state.pending_game_metadata.insert(
+                    game.storage_key.clone(),
+                    PendingGameMetadata {
+                        base,
+                        desired,
+                        conflict: false,
+                    },
+                );
+            }
+        }
+        // The shared owner remains the last accepted remote version; edits are
+        // overlaid only when assembling the local effective configuration.
+        self.shared_library = previous.shared_library.clone();
+    }
+}
 
 /// An edit belongs to LocalState's connected library, alongside its cached base.
 /// Device settings and shared retention are deliberately outside this record.
