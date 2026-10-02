@@ -1273,6 +1273,7 @@
         "current_quick_action_game": "当前快捷备份的游戏"
     },
     "path_variable": {
+        "incomplete": "请补全路径变量末尾的 >",
         "insert_variable": "插入路径变量",
         "tooltip": "路径变量可以帮助您创建跨设备兼容的路径",
         "common": "通用变量",

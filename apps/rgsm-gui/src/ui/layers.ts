@@ -8,9 +8,6 @@ export const LAYER = {
   base: 1,
   sidebarSticky: 100,
 
-  // Path variable autocomplete dropdown — must sit above normal content but below drawers.
-  PATH_AUTOCOMPLETE: 2050,
-
   // Drawers sit below dialogs so confirm/prompt boxes remain clickable.
   drawer: 3000,
   dialog: 3100,
