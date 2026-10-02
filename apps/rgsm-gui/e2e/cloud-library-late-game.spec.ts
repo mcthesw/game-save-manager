@@ -43,13 +43,15 @@ test('game added after empty V2 creation is published for the second device', as
       { type: 'File', path: seeded.deviceA.savePath },
     ]);
 
-    await expect
-      .poll(async () => {
-        const library = await readJson(cloudPaths(seeded.cloudRoot).sharedLibrary);
-        return (library.games as Array<{ storage_key: string }>).map((game) => game.storage_key);
-      })
-      .toContain(GAME_NAME);
-    expectSharedLibraryHasGame(await readJson(cloudPaths(seeded.cloudRoot).sharedLibrary));
+    // The filesystem provider can expose an unfinished write while the worker
+    // publishes. Retry the read and assertions together, not just a parsed value.
+    await expect(async () => {
+      const library = await readJson(cloudPaths(seeded.cloudRoot).sharedLibrary);
+      expect(
+        (library.games as Array<{ storage_key: string }>).map((game) => game.storage_key)
+      ).toContain(GAME_NAME);
+      expectSharedLibraryHasGame(library);
+    }).toPass({ timeout: 20_000 });
 
     await session.pageB.reload();
     await openSyncSettings(session.pageB);
