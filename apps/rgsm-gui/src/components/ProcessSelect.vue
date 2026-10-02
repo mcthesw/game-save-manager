@@ -8,6 +8,7 @@ defineProps<{
   modelValue: string;
   options: RunningProcessOption[];
   loading?: boolean;
+  disabled?: boolean;
   placeholder?: string;
 }>();
 
@@ -24,6 +25,7 @@ const listId = `process-options-${Math.random().toString(36).slice(2, 8)}`;
   <div class="flex min-w-0 items-center gap-2">
     <KInput
       :model-value="modelValue"
+      :disabled="disabled"
       class="flex-1"
       :list="listId"
       :placeholder="placeholder"
@@ -42,6 +44,7 @@ const listId = `process-options-${Math.random().toString(36).slice(2, 8)}`;
         size="sm"
         :aria-label="$t('manage.refresh_targets')"
         :loading="loading"
+        :disabled="disabled"
         @click="emit('refresh')"
       >
         <RefreshCw :size="14" aria-hidden="true" />
