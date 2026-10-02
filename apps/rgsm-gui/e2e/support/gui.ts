@@ -527,10 +527,8 @@ export async function setSharedRetention(page: Page, limit: number): Promise<voi
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
   await expect(page.getByText('Automatic snapshots in shared history')).toBeVisible();
-  const block = page
-    .getByRole('heading', { name: 'Automatic snapshots in shared history' })
-    .locator('xpath=ancestor::div[contains(@class,"justify-between")][1]');
-  const enabled = block.getByRole('switch');
+  const block = page.getByRole('dialog');
+  const enabled = block.getByRole('switch', { name: 'Limit snapshots in shared history' });
   if (!(await enabled.isChecked())) {
     await enabled.click();
   }

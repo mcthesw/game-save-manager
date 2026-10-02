@@ -471,15 +471,37 @@ test('retention remains independent of the timer and retries only the failed sha
     await expect(
       drawer.getByRole('heading', { name: 'Automatic snapshots in shared history' })
     ).toBeVisible();
+    const timerInterval = drawer.getByRole('spinbutton', { name: 'Timer interval (seconds)' });
+    await expect(timerInterval).toBeVisible();
+    await expect(timerInterval).toBeDisabled();
+    const processInterval = drawer.getByRole('spinbutton', {
+      name: 'Interval (sec)',
+      exact: true,
+    });
+    await expect(processInterval).toBeVisible();
+    await expect(processInterval).toBeDisabled();
+    await expect(drawer.getByRole('spinbutton', { name: 'Max auto backups' })).toBeDisabled();
     await drawer.getByRole('combobox', { name: 'Automatic backups on this device' }).click();
     await page.getByRole('option', { name: 'Set for this game', exact: true }).click();
     await drawer.getByRole('spinbutton', { name: 'Max auto backups' }).fill('7');
-    const sharedSwitch = drawer
-      .getByRole('heading', { name: 'Automatic snapshots in shared history' })
-      .locator('xpath=..')
-      .locator('xpath=..')
-      .getByRole('switch');
+    const localLimit = drawer.getByRole('spinbutton', { name: 'Max auto backups' });
+    const localSwitch = drawer.getByRole('switch', { name: 'Limit backups on this device' });
+    const numberInputs = await drawer.getByRole('spinbutton').count();
+    const beforeToggle = await localLimit.boundingBox();
+    await localSwitch.click();
+    await expect(localLimit).toBeVisible();
+    await expect(localLimit).toBeDisabled();
+    await localSwitch.click();
+    await expect(localLimit).toHaveValue('7');
+    expect(await localLimit.boundingBox()).toEqual(beforeToggle);
+    expect(await drawer.getByRole('spinbutton').count()).toBe(numberInputs);
+    const sharedSwitch = drawer.getByRole('switch', { name: 'Limit snapshots in shared history' });
+    const sharedLimit = drawer.getByRole('spinbutton', {
+      name: 'Automatic snapshots in shared history',
+    });
     await sharedSwitch.click();
+    await expect(sharedLimit).toBeVisible();
+    await expect(sharedLimit).toBeDisabled();
     let localWrites = 0;
     let sharedWrites = 0;
     page.on('request', (request) => {
@@ -514,6 +536,25 @@ test('retention remains independent of the timer and retries only the failed sha
     await page.screenshot({
       path: test.info().outputPath('automatic-backup-settings.png'),
       fullPage: true,
+      animations: 'disabled',
+    });
+    await page.evaluate(async () => {
+      const modulePath = '/src/i18n.ts';
+      (await import(modulePath)).i18n.global.locale.value = 'zh_SIMPLIFIED';
+      document.documentElement.classList.add('dark');
+    });
+    await drawer.getByRole('button', { name: '取消', exact: true }).click();
+    await page.getByRole('button', { name: '更多操作' }).click();
+    await page.getByRole('menuitem', { name: '自动保存设置' }).click();
+    await expect(drawer.getByRole('heading', { name: '保留多少' })).toBeVisible();
+    await drawer.screenshot({
+      path: test.info().outputPath('backup-settings-zh.png'),
+      animations: 'disabled',
+    });
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await drawer.getByRole('spinbutton', { name: '共享历史的自动存档点' }).scrollIntoViewIfNeeded();
+    await drawer.screenshot({
+      path: test.info().outputPath('backup-settings-retention-zh.png'),
       animations: 'disabled',
     });
   } catch (error) {

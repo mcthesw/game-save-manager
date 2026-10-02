@@ -85,6 +85,23 @@ const retentionOptions = computed(() => [
   },
   { value: 'custom', label: $t('manage.retention_custom') },
 ]);
+const localLimited = computed({
+  get: () => (draft.retentionMode === 'global' ? globalLimit.value !== 0 : !draft.localUnlimited),
+  set: (value: boolean) => {
+    draft.localUnlimited = !value;
+  },
+});
+const displayedLocalLimit = computed({
+  get: () =>
+    draft.retentionMode === 'global'
+      ? globalLimit.value || undefined
+      : draft.localUnlimited
+        ? undefined
+        : draft.localLimit,
+  set: (value: number | undefined) => {
+    draft.localLimit = value;
+  },
+});
 const sharedRetentionEnabled = ref(false);
 const sharedRetentionLimit = ref<number | undefined>(10);
 
@@ -244,87 +261,85 @@ watch(
 
 <template>
   <KDrawer v-model:open="visible" :title="$t('manage.auto_save_settings')" :width="520">
-    <div class="flex flex-col gap-3.5">
-      <h2 class="text-sm font-semibold text-text">{{ $t('manage.backup_when') }}</h2>
-      <section class="rounded-md border border-border bg-surface p-4">
-        <div class="flex items-start justify-between gap-4">
-          <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-text">{{ $t('manage.auto_backup') }}</h3>
-            <p class="mt-1 text-xs leading-relaxed text-text-dim">
-              {{ $t('manage.auto_backup_timer_summary') }}
-            </p>
+    <div class="backup-settings">
+      <section class="settings-section">
+        <h2 class="section-title">{{ $t('manage.backup_when') }}</h2>
+        <div class="settings-group">
+          <h3>{{ $t('manage.auto_backup') }}</h3>
+          <div class="form-row">
+            <span>{{ $t('manage.backup_enabled') }}</span>
+            <KSwitch
+              v-model="draft.timerEnabled"
+              class="justify-self-start"
+              :aria-label="$t('manage.auto_backup')"
+            />
           </div>
-          <KSwitch v-model="draft.timerEnabled" />
-        </div>
-        <div
-          v-if="draft.timerEnabled"
-          class="mt-3.5 grid grid-cols-[8.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5"
-        >
-          <span class="text-xs text-text-dim">{{ $t('manage.auto_backup_interval') }}</span>
-          <KSelect
-            v-model="draft.timerPreset"
-            :options="presetOptions"
-            size="sm"
-            class="w-full"
-            :aria-label="$t('manage.auto_backup_interval')"
-            @update:model-value="onTimerPresetChange(String($event))"
-          />
-          <template v-if="draft.timerPreset === 'custom'">
-            <span class="text-xs text-text-dim">{{
-              $t('manage.process_monitor_interval_secs')
-            }}</span>
+          <div class="form-row">
+            <span>{{ $t('manage.auto_backup_interval') }}</span>
+            <KSelect
+              v-model="draft.timerPreset"
+              :options="presetOptions"
+              :disabled="!draft.timerEnabled"
+              class="w-full"
+              :aria-label="$t('manage.auto_backup_interval')"
+              @update:model-value="onTimerPresetChange(String($event))"
+            />
+          </div>
+          <div class="form-row">
+            <span>{{ $t('manage.process_monitor_interval_secs') }}</span>
             <KNumberInput
               v-model="draft.timerIntervalSecs"
               :min="1"
               :max="86400"
+              :disabled="!draft.timerEnabled || draft.timerPreset !== 'custom'"
               class="w-36"
-              :aria-label="$t('manage.process_monitor_interval_secs')"
+              :aria-label="$t('manage.timer_interval_seconds')"
             />
-          </template>
-        </div>
-      </section>
-
-      <section class="rounded-md border border-border bg-surface p-4">
-        <div class="flex items-start justify-between gap-4">
-          <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-text">{{ $t('manage.process_monitor') }}</h3>
-            <p class="mt-1 text-xs leading-relaxed text-text-dim">
-              {{ $t('manage.process_monitor_summary') }}
-            </p>
           </div>
-          <KSwitch v-model="draft.processEnabled" />
         </div>
-        <div v-if="draft.processEnabled" class="mt-3.5 flex flex-col gap-3">
-          <div class="grid grid-cols-[8.75rem_minmax(0,1fr)] items-center gap-3">
-            <span class="text-xs text-text-dim">{{ $t('manage.process_monitor_name') }}</span>
+
+        <div class="settings-group">
+          <h3>{{ $t('manage.process_monitor') }}</h3>
+          <div class="form-row">
+            <span>{{ $t('manage.backup_enabled') }}</span>
+            <KSwitch
+              v-model="draft.processEnabled"
+              class="justify-self-start"
+              :aria-label="$t('manage.process_monitor')"
+            />
+          </div>
+          <div class="form-row">
+            <span>{{ $t('manage.process_monitor_name') }}</span>
             <ProcessSelect
               v-model="draft.processName"
               :options="processOptions"
               :loading="loadingTargets"
+              :disabled="!draft.processEnabled"
               :placeholder="$t('manage.process_monitor_name_placeholder')"
               @refresh="refreshTargets"
             />
           </div>
-          <div class="grid grid-cols-3 gap-2">
-            <KCheckbox v-model="draft.onStart">{{
-              $t('manage.process_monitor_on_start')
-            }}</KCheckbox>
-            <KCheckbox v-model="draft.onExit">{{ $t('manage.process_monitor_on_exit') }}</KCheckbox>
-            <KCheckbox v-model="draft.intervalEnabled">
-              {{ $t('manage.process_monitor_interval') }}
-            </KCheckbox>
+          <div class="form-row items-start">
+            <span class="pt-0.5">{{ $t('manage.backup_triggers') }}</span>
+            <div class="flex flex-wrap gap-x-4 gap-y-3">
+              <KCheckbox v-model="draft.onStart" :disabled="!draft.processEnabled">{{
+                $t('manage.process_monitor_on_start')
+              }}</KCheckbox>
+              <KCheckbox v-model="draft.onExit" :disabled="!draft.processEnabled">{{
+                $t('manage.process_monitor_on_exit')
+              }}</KCheckbox>
+              <KCheckbox v-model="draft.intervalEnabled" :disabled="!draft.processEnabled">{{
+                $t('manage.process_monitor_interval')
+              }}</KCheckbox>
+            </div>
           </div>
-          <div
-            v-if="draft.intervalEnabled"
-            class="grid max-w-80 grid-cols-[8.75rem_minmax(0,1fr)] items-center gap-3"
-          >
-            <span class="text-xs text-text-dim">{{
-              $t('manage.process_monitor_interval_secs')
-            }}</span>
+          <div class="form-row">
+            <span>{{ $t('manage.process_monitor_interval_secs') }}</span>
             <KNumberInput
               v-model="draft.processIntervalSecs"
               :min="1"
               :max="86400"
+              :disabled="!draft.processEnabled || !draft.intervalEnabled"
               class="w-36"
               :aria-label="$t('manage.process_monitor_interval_secs')"
             />
@@ -332,69 +347,134 @@ watch(
         </div>
       </section>
 
-      <h2 class="mt-2 text-sm font-semibold text-text">{{ $t('manage.backup_retention') }}</h2>
-      <section class="rounded-md border border-border bg-surface p-4">
-        <h3 class="text-sm font-semibold text-text">{{ $t('manage.retention_local') }}</h3>
-        <KSelect
-          v-model="draft.retentionMode"
-          :options="retentionOptions"
-          class="mt-3 w-full"
-          :aria-label="$t('manage.retention_local')"
-        />
-        <div v-if="draft.retentionMode === 'custom'" class="mt-3 flex items-center gap-3">
-          <KCheckbox v-model="draft.localUnlimited">{{
-            $t('manage.retention_unlimited')
-          }}</KCheckbox>
-          <KNumberInput
-            v-if="!draft.localUnlimited"
-            v-model="draft.localLimit"
-            :min="1"
-            :max="9999"
-            class="w-28"
-            :aria-label="$t('manage.auto_backup_max_count')"
-          />
-        </div>
-        <p class="mt-2 text-xs leading-relaxed text-text-dim">
-          {{ $t('manage.retention_local_hint') }}
-        </p>
-        <div
-          v-if="isShared"
-          class="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4"
-        >
-          <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-text">
-              {{ $t('manage.shared_retention_limit') }}
-            </h3>
-            <p class="mt-1 text-xs leading-relaxed text-text-dim">
-              {{ $t('manage.shared_retention_hint') }}
-            </p>
-          </div>
-          <div class="flex shrink-0 items-center gap-2.5">
-            <KSwitch v-model="sharedRetentionEnabled" />
-            <KNumberInput
-              v-if="sharedRetentionEnabled"
-              v-model="sharedRetentionLimit"
-              :min="1"
-              :max="1000"
-              class="w-24"
-              :aria-label="$t('manage.shared_retention_limit')"
+      <section class="settings-section">
+        <h2 class="section-title">{{ $t('manage.backup_retention') }}</h2>
+        <div class="settings-group">
+          <h3>{{ $t('manage.retention_local') }}</h3>
+          <div class="form-row">
+            <span>{{ $t('manage.retention_source') }}</span>
+            <KSelect
+              v-model="draft.retentionMode"
+              :options="retentionOptions"
+              class="w-full"
+              :aria-label="$t('manage.retention_local')"
             />
           </div>
+          <div class="form-row">
+            <span>{{ $t('manage.retention_limit_enabled') }}</span>
+            <KSwitch
+              v-model="localLimited"
+              class="justify-self-start"
+              :disabled="draft.retentionMode === 'global'"
+              :aria-label="$t('manage.retention_local_limit_enabled')"
+            />
+          </div>
+          <div class="form-row">
+            <span>{{ $t('manage.retention_count') }}</span>
+            <div class="flex items-center gap-2">
+              <KNumberInput
+                v-model="displayedLocalLimit"
+                :min="1"
+                :max="9999"
+                :disabled="draft.retentionMode === 'global' || !localLimited"
+                :placeholder="$t('manage.retention_unlimited')"
+                class="w-36"
+                :aria-label="$t('manage.auto_backup_max_count')"
+              />
+              <span class="text-text-dim">{{ $t('manage.retention_count_unit') }}</span>
+            </div>
+          </div>
+          <p class="setting-hint">{{ $t('manage.retention_local_hint') }}</p>
+        </div>
+
+        <div v-if="isShared" class="settings-group">
+          <h3>{{ $t('manage.shared_retention_limit') }}</h3>
+          <div class="form-row">
+            <span>{{ $t('manage.retention_limit_enabled') }}</span>
+            <KSwitch
+              v-model="sharedRetentionEnabled"
+              class="justify-self-start"
+              :aria-label="$t('manage.retention_shared_limit_enabled')"
+            />
+          </div>
+          <div class="form-row">
+            <span>{{ $t('manage.retention_branch_count') }}</span>
+            <div class="flex items-center gap-2">
+              <KNumberInput
+                v-model="sharedRetentionLimit"
+                :min="1"
+                :max="1000"
+                :disabled="!sharedRetentionEnabled"
+                class="w-36"
+                :aria-label="$t('manage.shared_retention_limit')"
+              />
+              <span class="text-text-dim">{{ $t('manage.retention_count_unit') }}</span>
+            </div>
+          </div>
+          <p class="setting-hint">{{ $t('manage.shared_retention_hint') }}</p>
         </div>
       </section>
-
-      <p class="text-xs leading-relaxed text-text-dim">
-        {{ $t('manage.auto_save_feedback_hint') }}
-      </p>
+      <p class="setting-hint">{{ $t('manage.auto_save_feedback_hint') }}</p>
     </div>
-
     <template #footer>
       <div class="flex justify-end gap-2.5">
         <KButton @click="visible = false">{{ $t('manage.cancel') }}</KButton>
-        <KButton variant="primary" :loading="saving" @click="saveDraft">
-          {{ $t('manage.save_settings') }}
-        </KButton>
+        <KButton variant="primary" :loading="saving" @click="saveDraft">{{
+          $t('manage.save_settings')
+        }}</KButton>
       </div>
     </template>
   </KDrawer>
 </template>
+
+<style scoped>
+.backup-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  font-size: 14px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-group + .settings-group {
+  border-top: 1px solid var(--color-border);
+  padding-top: 20px;
+}
+.settings-group h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.setting-hint {
+  margin: 0;
+  color: var(--color-text-dim);
+  font-size: 12px;
+  line-height: 1.65;
+}
+@media (max-width: 420px) {
+  .form-row {
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+</style>
