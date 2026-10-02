@@ -1,0 +1,235 @@
+.pvi-tag {
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in oklab, var(--warning) 12%, transparent);
+  color: var(--warning);
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklab, var(--warning) 35%, transparent);
+  padding: 0 6px;
+  height: 20px;
+  margin: 0 1px;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: all;
+  cursor: default;
+}
+
+.pvi-suggestions {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-overlay);
+  width: var(--reka-popover-trigger-width);
+  max-height: min(200px, var(--reka-popover-content-available-height));
+  overflow-y: auto;
+}
+
+.pvi-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pvi-suggestion-item:hover,
+.pvi-suggestion-item.active {
+  background: var(--surface-2);
+}
+
+.pvi-suggestion-var {
+  display: inline-block;
+  background: color-mix(in oklab, var(--warning) 12%, transparent);
+  color: var(--warning);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 20px;
+  flex-shrink: 0;
+}
+
+.pvi-suggestion-label {
+  color: var(--text-dim);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pvi-root {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 34px;
+  box-shadow: 0 0 0 1px var(--border) inset;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: box-shadow 0.2s;
+  font-size: 12px;
+  line-height: 24px;
+  box-sizing: border-box;
+}
+
+.pvi-root:hover {
+  box-shadow: 0 0 0 1px var(--border-strong) inset;
+}
+
+.pvi-root:focus-within {
+  box-shadow:
+    0 0 0 1px var(--accent) inset,
+    0 0 0 3px var(--accent-soft);
+}
+
+.pvi-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.pvi-editor-area {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pvi-editor {
+  flex: 1;
+  min-width: 0;
+  min-height: 24px;
+  padding: 4px 8px;
+  outline: none;
+  line-height: 22px;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  color: var(--text);
+}
+
+.pvi-editor--with-badge {
+  padding-right: 32px;
+}
+
+.pvi-editor-badge {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-family: monospace;
+  pointer-events: auto;
+  user-select: none;
+  cursor: default;
+}
+
+.pvi-editor::-webkit-scrollbar {
+  display: none;
+}
+
+.pvi-append {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px 0 0;
+  background: transparent;
+  border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* Compact status dot inside the editor (tooltip mode) */
+.pvi-status-dot-compact {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin: auto 6px;
+  cursor: default;
+  background: var(--border-strong);
+  transition: background 0.2s;
+}
+
+.pvi-status-dot-compact.pvi-status--resolving {
+  animation: pvi-pulse 1s infinite;
+}
+
+.pvi-status-dot-compact.pvi-status--ok {
+  background: var(--success);
+}
+
+.pvi-status-dot-compact.pvi-status--not-found,
+.pvi-status-dot-compact.pvi-status--error {
+  background: var(--danger);
+}
+
+/* Placeholder text via pseudo-element */
+.pvi-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-dim);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.pvi-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  min-height: 16px;
+}
+
+.pvi-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pvi-status--idle .pvi-status-dot {
+  background: var(--border-strong);
+}
+
+.pvi-status--resolving .pvi-status-dot {
+  background: var(--border-strong);
+  animation: pvi-pulse 1s infinite;
+}
+
+.pvi-status--ok .pvi-status-dot {
+  background: var(--success);
+}
+
+.pvi-status--not-found .pvi-status-dot,
+.pvi-status--error .pvi-status-dot {
+  background: var(--danger);
+}
+
+.pvi-status-text {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pvi-status--error .pvi-status-text {
+  color: var(--danger);
+}
+
+@keyframes pvi-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

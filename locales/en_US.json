@@ -1273,6 +1273,7 @@
         "current_quick_action_game": "Current quick backup games"
     },
     "path_variable": {
+        "incomplete": "Complete the path variable with >",
         "insert_variable": "Insert path variable",
         "tooltip": "Path variables help you create cross-device compatible paths",
         "common": "Common variables",

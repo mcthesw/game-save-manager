@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { PopoverAnchor, PopoverContent, PopoverPortal, PopoverRoot } from 'reka-ui';
 import { $t } from '../i18n';
 import { commands } from '../api/commands';
 import { LAYER } from '../ui/layers';
@@ -81,7 +82,7 @@ void loadPathVariables();
 const showSuggestions = ref(false);
 const suggestionFilter = ref('');
 const selectedIndex = ref(0);
-const suggestionsStyle = ref<Record<string, string>>({});
+const isEditing = ref(false);
 
 const filteredVariables = computed(() => {
   const q = suggestionFilter.value.toLowerCase();
@@ -238,16 +239,11 @@ function setCursorAtOffset(targetOffset: number) {
 
 // ── Autocomplete logic ──
 
-function updateSuggestionsPosition() {
-  if (!rootRef.value) return;
-  const rect = rootRef.value.getBoundingClientRect();
-  suggestionsStyle.value = {
-    position: 'fixed',
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-    zIndex: String(LAYER.PATH_AUTOCOMPLETE),
-  };
+function onInteractOutside(event: Event) {
+  // The editor remains focused while its autocomplete is open.
+  if (event.target instanceof Node && rootRef.value?.contains(event.target)) {
+    event.preventDefault();
+  }
 }
 
 function checkAutocomplete() {
@@ -265,7 +261,6 @@ function checkAutocomplete() {
   if (lastOpen >= 0 && lastOpen > lastClose) {
     suggestionFilter.value = beforeCursor.slice(lastOpen + 1);
     selectedIndex.value = 0;
-    updateSuggestionsPosition();
     showSuggestions.value = true;
   } else {
     showSuggestions.value = false;
@@ -330,12 +325,17 @@ function onCompositionEnd() {
   nextTick(checkAutocomplete);
 }
 
+function onFocus() {
+  isEditing.value = true;
+  scheduleResolve(props.modelValue);
+  nextTick(checkAutocomplete);
+}
+
 function onBlur() {
+  isEditing.value = false;
   savedCursorOffset = getCursorOffset();
-  // Delay to allow mousedown on suggestion items to fire first
-  setTimeout(() => {
-    showSuggestions.value = false;
-  }, 150);
+  showSuggestions.value = false;
+  scheduleResolve(props.modelValue);
 
   nextTick(() => {
     if (editorRef.value && !editorRef.value.contains(document.activeElement)) {
@@ -345,6 +345,13 @@ function onBlur() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.isComposing) return;
+  if (showSuggestions.value && e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    showSuggestions.value = false;
+    return;
+  }
   // Backspace: atomically delete a variable tag when cursor is immediately after it
   if (e.key === 'Backspace' && !e.isComposing && !showSuggestions.value) {
     const sel = window.getSelection();
@@ -387,11 +394,6 @@ function onKeydown(e: KeyboardEvent) {
       e.preventDefault();
       const v = filteredVariables.value[selectedIndex.value];
       if (v) selectSuggestion(v);
-      return;
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      showSuggestions.value = false;
       return;
     }
   }
@@ -468,6 +470,12 @@ function scheduleResolve(path: string) {
     return;
   }
 
+  if (path.lastIndexOf('<') > path.lastIndexOf('>')) {
+    pathStatus.value = isEditing.value ? 'idle' : 'error';
+    resolvedPathText.value = isEditing.value ? '' : $t('path_variable.incomplete');
+    return;
+  }
+
   pathStatus.value = 'resolving';
   resolvedPathText.value = '';
   resolveTimer = setTimeout(async () => {
@@ -524,23 +532,13 @@ function scheduleResolve(path: string) {
 
 // ── Lifecycle ──
 
-function onWindowScroll(e: Event) {
-  // Don't close when scrolling inside the suggestions dropdown itself
-  if (suggestionsRef.value && e.target instanceof Node && suggestionsRef.value.contains(e.target)) {
-    return;
-  }
-  showSuggestions.value = false;
-}
-
 onMounted(() => {
   renderContent(props.modelValue);
-  window.addEventListener('scroll', onWindowScroll, true);
   if (effectiveStatusMode.value !== 'none' && props.modelValue) scheduleResolve(props.modelValue);
 });
 
 onUnmounted(() => {
   resolveGeneration += 1;
-  window.removeEventListener('scroll', onWindowScroll, true);
   if (resolveTimer) clearTimeout(resolveTimer);
 });
 
@@ -569,39 +567,81 @@ watch(
 
 <template>
   <div class="pvi-wrapper">
-    <div ref="rootRef" class="pvi-root">
-      <div class="pvi-editor-area">
-        <div
-          ref="editorRef"
-          class="pvi-editor"
-          :class="{ 'pvi-editor--with-badge': !$slots.append }"
-          :data-placeholder="$t('path_variable.placeholder')"
-          contenteditable="true"
-          spellcheck="false"
-          @input="onInput"
-          @beforeinput="onBeforeInput"
-          @compositionend="onCompositionEnd"
-          @blur="onBlur"
-          @keydown="onKeydown"
-          @paste="onPaste"
-        />
-        <KTooltip v-if="!$slots.append" :content="$t('path_variable.editor_badge_tooltip')">
-          <span class="pvi-editor-badge">&lt;/&gt;</span>
-        </KTooltip>
-      </div>
-      <!-- Compact status dot for tooltip mode -->
-      <KTooltip
-        v-if="effectiveStatusMode === 'tooltip' && modelValue"
-        :content="resolvedPathText || $t('path_variable.resolving')"
-      >
-        <span class="pvi-status-dot-compact" :class="`pvi-status--${pathStatus}`" />
-      </KTooltip>
-      <div v-if="$slots.append" class="pvi-append">
-        <slot name="append" :insert-at-cursor="insertAtCursor" />
-      </div>
-    </div>
+    <PopoverRoot
+      :open="showSuggestions && filteredVariables.length > 0"
+      @update:open="showSuggestions = $event"
+    >
+      <PopoverAnchor as-child>
+        <div ref="rootRef" class="pvi-root">
+          <div class="pvi-editor-area">
+            <div
+              ref="editorRef"
+              class="pvi-editor"
+              :class="{ 'pvi-editor--with-badge': !$slots.append }"
+              :data-placeholder="$t('path_variable.placeholder')"
+              contenteditable="true"
+              spellcheck="false"
+              @input="onInput"
+              @beforeinput="onBeforeInput"
+              @compositionend="onCompositionEnd"
+              @focus="onFocus"
+              @click="checkAutocomplete"
+              @blur="onBlur"
+              @keydown="onKeydown"
+              @paste="onPaste"
+            />
+            <KTooltip v-if="!$slots.append" :content="$t('path_variable.editor_badge_tooltip')">
+              <span class="pvi-editor-badge">&lt;/&gt;</span>
+            </KTooltip>
+          </div>
+          <!-- Compact status dot for tooltip mode -->
+          <KTooltip
+            v-if="effectiveStatusMode === 'tooltip' && modelValue && pathStatus !== 'idle'"
+            :content="resolvedPathText || $t('path_variable.resolving')"
+          >
+            <span class="pvi-status-dot-compact" :class="`pvi-status--${pathStatus}`" />
+          </KTooltip>
+          <div v-if="$slots.append" class="pvi-append">
+            <slot name="append" :insert-at-cursor="insertAtCursor" />
+          </div>
+        </div>
+      </PopoverAnchor>
+      <PopoverPortal>
+        <PopoverContent
+          as-child
+          align="start"
+          :side-offset="4"
+          :collision-padding="8"
+          :style="{ zIndex: LAYER.kitPopover }"
+          @open-auto-focus.prevent
+          @close-auto-focus.prevent
+          @interact-outside="onInteractOutside"
+        >
+          <div
+            ref="suggestionsRef"
+            class="pvi-suggestions"
+            role="listbox"
+            :aria-label="$t('path_variable.insert_variable')"
+          >
+            <div
+              v-for="(v, i) in filteredVariables"
+              :key="v.name"
+              class="pvi-suggestion-item"
+              role="option"
+              :aria-selected="i === selectedIndex"
+              :class="{ active: i === selectedIndex }"
+              @pointerdown.prevent
+              @click="selectSuggestion(v)"
+            >
+              <span class="pvi-suggestion-var">{{ v.value }}</span>
+              <span class="pvi-suggestion-label">{{ $t(`path_variable.${v.labelKey}`) }}</span>
+            </div>
+          </div>
+        </PopoverContent>
+      </PopoverPortal>
+    </PopoverRoot>
     <div
-      v-if="effectiveStatusMode === 'below' && modelValue"
+      v-if="effectiveStatusMode === 'below' && modelValue && pathStatus !== 'idle'"
       class="pvi-status"
       :class="`pvi-status--${pathStatus}`"
     >
@@ -618,280 +658,6 @@ watch(
       </KButton>
     </div>
   </div>
-
-  <!-- Teleport to body to avoid overflow clipping in table cells -->
-  <Teleport to="body">
-    <Transition name="pvi-dropdown">
-      <div
-        v-if="showSuggestions && filteredVariables.length > 0"
-        ref="suggestionsRef"
-        class="pvi-suggestions"
-        :style="suggestionsStyle"
-      >
-        <div
-          v-for="(v, i) in filteredVariables"
-          :key="v.name"
-          class="pvi-suggestion-item"
-          :class="{ active: i === selectedIndex }"
-          @mousedown.prevent="selectSuggestion(v)"
-        >
-          <span class="pvi-suggestion-var">{{ v.value }}</span>
-          <span class="pvi-suggestion-label">{{ $t(`path_variable.${v.labelKey}`) }}</span>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
 </template>
 
-<!-- Non-scoped styles for dynamic tag elements and teleported dropdown -->
-<style>
-.pvi-tag {
-  display: inline-flex;
-  align-items: center;
-  background: color-mix(in oklab, var(--warning) 12%, transparent);
-  color: var(--warning);
-  border-radius: 4px;
-  border: 1px solid color-mix(in oklab, var(--warning) 35%, transparent);
-  padding: 0 6px;
-  height: 20px;
-  margin: 0 1px;
-  font-family: inherit;
-  font-size: 11px;
-  line-height: 1;
-  vertical-align: middle;
-  user-select: all;
-  cursor: default;
-}
-
-.pvi-suggestions {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-overlay);
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.pvi-suggestion-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.pvi-suggestion-item:hover,
-.pvi-suggestion-item.active {
-  background: var(--surface-2);
-}
-
-.pvi-suggestion-var {
-  display: inline-block;
-  background: color-mix(in oklab, var(--warning) 12%, transparent);
-  color: var(--warning);
-  border-radius: 3px;
-  padding: 0 6px;
-  font-size: 12px;
-  line-height: 20px;
-  flex-shrink: 0;
-}
-
-.pvi-suggestion-label {
-  color: var(--text-dim);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pvi-dropdown-enter-active,
-.pvi-dropdown-leave-active {
-  transition:
-    opacity 0.15s,
-    transform 0.15s;
-}
-
-.pvi-dropdown-enter-from,
-.pvi-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-</style>
-
-<style scoped>
-.pvi-root {
-  position: relative;
-  display: inline-flex;
-  align-items: stretch;
-  width: 100%;
-  min-height: 34px;
-  box-shadow: 0 0 0 1px var(--border) inset;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  transition: box-shadow 0.2s;
-  font-size: 12px;
-  line-height: 24px;
-  box-sizing: border-box;
-}
-
-.pvi-root:hover {
-  box-shadow: 0 0 0 1px var(--border-strong) inset;
-}
-
-.pvi-root:focus-within {
-  box-shadow:
-    0 0 0 1px var(--accent) inset,
-    0 0 0 3px var(--accent-soft);
-}
-
-.pvi-wrapper {
-  width: 100%;
-  min-width: 0;
-}
-
-.pvi-editor-area {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.pvi-editor {
-  flex: 1;
-  min-width: 0;
-  min-height: 24px;
-  padding: 4px 8px;
-  outline: none;
-  line-height: 22px;
-  white-space: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  color: var(--text);
-}
-
-.pvi-editor--with-badge {
-  padding-right: 32px;
-}
-
-.pvi-editor-badge {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-dim);
-  font-size: 10px;
-  font-family: monospace;
-  pointer-events: auto;
-  user-select: none;
-  cursor: default;
-}
-
-.pvi-editor::-webkit-scrollbar {
-  display: none;
-}
-
-.pvi-append {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px 0 0;
-  background: transparent;
-  border-left: none;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-/* Compact status dot inside the editor (tooltip mode) */
-.pvi-status-dot-compact {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin: auto 6px;
-  cursor: default;
-  background: var(--border-strong);
-  transition: background 0.2s;
-}
-
-.pvi-status-dot-compact.pvi-status--resolving {
-  animation: pvi-pulse 1s infinite;
-}
-
-.pvi-status-dot-compact.pvi-status--ok {
-  background: var(--success);
-}
-
-.pvi-status-dot-compact.pvi-status--not-found,
-.pvi-status-dot-compact.pvi-status--error {
-  background: var(--danger);
-}
-
-/* Placeholder text via pseudo-element */
-.pvi-editor:empty::before {
-  content: attr(data-placeholder);
-  color: var(--text-dim);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.pvi-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  font-size: 11px;
-  line-height: 16px;
-  min-height: 16px;
-}
-
-.pvi-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.pvi-status--idle .pvi-status-dot {
-  background: var(--border-strong);
-}
-
-.pvi-status--resolving .pvi-status-dot {
-  background: var(--border-strong);
-  animation: pvi-pulse 1s infinite;
-}
-
-.pvi-status--ok .pvi-status-dot {
-  background: var(--success);
-}
-
-.pvi-status--not-found .pvi-status-dot,
-.pvi-status--error .pvi-status-dot {
-  background: var(--danger);
-}
-
-.pvi-status-text {
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pvi-status--error .pvi-status-text {
-  color: var(--danger);
-}
-
-@keyframes pvi-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-</style>
+<style src="./PathVariableInput.css"></style>
