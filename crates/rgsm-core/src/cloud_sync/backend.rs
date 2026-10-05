@@ -296,7 +296,10 @@ impl Backend {
                     .username(username)
                     .password(password)
                     .root(root);
-                Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
+                Ok(Operator::new(builder)?
+                    .layer(super::webdav::compatibility_layer()?)
+                    .layer(Self::retry_layer())
+                    .finish())
             }
             Backend::S3 {
                 endpoint,

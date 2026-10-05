@@ -10,6 +10,7 @@ mod task_manager;
 pub mod transfer;
 mod utils;
 pub mod v2;
+mod webdav;
 
 pub const V1_CONFIG_PATH: &str = "/GameSaveManager.config.json";
 pub const V1_SAVE_DATA_PREFIX: &str = "save_data/";

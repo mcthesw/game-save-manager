@@ -78,6 +78,9 @@ jobs:
       - name: Run Fs cloud sync domain tests
         run: cargo test -p rgsm-core --test cloud_sync_v2_fs
 
+      - name: Run WebDAV compatibility and upgrade tests
+        run: cargo test -p rgsm-core --test cloud_sync_webdav
+
       - name: Run workspace checks
         run: |
           cargo check --workspace
