@@ -9,15 +9,17 @@ import type {
   OpenPathWarning,
   SaveUnit,
   SaveUnitType,
+  SavePathOverride,
 } from '../api/commands';
 import { commands } from '../api/commands';
 import { useConfig } from '../composables/useConfig';
 import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import PathVariableInput from './PathVariableInput.vue';
+import SaveUnitPathInput from './SaveUnitPathInput.vue';
 import GameLocationSelection from './GameLocationSelection.vue';
 import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 import { hasGameNameConflict } from '../utils/gameName';
-import { KAlert, KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } from '../ui/kit';
+import { KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } from '../ui/kit';
 
 const { config } = useConfig();
 const feedback = useFeedback();
@@ -93,12 +95,6 @@ const disabledSaveUnits = computed(() =>
   (tempGame.value.save_paths ?? []).filter((unit) => !isUnitEnabled(unit))
 );
 
-const activePathsMissing = computed(
-  () =>
-    activeSaveUnits.value.length > 0 &&
-    activeSaveUnits.value.every((unit) => getDevicePath(unit, selectedDeviceId.value).trim() === '')
-);
-
 const launcherPathEmpty = computed(() => getGameLaunchPath(selectedDeviceId.value).trim() === '');
 
 function getDevicesFromConfig() {
@@ -127,6 +123,7 @@ function syncAvailableDevices(game: Game) {
   });
 
   Object.keys(game.game_paths ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
+  Object.keys(game.device_bindings ?? {}).forEach((deviceId) => deviceIds.add(deviceId));
 
   const deviceMap = getDevicesFromConfig();
   availableDevices.value = Array.from(deviceIds).map((id) => {
@@ -204,7 +201,27 @@ async function fetchCurrentDevice() {
 
 void fetchCurrentDevice();
 
+function getOverride(unit: SaveUnit, deviceId = selectedDeviceId.value) {
+  return unit.source.type === 'manifestPattern' && unit.id !== undefined
+    ? tempGame.value.device_bindings?.[deviceId]?.pathOverrides?.[unit.id]
+    : undefined;
+}
+
+function updatePathOverride(unit: SaveUnit, value: SavePathOverride | undefined) {
+  if (unit.id === undefined) return;
+  const binding = currentBinding();
+  binding.pathOverrides ??= {};
+  if (value) binding.pathOverrides[unit.id] = value;
+  else delete binding.pathOverrides[unit.id];
+  binding.restoreMappings = (binding.restoreMappings ?? []).filter(
+    (rule) => rule.saveUnitId !== unit.id
+  );
+  hasUnsavedChanges.value = true;
+}
+
 function getDevicePath(unit: SaveUnit, deviceId: string): string {
+  const override = getOverride(unit, deviceId);
+  if (override) return override.path;
   return unit.source.type === 'manifestPattern'
     ? unit.source.pattern
     : (unit.source.paths?.[deviceId] ?? '');
@@ -215,7 +232,10 @@ function getGameLaunchPath(deviceId: string): string {
 }
 
 function updateDevicePath(unit: SaveUnit, deviceId: string, path: string) {
-  if (unit.source.type === 'manifestPattern') {
+  const override = getOverride(unit, deviceId);
+  if (override) {
+    override.path = path;
+  } else if (unit.source.type === 'manifestPattern') {
     unit.source.pattern = path;
   } else {
     if (!deviceId) return;
@@ -457,10 +477,10 @@ async function chooseUnitPath(unit: SaveUnit) {
 }
 
 function formatUnitType(unit: SaveUnit) {
-  if (unit.source.type === 'manifestPattern') {
+  if (unit.source.type === 'manifestPattern' && !saveUnitType(unit)) {
     return $t('addgame.dynamic_path');
   }
-  const unitType = unit.source.unit_type;
+  const unitType = saveUnitType(unit);
   switch (unitType) {
     case 'Folder':
       return $t('save_location_drawer.type_folder');
@@ -553,7 +573,10 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           :model-value="currentBinding()"
           :paths="[
             getGameLaunchPath(selectedDeviceId),
-            ...tempGame.save_paths.map((unit) => getDevicePath(unit, selectedDeviceId)),
+            ...tempGame.save_paths.flatMap((unit) => [
+              ...(unit.source.type === 'manifestPattern' ? [unit.source.pattern] : []),
+              getDevicePath(unit, selectedDeviceId),
+            ]),
           ]"
           @update:model-value="updateBinding"
         />
@@ -613,7 +636,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
             {{ $t('save_location_drawer.save_locations') }}
           </div>
           <div class="flex flex-wrap gap-1.5">
-            <KButton variant="primary" size="sm" @click="addSaveDirectory">
+            <KButton size="sm" @click="addSaveDirectory">
               {{ $t('addgame.add_save_directory') }}
             </KButton>
             <KButton size="sm" @click="addSaveFile">
@@ -624,26 +647,32 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
             </KButton>
           </div>
         </div>
-
-        <KAlert v-if="activePathsMissing" tone="info" class="mt-2">
-          {{ $t('save_location_drawer.device_paths_empty') }}
-        </KAlert>
       </section>
 
       <!-- Active save units -->
-      <div v-if="activeSaveUnits.length > 0" class="rounded-md border border-border">
+      <div v-if="activeSaveUnits.length > 0" class="flex min-w-0 flex-col gap-6">
         <div
           v-for="(unit, index) in activeSaveUnits"
           :key="unit.id ?? `active-${index}`"
-          class="flex flex-col gap-2 border-b border-border p-3 last:border-b-0"
+          class="flex min-w-0 flex-col gap-2"
         >
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-1.5">
-              <KTag>{{ formatUnitType(unit) }}</KTag>
-              <KTag v-if="hasPersistentId(unit)">#{{ unit.id }}</KTag>
+          <SaveUnitPathInput
+            :unit="unit"
+            :game="tempGame"
+            :override-value="getOverride(unit)"
+            :model-value="getDevicePath(unit, selectedDeviceId)"
+            :local="selectedDeviceId === currentDevice?.id"
+            @update:model-value="updateDevicePath(unit, selectedDeviceId, $event)"
+            @update:override-value="updatePathOverride(unit, $event)"
+          >
+            <template #type>
+              <span class="text-xs font-medium text-text">{{ formatUnitType(unit) }}</span>
+            </template>
+            <template #identity>
+              <span v-if="hasPersistentId(unit)" class="text-xs text-text-dim">#{{ unit.id }}</span>
               <KTag v-else tone="success">{{ $t('save_location_drawer.new_path') }}</KTag>
-            </div>
-            <div class="flex gap-1">
+            </template>
+            <template #actions>
               <KTooltip :content="openTooltip(unit)">
                 <KButton
                   variant="ghost"
@@ -666,43 +695,30 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
               >
                 {{ $t('addgame.remove') }}
               </KButton>
-            </div>
-          </div>
-
-          <PathVariableInput
-            :game="tempGame"
-            :pattern="unit.source.type === 'manifestPattern'"
-            :model-value="getDevicePath(unit, selectedDeviceId)"
-            :status-mode="selectedDeviceId === currentDevice?.id ? 'tooltip' : 'none'"
-            @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
-          />
-
-          <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="text-xs text-warning">
-            {{ $t('save_location_drawer.path_missing_for_device') }}
-          </div>
-
-          <div class="flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-2">
-            <label
-              v-if="hasPersistentId(unit)"
-              class="inline-flex cursor-pointer items-center gap-2 text-xs text-text"
-            >
-              <span>{{ $t('save_location_drawer.backup_enabled') }}</span>
-              <KSwitch
-                :model-value="isUnitEnabled(unit)"
-                @update:model-value="setUnitEnabled(unit, Boolean($event))"
-              />
-            </label>
-            <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-text">
-              <span>{{ $t('save_location_drawer.delete_before_apply') }}</span>
-              <KSwitch
-                :model-value="unit.delete_before_apply"
-                @update:model-value="
-                  unit.delete_before_apply = Boolean($event);
-                  switchDeleteBeforeApply(unit);
-                "
-              />
-            </label>
-          </div>
+            </template>
+            <template #options>
+              <label
+                v-if="hasPersistentId(unit)"
+                class="inline-flex cursor-pointer items-center gap-2 text-xs text-text-dim"
+              >
+                <span>{{ $t('save_location_drawer.backup_enabled') }}</span>
+                <KSwitch
+                  :model-value="isUnitEnabled(unit)"
+                  @update:model-value="setUnitEnabled(unit, Boolean($event))"
+                />
+              </label>
+              <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-text-dim">
+                <span>{{ $t('save_location_drawer.delete_before_apply') }}</span>
+                <KSwitch
+                  :model-value="unit.delete_before_apply"
+                  @update:model-value="
+                    unit.delete_before_apply = Boolean($event);
+                    switchDeleteBeforeApply(unit);
+                  "
+                />
+              </label>
+            </template>
+          </SaveUnitPathInput>
         </div>
       </div>
 
@@ -717,19 +733,31 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           <KTag>{{ disabledSaveUnits.length }}</KTag>
         </div>
 
-        <div class="rounded-md border border-border">
+        <div class="flex min-w-0 flex-col gap-6">
           <div
             v-for="(unit, index) in disabledSaveUnits"
             :key="unit.id ?? `disabled-${index}`"
-            class="flex flex-col gap-2 border-b border-border p-3 opacity-70 last:border-b-0"
+            class="flex min-w-0 flex-col gap-2 opacity-70"
           >
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-1.5">
-                <KTag>{{ formatUnitType(unit) }}</KTag>
-                <KTag v-if="hasPersistentId(unit)">#{{ unit.id }}</KTag>
+            <SaveUnitPathInput
+              :unit="unit"
+              :game="tempGame"
+              :override-value="getOverride(unit)"
+              :model-value="getDevicePath(unit, selectedDeviceId)"
+              :local="selectedDeviceId === currentDevice?.id"
+              @update:model-value="updateDevicePath(unit, selectedDeviceId, $event)"
+              @update:override-value="updatePathOverride(unit, $event)"
+            >
+              <template #type>
+                <span class="text-xs font-medium text-text">{{ formatUnitType(unit) }}</span>
+              </template>
+              <template #identity>
+                <span v-if="hasPersistentId(unit)" class="text-xs text-text-dim"
+                  >#{{ unit.id }}</span
+                >
                 <KTag tone="warning">{{ $t('save_location_drawer.disabled') }}</KTag>
-              </div>
-              <div class="flex gap-1">
+              </template>
+              <template #actions>
                 <KButton variant="ghost" size="sm" @click="chooseUnitPath(unit)">
                   {{ $t('save_location_drawer.pick_path') }}
                 </KButton>
@@ -746,20 +774,8 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
                 <KButton size="sm" @click="setUnitEnabled(unit, true)">
                   {{ $t('save_location_drawer.restore') }}
                 </KButton>
-              </div>
-            </div>
-
-            <PathVariableInput
-              :game="tempGame"
-              :pattern="unit.source.type === 'manifestPattern'"
-              :model-value="getDevicePath(unit, selectedDeviceId)"
-              :status-mode="selectedDeviceId === currentDevice?.id ? 'tooltip' : 'none'"
-              @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
-            />
-
-            <div v-if="!getDevicePath(unit, selectedDeviceId).trim()" class="text-xs text-warning">
-              {{ $t('save_location_drawer.path_missing_for_device') }}
-            </div>
+              </template>
+            </SaveUnitPathInput>
           </div>
         </div>
       </template>

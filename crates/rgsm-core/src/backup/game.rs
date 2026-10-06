@@ -282,6 +282,17 @@ impl GameDraft {
 }
 
 impl Game {
+    pub fn path_override(
+        &self,
+        unit_id: u32,
+        device_id: &DeviceId,
+    ) -> Option<&super::SavePathOverride> {
+        self.device_bindings
+            .get(device_id)?
+            .path_overrides
+            .get(&unit_id)
+    }
+
     /// Build a `PathContext` from this game's metadata for path variable resolution.
     /// Pass the current `Device` to include explicit Device Resources.
     pub fn path_context(&self, device: Option<&crate::device::Device>) -> PathContext {

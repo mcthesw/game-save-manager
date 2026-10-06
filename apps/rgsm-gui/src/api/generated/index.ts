@@ -679,6 +679,7 @@ export type {
   SaveListExpandBehavior,
   SaveListSortMode,
   SavePath,
+  SavePathOverride,
   SaveRestoreMappingData,
   SaveRestoreMappingError,
   SaveRestoreMappingErrors,

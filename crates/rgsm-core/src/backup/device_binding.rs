@@ -3,6 +3,13 @@ use specta::Type;
 
 use crate::device::DeviceResourceId;
 use crate::path_resolution::CandidateDimensions;
+use std::collections::BTreeMap;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePathOverride {
+    pub path: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +22,8 @@ pub struct RestoreMappingRule {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GameDeviceBinding {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub path_overrides: BTreeMap<u32, SavePathOverride>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_ids: Option<Vec<DeviceResourceId>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

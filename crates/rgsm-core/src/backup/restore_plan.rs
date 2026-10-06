@@ -26,6 +26,8 @@ pub struct RestorePlan {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RestorePlanError {
+    #[error("{}", rust_i18n::t!("path_variable.override_incompatible", unit = save_unit_id))]
+    OverrideIncompatible { save_unit_id: u32 },
     #[error("restore mapping is required for save unit {save_unit_id}, capture group {group_id}")]
     MappingRequired {
         save_unit_id: u32,
@@ -65,7 +67,14 @@ impl RestorePlan {
                     save_unit_id: group.save_unit_id,
                     group_id: group.id,
                     archive_path: group.archive_path.clone(),
-                    target_path: if group.kind == CaptureSourceKind::Registry {
+                    target_path: if group.kind == CaptureSourceKind::Registry
+                        || (candidate.is_exact()
+                            && groups
+                                .iter()
+                                .filter(|source| source.save_unit_id == group.save_unit_id)
+                                .count()
+                                == 1)
+                    {
                         candidate.exact_target_path().ok_or_else(|| {
                             RestorePlanError::MappingRequired {
                                 save_unit_id: group.save_unit_id,
@@ -261,6 +270,18 @@ mod tests {
                 group_id: 2,
                 source_dimensions: group().dimensions,
             }
+        );
+    }
+
+    #[test]
+    fn a_single_group_uses_an_exact_target_even_when_the_source_name_differs() {
+        let mut target = report(&[("target", "D:/Target")]);
+        target.candidates[0].expression = "D:/Target/renamed.sav".into();
+        let reports = BTreeMap::from([(7, target)]);
+        let plan = RestorePlan::build(&[group()], &reports, &[]).unwrap();
+        assert_eq!(
+            plan.entries[0].target_path,
+            PathBuf::from("D:/Target/renamed.sav")
         );
     }
 
