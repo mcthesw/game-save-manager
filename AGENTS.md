@@ -1,168 +1,55 @@
-# AI Agent Development Guidelines for Game Save Manager
+# Development Guidelines
 
-This document provides guidance for an AI agent working on this repository. Your goal is to understand the project structure, conventions, and workflows to contribute effectively.
+## Structure and boundaries
 
-## Project Overview
+- `apps/rgsm-gui/src/`: frontend; reuse `src/ui/kit`, `useNotification()`, `useFeedback()`, and `src/ui/layers.ts` (`LAYER.*`).
+- `apps/rgsm-gui/src-tauri/`: desktop host, GUI hooks, and quick actions. Keep command/HTTP adapters thin; delegate business logic to services.
+- `crates/rgsm-core/`: Tauri-independent business logic. Services assemble configuration, dependencies, and hooks; domain functions receive explicit inputs rather than reading global configuration.
+- `locales/`: shared translations; `apps/rgsm-docs/`: documentation; `scripts/`: workspace tooling.
+- Keep modules cohesive and readable; avoid files over 700 lines unless necessary.
 
-This is a cross-platform desktop application for managing game saves, built with Tauri (Rust backend) and Nuxt 3 (Vue 3 frontend). It features local backups, cloud synchronization (WebDAV/S3), and quick actions via hotkeys and a system tray menu.
+## UI design
 
-This project depends on the following softwares:
+1. Use concrete names players understand, such as “Game root directory”; show explanations only when they help the user act.
+2. Align related controls and group them through proximity and consistent spacing; add borders and dividers only when they clarify grouping.
+3. Establish clear visual priority: emphasize the main content and action, keep secondary controls quiet, and avoid duplicate labels or nested boxes.
+4. Reuse existing components and sizing conventions. Inspect the actual rendered UI with long content and narrow widths before submitting; controls must not stretch unrelated content, and toggles must keep surrounding layout stable.
 
-### Tauri deps
+## Implementation
 
-The code block below shows how to install tauri's deps in Debian. For more information, see <https://v2.tauri.app/start/prerequisites/>.
+- Frontend calls the Rust HTTP API, never Tauri APIs or `invoke`. Regenerate `src/api/generated/` with `pnpm --dir apps/rgsm-gui web:generate-api`; never edit generated files manually.
+- Internationalize all user-facing strings: frontend `$t('key')`, backend `rust-i18n`. Add matching keys to `en_US` and `zh_SIMPLIFIED`; other locales fall back to English.
 
-```bash
-# For debian
-sudo apt install libwebkit2gtk-4.1-dev \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libxdo-dev \
-  libssl-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libasound2-dev \
-  pkg-config
+## Development and debugging
 
-```
+- `pnpm dev`: run the desktop app; `pnpm build`: production build; `pnpm portable`: Windows portable package.
+- `pnpm web:dev`: run the real Rust HTTP host and frontend with isolated data in `.rgsm-dev/app-data`. Use this for browser-based UI and business-flow debugging.
+- Use the desktop app to verify window, tray, hotkey, single-instance, and WebView-specific behavior. Open its inspector with `Ctrl+Shift+i`.
+- For Windows WebView debugging, set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` before `pnpm dev`; inspect `http://127.0.0.1:9222/json/list` for the app target.
+- Platform prerequisites: <https://v2.tauri.app/start/prerequisites/>.
 
-## Development Commands
+## Verification
 
-- `pnpm install`: Install workspace dependencies and run `nuxt prepare` for `apps/rgsm-gui`.
-- `pnpm dev`: Run the Tauri GUI app in development mode.
-- `pnpm build`: Build the Tauri GUI app for production.
-- `pnpm web:dev`: Run the Rust HTTP Host and Vite frontend for browser-based development using isolated data under `.rgsm-dev/app-data`.
-- `pnpm web:lint`: Run the frontend ESLint checks.
-- `pnpm web:typecheck`: Run the frontend typecheck.
-- `pnpm portable`: Create a Windows portable build from the workspace root.
+For bug fixes, first reproduce the failure in a test. If that is impractical, explain why and provide the closest useful regression coverage. Manually verify affected user flows; passing automated checks does not establish visual or desktop acceptance.
 
-## Tauri UI Debugging
-
-- Use `pnpm web:dev` for frontend and business-flow debugging in a normal browser. It starts the same versioned HTTP API and SSE event transport used by the desktop app, without requiring Tauri IPC or WebView tooling.
-- On Windows, agents can expose the Tauri WebView2 DevTools Protocol endpoint without changing repo config:
-
-```powershell
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
-pnpm dev
-```
-
-- After the Tauri window is running, inspect `http://127.0.0.1:9222/json/list` and attach to the page target whose URL is the configured `devUrl` (usually `http://localhost:5173/`). This validates WebView-specific behavior against the actual desktop shell.
-- For quick manual inspection inside the Tauri window, use the WebView inspector (`Ctrl+Shift+i` on Windows/Linux) or call `open_devtools()` in debug-only setup code.
-- Use `pnpm dev`, not browser-only verification, for behavior owned by the desktop shell itself: window state, tray, global hotkeys, single-instance handling, and other WebView-specific integrations.
-
-## Project Structure & Module Organization
-
-The repository is split into workspace apps and crates.
-
-- **GUI app (`apps/rgsm-gui/`)**: Nuxt 3 frontend plus the Tauri host.
-  - `src/`: Routed Vue UI (`pages/`, `components/`, `composables/`, `assets/`).
-  - `src/api/generated/`: Auto-generated TypeScript SDK from the Rust OpenAPI contract. **Never edit it manually.**
-  - `src-tauri/src/lib.rs`: Tauri bootstrap and state wiring.
-  - `src-tauri/src/commands.rs`: **Thin export layer only.** Commands should stay 1-3 lines and delegate to services/domain modules; HTTP route adapters live under `commands/`.
-  - `src-tauri/src/hooks/`: GUI-only hooks such as notifications and scheduler sync.
-  - `src-tauri/src/quick_actions/`: GUI-only tray, hotkey, and timer integrations.
-
-- **Core library (`crates/rgsm-core/`)**: Pure Rust business logic with no Tauri dependency.
-  - `backup/`, `config/`, `cloud_sync/`: Domain modules.
-  - `services/`: Orchestration entry points used by HTTP/CLI/FFI layers.
-  - `hooks/`: `LifecycleHook`, contexts, DI traits, and `HookPipeline`.
-  - `path_resolver.rs`, `app_dirs.rs`, `device.rs`, etc.: Shared infrastructure.
-
-- **Future integration crates**
-  - `apps/rgsm-cli/`: CLI app placeholder.
-  - `apps/rgsm-tui/`: TUI app placeholder.
-  - `crates/rgsm-ffi/`: FFI crate placeholder.
-
-- **Shared assets**
-  - `locales/`: Shared i18n files. Tier 1 locales are `en_US` and `zh_SIMPLIFIED`.
-  - `scripts/`: Repo-level helper scripts such as portable packaging.
-
-## Coding Style & Naming Conventions
-
-- **Frontend (Vue/TypeScript)**:
-  - Use `<script setup lang="ts">` for all Vue components.
-  - Components: `PascalCase` (e.g., `GameList.vue`).
-  - Composables: `camelCase` with a `use` prefix (e.g., `useConfig.ts`).
-  - Use Element Plus for UI consistency.
-  - **User feedback (toast/confirm/prompt)**:
-    - Toast notifications: use `useNotification()` (do not call `ElNotification` directly in pages/components).
-    - Confirm/prompt dialogs: use `useFeedback()` (do not call `ElMessageBox` directly in pages/components).
-  - **Overlay & z-index**:
-    - Do not introduce scattered z-index magic numbers.
-    - Use `src/ui/layers.ts` (`LAYER.*`) for any overlay/notification/dialog layering decisions.
-  - Never import Tauri APIs in the frontend or call `invoke`; add or update the Rust HTTP contract, then run `pnpm web:generate-api` to refresh `src/api/generated/`.
-
-- **Backend (Rust)**:
-  - Modules/Files: `snake_case` (e.g., `cloud_sync.rs`).
-  - Types/Structs: `PascalCase`.
-  - Functions/Variables: `snake_case`.
-  - Use `Result` and `thiserror`/`anyhow` for robust error handling. (prefer `thiserror` in internal modules)
-  - Always run `cargo clippy` and clear all warns before commit.
-
-## Pre-commit Checks
-
-Run all of the following before each commit to catch issues early. They can be run in a single command chain:
+Run before committing and resolve all failures and warnings:
 
 ```bash
-# Rust: format, lint, and test
 cargo fmt --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo check --workspace
 cargo test -p rgsm-core --lib
-
-# Frontend: lint and typecheck
 pnpm web:format
 pnpm web:lint
 pnpm web:typecheck
 ```
 
-CI will verify these checks. Fix any issues before committing.
+## Commits
 
-## Commit & Pull Request Guidelines
+- Use English Conventional Commits with emojis: `feat(backup): :sparkles: add zip64 support`. Do not include AI tool branding in branch names, commit messages, or co-author metadata.
+- Keep commits cohesive and reasonably sized. Amend/rebase corrections into a clean history rather than accumulating temporary fixes.
 
-Follow the Conventional Commit specification with emojis. The format is `type(scope): :emoji: summary`.
+## Documentation
 
-- **Example**: `feat(backup): :sparkles: add support for zip64 archives`
-- Do not add AI agent/tool branding or names (for example Codex) to branch names, pull request titles/descriptions, commit messages, or co-author metadata.
-- Keep commits small and focused on a single logical change.
-- Split broad work into cohesive, reviewable commits by behavior or architectural layer. Do not hide a large feature, bug fix, and documentation cleanup in one giant commit.
-- When a branch has not been merged yet, prefer rewriting local branch history into a clean commit series over adding follow-up fix commits for issues introduced by the same change.
-- Pull requests must include a clear description, testing steps, and screenshots for any UI changes.
-- Wait for CI checks to pass before requesting a review.
-
-## Documentation Guidelines
-
-- Treat the root README files as user-facing project entry points. Do not add implementation notes, internal planning statements, or self-referential limitations there unless they directly help users.
-- Put app-specific usage and contributor notes under that app's directory, and keep them concise, practical, and audience-focused.
-- Do not mark OpenSpec tasks complete unless the behavior is implemented and verified. If reality contradicts the task list, fix the implementation or the task state before presenting the change as done.
-
-## Localization (i18n)
-
-All user-facing strings must be internationalized.
-
-- **Frontend**: Use the `$t('key')` function from `vue-i18n`. Strings are in `locales/*.json`.
-- **Backend**: Use the `rust-i18n` crate.
-- To add a new string, add the key to `locales/en_US.json` and its translation to other locale files. (`en_US` and `zh_SIMPLIFIED` are the tier 1 locales)
-- **Tier 1 locale files must stay in sync**: when adding new keys, you must add the text for `en_US` and `zh_SIMPLIFIED`. Tier 2 locales (`fr`, `ko`, `ta`, `uk`) automatically fall back to English and do not need manual placeholder entries for new keys.
-
-## Testing Guidelines
-
-The project has both automated tests and manual verification. Before submitting a pull request:
-
-- Bug-fix workflow (TDD-first): for bug fixes, write a test that reproduces the bug first, confirm it fails, then implement the fix and make the test pass.
-  - If TDD-first is not practical (e.g. third-party outage, platform-only behavior that cannot be reliably reproduced in CI, or urgent hotfix constraints), clearly document the reason and provide the closest possible automated regression coverage.
-
-- Run automated checks:
-  - `cargo check --workspace`
-  - `cargo test -p rgsm-core --lib` (or broader `cargo test` when related)
-  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-  - `pnpm web:typecheck`
-- Ensure all checks pass without warnings.
-- Then verify core features manually:
-
-- Backup and restore operations.
-- Cloud synchronization with a test account.
-- Hotkey and system tray functionality.
-- Settings are saved and loaded correctly after restarting the app.
+- Keep root READMEs focused on users. Put app-specific usage and contributor notes under the relevant app.
+- Keep documentation practical and concise. Mark OpenSpec tasks complete only after implementation and verification.
