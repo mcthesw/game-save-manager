@@ -3,19 +3,25 @@ name: Documentation
 on:
   pull_request:
     paths:
-      - 'apps/rgsm-docs/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/docs.yml'
+      - "apps/rgsm-docs/**"
+      - "docs/**"
+      - "README*.md"
+      - "scripts/check-doc-images*.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/docs.yml"
   push:
     branches: [dev]
     paths:
-      - 'apps/rgsm-docs/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/docs.yml'
+      - "apps/rgsm-docs/**"
+      - "docs/**"
+      - "README*.md"
+      - "scripts/check-doc-images*.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
@@ -30,12 +36,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v5
         with:
-          version: '11.1.2'
+          version: "11.1.2"
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: pnpm
+      - name: Check documentation image references
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          node --test scripts/check-doc-images.test.mjs
+          node scripts/check-doc-images.mjs "$BASE_REF"
       - run: pnpm --filter @rgsm/docs... install --frozen-lockfile --ignore-scripts
       - run: pnpm docs:build
