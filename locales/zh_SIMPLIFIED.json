@@ -1373,6 +1373,20 @@
         "setup": "设置变量",
         "missing_count": "此设备还需设置 {count} 个路径变量",
         "missing_hint": "填写此设备上的存档位置后即可继续。",
-        "continue": "保存并继续"
+        "continue": "保存并继续",
+        "find_local": "查找本机位置",
+        "find_title": "查找 {name} 的本机值",
+        "find_hint": "根据存档路径查找候选位置。请选择属于你的存档。",
+        "finding": "正在查找…",
+        "find_failed": "查找失败，请重试或手动填写。",
+        "find_dependencies": "请先填写这些变量，再重新查找：{names}",
+        "find_root": "请先选择此设备上的根目录，或手动填写。",
+        "find_empty": "没有找到匹配位置。可以手动填写；恢复时目标目录可以尚不存在。",
+        "find_candidates": "候选位置",
+        "find_partial": "查找未覆盖所有位置。可从已找到的候选中选择，或手动填写。",
+        "find_manual": "手动填写变量值",
+        "choose_folder": "选择文件夹",
+        "use_game_value": "用于本游戏",
+        "setup_unavailable": "暂时无法检查本设备的路径变量，本次操作未执行。请重试。"
     }
 }

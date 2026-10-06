@@ -742,6 +742,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         v-if="selectedDevice && selectedDeviceId === currentDevice?.id"
         :device="selectedDevice"
         :binding="selectedBinding"
+        :game="tempGame"
         :paths="variablePaths"
         :games="config.games"
         :game-key="tempGame.storage_key"

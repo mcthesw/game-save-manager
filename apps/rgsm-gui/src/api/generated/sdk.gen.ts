@@ -93,6 +93,9 @@ import type {
   DetectStoreUserIdsData,
   DetectStoreUserIdsErrors,
   DetectStoreUserIdsResponses,
+  DiscoverPathVariableData,
+  DiscoverPathVariableErrors,
+  DiscoverPathVariableResponses,
   DownloadAppUpdateData,
   DownloadAppUpdateErrors,
   DownloadAppUpdateResponses,
@@ -688,6 +691,22 @@ export const detectStoreUserIds = <ThrowOnError extends boolean = false>(
     DetectStoreUserIdsErrors,
     ThrowOnError
   >({ url: '/api/v1/detect-store-user-ids', ...options });
+
+export const discoverPathVariable = <ThrowOnError extends boolean = false>(
+  options: Options<DiscoverPathVariableData, ThrowOnError>
+): RequestResult<DiscoverPathVariableResponses, DiscoverPathVariableErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    DiscoverPathVariableResponses,
+    DiscoverPathVariableErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/discover-path-variable',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
 export const downloadAppUpdate = <ThrowOnError extends boolean = false>(
   options: Options<DownloadAppUpdateData, ThrowOnError>

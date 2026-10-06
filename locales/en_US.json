@@ -1373,6 +1373,20 @@
         "setup": "Set up variables",
         "missing_count": "Set up {count} path variables on this device",
         "missing_hint": "Enter the save location on this device to continue.",
-        "continue": "Save and continue"
+        "continue": "Save and continue",
+        "find_local": "Find local location",
+        "find_title": "Find a local value for {name}",
+        "find_hint": "Find locations matching the save path. Choose the one containing your saves.",
+        "finding": "Searching…",
+        "find_failed": "Search failed. Try again or enter a value.",
+        "find_dependencies": "Set these variables first, then search again: {names}",
+        "find_root": "Choose the root folder on this device, or enter it manually.",
+        "find_empty": "No matching locations found. You can enter a value; restore targets do not need to exist yet.",
+        "find_candidates": "Matching locations",
+        "find_partial": "Not all locations were searched. Choose a result or enter a value manually.",
+        "find_manual": "Enter a variable value",
+        "choose_folder": "Choose folder",
+        "use_game_value": "Use for this game",
+        "setup_unavailable": "Could not check path variables on this device. No operation was performed. Please try again."
     }
 }

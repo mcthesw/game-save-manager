@@ -2415,6 +2415,10 @@ pub fn router() -> Router<HttpHostState> {
         )
         .route("/api/v1/check-paths", post(http_check_paths))
         .route(
+            "/api/v1/discover-path-variable",
+            post(http_discover_path_variable),
+        )
+        .route(
             "/api/v1/missing-game-variables",
             post(http_missing_game_variables),
         )
@@ -2543,6 +2547,7 @@ pub fn router() -> Router<HttpHostState> {
         http_reset_ludusavi_manifest_to_bundled,
         http_check_paths,
         http_missing_game_variables,
+        http_discover_path_variable,
         http_detect_game_roots,
         http_detect_store_user_ids,
         http_get_system_fonts,

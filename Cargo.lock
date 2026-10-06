@@ -5051,6 +5051,7 @@ dependencies = [
  "tokio-util",
  "utoipa",
  "uuid",
+ "walkdir",
  "whoami",
  "windows-sys 0.61.2",
  "winreg",

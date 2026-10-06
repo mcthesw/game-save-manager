@@ -162,12 +162,13 @@ test('Add game inserts a newly created variable into the intended path', async (
   }
 });
 
-test('missing variables guide backup setup, cancel safely and resume after saving', async ({
+test('missing variables offer candidates, cancel safely and resume backup and restore', async ({
   browser,
 }) => {
   const runRoot = await createRunRoot('missing-variables');
   const root = join(runRoot, 'saves').replaceAll('\\', '/');
   await writeSaveText(`${root}/player/first.sav`, 'first');
+  await writeSaveText(`${root}/other/first.sav`, 'other');
   const device = await seedLocalConfig(runRoot, {
     games: [{ name: GAME_NAME, units: [{ type: 'File', path: `${root}/<var:account>/*.sav` }] }],
   });
@@ -183,7 +184,20 @@ test('missing variables guide backup setup, cancel safely and resume after savin
     await drawer.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(drawer).not.toBeVisible();
     await page.getByRole('button', { name: 'Create new snapshot', exact: true }).click();
-    await drawer.getByRole('textbox', { name: 'Value of account' }).fill('player');
+    await drawer.getByRole('button', { name: 'Find local location', exact: true }).click();
+    const discovery = page.getByRole('dialog', {
+      name: 'Find a local value for account',
+      exact: true,
+    });
+    await expect(discovery.getByRole('radio')).toHaveCount(2);
+    await expect(discovery.getByRole('button', { name: 'Use for this game' })).toBeDisabled();
+    await discovery.getByRole('radio').last().check();
+    await discovery.getByRole('button', { name: 'Use for this game' }).click();
+    await expect(drawer.getByRole('textbox', { name: 'Value of account' })).toHaveValue('player');
+    expect(
+      ((await getLocalGame(host, GAME_NAME)) as any).device_bindings?.[DEVICE_A_ID]?.pathVariables
+        ?.account
+    ).toBeUndefined();
     await drawer.getByRole('button', { name: 'Save and continue' }).click();
     await expect(drawer).not.toBeVisible();
     await expect
@@ -196,6 +210,41 @@ test('missing variables guide backup setup, cancel safely and resume after savin
     await expect(
       page.getByRole('button', { name: 'Set up variables', exact: true })
     ).not.toBeVisible();
+    const config = (await hostPost<any>(host, '/api/v1/get-local-config')).data;
+    delete config.games[0].device_bindings[DEVICE_A_ID].pathVariables.account;
+    config.settings.confirm_before_apply_latest = false;
+    const saved = await hostPost(host, '/api/v1/set-config', { config });
+    expect(saved.ok, saved.raw).toBe(true);
+    await page.reload();
+    await openGame(page);
+    await page.getByRole('button', { name: 'Apply latest', exact: true }).click();
+    await expect(drawer.getByRole('button', { name: 'Save and continue' })).toBeVisible();
+    await drawer.getByRole('textbox', { name: 'Value of account' }).fill('new-player');
+    await drawer.getByRole('button', { name: 'Save and continue' }).click();
+    await expect
+      .poll(async () => readFile(`${root}/new-player/first.sav`, 'utf8').catch(() => ''))
+      .toBe('first');
+    await page.route('**/api/v1/missing-game-variables', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Unavailable' }),
+      })
+    );
+    await page.getByRole('button', { name: 'Create new snapshot', exact: true }).click();
+    await expect(
+      page
+        .getByText(
+          'Could not check path variables on this device. No operation was performed. Please try again.',
+          { exact: true }
+        )
+        .first()
+    ).toBeVisible();
+    await expect(drawer).not.toBeVisible();
+    const after = await hostPost<any>(host, '/api/v1/get-game-snapshots-info', {
+      game: await getLocalGame(host, GAME_NAME),
+    });
+    expect(after.data.backups).toHaveLength(1);
   } catch (error) {
     failed = true;
     throw error;

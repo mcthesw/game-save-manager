@@ -34,7 +34,7 @@ export function useVariableSetup(game: Ref<Game>, drawer: Ref<boolean>) {
     try {
       const result = await refresh();
       if (result.status === 'error') {
-        notifyError($t('path_variable.check_unavailable'));
+        notifyError($t('path_variables.setup_unavailable'));
         return false;
       }
       if (!result.data.length) return true;
@@ -43,7 +43,7 @@ export function useVariableSetup(game: Ref<Game>, drawer: Ref<boolean>) {
       drawer.value = true;
       return false;
     } catch {
-      notifyError($t('path_variable.check_unavailable'));
+      notifyError($t('path_variables.setup_unavailable'));
       return false;
     }
   }

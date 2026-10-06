@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Ellipsis, Plus } from '@lucide/vue';
-import type { Device, Game, GameDeviceBinding } from '../api/commands';
+import type { Device, Game, GameDraft, GameDeviceBinding } from '../api/commands';
+import VariableDiscovery from './VariableDiscovery.vue';
 import { usePathVariableDraft } from '../composables/usePathVariableDraft';
-import { KButton, KDialog, KInput, KMenu } from '../ui/kit';
+import { KButton, KCheckbox, KDialog, KInput, KMenu } from '../ui/kit';
 import type { KMenuEntry } from '../ui/kit/KMenu.vue';
 import { $t } from '../i18n';
 
 const props = defineProps<{
   device: Device;
+  game: GameDraft;
   binding?: GameDeviceBinding;
   paths: string[];
   games: Game[];
@@ -16,6 +18,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ 'update:binding': [value: GameDeviceBinding] }>();
 const draft = usePathVariableDraft()!;
+const discoveryName = ref('');
 const newName = ref('');
 const newValue = ref('');
 const newDeviceScope = ref(false);
@@ -176,21 +179,43 @@ function add() {
             ></KButton>
           </KMenu>
         </div>
-        <KInput
-          :id="`path-variable-${name}`"
-          class="w-full min-w-0"
-          mono
-          :aria-label="$t('path_variables.value', { name })"
-          :model-value="value(name)"
-          :title="value(name)"
-          @update:model-value="setGame(name, String($event))"
-        />
+        <div class="flex min-w-0 items-center gap-2">
+          <KInput
+            :id="`path-variable-${name}`"
+            class="w-full min-w-0"
+            mono
+            :aria-label="$t('path_variables.value', { name })"
+            :model-value="value(name)"
+            :title="value(name)"
+            @update:model-value="setGame(name, String($event))"
+          />
+          <KButton
+            v-if="references(paths).includes(name)"
+            size="sm"
+            variant="ghost"
+            class="shrink-0"
+            @click="discoveryName = name"
+            >{{ $t('path_variables.find_local') }}</KButton
+          >
+        </div>
         <p v-if="!value(name).trim()" class="mt-1 text-xs text-danger">
           {{ $t('path_variables.missing', { name }) }}
         </p>
       </div>
     </div>
   </section>
+  <VariableDiscovery
+    v-if="discoveryName"
+    :name="discoveryName"
+    :game="game"
+    :paths="paths"
+    :device-variables="draft.edits.value"
+    @close="discoveryName = ''"
+    @select="
+      setGame(discoveryName, $event);
+      discoveryName = '';
+    "
+  />
   <KDialog v-model:open="adding" :title="$t('path_variables.add')" :width="420">
     <form @submit.prevent="add">
       <label for="new-path-variable" class="mb-2 block text-sm">{{
@@ -212,11 +237,9 @@ function add() {
         class="w-full"
         :aria-label="$t('path_variables.new_value')"
       />
-      <label class="mt-4 flex items-center gap-2 text-sm"
-        ><input v-model="newDeviceScope" type="checkbox" />{{
-          $t('path_variables.share_device')
-        }}</label
-      >
+      <KCheckbox v-model="newDeviceScope" class="mt-4">{{
+        $t('path_variables.share_device')
+      }}</KCheckbox>
     </form>
     <template #footer>
       <KButton variant="ghost" @click="adding = false">{{ $t('common.cancel') }}</KButton>
@@ -251,7 +274,9 @@ function add() {
         v-if="affected(defaultName).length"
         class="mt-2 max-h-28 space-y-1 overflow-y-auto text-text"
       >
-        <li v-for="game in affected(defaultName)" :key="game" class="break-words">{{ game }}</li>
+        <li v-for="gameName in affected(defaultName)" :key="gameName" class="break-words">
+          {{ gameName }}
+        </li>
       </ul>
     </div>
     <template #footer>

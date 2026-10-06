@@ -41,6 +41,22 @@ pub fn missing_game_variables(config: &Config, game: &Game, device_id: &str) -> 
         .collect()
 }
 
+pub fn discover_game_variable(
+    config: &Config,
+    game: &Game,
+    paths: &[String],
+    name: &str,
+    edits: &super::DeviceVariableEdits,
+) -> anyhow::Result<crate::path_variables::VariableDiscovery> {
+    let mut preview = config.clone();
+    super::game_edit::apply_device_variables(&mut preview, edits)?;
+    let context = crate::path_resolution::context::game_context(
+        game,
+        preview.devices.get(crate::device::get_current_device_id()),
+    );
+    crate::path_variables::discover_variable(paths, name, &context).map_err(anyhow::Error::msg)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
