@@ -13,9 +13,8 @@ import type {
 import { commands } from '../api/commands';
 import { useConfig } from '../composables/useConfig';
 import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
-import { usePathResolution } from '../composables/usePathResolution';
 import PathVariableInput from './PathVariableInput.vue';
-import ResourceMultiSelect from './ResourceMultiSelect.vue';
+import GameLocationSelection from './GameLocationSelection.vue';
 import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
 import { hasGameNameConflict } from '../utils/gameName';
 import { KAlert, KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } from '../ui/kit';
@@ -23,7 +22,6 @@ import { KAlert, KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } fr
 const { config } = useConfig();
 const feedback = useFeedback();
 const { warnUnavailableLocations } = useSaveLocationCheck();
-const { resourceLabel } = usePathResolution();
 
 const props = defineProps<{
   game: Game;
@@ -61,15 +59,6 @@ const selectedDevice = computed(() =>
   availableDevices.value.find((device) => device.id === selectedDeviceId.value)
 );
 const selectedDeviceResources = computed(() => selectedDevice.value?.resources ?? []);
-const rootResources = computed(() =>
-  selectedDeviceResources.value.filter((resource) => resource.kind.type === 'gameRoot')
-);
-const accountResources = computed(() =>
-  selectedDeviceResources.value.filter((resource) => resource.kind.type === 'storeAccount')
-);
-const installationResources = computed(() =>
-  selectedDeviceResources.value.filter((resource) => resource.kind.type === 'gameInstallation')
-);
 const savedRestoreMappings = computed(
   () => tempGame.value.device_bindings?.[selectedDeviceId.value]?.restoreMappings ?? []
 );
@@ -78,10 +67,6 @@ const deviceOptions = computed(() =>
   availableDevices.value.map((device) => ({ value: device.id, label: device.name }))
 );
 
-function resourceOptions(resources: Device['resources'] | undefined) {
-  return (resources ?? []).map((item) => ({ value: item.id, label: resourceLabel(item) }));
-}
-
 function currentBinding(): GameDeviceBinding {
   tempGame.value.device_bindings ??= {};
   return (tempGame.value.device_bindings[selectedDeviceId.value] ??= {
@@ -89,12 +74,9 @@ function currentBinding(): GameDeviceBinding {
   });
 }
 
-function selectedResourceIds(kind: 'rootIds' | 'accountIds' | 'installationIds'): number[] {
-  return currentBinding()[kind] ?? [];
-}
-
-function updateResourceIds(kind: 'rootIds' | 'accountIds' | 'installationIds', ids: number[]) {
-  currentBinding()[kind] = ids.length > 0 ? ids : null;
+function updateBinding(binding: GameDeviceBinding) {
+  tempGame.value.device_bindings ??= {};
+  tempGame.value.device_bindings[selectedDeviceId.value] = binding;
   hasUnsavedChanges.value = true;
 }
 
@@ -277,7 +259,7 @@ async function openManagedPath(path: string) {
   }
 
   try {
-    const result = await commands.openFileOrFolder(path);
+    const result = await commands.openFileOrFolder(path, tempGame.value);
     if (result.status === 'error') {
       notifyError($t('error.open_path_failed'), result.error);
       return;
@@ -310,7 +292,11 @@ async function saveChanges() {
 
   tempGame.value.name = trimmedName;
   if (currentDevice.value) {
-    await warnUnavailableLocations(tempGame.value.save_paths, currentDevice.value.id);
+    await warnUnavailableLocations(
+      tempGame.value.save_paths,
+      currentDevice.value.id,
+      tempGame.value
+    );
   }
   emits('saveChanges', JSON.parse(JSON.stringify(tempGame.value)));
   hasUnsavedChanges.value = false;
@@ -562,35 +548,15 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
 
       <!-- Device resources section -->
       <section v-if="selectedDeviceResources.length">
-        <div class="mb-1 block text-xs text-text-dim">
-          {{ $t('save_location_drawer.device_location') }}
-        </div>
-        <p class="mb-2 text-xs leading-relaxed text-text-dim">
-          {{ $t('save_location_drawer.device_location_hint') }}
-        </p>
-        <div class="flex flex-col gap-2">
-          <ResourceMultiSelect
-            v-if="rootResources.length > 1"
-            :model-value="selectedResourceIds('rootIds')"
-            :options="resourceOptions(rootResources)"
-            :placeholder="$t('save_location_drawer.choose_libraries')"
-            @update:model-value="updateResourceIds('rootIds', $event)"
-          />
-          <ResourceMultiSelect
-            v-if="accountResources.length > 1"
-            :model-value="selectedResourceIds('accountIds')"
-            :options="resourceOptions(accountResources)"
-            :placeholder="$t('save_location_drawer.choose_accounts')"
-            @update:model-value="updateResourceIds('accountIds', $event)"
-          />
-          <ResourceMultiSelect
-            v-if="installationResources.length > 1"
-            :model-value="selectedResourceIds('installationIds')"
-            :options="resourceOptions(installationResources)"
-            :placeholder="$t('save_location_drawer.choose_installations')"
-            @update:model-value="updateResourceIds('installationIds', $event)"
-          />
-        </div>
+        <GameLocationSelection
+          :device="selectedDevice"
+          :model-value="currentBinding()"
+          :paths="[
+            getGameLaunchPath(selectedDeviceId),
+            ...tempGame.save_paths.map((unit) => getDevicePath(unit, selectedDeviceId)),
+          ]"
+          @update:model-value="updateBinding"
+        />
         <div v-if="savedRestoreMappings.length" class="mt-2 flex flex-col gap-1">
           <div
             v-for="(mapping, index) in savedRestoreMappings"
@@ -633,6 +599,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           </div>
         </div>
         <PathVariableInput
+          :game="tempGame"
           :model-value="getGameLaunchPath(selectedDeviceId)"
           :status-mode="selectedDeviceId === currentDevice?.id ? 'below' : 'none'"
           @update:model-value="updateGameLaunchPath(selectedDeviceId, String($event ?? ''))"
@@ -703,6 +670,8 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           </div>
 
           <PathVariableInput
+            :game="tempGame"
+            :pattern="unit.source.type === 'manifestPattern'"
             :model-value="getDevicePath(unit, selectedDeviceId)"
             :status-mode="selectedDeviceId === currentDevice?.id ? 'tooltip' : 'none'"
             @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"
@@ -781,6 +750,8 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
             </div>
 
             <PathVariableInput
+              :game="tempGame"
+              :pattern="unit.source.type === 'manifestPattern'"
               :model-value="getDevicePath(unit, selectedDeviceId)"
               :status-mode="selectedDeviceId === currentDevice?.id ? 'tooltip' : 'none'"
               @update:model-value="updateDevicePath(unit, selectedDeviceId, String($event ?? ''))"

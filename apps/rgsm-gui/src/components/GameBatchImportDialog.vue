@@ -114,6 +114,13 @@
             v-if="activeGames.includes(game.name)"
             class="flex flex-col gap-3 border-t border-border px-3 py-3 pl-9"
           >
+            <GameLocationSelection
+              v-model="game.binding"
+              hide-accounts
+              :device="currentDevice"
+              :paths="game.paths.map((row) => row.path)"
+              @update:model-value="checkAllPaths()"
+            />
             <div>
               <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
               <KInput v-model="game.customName" size="sm" class="w-full" :placeholder="game.name" />
@@ -194,6 +201,7 @@
 </template>
 
 <script setup lang="ts">
+import GameLocationSelection from './GameLocationSelection.vue';
 import { ref, computed, watch } from 'vue';
 import { ChevronRight, LoaderCircle } from '@lucide/vue';
 import { $t } from '../i18n';
@@ -201,6 +209,9 @@ import {
   commands,
   type ImportableGame,
   type SavePath,
+  type GameDeviceBinding,
+  type GameDraft,
+  type Device,
   type PathCheckResult,
   type StoreUserIdCandidate,
 } from '../api/commands';
@@ -214,6 +225,7 @@ function isRegistryPath(path: string): boolean {
 }
 
 interface GameConfig {
+  binding: GameDeviceBinding;
   name: string;
   customName: string;
   installDirs: string[];
@@ -258,6 +270,27 @@ const dialogVisible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 });
 
+const currentDevice = ref<Device | null>(null);
+watch(
+  dialogVisible,
+  async (visible) => {
+    if (!visible) return;
+    const result = await commands.getCurrentDeviceInfo();
+    if (result.status === 'ok') currentDevice.value = result.data;
+  },
+  { immediate: true }
+);
+function previewGame(game: GameConfig): GameDraft {
+  return {
+    name: game.name,
+    save_paths: [],
+    device_bindings: currentDevice.value ? { [currentDevice.value.id]: game.binding } : {},
+    ludusavi_meta: {
+      installDirs: game.installDirs,
+      storeGameIds: game.steamId ? [{ store: 'steam', id: String(game.steamId) }] : [],
+    },
+  };
+}
 const activeGames = ref<string[]>([]);
 
 const gameConfigs = ref<GameConfig[]>([]);
@@ -285,7 +318,7 @@ async function loadUserIdCandidates() {
     const result = await commands.detectStoreUserIds();
     if (result.status === 'ok') {
       userIdCandidates.value = result.data;
-      if (result.data.length > 0 && !selectedStoreUserId.value) {
+      if (result.data.length === 1 && !selectedStoreUserId.value) {
         selectedStoreUserId.value = result.data[0]!.userId;
       }
     }
@@ -322,6 +355,7 @@ watch(
     gameConfigs.value = props.games.map((game) => {
       const paths = props.gamePaths[game.name] || [];
       return {
+        binding: {},
         name: game.name,
         customName: game.name,
         installDirs: game.installDirs ?? [],
@@ -446,7 +480,8 @@ async function checkAllPaths(applySelection: boolean = false) {
         paths,
         selectedStoreUserId.value || null,
         game.installDirs.length > 0 ? game.installDirs : null,
-        game.steamId
+        game.steamId,
+        previewGame(game)
       );
 
       if (result.status === 'ok') {

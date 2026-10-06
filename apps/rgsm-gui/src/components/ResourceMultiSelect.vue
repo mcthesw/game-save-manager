@@ -38,6 +38,7 @@ function toggle(id: number) {
     >
       <span
         class="min-w-0 flex-1 truncate text-left"
+        :title="selectedLabels.join(', ')"
         :class="{ 'text-text-dim': selectedLabels.length === 0 }"
       >
         {{ selectedLabels.length > 0 ? selectedLabels.join(', ') : placeholder }}
@@ -49,15 +50,15 @@ function toggle(id: number) {
         <div
           v-for="option in options"
           :key="option.value"
-          class="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-text transition-colors hover:bg-surface-2"
+          class="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-xs text-text transition-colors hover:bg-surface-2"
           @click="toggle(option.value)"
         >
           <KCheckbox
             :model-value="modelValue.includes(option.value)"
             :aria-label="option.label"
-            class="pointer-events-none"
+            class="pointer-events-none mt-0.5 shrink-0"
           />
-          <span class="truncate">{{ option.label }}</span>
+          <span class="min-w-0 break-all leading-5">{{ option.label }}</span>
         </div>
       </div>
     </template>

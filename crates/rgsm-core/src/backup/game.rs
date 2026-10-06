@@ -304,6 +304,7 @@ impl Game {
         let store_user_id = (steam_accounts.len() == 1).then(|| steam_accounts[0].clone());
         let base = match &self.ludusavi_meta {
             Some(meta) => PathContext {
+                resolution: None,
                 install_dirs: meta.install_dirs.clone(),
                 steam_id: meta
                     .store_game_id(StoreKind::Steam)
@@ -315,6 +316,7 @@ impl Game {
             None => PathContext::default(),
         };
         PathContext {
+            resolution: Some(crate::path_resolution::context::game_context(self, device)),
             game_roots: device
                 .into_iter()
                 .flat_map(|device| device.game_roots())

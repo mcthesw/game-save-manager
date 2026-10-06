@@ -420,6 +420,7 @@ pub fn detect_local_games(
         let steam_id = extract_steam_id(value);
 
         let ctx = PathContext {
+            resolution: None,
             install_dirs,
             steam_id,
             install_dir_cache: Some(Arc::clone(&steam_cache)),

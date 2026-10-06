@@ -1,4 +1,4 @@
-import { commands, type SaveUnit, type SaveUnitDraft } from '../api/commands';
+import { commands, type GameDraft, type SaveUnit, type SaveUnitDraft } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyWarning } from './useActivityCenter';
 
@@ -6,7 +6,8 @@ import { notifyWarning } from './useActivityCenter';
 export function useSaveLocationCheck() {
   async function warnUnavailableLocations(
     units: (SaveUnit | SaveUnitDraft)[],
-    deviceId: string
+    deviceId: string,
+    game?: GameDraft
   ): Promise<void> {
     const paths = units.flatMap((unit) => {
       if (unit.enabled === false || unit.source.type !== 'concrete') return [];
@@ -15,7 +16,7 @@ export function useSaveLocationCheck() {
     });
     if (!paths.length) return;
     try {
-      const result = await commands.checkPaths(paths, null, null, null);
+      const result = await commands.checkPaths(paths, null, null, null, game, true);
       if (result.status === 'error') {
         notifyWarning($t('path_variable.check_unavailable'));
         return;

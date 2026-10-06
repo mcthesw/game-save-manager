@@ -600,7 +600,7 @@ async function launch_game() {
     notifyError($t('manage.no_launch_path_error'));
     return;
   } else {
-    const result = await commands.openFileOrFolder(gamePath);
+    const result = await commands.openFileOrFolder(gamePath, game.value);
     if (result.status === 'error') {
       notifyError(result.error);
     } else {

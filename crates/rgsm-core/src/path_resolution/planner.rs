@@ -75,6 +75,12 @@ pub fn plan_resolution(
                 selected_resource_ids: stale_ids,
                 candidate_ids,
             }
+        } else if has_unselected_alternatives(&candidates, context) {
+            diagnostics.push(diagnostic(
+                ResolutionDiagnosticKind::MultipleCandidates,
+                "multiple save-location candidates require a device selection",
+            ));
+            ResolutionSelectionState::Ambiguous { candidate_ids }
         } else if context.selection.is_explicit() {
             ResolutionSelectionState::Explicit { candidate_ids }
         } else {
@@ -107,6 +113,51 @@ pub fn plan_resolution(
         selection_state,
         diagnostics,
     }
+}
+
+fn has_unselected_alternatives(
+    candidates: &[CandidateExpression],
+    context: &ResolutionContext,
+) -> bool {
+    // An explicit installation choice also identifies its owning library.
+    let roots = if candidates
+        .iter()
+        .all(|c| c.dimensions.installation_id.is_some())
+    {
+        context
+            .selection
+            .root_ids
+            .as_ref()
+            .or(context.selection.installation_ids.as_ref())
+    } else {
+        context.selection.root_ids.as_ref()
+    };
+    let dimensions = [
+        (
+            roots,
+            candidates
+                .iter()
+                .filter_map(|c| c.dimensions.root_id.as_ref())
+                .collect::<BTreeSet<_>>(),
+        ),
+        (
+            context.selection.account_ids.as_ref(),
+            candidates
+                .iter()
+                .filter_map(|c| c.dimensions.account_id.as_ref())
+                .collect(),
+        ),
+        (
+            context.selection.installation_ids.as_ref(),
+            candidates
+                .iter()
+                .filter_map(|c| c.dimensions.installation_id.as_ref())
+                .collect(),
+        ),
+    ];
+    dimensions
+        .into_iter()
+        .any(|(selection, alternatives)| selection.is_none() && alternatives.len() > 1)
 }
 
 fn empty_plan(
@@ -606,6 +657,25 @@ mod tests {
             ResolutionSelectionState::Explicit { .. }
         ));
         assert!(plan.candidates[0].expression.contains("Game Two"));
+    }
+
+    #[test]
+    fn selecting_an_account_does_not_select_all_roots() {
+        let parsed = parse_manifest_path_pattern("<root>/save.dat").unwrap();
+        let mut context = context();
+        context.selection.account_ids = Some(BTreeSet::from([context.accounts[0].id.clone()]));
+        let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context);
+        assert!(matches!(
+            plan.selection_state,
+            ResolutionSelectionState::Ambiguous { .. }
+        ));
+        context.selection.root_ids =
+            Some(context.roots.iter().map(|root| root.id.clone()).collect());
+        let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context);
+        assert!(matches!(
+            plan.selection_state,
+            ResolutionSelectionState::Explicit { .. }
+        ));
     }
 
     #[test]

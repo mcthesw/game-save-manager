@@ -79,6 +79,7 @@ fn test_store_game_id_without_context_returns_missing_context() {
 fn test_store_game_id_with_context() {
     let config = create_test_config();
     let ctx = PathContext {
+        resolution: None,
         install_dirs: Vec::new(),
         steam_id: Some(282800),
         install_dir_cache: None,
@@ -95,6 +96,7 @@ fn test_store_game_id_with_context() {
 fn test_store_game_id_without_steam_id() {
     let config = create_test_config();
     let ctx = PathContext {
+        resolution: None,
         install_dirs: Vec::new(),
         steam_id: None,
         install_dir_cache: None,
@@ -126,6 +128,7 @@ fn test_base_with_context_and_cache() {
     );
 
     let ctx = PathContext {
+        resolution: None,
         install_dirs: vec!["TestGame".to_string()],
         steam_id: Some(12345),
         install_dir_cache: Some(Arc::new(cache)),
@@ -159,6 +162,7 @@ fn test_game_and_base_same_match() {
     );
 
     let ctx = PathContext {
+        resolution: None,
         install_dirs: vec!["My Game Dir".to_string()],
         steam_id: None,
         install_dir_cache: Some(Arc::new(cache)),
@@ -179,6 +183,7 @@ fn test_base_game_not_installed() {
     let cache = std::collections::HashMap::new(); // empty — no games installed
 
     let ctx = PathContext {
+        resolution: None,
         install_dirs: vec!["NonExistentGame".to_string()],
         steam_id: None,
         install_dir_cache: Some(Arc::new(cache)),
@@ -194,6 +199,7 @@ fn test_base_game_not_installed() {
 fn test_base_empty_install_dirs() {
     let config = create_test_config();
     let ctx = PathContext {
+        resolution: None,
         install_dirs: Vec::new(),
         steam_id: None,
         install_dir_cache: Some(Arc::new(std::collections::HashMap::new())),
@@ -318,6 +324,51 @@ fn test_path_context_from_game_without_device() {
 
     let ctx = game.path_context(None);
     assert!(ctx.game_roots.is_empty());
+}
+
+#[test]
+fn game_paths_require_a_root_selection_and_keep_other_devices_independent() {
+    use crate::backup::{Game, GameDeviceBinding};
+    use crate::device::{Device, DeviceResourceKind, DeviceResourceSource};
+    use crate::path_pattern::StoreKind;
+
+    let mut game: Game = serde_json::from_value(serde_json::json!({
+        "name": "Path selection", "save_paths": []
+    }))
+    .unwrap();
+    let mut device = Device {
+        id: "path-device-a".into(),
+        name: "A".into(),
+        resources: vec![],
+        next_resource_id: 0,
+    };
+    for path in ["F:/Games", "H:/Games"] {
+        device.add_resource(
+            DeviceResourceSource::Manual,
+            DeviceResourceKind::GameRoot {
+                store: StoreKind::Other,
+                path: path.into(),
+            },
+        );
+    }
+    let raw = "<root>/Example/slot[1].sav";
+    assert!(resolve_path_explicit(raw, Some(&game.path_context(Some(&device)))).is_err());
+
+    game.device_bindings.insert(
+        device.id.clone(),
+        GameDeviceBinding {
+            root_ids: Some(vec![1]),
+            ..Default::default()
+        },
+    );
+    let resolved = resolve_path_explicit(raw, Some(&game.path_context(Some(&device)))).unwrap();
+    assert_eq!(
+        resolved,
+        std::path::PathBuf::from("H:/Games/Example/slot[1].sav")
+    );
+
+    device.id = "path-device-b".into();
+    assert!(resolve_path_explicit(raw, Some(&game.path_context(Some(&device)))).is_err());
 }
 
 #[test]

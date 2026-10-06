@@ -1,20 +1,20 @@
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::PathBuf;
 
 use crate::backup::{
     CapturePlan, Game, SaveUnit, SaveUnitCaptureInput, SaveUnitSource, SaveUnitType,
 };
 use crate::config::Config;
-use crate::device::{DeviceResourceKind, get_current_device_id};
-use crate::path_pattern::{PathPatternError, PlatformKind, parse_manifest_path_pattern};
+use crate::device::get_current_device_id;
+use crate::path_pattern::{PathPatternError, parse_manifest_path_pattern};
 use crate::path_resolution::{
-    CandidateDimensions, CandidateExpression, GameInstallationCandidate, GameRootCandidate,
-    PlatformPaths, ResolutionContext, ResolutionDiagnostic, ResolutionDiagnosticKind,
-    ResolutionReport, ResolutionSelection, ResolutionSelectionState, ResolvedLocationKind,
-    ResolvedSaveLocation, StoreAccountCandidate, match_resolution_plan, plan_resolution,
+    CandidateDimensions, CandidateExpression, ResolutionDiagnostic, ResolutionDiagnosticKind,
+    ResolutionReport, ResolutionSelectionState, ResolvedLocationKind, ResolvedSaveLocation,
+    StoreAccountCandidate, match_resolution_plan, plan_resolution,
 };
 
 use super::ServiceContext;
+use crate::path_resolution::context::{detected_id, game_context};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResolutionPurpose {
@@ -22,14 +22,65 @@ enum ResolutionPurpose {
     Restore,
 }
 
+#[derive(
+    Debug, Clone, Default, serde::Deserialize, serde::Serialize, specta::Type, utoipa::ToSchema,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct PathPreviewContext {
+    pub game: Option<crate::backup::GameDraft>,
+    pub store_user_id: Option<String>,
+    #[serde(default)]
+    pub install_dirs: Vec<String>,
+    pub steam_id: Option<u32>,
+    #[serde(default)]
+    pub literal: bool,
+}
+
 impl ServiceContext {
+    pub(crate) fn validate_game_paths(&self, config: &Config, game: &Game) -> anyhow::Result<()> {
+        let device_id = get_current_device_id();
+        let context = game.path_context(config.devices.get(device_id));
+        if let Some(path) = game
+            .game_paths
+            .get(device_id)
+            .filter(|path| !path.trim().is_empty())
+        {
+            crate::path_resolver::resolve_path_explicit(path, Some(&context))?;
+        }
+        for unit in game.save_paths.iter().filter(|unit| unit.enabled) {
+            match &unit.source {
+                SaveUnitSource::Concrete { paths, .. } => {
+                    if let Some(path) = paths.get(device_id) {
+                        crate::path_resolver::resolve_path_explicit(path, Some(&context))?;
+                    }
+                }
+                SaveUnitSource::ManifestPattern { constraints, .. } => {
+                    if !constraints.allows_platform(crate::path_pattern::PlatformKind::host()) {
+                        continue;
+                    }
+                    let report = self.resolve_save_unit_for_restore(config, game, unit);
+                    if matches!(
+                        report.selection_state,
+                        ResolutionSelectionState::Ambiguous { .. }
+                            | ResolutionSelectionState::StaleSelection { .. }
+                    ) {
+                        anyhow::bail!(
+                            "{}: {}",
+                            report.raw_pattern,
+                            crate::path_resolution::selection_error(&report.selection_state)
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn check_ad_hoc_paths(
         &self,
         config: &Config,
         paths: &[String],
-        store_user_id: Option<&str>,
-        install_dirs: &[String],
-        steam_id: Option<u32>,
+        preview: &PathPreviewContext,
     ) -> Vec<crate::path_resolver::PathCheckResult> {
         paths
             .iter()
@@ -37,13 +88,65 @@ impl ServiceContext {
                 if crate::backup::registry::is_registry_path(path) {
                     return crate::path_resolver::check_path(path, None, config);
                 }
-                let report = self.resolve_ad_hoc_pattern(
-                    config,
-                    path,
-                    store_user_id,
-                    install_dirs,
-                    steam_id,
-                );
+                let game = preview
+                    .game
+                    .clone()
+                    .map(|draft| draft.into_game(None))
+                    .unwrap_or_else(|| Game {
+                        ludusavi_meta: Some(crate::backup::LudusaviMeta {
+                            install_dirs: preview.install_dirs.clone(),
+                            store_game_ids: preview
+                                .steam_id
+                                .map(|id| crate::backup::StoreGameId {
+                                    store: crate::path_pattern::StoreKind::Steam,
+                                    id: id.to_string(),
+                                })
+                                .into_iter()
+                                .collect(),
+                        }),
+                        name: "Path preview".into(),
+                        storage_key: String::new(),
+                        save_paths: vec![],
+                        game_paths: Default::default(),
+                        next_save_unit_id: 0,
+                        cloud_sync_enabled: false,
+                        auto_backup: None,
+                        auto_backup_limit: None,
+                        device_bindings: Default::default(),
+                    });
+                let mut context = game.path_context(config.devices.get(get_current_device_id()));
+                if let Some(user_id) = &preview.store_user_id {
+                    let resolution = context.resolution.as_mut().expect("game path context");
+                    let id = detected_id("preview-account", user_id);
+                    resolution.accounts = vec![StoreAccountCandidate {
+                        id: id.clone(),
+                        store: crate::path_pattern::StoreKind::Steam,
+                        user_id: user_id.clone(),
+                    }];
+                    resolution.selection.account_ids = Some([id].into_iter().collect());
+                }
+                if preview.literal {
+                    return crate::path_resolver::check_path(path, Some(&context), config);
+                }
+                let report = match parse_manifest_path_pattern(path) {
+                    Ok(parsed) => {
+                        let plan = plan_resolution(
+                            &parsed,
+                            Default::default(),
+                            context.resolution.as_ref().expect("game path context"),
+                        );
+                        match match_resolution_plan(&plan) {
+                            Ok(report) => report,
+                            Err(error) => {
+                                return crate::path_resolver::PathCheckResult::ResolveFailed {
+                                    raw_path: path.clone(),
+                                    error: error.to_string(),
+                                };
+                            }
+                        }
+                    }
+                    Err(error) => invalid_pattern_report(path, error),
+                };
                 if matches!(
                     report.selection_state,
                     ResolutionSelectionState::Missing
@@ -52,12 +155,7 @@ impl ServiceContext {
                 ) {
                     return crate::path_resolver::PathCheckResult::ResolveFailed {
                         raw_path: path.clone(),
-                        error: report
-                            .diagnostics
-                            .iter()
-                            .map(|diagnostic| diagnostic.message.as_str())
-                            .collect::<Vec<_>>()
-                            .join("; "),
+                        error: crate::path_resolution::selection_error(&report.selection_state),
                     };
                 }
                 if let Some(location) = report.locations.first() {
@@ -108,7 +206,7 @@ impl ServiceContext {
             }),
             device_bindings: Default::default(),
         };
-        let mut context = resolution_context(config, &game, get_current_device_id());
+        let mut context = game_context(&game, config.devices.get(get_current_device_id()));
         if let Some(user_id) = store_user_id {
             let id = detected_id("preview-account", user_id);
             context.accounts = vec![StoreAccountCandidate {
@@ -203,7 +301,7 @@ impl ServiceContext {
                 constraints,
                 ..
             } => {
-                let context = resolution_context(config, game, device_id);
+                let context = game_context(game, config.devices.get(device_id));
                 let parsed = match parse_manifest_path_pattern(pattern.raw()) {
                     Ok(parsed) => parsed,
                     Err(error) => return invalid_pattern_report(pattern.raw(), error),
@@ -233,181 +331,6 @@ impl ServiceContext {
                 }
             }
         }
-    }
-}
-
-fn resolution_context(config: &Config, game: &Game, device_id: &str) -> ResolutionContext {
-    let mut roots = Vec::new();
-    let mut accounts = Vec::new();
-    let mut installations = Vec::new();
-    if let Some(device) = config.devices.get(device_id) {
-        for resource in &device.resources {
-            let id = resource_id(resource.id);
-            match &resource.kind {
-                DeviceResourceKind::GameRoot { store, path } => roots.push(GameRootCandidate {
-                    id,
-                    store: *store,
-                    path: PathBuf::from(path),
-                }),
-                DeviceResourceKind::StoreAccount { store, user_id } => {
-                    accounts.push(StoreAccountCandidate {
-                        id,
-                        store: *store,
-                        user_id: user_id.clone(),
-                    });
-                }
-                DeviceResourceKind::GameInstallation {
-                    root_id,
-                    store,
-                    install_dir,
-                    path,
-                    store_game_id,
-                } => {
-                    let applies = game.ludusavi_meta.as_ref().is_none_or(|meta| {
-                        meta.install_dirs
-                            .iter()
-                            .any(|candidate| candidate.eq_ignore_ascii_case(install_dir))
-                            || store_game_id.as_deref().is_some_and(|id| {
-                                meta.store_game_id(*store)
-                                    .is_some_and(|candidate| candidate == id)
-                            })
-                    });
-                    if applies {
-                        installations.push(GameInstallationCandidate {
-                            id,
-                            root_id: resource_id(*root_id),
-                            store: *store,
-                            install_dir: install_dir.clone(),
-                            install_path: PathBuf::from(path),
-                            store_game_id: store_game_id.clone(),
-                        });
-                    }
-                }
-            }
-        }
-    }
-    add_detected_steam_resources(game, &mut roots, &mut accounts, &mut installations);
-
-    let binding = game.device_bindings.get(device_id);
-    ResolutionContext {
-        platform: PlatformKind::host(),
-        platform_paths: host_platform_paths(),
-        roots,
-        accounts,
-        installations,
-        store_game_ids: game
-            .ludusavi_meta
-            .iter()
-            .flat_map(|meta| &meta.store_game_ids)
-            .map(|entry| (entry.store, entry.id.clone()))
-            .collect::<BTreeMap<_, _>>(),
-        selection: ResolutionSelection {
-            root_ids: binding.and_then(|value| selected_ids(value.root_ids.as_deref())),
-            account_ids: binding.and_then(|value| selected_ids(value.account_ids.as_deref())),
-            installation_ids: binding
-                .and_then(|value| selected_ids(value.installation_ids.as_deref())),
-        },
-    }
-}
-
-fn add_detected_steam_resources(
-    game: &Game,
-    roots: &mut Vec<GameRootCandidate>,
-    accounts: &mut Vec<StoreAccountCandidate>,
-    installations: &mut Vec<GameInstallationCandidate>,
-) {
-    let libraries = crate::steam::get_steam_library_paths().unwrap_or_default();
-    for library in &libraries {
-        if roots.iter().any(|root| same_path(&root.path, library)) {
-            continue;
-        }
-        roots.push(GameRootCandidate {
-            id: detected_id("steam-root", &library.to_string_lossy()),
-            store: crate::path_pattern::StoreKind::Steam,
-            path: library.clone(),
-        });
-    }
-    for account in crate::steam::detect_steam_user_ids().unwrap_or_default() {
-        if accounts.iter().any(|known| {
-            known.store == crate::path_pattern::StoreKind::Steam && known.user_id == account.user_id
-        }) {
-            continue;
-        }
-        accounts.push(StoreAccountCandidate {
-            id: detected_id("steam-account", &account.user_id),
-            store: crate::path_pattern::StoreKind::Steam,
-            user_id: account.user_id,
-        });
-    }
-
-    let Some(meta) = &game.ludusavi_meta else {
-        return;
-    };
-    let games = crate::steam::scan_all_installed_games().unwrap_or_default();
-    for install_dir in &meta.install_dirs {
-        let Some(installed) = games.get(&install_dir.to_lowercase()) else {
-            continue;
-        };
-        let Some(root) = roots.iter().find(|root| {
-            root.store == crate::path_pattern::StoreKind::Steam
-                && installed
-                    .install_path
-                    .starts_with(root.path.join("steamapps").join("common"))
-        }) else {
-            continue;
-        };
-        if installations
-            .iter()
-            .any(|known| same_path(&known.install_path, &installed.install_path))
-        {
-            continue;
-        }
-        installations.push(GameInstallationCandidate {
-            id: detected_id("steam-install", &installed.install_path.to_string_lossy()),
-            root_id: root.id.clone(),
-            store: crate::path_pattern::StoreKind::Steam,
-            install_dir: installed.install_dir.clone(),
-            install_path: installed.install_path.clone(),
-            store_game_id: Some(installed.app_id.to_string()),
-        });
-    }
-}
-
-fn detected_id(kind: &str, value: &str) -> String {
-    format!(
-        "detected:{kind}:{}",
-        value.replace('\\', "/").to_lowercase()
-    )
-}
-
-fn same_path(left: &Path, right: &Path) -> bool {
-    left.to_string_lossy()
-        .replace('\\', "/")
-        .eq_ignore_ascii_case(&right.to_string_lossy().replace('\\', "/"))
-}
-
-fn selected_ids(ids: Option<&[u32]>) -> Option<BTreeSet<String>> {
-    ids.map(|ids| ids.iter().copied().map(resource_id).collect())
-}
-
-fn resource_id(id: u32) -> String {
-    format!("resource:{id}")
-}
-
-fn host_platform_paths() -> PlatformPaths {
-    let home = dirs::home_dir();
-    PlatformPaths {
-        home: home.clone(),
-        os_user_name: Some(whoami::username()),
-        win_app_data: dirs::data_dir(),
-        win_local_app_data: dirs::data_local_dir(),
-        win_local_app_data_low: home.map(|path| path.join("AppData").join("LocalLow")),
-        win_documents: dirs::document_dir(),
-        win_public: std::env::var_os("PUBLIC").map(PathBuf::from),
-        win_program_data: std::env::var_os("PROGRAMDATA").map(PathBuf::from),
-        win_dir: std::env::var_os("WINDIR").map(PathBuf::from),
-        xdg_data: None,
-        xdg_config: None,
     }
 }
 
@@ -531,6 +454,20 @@ fn invalid_pattern_report(raw: &str, error: PathPatternError) -> ResolutionRepor
 #[cfg(test)]
 mod concrete_tests {
     use super::*;
+
+    #[test]
+    fn uninstalled_manifest_game_can_be_saved_before_its_location_is_configured() {
+        let game: Game = serde_json::from_value(serde_json::json!({
+            "name": "Not installed",
+            "save_paths": [{"source": {"type": "manifestPattern", "pattern": "<base>/save.dat"}}]
+        }))
+        .unwrap();
+        let service =
+            ServiceContext::new(std::sync::Arc::new(crate::hooks::HookPipeline::new(vec![])));
+        let config = Config::default();
+        assert!(service.validate_game_paths(&config, &game).is_ok());
+        assert!(service.capture_plan(&config, &game).is_err());
+    }
 
     #[test]
     fn concrete_paths_resolve_placeholders_before_preflight() {

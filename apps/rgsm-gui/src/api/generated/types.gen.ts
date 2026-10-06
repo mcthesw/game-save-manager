@@ -146,7 +146,9 @@ export type CheckCloudBackendRequest = {
 };
 
 export type CheckPathsRequest = {
+  game?: null | GameDraft;
   installDirs?: Array<string> | null;
+  literal?: boolean;
   paths: Array<string>;
   steamId?: number | null;
   storeUserId?: string | null;
@@ -932,6 +934,7 @@ export type OpenExtraBackupFolderRequest = {
 };
 
 export type OpenFileOrFolderRequest = {
+  game?: null | GameDraft;
   path: string;
 };
 

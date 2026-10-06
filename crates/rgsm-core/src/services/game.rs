@@ -12,6 +12,7 @@ use super::ServiceContext;
 impl ServiceContext {
     pub async fn add_game(&self, game: &GameDraft, source: HookSource) -> Result<Game> {
         let config = get_config()?;
+        self.validate_game_paths(&config, &game.clone().into_game(None))?;
         if config
             .games
             .iter()
@@ -68,6 +69,7 @@ impl ServiceContext {
         }
 
         config.games[index] = draft.clone().into_game(Some(&previous_game));
+        self.validate_game_paths(&config, &config.games[index])?;
 
         let updated_game = config.games[index].clone();
         config

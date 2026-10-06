@@ -2,13 +2,15 @@
 import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { PopoverAnchor, PopoverContent, PopoverPortal, PopoverRoot } from 'reka-ui';
 import { $t } from '../i18n';
-import { commands } from '../api/commands';
+import { commands, type GameDraft } from '../api/commands';
 import { LAYER } from '../ui/layers';
 import { KButton, KTooltip } from '../ui/kit';
 
 type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 
 const props = defineProps({
+  game: { type: Object as () => GameDraft, default: undefined },
+  pattern: { type: Boolean, default: false },
   modelValue: {
     type: String,
     default: '',
@@ -20,9 +22,9 @@ const props = defineProps({
     default: false,
   },
   /** Controls how the path resolution status is displayed.
-   * - 'below': inline status bar below the editor (default when showStatus=true)
+   * - 'below': status dot with details below the editor (default when showStatus=true)
    * - 'tooltip': compact status dot inside the editor with resolved path as tooltip
-   * - 'none': no status display (default when showStatus=false) */
+   * - 'none': skip checking and show an idle dot (default when showStatus=false) */
   statusMode: {
     type: String as () => 'below' | 'tooltip' | 'none',
     default: undefined,
@@ -484,7 +486,9 @@ function scheduleResolve(path: string) {
         [path],
         props.storeUserId ?? null,
         props.installDirs.length > 0 ? props.installDirs : null,
-        props.steamId
+        props.steamId,
+        props.game,
+        !props.pattern
       );
       // Guard against stale responses
       if (generation !== resolveGeneration || path !== props.modelValue) return;
@@ -554,6 +558,22 @@ watch(
 
 watch(
   () => [
+    // Path previews depend on resource selections, not sibling paths or overrides.
+    JSON.stringify({
+      metadata: props.game?.ludusavi_meta,
+      selections: Object.entries(props.game?.device_bindings ?? {})
+        .filter(
+          ([, binding]) =>
+            binding.rootIds != null || binding.accountIds != null || binding.installationIds != null
+        )
+        .map(([id, binding]) => [
+          id,
+          binding.rootIds ?? null,
+          binding.accountIds ?? null,
+          binding.installationIds ?? null,
+        ]),
+    }),
+    props.pattern,
     props.storeUserId,
     props.steamId,
     props.installDirs.join('\u0000'),
@@ -577,7 +597,6 @@ watch(
             <div
               ref="editorRef"
               class="pvi-editor"
-              :class="{ 'pvi-editor--with-badge': !$slots.append }"
               :data-placeholder="$t('path_variable.placeholder')"
               contenteditable="true"
               spellcheck="false"
@@ -590,14 +609,18 @@ watch(
               @keydown="onKeydown"
               @paste="onPaste"
             />
-            <KTooltip v-if="!$slots.append" :content="$t('path_variable.editor_badge_tooltip')">
+            <KTooltip :content="$t('path_variable.editor_badge_tooltip')">
               <span class="pvi-editor-badge">&lt;/&gt;</span>
             </KTooltip>
           </div>
-          <!-- Compact status dot for tooltip mode -->
+          <!-- Keep the status indicator present even when no path has been checked. -->
           <KTooltip
-            v-if="effectiveStatusMode === 'tooltip' && modelValue && pathStatus !== 'idle'"
-            :content="resolvedPathText || $t('path_variable.resolving')"
+            :content="
+              resolvedPathText ||
+              $t(
+                pathStatus === 'resolving' ? 'path_variable.resolving' : 'path_variable.not_checked'
+              )
+            "
           >
             <span class="pvi-status-dot-compact" :class="`pvi-status--${pathStatus}`" />
           </KTooltip>
@@ -643,9 +666,8 @@ watch(
     <div
       v-if="effectiveStatusMode === 'below' && modelValue && pathStatus !== 'idle'"
       class="pvi-status"
-      :class="`pvi-status--${pathStatus}`"
+      :class="{ 'pvi-status-detail-error': pathStatus === 'error' }"
     >
-      <span class="pvi-status-dot" />
       <span class="pvi-status-text">{{ resolvedPathText }}</span>
     </div>
     <div

@@ -5,6 +5,7 @@ import {
   commands,
   type Game,
   type GameDraft,
+  type GameDeviceBinding,
   type SaveUnitDraft,
   type Device,
   type ImportableGame,
@@ -14,6 +15,7 @@ import {
 import { $t } from '../i18n';
 import { error } from '../utils/logger';
 import PathVariableInput from './PathVariableInput.vue';
+import GameLocationSelection from './GameLocationSelection.vue';
 import GameImportDialog from './GameImportDialog.vue';
 import GameImportCustomizeDialog from './GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from './GameBatchImportDialog.vue';
@@ -36,6 +38,7 @@ const game_path = ref(''); // 选择游戏启动程序
 const game_icon_src = ref('/orange.png');
 const is_editing = ref(false); // 是否正在编辑已有的游戏
 const editing_storage_key = ref(''); // storage_key of the game being edited
+const deviceBinding = ref<GameDeviceBinding>({});
 const currentDevice = ref<Device | null>(null); // 当前设备信息
 
 // Import dialog state
@@ -87,6 +90,18 @@ const needsInstallDirectoryNames = computed(
         (unit.source.pattern.includes('<game>') || unit.source.pattern.includes('<base>'))
     )
 );
+
+const previewGame = computed<GameDraft>(() => ({
+  name: game_name.value,
+  save_paths: save_paths,
+  game_paths: currentDevice.value ? { [currentDevice.value.id]: game_path.value } : {},
+  device_bindings: currentDevice.value ? { [currentDevice.value.id]: deviceBinding.value } : {},
+  ludusavi_meta: {
+    installDirs: manualInstallDirs.value,
+    storeGameIds: activeSteamId.value ? [{ store: 'steam', id: String(activeSteamId.value) }] : [],
+  },
+}));
+const previewPaths = computed(() => [game_path.value, ...save_paths.map(saveUnitDisplayPath)]);
 
 async function ensureSteamAccountResource(userId: string | null): Promise<number | null> {
   if (!userId || !currentDevice.value || !config.value) return null;
@@ -144,6 +159,9 @@ watch(visible, (isOpen) => {
     is_editing.value = true;
     editing_storage_key.value = gameConfig.storage_key ?? '';
     game_name.value = gameConfig.name;
+    deviceBinding.value = JSON.parse(
+      JSON.stringify(gameConfig.device_bindings?.[currentDevice.value?.id ?? ''] ?? {})
+    );
     save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
     manualInstallDirs.value = [...(gameConfig.ludusavi_meta?.installDirs ?? [])];
     pendingLudusaviMeta.value = null;
@@ -472,6 +490,7 @@ async function handleCustomizeConfirm(data: {
   gameName: string;
   savePaths: SavePath[];
   storeUserId: string | null;
+  binding: GameDeviceBinding;
 }) {
   try {
     // Convert the customized data to our Game format
@@ -555,6 +574,7 @@ async function handleCustomizeConfirm(data: {
     }
 
     pendingStoreUserId.value = data.storeUserId;
+    deviceBinding.value = data.binding;
     await save();
   } catch (e) {
     error(`Error importing game: ${e}`);
@@ -563,6 +583,7 @@ async function handleCustomizeConfirm(data: {
 }
 
 interface GameConfig {
+  binding: GameDeviceBinding;
   name: string;
   customName: string;
   selected: boolean;
@@ -676,7 +697,9 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
       const newGame: GameDraft = {
         name: gameName,
         save_paths: savePaths,
-        device_bindings: {},
+        device_bindings: currentDevice.value
+          ? { [currentDevice.value.id]: gameConfig.binding }
+          : {},
         ludusavi_meta:
           originalGame && (originalGame.installDirs.length > 0 || originalGame.steamId)
             ? {
@@ -689,6 +712,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
       };
       if (accountResourceId !== null && currentDevice.value) {
         newGame.device_bindings![currentDevice.value.id] = {
+          ...gameConfig.binding,
           accountIds: [accountResourceId],
           restoreMappings: [],
         };
@@ -763,13 +787,16 @@ async function save() {
   }
 
   if (currentDevice.value) {
-    await warnUnavailableLocations(save_paths, currentDevice.value.id);
+    await warnUnavailableLocations(save_paths, currentDevice.value.id, previewGame.value);
   }
 
   const game: GameDraft = {
     name: game_name.value,
     save_paths: save_paths,
-    device_bindings: { ...(editingGame.value?.device_bindings ?? {}) },
+    device_bindings: {
+      ...(editingGame.value?.device_bindings ?? {}),
+      ...(currentDevice.value ? { [currentDevice.value.id]: deviceBinding.value } : {}),
+    },
     ludusavi_meta:
       normalizedInstallDirs.length > 0 || steamId !== null
         ? {
@@ -809,12 +836,13 @@ async function save() {
     close();
   } catch (e) {
     error(`Error saving game: ${e}`);
-    notifyError($t('error.add_game_failed'));
+    notifyError(String(e));
   }
 }
 function reset_info(show_notification: boolean = true) {
   // 重置当前配置
   game_name.value = '';
+  deviceBinding.value = {};
   save_paths.splice(0, save_paths.length);
   game_path.value = '';
   manualInstallDirs.value = [];
@@ -859,6 +887,7 @@ function deleteRow(index: number) {
             }}</label>
             <PathVariableInput
               v-model="game_path"
+              :game="previewGame"
               :show-status="true"
               :install-dirs="manualInstallDirs"
               :steam-id="activeSteamId"
@@ -876,6 +905,11 @@ function deleteRow(index: number) {
               </template>
             </PathVariableInput>
           </div>
+          <GameLocationSelection
+            v-model="deviceBinding"
+            :device="currentDevice"
+            :paths="previewPaths"
+          />
           <div v-if="needsInstallDirectoryNames">
             <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.install_dirs') }}</label>
             <KTagInput
@@ -922,6 +956,8 @@ function deleteRow(index: number) {
             </KTag>
             <div class="min-w-0 flex-1">
               <PathVariableInput
+                :game="previewGame"
+                :pattern="row.source.type === 'manifestPattern'"
                 :model-value="saveUnitDisplayPath(row)"
                 status-mode="below"
                 :install-dirs="manualInstallDirs"

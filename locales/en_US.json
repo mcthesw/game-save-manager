@@ -634,11 +634,9 @@
         "auto_backup_on": "Auto backup enabled"
     },
     "save_location_drawer": {
-        "device_location": "Location on this device",
-        "device_location_hint": "Choose only when more than one library, account, or installation applies. Your choice is remembered for this game",
-        "choose_libraries": "Choose game libraries",
-        "choose_accounts": "Choose store accounts",
-        "choose_installations": "Choose installations",
+        "game_root": "Game root directory",
+        "store_account": "Store account",
+        "game_installation": "Game installation directory",
         "saved_restore_choice": "Saved restore choice for save location #{id}",
         "forget_restore_choice": "Forget",
         "drawer_title": "Modify configuration",
@@ -1273,6 +1271,10 @@
         "current_quick_action_game": "Current quick backup games"
     },
     "path_variable": {
+        "invalid_pattern": "Invalid path",
+        "choose_location": "Select a location",
+        "selection_unavailable": "Selected location is unavailable",
+        "missing_context": "Configure the required game location",
         "incomplete": "Complete the path variable with >",
         "insert_variable": "Insert path variable",
         "tooltip": "Path variables help you create cross-device compatible paths",
@@ -1300,6 +1302,7 @@
         "resolve": "Resolve",
         "test": "Test",
         "resolved_to": "Resolved to: {path}",
+        "not_checked": "Not checked",
         "resolving": "Resolving…",
         "not_found": "path not found",
         "current_user_hint": "This key belongs to your Windows account; use HKEY_CURRENT_USER to follow the account running the app",

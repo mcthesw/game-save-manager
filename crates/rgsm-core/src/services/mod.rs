@@ -10,6 +10,7 @@ mod device_game_lifecycle;
 mod game;
 mod game_deletion;
 mod path_resolution;
+pub use path_resolution::PathPreviewContext;
 mod profile_management;
 mod profile_reuse;
 pub use profile_reuse::ProfileReuseError;

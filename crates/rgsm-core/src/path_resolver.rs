@@ -13,6 +13,9 @@ use crate::steam::InstalledSteamGame;
 /// Errors that may occur during path resolution
 #[derive(Debug, Error)]
 pub enum ResolveError {
+    #[error("{0}")]
+    Selection(String),
+
     #[error("Unknown variable: {0}")]
     UnknownVariable(String),
 
@@ -144,6 +147,8 @@ pub fn check_paths(
 /// a shared `install_dir_cache` for bulk operations like `detect_local_games`.
 #[derive(Debug, Clone, Default)]
 pub struct PathContext {
+    /// Shared candidate context for configured games.
+    pub resolution: Option<crate::path_resolution::ResolutionContext>,
     /// Install directory names from the manifest's `installDir` field.
     pub install_dirs: Vec<String>,
     /// Steam App ID from the manifest.
@@ -172,6 +177,11 @@ pub fn resolve_path_explicit(
     // If the path doesn't contain variables, return it directly
     if !raw_path.contains('<') && !raw_path.contains('>') {
         return Ok(PathBuf::from(raw_path));
+    }
+
+    if let Some(context) = ctx.and_then(|ctx| ctx.resolution.as_ref()) {
+        return crate::path_resolution::resolve_single_path(raw_path, context)
+            .map_err(ResolveError::Selection);
     }
 
     let mut result = raw_path.to_string();

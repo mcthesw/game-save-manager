@@ -281,11 +281,18 @@ pub async fn get_build_info() -> BuildInfo {
     }
 }
 
-pub async fn open_file_or_folder(path: String) -> Result<OpenPathOutcome, String> {
+pub async fn open_file_or_folder(
+    path: String,
+    game: Option<GameDraft>,
+) -> Result<OpenPathOutcome, String> {
     info!(target:"rgsm::commands", "Opening file or folder: {}", path);
 
     let config = get_config().map_err(|e| e.to_string())?;
-    rgsm_core::path_launcher::open_managed_location(&path, None, &config)
+    let game = game.map(|draft| draft.into_game(None));
+    let context = game
+        .as_ref()
+        .map(|game| game.path_context(config.devices.get(get_current_device_id())));
+    rgsm_core::path_launcher::open_managed_location(&path, context.as_ref(), &config)
         .map(OpenPathOutcome::from)
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to open file or folder: {:?}", e);
@@ -1548,20 +1555,11 @@ pub fn reset_ludusavi_manifest_to_bundled() -> Result<LudusaviManifestStatus, St
 
 pub async fn check_paths(
     paths: Vec<String>,
-    store_user_id: Option<String>,
-    install_dirs: Option<Vec<String>>,
-    steam_id: Option<u32>,
+    context: rgsm_core::services::PathPreviewContext,
     app_handle: AppHandle,
 ) -> Result<Vec<path_resolver::PathCheckResult>, String> {
     let config = get_config().map_err(|e| e.to_string())?;
-    let install_dirs = install_dirs.unwrap_or_default();
-    Ok(svc(&app_handle).check_ad_hoc_paths(
-        &config,
-        &paths,
-        store_user_id.as_deref(),
-        &install_dirs,
-        steam_id,
-    ))
+    Ok(svc(&app_handle).check_ad_hoc_paths(&config, &paths, &context))
 }
 
 pub async fn detect_game_roots() -> Result<Vec<String>, String> {
