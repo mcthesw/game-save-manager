@@ -665,6 +665,9 @@ export type GameDefinitionDifference = {
 export type GameDeviceBinding = {
   accountIds?: Array<U32> | null;
   installationIds?: Array<U32> | null;
+  pathOverrides?: {
+    [key: string]: SavePathOverride;
+  };
   restoreMappings?: Array<RestoreMappingRule>;
   rootIds?: Array<U32> | null;
 };
@@ -1295,6 +1298,10 @@ export type SavePath = {
    * Tags like "save", "config", etc.
    */
   tags: Array<string>;
+};
+
+export type SavePathOverride = {
+  path: string;
 };
 
 export type SaveRestoreMappingRequest = {

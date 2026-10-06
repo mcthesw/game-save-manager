@@ -16,6 +16,32 @@ fn device(id: &str, name: &str) -> Device {
     }
 }
 
+#[test]
+fn path_overrides_round_trip_in_device_profiles_only() {
+    let (mut config, windows_id, deck_id) = dual_device_config();
+    let value = crate::backup::SavePathOverride {
+        path: "D:/LocalOnly".into(),
+    };
+    config.games[0]
+        .device_bindings
+        .entry(windows_id.clone())
+        .or_default()
+        .path_overrides
+        .insert(7, value.clone());
+    let owners = ConfigurationOwners::from_legacy(&config, &windows_id);
+    assert!(
+        !serde_json::to_string(&owners.shared_library)
+            .unwrap()
+            .contains("LocalOnly")
+    );
+    let restored = owners.assemble_effective().unwrap();
+    assert_eq!(
+        restored.games[0].path_override(7, &windows_id),
+        Some(&value)
+    );
+    assert!(restored.games[0].path_override(7, &deck_id).is_none());
+}
+
 fn dual_device_config() -> (Config, DeviceId, DeviceId) {
     let windows_id = "windows-pc".to_string();
     let deck_id = "steam-deck".to_string();

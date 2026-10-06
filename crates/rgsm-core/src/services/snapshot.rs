@@ -323,7 +323,7 @@ impl ServiceContext {
         if manifest.version == 2 {
             apply_legacy_v2_save_unit_metadata(&mut manifest.groups, &game.save_paths);
         }
-        let reports = game
+        let reports: std::collections::BTreeMap<_, _> = game
             .save_paths
             .iter()
             .filter(|unit| unit.enabled)
@@ -334,15 +334,64 @@ impl ServiceContext {
                 )
             })
             .collect();
+        let overridden_units = game
+            .save_paths
+            .iter()
+            .filter(|unit| {
+                unit.enabled
+                    && matches!(
+                        unit.source,
+                        crate::backup::SaveUnitSource::ManifestPattern { .. }
+                    )
+                    && game
+                        .path_override(unit.id, crate::device::get_current_device_id())
+                        .is_some()
+            })
+            .collect::<Vec<_>>();
+        for unit in &overridden_units {
+            let mut groups = manifest
+                .groups
+                .iter()
+                .filter(|group| group.save_unit_id == unit.id);
+            let Some(group) = groups.next() else { continue };
+            let declared_type_matches = match unit.unit_type() {
+                Some(SaveUnitType::File) => group.kind == CaptureSourceKind::File,
+                Some(SaveUnitType::Folder) => group.kind == CaptureSourceKind::Directory,
+                Some(SaveUnitType::WinRegistry) => false,
+                None => group.kind != CaptureSourceKind::Registry,
+            };
+            let target = reports
+                .get(&unit.id)
+                .and_then(|report| report.candidates.first())
+                .and_then(|candidate| candidate.exact_target_path());
+            let target_type_matches = target.is_none_or(|path| {
+                (!path.is_file() || group.kind == CaptureSourceKind::File)
+                    && (!path.is_dir() || group.kind == CaptureSourceKind::Directory)
+            });
+            if groups.next().is_some() || !declared_type_matches || !target_type_matches {
+                return Err(crate::backup::RestorePlanError::OverrideIncompatible {
+                    save_unit_id: unit.id,
+                }
+                .into());
+            }
+        }
         let rules = game
             .device_bindings
             .get(crate::device::get_current_device_id())
             .map(|binding| binding.restore_mappings.as_slice())
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .iter()
+            .filter(|rule| {
+                !overridden_units
+                    .iter()
+                    .any(|unit| unit.id == rule.save_unit_id)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let plan = if manifest.version == 2 {
-            RestorePlan::build_legacy_v2(&manifest.groups, &reports, rules)?
+            RestorePlan::build_legacy_v2(&manifest.groups, &reports, &rules)?
         } else {
-            RestorePlan::build(&manifest.groups, &reports, rules)?
+            RestorePlan::build(&manifest.groups, &reports, &rules)?
         };
         if let Some(notifier) = notifier {
             for save_unit_id in &plan.skipped_inactive_save_unit_ids {
@@ -591,92 +640,5 @@ fn apply_legacy_v2_save_unit_metadata(groups: &mut [ArchiveCaptureGroup], units:
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use super::*;
-    use crate::backup::SaveUnitSource;
-    use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
-    use crate::path_resolution::CandidateDimensions;
-
-    fn legacy_v2_group(kind: CaptureSourceKind) -> ArchiveCaptureGroup {
-        ArchiveCaptureGroup {
-            id: 0,
-            save_unit_id: 12,
-            candidate_id: "legacy-v2".to_string(),
-            dimensions: CandidateDimensions::default(),
-            relative_path: String::new(),
-            archive_path: "12/registry.reg".to_string(),
-            kind,
-            delete_before_apply: false,
-            source_path_diagnostic: None,
-        }
-    }
-
-    #[test]
-    fn batch_error_state_retains_the_first_failure() {
-        let mut first_error = None;
-        retain_first_error(&mut first_error, Err(BackupError::NoDataMatched));
-        retain_first_error(&mut first_error, Ok(()));
-        retain_first_error(&mut first_error, Err(BackupError::NoBackupAvailable));
-
-        assert!(matches!(first_error, Some(BackupError::NoDataMatched)));
-    }
-
-    #[test]
-    fn legacy_v2_concrete_type_overrides_archive_filename_inference() {
-        let mut groups = vec![legacy_v2_group(CaptureSourceKind::Registry)];
-        let units = vec![SaveUnit::concrete(
-            12,
-            SaveUnitType::File,
-            HashMap::new(),
-            true,
-            true,
-        )];
-
-        apply_legacy_v2_save_unit_metadata(&mut groups, &units);
-
-        assert_eq!(groups[0].kind, CaptureSourceKind::File);
-        assert!(groups[0].delete_before_apply);
-    }
-
-    #[test]
-    fn legacy_v2_dynamic_pattern_keeps_archive_shape_inference() {
-        let mut groups = vec![legacy_v2_group(CaptureSourceKind::Directory)];
-        let units = vec![SaveUnit {
-            id: 12,
-            source: SaveUnitSource::ManifestPattern {
-                expected_type: None,
-                pattern: ManifestPathPattern::new("<home>/Saves/*"),
-                constraints: ManifestPathConstraints::default(),
-            },
-            delete_before_apply: true,
-            enabled: true,
-        }];
-
-        apply_legacy_v2_save_unit_metadata(&mut groups, &units);
-
-        assert_eq!(groups[0].kind, CaptureSourceKind::Directory);
-        assert!(groups[0].delete_before_apply);
-    }
-
-    #[test]
-    fn legacy_v2_typed_pattern_preserves_declared_folder_kind() {
-        let mut groups = vec![legacy_v2_group(CaptureSourceKind::File)];
-        let units = vec![SaveUnit {
-            id: 12,
-            source: SaveUnitSource::ManifestPattern {
-                expected_type: Some(SaveUnitType::Folder),
-                pattern: ManifestPathPattern::new("<root>/Saved"),
-                constraints: ManifestPathConstraints::default(),
-            },
-            delete_before_apply: true,
-            enabled: true,
-        }];
-
-        apply_legacy_v2_save_unit_metadata(&mut groups, &units);
-
-        assert_eq!(groups[0].kind, CaptureSourceKind::Directory);
-        assert!(groups[0].delete_before_apply);
-    }
-}
+#[path = "snapshot_tests.rs"]
+mod tests;

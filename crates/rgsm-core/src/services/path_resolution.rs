@@ -55,7 +55,10 @@ impl ServiceContext {
                     }
                 }
                 SaveUnitSource::ManifestPattern { constraints, .. } => {
-                    if !constraints.allows_platform(crate::path_pattern::PlatformKind::host()) {
+                    let has_override = game.path_override(unit.id, device_id).is_some();
+                    if !has_override
+                        && !constraints.allows_platform(crate::path_pattern::PlatformKind::host())
+                    {
                         continue;
                     }
                     let report = self.resolve_save_unit_for_restore(config, game, unit);
@@ -63,7 +66,9 @@ impl ServiceContext {
                         report.selection_state,
                         ResolutionSelectionState::Ambiguous { .. }
                             | ResolutionSelectionState::StaleSelection { .. }
-                    ) {
+                    ) || (has_override
+                        && matches!(report.selection_state, ResolutionSelectionState::Missing))
+                    {
                         anyhow::bail!(
                             "{}: {}",
                             report.raw_pattern,
@@ -286,12 +291,30 @@ impl ServiceContext {
         purpose: ResolutionPurpose,
     ) -> ResolutionReport {
         let device_id = get_current_device_id();
+        if matches!(save_unit.source, SaveUnitSource::ManifestPattern { .. })
+            && let Some(path) = game.path_override(save_unit.id, device_id)
+        {
+            if path.path.trim().is_empty()
+                || save_unit.unit_type() == Some(&SaveUnitType::WinRegistry)
+            {
+                return blocked_report(
+                    &path.path,
+                    &rust_i18n::t!("path_variable.invalid_override"),
+                );
+            }
+            return resolve_concrete(
+                Some(&path.path),
+                save_unit.unit_type(),
+                Some(&game.path_context(config.devices.get(device_id))),
+                purpose,
+            );
+        }
         match &save_unit.source {
             SaveUnitSource::Concrete { unit_type, paths } => {
                 let path_context = game.path_context(config.devices.get(device_id));
                 resolve_concrete(
                     paths.get(device_id),
-                    unit_type,
+                    Some(unit_type),
                     Some(&path_context),
                     purpose,
                 )
@@ -336,7 +359,7 @@ impl ServiceContext {
 
 fn resolve_concrete(
     path: Option<&String>,
-    unit_type: &SaveUnitType,
+    unit_type: Option<&SaveUnitType>,
     path_context: Option<&crate::path_resolver::PathContext>,
     purpose: ResolutionPurpose,
 ) -> ResolutionReport {
@@ -348,7 +371,7 @@ fn resolve_concrete(
     };
 
     #[cfg(not(target_os = "windows"))]
-    if matches!(unit_type, SaveUnitType::WinRegistry) {
+    if matches!(unit_type, Some(SaveUnitType::WinRegistry)) {
         return empty_concrete_report(path);
     }
 
@@ -359,9 +382,10 @@ fn resolve_concrete(
     let source = resolved.as_path();
     if purpose == ResolutionPurpose::Capture {
         let exists = match unit_type {
-            SaveUnitType::File => source.is_file(),
-            SaveUnitType::Folder => source.is_dir(),
-            SaveUnitType::WinRegistry => {
+            None => source.is_file() || source.is_dir(),
+            Some(SaveUnitType::File) => source.is_file(),
+            Some(SaveUnitType::Folder) => source.is_dir(),
+            Some(SaveUnitType::WinRegistry) => {
                 match crate::backup::registry::registry_key_exists(&resolved.to_string_lossy()) {
                     Ok(exists) => exists,
                     Err(error) => return blocked_report(path, &error.to_string()),
@@ -373,9 +397,12 @@ fn resolve_concrete(
         }
     }
     let kind = match unit_type {
-        SaveUnitType::File => ResolvedLocationKind::File,
-        SaveUnitType::Folder => ResolvedLocationKind::Directory,
-        SaveUnitType::WinRegistry => ResolvedLocationKind::Registry,
+        Some(SaveUnitType::File) => Some(ResolvedLocationKind::File),
+        Some(SaveUnitType::Folder) => Some(ResolvedLocationKind::Directory),
+        Some(SaveUnitType::WinRegistry) => Some(ResolvedLocationKind::Registry),
+        None if source.is_file() => Some(ResolvedLocationKind::File),
+        None if source.is_dir() => Some(ResolvedLocationKind::Directory),
+        None => None,
     };
     ResolutionReport {
         raw_pattern: path.clone(),
@@ -393,17 +420,20 @@ fn resolve_concrete(
             dimensions: CandidateDimensions::default(),
             case_sensitive: !cfg!(target_os = "windows"),
         }],
-        locations: vec![ResolvedSaveLocation {
-            path: resolved.to_string_lossy().into_owned(),
-            kind,
-            candidate_id: "concrete".to_string(),
-            logical_anchor: source
-                .parent()
-                .unwrap_or(source)
-                .to_string_lossy()
-                .into_owned(),
-            dimensions: CandidateDimensions::default(),
-        }],
+        locations: kind
+            .map(|kind| ResolvedSaveLocation {
+                path: resolved.to_string_lossy().into_owned(),
+                kind,
+                candidate_id: "concrete".to_string(),
+                logical_anchor: source
+                    .parent()
+                    .unwrap_or(source)
+                    .to_string_lossy()
+                    .into_owned(),
+                dimensions: CandidateDimensions::default(),
+            })
+            .into_iter()
+            .collect(),
         diagnostics: Vec::new(),
     }
 }
@@ -452,6 +482,10 @@ fn invalid_pattern_report(raw: &str, error: PathPatternError) -> ResolutionRepor
 }
 
 #[cfg(test)]
+#[path = "path_override_tests.rs"]
+mod override_tests;
+
+#[cfg(test)]
 mod concrete_tests {
     use super::*;
 
@@ -480,7 +514,7 @@ mod concrete_tests {
 
         let report = resolve_concrete(
             Some(&"<root>/save.dat".to_string()),
-            &SaveUnitType::File,
+            Some(&SaveUnitType::File),
             Some(&context),
             ResolutionPurpose::Capture,
         );
@@ -504,7 +538,7 @@ mod concrete_tests {
 
         let report = resolve_concrete(
             Some(&path),
-            &SaveUnitType::File,
+            Some(&SaveUnitType::File),
             None,
             ResolutionPurpose::Restore,
         );
@@ -522,7 +556,7 @@ mod concrete_tests {
 
         let report = resolve_concrete(
             Some(&target.to_string_lossy().into_owned()),
-            &SaveUnitType::File,
+            Some(&SaveUnitType::File),
             None,
             ResolutionPurpose::Restore,
         );
@@ -537,7 +571,7 @@ mod concrete_tests {
     fn unsupported_registry_units_are_non_blocking() {
         let report = resolve_concrete(
             Some(&"HKEY_CURRENT_USER/Software/Game".to_string()),
-            &SaveUnitType::WinRegistry,
+            Some(&SaveUnitType::WinRegistry),
             None,
             ResolutionPurpose::Capture,
         );

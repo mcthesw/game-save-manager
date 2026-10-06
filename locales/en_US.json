@@ -661,7 +661,8 @@
         "open_ctrl_hint": "Hold Ctrl and click to open the containing folder",
         "open_warning": "Unable to open path",
         "registry_open_unsupported_title": "Registry keys cannot be opened automatically",
-        "registry_open_unsupported_detail": "Copy the displayed registry path and paste it into Registry Editor if needed"
+        "registry_open_unsupported_detail": "Copy the displayed registry path and paste it into Registry Editor if needed",
+        "override_path": "Override path on this device"
     },
     "sync_settings": {
         "title": "Sync settings",
@@ -802,7 +803,7 @@
             "enable_local_title": "Enable cloud sync",
             "enable_local_description": "You can then find {game} on your other devices",
             "status_metadata_pending": "Game details pending sync",
-        "status_local_only": "Local only",
+            "status_local_only": "Local only",
             "mode_manual": "Manual",
             "mode_snapshot": "Cloud Backup",
             "mode_live": "Multi-device Sync",
@@ -1311,7 +1312,9 @@
         "check_unavailable": "Could not check save locations; the configuration can still be saved",
         "registry_not_supported": "Registry paths are not supported",
         "editor_badge_tooltip": "This field supports path variables. Type < to autocomplete",
-        "placeholder": "Path, or type < for variables"
+        "placeholder": "Path, or type < for variables",
+        "invalid_override": "Choose a file or folder for the device override",
+        "override_incompatible": "Snapshot location does not match the override for save entry %{unit}"
     },
     "common": {
         "save_success": "save success",

@@ -661,7 +661,8 @@
         "open_ctrl_hint": "按住 Ctrl 并点击打开父文件夹",
         "open_warning": "无法打开路径",
         "registry_open_unsupported_title": "无法自动定位注册表项",
-        "registry_open_unsupported_detail": "需要时请复制显示的注册表路径，并在注册表编辑器中手动粘贴定位"
+        "registry_open_unsupported_detail": "需要时请复制显示的注册表路径，并在注册表编辑器中手动粘贴定位",
+        "override_path": "覆写此设备路径"
     },
     "sync_settings": {
         "title": "同步设置",
@@ -802,7 +803,7 @@
             "enable_local_title": "开启云同步",
             "enable_local_description": "开启后，你可以在其他设备上找到「{game}」",
             "status_metadata_pending": "游戏资料待同步",
-        "status_local_only": "仅本机",
+            "status_local_only": "仅本机",
             "mode_manual": "手动",
             "mode_snapshot": "云备份",
             "mode_live": "多设备同步",
@@ -1311,7 +1312,9 @@
         "check_unavailable": "暂时无法检查存档位置，仍可保存配置",
         "registry_not_supported": "不支持注册表路径",
         "editor_badge_tooltip": "此字段支持路径变量，输入 < 可自动补全",
-        "placeholder": "输入路径，或键入 < 插入变量"
+        "placeholder": "输入路径，或键入 < 插入变量",
+        "invalid_override": "请为设备覆写选择文件或文件夹",
+        "override_incompatible": "快照中的存档位置与条目 %{unit} 的覆写不兼容"
     },
     "common": {
         "save": "保存",

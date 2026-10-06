@@ -24,8 +24,22 @@ When several locations are available, select the library in the add or import di
 
 The selection is saved with the paths for this game and this device. Another device can use a different library while keeping the same relative path. Launch paths require one location; dynamic save patterns can explicitly select several libraries or accounts.
 
-Check the resolved path below the input. If it says “Select a location”, choose one first. If the file does not exist, check the path or run the game to create a save before backing up. You can also pick the actual file or folder directly.
+View the resolved path below the input or hover over its status dot. If it says “Select a location”, choose one first. If the file does not exist, check the path or run the game to create a save before backing up. You can also pick the actual file or folder directly.
+
+![Select a game root directory](../../../../../../../docs/screenshots/game-path-selection.png)
 
 ## Device paths
+
+If a device stores saves outside the original dynamic pattern, set an override:
+
+1. Open **View managed files** and select the device.
+2. Turn on **Override path on this device** on the dynamic save entry and enter its actual path.
+3. Click **save**. To revert, turn off **Override path on this device** and save again.
+
+![Per-device save path override](../../../../../../../docs/screenshots/device-path-override.png)
+
+The override affects only the selected device and preserves the original pattern. Backup, restore, and automatic backup use the override. A missing override causes backup to fail without falling back to another location; restoring can create a missing target.
+
+An override changes only the path, preserving the file or folder type. Multiple captured locations for one save entry cannot be merged into a single override location.
 
 Name your devices in **Settings → Device Management**. To reuse another device's paths, click its **Import Paths** action. Confirming replaces the corresponding path settings on this device.
