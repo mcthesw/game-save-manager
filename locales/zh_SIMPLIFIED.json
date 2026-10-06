@@ -634,11 +634,9 @@
         "auto_backup_on": "已启用自动备份"
     },
     "save_location_drawer": {
-        "device_location": "此设备上的位置",
-        "device_location_hint": "仅当存在多个可用游戏库、账号或安装位置时选择；本游戏会记住你的选择",
-        "choose_libraries": "选择游戏库",
-        "choose_accounts": "选择商店账号",
-        "choose_installations": "选择安装位置",
+        "game_root": "游戏根目录",
+        "store_account": "商店账号",
+        "game_installation": "游戏安装目录",
         "saved_restore_choice": "存档位置 #{id} 的恢复选择",
         "forget_restore_choice": "清除",
         "drawer_title": "修改配置",
@@ -1273,6 +1271,10 @@
         "current_quick_action_game": "当前快捷备份的游戏"
     },
     "path_variable": {
+        "invalid_pattern": "路径格式无效",
+        "choose_location": "请选择位置",
+        "selection_unavailable": "所选位置不可用",
+        "missing_context": "请配置所需的游戏位置",
         "incomplete": "请补全路径变量末尾的 >",
         "insert_variable": "插入路径变量",
         "tooltip": "路径变量可以帮助您创建跨设备兼容的路径",
@@ -1300,6 +1302,7 @@
         "resolve": "解析",
         "test": "测试",
         "resolved_to": "解析结果: {path}",
+        "not_checked": "未检查",
         "resolving": "解析中…",
         "not_found": "路径不存在",
         "current_user_hint": "此键属于当前 Windows 用户，可改用 HKEY_CURRENT_USER，随运行应用的用户解析",

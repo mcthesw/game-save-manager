@@ -41,6 +41,7 @@ pub async fn http_get_build_info() -> Result<Json<BuildInfo>, ApiError> {
 #[serde(rename_all = "camelCase")]
 pub struct OpenFileOrFolderRequest {
     pub path: String,
+    pub game: Option<GameDraft>,
 }
 
 #[utoipa::path(
@@ -53,7 +54,7 @@ pub struct OpenFileOrFolderRequest {
 pub async fn http_open_file_or_folder(
     Json(request): Json<OpenFileOrFolderRequest>,
 ) -> Result<Json<OpenPathOutcome>, ApiError> {
-    commands::open_file_or_folder(request.path)
+    commands::open_file_or_folder(request.path, request.game)
         .await
         .map(Json)
         .map_err(ApiError::from_command)
@@ -1871,6 +1872,9 @@ pub struct CheckPathsRequest {
     pub store_user_id: Option<String>,
     pub install_dirs: Option<Vec<String>>,
     pub steam_id: Option<u32>,
+    pub game: Option<GameDraft>,
+    #[serde(default)]
+    pub literal: bool,
 }
 
 #[utoipa::path(
@@ -1886,9 +1890,13 @@ pub async fn http_check_paths(
 ) -> Result<Json<Vec<path_resolver::PathCheckResult>>, ApiError> {
     commands::check_paths(
         request.paths,
-        request.store_user_id,
-        request.install_dirs,
-        request.steam_id,
+        rgsm_core::services::PathPreviewContext {
+            game: request.game,
+            store_user_id: request.store_user_id,
+            install_dirs: request.install_dirs.unwrap_or_default(),
+            steam_id: request.steam_id,
+            literal: request.literal,
+        },
         state.app().clone(),
     )
     .await

@@ -112,15 +112,9 @@
   color: var(--text);
 }
 
-.pvi-editor--with-badge {
-  padding-right: 32px;
-}
-
 .pvi-editor-badge {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: 0 0 24px;
+  text-align: center;
   color: var(--text-dim);
   font-size: 10px;
   font-family: monospace;
@@ -188,31 +182,6 @@
   min-height: 16px;
 }
 
-.pvi-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.pvi-status--idle .pvi-status-dot {
-  background: var(--border-strong);
-}
-
-.pvi-status--resolving .pvi-status-dot {
-  background: var(--border-strong);
-  animation: pvi-pulse 1s infinite;
-}
-
-.pvi-status--ok .pvi-status-dot {
-  background: var(--success);
-}
-
-.pvi-status--not-found .pvi-status-dot,
-.pvi-status--error .pvi-status-dot {
-  background: var(--danger);
-}
-
 .pvi-status-text {
   color: var(--text-dim);
   overflow: hidden;
@@ -220,7 +189,7 @@
   white-space: nowrap;
 }
 
-.pvi-status--error .pvi-status-text {
+.pvi-status-detail-error .pvi-status-text {
   color: var(--danger);
 }
 

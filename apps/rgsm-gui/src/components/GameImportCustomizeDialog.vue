@@ -49,6 +49,13 @@
         </div>
       </div>
 
+      <GameLocationSelection
+        v-model="form.binding"
+        hide-accounts
+        :device="currentDevice"
+        :paths="form.savePaths.map((row) => row.path)"
+        @update:model-value="checkAllPaths()"
+      />
       <!-- Save paths -->
       <div>
         <div class="mb-2 flex items-center justify-between gap-2">
@@ -82,6 +89,8 @@
             <div class="flex min-w-0 flex-1 items-start gap-2">
               <PathVariableInput
                 v-model="row.path"
+                :game="previewGame"
+                pattern
                 class="min-w-0 flex-1"
                 status-mode="below"
                 :store-user-id="selectedStoreUserId"
@@ -151,17 +160,22 @@ import { $t } from '../i18n';
 import {
   commands,
   type SavePath,
+  type GameDeviceBinding,
+  type GameDraft,
+  type Device,
   type PathCheckResult,
   type StoreUserIdCandidate,
 } from '../api/commands';
 import { error } from '../utils/logger';
 import PathVariableInput from './PathVariableInput.vue';
+import GameLocationSelection from './GameLocationSelection.vue';
 import { KAlert, KButton, KCheckbox, KDialog, KInput, KTag, KTooltip } from '../ui/kit';
 
 interface CustomizeData {
   gameName: string;
   savePaths: SavePath[];
   storeUserId: string | null;
+  binding: GameDeviceBinding;
 }
 
 const props = defineProps({
@@ -209,6 +223,25 @@ type PathCheckState = {
   kind?: PathKind;
 };
 
+const currentDevice = ref<Device | null>(null);
+const previewGame = computed<GameDraft>(() => ({
+  name: form.value.gameName,
+  save_paths: [],
+  device_bindings: currentDevice.value ? { [currentDevice.value.id]: form.value.binding } : {},
+  ludusavi_meta: {
+    installDirs: props.installDirs,
+    storeGameIds: props.steamId ? [{ store: 'steam', id: String(props.steamId) }] : [],
+  },
+}));
+watch(
+  dialogVisible,
+  async (visible) => {
+    if (!visible) return;
+    const result = await commands.getCurrentDeviceInfo();
+    if (result.status === 'ok') currentDevice.value = result.data;
+  },
+  { immediate: true }
+);
 const selectedPaths = ref<SavePath[]>([]);
 const selectionRevision = ref(0);
 const isChecking = ref(false);
@@ -218,6 +251,7 @@ const form = ref<CustomizeData>({
   gameName: props.gameName,
   savePaths: [],
   storeUserId: null,
+  binding: {},
 });
 
 // Store user ID selection (datalist: 候选补全 + 允许任意输入)
@@ -238,7 +272,7 @@ async function loadUserIdCandidates() {
     const result = await commands.detectStoreUserIds();
     if (result.status === 'ok') {
       userIdCandidates.value = result.data;
-      if (result.data.length > 0 && !selectedStoreUserId.value) {
+      if (result.data.length === 1 && !selectedStoreUserId.value) {
         selectedStoreUserId.value = result.data[0]!.userId;
       }
     }
@@ -323,6 +357,7 @@ watch(
       gameName: props.gameName,
       savePaths: JSON.parse(JSON.stringify(props.savePaths)),
       storeUserId: null,
+      binding: {},
     };
     pathChecks.value = new Array(form.value.savePaths.length).fill(null);
   },
@@ -330,7 +365,7 @@ watch(
 );
 
 watch(
-  () => form.value.savePaths.map((item) => item.path),
+  () => [form.value.savePaths.map((item) => item.path), JSON.stringify(form.value.binding)],
   () => {
     pathChecks.value = new Array(form.value.savePaths.length).fill(null);
   },
@@ -369,6 +404,7 @@ function handleConfirm() {
     gameName: form.value.gameName,
     savePaths: JSON.parse(JSON.stringify(selectedPaths.value)),
     storeUserId: selectedStoreUserId.value || null,
+    binding: form.value.binding,
   });
   emit('update:modelValue', false);
 }
@@ -401,7 +437,8 @@ async function checkAllPaths(applySelection: boolean = false) {
       paths,
       selectedStoreUserId.value || null,
       props.installDirs.length > 0 ? props.installDirs : null,
-      props.steamId
+      props.steamId,
+      previewGame.value
     );
     if (result.status === 'ok') {
       const checks = result.data as PathCheckResult[];

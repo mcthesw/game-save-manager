@@ -96,9 +96,9 @@ export const commands = {
       await sdk.installAppUpdate({ body: { expectedVersion } })
     );
   },
-  async openFileOrFolder(path: types.OpenFileOrFolderRequest['path']) {
+  async openFileOrFolder(path: types.OpenFileOrFolderRequest['path'], game?: types.GameDraft) {
     return unwrap<types.OpenFileOrFolderResponses[200]>(
-      await sdk.openFileOrFolder({ body: { path } })
+      await sdk.openFileOrFolder({ body: { path, game } })
     );
   },
   async getAppLogDir() {
@@ -614,10 +614,12 @@ export const commands = {
     paths: types.CheckPathsRequest['paths'],
     storeUserId: types.CheckPathsRequest['storeUserId'],
     installDirs: types.CheckPathsRequest['installDirs'],
-    steamId: types.CheckPathsRequest['steamId']
+    steamId: types.CheckPathsRequest['steamId'],
+    game?: types.GameDraft,
+    literal = false
   ) {
     return unwrap<types.CheckPathsResponses[200]>(
-      await sdk.checkPaths({ body: { paths, storeUserId, installDirs, steamId } })
+      await sdk.checkPaths({ body: { paths, storeUserId, installDirs, steamId, game, literal } })
     );
   },
   async detectGameRoots() {
