@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Ellipsis, Plus } from '@lucide/vue';
 import type { Device, Game, GameDeviceBinding } from '../api/commands';
 import { usePathVariableDraft } from '../composables/usePathVariableDraft';
@@ -17,6 +17,8 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:binding': [value: GameDeviceBinding] }>();
 const draft = usePathVariableDraft()!;
 const newName = ref('');
+const newValue = ref('');
+const newDeviceScope = ref(false);
 const adding = ref(false);
 const defaultOpen = ref(false);
 const defaultName = ref('');
@@ -63,8 +65,6 @@ function entries(name: string): KMenuEntry[] {
     items.push({ type: 'item', key: 'inherit', label: $t('path_variables.reset') });
   if (draft.edits.value[name])
     items.push({ type: 'item', key: 'undo', label: $t('path_variables.undo_default') });
-  if (draft.insert.value)
-    items.push({ type: 'item', key: 'insert', label: $t('path_variables.insert') });
   if (hasOverride(name) && !references(props.paths).includes(name))
     items.push({ type: 'item', key: 'remove', label: $t('addgame.remove') });
   return items;
@@ -75,7 +75,6 @@ function action(name: string, key: string) {
     defaultValue.value = defaults(name) ?? value(name);
     defaultOpen.value = true;
   } else if (key === 'inherit' || key === 'remove') setGame(name, undefined);
-  else if (key === 'insert') draft.insert.value?.(`<var:${name}>`);
   else if (key === 'undo') {
     const edits = { ...draft.edits.value };
     delete edits[name];
@@ -115,10 +114,28 @@ function affected(name: string) {
     .map((game) => game.name);
 }
 
+watch(draft.pendingInsert, (insert) => {
+  if (insert) adding.value = true;
+});
+watch(adding, (open) => {
+  if (open) {
+    newName.value = '';
+    newValue.value = '';
+    newDeviceScope.value = false;
+  } else draft.pendingInsert.value = null;
+});
 function add() {
-  if (!validNewName.value) return;
+  if (!validNewName.value || !newValue.value.trim() || /[<>\0]/.test(newValue.value)) return;
   const name = newName.value.trim();
-  setGame(name, defaults(name) ?? '');
+  if (newDeviceScope.value) {
+    draft.edits.value = {
+      ...draft.edits.value,
+      [name]: { value: newValue.value, previousValue: props.device.path_variables?.[name] ?? null },
+    };
+  } else setGame(name, newValue.value);
+  const insert = draft.pendingInsert.value;
+  draft.pendingInsert.value = null;
+  insert?.(`<var:${name}>`);
   newName.value = '';
   adding.value = false;
 }
@@ -186,12 +203,29 @@ function add() {
         :placeholder="$t('path_variables.name_hint')"
         :aria-label="$t('path_variables.name')"
       />
+      <label for="new-variable-value" class="mb-2 mt-4 block text-sm">{{
+        $t('path_variables.new_value')
+      }}</label>
+      <KInput
+        id="new-variable-value"
+        v-model="newValue"
+        class="w-full"
+        :aria-label="$t('path_variables.new_value')"
+      />
+      <label class="mt-4 flex items-center gap-2 text-sm"
+        ><input v-model="newDeviceScope" type="checkbox" />{{
+          $t('path_variables.share_device')
+        }}</label
+      >
     </form>
     <template #footer>
       <KButton variant="ghost" @click="adding = false">{{ $t('common.cancel') }}</KButton>
-      <KButton variant="primary" :disabled="!validNewName" @click="add">{{
-        $t('path_variables.add')
-      }}</KButton>
+      <KButton
+        variant="primary"
+        :disabled="!validNewName || !newValue.trim() || /[<>\0]/.test(newValue)"
+        @click="add"
+        >{{ $t('path_variables.add') }}</KButton
+      >
     </template>
   </KDialog>
   <KDialog v-model:open="defaultOpen" :title="$t('path_variables.edit_default')" :width="440">

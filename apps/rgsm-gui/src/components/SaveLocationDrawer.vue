@@ -30,6 +30,7 @@ const { warnUnavailableLocations } = useSaveLocationCheck();
 const props = defineProps<{
   game: Game;
   modelValue: boolean;
+  continueOperation?: boolean;
 }>();
 
 const emits = defineEmits<{
@@ -734,6 +735,9 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         {{ $t('save_location_drawer.no_active_paths') }}
       </div>
 
+      <p v-if="continueOperation" class="text-sm text-text-dim">
+        {{ $t('path_variables.missing_hint') }}
+      </p>
       <PathVariablesEditor
         v-if="selectedDevice && selectedDeviceId === currentDevice?.id"
         :device="selectedDevice"
@@ -809,7 +813,7 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
         {{ $t('common.cancel') }}
       </KButton>
       <KButton variant="primary" :disabled="!hasUnsavedChanges" @click="saveChanges">
-        {{ $t('common.save') }}
+        {{ $t(continueOperation ? 'path_variables.continue' : 'common.save') }}
       </KButton>
     </template>
   </KDrawer>

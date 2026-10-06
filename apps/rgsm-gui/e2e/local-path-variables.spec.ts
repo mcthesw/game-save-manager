@@ -42,7 +42,7 @@ test('game variables inherit, preview drafts, cancel, save defaults and restore 
     await page.getByRole('button', { name: 'View managed files' }).click();
     const dialog = page.getByRole('dialog');
     const account = dialog.locator('[data-variable="account"]');
-    await expect(account.getByText('Device default', { exact: true })).toBeVisible();
+    await expect(account.getByText('Device variable', { exact: true })).toBeVisible();
     await account.getByRole('textbox', { name: 'Value of account' }).fill('local');
     await expect(dialog.locator('.pvi-status--ok')).toHaveCount(1);
     await dialog.getByRole('button', { name: 'cancel', exact: true }).click();
@@ -65,16 +65,16 @@ test('game variables inherit, preview drafts, cancel, save defaults and restore 
     await page.getByRole('button', { name: 'View managed files' }).click();
     await expect(account.getByRole('textbox', { name: 'Value of account' })).toHaveValue('local');
     await account.getByRole('button', { name: 'Actions for account' }).click();
-    await page.getByRole('menuitem', { name: 'Use device default', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Use device variable', exact: true }).click();
     const before = await account.boundingBox();
     await account.getByRole('button', { name: 'Actions for account' }).click();
-    await page.getByRole('menuitem', { name: 'Edit device default', exact: true }).click();
-    const defaults = page.getByRole('dialog', { name: 'Edit device default', exact: true });
+    await page.getByRole('menuitem', { name: 'Edit device variable…', exact: true }).click();
+    const defaults = page.getByRole('dialog', { name: 'Edit device variable…', exact: true });
     await defaults.getByRole('textbox').fill('discarded');
     await defaults.getByRole('button', { name: 'cancel', exact: true }).click();
     await expect(account.getByRole('textbox')).toHaveValue('shared');
     await account.getByRole('button', { name: 'Actions for account' }).click();
-    await page.getByRole('menuitem', { name: 'Edit device default', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Edit device variable…', exact: true }).click();
     await defaults.getByRole('textbox').fill('changed');
     await expect(defaults.getByText('Other game', { exact: true })).toBeVisible();
     await page.screenshot({
@@ -113,7 +113,7 @@ test('game variables inherit, preview drafts, cancel, save defaults and restore 
   }
 });
 
-test('Add game accepts a typed glob and a game-scoped variable without opening a picker', async ({
+test('Add game inserts a newly created variable into the intended path', async ({
   browser,
 }, testInfo) => {
   const runRoot = await createRunRoot('add-variable');
@@ -130,8 +130,19 @@ test('Add game accepts a typed glob and a game-scoped variable without opening a
     await dialog.getByPlaceholder('Please enter the game name (required)').fill('Typed game');
     await dialog.getByRole('button', { name: 'Add save file', exact: true }).click();
     await expect(dialog.locator('.pvi-editor')).toHaveCount(2);
-    await dialog.locator('.pvi-editor').nth(1).fill(`${root}/<var:account>/*.sav`);
-    await dialog.getByRole('textbox', { name: 'Value of account' }).fill('player');
+    await dialog.locator('.pvi-editor').nth(1).fill(`${root}/`);
+    await dialog.getByRole('button', { name: 'Insert variable', exact: true }).nth(1).click();
+    await page.getByRole('button', { name: 'Create variable and insert' }).click();
+    const variableDialog = page.getByRole('dialog', { name: 'Add variable', exact: true });
+    await variableDialog
+      .getByRole('textbox', { name: 'Variable name', exact: true })
+      .fill('account');
+    await variableDialog
+      .getByRole('textbox', { name: 'Variable value', exact: true })
+      .fill('player');
+    await variableDialog.getByRole('button', { name: 'Add variable', exact: true }).click();
+    await dialog.locator('.pvi-editor').nth(1).press('End');
+    await dialog.locator('.pvi-editor').nth(1).pressSequentially('/*.sav');
     await expect(dialog.locator('.pvi-status--ok')).toHaveCount(1);
     await page.screenshot({
       path: testInfo.outputPath('add-game-variables.png'),
@@ -143,6 +154,48 @@ test('Add game accepts a typed glob and a game-scoped variable without opening a
       .poll(async () => (await getLocalGame(host, 'Typed game')).device_bindings)
       .toMatchObject({ [DEVICE_A_ID]: { pathVariables: { account: 'player' } } });
     await createSnapshotForGame(host, 'Typed game', 'typed glob');
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    await session.close(failed);
+  }
+});
+
+test('missing variables guide backup setup, cancel safely and resume after saving', async ({
+  browser,
+}) => {
+  const runRoot = await createRunRoot('missing-variables');
+  const root = join(runRoot, 'saves').replaceAll('\\', '/');
+  await writeSaveText(`${root}/player/first.sav`, 'first');
+  const device = await seedLocalConfig(runRoot, {
+    games: [{ name: GAME_NAME, units: [{ type: 'File', path: `${root}/<var:account>/*.sav` }] }],
+  });
+  const session = await startLocalSession(browser, { runRoot, device, label: 'missing-variables' });
+  let failed = false;
+  try {
+    const { page, host } = session;
+    await openGame(page);
+    await expect(page.getByRole('button', { name: 'Set up variables', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Create new snapshot', exact: true }).click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer.getByRole('button', { name: 'Save and continue' })).toBeVisible();
+    await drawer.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(drawer).not.toBeVisible();
+    await page.getByRole('button', { name: 'Create new snapshot', exact: true }).click();
+    await drawer.getByRole('textbox', { name: 'Value of account' }).fill('player');
+    await drawer.getByRole('button', { name: 'Save and continue' }).click();
+    await expect(drawer).not.toBeVisible();
+    await expect
+      .poll(async () => {
+        const game = await getLocalGame(host, GAME_NAME);
+        return (await hostPost<any>(host, '/api/v1/get-game-snapshots-info', { game })).data
+          ?.backups?.length;
+      })
+      .toBe(1);
+    await expect(
+      page.getByRole('button', { name: 'Set up variables', exact: true })
+    ).not.toBeVisible();
   } catch (error) {
     failed = true;
     throw error;

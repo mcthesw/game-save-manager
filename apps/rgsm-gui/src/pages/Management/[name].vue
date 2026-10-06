@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { useVariableSetup } from '../../composables/useVariableSetup';
 import { useGameDeletion } from '../../composables/useGameDeletion';
 import { computed, ref, watch, onBeforeUnmount, onMounted, h } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -111,6 +112,7 @@ const game: Ref<Game> = ref({
   game_paths: {},
   device_bindings: {},
 });
+const variableSetup = useVariableSetup(game, drawer);
 const gameStatus = computed(() =>
   deviceGameStatuses.value.find(
     (status) => status.game_id === (game.value.storage_key || game.value.name)
@@ -537,6 +539,7 @@ ${items}`,
 }
 
 async function send_save_to_background() {
+  if (!(await variableSetup.ensure(send_save_to_background))) return;
   if (!backup_button_backup_limit) {
     notifyError($t('manage.last_backup_unfinished_error'));
     return;
@@ -674,6 +677,7 @@ async function handleApplyClick(date: string) {
 }
 
 async function apply_save(date: string) {
+  if (!(await variableSetup.ensure(() => apply_save(date)))) return;
   if (!apply_button_apply_limit) {
     notifyError($t('manage.last_overwrite_unfinished_error'));
     return;
@@ -1056,6 +1060,7 @@ async function on_drawer_save_changes(
       return;
     }
 
+    const continuation = variableSetup.takeContinuation();
     await refreshConfig();
     notifySuccess($t('manage.save_paths_updated'));
     drawer.value = false;
@@ -1074,6 +1079,7 @@ async function on_drawer_save_changes(
         await checkCurrentDeviceSavePaths();
       }
     }
+    if (continuation) await continuation();
   } catch (e) {
     error(`Error saving game paths: ${e}`);
     notifyError($t('error.save_config_failed'));
@@ -1142,6 +1148,7 @@ watch(filter_table, (rows) => {
 // 检查当前设备的存档路径是否为空
 async function checkCurrentDeviceSavePaths() {
   await fetchCurrentDevice();
+  await variableSetup.refresh();
   if (!currentDevice.value || !game.value || !game.value.save_paths) return;
 
   const enabledSaveUnits = game.value.save_paths.filter((unit) => unit.enabled !== false);
@@ -1459,6 +1466,15 @@ const viewModeOptions = computed(() => [
       </div>
     </div>
 
+    <div
+      v-if="variableSetup.missing.value.length"
+      class="flex flex-wrap items-center gap-3 text-sm"
+    >
+      <span>{{
+        $t('path_variables.missing_count', { count: variableSetup.missing.value.length })
+      }}</span>
+      <KButton size="sm" @click="drawer = true">{{ $t('path_variables.setup') }}</KButton>
+    </div>
     <!-- Quick Actions -->
     <section
       class="flex shrink-0 items-center gap-3 rounded-md border border-border bg-surface p-3"
@@ -1637,6 +1653,7 @@ const viewModeOptions = computed(() => [
     <save-location-drawer
       v-if="game"
       v-model="drawer"
+      :continue-operation="variableSetup.continuing.value"
       :game="game"
       @closed="drawer = false"
       @save-changes="on_drawer_save_changes"

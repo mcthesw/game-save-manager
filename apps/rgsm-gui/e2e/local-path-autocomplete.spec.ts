@@ -50,7 +50,7 @@ async function checkEditor(page: Page, editor: Locator, dialog: Locator) {
   await page.waitForTimeout(650);
   const wrapper = editor.locator('xpath=ancestor::*[contains(@class,"pvi-wrapper")]');
   await expect(wrapper.locator('.pvi-status--error')).toHaveCount(0);
-  await dialog.getByRole('heading').click();
+  await dialog.getByRole('heading', { level: 2 }).click();
   await expect(suggestions).toBeHidden();
   if (await wrapper.locator('.pvi-status').count()) {
     await expect(wrapper).toContainText('Complete the path variable with >');

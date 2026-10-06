@@ -1652,6 +1652,10 @@ export type VariablePattern = {
   };
 };
 
+export type VariableSetupRequest = {
+  game: GameDraft;
+};
+
 export type VerifyArchiveIntegrityRequest = {
   archivePath: string;
   expectedHash?: string | null;
@@ -2955,6 +2959,27 @@ export type MaterializeAllCloudArchivesResponses = {
 
 export type MaterializeAllCloudArchivesResponse =
   MaterializeAllCloudArchivesResponses[keyof MaterializeAllCloudArchivesResponses];
+
+export type MissingGameVariablesData = {
+  body: VariableSetupRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/missing-game-variables';
+};
+
+export type MissingGameVariablesErrors = {
+  500: ApiError;
+};
+
+export type MissingGameVariablesError =
+  MissingGameVariablesErrors[keyof MissingGameVariablesErrors];
+
+export type MissingGameVariablesResponses = {
+  200: Array<string>;
+};
+
+export type MissingGameVariablesResponse =
+  MissingGameVariablesResponses[keyof MissingGameVariablesResponses];
 
 export type OpenBackupFolderData = {
   body: OpenBackupFolderRequest;
