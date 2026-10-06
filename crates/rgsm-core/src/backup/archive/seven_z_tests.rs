@@ -14,6 +14,7 @@ use super::seven_z::{compress_capture_plan, read_manifest, restore_capture_plan}
 fn capture_plan(source: &Path, kind: CaptureSourceKind) -> CapturePlan {
     CapturePlan {
         groups: vec![CaptureGroup {
+            relative_expression: None,
             id: 0,
             save_unit_id: 7,
             candidate_id: "source".into(),

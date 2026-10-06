@@ -298,6 +298,7 @@ fn test_path_context_from_game_includes_device_game_roots() {
                 path: "/custom/root".to_string(),
             },
         }],
+        path_variables: Default::default(),
         next_resource_id: 1,
     };
 
@@ -340,6 +341,7 @@ fn game_paths_require_a_root_selection_and_keep_other_devices_independent() {
         id: "path-device-a".into(),
         name: "A".into(),
         resources: vec![],
+        path_variables: Default::default(),
         next_resource_id: 0,
     };
     for path in ["F:/Games", "H:/Games"] {
@@ -428,6 +430,7 @@ fn test_path_context_includes_store_user_id_from_game() {
                 user_id: "12345678".to_string(),
             },
         }],
+        path_variables: Default::default(),
         next_resource_id: 1,
     };
 
@@ -464,6 +467,7 @@ fn test_path_context_no_store_user_id_for_unknown_device() {
         id: "dev-other".to_string(),
         name: "Other".to_string(),
         resources: vec![],
+        path_variables: Default::default(),
         next_resource_id: 0,
     };
 

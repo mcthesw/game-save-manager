@@ -15,7 +15,7 @@ use log::info;
 
 #[cfg(test)]
 static CONFIG_FILE_TEST_LOCK: LazyLock<TokioMutex<()>> = LazyLock::new(|| TokioMutex::new(()));
-static CONFIG_STORE_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
+pub(super) static CONFIG_STORE_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
 
 #[cfg(test)]
 pub(crate) fn lock_config_test_file() -> MutexGuard<'static, ()> {
@@ -345,7 +345,7 @@ pub(crate) fn remove_shared_game(game_id: &str, game_name: &str) -> Result<(), C
     Ok(())
 }
 
-fn get_config_unlocked() -> Result<Config, ConfigError> {
+pub(super) fn get_config_unlocked() -> Result<Config, ConfigError> {
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {
         return Ok(owner_store.load_effective()?);

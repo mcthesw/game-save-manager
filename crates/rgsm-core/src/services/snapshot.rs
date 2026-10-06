@@ -254,7 +254,9 @@ impl ServiceContext {
                         &path_context,
                     )?
                 }
-                ArchiveVersion::V4 => unreachable!("Archive V4 uses the 7z backend"),
+                ArchiveVersion::V4 | ArchiveVersion::V5 => {
+                    unreachable!("Archive V4 uses the 7z backend")
+                }
             }
         };
 
@@ -306,7 +308,9 @@ impl ServiceContext {
                     )?;
                     Ok(())
                 }
-                ArchiveVersion::V4 => unreachable!("Archive V4 uses the 7z backend"),
+                ArchiveVersion::V4 | ArchiveVersion::V5 => {
+                    unreachable!("Archive V4 uses the 7z backend")
+                }
             }
         }
     }
@@ -364,11 +368,15 @@ impl ServiceContext {
                 .get(&unit.id)
                 .and_then(|report| report.candidates.first())
                 .and_then(|candidate| candidate.exact_target_path());
+            let exact_target = target.is_some();
             let target_type_matches = target.is_none_or(|path| {
                 (!path.is_file() || group.kind == CaptureSourceKind::File)
                     && (!path.is_dir() || group.kind == CaptureSourceKind::Directory)
             });
-            if groups.next().is_some() || !declared_type_matches || !target_type_matches {
+            if (exact_target && groups.next().is_some())
+                || !declared_type_matches
+                || !target_type_matches
+            {
                 return Err(crate::backup::RestorePlanError::OverrideIncompatible {
                     save_unit_id: unit.id,
                 }

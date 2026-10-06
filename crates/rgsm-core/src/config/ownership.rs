@@ -353,6 +353,7 @@ impl ConfigurationOwners {
                         id: device_id.clone(),
                         name: device_id.clone(),
                         resources: Vec::new(),
+                        path_variables: Default::default(),
                         next_resource_id: 0,
                     });
                 let games = config

@@ -278,6 +278,15 @@ pub(crate) fn compress_capture_plan_to_file(
     preset: CompressionPreset,
     source_fingerprint: Option<String>,
 ) -> Result<u64, CompressError> {
+    if plan
+        .groups
+        .iter()
+        .any(|group| group.relative_expression.is_some())
+    {
+        return Err(CompressError::Unexpected(anyhow::anyhow!(
+            "Portable variable paths require Archive V5 (7z)"
+        )));
+    }
     let temp_path = zip_path.with_extension("zip.capture.tmp");
     let result = write_capture_plan_archive(plan, &temp_path, preset, source_fingerprint);
     let size = match result {
@@ -376,6 +385,7 @@ mod capture_plan_tests {
         let archive = temp.path().join("snapshot.zip");
         let plan = CapturePlan {
             groups: vec![CaptureGroup {
+                relative_expression: None,
                 id: 0,
                 save_unit_id: 7,
                 candidate_id: "platform".to_string(),
@@ -421,6 +431,7 @@ mod capture_plan_tests {
         let archive = temp.path().join("snapshot.zip");
         let plan = CapturePlan {
             groups: vec![CaptureGroup {
+                relative_expression: None,
                 id: 0,
                 save_unit_id: 1,
                 candidate_id: "missing".to_string(),

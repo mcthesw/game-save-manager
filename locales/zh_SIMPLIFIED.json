@@ -1341,5 +1341,29 @@
         "import_from": "从其他设备导入路径",
         "select_device": "选择设备",
         "import_success": "路径导入成功"
-    }
+    },
+  "path_variables": {
+    "title": "路径变量",
+    "add": "添加变量",
+    "name": "变量名称",
+    "name_hint": "例如：saveAccount",
+    "inherited": "设备默认值",
+    "edit_default": "修改设备默认值",
+    "value": "{name} 的值",
+    "reset": "恢复设备默认值",
+    "insert": "插入路径",
+    "affected": "还会影响 {count} 个使用设备默认值的游戏",
+    "missing": "请设置 {name} 的值。",
+    "invalid_value": "路径变量 {name} 无效。名称只能包含字母、数字、下划线或连字符，值须为非空的具体名称或路径。",
+    "changed": "设备默认变量 {name} 已被修改，请重新打开游戏编辑界面并检查。",
+    "game_value": "仅本游戏",
+    "default_pending": "设备默认值 · 已修改",
+    "unset": "未设置",
+    "undo_default": "撤销默认值修改",
+    "edit_hint": "在此修改变量值，仅对本游戏生效。",
+    "actions": "{name} 的操作",
+    "default_description": "用于 {device} 上未单独设置该变量的游戏，随游戏配置一起保存。",
+    "override_kept": "本游戏仍使用单独设置的值。",
+    "use_change": "使用此值"
+  }
 }

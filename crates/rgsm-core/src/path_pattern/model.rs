@@ -204,6 +204,7 @@ impl ManifestPathConstraints {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedManifestPathPattern {
+    pub variables: Vec<String>,
     pub pattern: ManifestPathPattern,
     pub placeholders: Vec<PathPlaceholder>,
 }

@@ -123,6 +123,7 @@ fn read_v2_capture_manifest(
                 CaptureSourceKind::File
             };
             Some(ArchiveCaptureGroup {
+                relative_expression: None,
                 id: 0,
                 save_unit_id,
                 candidate_id: "legacy-v2".to_string(),
@@ -759,6 +760,7 @@ mod tests {
                     candidate_id: "root".to_string(),
                 },
                 candidates: vec![CandidateExpression {
+                    variable_pattern: None,
                     id: "root".to_string(),
                     expression,
                     logical_anchor: target.parent().unwrap().to_string_lossy().into_owned(),
@@ -792,6 +794,7 @@ mod tests {
         fs::write(&source, b"captured").unwrap();
         let capture = CapturePlan {
             groups: vec![CaptureGroup {
+                relative_expression: None,
                 id: 0,
                 save_unit_id: 4,
                 candidate_id: "source".to_string(),
@@ -872,6 +875,7 @@ mod tests {
         let archive = temp.path().join("snapshot.zip");
         let capture = CapturePlan {
             groups: vec![CaptureGroup {
+                relative_expression: None,
                 id: 0,
                 save_unit_id: 1,
                 candidate_id: "source".into(),

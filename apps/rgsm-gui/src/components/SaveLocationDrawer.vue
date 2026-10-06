@@ -16,6 +16,8 @@ import { useConfig } from '../composables/useConfig';
 import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import PathVariableInput from './PathVariableInput.vue';
 import SaveUnitPathInput from './SaveUnitPathInput.vue';
+import PathVariablesEditor from './PathVariablesEditor.vue';
+import { providePathVariableDraft, type VariableEdits } from '../composables/usePathVariableDraft';
 import GameLocationSelection from './GameLocationSelection.vue';
 import { saveUnitPaths, saveUnitType, escapePathLiteral } from '../utils/saveUnit';
 import { hasGameNameConflict } from '../utils/gameName';
@@ -33,7 +35,7 @@ const props = defineProps<{
 const emits = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
   (event: 'closed'): void;
-  (event: 'saveChanges', game: Game): void;
+  (event: 'saveChanges', game: Game, variables: VariableEdits): void;
 }>();
 
 const open = computed({
@@ -60,6 +62,19 @@ const hasUnsavedChanges = ref(false);
 const selectedDevice = computed(() =>
   availableDevices.value.find((device) => device.id === selectedDeviceId.value)
 );
+const selectedBinding = computed(() => tempGame.value.device_bindings?.[selectedDeviceId.value]);
+const variables = providePathVariableDraft(selectedDevice, selectedBinding);
+watch(
+  variables.edits,
+  () => {
+    hasUnsavedChanges.value = true;
+  },
+  { deep: true, flush: 'sync' }
+);
+const variablePaths = computed(() => [
+  getGameLaunchPath(selectedDeviceId.value),
+  ...tempGame.value.save_paths.map((unit) => getDevicePath(unit, selectedDeviceId.value)),
+]);
 const selectedDeviceResources = computed(() => selectedDevice.value?.resources ?? []);
 const savedRestoreMappings = computed(
   () => tempGame.value.device_bindings?.[selectedDeviceId.value]?.restoreMappings ?? []
@@ -128,7 +143,7 @@ function syncAvailableDevices(game: Game) {
   const deviceMap = getDevicesFromConfig();
   availableDevices.value = Array.from(deviceIds).map((id) => {
     if (currentDevice.value && id === currentDevice.value.id) {
-      return currentDevice.value;
+      return deviceMap.get(id) ?? currentDevice.value;
     }
 
     return (
@@ -160,6 +175,7 @@ function syncAvailableDevices(game: Game) {
 }
 
 function initTempGame() {
+  variables.reset();
   tempGame.value = JSON.parse(JSON.stringify(props.game));
   hasUnsavedChanges.value = false;
   syncAvailableDevices(tempGame.value);
@@ -273,13 +289,18 @@ function notifyOpenPathWarning(warning: OpenPathWarning) {
   }
 }
 
-async function openManagedPath(path: string) {
+async function openManagedPath(path: string, pattern = false) {
   if (!path.trim()) {
     return;
   }
 
   try {
-    const result = await commands.openFileOrFolder(path, tempGame.value);
+    const result = await commands.openFileOrFolder(
+      path,
+      tempGame.value,
+      pattern,
+      variables.edits.value
+    );
     if (result.status === 'error') {
       notifyError($t('error.open_path_failed'), result.error);
       return;
@@ -315,10 +336,15 @@ async function saveChanges() {
     await warnUnavailableLocations(
       tempGame.value.save_paths,
       currentDevice.value.id,
-      tempGame.value
+      tempGame.value,
+      variables.edits.value
     );
   }
-  emits('saveChanges', JSON.parse(JSON.stringify(tempGame.value)));
+  emits(
+    'saveChanges',
+    JSON.parse(JSON.stringify(tempGame.value)),
+    JSON.parse(JSON.stringify(variables.edits.value))
+  );
   hasUnsavedChanges.value = false;
 }
 
@@ -493,11 +519,11 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
     const normalized = path.replace(/\\/g, '/');
     const idx = normalized.lastIndexOf('/');
     const parent = idx > -1 ? normalized.substring(0, idx) : normalized;
-    await openManagedPath(parent);
+    await openManagedPath(parent, true);
     return;
   }
 
-  await openManagedPath(path);
+  await openManagedPath(path, !!unit);
 }
 </script>
 
@@ -707,6 +733,16 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
       <div v-else class="py-6 text-center text-sm text-text-dim">
         {{ $t('save_location_drawer.no_active_paths') }}
       </div>
+
+      <PathVariablesEditor
+        v-if="selectedDevice && selectedDeviceId === currentDevice?.id"
+        :device="selectedDevice"
+        :binding="selectedBinding"
+        :paths="variablePaths"
+        :games="config.games"
+        :game-key="tempGame.storage_key"
+        @update:binding="updateBinding"
+      />
 
       <!-- Disabled save units -->
       <template v-if="disabledSaveUnits.length > 0">

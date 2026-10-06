@@ -1,6 +1,6 @@
 pub(crate) mod context;
 mod matcher;
-mod model;
+pub(crate) mod model;
 mod planner;
 
 pub use matcher::{MatchError, match_resolution_plan};

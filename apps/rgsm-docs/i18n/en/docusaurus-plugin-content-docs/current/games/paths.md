@@ -43,3 +43,20 @@ The override affects only the selected device and preserves the original pattern
 An override changes only the path, preserving the file or folder type. Multiple captured locations for one save entry cannot be merged into a single override location.
 
 Name your devices in **Settings → Device Management**. To reuse another device's paths, click its **Import Paths** action. Confirming replaces the corresponding path settings on this device.
+
+## Typed paths, globs, and device variables
+
+**Add save file / folder** appends an editable row. Use **Choose path** on its right to open a picker. Typed paths, dynamic paths, and device overrides share the same expression syntax.
+
+A glob such as `D:/Saves/*/SaveGames` captures every matching directory and preserves their relative locations. It does not identify different directories as the same logical save. Opening a glob opens its containing root.
+
+Configure **Path variables** while adding or editing a game, then reference them as `<var:name>`, for example `<var:saveRoot>/MyGame/<var:account>/*.sav`.
+
+- Editing a value changes only this game on the current device. Each field shows its value source.
+- Choose **Edit device default** from the variable's **⋯** menu to review affected games and edit the shared value. Existing game overrides are preserved.
+- **Use device default** clears a game override; **Discard default change** discards only the pending shared edit.
+- Cancel discards edits; Save persists the variables and game together.
+
+Set the same variable names to the appropriate values on another device. Restore uses the target device's values while retaining distinct glob matches. Values are literal text or paths; nested variables and scripts are unsupported, and glob characters inside values are treated literally. Referenced variables must have values.
+
+Variables after a glob require Archive V5 relocation metadata in new backups. These backups require a V5-capable application to restore. Existing archives remain readable, but old directory names are not automatically interpreted as variables.

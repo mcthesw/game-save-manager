@@ -19,6 +19,7 @@ pub enum CaptureSourceKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureGroup {
+    pub relative_expression: Option<String>,
     pub id: u32,
     pub save_unit_id: u32,
     pub candidate_id: String,
@@ -53,6 +54,8 @@ pub struct CapturePreflightFailure {
 
 #[derive(Debug, Error)]
 pub enum CapturePlanError {
+    #[error("{0}")]
+    VariableExpression(String),
     #[error("capture preflight failed for {count} save unit(s)", count = .0.len())]
     Blocking(Vec<CapturePreflightFailure>),
     #[error("no enabled save data currently matches")]
@@ -96,7 +99,25 @@ impl CapturePlan {
                 };
                 let id = groups.len() as u32;
                 let archive_path = archive_path(input.save_unit_id, id, &source_path, kind);
+                let relative_expression = input
+                    .report
+                    .candidates
+                    .iter()
+                    .find(|c| c.id == location.candidate_id)
+                    .and_then(|c| c.variable_pattern.as_ref().map(|p| (p, c.case_sensitive)))
+                    .map(|(pattern, sensitive)| {
+                        crate::path_variables::capture_relative_expression(
+                            pattern,
+                            &location.path,
+                            &location.logical_anchor,
+                            sensitive,
+                        )
+                    })
+                    .transpose()
+                    .map_err(CapturePlanError::VariableExpression)?
+                    .flatten();
                 groups.push(CaptureGroup {
+                    relative_expression,
                     id,
                     save_unit_id: input.save_unit_id,
                     candidate_id: location.candidate_id,
@@ -212,6 +233,7 @@ mod tests {
                 candidate_id: "platform".to_string(),
             },
             candidates: vec![CandidateExpression {
+                variable_pattern: None,
                 id: "platform".to_string(),
                 expression: "C:/Users/Player/**/*.sav".to_string(),
                 logical_anchor: "C:/Users/Player".to_string(),

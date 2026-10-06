@@ -26,6 +26,8 @@ pub struct RestorePlan {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RestorePlanError {
+    #[error("{0}")]
+    VariableExpression(String),
     #[error("{}", rust_i18n::t!("path_variable.override_incompatible", unit = save_unit_id))]
     OverrideIncompatible { save_unit_id: u32 },
     #[error("restore mapping is required for save unit {save_unit_id}, capture group {group_id}")]
@@ -83,7 +85,22 @@ impl RestorePlan {
                             }
                         })?
                     } else {
-                        PathBuf::from(&candidate.logical_anchor).join(&group.relative_path)
+                        let relative = if let Some(expression) = &group.relative_expression {
+                            let values = candidate
+                                .variable_pattern
+                                .as_ref()
+                                .map(|p| &p.values)
+                                .ok_or_else(|| {
+                                    RestorePlanError::VariableExpression(
+                                        "target variable bindings are unavailable".into(),
+                                    )
+                                })?;
+                            crate::path_variables::restore_relative_expression(expression, values)
+                                .map_err(RestorePlanError::VariableExpression)?
+                        } else {
+                            PathBuf::from(&group.relative_path)
+                        };
+                        PathBuf::from(&candidate.logical_anchor).join(relative)
                     },
                     kind: group.kind,
                     delete_before_apply: group.delete_before_apply,
@@ -201,6 +218,7 @@ mod tests {
 
     fn group() -> ArchiveCaptureGroup {
         ArchiveCaptureGroup {
+            relative_expression: None,
             id: 2,
             save_unit_id: 7,
             candidate_id: "source".to_string(),
@@ -228,6 +246,7 @@ mod tests {
             candidates: candidate_ids
                 .iter()
                 .map(|(id, anchor)| CandidateExpression {
+                    variable_pattern: None,
                     id: (*id).to_string(),
                     expression: format!("{anchor}/Saves/game.dat"),
                     logical_anchor: (*anchor).to_string(),
@@ -380,6 +399,7 @@ mod tests {
                     candidate_id: "home".to_string(),
                 },
                 candidates: vec![CandidateExpression {
+                    variable_pattern: None,
                     id: "home".to_string(),
                     expression: "C:/Users/Player/Saved".to_string(),
                     logical_anchor: "C:/Users/Player".to_string(),
@@ -409,6 +429,7 @@ mod tests {
                     candidate_id: "home".to_string(),
                 },
                 candidates: vec![CandidateExpression {
+                    variable_pattern: None,
                     id: "home".to_string(),
                     expression: "C:/Users/Player/*.sav".to_string(),
                     logical_anchor: "C:/Users/Player".to_string(),

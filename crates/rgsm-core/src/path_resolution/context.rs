@@ -65,6 +65,10 @@ pub(crate) fn game_context(
 
     let binding = device.and_then(|device| game.device_bindings.get(&device.id));
     ResolutionContext {
+        variables: crate::path_variables::effective(
+            &device.map(|d| d.path_variables.clone()).unwrap_or_default(),
+            binding.map(|b| &b.path_variables),
+        ),
         platform: PlatformKind::host(),
         platform_paths: host_platform_paths(),
         roots,

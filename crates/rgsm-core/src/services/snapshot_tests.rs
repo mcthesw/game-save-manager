@@ -7,6 +7,7 @@ use crate::path_resolution::CandidateDimensions;
 
 fn legacy_v2_group(kind: CaptureSourceKind) -> ArchiveCaptureGroup {
     ArchiveCaptureGroup {
+        relative_expression: None,
         id: 0,
         save_unit_id: 12,
         candidate_id: "legacy-v2".to_string(),
