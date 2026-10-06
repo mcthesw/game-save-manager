@@ -51,5 +51,6 @@ pnpm web:typecheck
 
 ## Documentation
 
+- New or updated documentation images must be referenced by repository documentation; PR-only screenshots stay out of the repository.
 - Keep root READMEs focused on users. Put app-specific usage and contributor notes under the relevant app.
 - Keep documentation practical and concise. Mark OpenSpec tasks complete only after implementation and verification.
