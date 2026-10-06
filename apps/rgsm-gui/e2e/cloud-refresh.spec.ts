@@ -136,7 +136,7 @@ for (const editor of ['managed files', 'auto-save settings'] as const) {
         await expect
           .poll(async () => {
             const unit = (await getLocalGame(host, GAME_NAME)).save_paths[0];
-            return unit.source.type === 'concrete' ? unit.source.paths[DEVICE_A_ID] : null;
+            return unit.source.type === 'devicePaths' ? unit.source.paths[DEVICE_A_ID] : null;
           })
           .toBe(changedPath);
       } else {

@@ -14,7 +14,7 @@ export function concreteSaveUnit(
 ): SaveUnitDraft {
   return {
     ...options,
-    source: { type: 'concrete', unit_type: unitType, paths },
+    source: { type: 'devicePaths', unit_type: unitType, paths },
   };
 }
 
@@ -30,15 +30,20 @@ export function manifestSaveUnit(
 }
 
 export function saveUnitPaths(unit: Unit): Partial<Record<string, string>> | undefined {
-  return unit.source.type === 'concrete' ? unit.source.paths : undefined;
+  return unit.source.type === 'devicePaths' ? unit.source.paths : undefined;
 }
 
 export function saveUnitType(unit: Unit): SaveUnitType | undefined {
-  return unit.source.type === 'concrete'
+  return unit.source.type === 'devicePaths'
     ? unit.source.unit_type
     : (unit.source.expected_type ?? undefined);
 }
 
 export function saveUnitPattern(unit: Unit): string | undefined {
   return unit.source.type === 'manifestPattern' ? unit.source.pattern : undefined;
+}
+
+/** A picker returns a literal filesystem path, not a glob expression. */
+export function escapePathLiteral(path: string): string {
+  return path.replace(/\\/g, '/').replace(/[?*[\]{}]/g, (char) => `[${char}]`);
 }

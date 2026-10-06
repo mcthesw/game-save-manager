@@ -42,7 +42,7 @@ test('registry Apply follows the edited target; a missing target is saved with a
     await expect
       .poll(async () => {
         const unit = (await getLocalGame(host, GAME_NAME)).save_paths[0];
-        return unit?.source.type === 'concrete' ? unit.source.paths[DEVICE_A_ID] : undefined;
+        return unit?.source.type === 'devicePaths' ? unit.source.paths[DEVICE_A_ID] : undefined;
       })
       .toBe(target);
     await snapshotRow(page, snapshot).getByRole('button', { name: 'Apply' }).click();

@@ -19,7 +19,7 @@ export type LocalGame = {
     delete_before_apply: boolean;
     enabled: boolean;
     source:
-      | { type: 'concrete'; unit_type: string; paths: Record<string, string> }
+      | { type: 'devicePaths'; unit_type: string; paths: Record<string, string> }
       | { type: 'manifestPattern'; pattern: string };
   }>;
   game_paths?: Record<string, string>;
@@ -50,7 +50,7 @@ export async function addGameViaApi(
         delete_before_apply: unit.deleteBeforeApply ?? false,
         enabled: unit.enabled ?? true,
         source: {
-          type: 'concrete',
+          type: 'devicePaths',
           unit_type: unit.type,
           paths: { [DEVICE_A_ID]: unit.path.replaceAll('\\', '/') },
         },

@@ -2,6 +2,7 @@
 import type { Game, SavePathOverride, SaveUnit } from '../api/commands';
 import { $t } from '../i18n';
 import PathVariableInput from './PathVariableInput.vue';
+import { saveUnitType } from '../utils/saveUnit';
 import { KSwitch } from '../ui/kit';
 
 defineProps<{
@@ -16,7 +17,7 @@ const emit = defineEmits<{
   'update:overrideValue': [value: SavePathOverride | undefined];
 }>();
 function setOverride(enabled: boolean) {
-  emit('update:overrideValue', enabled === true ? { path: '' } : undefined);
+  emit('update:overrideValue', enabled === true ? { expression: '' } : undefined);
 }
 </script>
 
@@ -28,11 +29,13 @@ function setOverride(enabled: boolean) {
     </div>
     <PathVariableInput
       :game="game"
-      :pattern="unit.source.type === 'manifestPattern' && !overrideValue"
+      :pattern="saveUnitType(unit) !== 'WinRegistry'"
       :model-value="modelValue"
       :status-mode="local ? 'tooltip' : 'none'"
       @update:model-value="emit('update:modelValue', String($event ?? ''))"
-    />
+    >
+      <template #append><slot name="browse" /></template>
+    </PathVariableInput>
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
         <slot name="options" />

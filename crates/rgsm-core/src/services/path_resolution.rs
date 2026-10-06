@@ -48,34 +48,34 @@ impl ServiceContext {
             crate::path_resolver::resolve_path_explicit(path, Some(&context))?;
         }
         for unit in game.save_paths.iter().filter(|unit| unit.enabled) {
-            match &unit.source {
-                SaveUnitSource::Concrete { paths, .. } => {
-                    if let Some(path) = paths.get(device_id) {
-                        crate::path_resolver::resolve_path_explicit(path, Some(&context))?;
-                    }
-                }
-                SaveUnitSource::ManifestPattern { constraints, .. } => {
-                    let has_override = game.path_override(unit.id, device_id).is_some();
-                    if !has_override
-                        && !constraints.allows_platform(crate::path_pattern::PlatformKind::host())
-                    {
-                        continue;
-                    }
-                    let report = self.resolve_save_unit_for_restore(config, game, unit);
-                    if matches!(
-                        report.selection_state,
-                        ResolutionSelectionState::Ambiguous { .. }
-                            | ResolutionSelectionState::StaleSelection { .. }
-                    ) || (has_override
-                        && matches!(report.selection_state, ResolutionSelectionState::Missing))
-                    {
-                        anyhow::bail!(
-                            "{}: {}",
-                            report.raw_pattern,
-                            crate::path_resolution::selection_error(&report.selection_state)
-                        );
-                    }
-                }
+            if let Some(local) = game.path_override(unit.id, device_id)
+                && (local.path.trim().is_empty()
+                    || unit.unit_type() == Some(&SaveUnitType::WinRegistry))
+            {
+                anyhow::bail!("{}", rust_i18n::t!("path_variable.invalid_override"));
+            }
+            let report = self.resolve_save_unit_for_restore(config, game, unit);
+            if matches!(
+                report.selection_state,
+                ResolutionSelectionState::Ambiguous { .. }
+                    | ResolutionSelectionState::StaleSelection { .. }
+            ) || report.diagnostics.iter().any(|diagnostic| {
+                matches!(
+                    diagnostic.kind,
+                    ResolutionDiagnosticKind::InvalidGlob
+                        | ResolutionDiagnosticKind::UnknownPlaceholder
+                )
+            }) {
+                anyhow::bail!(
+                    "{}: {}",
+                    report.raw_pattern,
+                    report
+                        .diagnostics
+                        .iter()
+                        .map(|d| d.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                );
             }
         }
         Ok(())
@@ -291,9 +291,8 @@ impl ServiceContext {
         purpose: ResolutionPurpose,
     ) -> ResolutionReport {
         let device_id = get_current_device_id();
-        if matches!(save_unit.source, SaveUnitSource::ManifestPattern { .. })
-            && let Some(path) = game.path_override(save_unit.id, device_id)
-        {
+        let override_path = game.path_override(save_unit.id, device_id);
+        let (path, constraints) = if let Some(path) = override_path {
             if path.path.trim().is_empty()
                 || save_unit.unit_type() == Some(&SaveUnitType::WinRegistry)
             {
@@ -302,58 +301,71 @@ impl ServiceContext {
                     &rust_i18n::t!("path_variable.invalid_override"),
                 );
             }
+            (Some(path.path.as_str()), Default::default())
+        } else {
+            match &save_unit.source {
+                SaveUnitSource::Concrete { paths, .. } => {
+                    (paths.get(device_id).map(String::as_str), Default::default())
+                }
+                SaveUnitSource::ManifestPattern {
+                    pattern,
+                    constraints,
+                    ..
+                } => (Some(pattern.raw()), constraints.clone()),
+            }
+        };
+        let Some(path) = path else {
+            return blocked_report(
+                "",
+                "this save location is not configured for the current device",
+            );
+        };
+        if save_unit.unit_type() == Some(&SaveUnitType::WinRegistry) {
             return resolve_concrete(
-                Some(&path.path),
+                Some(&path.to_string()),
                 save_unit.unit_type(),
                 Some(&game.path_context(config.devices.get(device_id))),
                 purpose,
             );
         }
-        match &save_unit.source {
-            SaveUnitSource::Concrete { unit_type, paths } => {
-                let path_context = game.path_context(config.devices.get(device_id));
-                resolve_concrete(
-                    paths.get(device_id),
-                    Some(unit_type),
-                    Some(&path_context),
-                    purpose,
-                )
+        let context = game_context(game, config.devices.get(device_id));
+        let parsed = match parse_manifest_path_pattern(path) {
+            Ok(parsed) => parsed,
+            Err(error) => return invalid_pattern_report(path, error),
+        };
+        let plan = plan_resolution(&parsed, constraints, &context);
+        let mut report = if purpose == ResolutionPurpose::Restore {
+            ResolutionReport {
+                raw_pattern: path.to_string(),
+                selection_state: plan.selection_state,
+                candidates: plan.candidates,
+                locations: Vec::new(),
+                diagnostics: plan.diagnostics,
             }
-            SaveUnitSource::ManifestPattern {
-                pattern,
-                constraints,
-                ..
-            } => {
-                let context = game_context(game, config.devices.get(device_id));
-                let parsed = match parse_manifest_path_pattern(pattern.raw()) {
-                    Ok(parsed) => parsed,
-                    Err(error) => return invalid_pattern_report(pattern.raw(), error),
-                };
-                let plan = plan_resolution(&parsed, constraints.clone(), &context);
-                if purpose == ResolutionPurpose::Restore {
-                    return ResolutionReport {
-                        raw_pattern: pattern.raw().to_string(),
-                        selection_state: plan.selection_state,
-                        candidates: plan.candidates,
-                        locations: Vec::new(),
-                        diagnostics: plan.diagnostics,
-                    };
-                }
-                match match_resolution_plan(&plan) {
-                    Ok(report) => report,
-                    Err(error) => ResolutionReport {
-                        raw_pattern: pattern.raw().to_string(),
-                        selection_state: plan.selection_state,
-                        candidates: plan.candidates,
-                        locations: Vec::new(),
-                        diagnostics: vec![ResolutionDiagnostic {
-                            kind: ResolutionDiagnosticKind::InvalidGlob,
-                            message: error.to_string(),
-                        }],
-                    },
-                }
+        } else {
+            match match_resolution_plan(&plan) {
+                Ok(report) => report,
+                Err(error) => return blocked_report(path, &error.to_string()),
             }
+        };
+        report
+            .locations
+            .retain(|location| match save_unit.unit_type() {
+                Some(SaveUnitType::File) => location.kind == ResolvedLocationKind::File,
+                Some(SaveUnitType::Folder) => location.kind == ResolvedLocationKind::Directory,
+                _ => true,
+            });
+        // Explicit device paths are required backup inputs. Manifest entries may
+        // be optional, but a local override is an explicit replacement, too.
+        if purpose == ResolutionPurpose::Capture
+            && report.locations.is_empty()
+            && !report.candidates.is_empty()
+            && (override_path.is_some()
+                || matches!(save_unit.source, SaveUnitSource::Concrete { .. }))
+        {
+            return blocked_report(path, "the configured save location is unavailable");
         }
+        report
     }
 }
 
