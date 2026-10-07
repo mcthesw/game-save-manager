@@ -1524,6 +1524,10 @@ export type Snapshot = {
    */
   archive_hash?: string | null;
   /**
+   * Immutable basename, independent of Snapshot identity and local directory.
+   */
+  archive_name?: string | null;
+  /**
    * Original creation time in Unix milliseconds; absent in historical catalogs.
    */
   created_at?: number | null;

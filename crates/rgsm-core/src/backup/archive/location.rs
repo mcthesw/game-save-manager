@@ -2,15 +2,29 @@ use std::path::{Path, PathBuf};
 
 use crate::backup::{ArchiveFormat, Snapshot};
 
-pub fn archive_file_name(date: &str, format: ArchiveFormat) -> String {
-    format!("{date}.{}", format.extension())
+pub fn archive_file_name(date: &str, format: ArchiveFormat, name: Option<&str>) -> String {
+    name.map(str::to_string)
+        .unwrap_or_else(|| format!("{date}.{}", format.extension()))
 }
 
-pub fn archive_path(game_dir: &Path, date: &str, format: ArchiveFormat) -> PathBuf {
-    game_dir.join(archive_file_name(date, format))
+pub fn archive_path(
+    game_dir: &Path,
+    date: &str,
+    format: ArchiveFormat,
+    name: Option<&str>,
+) -> PathBuf {
+    game_dir.join(archive_file_name(date, format, name))
 }
 
 pub fn snapshot_archive_path(game_dir: &Path, snapshot: &Snapshot) -> PathBuf {
+    if snapshot.archive_name.is_some() {
+        return archive_path(
+            game_dir,
+            &snapshot.date,
+            snapshot.archive_format,
+            snapshot.archive_name.as_deref(),
+        );
+    }
     let persisted = PathBuf::from(&snapshot.path);
     let persisted_matches_format = persisted
         .extension()
@@ -21,13 +35,23 @@ pub fn snapshot_archive_path(game_dir: &Path, snapshot: &Snapshot) -> PathBuf {
     if !snapshot.path.is_empty() && persisted_matches_format && persisted.exists() {
         return persisted;
     }
-    archive_path(game_dir, &snapshot.date, snapshot.archive_format)
+    archive_path(
+        game_dir,
+        &snapshot.date,
+        snapshot.archive_format,
+        snapshot.archive_name.as_deref(),
+    )
 }
 
-pub fn remote_archive_path(storage_key: &str, date: &str, format: ArchiveFormat) -> PathBuf {
+pub fn remote_archive_path(
+    storage_key: &str,
+    date: &str,
+    format: ArchiveFormat,
+    name: Option<&str>,
+) -> PathBuf {
     PathBuf::from("save_data")
         .join(storage_key)
-        .join(archive_file_name(date, format))
+        .join(archive_file_name(date, format, name))
 }
 
 #[cfg(test)]
@@ -40,6 +64,7 @@ mod tests {
             date: "2026-07-13T00-00-00".into(),
             describe: String::new(),
             path: String::new(),
+            archive_name: None,
             archive_format: format,
             size: 0,
             parent: None,
@@ -53,11 +78,11 @@ mod tests {
     #[test]
     fn builds_format_specific_names_from_one_owner() {
         assert_eq!(
-            archive_file_name("snapshot", ArchiveFormat::Zip),
+            archive_file_name("snapshot", ArchiveFormat::Zip, None),
             "snapshot.zip"
         );
         assert_eq!(
-            archive_file_name("snapshot", ArchiveFormat::SevenZ),
+            archive_file_name("snapshot", ArchiveFormat::SevenZ, None),
             "snapshot.7z"
         );
     }
@@ -81,7 +106,7 @@ mod tests {
     #[test]
     fn remote_path_uses_declared_format() {
         assert_eq!(
-            remote_archive_path("game", "snapshot", ArchiveFormat::SevenZ),
+            remote_archive_path("game", "snapshot", ArchiveFormat::SevenZ, None),
             Path::new("save_data").join("game").join("snapshot.7z")
         );
     }

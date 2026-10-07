@@ -193,6 +193,7 @@ mod tests {
             date: id.into(),
             describe: id.into(),
             path: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::Zip,
             size: 0,
             parent: parent.map(str::to_string),
@@ -227,12 +228,12 @@ mod tests {
         let game_root = archive_root.join("game");
         std::fs::create_dir_all(&game_root).unwrap();
         std::fs::write(
-            archive_path(&game_root, "root", ArchiveFormat::Zip),
+            archive_path(&game_root, "root", ArchiveFormat::Zip, None),
             b"root",
         )
         .unwrap();
         std::fs::write(
-            archive_path(&game_root, "local", ArchiveFormat::Zip),
+            archive_path(&game_root, "local", ArchiveFormat::Zip, None),
             b"local",
         )
         .unwrap();
@@ -284,7 +285,7 @@ mod tests {
         ));
         assert!(
             !operator
-                .exists(&cloud_archive_path("game", "local", ArchiveFormat::Zip).unwrap())
+                .exists(&cloud_archive_path("game", "local", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .unwrap()
         );
@@ -313,6 +314,7 @@ mod tests {
             &resolver.local_archive_root.join("game"),
             "local",
             ArchiveFormat::Zip,
+            None,
         ))
         .unwrap();
 

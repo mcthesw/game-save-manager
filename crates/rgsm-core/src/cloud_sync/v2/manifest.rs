@@ -92,6 +92,7 @@ impl GameManifest {
                 archive_root,
                 &node.snapshot_id,
                 node.archive_format,
+                node.archive_name.as_deref(),
             )) {
                 lineage.push(snapshot);
             }
@@ -385,6 +386,13 @@ pub struct SnapshotNode {
     pub description: String,
     #[serde(default)]
     pub archive_format: ArchiveFormat,
+    /// Immutable basename, independent of Snapshot identity and local directory.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::backup::deserialize_archive_name"
+    )]
+    pub archive_name: Option<String>,
     pub state: SnapshotState,
 }
 
@@ -405,6 +413,7 @@ impl SnapshotNode {
         };
         node.description = snapshot.describe.clone();
         node.archive_format = snapshot.archive_format;
+        node.archive_name = snapshot.archive_name.clone();
         node.created_at = snapshot.created_at;
         node.device_id = snapshot.device_id.clone();
         node
@@ -418,6 +427,7 @@ impl SnapshotNode {
             date: self.snapshot_id.clone(),
             describe: self.description.clone(),
             path: path.to_string_lossy().into_owned(),
+            archive_name: self.archive_name.clone(),
             archive_format: self.archive_format,
             size: live.integrity.as_ref().map_or(0, |value| value.size),
             parent: self.parent.clone(),
@@ -441,6 +451,7 @@ impl SnapshotNode {
             device_id: None,
             catalog_revision: 0,
             description: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::default(),
             state: SnapshotState::Live(LiveSnapshot {
                 integrity: Some(integrity),
@@ -464,6 +475,7 @@ impl SnapshotNode {
             device_id: None,
             catalog_revision: 0,
             description: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::default(),
             state: SnapshotState::Live(LiveSnapshot {
                 integrity: None,

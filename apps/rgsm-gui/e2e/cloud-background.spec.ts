@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
-import { cloudArchivePath, cloudPaths } from './support/cloud-assertions';
+import { cloudArchivePath, cloudPaths, localArchivePath } from './support/cloud-assertions';
 import { enableMode, createSnapshotViaApi, latestSnapshotId } from './support/gui';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { STORAGE_KEY } from './support/constants';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import { startDualSession } from './support/session';
 import { startJoinCodeWebDav } from './support/join-code-webdav';
@@ -134,7 +135,10 @@ test('manual refresh finishes pending archive synchronization after an offline f
         session.pageA.evaluate(() => (window as Window & { syncFailed?: boolean }).syncFailed)
       )
       .toBe(true);
-    expect(existsSync(cloudArchivePath(scene.cloudRoot, id))).toBe(false);
+    const archiveName = basename(localArchivePath(scene.deviceA.appDataDir, id));
+    expect(existsSync(join(scene.cloudRoot, 'v2', 'archives', STORAGE_KEY, archiveName))).toBe(
+      false
+    );
     await writeFile(manifestPath, saved);
     saved = undefined;
     const refreshed = await hostPost(session.hostA, '/api/v1/refresh-cloud-archive-library');

@@ -115,6 +115,8 @@ struct MaterializationItem {
     game_id: String,
     snapshot_id: String,
     archive_format: ArchiveFormat,
+    #[serde(default, deserialize_with = "crate::backup::deserialize_archive_name")]
+    archive_name: Option<String>,
     integrity: ArchiveIntegrity,
 }
 
@@ -191,7 +193,12 @@ impl CloudArchiveMaterializer {
                 };
                 let local_evidence = classify_local_archive_evidence(
                     live.integrity.as_ref(),
-                    &self.local_path(game_id, &node.snapshot_id, node.archive_format),
+                    &self.local_path(
+                        game_id,
+                        &node.snapshot_id,
+                        node.archive_format,
+                        node.archive_name.as_deref(),
+                    ),
                 );
                 let reported_on_devices = game
                     .local_archives
@@ -355,9 +362,19 @@ impl CloudArchiveMaterializer {
         self.ensure_active(game_id).await?;
         let manifest = self.repository().load().await?;
         let item = manifest_item(&manifest, game_id, snapshot_id, false)?;
-        let local_path = self.local_path(game_id, snapshot_id, item.archive_format);
+        let local_path = self.local_path(
+            game_id,
+            snapshot_id,
+            item.archive_format,
+            item.archive_name.as_deref(),
+        );
         verify_file(item.integrity.clone(), local_path.clone()).await?;
-        let remote_path = cloud_archive_path(game_id, snapshot_id, item.archive_format)?;
+        let remote_path = cloud_archive_path(
+            game_id,
+            snapshot_id,
+            item.archive_format,
+            item.archive_name.as_deref(),
+        )?;
         let verify_path = self.staging_path(&item, "upload-verify");
         let transfer = CloudTransfer::new(&self.operator);
         let mut verified = false;
@@ -656,10 +673,19 @@ impl CloudArchiveMaterializer {
                 item.snapshot_id.clone(),
             ));
         }
-        let remote_path =
-            cloud_archive_path(&item.game_id, &item.snapshot_id, item.archive_format)?;
+        let remote_path = cloud_archive_path(
+            &item.game_id,
+            &item.snapshot_id,
+            item.archive_format,
+            item.archive_name.as_deref(),
+        )?;
         let staging_path = self.staging_path(item, "download");
-        let local_path = self.local_path(&item.game_id, &item.snapshot_id, item.archive_format);
+        let local_path = self.local_path(
+            &item.game_id,
+            &item.snapshot_id,
+            item.archive_format,
+            item.archive_name.as_deref(),
+        );
         CloudTransfer::new(&self.operator)
             .download_file_streaming(&remote_path, &staging_path)
             .await?;
@@ -727,7 +753,12 @@ impl CloudArchiveMaterializer {
                 let local_archive_verified = self.is_locally_reported(game, &node.snapshot_id)
                     && verify_file(
                         integrity.clone(),
-                        self.local_path(&saved.game_id, &node.snapshot_id, node.archive_format),
+                        self.local_path(
+                            &saved.game_id,
+                            &node.snapshot_id,
+                            node.archive_format,
+                            node.archive_name.as_deref(),
+                        ),
                     )
                     .await
                     .is_ok();
@@ -737,6 +768,7 @@ impl CloudArchiveMaterializer {
                 remaining.push(MaterializationItem {
                     game_id: saved.game_id,
                     snapshot_id: node.snapshot_id.clone(),
+                    archive_name: node.archive_name.clone(),
                     archive_format: node.archive_format,
                     integrity: integrity.clone(),
                 });
@@ -758,7 +790,12 @@ impl CloudArchiveMaterializer {
                     let local_archive_verified = self.is_locally_reported(game, &node.snapshot_id)
                         && verify_file(
                             integrity.clone(),
-                            self.local_path(game_id, &node.snapshot_id, node.archive_format),
+                            self.local_path(
+                                game_id,
+                                &node.snapshot_id,
+                                node.archive_format,
+                                node.archive_name.as_deref(),
+                            ),
                         )
                         .await
                         .is_ok();
@@ -774,6 +811,7 @@ impl CloudArchiveMaterializer {
                     remaining.push(MaterializationItem {
                         game_id: game_id.clone(),
                         snapshot_id: node.snapshot_id.clone(),
+                        archive_name: node.archive_name.clone(),
                         archive_format: node.archive_format,
                         integrity: integrity.clone(),
                     });
@@ -847,8 +885,19 @@ impl CloudArchiveMaterializer {
             .is_some_and(|snapshots| snapshots.contains(snapshot_id))
     }
 
-    fn local_path(&self, game_id: &str, snapshot_id: &str, format: ArchiveFormat) -> PathBuf {
-        archive_path(&self.local_archive_root.join(game_id), snapshot_id, format)
+    fn local_path(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        format: ArchiveFormat,
+        name: Option<&str>,
+    ) -> PathBuf {
+        archive_path(
+            &self.local_archive_root.join(game_id),
+            snapshot_id,
+            format,
+            name,
+        )
     }
 
     fn staging_path(&self, item: &MaterializationItem, suffix: &str) -> PathBuf {
@@ -891,6 +940,7 @@ fn manifest_item(
     Ok(MaterializationItem {
         game_id: game_id.to_string(),
         snapshot_id: snapshot_id.to_string(),
+        archive_name: node.archive_name.clone(),
         archive_format: node.archive_format,
         integrity,
     })

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { cloudArchivePath, localArchivePath } from './support/cloud-assertions';
 import { readSave, seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import {
@@ -15,7 +16,7 @@ import {
   uploadSnapshot,
 } from './support/gui';
 import { createSnapshotForGame } from './support/local-gui';
-import { GAME_NAME } from './support/constants';
+import { GAME_NAME, STORAGE_KEY } from './support/constants';
 import { createRunRoot } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
 
@@ -28,6 +29,7 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
     await createLibrary(session.pageA);
     await enableMode(session.pageA, session.hostA, 'Cloud Backup', 'Keep in cloud');
     const snapshotId = await createPublishedSnapshot(session.pageA, session.hostA, 'Keep record');
+    const cloudCopy = cloudArchivePath(seeded.cloudRoot, snapshotId);
     const saves = [await readSave(seeded.deviceA), await readSave(seeded.deviceB)];
     await connectLibrary(session.pageB);
     await openGame(session.pageB);
@@ -46,7 +48,7 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
       .poll(() => existsSync(localArchivePath(seeded.deviceA.appDataDir, snapshotId)))
       .toBe(false);
     expect(existsSync(localArchivePath(seeded.deviceA.appDataDir, snapshotId))).toBe(false);
-    expect(existsSync(cloudArchivePath(seeded.cloudRoot, snapshotId))).toBe(true);
+    expect(existsSync(cloudCopy)).toBe(true);
 
     // Disk removal precedes the page refresh; wait before using the idempotent download helper.
     await expect(
@@ -59,13 +61,20 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
     expect(existsSync(localArchivePath(seeded.deviceB.appDataDir, snapshotId))).toBe(true);
 
     await evictCloudCopy(session.pageA, snapshotId);
-    expect(existsSync(cloudArchivePath(seeded.cloudRoot, snapshotId))).toBe(false);
+    expect(existsSync(cloudCopy)).toBe(false);
     expect(existsSync(localArchivePath(seeded.deviceA.appDataDir, snapshotId))).toBe(true);
 
     // A new automatic upload must not recreate an explicitly removed cloud copy.
     const next = await createSnapshotForGame(session.hostA, GAME_NAME, 'New automatic upload');
-    await expect.poll(() => existsSync(cloudArchivePath(seeded.cloudRoot, next))).toBe(true);
-    expect(existsSync(cloudArchivePath(seeded.cloudRoot, snapshotId))).toBe(false);
+    const nextCloudCopy = join(
+      seeded.cloudRoot,
+      'v2',
+      'archives',
+      STORAGE_KEY,
+      basename(localArchivePath(seeded.deviceA.appDataDir, next))
+    );
+    await expect.poll(() => existsSync(nextCloudCopy)).toBe(true);
+    expect(existsSync(cloudCopy)).toBe(false);
 
     await openGame(session.pageB);
     const download = snapshotRow(session.pageB, snapshotId).getByRole('button', {
@@ -81,7 +90,7 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
 
     await openGame(session.pageA);
     await uploadSnapshot(session.pageA, snapshotId);
-    expect(existsSync(cloudArchivePath(seeded.cloudRoot, snapshotId))).toBe(true);
+    expect(existsSync(cloudCopy)).toBe(true);
     expect([await readSave(seeded.deviceA), await readSave(seeded.deviceB)]).toEqual(saves);
   } catch (error) {
     failed = true;
@@ -101,6 +110,7 @@ test('removing the last known copy warns without deleting history or live saves'
   try {
     await createLibrary(session.pageA);
     const id = await createPublishedSnapshot(session.pageA, session.hostA, 'Last copy');
+    const cloudCopy = cloudArchivePath(seeded.cloudRoot, id);
     const save = await readSave(seeded.deviceA);
     await openGame(session.pageA);
     await evictLocalCopy(session.pageA, id);
@@ -109,10 +119,10 @@ test('removing the last known copy warns without deleting history or live saves'
     await expect(dialog).toContainText('last known copy');
     await expect(dialog).toContainText('Last copy');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
-    expect(existsSync(cloudArchivePath(seeded.cloudRoot, id))).toBe(true);
+    expect(existsSync(cloudCopy)).toBe(true);
     await snapshotRow(session.pageA, id).getByRole('button', { name: 'Remove cloud copy' }).click();
     await dialog.getByRole('button', { name: 'Remove cloud copy' }).click();
-    await expect.poll(() => existsSync(cloudArchivePath(seeded.cloudRoot, id))).toBe(false);
+    await expect.poll(() => existsSync(cloudCopy)).toBe(false);
     await expect(snapshotRow(session.pageA, id)).toBeVisible();
     await expect(
       snapshotRow(session.pageA, id).getByRole('button', { name: 'Apply', exact: true })

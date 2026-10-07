@@ -6,7 +6,7 @@ import { DEVICE_A_ID, GAME_NAME } from './support/constants';
 import { seedLocalConfig, writeSaveText } from './support/local-fixture';
 import { startLocalSession } from './support/local-session';
 import {
-  archiveFileName,
+  localArchivePath,
   expectLocalHead,
   expectSnapshotDates,
   expectSnapshotParent,
@@ -48,7 +48,7 @@ for (const denyCatalogWrite of [false, true]) {
         await expectSnapshotDates(device.appDataDir, [parent, child]);
         await expectLocalHead(device.appDataDir, DEVICE_A_ID, child);
       } else {
-        await rm(join(snapshotsDir, archiveFileName(child)));
+        await rm(localArchivePath(device.appDataDir, child));
       }
 
       await deleteSnapshotViaUi(session.page, child);

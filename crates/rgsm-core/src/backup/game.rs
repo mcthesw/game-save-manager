@@ -5,9 +5,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::backup::{
-    ArchiveFormat, GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft, archive_file_name,
-};
+use crate::backup::{GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft};
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::DeviceId;
 use crate::path_pattern::StoreKind;
@@ -442,6 +440,7 @@ impl Game {
             self.backup_dir_name().as_ref(),
             date,
             deleted.archive_format,
+            deleted.archive_name.as_deref(),
         )
         .to_string_lossy()
         .replace('\\', "/");
@@ -556,6 +555,7 @@ impl Game {
                     self.backup_dir_name().as_ref(),
                     date,
                     snapshot.archive_format,
+                    snapshot.archive_name.as_deref(),
                 )
                 .to_string_lossy()
                 .replace('\\', "/"),
@@ -660,30 +660,4 @@ fn remove_snapshot_archive(path: &Path) -> std::io::Result<()> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         result => result,
     }
-}
-
-pub(crate) fn unused_snapshot_id(
-    backup_path: &Path,
-    infos: &GameSnapshots,
-) -> Result<String, BackupError> {
-    let taken: HashSet<&str> = infos
-        .backups
-        .iter()
-        .map(|snapshot| snapshot.date.as_str())
-        .collect();
-    for _ in 0..3 {
-        let candidate = uuid::Uuid::new_v4().to_string();
-        if taken.contains(candidate.as_str()) {
-            continue;
-        }
-        let zip = backup_path.join(archive_file_name(&candidate, ArchiveFormat::Zip));
-        let seven_z = backup_path.join(archive_file_name(&candidate, ArchiveFormat::SevenZ));
-        if zip.exists() || seven_z.exists() {
-            continue;
-        }
-        return Ok(candidate);
-    }
-    Err(BackupError::Unexpected(anyhow::anyhow!(
-        "Could not allocate a unique snapshot identity"
-    )))
 }

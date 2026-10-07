@@ -143,8 +143,18 @@ impl SnapshotDeletionLifecycle {
             }
             SnapshotState::FinalTombstone { .. } => return Ok(()),
         };
-        let local_path = self.local_path(game_id, snapshot_id, node.archive_format);
-        let remote_path = cloud_archive_path(game_id, snapshot_id, node.archive_format)?;
+        let local_path = self.local_path(
+            game_id,
+            snapshot_id,
+            node.archive_format,
+            node.archive_name.as_deref(),
+        );
+        let remote_path = cloud_archive_path(
+            game_id,
+            snapshot_id,
+            node.archive_format,
+            node.archive_name.as_deref(),
+        )?;
         GlobalSnapshotDeletion::execute(
             &repository,
             &OpenDalArchiveDeletionBackend::new(self.operator.clone()),
@@ -187,6 +197,7 @@ impl SnapshotDeletionLifecycle {
                     game_id,
                     &node.snapshot_id,
                     node.archive_format,
+                    node.archive_name.as_deref(),
                 ))
                 .await?;
                 tombstones
@@ -234,8 +245,19 @@ impl SnapshotDeletionLifecycle {
         )
     }
 
-    fn local_path(&self, game_id: &str, snapshot_id: &str, format: ArchiveFormat) -> PathBuf {
-        archive_path(&self.local_archive_root.join(game_id), snapshot_id, format)
+    fn local_path(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+        format: ArchiveFormat,
+        name: Option<&str>,
+    ) -> PathBuf {
+        archive_path(
+            &self.local_archive_root.join(game_id),
+            snapshot_id,
+            format,
+            name,
+        )
     }
 }
 

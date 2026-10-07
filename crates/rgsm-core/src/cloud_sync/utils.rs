@@ -64,6 +64,7 @@ pub fn game_cloud_archive_path(
         storage_key,
         &snapshot.date,
         snapshot.archive_format,
+        snapshot.archive_name.as_deref(),
     ))
 }
 
@@ -95,6 +96,7 @@ mod tests {
             date: "2026-07-13_12-00-00".into(),
             describe: String::new(),
             path: String::new(),
+            archive_name: None,
             archive_format: format,
             size: 0,
             parent: None,
