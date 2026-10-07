@@ -1,8 +1,8 @@
 use crate::backup::{
-    ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions,
-    CaptureSourceKind, CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier,
-    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend,
-    archive_file_name, snapshot_archive_path,
+    ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, CaptureSnapshotOptions, CaptureSourceKind,
+    CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier, RestorePlan,
+    SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend, archive_file_name,
+    snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -225,50 +225,15 @@ impl ServiceContext {
             })
             .await?;
 
-        let snapshots = if snapshot.archive_format == ArchiveFormat::SevenZ {
-            self.restore_capture_archive(
-                &config,
-                game,
-                &archive_path,
-                &SevenZBackend,
-                notifier,
-                Some(date),
-            )?;
-            game.update_game_snapshots_info::<BackupError>(|current| {
-                current.set_current_device_head(Some(date.to_string()));
-                Ok(())
-            })?
-        } else {
-            match ZipBackend.archive_version(&archive_path)? {
-                ArchiveVersion::V2 | ArchiveVersion::V3 => {
-                    self.restore_capture_archive(
-                        &config,
-                        game,
-                        &archive_path,
-                        &ZipBackend,
-                        notifier,
-                        Some(date),
-                    )?;
-                    let mut snapshots = game.get_game_snapshots_info()?;
-                    snapshots.set_current_device_head(Some(date.to_string()));
-                    game.set_game_snapshots_info(&snapshots)?;
-                    snapshots
-                }
-                ArchiveVersion::Legacy | ArchiveVersion::V1 => {
-                    let device = config.devices.get(crate::device::get_current_device_id());
-                    let path_context = crate::services::game_path_context(game, device);
-                    game.restore_snapshot_with_context(
-                        date,
-                        notifier,
-                        &resolve_backup_path(&config.backup_path),
-                        &path_context,
-                    )?
-                }
-                ArchiveVersion::V4 | ArchiveVersion::V5 | ArchiveVersion::V6 => {
-                    unreachable!("Archive V4 uses the 7z backend")
-                }
-            }
+        let backend: &dyn ArchiveBackend = match snapshot.archive_format {
+            ArchiveFormat::SevenZ => &SevenZBackend,
+            ArchiveFormat::Zip => &ZipBackend,
         };
+        self.restore_capture_archive(&config, game, &archive_path, backend, notifier, Some(date))?;
+        let snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
+            current.set_current_device_head(Some(date.to_string()));
+            Ok(())
+        })?;
 
         self.pipeline()
             .fire_snapshot_applied(&SnapshotAppliedCtx {
@@ -297,43 +262,16 @@ impl ServiceContext {
         } else {
             folder.join(archive_file_name(date, ArchiveFormat::Zip, None))
         };
-        if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
-            self.restore_capture_archive(
-                &config,
-                game,
-                &archive_path,
-                &SevenZBackend,
-                notifier,
-                None,
-            )
-        } else {
-            match ZipBackend.archive_version(&archive_path)? {
-                ArchiveVersion::V2 | ArchiveVersion::V3 => self.restore_capture_archive(
-                    &config,
-                    game,
-                    &archive_path,
-                    &ZipBackend,
-                    notifier,
-                    None,
-                ),
-                ArchiveVersion::Legacy | ArchiveVersion::V1 => {
-                    let device = config.devices.get(crate::device::get_current_device_id());
-                    ZipBackend.decompress(
-                        &game.save_paths,
-                        &archive_path,
-                        notifier,
-                        Some(&crate::services::game_path_context(game, device)),
-                    )?;
-                    Ok(())
-                }
-                ArchiveVersion::V4 | ArchiveVersion::V5 | ArchiveVersion::V6 => {
-                    unreachable!("Archive V4 uses the 7z backend")
-                }
-            }
-        }
+        let backend: &dyn ArchiveBackend =
+            if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
+                &SevenZBackend
+            } else {
+                &ZipBackend
+            };
+        self.restore_capture_archive(&config, game, &archive_path, backend, notifier, None)
     }
 
-    fn restore_capture_archive(
+    pub(crate) fn restore_capture_archive(
         &self,
         config: &crate::config::Config,
         game: &Game,
@@ -342,7 +280,7 @@ impl ServiceContext {
         notifier: Option<&dyn RestoreNotifier>,
         expected_snapshot_id: Option<&str>,
     ) -> Result<(), BackupError> {
-        let mut manifest = backend.read_capture_manifest(archive_path)?;
+        let mut manifest = backend.read_manifest_for_game(archive_path, game)?;
         if manifest.identity.as_ref().is_some_and(|identity| {
             identity.game_id != game.backup_dir_name().as_ref()
                 || expected_snapshot_id.is_some_and(|id| id != identity.snapshot_id)
@@ -419,7 +357,7 @@ impl ServiceContext {
                 .into());
             }
         }
-        let plan = if manifest.version == 2 {
+        let plan = if manifest.version <= 2 {
             RestorePlan::build_legacy_v2(&manifest.groups, &reports)?
         } else {
             RestorePlan::build(&manifest.groups, &reports)?

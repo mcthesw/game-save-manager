@@ -147,13 +147,7 @@ pub fn convert_snapshot_archive(
         let mut anchor = original_anchor(group, &source);
         if group.kind == CaptureSourceKind::Registry {
             let bytes = fs::read(&source)?;
-            let data = if group.archive_path.ends_with(".json") {
-                serde_json::from_slice(&bytes)
-                    .map_err(|error| ArchiveMigrationError::Invalid(error.to_string()))?
-            } else {
-                crate::backup::registry::deserialize_reg_file(&bytes)
-                    .map_err(|error| ArchiveMigrationError::Invalid(error.to_string()))?
-            };
+            let data = super::payload::read_registry_payload(&group.archive_path, &bytes)?;
             anchor = PathBuf::from(&data.root_key);
             registry_bytes.insert(
                 (group.save_unit_id, group.id),
@@ -312,6 +306,17 @@ fn validate_group_coverage(
             || relative.starts_with("_rgsm/")
             || (manifest.version >= 6 && relative == "RESTORE.txt")
         {
+            continue;
+        }
+        // V2 defined registry.json as a fallback for registry.reg. The reader
+        // selects .reg; retain the superseded bytes in the untouched original.
+        let legacy_registry_fallback = manifest.version == 2
+            && manifest.groups.iter().any(|group| {
+                group.kind == CaptureSourceKind::Registry
+                    && group.archive_path.ends_with("/registry.reg")
+                    && relative == format!("{}/registry.json", group.save_unit_id)
+            });
+        if legacy_registry_fallback {
             continue;
         }
         let covered = manifest.groups.iter().any(|group| {

@@ -175,11 +175,23 @@ fn assert_released_save_data_survives_upgrade(
         panic!("released fixture must migrate to a concrete Save Unit");
     };
     paths.clear();
-    paths.insert(
-        get_current_device_id().clone(),
-        target.to_string_lossy().into_owned(),
+    let expression = globset::escape(&target.to_string_lossy().replace('\\', "/"));
+    paths.insert(get_current_device_id().clone(), expression.clone());
+    let mut restored_game = game.clone();
+    restored_game.save_paths = vec![save_unit.clone()];
+    let manifest = ZipBackend.read_manifest_for_game(&archive_path, &restored_game)?;
+    // This reader contract restores into an absent directory. Capture-time
+    // preflight deliberately requires live inputs and is not a restore plan.
+    let parsed = rgsm_core::path_pattern::parse_manifest_path_pattern(&expression)?;
+    let resolution = rgsm_core::path_resolution::plan_resolution(
+        &parsed,
+        Default::default(),
+        &Default::default(),
     );
-    ZipBackend.decompress(std::slice::from_ref(&save_unit), &archive_path, None, None)?;
+    let report = rgsm_core::path_resolution::match_resolution_plan(&resolution)?;
+    let plan =
+        RestorePlan::build_legacy_v2(&manifest.groups, &BTreeMap::from([(save_unit.id, report)]))?;
+    ZipBackend.restore_capture_plan(&plan, &archive_path)?;
 
     let restored_file = match save_unit.unit_type() {
         Some(SaveUnitType::File) => target,

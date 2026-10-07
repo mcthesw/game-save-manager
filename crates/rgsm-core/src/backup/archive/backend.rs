@@ -4,12 +4,9 @@ use std::path::Path;
 use crate::backup::{CapturePlan, CompressionPreset};
 
 use crate::{
-    backup::{RestorePlan, SaveUnit},
-    path_resolver::PathContext,
+    backup::{Game, RestorePlan},
     preclude::*,
 };
-
-use super::decompress::RestoreNotifier;
 
 /// Readers for current and historical snapshot archives.
 ///
@@ -31,6 +28,15 @@ pub trait ArchiveBackend {
         archive_path: &Path,
     ) -> Result<super::ArchiveManifest, CompressError>;
 
+    /// Normalize ID-less historical layouts at the reader boundary.
+    fn read_manifest_for_game(
+        &self,
+        archive_path: &Path,
+        _game: &Game,
+    ) -> Result<super::ArchiveManifest, CompressError> {
+        self.read_capture_manifest(archive_path)
+    }
+
     fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError>;
 
     /// Read the source-state fingerprint embedded in a capture archive.
@@ -40,15 +46,6 @@ pub trait ArchiveBackend {
         &self,
         plan: &RestorePlan,
         archive_path: &Path,
-    ) -> Result<(), CompressError>;
-
-    /// Decompress an archive and restore save units to their original paths.
-    fn decompress(
-        &self,
-        save_units: &[SaveUnit],
-        archive_path: &Path,
-        notifier: Option<&dyn RestoreNotifier>,
-        path_ctx: Option<&PathContext>,
     ) -> Result<(), CompressError>;
 
     /// File extension for archives created by this backend (without dot).
@@ -86,6 +83,19 @@ impl ArchiveBackend for ZipBackend {
         super::decompress::read_capture_manifest(archive_path)
     }
 
+    fn read_manifest_for_game(
+        &self,
+        archive_path: &Path,
+        game: &Game,
+    ) -> Result<super::ArchiveManifest, CompressError> {
+        match self.archive_version(archive_path)? {
+            super::ArchiveVersion::Legacy | super::ArchiveVersion::V1 => {
+                super::legacy_layout::read_flat_zip_manifest(game, archive_path)
+            }
+            _ => self.read_capture_manifest(archive_path),
+        }
+    }
+
     fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError> {
         super::decompress::archive_version(archive_path)
     }
@@ -100,16 +110,6 @@ impl ArchiveBackend for ZipBackend {
         archive_path: &Path,
     ) -> Result<(), CompressError> {
         super::decompress::restore_capture_plan(plan, archive_path)
-    }
-
-    fn decompress(
-        &self,
-        save_units: &[SaveUnit],
-        archive_path: &Path,
-        notifier: Option<&dyn RestoreNotifier>,
-        path_ctx: Option<&PathContext>,
-    ) -> Result<(), CompressError> {
-        super::decompress::decompress_from_archive(save_units, archive_path, notifier, path_ctx)
     }
 
     fn extension(&self) -> &str {
@@ -169,18 +169,6 @@ impl ArchiveBackend for SevenZBackend {
         archive_path: &Path,
     ) -> Result<(), CompressError> {
         super::seven_z::restore_capture_plan(plan, archive_path)
-    }
-
-    fn decompress(
-        &self,
-        _save_units: &[SaveUnit],
-        _archive_path: &Path,
-        _notifier: Option<&dyn RestoreNotifier>,
-        _path_ctx: Option<&PathContext>,
-    ) -> Result<(), CompressError> {
-        Err(CompressError::Unexpected(anyhow::anyhow!(
-            "Archive V4 restore requires a Restore Plan"
-        )))
     }
 
     fn extension(&self) -> &str {

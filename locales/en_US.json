@@ -1396,6 +1396,7 @@
         "setup_unavailable": "Could not check path variables on this device. No operation was performed. Please try again."
     },
   "portable_archive": {
+    "legacy_association_required": "This older backup cannot be matched safely. Use Settings → Backup settings → Upgrade older backups to review its save entries. %{reason}",
     "recovered_metadata": "This is an upgraded historical backup. Missing location descriptions were supplied from the game configuration at upgrade time; check them before restoring.",
     "identity_mismatch": "This archive belongs to a different game or snapshot. Select the correct backup file.",
     "title": "%{game} — %{time}",

@@ -190,6 +190,15 @@ fn ambiguous_flat_archives_wait_for_an_explicit_association() {
 
 #[test]
 fn registry_json_is_converted_to_an_ordinary_reg_file_without_importing_it() {
+    registry_migration_roundtrip(false);
+}
+
+#[test]
+fn registry_migration_preserves_reg_precedence_and_the_original_json_fallback() {
+    registry_migration_roundtrip(true);
+}
+
+fn registry_migration_roundtrip(with_reg: bool) {
     let temp = temp_dir::TempDir::new().unwrap();
     let old = temp.path().join("registry.zip");
     let new = temp.path().join("registry.7z");
@@ -210,6 +219,26 @@ fn registry_json_is_converted_to_an_ordinary_reg_file_without_importing_it() {
         "7/registry.json",
         &serde_json::to_vec(&registry).unwrap(),
     );
+    if with_reg {
+        let mut fallback = registry.clone();
+        fallback.entries[0].values.clear();
+        let mut writer = zip::ZipWriter::new(fs::File::create(&old).unwrap());
+        writer.set_comment(ArchiveMeta::new(CompressionPreset::Standard).to_comment());
+        writer
+            .start_file("7/registry.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        writer
+            .write_all(&serde_json::to_vec(&fallback).unwrap())
+            .unwrap();
+        writer
+            .start_file("7/registry.reg", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        writer
+            .write_all(&crate::backup::registry::serialize_reg_file(&registry).unwrap())
+            .unwrap();
+        writer.finish().unwrap();
+    }
+    let original = fs::read(&old).unwrap();
     let mut game = game();
     game.save_paths[0] = crate::backup::SaveUnit::concrete(
         7,
@@ -221,6 +250,7 @@ fn registry_json_is_converted_to_an_ordinary_reg_file_without_importing_it() {
         true,
     );
     convert(&game, &old, &new, ArchiveFormat::Zip, &BTreeMap::new()).unwrap();
+    assert_eq!(fs::read(&old).unwrap(), original);
     let output = temp.path().join("files");
     sevenz_rust2::decompress_file(&new, &output).unwrap();
     let reg = fs::read(output.join("MigrationExample.reg")).unwrap();

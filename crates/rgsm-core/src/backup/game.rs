@@ -5,10 +5,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::backup::archive::RestoreNotifier;
-use crate::backup::{
-    ArchiveBackend, GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft, ZipBackend,
-};
+use crate::backup::{GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft};
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::DeviceId;
 use crate::path_pattern::StoreKind;
@@ -417,24 +414,6 @@ impl Game {
             snapshots: result.snapshots,
             deleted_remote_paths: result.deleted_remote_paths,
         })
-    }
-    pub fn restore_snapshot_with_context(
-        &self,
-        date: &str,
-        notifier: Option<&dyn RestoreNotifier>,
-        backup_base: &Path,
-        path_ctx: &PathContext,
-    ) -> Result<GameSnapshots, BackupError> {
-        let archive_path = backup_base
-            .join(self.backup_dir_name().as_ref())
-            .join(format!("{date}.zip"));
-        ZipBackend.decompress(&self.save_paths, &archive_path, notifier, Some(path_ctx))?;
-
-        let mut infos = self.get_game_snapshots_info()?;
-        infos.set_current_device_head(Some(date.to_string()));
-        self.set_game_snapshots_info(&infos)?;
-
-        Ok(infos)
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
         let mut saves = self.get_game_snapshots_info()?;
