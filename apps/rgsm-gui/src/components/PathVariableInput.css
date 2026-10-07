@@ -112,17 +112,6 @@
   color: var(--text);
 }
 
-.pvi-editor-badge {
-  flex: 0 0 24px;
-  text-align: center;
-  color: var(--text-dim);
-  font-size: 10px;
-  font-family: monospace;
-  pointer-events: auto;
-  user-select: none;
-  cursor: default;
-}
-
 .pvi-editor::-webkit-scrollbar {
   display: none;
 }

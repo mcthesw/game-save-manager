@@ -256,7 +256,9 @@ test('override switches preserve the game root and surrounding layout', async ({
       await expect(dialog.locator('.pvi-status--ok')).toHaveCount(2);
       const before = await geometry();
       checkedPaths.length = 0;
-      await expect(dialog.locator('.pvi-editor-badge')).toHaveCount(3);
+      await expect(
+        dialog.getByRole('button', { name: 'Insert variable', exact: true })
+      ).toHaveCount(3);
       await expect(dialog.locator('.pvi-status-dot-compact')).toHaveCount(3);
       await toggle.check();
       await expect(saveEditor).toHaveText('');
