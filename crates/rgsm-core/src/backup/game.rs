@@ -1,3 +1,4 @@
+use crate::backup::archive::RestoreNotifier;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -5,7 +6,6 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::backup::archive::RestoreNotifier;
 use crate::backup::extra_backups::cleanup_oldest_extra_backups;
 use crate::backup::state_fingerprint::{
     fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
@@ -699,44 +699,6 @@ impl Game {
             snapshots: result.snapshots,
             deleted_remote_paths: result.deleted_remote_paths,
         })
-    }
-    /// Decompress a snapshot archive and update HEAD.
-    ///
-    /// **Pre-restore checks** (extra backup, integrity verification) are
-    /// handled by the hook pipeline's `fire_before_restore` gate — callers
-    /// must invoke that *before* calling this method.
-    pub fn restore_snapshot(
-        &self,
-        date: &str,
-        notifier: Option<&dyn RestoreNotifier>,
-    ) -> Result<GameSnapshots, BackupError> {
-        let config = get_config()?;
-        let path_ctx = self.path_context_current_device(&config);
-        self.restore_snapshot_with_context(
-            date,
-            notifier,
-            &crate::config::resolve_backup_path(&config.backup_path),
-            &path_ctx,
-        )
-    }
-
-    pub fn restore_snapshot_with_context(
-        &self,
-        date: &str,
-        notifier: Option<&dyn RestoreNotifier>,
-        backup_base: &Path,
-        path_ctx: &PathContext,
-    ) -> Result<GameSnapshots, BackupError> {
-        let archive_path = backup_base
-            .join(self.backup_dir_name().as_ref())
-            .join(format!("{date}.zip"));
-        ZipBackend.decompress(&self.save_paths, &archive_path, notifier, Some(path_ctx))?;
-
-        let mut infos = self.get_game_snapshots_info()?;
-        infos.set_current_device_head(Some(date.to_string()));
-        self.set_game_snapshots_info(&infos)?;
-
-        Ok(infos)
     }
     pub fn create_overwrite_snapshot(
         &self,

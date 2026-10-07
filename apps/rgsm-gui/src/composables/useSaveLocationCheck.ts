@@ -10,13 +10,13 @@ export function useSaveLocationCheck() {
     game?: GameDraft
   ): Promise<void> {
     const paths = units.flatMap((unit) => {
-      if (unit.enabled === false || unit.source.type !== 'concrete') return [];
+      if (unit.enabled === false || unit.source.type !== 'devicePaths') return [];
       const path = unit.source.paths?.[deviceId]?.trim();
       return path ? [path] : [];
     });
     if (!paths.length) return;
     try {
-      const result = await commands.checkPaths(paths, null, null, null, game, true);
+      const result = await commands.checkPaths(paths, null, null, null, game, false);
       if (result.status === 'error') {
         notifyWarning($t('path_variable.check_unavailable'));
         return;

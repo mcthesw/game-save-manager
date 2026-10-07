@@ -57,7 +57,7 @@ test('root selection stays local to the form and drives preview and backup', asy
     await page.getByRole('button', { name: 'View managed files' }).click();
     dialog = page.getByRole('dialog');
     const saveEditor = dialog.locator('.pvi-editor').nth(1);
-    await saveEditor.fill('<root>/slot[1].sav');
+    await saveEditor.fill('<root>/slot[[]1[]].sav');
     await expect(dialog.locator('.pvi-status--error')).toHaveCount(1);
     await dialog.getByRole('button', { name: 'Game root directory', exact: true }).click();
     await page.getByText(`other · ${rootB}`, { exact: true }).click();
@@ -95,7 +95,7 @@ test('root selection stays local to the form and drives preview and backup', asy
     await openGame(page);
     await page.getByRole('button', { name: 'View managed files' }).click();
     await expect(page.getByRole('dialog').locator('.pvi-editor').nth(1)).toHaveText(
-      '<root>/slot[1].sav'
+      '<root>/slot[[]1[]].sav'
     );
     await expect(page.getByRole('dialog').locator('.pvi-status--ok')).toHaveCount(2);
     await page.screenshot({ path: testInfo.outputPath('path-selection-managed.png') });

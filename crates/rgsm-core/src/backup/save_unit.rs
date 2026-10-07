@@ -4,10 +4,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 
 use crate::default_value;
-use crate::device::{DeviceId, get_current_device_id};
+use crate::device::DeviceId;
+use crate::device::get_current_device_id;
 use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
-use crate::path_resolver::PathContext;
-use crate::preclude::BackupFileError;
+use crate::{path_resolver::PathContext, preclude::BackupFileError};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub enum SaveUnitType {
@@ -18,8 +18,9 @@ pub enum SaveUnitType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "camelCase", from = "SaveUnitSourceWire")]
 pub enum SaveUnitSource {
+    #[serde(rename = "devicePaths")]
     Concrete {
         #[serde(alias = "unitType")]
         unit_type: SaveUnitType,
@@ -36,6 +37,76 @@ pub enum SaveUnitSource {
         #[serde(default)]
         constraints: ManifestPathConstraints,
     },
+}
+
+// Older per-device paths treated brackets/braces literally. Convert once at the
+// wire boundary; every live filesystem path then uses the same expression grammar.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum SaveUnitSourceWire {
+    Concrete {
+        #[serde(alias = "unitType")]
+        unit_type: SaveUnitType,
+        #[serde(default)]
+        paths: HashMap<DeviceId, String>,
+    },
+    DevicePaths {
+        #[serde(alias = "unitType")]
+        unit_type: SaveUnitType,
+        #[serde(default)]
+        paths: HashMap<DeviceId, String>,
+    },
+    ManifestPattern {
+        #[serde(default)]
+        expected_type: Option<SaveUnitType>,
+        pattern: ManifestPathPattern,
+        #[serde(default)]
+        constraints: ManifestPathConstraints,
+    },
+}
+
+pub(crate) fn upgrade_literal_path(path: String) -> String {
+    path.chars()
+        .map(|c| match c {
+            '[' | ']' | '{' | '}' => format!("[{c}]"),
+            _ => c.to_string(),
+        })
+        .collect()
+}
+
+impl From<SaveUnitSourceWire> for SaveUnitSource {
+    fn from(wire: SaveUnitSourceWire) -> Self {
+        match wire {
+            SaveUnitSourceWire::Concrete { unit_type, paths } => Self::Concrete {
+                paths: paths
+                    .into_iter()
+                    .map(|(id, path)| {
+                        (
+                            id,
+                            if unit_type == SaveUnitType::WinRegistry {
+                                path
+                            } else {
+                                upgrade_literal_path(path)
+                            },
+                        )
+                    })
+                    .collect(),
+                unit_type,
+            },
+            SaveUnitSourceWire::DevicePaths { unit_type, paths } => {
+                Self::Concrete { unit_type, paths }
+            }
+            SaveUnitSourceWire::ManifestPattern {
+                expected_type,
+                pattern,
+                constraints,
+            } => Self::ManifestPattern {
+                expected_type,
+                pattern,
+                constraints,
+            },
+        }
+    }
 }
 
 /// A save unit declares one concrete per-Device location or one portable
@@ -76,10 +147,11 @@ impl<'de> Deserialize<'de> for SaveUnit {
         let wire = SaveUnitWire::deserialize(deserializer)?;
         let source = match (wire.source, wire.unit_type) {
             (Some(source), _) => source,
-            (None, Some(unit_type)) => SaveUnitSource::Concrete {
+            (None, Some(unit_type)) => SaveUnitSourceWire::Concrete {
                 unit_type,
                 paths: wire.paths,
-            },
+            }
+            .into(),
             (None, None) => {
                 return Err(serde::de::Error::missing_field("source"));
             }
@@ -128,10 +200,11 @@ impl<'de> Deserialize<'de> for SaveUnitDraft {
         let wire = SaveUnitDraftWire::deserialize(deserializer)?;
         let source = match (wire.source, wire.unit_type) {
             (Some(source), _) => source,
-            (None, Some(unit_type)) => SaveUnitSource::Concrete {
+            (None, Some(unit_type)) => SaveUnitSourceWire::Concrete {
                 unit_type,
                 paths: wire.paths,
-            },
+            }
+            .into(),
             (None, None) => {
                 return Err(serde::de::Error::missing_field("source"));
             }
@@ -265,7 +338,7 @@ mod tests {
             serialized
                 .pointer("/source/type")
                 .and_then(serde_json::Value::as_str),
-            Some("concrete")
+            Some("devicePaths")
         );
         assert!(serialized.get("unit_type").is_none());
         assert!(serialized.get("paths").is_none());

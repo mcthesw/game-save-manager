@@ -1341,5 +1341,8 @@
         "import_from": "从其他设备导入路径",
         "select_device": "选择设备",
         "import_success": "路径导入成功"
+    },
+    "portable_archive": {
+        "legacy_association_required": "此旧备份无法安全对应当前配置的存档条目。%{reason}"
     }
 }

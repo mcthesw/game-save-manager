@@ -1341,5 +1341,8 @@
         "import_from": "Import paths from other devices",
         "select_device": "Select Device",
         "import_success": "Paths imported successfully"
+    },
+    "portable_archive": {
+        "legacy_association_required": "This older backup cannot be matched safely to the configured save entries. %{reason}"
     }
 }

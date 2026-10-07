@@ -228,6 +228,24 @@ pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<()
     let file = File::open(path).map_err(single)?;
     let mut reader = ArchiveReader::new(file, Password::empty()).map_err(unexpected)?;
     verify_entries(reader.archive().files.iter(), plan)?;
+    reader
+        .for_each_entries(|entry, source| {
+            if matching_plan_entries(entry.name(), plan)
+                .first()
+                .is_some_and(|(planned, _)| planned.kind == CaptureSourceKind::Registry)
+            {
+                let mut bytes = Vec::new();
+                source.read_to_end(&mut bytes)?;
+                super::payload::read_registry_payload(entry.name(), &bytes)
+                    .map_err(|error| sevenz_io(error.to_string()))?;
+            } else {
+                std::io::copy(source, &mut std::io::sink())?;
+            }
+            Ok(true)
+        })
+        .map_err(unexpected)?;
+    let mut reader = ArchiveReader::new(File::open(path).map_err(single)?, Password::empty())
+        .map_err(unexpected)?;
 
     for planned in &plan.entries {
         if planned.delete_before_apply && planned.target_path.exists() {
@@ -249,7 +267,7 @@ pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<()
             if first.kind == CaptureSourceKind::Registry {
                 let mut bytes = Vec::new();
                 source.read_to_end(&mut bytes)?;
-                let data = crate::backup::registry::deserialize_reg_file(&bytes)
+                let data = super::payload::read_registry_payload(entry.name(), &bytes)
                     .map_err(|error| sevenz_io(error.to_string()))?;
                 for (planned, _) in matches {
                     crate::backup::registry::import_registry_data(

@@ -1,8 +1,8 @@
 use crate::backup::{
-    ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions,
-    CaptureSourceKind, CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier,
-    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend,
-    archive_file_name, snapshot_archive_path,
+    ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, CaptureSnapshotOptions, CaptureSourceKind,
+    CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier, RestorePlan,
+    SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend, archive_file_name,
+    snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -223,40 +223,15 @@ impl ServiceContext {
             })
             .await?;
 
-        let snapshots = if snapshot.archive_format == ArchiveFormat::SevenZ {
-            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)?;
-            game.update_game_snapshots_info::<BackupError>(|current| {
-                current.set_current_device_head(Some(date.to_string()));
-                Ok(())
-            })?
-        } else {
-            match ZipBackend.archive_version(&archive_path)? {
-                ArchiveVersion::V2 | ArchiveVersion::V3 => {
-                    self.restore_capture_archive(
-                        &config,
-                        game,
-                        &archive_path,
-                        &ZipBackend,
-                        notifier,
-                    )?;
-                    let mut snapshots = game.get_game_snapshots_info()?;
-                    snapshots.set_current_device_head(Some(date.to_string()));
-                    game.set_game_snapshots_info(&snapshots)?;
-                    snapshots
-                }
-                ArchiveVersion::Legacy | ArchiveVersion::V1 => {
-                    let device = config.devices.get(crate::device::get_current_device_id());
-                    let path_context = game.path_context(device);
-                    game.restore_snapshot_with_context(
-                        date,
-                        notifier,
-                        &resolve_backup_path(&config.backup_path),
-                        &path_context,
-                    )?
-                }
-                ArchiveVersion::V4 => unreachable!("Archive V4 uses the 7z backend"),
-            }
+        let backend: &dyn ArchiveBackend = match snapshot.archive_format {
+            ArchiveFormat::SevenZ => &SevenZBackend,
+            ArchiveFormat::Zip => &ZipBackend,
         };
+        self.restore_capture_archive(&config, game, &archive_path, backend, notifier)?;
+        let snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
+            current.set_current_device_head(Some(date.to_string()));
+            Ok(())
+        })?;
 
         self.pipeline()
             .fire_snapshot_applied(&SnapshotAppliedCtx {
@@ -285,33 +260,16 @@ impl ServiceContext {
         } else {
             folder.join(archive_file_name(date, ArchiveFormat::Zip))
         };
-        if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
-            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)
-        } else {
-            match ZipBackend.archive_version(&archive_path)? {
-                ArchiveVersion::V2 | ArchiveVersion::V3 => self.restore_capture_archive(
-                    &config,
-                    game,
-                    &archive_path,
-                    &ZipBackend,
-                    notifier,
-                ),
-                ArchiveVersion::Legacy | ArchiveVersion::V1 => {
-                    let device = config.devices.get(crate::device::get_current_device_id());
-                    ZipBackend.decompress(
-                        &game.save_paths,
-                        &archive_path,
-                        notifier,
-                        Some(&game.path_context(device)),
-                    )?;
-                    Ok(())
-                }
-                ArchiveVersion::V4 => unreachable!("Archive V4 uses the 7z backend"),
-            }
-        }
+        let backend: &dyn ArchiveBackend =
+            if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
+                &SevenZBackend
+            } else {
+                &ZipBackend
+            };
+        self.restore_capture_archive(&config, game, &archive_path, backend, notifier)
     }
 
-    fn restore_capture_archive(
+    pub(crate) fn restore_capture_archive(
         &self,
         config: &crate::config::Config,
         game: &Game,
@@ -319,7 +277,7 @@ impl ServiceContext {
         backend: &dyn ArchiveBackend,
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
-        let mut manifest = backend.read_capture_manifest(archive_path)?;
+        let mut manifest = backend.read_manifest_for_game(archive_path, game)?;
         if manifest.version == 2 {
             apply_legacy_v2_save_unit_metadata(&mut manifest.groups, &game.save_paths);
         }
@@ -388,7 +346,7 @@ impl ServiceContext {
             })
             .cloned()
             .collect::<Vec<_>>();
-        let plan = if manifest.version == 2 {
+        let plan = if manifest.version <= 2 {
             RestorePlan::build_legacy_v2(&manifest.groups, &reports, &rules)?
         } else {
             RestorePlan::build(&manifest.groups, &reports, &rules)?

@@ -217,9 +217,14 @@ test('1.8 dynamic and concrete save paths keep their V2 zip usable after the 1.9
       expect.objectContaining({
         id: 12,
         source: expect.objectContaining({
-          type: 'concrete',
+          type: 'devicePaths',
           unit_type: 'File',
-          paths: { [DEVICE_A_ID]: scene.registryNamedFilePath.replaceAll('\\', '/') },
+          // Literal brackets in a pre-expression path must stay literal after migration.
+          paths: {
+            [DEVICE_A_ID]: scene.registryNamedFilePath
+              .replaceAll('\\', '/')
+              .replace('[legacy]', '[[]legacy[]]'),
+          },
         }),
       }),
     ]);

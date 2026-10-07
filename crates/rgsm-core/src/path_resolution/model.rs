@@ -122,7 +122,7 @@ impl CandidateExpression {
     }
 }
 
-pub(super) fn unescape_glob_literal(value: &str) -> String {
+pub(crate) fn unescape_glob_literal(value: &str) -> String {
     value
         .replace("[[]", "[")
         .replace("[]]", "]")
@@ -130,7 +130,7 @@ pub(super) fn unescape_glob_literal(value: &str) -> String {
         .replace("[?]", "?")
 }
 
-pub(super) fn first_unescaped_glob(expression: &str) -> Option<usize> {
+pub(crate) fn first_unescaped_glob(expression: &str) -> Option<usize> {
     let bytes = expression.as_bytes();
     let mut index = 0;
     while index < bytes.len() {

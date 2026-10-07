@@ -17,7 +17,7 @@ import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import PathVariableInput from './PathVariableInput.vue';
 import SaveUnitPathInput from './SaveUnitPathInput.vue';
 import GameLocationSelection from './GameLocationSelection.vue';
-import { saveUnitPaths, saveUnitType } from '../utils/saveUnit';
+import { saveUnitPaths, saveUnitType, escapePathLiteral } from '../utils/saveUnit';
 import { hasGameNameConflict } from '../utils/gameName';
 import { KButton, KDrawer, KInput, KSelect, KSwitch, KTag, KTooltip } from '../ui/kit';
 
@@ -221,7 +221,7 @@ function updatePathOverride(unit: SaveUnit, value: SavePathOverride | undefined)
 
 function getDevicePath(unit: SaveUnit, deviceId: string): string {
   const override = getOverride(unit, deviceId);
-  if (override) return override.path;
+  if (override) return override.expression;
   return unit.source.type === 'manifestPattern'
     ? unit.source.pattern
     : (unit.source.paths?.[deviceId] ?? '');
@@ -234,7 +234,7 @@ function getGameLaunchPath(deviceId: string): string {
 function updateDevicePath(unit: SaveUnit, deviceId: string, path: string) {
   const override = getOverride(unit, deviceId);
   if (override) {
-    override.path = path;
+    override.expression = path;
   } else if (unit.source.type === 'manifestPattern') {
     unit.source.pattern = path;
   } else {
@@ -364,7 +364,7 @@ function checkSaveUnitUnique(path: string, ignoreUnit?: SaveUnit) {
 function createSaveUnit(unitType: SaveUnitType, path: string): SaveUnit {
   return {
     source: {
-      type: 'concrete',
+      type: 'devicePaths',
       unit_type: unitType,
       paths: selectedDeviceId.value ? { [selectedDeviceId.value]: path } : {},
     },
@@ -373,34 +373,14 @@ function createSaveUnit(unitType: SaveUnitType, path: string): SaveUnit {
   };
 }
 
-async function addSaveDirectory() {
-  try {
-    const dir = await commands.chooseSaveDir();
-    if (dir.status === 'error' || !checkSaveUnitUnique(dir.data)) {
-      return;
-    }
-
-    tempGame.value.save_paths.push(createSaveUnit('Folder', dir.data));
-    hasUnsavedChanges.value = true;
-  } catch (e) {
-    error(`Error choosing save directory: ${e}`);
-    notifyError($t('error.choose_save_dir_error'));
-  }
+function addSaveDirectory() {
+  tempGame.value.save_paths.push(createSaveUnit('Folder', ''));
+  hasUnsavedChanges.value = true;
 }
 
-async function addSaveFile() {
-  try {
-    const file = await commands.chooseSaveFile();
-    if (file.status === 'error' || !checkSaveUnitUnique(file.data)) {
-      return;
-    }
-
-    tempGame.value.save_paths.push(createSaveUnit('File', file.data));
-    hasUnsavedChanges.value = true;
-  } catch (e) {
-    error(`Error choosing save file: ${e}`);
-    notifyError($t('error.choose_save_file_error'));
-  }
+function addSaveFile() {
+  tempGame.value.save_paths.push(createSaveUnit('File', ''));
+  hasUnsavedChanges.value = true;
 }
 
 async function promptRegistryPath(initialValue = '') {
@@ -465,7 +445,7 @@ async function chooseUnitPath(unit: SaveUnit) {
       return;
     }
 
-    updateDevicePath(unit, selectedDeviceId.value, result.data);
+    updateDevicePath(unit, selectedDeviceId.value, escapePathLiteral(result.data));
   } catch (e) {
     error(`Error choosing save unit path: ${e}`);
     notifyError(
@@ -665,6 +645,11 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
             @update:model-value="updateDevicePath(unit, selectedDeviceId, $event)"
             @update:override-value="updatePathOverride(unit, $event)"
           >
+            <template #browse>
+              <KButton variant="ghost" size="sm" @click="chooseUnitPath(unit)">
+                {{ $t('save_location_drawer.pick_path') }}
+              </KButton>
+            </template>
             <template #type>
               <span class="text-xs font-medium text-text">{{ formatUnitType(unit) }}</span>
             </template>
@@ -683,9 +668,6 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
                   {{ $t('save_location_drawer.open') }}
                 </KButton>
               </KTooltip>
-              <KButton variant="ghost" size="sm" @click="chooseUnitPath(unit)">
-                {{ $t('save_location_drawer.pick_path') }}
-              </KButton>
               <KButton
                 v-if="!hasPersistentId(unit)"
                 variant="ghost"
@@ -748,6 +730,11 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
               @update:model-value="updateDevicePath(unit, selectedDeviceId, $event)"
               @update:override-value="updatePathOverride(unit, $event)"
             >
+              <template #browse>
+                <KButton variant="ghost" size="sm" @click="chooseUnitPath(unit)">
+                  {{ $t('save_location_drawer.pick_path') }}
+                </KButton>
+              </template>
               <template #type>
                 <span class="text-xs font-medium text-text">{{ formatUnitType(unit) }}</span>
               </template>

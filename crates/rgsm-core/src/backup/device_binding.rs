@@ -6,9 +6,26 @@ use crate::path_resolution::CandidateDimensions;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "SavePathOverrideWire")]
 pub struct SavePathOverride {
+    #[serde(rename = "expression")]
     pub path: String,
+}
+
+#[derive(Deserialize)]
+struct SavePathOverrideWire {
+    expression: Option<String>,
+    path: Option<String>,
+}
+
+impl From<SavePathOverrideWire> for SavePathOverride {
+    fn from(wire: SavePathOverrideWire) -> Self {
+        Self {
+            path: wire.expression.unwrap_or_else(|| {
+                super::save_unit::upgrade_literal_path(wire.path.unwrap_or_default())
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]

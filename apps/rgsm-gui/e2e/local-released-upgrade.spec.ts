@@ -51,9 +51,9 @@ for (const version of ['1.7.0', '1.8.0'] as const) {
       expect(upgraded.data.quick_action.quick_action_game_id).toBe('A_B_2');
       expect(game.save_paths.map((unit) => unit.id)).toEqual(scene.ids);
       expect(game.save_paths.map((unit) => unit.source)).toEqual([
-        expect.objectContaining({ type: 'concrete', unit_type: 'Folder' }),
-        expect.objectContaining({ type: 'concrete', unit_type: 'File' }),
-        expect.objectContaining({ type: 'concrete', unit_type: 'Folder' }),
+        expect.objectContaining({ type: 'devicePaths', unit_type: 'Folder' }),
+        expect.objectContaining({ type: 'devicePaths', unit_type: 'File' }),
+        expect.objectContaining({ type: 'devicePaths', unit_type: 'Folder' }),
       ]);
       expect((await getSettings(host)).extra_backup_when_apply).toBe(true);
       expect((await readCatalog()).device_heads[DEVICE_A_ID]).toBe(PARENT_SNAPSHOT_ID);

@@ -1301,7 +1301,7 @@ export type SavePath = {
 };
 
 export type SavePathOverride = {
-  path: string;
+  expression: string;
 };
 
 export type SaveRestoreMappingRequest = {
@@ -1335,7 +1335,7 @@ export type SaveUnitSource =
       paths?: {
         [key: string]: string;
       };
-      type: 'concrete';
+      type: 'devicePaths';
       unit_type: SaveUnitType;
     }
   | {
