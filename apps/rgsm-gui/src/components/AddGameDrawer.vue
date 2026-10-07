@@ -32,7 +32,7 @@ import {
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import { createGameFavorite, collectFavoriteGameIds } from './favoriteTreeContext';
-import { hasGameNameConflict } from '../utils/gameName';
+import { hasGameNameConflict, nextInstanceName } from '../utils/gameName';
 import { resolveGameReference } from '../utils/appRoutes';
 
 const feedback = useFeedback();
@@ -61,6 +61,10 @@ const importableGames = ref<ImportableGame[]>([]);
 const showCustomizeDialog = ref(false);
 const customizeDialogLoading = ref(false);
 const customizingGame = ref<ImportableGame | null>(null);
+const customizeInitialName = computed(() => {
+  const game = customizingGame.value;
+  return game?.isManaged ? nextInstanceName(config.value.games, game.name) : game?.name || '';
+});
 const customizingSavePaths = ref<SavePath[]>([]);
 
 // Batch import dialog state (multiple games)
@@ -515,23 +519,6 @@ async function handleCustomizeConfirm(data: {
       return;
     }
 
-    // Check non-registry paths with backend to determine file/folder type
-    const pathInfoMap = new Map<string, PathCheckResult>();
-    if (validPaths.length > 0) {
-      const src = customizingGame.value;
-      const checkResult = await commands.checkPaths(
-        validPaths,
-        data.storeUserId,
-        src?.installDirs?.length ? src.installDirs : null,
-        src?.steamId ?? null
-      );
-      if (checkResult.status === 'ok') {
-        for (const info of checkResult.data) {
-          pathInfoMap.set(info.rawPath, info);
-        }
-      }
-    }
-
     // Build save units with accurate type info
     const savePaths: SaveUnitDraft[] = [];
     for (const path of validPaths) {
@@ -558,6 +545,12 @@ async function handleCustomizeConfirm(data: {
       savePaths.push(saveUnit);
     }
 
+    // An additional instance creates a new Game even when import was opened while editing.
+    if (customizingGame.value?.isManaged) {
+      is_editing.value = false;
+      editing_storage_key.value = '';
+      reset_info(false);
+    }
     // Set the game data in the form and save immediately (align with batch import)
     game_name.value = gameName;
     save_paths.splice(0, save_paths.length, ...savePaths);
@@ -764,6 +757,12 @@ async function saveImportedFavorites(games: Game[]): Promise<boolean> {
 
 async function save() {
   const accountResourceId = await ensureSteamAccountResource(pendingStoreUserId.value);
+  if (accountResourceId !== null) {
+    deviceBinding.value = {
+      ...deviceBinding.value,
+      accountIds: [`resource:${accountResourceId}`],
+    };
+  }
   const normalizedInstallDirs = manualInstallDirs.value
     .map((dir) => dir.trim())
     .filter((dir) => dir.length > 0);
@@ -808,14 +807,6 @@ async function save() {
           }
         : undefined,
   };
-  if (accountResourceId !== null && currentDevice.value) {
-    game.device_bindings ??= {};
-    const existingBinding = game.device_bindings[currentDevice.value.id];
-    game.device_bindings[currentDevice.value.id] = {
-      ...existingBinding,
-      accountIds: [`resource:${accountResourceId}`],
-    };
-  }
 
   if (game_path.value && currentDevice.value) {
     game.game_paths = {};
@@ -1034,6 +1025,8 @@ function deleteRow(index: number) {
   <GameImportCustomizeDialog
     v-model="showCustomizeDialog"
     :game-name="customizingGame?.name || ''"
+    :initial-name="customizeInitialName"
+    :additional-instance="customizingGame?.isManaged"
     :save-paths="customizingSavePaths"
     :install-dirs="customizingGame?.installDirs || []"
     :steam-id="customizingGame?.steamId ?? null"

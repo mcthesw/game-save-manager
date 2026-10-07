@@ -521,6 +521,7 @@
         "registry_non_windows_warning": "注册表备份仅在 Windows 上支持，此条目在其他平台将被跳过"
     },
     "game_import": {
+        "add_instance": "添加另一个实例",
         "title": "导入游戏（自动探测存档位置）",
         "description": "使用社区维护的 Ludusavi 清单来自动探测存档位置，不会上传你的个人数据",
         "search_placeholder": "搜索游戏...",
@@ -544,6 +545,7 @@
         "scanning_local": "正在扫描已安装的游戏..."
     },
     "game_import_customize": {
+        "instance_hint": "为此实例设置名称，并选择它的安装目录或账号。",
         "title": "自定义导入：{name}",
         "save_paths": "选择存档路径",
         "path": "路径",

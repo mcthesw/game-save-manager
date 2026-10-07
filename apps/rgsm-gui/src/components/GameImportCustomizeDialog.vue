@@ -8,6 +8,9 @@
     <div
       class="relative flex max-h-[70vh] min-h-80 flex-col gap-4 overflow-x-hidden overflow-y-auto"
     >
+      <p v-if="additionalInstance" class="text-sm text-text-dim">
+        {{ $t('game_import_customize.instance_hint') }}
+      </p>
       <!-- Game name input -->
       <div>
         <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.game_name') }}</label>
@@ -15,6 +18,7 @@
           v-model="form.gameName"
           class="w-full"
           :placeholder="$t('addgame.input_game_name_prompt')"
+          :aria-label="$t('addgame.game_name')"
         />
       </div>
 
@@ -188,6 +192,8 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  initialName: { type: String, default: '' },
+  additionalInstance: { type: Boolean, default: false },
   savePaths: {
     type: Array as () => SavePath[],
     default: () => [],
@@ -351,11 +357,11 @@ function toggleRow(row: SavePath) {
 
 // Watch for props changes to update form
 watch(
-  () => [props.gameName, props.savePaths],
+  () => [props.gameName, props.initialName, props.savePaths],
   () => {
     selectionRevision.value = 0;
     form.value = {
-      gameName: props.gameName,
+      gameName: props.initialName || props.gameName,
       savePaths: JSON.parse(JSON.stringify(props.savePaths)),
       storeUserId: null,
       binding: {},

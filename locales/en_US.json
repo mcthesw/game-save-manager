@@ -521,6 +521,7 @@
         "device_info": "Device"
     },
     "game_import": {
+        "add_instance": "Add another instance",
         "title": "Import Games (Auto-detect Save Locations)",
         "description": "This uses the community-maintained Ludusavi manifest to auto-detect save locations. No personal data is uploaded",
         "search_placeholder": "Search games...",
@@ -544,6 +545,7 @@
         "scanning_local": "Scanning for installed games..."
     },
     "game_import_customize": {
+        "instance_hint": "Give this instance a name, then choose its installation folder or account.",
         "title": "Customize Import: {name}",
         "save_paths": "Select Save Paths",
         "path": "Path",
