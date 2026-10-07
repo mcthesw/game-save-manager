@@ -2,6 +2,8 @@ import { createServer, request } from "node:http";
 import { createWriteStream } from "node:fs";
 import {
   copyFile,
+  cp,
+  rm,
   mkdir,
   readFile,
   realpath,
@@ -35,6 +37,16 @@ const { spawnTestProcess, hostCommand } = await import(
 );
 const dist = join(repo, "apps/rgsm-gui/dist");
 
+export async function snapshotFrontend(source, lock) {
+  const target = join(lock, "web");
+  await cp(source, target, {
+    recursive: true,
+    force: false,
+    errorOnExist: true,
+  });
+  return target;
+}
+
 export async function validateDataDir(dataDir, workspace = repo) {
   const root = await realpath(join(workspace, ".rgsm-dev/acceptance"));
   const actual = await realpath(resolve(dataDir));
@@ -56,6 +68,7 @@ export async function startAcceptanceDevice(options) {
   const data = await validateDataDir(options.dataDir);
   const lock = join(data, ".acceptance-running");
   await mkdir(lock); // Exclusive ownership; never clear another launcher's lock.
+  const frontend = join(lock, "web");
   const origin = `http://127.0.0.1:${options.port}`;
   let runtime, host, log, stopped;
   const server = createServer(async (req, res) => {
@@ -123,13 +136,13 @@ export async function startAcceptanceDevice(options) {
         req.pipe(upstream);
         return;
       }
-      let path = resolve(dist, "." + decodeURIComponent(url.pathname));
-      if (path !== dist && !path.startsWith(dist + sep))
+      let path = resolve(frontend, "." + decodeURIComponent(url.pathname));
+      if (path !== frontend && !path.startsWith(frontend + sep))
         return fail(403, "Forbidden");
       if (!(await stat(path).catch(() => null))?.isFile())
-        path = join(dist, "index.html");
+        path = join(frontend, "index.html");
       let bytes = await readFile(path);
-      if (path === join(dist, "index.html")) {
+      if (path === join(frontend, "index.html")) {
         const injection = JSON.stringify({
           apiBaseUrl: origin,
           token: runtime.api_token,
@@ -167,6 +180,8 @@ export async function startAcceptanceDevice(options) {
       await new Promise((resolve) => server.close(resolve));
       await host?.stop();
       log?.end();
+      // This newly created directory is owned by this launcher, below validated data.
+      await rm(frontend, { recursive: true, force: true });
       await rmdir(lock);
     })());
   try {
@@ -176,6 +191,7 @@ export async function startAcceptanceDevice(options) {
       server.listen(options.port, "127.0.0.1", ok);
     });
     await stat(join(dist, "index.html"));
+    await snapshotFrontend(dist, lock);
     const executable = process.platform === "win32" ? "rgsm.exe" : "rgsm";
     const binary = join(data, `.acceptance-${executable}`);
     await copyFile(join(repo, "target/debug", executable), binary);
