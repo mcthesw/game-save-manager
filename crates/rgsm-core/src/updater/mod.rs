@@ -6,7 +6,9 @@
 //! - Backup creation
 //! - Component updates
 
+mod backup;
 mod cloud_config;
+pub(crate) use backup::preserve_original;
 pub mod migration;
 pub mod probe;
 

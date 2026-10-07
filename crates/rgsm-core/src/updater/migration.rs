@@ -362,24 +362,7 @@ fn normalized_path_identity(path: &str) -> String {
 }
 
 fn write_config_transactionally(path: &Path, content: &[u8]) -> Result<(), UpdaterError> {
-    let temp_path = path.with_extension("json.migration.tmp");
-    let rollback_path = path.with_extension("json.migration.rollback");
-    fs::write(&temp_path, content)?;
-    fs::OpenOptions::new()
-        .write(true)
-        .open(&temp_path)?
-        .sync_all()?;
-
-    if rollback_path.exists() {
-        fs::remove_file(&rollback_path)?;
-    }
-    fs::rename(path, &rollback_path)?;
-    if let Err(error) = fs::rename(&temp_path, path) {
-        let _ = fs::rename(&rollback_path, path);
-        let _ = fs::remove_file(&temp_path);
-        return Err(error.into());
-    }
-    fs::remove_file(&rollback_path)?;
+    crate::atomic_file::write_bytes_atomically(path, content)?;
     Ok(())
 }
 
@@ -474,7 +457,11 @@ fn migrate_snapshot_created_by_in_backup_root(backup_path: &Path) -> Result<(), 
             continue;
         }
 
-        match fs::write(&backups_json_path, serde_json::to_string_pretty(&raw)?) {
+        super::preserve_original(&backups_json_path, content.as_bytes())?;
+        match crate::atomic_file::write_bytes_atomically(
+            &backups_json_path,
+            &serde_json::to_vec_pretty(&raw)?,
+        ) {
             Ok(_) => {
                 info!(
                     target: "rgsm::updater",
@@ -529,13 +516,7 @@ fn migrate_snapshot_created_by_fields(raw: &mut Value) -> usize {
 /// Create a backup of the config file
 fn backup_config<P: AsRef<Path>>(path: P) -> Result<PathBuf, UpdaterError> {
     let path = path.as_ref();
-    let backup_path = path.with_extension("json.bak");
-
-    // Create backup
-    fs::copy(path, &backup_path)?;
-    info!(target: "rgsm::updater", "Created backup at {:?}", backup_path);
-
-    Ok(backup_path)
+    Ok(super::preserve_original(path, &fs::read(path)?)?)
 }
 
 /// Migrate game snapshots from flat list to chained structure (for versions < 1.6.0)
@@ -616,9 +597,10 @@ fn migrate_game_snapshots_to_chain(backup_path: &Path) -> Result<(), UpdaterErro
         }
 
         // Write updated Backups.json
-        match fs::write(
+        super::preserve_original(&backups_json_path, content.as_bytes())?;
+        match crate::atomic_file::write_bytes_atomically(
             &backups_json_path,
-            serde_json::to_string_pretty(&game_snapshots)?,
+            &serde_json::to_vec_pretty(&game_snapshots)?,
         ) {
             Ok(_) => {
                 info!(target: "rgsm::updater", "Migrated snapshots to chain structure: {:?}", backups_json_path);

@@ -34,6 +34,7 @@ import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue
 import AppUpdatePanel from '../components/AppUpdatePanel.vue';
 import SnapshotTimeSettings from '../components/SnapshotTimeSettings.vue';
 import LocalUpgradeSection from '../components/LocalUpgradeSection.vue';
+import LegacyInstallationsSection from '../components/LegacyInstallationsSection.vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -460,6 +461,11 @@ async function fetchDeviceInfo() {
 }
 
 // 更新设备信息
+async function refreshInstallationUpgrade() {
+  await refreshConfig();
+  await fetchDeviceInfo();
+}
+
 async function persistDeviceInfo(showSuccessMessage: boolean = true) {
   try {
     if (!config.value || !currentDevice.value) return;
@@ -1365,6 +1371,12 @@ const { linksWithGames: router_list } = useNavigationLinks();
               </KButton>
             </div>
           </section>
+
+          <LegacyInstallationsSection
+            :device="currentDevice"
+            :games="config.games"
+            @updated="refreshInstallationUpgrade"
+          />
 
           <!-- VN 扫描 -->
           <section>

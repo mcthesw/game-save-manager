@@ -693,6 +693,10 @@ export type GameDefinitionDifference = {
 
 export type GameDeviceBinding = {
   accountIds?: Array<string> | null;
+  /**
+   * Unresolved historical selection, cleared when installation_path is set.
+   * Retains ambiguous imports without treating them as multiple instances.
+   */
   installationIds?: Array<string> | null;
   installationPath?: string | null;
   pathOverrides?: {

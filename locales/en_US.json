@@ -1409,6 +1409,10 @@
     "identity": "Game ID: %{game}\nSnapshot ID: %{snapshot}"
   },
     "local_upgrade": {
+        "installations_title": "Older installation locations to confirm",
+        "installations_hint": "Choose a game for each location kept from older settings. It will become that game’s installation directory ({variable}) on this device.",
+        "choose_game": "Choose game",
+        "assign_installation": "Use for this game",
         "title": "Upgrade older backups",
         "refresh": "Check older backups again",
         "loading": "Checking local backups…",

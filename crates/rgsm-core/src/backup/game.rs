@@ -46,6 +46,20 @@ impl LudusaviMeta {
             .find(|entry| entry.store == store)
             .map(|entry| entry.id.as_str())
     }
+
+    pub(crate) fn matches_installation(
+        &self,
+        store: StoreKind,
+        id: Option<&str>,
+        directory: &str,
+    ) -> bool {
+        if let (Some(expected), Some(actual)) = (self.store_game_id(store), id) {
+            return expected == actual;
+        }
+        self.install_dirs
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(directory))
+    }
 }
 
 /// Per-game auto-backup configuration.

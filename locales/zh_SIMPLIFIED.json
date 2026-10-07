@@ -1409,6 +1409,10 @@
     "identity": "游戏 ID：%{game}\n存档点 ID：%{snapshot}"
   },
     "local_upgrade": {
+        "installations_title": "待确认的旧安装位置",
+        "installations_hint": "为旧版设置中保留的位置选择对应游戏，作为该游戏在此设备上的安装目录（{variable}）。",
+        "choose_game": "选择游戏",
+        "assign_installation": "用于此游戏",
         "title": "升级旧备份",
         "refresh": "重新检查旧备份",
         "loading": "正在检查本地备份…",

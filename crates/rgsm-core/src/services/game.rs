@@ -194,16 +194,17 @@ impl ServiceContext {
         binding: GameDeviceBinding,
         source: HookSource,
     ) -> Result<()> {
-        let mut config = get_config()?;
-        let index = config
-            .position_game_by_identity(identity)
-            .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
-        let previous_game = config.games[index].clone();
-        config.games[index]
-            .device_bindings
-            .insert(crate::device::get_current_device_id().clone(), binding);
+        let ((index, previous_game), config) = crate::config::edit_config(|config| {
+            let index = config
+                .position_game_by_identity(identity)
+                .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
+            let previous = config.games[index].clone();
+            config.games[index]
+                .device_bindings
+                .insert(crate::device::get_current_device_id().clone(), binding);
+            Ok((index, previous))
+        })?;
         let game = config.games[index].clone();
-        set_config(&config).await?;
         self.pipeline()
             .fire_game_updated(&GameUpdatedCtx {
                 config,
