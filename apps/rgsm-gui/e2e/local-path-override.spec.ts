@@ -234,7 +234,7 @@ test('override switches preserve the game root and surrounding layout', async ({
     await openGame(page);
     await page.getByRole('button', { name: 'View managed files' }).click();
     const dialog = page.getByRole('dialog');
-    const rootSelect = dialog.getByRole('button', { name: 'Game root directory', exact: true });
+    const rootSelect = dialog.getByRole('combobox', { name: 'Game root directory', exact: true });
     const toggle = dialog.getByRole('switch', { name: 'Override path on this device' });
     const saveEditor = dialog.locator('.pvi-editor').nth(1);
     const checkedPaths: string[] = [];

@@ -1,6 +1,6 @@
 # Separate device resources from game bindings
 
-Status: accepted
+Status: superseded by ADR-0011
 
 A Device owns the roots, store accounts, and installations available on that
 machine, while each Game stores a Device-keyed binding that selects which of

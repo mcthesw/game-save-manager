@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import type { Device, GameDeviceBinding } from '../api/commands';
 import { $t } from '../i18n';
 import { usePathResolution } from '../composables/usePathResolution';
-import ResourceMultiSelect from './ResourceMultiSelect.vue';
+import { KSelect } from '../ui/kit';
 
 const props = defineProps<{
   device?: Device | null;
@@ -39,8 +39,12 @@ const selectors = computed(() => {
   });
 });
 type SelectionKey = 'rootIds' | 'accountIds' | 'installationIds';
-function update(key: string, ids: number[]) {
-  emit('update:modelValue', { ...props.modelValue, [key]: ids.length ? ids : null });
+function selectedId(key: string): number | undefined {
+  const ids = props.modelValue[key as SelectionKey];
+  return ids?.length === 1 ? ids[0] : undefined;
+}
+function update(key: string, id: string | number | undefined) {
+  emit('update:modelValue', { ...props.modelValue, [key]: id === undefined ? null : [Number(id)] });
 }
 </script>
 
@@ -50,10 +54,14 @@ function update(key: string, ids: number[]) {
       <div class="mb-1.5 text-sm font-medium text-text">
         {{ $t(`save_location_drawer.${selector.label}`) }}
       </div>
-      <ResourceMultiSelect
-        :model-value="modelValue[selector.key as SelectionKey] ?? []"
+      <KSelect
+        :model-value="selectedId(selector.key)"
         :options="selector.options"
         :placeholder="$t(`save_location_drawer.${selector.label}`)"
+        :aria-label="$t(`save_location_drawer.${selector.label}`)"
+        :title="selector.options.find((option) => option.value === selectedId(selector.key))?.label"
+        class="w-full min-w-0 [&>span:first-child]:truncate"
+        clearable
         @update:model-value="update(selector.key, $event)"
       />
     </div>

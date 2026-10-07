@@ -1,29 +1,9 @@
-import {
-  commands,
-  type CandidateDimensions,
-  type DeviceResource,
-  type Game,
-  type SaveUnit,
-} from '~/api/commands';
+import { commands, type DeviceResource, type Game, type SaveUnit } from '~/api/commands';
 
 export function usePathResolution() {
   async function preview(game: Game, unit: SaveUnit) {
     const result = await commands.previewSaveUnitResolution(game, unit);
     return result.status === 'ok' ? result.data : null;
-  }
-
-  async function rememberRestoreMapping(
-    game: Game,
-    saveUnitId: number,
-    sourceDimensions: CandidateDimensions,
-    targetCandidateIds: string[]
-  ) {
-    return commands.saveRestoreMapping(
-      game.storage_key || game.name,
-      saveUnitId,
-      sourceDimensions,
-      targetCandidateIds
-    );
   }
 
   function resourceLabel(resource: DeviceResource): string {
@@ -37,5 +17,5 @@ export function usePathResolution() {
     }
   }
 
-  return { preview, rememberRestoreMapping, resourceLabel };
+  return { preview, resourceLabel };
 }

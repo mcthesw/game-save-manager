@@ -7,7 +7,6 @@ import { isEqual } from 'lodash-unified';
 import {
   commands,
   events,
-  type CandidateDimensions,
   type CloudArchiveGameView,
   type Device,
   type Game,
@@ -58,7 +57,6 @@ import {
 import { resolveGameReference, resolveManagementGame } from '../../utils/appRoutes';
 import { useApplyConfirmation } from '../../composables/useApplyConfirmation';
 import { useCloudLibrary } from '../../composables/useCloudLibrary';
-import { usePathResolution } from '../../composables/usePathResolution';
 import { saveUnitPaths } from '../../utils/saveUnit';
 import { KButton, KInput, KMenu, KSegmented, KTag, KTooltip, type KMenuEntry } from '../../ui/kit';
 
@@ -69,7 +67,6 @@ const { confirmAndRun } = useApplyConfirmation();
 const { markGamePlayed } = useSaveListSort();
 const { withLoading } = useGlobalLoading();
 const { startCollecting, stopCollecting } = useHostNotificationCollector();
-const { preview: previewSaveUnit, rememberRestoreMapping } = usePathResolution();
 const router = useRouter();
 const route = useRoute();
 
@@ -706,10 +703,7 @@ async function apply_save(date: string) {
 
   let integrityFailed = false;
   let restoreError = '';
-  let mappingError: {
-    saveUnitId: number;
-    sourceDimensions: CandidateDimensions;
-  } | null = null;
+  let locationSelectionRequired = false;
 
   const activityId = addActivity({
     title: $t('manage.restoring_backup'),
@@ -727,11 +721,8 @@ async function apply_save(date: string) {
             integrityFailed = true;
           } else if (err.type === 'BackupNotFound') {
             restoreError = $t('manage.backup_not_found', { date: err.date });
-          } else if (err.type === 'RestoreMappingRequired' || err.type === 'StaleRestoreMapping') {
-            mappingError = {
-              saveUnitId: err.save_unit_id,
-              sourceDimensions: err.source_dimensions,
-            };
+          } else if (err.type === 'LocationSelectionRequired') {
+            locationSelectionRequired = true;
           } else {
             restoreError = err.message;
           }
@@ -781,12 +772,9 @@ async function apply_save(date: string) {
     } catch {
       // dialog dismissed
     }
-  } else if (mappingError) {
-    updateActivity(activityId, { status: 'error', title: $t('manage.choose_restore_location') });
-    const mapped = await chooseRestoreLocation(mappingError);
-    if (mapped) {
-      await apply_save(date);
-    }
+  } else if (locationSelectionRequired) {
+    updateActivity(activityId, { status: 'error', title: $t('path_variable.choose_location') });
+    drawer.value = true;
   } else if (restoreError) {
     updateActivity(activityId, {
       status: 'error',
@@ -806,55 +794,6 @@ async function apply_save(date: string) {
     } else {
       updateActivity(activityId, { status: 'success', title: $t('manage.recover_success') });
     }
-  }
-}
-
-async function chooseRestoreLocation(mapping: {
-  saveUnitId: number;
-  sourceDimensions: CandidateDimensions;
-}): Promise<boolean> {
-  const unit = game.value.save_paths.find((candidate) => candidate.id === mapping.saveUnitId);
-  if (!unit) return false;
-  const preview = await previewSaveUnit(game.value, unit);
-  if (!preview || preview.candidates.length === 0) {
-    notifyError($t('manage.no_restore_locations'));
-    return false;
-  }
-  const choices = preview.candidates
-    .map((candidate, index) => `${index + 1}. ${candidate.expression}`)
-    .join('\n');
-  try {
-    const { value } = await feedback.prompt(
-      `${$t('manage.choose_restore_location_hint')}\n\n${choices}`,
-      $t('manage.choose_restore_location'),
-      { inputPlaceholder: '1' }
-    );
-    const index = Number(value) - 1;
-    const selected = preview.candidates[index];
-    if (!selected) {
-      notifyWarning($t('manage.invalid_restore_location'));
-      return false;
-    }
-    const result = await rememberRestoreMapping(
-      game.value,
-      mapping.saveUnitId,
-      mapping.sourceDimensions,
-      [selected.id]
-    );
-    if (result.status === 'error') {
-      notifyError(result.error);
-      return false;
-    }
-    await refreshConfig();
-    const refreshedGame = config.value.games.find(
-      (item) => item.storage_key === game.value.storage_key
-    );
-    if (refreshedGame) {
-      game.value = refreshedGame;
-    }
-    return true;
-  } catch {
-    return false;
   }
 }
 

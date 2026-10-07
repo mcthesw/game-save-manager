@@ -337,23 +337,10 @@ impl ServiceContext {
                 .into());
             }
         }
-        let rules = game
-            .device_bindings
-            .get(crate::device::get_current_device_id())
-            .map(|binding| binding.restore_mappings.as_slice())
-            .unwrap_or_default()
-            .iter()
-            .filter(|rule| {
-                !overridden_units
-                    .iter()
-                    .any(|unit| unit.id == rule.save_unit_id)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
         let plan = if manifest.version <= 2 {
-            RestorePlan::build_legacy_v2(&manifest.groups, &reports, &rules)?
+            RestorePlan::build_legacy_v2(&manifest.groups, &reports)?
         } else {
-            RestorePlan::build(&manifest.groups, &reports, &rules)?
+            RestorePlan::build(&manifest.groups, &reports)?
         };
         if let Some(notifier) = notifier {
             for save_unit_id in &plan.skipped_inactive_save_unit_ids {

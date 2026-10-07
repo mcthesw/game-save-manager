@@ -1818,38 +1818,6 @@ pub async fn http_set_game_device_binding(
         .map_err(ApiError::from_command)
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveRestoreMappingRequest {
-    pub identity: String,
-    pub save_unit_id: u32,
-    pub source_dimensions: rgsm_core::path_resolution::CandidateDimensions,
-    pub target_candidate_ids: Vec<String>,
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/save-restore-mapping",
-    operation_id = "saveRestoreMapping",
-    request_body = SaveRestoreMappingRequest,
-    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_save_restore_mapping(
-    State(state): State<HttpHostState>,
-    Json(request): Json<SaveRestoreMappingRequest>,
-) -> Result<Json<()>, ApiError> {
-    commands::save_restore_mapping(
-        request.identity,
-        request.save_unit_id,
-        request.source_dimensions,
-        request.target_candidate_ids,
-        state.app().clone(),
-    )
-    .await
-    .map(Json)
-    .map_err(ApiError::from_command)
-}
-
 #[utoipa::path(
     post,
     path = "/api/v1/get-ludusavi-manifest-status",
@@ -2398,10 +2366,6 @@ pub fn router() -> Router<HttpHostState> {
             post(http_set_game_device_binding),
         )
         .route(
-            "/api/v1/save-restore-mapping",
-            post(http_save_restore_mapping),
-        )
-        .route(
             "/api/v1/get-ludusavi-manifest-status",
             post(http_get_ludusavi_manifest_status),
         )
@@ -2541,7 +2505,6 @@ pub fn router() -> Router<HttpHostState> {
         http_get_path_placeholder_catalog,
         http_preview_save_unit_resolution,
         http_set_game_device_binding,
-        http_save_restore_mapping,
         http_get_ludusavi_manifest_status,
         http_update_ludusavi_manifest,
         http_reset_ludusavi_manifest_to_bundled,
@@ -2629,7 +2592,6 @@ pub fn router() -> Router<HttpHostState> {
         GetGameSavePathsRequest,
         PreviewSaveUnitResolutionRequest,
         SetGameDeviceBindingRequest,
-        SaveRestoreMappingRequest,
         CheckPathsRequest,
         ScanVnsRequest,
         RestoreConfigBackupRequest,

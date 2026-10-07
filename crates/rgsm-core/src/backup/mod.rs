@@ -9,6 +9,7 @@ mod game_snapshots;
 mod path_format;
 pub(crate) mod registry;
 mod restore_plan;
+mod restore_targets;
 mod save_unit;
 mod snapshot;
 pub(crate) mod state_fingerprint;
@@ -27,7 +28,7 @@ pub use capture_plan::{
     CaptureGroup, CapturePlan, CapturePlanError, CapturePreflightFailure, CaptureSourceKind,
     SaveUnitCaptureInput,
 };
-pub use device_binding::{GameDeviceBinding, RestoreMappingRule, SavePathOverride};
+pub use device_binding::{GameDeviceBinding, SavePathOverride};
 pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{delete_extra_backup, extra_backup_folder_path, list_extra_backups};
 pub use extra_info::{extra_info_dir, extra_info_namespace_dir, extra_info_namespace_file};
