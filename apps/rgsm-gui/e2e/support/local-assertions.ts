@@ -3,6 +3,9 @@ import { readdir, readFile, stat, utimes } from 'node:fs/promises';
 import { basename, join, relative, sep } from 'node:path';
 import { expect } from '@playwright/test';
 import { STORAGE_KEY } from './constants';
+import { localArchivePath } from './archive-path';
+
+export { localArchivePath } from './archive-path';
 
 export type BackupsEntry = {
   date: string;
@@ -105,7 +108,7 @@ export function localArchiveExists(
   snapshotId: string,
   storageKey: string = STORAGE_KEY
 ): boolean {
-  return existsSync(join(localSnapshotsDir(appDataDir, storageKey), `${snapshotId}.7z`));
+  return existsSync(localArchivePath(appDataDir, snapshotId, storageKey));
 }
 
 export function extraBackupDir(appDataDir: string, storageKey: string = STORAGE_KEY): string {
@@ -175,11 +178,6 @@ export async function expectTreeMtimes(
       `${rel} mtime drifted: expected ${entry.mtimeMs}, got ${found!.mtimeMs}`
     ).toBeLessThanOrEqual(toleranceMs);
   }
-}
-
-/** Reads Backups.json `path` field basename checks are brittle; use archive existence instead. */
-export function archiveFileName(snapshotId: string): string {
-  return `${snapshotId}.7z`;
 }
 
 export function extraBackupPath(appDataDir: string, date: string, storageKey?: string): string {

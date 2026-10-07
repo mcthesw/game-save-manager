@@ -1,15 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { readFile, stat, utimes } from 'node:fs/promises';
-import { join } from 'node:path';
 import { GAME_NAME } from './support/constants';
 import { seedLocalConfig, writeSaveText } from './support/local-fixture';
 import { startLocalSession } from './support/local-session';
-import {
-  archiveFileName,
-  localArchiveExists,
-  localSnapshotsDir,
-  snapshotMeta,
-} from './support/local-assertions';
+import { localArchivePath, localArchiveExists, snapshotMeta } from './support/local-assertions';
 import { applySnapshotViaApi, createSnapshotForGame, updateSettings } from './support/local-gui';
 import { createRunRoot } from './support/rgsm-instance';
 
@@ -33,9 +27,7 @@ test('compression presets all capture and restore correctly', async ({ browser }
       const meta = await snapshotMeta(device.appDataDir, date);
       expect(meta.archive_format).toBe('seven_z');
       expect(localArchiveExists(device.appDataDir, date)).toBe(true);
-      const archiveStat = await stat(
-        join(localSnapshotsDir(device.appDataDir), archiveFileName(date))
-      );
+      const archiveStat = await stat(localArchivePath(device.appDataDir, date));
       expect(archiveStat.size).toBeGreaterThan(0);
 
       await writeSaveText(device.savePath, `clobbered-${preset.toLowerCase()}\n`);

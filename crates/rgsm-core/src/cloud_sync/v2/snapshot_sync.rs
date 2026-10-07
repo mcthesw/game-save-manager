@@ -491,6 +491,7 @@ impl SnapshotSyncCoordinator {
             &self.local_archive_root.join(game_id),
             &snapshot.date,
             snapshot.archive_format,
+            snapshot.archive_name.as_deref(),
         )
     }
 }
@@ -505,6 +506,7 @@ fn merge_local_snapshot(
     };
     if existing.parent != local.parent
         || existing.archive_format != local.archive_format
+        || existing.archive_name != local.archive_name
         || live.created_by != local.created_by
         || matches!(
             (&live.integrity, &integrity),
@@ -642,6 +644,7 @@ mod tests {
             date: id.into(),
             describe: id.into(),
             path: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::Zip,
             size: 0,
             parent: parent.map(str::to_string),
@@ -670,11 +673,15 @@ mod tests {
         let game_root = archive_root.join("game");
         std::fs::create_dir_all(&game_root).unwrap();
         std::fs::write(
-            archive_path(&game_root, "baseline", ArchiveFormat::Zip),
+            archive_path(&game_root, "baseline", ArchiveFormat::Zip, None),
             b"baseline",
         )
         .unwrap();
-        std::fs::write(archive_path(&game_root, "new", ArchiveFormat::Zip), b"new").unwrap();
+        std::fs::write(
+            archive_path(&game_root, "new", ArchiveFormat::Zip, None),
+            b"new",
+        )
+        .unwrap();
         let mut manifest = CloudManifest {
             revision: 5,
             ..Default::default()
@@ -729,13 +736,13 @@ mod tests {
         assert_eq!(game.device_heads["deck"], "new");
         assert!(
             operator
-                .read(&cloud_archive_path("game", "baseline", ArchiveFormat::Zip).unwrap())
+                .read(&cloud_archive_path("game", "baseline", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .is_err()
         );
         assert!(
             operator
-                .read(&cloud_archive_path("game", "new", ArchiveFormat::Zip).unwrap())
+                .read(&cloud_archive_path("game", "new", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .is_ok()
         );
@@ -771,7 +778,7 @@ mod tests {
             game.upsert_live(node).unwrap();
             operator
                 .write(
-                    &cloud_archive_path("game", id, ArchiveFormat::Zip).unwrap(),
+                    &cloud_archive_path("game", id, ArchiveFormat::Zip, None).unwrap(),
                     bytes.to_vec(),
                 )
                 .await
@@ -799,7 +806,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(publish_only, SnapshotReconciliationOutcome::default());
-        assert!(!archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).exists());
+        assert!(
+            !archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip, None).exists()
+        );
 
         let outcome = coordinator
             .reconcile_game(
@@ -813,14 +822,20 @@ mod tests {
             .unwrap();
 
         assert_eq!(outcome, SnapshotReconciliationOutcome::default());
-        assert!(!archive_path(&archive_root.join("game"), "old", ArchiveFormat::Zip).exists());
-        assert!(!archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).exists());
+        assert!(
+            !archive_path(&archive_root.join("game"), "old", ArchiveFormat::Zip, None).exists()
+        );
+        assert!(
+            !archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip, None).exists()
+        );
         coordinator
             .materializer()
             .download("game", "new")
             .await
             .unwrap();
-        assert!(archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip).is_file());
+        assert!(
+            archive_path(&archive_root.join("game"), "new", ArchiveFormat::Zip, None).is_file()
+        );
     }
 
     #[tokio::test]
@@ -832,7 +847,7 @@ mod tests {
         std::fs::create_dir_all(&game_root).unwrap();
         let mut game = GameManifest::new("game");
         for (id, parent) in [("old", None), ("kept", Some("old")), ("head", Some("kept"))] {
-            let local_path = archive_path(&game_root, id, ArchiveFormat::Zip);
+            let local_path = archive_path(&game_root, id, ArchiveFormat::Zip, None);
             std::fs::write(&local_path, id.as_bytes()).unwrap();
             let mut node = SnapshotNode::live(
                 id,
@@ -848,7 +863,7 @@ mod tests {
             game.report_local_archive("deck".into(), id.into(), true);
             operator
                 .write(
-                    &cloud_archive_path("game", id, ArchiveFormat::Zip).unwrap(),
+                    &cloud_archive_path("game", id, ArchiveFormat::Zip, None).unwrap(),
                     id.as_bytes().to_vec(),
                 )
                 .await
@@ -879,10 +894,10 @@ mod tests {
         ));
         assert!(stored.games["game"].snapshots["kept"].state.is_live());
         assert!(stored.games["game"].snapshots["head"].state.is_live());
-        assert!(!archive_path(&game_root, "old", ArchiveFormat::Zip).exists());
+        assert!(!archive_path(&game_root, "old", ArchiveFormat::Zip, None).exists());
         assert!(
             !operator
-                .exists(&cloud_archive_path("game", "old", ArchiveFormat::Zip).unwrap())
+                .exists(&cloud_archive_path("game", "old", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .unwrap()
         );
@@ -895,7 +910,11 @@ mod tests {
         let archive_root = root.path().join("pc");
         let game_root = archive_root.join("game");
         std::fs::create_dir_all(&game_root).unwrap();
-        std::fs::write(archive_path(&game_root, "new", ArchiveFormat::Zip), b"new").unwrap();
+        std::fs::write(
+            archive_path(&game_root, "new", ArchiveFormat::Zip, None),
+            b"new",
+        )
+        .unwrap();
         let mut manifest = CloudManifest::default();
         manifest
             .games
@@ -925,7 +944,7 @@ mod tests {
         assert!(stored.games["game"].local_archives["pc"].contains("new"));
         assert!(
             operator
-                .exists(&cloud_archive_path("game", "new", ArchiveFormat::Zip).unwrap())
+                .exists(&cloud_archive_path("game", "new", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .unwrap()
         );
@@ -939,12 +958,12 @@ mod tests {
         let game_root = archive_root.join("game");
         std::fs::create_dir_all(&game_root).unwrap();
         std::fs::write(
-            archive_path(&game_root, "root", ArchiveFormat::Zip),
+            archive_path(&game_root, "root", ArchiveFormat::Zip, None),
             b"root",
         )
         .unwrap();
         std::fs::write(
-            archive_path(&game_root, "child", ArchiveFormat::Zip),
+            archive_path(&game_root, "child", ArchiveFormat::Zip, None),
             b"child",
         )
         .unwrap();
@@ -986,13 +1005,13 @@ mod tests {
         assert!(!root_live.cloud_archive_verified);
         assert!(
             operator
-                .exists(&cloud_archive_path("game", "child", ArchiveFormat::Zip).unwrap())
+                .exists(&cloud_archive_path("game", "child", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .unwrap()
         );
         assert!(
             !operator
-                .exists(&cloud_archive_path("game", "root", ArchiveFormat::Zip).unwrap())
+                .exists(&cloud_archive_path("game", "root", ArchiveFormat::Zip, None).unwrap())
                 .await
                 .unwrap()
         );
@@ -1005,7 +1024,7 @@ mod tests {
         let archive_root = root.path().join("deck");
         let game_root = archive_root.join("game");
         std::fs::create_dir_all(&game_root).unwrap();
-        let first = archive_path(&game_root, "same", ArchiveFormat::Zip);
+        let first = archive_path(&game_root, "same", ArchiveFormat::Zip, None);
         std::fs::write(&first, b"first-device").unwrap();
         let mut game = GameManifest::new("game");
         let mut node = SnapshotNode::live(

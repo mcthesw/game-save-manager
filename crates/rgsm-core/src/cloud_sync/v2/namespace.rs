@@ -38,11 +38,12 @@ pub fn cloud_archive_path(
     game_id: &str,
     snapshot_id: &str,
     format: ArchiveFormat,
+    name: Option<&str>,
 ) -> Result<String, crate::preclude::BackendError> {
     path_to_remote_key(
         &std::path::PathBuf::from(CLOUD_ARCHIVES_PREFIX)
             .join(game_id)
-            .join(format!("{snapshot_id}.{}", format.extension())),
+            .join(crate::backup::archive_file_name(snapshot_id, format, name)),
     )
 }
 

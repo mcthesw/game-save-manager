@@ -94,6 +94,7 @@ impl V2RemoteProgressResolver {
                     &game_archive_root,
                     selected_snapshot_id,
                     selected.archive_format,
+                    selected.archive_name.as_deref(),
                 )
             });
         if tokio::fs::try_exists(&local_path).await?
@@ -305,7 +306,7 @@ mod tests {
             .unwrap();
         operator
             .write(
-                &cloud_archive_path("game", "remote", ArchiveFormat::Zip).unwrap(),
+                &cloud_archive_path("game", "remote", ArchiveFormat::Zip, None).unwrap(),
                 b"remote".to_vec(),
             )
             .await
@@ -364,6 +365,7 @@ mod tests {
             date: "remote".into(),
             describe: "local collision".into(),
             path: local_path.to_string_lossy().into_owned(),
+            archive_name: None,
             archive_format: ArchiveFormat::Zip,
             size: 6,
             parent: Some("root".into()),

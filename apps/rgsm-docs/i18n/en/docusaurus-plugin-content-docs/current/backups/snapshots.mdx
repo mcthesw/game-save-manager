@@ -28,4 +28,16 @@ In **Settings → Backup settings**, configure restore confirmations, extra back
 
 <Screenshot src="/img/guide/en/backup-settings.png" alt="Backup settings" />
 
-Store uses no compression, Fast favors speed, Standard is the default, and Best favors smaller files. These settings apply to newly created snapshots.
+Choose **No compression**, **Favor speed**, **Balanced** (the default), or **Favor size**. These settings apply to newly created snapshots.
+
+## Restore without the application
+
+New backups are ordinary `.7z` files, for example `2026-10-07_18-30-00_a1b2c3d4e5f6.7z`. The timestamp helps you find a backup; the random suffix distinguishes backups created at the same time.
+
+1. Exit the game and extract the archive with a tool such as 7-Zip.
+2. Read `RESTORE.txt` to check the game, backup time, note, and original save locations. Instructions always use English; names, notes, and paths retain their original text.
+3. Keep a copy of your current saves, then copy the extracted files or folders to their locations on this device. `_rgsm` contains identification metadata and does not belong in the game directory.
+
+Saves retain their filenames and relative directories. Conflicting names are kept separately. Registry backups are standard `.reg` files; check their key paths before importing. When changing devices or accounts, use this device's actual locations rather than copying the original paths from the instructions.
+
+Each new archive includes its own recovery instructions and does not require `Backups.json`. [Upgrade local older backups](../help/upgrade.mdx#upgrade-local-older-backups) to obtain this layout. Missing historical times or locations are marked rather than invented.

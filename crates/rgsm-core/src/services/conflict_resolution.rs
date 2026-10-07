@@ -239,6 +239,7 @@ mod tests {
             date: id.into(),
             describe: id.into(),
             path: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::Zip,
             size: 5,
             parent: parent.map(str::to_string),

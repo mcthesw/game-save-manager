@@ -255,9 +255,8 @@ test('1.8 dynamic and concrete save paths keep their V2 zip usable after the 1.9
     );
     expect(created).toBeTruthy();
     expect(created!.date).not.toBe(RELEASED_DATE);
-    await expect(
-      readFile(join(scene.archiveRoot, GAME_NAME, `${created!.date}.7z`))
-    ).resolves.toBeTruthy();
+    expect(created!.path).toMatch(/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_[0-9a-f]{12}\.7z$/);
+    await expect(readFile(created!.path)).resolves.toBeTruthy();
 
     await context.close();
     context = undefined;

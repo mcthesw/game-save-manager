@@ -17,6 +17,8 @@ import {
 } from './constants';
 import { xxh3HelperPath } from './rgsm-instance';
 
+export { localArchivePath, cloudArchivePath } from './archive-path';
+
 export type JsonObject = Record<string, unknown>;
 
 export async function readJson(path: string): Promise<JsonObject> {
@@ -56,21 +58,6 @@ export function localOwnerPaths(appDataDir: string, deviceId: string) {
       deviceProfileFileName(deviceId)
     ),
   };
-}
-
-export function localArchivePath(appDataDir: string, snapshotId: string): string {
-  return firstExistingArchive(join(appDataDir, 'save_data', STORAGE_KEY), snapshotId);
-}
-
-export function cloudArchivePath(cloudRoot: string, snapshotId: string): string {
-  return firstExistingArchive(join(cloudRoot, 'v2', 'archives', STORAGE_KEY), snapshotId);
-}
-
-function firstExistingArchive(directory: string, snapshotId: string): string {
-  const zip = join(directory, `${snapshotId}.zip`);
-  const sevenZ = join(directory, `${snapshotId}.7z`);
-  if (existsSync(sevenZ)) return sevenZ;
-  return zip;
 }
 
 export async function xxh3File(

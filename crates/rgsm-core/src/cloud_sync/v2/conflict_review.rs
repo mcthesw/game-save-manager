@@ -144,6 +144,7 @@ impl V2ConflictInspector {
                         &self.local_archive_root.join(game_id),
                         snapshot_id,
                         snapshot.archive_format,
+                        snapshot.archive_name.as_deref(),
                     )
                     .is_file()
                 }),
@@ -238,6 +239,7 @@ impl V2ConflictInspector {
                     &self.local_archive_root.join(game_id),
                     &node.snapshot_id,
                     node.archive_format,
+                    node.archive_name.as_deref(),
                 ),
                 integrity.size,
             )
@@ -434,7 +436,9 @@ fn manifest_snapshot_matches_local(
     manifest_snapshot: &super::SnapshotNode,
     local_snapshot: &Snapshot,
 ) -> bool {
-    if manifest_snapshot.archive_format != local_snapshot.archive_format {
+    if manifest_snapshot.archive_format != local_snapshot.archive_format
+        || manifest_snapshot.archive_name != local_snapshot.archive_name
+    {
         return false;
     }
     let SnapshotState::Live(live) = &manifest_snapshot.state else {
@@ -489,6 +493,7 @@ mod tests {
             date: id.into(),
             describe: id.into(),
             path: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::Zip,
             size: 0,
             parent: parent.map(str::to_string),

@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { DEVICE_A_ID, GAME_NAME } from './support/constants';
 import { seedLocalConfig, writeSaveText } from './support/local-fixture';
 import { startLocalSession } from './support/local-session';
-import { archiveFileName, expectLocalHead, localSnapshotsDir } from './support/local-assertions';
+import { localArchivePath, expectLocalHead } from './support/local-assertions';
 import { createSnapshotForGame, listSnapshotsFor } from './support/local-gui';
 import { expectActivity, openGame, snapshotRow } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
@@ -27,8 +26,7 @@ test('failure surface: missing archive, corrupted archive, missing save on creat
     const s1 = await createSnapshotForGame(host, GAME_NAME, 'first');
     await writeSaveText(device.savePath, 'v2\n');
     const s2 = await createSnapshotForGame(host, GAME_NAME, 'second');
-    const archiveDir = localSnapshotsDir(device.appDataDir);
-    const s1Archive = join(archiveDir, archiveFileName(s1));
+    const s1Archive = localArchivePath(device.appDataDir, s1);
 
     // Case A: archive deleted from disk -> apply fails, nothing changes.
     await rm(s1Archive);

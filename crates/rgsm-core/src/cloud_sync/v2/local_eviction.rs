@@ -60,6 +60,7 @@ impl LocalArchiveEviction {
             &self.local_archive_root.join(game_id),
             snapshot_id,
             node.archive_format,
+            node.archive_name.as_deref(),
         );
         let existed = local_path.exists();
         remove_file_if_exists(&local_path).await?;
@@ -119,8 +120,13 @@ impl CloudArchiveEviction {
             return Err(ManifestError::ExpectedLive(snapshot_id.to_string()).into());
         };
         let existed = live.cloud_archive_verified;
-        let remote = cloud_archive_path(game_id, snapshot_id, node.archive_format)
-            .map_err(|error| CloudArchiveEvictionError::RemotePath(error.to_string()))?;
+        let remote = cloud_archive_path(
+            game_id,
+            snapshot_id,
+            node.archive_format,
+            node.archive_name.as_deref(),
+        )
+        .map_err(|error| CloudArchiveEvictionError::RemotePath(error.to_string()))?;
 
         // Durably mark the eviction in the manifest BEFORE deleting bytes.
         // If the delete fails after this, the metadata correctly says

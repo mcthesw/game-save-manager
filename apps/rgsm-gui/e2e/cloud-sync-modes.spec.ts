@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
-import { DEVICE_A_ID, DEVICE_B_ID } from './support/constants';
+import { basename, join } from 'node:path';
+import { DEVICE_A_ID, DEVICE_B_ID, STORAGE_KEY } from './support/constants';
 import {
   cloudArchivePath,
   deviceGameSettings,
@@ -44,9 +45,14 @@ test('sync modes and enable catch-up', async ({ browser }) => {
     await writeSave(seeded.deviceA, 'cloud-backup-auto\n');
     await createSnapshotViaApi(session.hostA, 'Auto upload');
     const autoId = await latestSnapshotId(session.hostA, 'Auto upload');
-    await expect
-      .poll(() => existsSync(cloudArchivePath(seeded.cloudRoot, autoId)), { timeout: 15_000 })
-      .toBe(true);
+    const autoCloudCopy = join(
+      seeded.cloudRoot,
+      'v2',
+      'archives',
+      STORAGE_KEY,
+      basename(localArchivePath(seeded.deviceA.appDataDir, autoId))
+    );
+    await expect.poll(() => existsSync(autoCloudCopy), { timeout: 15_000 }).toBe(true);
 
     const beforeB = await readSave(seeded.deviceB);
     await enableMode(session.pageB, session.hostB, 'Cloud Backup', 'Download to this device');
@@ -61,9 +67,14 @@ test('sync modes and enable catch-up', async ({ browser }) => {
     await writeSave(seeded.deviceB, 'independent-progress-on-b\n');
     await createSnapshotViaApi(session.hostB, 'Independent B branch');
     const branchId = await latestSnapshotId(session.hostB, 'Independent B branch');
-    await expect
-      .poll(() => existsSync(cloudArchivePath(seeded.cloudRoot, branchId)), { timeout: 15_000 })
-      .toBe(true);
+    const branchCloudCopy = join(
+      seeded.cloudRoot,
+      'v2',
+      'archives',
+      STORAGE_KEY,
+      basename(localArchivePath(seeded.deviceB.appDataDir, branchId))
+    );
+    await expect.poll(() => existsSync(branchCloudCopy), { timeout: 15_000 }).toBe(true);
     expect(await readSave(seeded.deviceA)).toBe('cloud-backup-auto\n');
     expect(await readSave(seeded.deviceB)).toBe('independent-progress-on-b\n');
   } catch (error) {

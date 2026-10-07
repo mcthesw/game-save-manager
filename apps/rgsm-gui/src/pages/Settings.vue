@@ -973,12 +973,12 @@ const localeOptions = getSupportedLanguages().map((lang) => ({
 const homePageOptions = computed(() =>
   router_list.value.map((route) => ({ value: route.link, label: route.text }))
 );
-const compressionOptions = [
-  { label: 'Store', value: 'Store' },
-  { label: 'Fast (Deflate)', value: 'Fast' },
-  { label: 'Standard (Zstd)', value: 'Standard' },
-  { label: 'Best (Zstd L19)', value: 'Best' },
-];
+const compressionOptions = computed(() => [
+  { label: $t('settings.compression_store'), value: 'Store' },
+  { label: $t('settings.compression_fast'), value: 'Fast' },
+  { label: $t('settings.compression_standard'), value: 'Standard' },
+  { label: $t('settings.compression_best'), value: 'Best' },
+]);
 const expandBehaviorOptions = computed(() => [
   { label: $t('settings.save_list_expand_behavior_default_open'), value: 'always_open' },
   { label: $t('settings.save_list_expand_behavior_default_closed'), value: 'always_closed' },

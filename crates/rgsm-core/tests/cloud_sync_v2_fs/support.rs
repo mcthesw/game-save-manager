@@ -117,6 +117,7 @@ impl DeviceFixture {
             &self.archive_root.join(game_id),
             &snapshot.date,
             snapshot.archive_format,
+            snapshot.archive_name.as_deref(),
         );
         std::fs::create_dir_all(path.parent().expect("archive path should have a parent"))
             .expect("archive directory should initialize");
@@ -136,6 +137,7 @@ impl DeviceFixture {
             &self.archive_root.join(game_id),
             &snapshot.date,
             snapshot.archive_format,
+            snapshot.archive_name.as_deref(),
         )
     }
 }
@@ -208,8 +210,13 @@ pub async fn load_manifest(cloud: &FsCloudFixture) -> CloudManifest {
 }
 
 pub fn cloud_archive(game_id: &str, snapshot: &Snapshot) -> String {
-    cloud_archive_path(game_id, &snapshot.date, snapshot.archive_format)
-        .expect("cloud archive path should be valid")
+    cloud_archive_path(
+        game_id,
+        &snapshot.date,
+        snapshot.archive_format,
+        snapshot.archive_name.as_deref(),
+    )
+    .expect("cloud archive path should be valid")
 }
 
 pub fn read_progress(device: &DeviceFixture) -> serde_json::Value {
@@ -224,6 +231,7 @@ pub fn snapshot(id: &str, parent: Option<&str>, device_id: &str, size: usize) ->
         date: id.to_string(),
         describe: format!("Snapshot {id}"),
         path: format!("{id}.zip"),
+        archive_name: None,
         archive_format: ArchiveFormat::Zip,
         size: size as u64,
         parent: parent.map(str::to_string),
