@@ -230,7 +230,6 @@ mod tests {
             },
             snapshots: GameSnapshots::new("TestGame"),
             local_archive_path: PathBuf::from("/tmp/test.zip"),
-            remote_archive_path: "TestGame/2025-01-01T00:00:00.zip".into(),
         }
     }
 

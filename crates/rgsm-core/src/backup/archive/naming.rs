@@ -36,11 +36,7 @@ pub(crate) fn new_archive_name(
                 .format("%Y-%m-%d_%H-%M-%S")
                 .to_string()
         })
-        .or_else(|| {
-            chrono::NaiveDateTime::parse_from_str(&snapshot.date, "%Y-%m-%d_%H-%M-%S")
-                .ok()
-                .map(|time| time.format("%Y-%m-%d_%H-%M-%S").to_string())
-        })
+        .or_else(|| legacy_archive_time(&snapshot.date))
         .unwrap_or_else(|| "unknown-time".into());
     for _ in 0..3 {
         let random = uuid::Uuid::new_v4().simple().to_string();
@@ -52,6 +48,13 @@ pub(crate) fn new_archive_name(
     Err(BackupError::Unexpected(anyhow::anyhow!(
         "could not allocate an archive filename"
     )))
+}
+
+pub(super) fn legacy_archive_time(id: &str) -> Option<String> {
+    let clock = id.strip_prefix("Overwrite_").unwrap_or(id);
+    chrono::NaiveDateTime::parse_from_str(clock, "%Y-%m-%d_%H-%M-%S")
+        .ok()
+        .map(|time| time.format("%Y-%m-%d_%H-%M-%S").to_string())
 }
 
 #[cfg(test)]
