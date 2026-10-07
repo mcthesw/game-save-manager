@@ -1,0 +1,5 @@
+# Make Snapshot Archives self-contained
+
+Every ordinary Snapshot Archive must remain identifiable and recoverable without Game Save Manager or its external catalog: it contains original save data grouped by readable Save Unit names, embedded identification and location metadata, and human-readable recovery instructions. A readable capture time and random suffix name the archive, while stable Snapshot identity and ancestry remain independent of its filename; transfers preserve the name and original capture metadata, and unknown historical times remain unknown. Local and cloud copies use the same archive representation, while mutable Device positions and deletion records remain synchronization state rather than facts inferred from archive presence. This accepts some duplicated descriptive metadata so that independent recovery is a property of every backup, rather than a separate export feature.
+
+This decision defines the target archive format. Migration of existing 1.9 cloud archives to that format is deferred under ADR-0013.
