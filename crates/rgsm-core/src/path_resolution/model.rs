@@ -40,7 +40,7 @@ pub struct StoreAccountCandidate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameInstallationCandidate {
     pub id: ResourceId,
-    pub root_id: ResourceId,
+    pub root_id: Option<ResourceId>,
     pub store: StoreKind,
     pub install_dir: String,
     pub install_path: PathBuf,

@@ -692,15 +692,16 @@ export type GameDefinitionDifference = {
 };
 
 export type GameDeviceBinding = {
-  accountIds?: Array<U32> | null;
-  installationIds?: Array<U32> | null;
+  accountIds?: Array<string> | null;
+  installationIds?: Array<string> | null;
+  installationPath?: string | null;
   pathOverrides?: {
     [key: string]: SavePathOverride;
   };
   pathVariables?: {
     [key: string]: string;
   };
-  rootIds?: Array<U32> | null;
+  rootIds?: Array<string> | null;
 };
 
 /**
@@ -726,6 +727,22 @@ export type GameJoinClassification =
   | 'game_definition_conflict';
 
 export type GameListView = 'favorites' | 'all';
+
+export type GameLocationOption = {
+  id: string;
+  label: string;
+};
+
+export type GameLocationOptions = {
+  accounts: Array<GameLocationOption>;
+  installations: Array<string>;
+  roots: Array<GameLocationOption>;
+};
+
+export type GameLocationOptionsRequest = {
+  deviceId: string;
+  game: GameDraft;
+};
 
 /**
  * A backup list info is a json file in a backup folder for a game.
@@ -2404,6 +2421,28 @@ export type FetchLudusaviGamesResponses = {
 
 export type FetchLudusaviGamesResponse =
   FetchLudusaviGamesResponses[keyof FetchLudusaviGamesResponses];
+
+export type GameLocationOptionsData = {
+  body: GameLocationOptionsRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/game-location-options';
+};
+
+export type GameLocationOptionsErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type GameLocationOptionsError = GameLocationOptionsErrors[keyof GameLocationOptionsErrors];
+
+export type GameLocationOptionsResponses = {
+  200: GameLocationOptions;
+};
+
+export type GameLocationOptionsResponse =
+  GameLocationOptionsResponses[keyof GameLocationOptionsResponses];
 
 export type GetAppLogDirData = {
   body?: never;

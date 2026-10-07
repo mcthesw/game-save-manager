@@ -41,7 +41,15 @@ export function mergeDuplicateGameRoots(device: Device, games: Game[]): void {
   for (const game of games) {
     const binding = game.device_bindings?.[device.id];
     if (binding?.rootIds) {
-      binding.rootIds = [...new Set(binding.rootIds.map((id) => replacements.get(id) ?? id))];
+      binding.rootIds = [
+        ...new Set(
+          binding.rootIds.map((id) => {
+            const numeric = Number(id.replace(/^resource:/, ''));
+            const replacement = replacements.get(numeric);
+            return replacement === undefined ? id : `resource:${replacement}`;
+          })
+        ),
+      ];
     }
   }
 }

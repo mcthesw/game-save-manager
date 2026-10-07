@@ -114,6 +114,9 @@ import type {
   FetchLudusaviGamesData,
   FetchLudusaviGamesErrors,
   FetchLudusaviGamesResponses,
+  GameLocationOptionsData,
+  GameLocationOptionsErrors,
+  GameLocationOptionsResponses,
   GetAppLogDirData,
   GetAppLogDirErrors,
   GetAppLogDirResponses,
@@ -795,6 +798,22 @@ export const fetchLudusaviGames = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/api/v1/fetch-ludusavi-games',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+export const gameLocationOptions = <ThrowOnError extends boolean = false>(
+  options: Options<GameLocationOptionsData, ThrowOnError>
+): RequestResult<GameLocationOptionsResponses, GameLocationOptionsErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    GameLocationOptionsResponses,
+    GameLocationOptionsErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/game-location-options',
     ...options,
     headers: {
       'Content-Type': 'application/json',

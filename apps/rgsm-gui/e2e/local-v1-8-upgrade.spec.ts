@@ -33,7 +33,7 @@ type MigratedConfig = {
         paths?: Record<string, string>;
       };
     }>;
-    device_bindings?: Record<string, { rootIds?: number[] }>;
+    device_bindings?: Record<string, { rootIds?: string[] }>;
   }>;
   settings: Record<string, unknown>;
   devices: Record<
@@ -159,7 +159,7 @@ async function getMigratedConfig(host: RgsmHost, gameRoot: string): Promise<Migr
   expect(root, 'the migrated 1.8 game root was not retained').toBeTruthy();
   const game = config.games.find((candidate) => candidate.name === GAME_NAME);
   expect(game).toBeTruthy();
-  expect(game!.device_bindings?.[DEVICE_A_ID]?.rootIds).toEqual([root!.id]);
+  expect(game!.device_bindings?.[DEVICE_A_ID]?.rootIds).toEqual([`resource:${root!.id}`]);
   return config;
 }
 

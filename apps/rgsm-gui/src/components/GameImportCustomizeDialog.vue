@@ -51,6 +51,7 @@
 
       <GameLocationSelection
         v-model="form.binding"
+        :game="previewGame"
         hide-accounts
         :device="currentDevice"
         :paths="form.savePaths.map((row) => row.path)"

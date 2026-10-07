@@ -46,7 +46,11 @@ fn legacy_cloud_schema_preserves_declared_types_and_explicit_root_bindings() {
     let root_id = game.device_bindings["desktop-gamma"]
         .root_ids
         .as_ref()
-        .unwrap()[0];
+        .unwrap()[0]
+        .strip_prefix("resource:")
+        .unwrap()
+        .parse::<u32>()
+        .unwrap();
     assert!(matches!(
         &config.devices["desktop-gamma"].resource(root_id).unwrap().kind,
         crate::device::DeviceResourceKind::GameRoot { path, .. } if path == "D:/Games"

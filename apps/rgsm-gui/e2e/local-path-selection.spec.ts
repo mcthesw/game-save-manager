@@ -46,7 +46,8 @@ test('root selection stays local to the form and drives preview and backup', asy
     await dialog.locator('.pvi-editor').first().fill('<root>/game.exe');
     await expect(dialog).toContainText('Select a location');
     await dialog.getByRole('combobox', { name: 'Game root directory', exact: true }).click();
-    await page.getByText(`other · ${rootB}`, { exact: true }).click();
+    await page.screenshot({ path: testInfo.outputPath('path-selection-options.png') });
+    await page.getByRole('option', { name: `Other · ${rootB}`, exact: true }).click();
     await dialog.getByRole('heading', { level: 2 }).click();
     await expect(dialog).toContainText(`${rootB}/game.exe`);
     await page.screenshot({ path: testInfo.outputPath('path-selection-add.png') });
@@ -60,14 +61,14 @@ test('root selection stays local to the form and drives preview and backup', asy
     await saveEditor.fill('<root>/slot[[]1[]].sav');
     await expect(dialog.locator('.pvi-status--error')).toHaveCount(1);
     await dialog.getByRole('combobox', { name: 'Game root directory', exact: true }).click();
-    await page.getByText(`other · ${rootB}`, { exact: true }).click();
+    await page.getByRole('option', { name: `Other · ${rootB}`, exact: true }).click();
     await dialog.getByRole('heading', { level: 2 }).click();
     await expect(dialog.locator('.pvi-status--ok')).toHaveCount(1);
     await dialog.locator('.pvi-editor').first().fill('<root>/game.exe');
     await dialog.getByRole('button', { name: 'save', exact: true }).click();
     await expect
       .poll(async () => (await getLocalGame(host, GAME_NAME)).device_bindings)
-      .toMatchObject({ [DEVICE_A_ID]: { rootIds: [1] } });
+      .toMatchObject({ [DEVICE_A_ID]: { rootIds: ['resource:1'] } });
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Start game', exact: true }).click();
     await expect

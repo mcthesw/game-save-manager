@@ -634,6 +634,10 @@
         "auto_backup_on": "已启用自动备份"
     },
     "save_location_drawer": {
+    "installation_directory": "游戏安装目录",
+    "installation_placeholder": "填写或选择此游戏的文件夹",
+    "detected_installations": "已检测到的安装目录",
+    "choose_installation": "选择安装目录",
         "game_root": "游戏根目录",
         "store_account": "商店账号",
         "game_installation": "游戏安装目录",
@@ -1297,7 +1301,7 @@
         "xdg_config": "XDG 配置目录",
         "root": "游戏安装根目录（在备份工具中配置）",
         "store_user_id": "当前用户在游戏商店中的 ID",
-        "base": "<root>/<game> 的简写",
+        "base": "此游戏在当前设备上的安装目录",
         "game": "游戏安装目录名，或清单中的游戏规范名称",
         "store_game_id": "清单中特定于商店的游戏 ID",
         "test_resolution": "测试路径解析",

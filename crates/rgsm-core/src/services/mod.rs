@@ -13,6 +13,8 @@ pub use game_edit::{DeviceVariableEdit, DeviceVariableEdits};
 mod game_deletion;
 mod variable_setup;
 pub use variable_setup::{discover_game_variable, missing_game_variables};
+mod path_context;
+pub use path_context::{GameLocationOptions, game_location_options, game_path_context};
 mod path_open;
 pub use path_open::open_game_location;
 mod path_resolution;

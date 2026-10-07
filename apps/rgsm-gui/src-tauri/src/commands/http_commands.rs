@@ -1773,6 +1773,29 @@ pub async fn http_get_path_placeholder_catalog()
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct GameLocationOptionsRequest {
+    pub game: rgsm_core::backup::GameDraft,
+    pub device_id: String,
+}
+
+#[utoipa::path(
+    post, path = "/api/v1/game-location-options", operation_id = "gameLocationOptions",
+    request_body = GameLocationOptionsRequest,
+    responses((status = 200, body = rgsm_core::services::GameLocationOptions), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_game_location_options(
+    Json(request): Json<GameLocationOptionsRequest>,
+) -> Result<Json<rgsm_core::services::GameLocationOptions>, ApiError> {
+    let config = rgsm_core::config::get_config().map_err(ApiError::from_command)?;
+    Ok(Json(rgsm_core::services::game_location_options(
+        &request.game.into_game(None),
+        config.devices.get(&request.device_id),
+        &request.device_id == rgsm_core::device::get_current_device_id(),
+    )))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PreviewSaveUnitResolutionRequest {
     pub game: Game,
     pub save_unit: SaveUnit,
@@ -2358,6 +2381,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_get_path_placeholder_catalog),
         )
         .route(
+            "/api/v1/game-location-options",
+            post(http_game_location_options),
+        )
+        .route(
             "/api/v1/preview-save-unit-resolution",
             post(http_preview_save_unit_resolution),
         )
@@ -2504,6 +2531,7 @@ pub fn router() -> Router<HttpHostState> {
         http_get_game_save_paths,
         http_get_path_placeholder_catalog,
         http_preview_save_unit_resolution,
+        http_game_location_options,
         http_set_game_device_binding,
         http_get_ludusavi_manifest_status,
         http_update_ludusavi_manifest,

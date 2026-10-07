@@ -295,7 +295,11 @@ impl Game {
 
     /// Build a `PathContext` from this game's metadata for path variable resolution.
     /// Pass the current `Device` to include explicit Device Resources.
-    pub fn path_context(&self, device: Option<&crate::device::Device>) -> PathContext {
+    pub fn path_context(
+        &self,
+        device: Option<&crate::device::Device>,
+        environment: &crate::path_resolution::ResolutionContext,
+    ) -> PathContext {
         let device_id = device.map(|d| &d.id);
         let binding = device_id.and_then(|id| self.device_bindings.get(id));
         let selected_account_ids = binding.and_then(|binding| binding.account_ids.as_ref());
@@ -305,7 +309,9 @@ impl Game {
             .filter_map(|resource| match &resource.kind {
                 DeviceResourceKind::StoreAccount { store, user_id }
                     if *store == StoreKind::Steam
-                        && selected_account_ids.is_none_or(|ids| ids.contains(&resource.id)) =>
+                        && selected_account_ids.is_none_or(|ids| {
+                            ids.contains(&format!("resource:{}", resource.id))
+                        }) =>
                 {
                     Some(user_id.clone())
                 }
@@ -327,14 +333,18 @@ impl Game {
             None => PathContext::default(),
         };
         PathContext {
-            resolution: Some(crate::path_resolution::context::game_context(self, device)),
+            resolution: Some(crate::path_resolution::context::game_context(
+                self,
+                device,
+                environment,
+            )),
             game_roots: device
                 .into_iter()
                 .flat_map(|device| device.game_roots())
                 .filter(|resource| {
                     binding
                         .and_then(|binding| binding.root_ids.as_ref())
-                        .is_none_or(|ids| ids.contains(&resource.id))
+                        .is_none_or(|ids| ids.contains(&format!("resource:{}", resource.id)))
                 })
                 .filter_map(|resource| match &resource.kind {
                     DeviceResourceKind::GameRoot { path, .. } => Some(path.clone()),
@@ -349,7 +359,7 @@ impl Game {
     /// Build a `PathContext` using the current device from config.
     /// Convenience wrapper around `path_context()` for runtime callers.
     fn path_context_current_device(&self, config: &crate::config::Config) -> PathContext {
-        self.path_context(config.devices.get(get_current_device_id()))
+        crate::services::game_path_context(self, config.devices.get(get_current_device_id()))
     }
 
     /// The directory/path component used for local backup storage and remote
