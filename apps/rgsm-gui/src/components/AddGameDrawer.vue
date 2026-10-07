@@ -723,7 +723,6 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
         newGame.device_bindings![currentDevice.value.id] = {
           ...gameConfig.binding,
           accountIds: [accountResourceId],
-          restoreMappings: [],
         };
       }
 
@@ -825,7 +824,6 @@ async function save() {
     game.device_bindings[currentDevice.value.id] = {
       ...existingBinding,
       accountIds: [accountResourceId],
-      restoreMappings: existingBinding?.restoreMappings ?? [],
     };
   }
 

@@ -601,7 +601,7 @@ fn dynamic_v1_8_folder_restores_its_v2_archive_after_upgrade()
         .join(format!("{RELEASED_SNAPSHOT_DATE}.zip"));
     let mut manifest = ZipBackend.read_capture_manifest(&archive)?;
     manifest.groups[0].delete_before_apply = unit.delete_before_apply;
-    let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports, &[])?;
+    let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports)?;
 
     ZipBackend.restore_capture_plan(&plan, &archive)?;
 

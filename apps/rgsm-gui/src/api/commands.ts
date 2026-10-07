@@ -596,18 +596,6 @@ export const commands = {
       await sdk.setGameDeviceBinding({ body: { identity, binding } })
     );
   },
-  async saveRestoreMapping(
-    identity: types.SaveRestoreMappingRequest['identity'],
-    saveUnitId: types.SaveRestoreMappingRequest['saveUnitId'],
-    sourceDimensions: types.SaveRestoreMappingRequest['sourceDimensions'],
-    targetCandidateIds: types.SaveRestoreMappingRequest['targetCandidateIds']
-  ) {
-    return unwrap<types.SaveRestoreMappingResponses[200]>(
-      await sdk.saveRestoreMapping({
-        body: { identity, saveUnitId, sourceDimensions, targetCandidateIds },
-      })
-    );
-  },
   async getLudusaviManifestStatus() {
     return unwrap<types.GetLudusaviManifestStatusResponses[200]>(
       await sdk.getLudusaviManifestStatus()

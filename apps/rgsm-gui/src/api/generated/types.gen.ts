@@ -700,7 +700,6 @@ export type GameDeviceBinding = {
   pathVariables?: {
     [key: string]: string;
   };
-  restoreMappings?: Array<RestoreMappingRule>;
   rootIds?: Array<U32> | null;
 };
 
@@ -1261,13 +1260,7 @@ export type RestoreError =
     }
   | {
       save_unit_id: number;
-      source_dimensions: CandidateDimensions;
-      type: 'RestoreMappingRequired';
-    }
-  | {
-      save_unit_id: number;
-      source_dimensions: CandidateDimensions;
-      type: 'StaleRestoreMapping';
+      type: 'LocationSelectionRequired';
     }
   | {
       message: string;
@@ -1277,12 +1270,6 @@ export type RestoreError =
 export type RestoreExtraBackupRequest = {
   date: string;
   game: Game;
-};
-
-export type RestoreMappingRule = {
-  saveUnitId: number;
-  sourceDimensions: CandidateDimensions;
-  targetCandidateIds: Array<string>;
 };
 
 export type RestoreSnapshotRequest = {
@@ -1338,13 +1325,6 @@ export type SavePath = {
 
 export type SavePathOverride = {
   expression: string;
-};
-
-export type SaveRestoreMappingRequest = {
-  identity: string;
-  saveUnitId: number;
-  sourceDimensions: CandidateDimensions;
-  targetCandidateIds: Array<string>;
 };
 
 /**
@@ -3549,25 +3529,6 @@ export type ReviewV2GameProgressResponses = {
 
 export type ReviewV2GameProgressResponse =
   ReviewV2GameProgressResponses[keyof ReviewV2GameProgressResponses];
-
-export type SaveRestoreMappingData = {
-  body: SaveRestoreMappingRequest;
-  path?: never;
-  query?: never;
-  url: '/api/v1/save-restore-mapping';
-};
-
-export type SaveRestoreMappingErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type SaveRestoreMappingError = SaveRestoreMappingErrors[keyof SaveRestoreMappingErrors];
-
-export type SaveRestoreMappingResponses = {
-  200: unknown;
-};
 
 export type ScanVnsData = {
   body: ScanVnsRequest;

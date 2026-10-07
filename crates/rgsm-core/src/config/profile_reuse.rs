@@ -48,8 +48,6 @@ pub(crate) fn reuse_profile_locations(
                     .collect();
             }
             // Candidate IDs refer to the old device's resource dimensions.
-            // Re-select a restore mapping on this device if it is ambiguous.
-            binding.restore_mappings.clear();
         }
         target.visible = true;
         target.sync_mode = SyncMode::Manual;

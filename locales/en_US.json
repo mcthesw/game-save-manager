@@ -1273,6 +1273,8 @@
     },
     "path_variable": {
         "invalid_pattern": "Invalid path",
+        "multiple_instances": "This backup contains multiple installations or accounts. Import them as separate games.",
+        "restore_overlap": "Save locations overlap at %{path}. Check this game’s save locations before restoring.",
         "choose_location": "Select a location",
         "selection_unavailable": "Selected location is unavailable",
         "missing_context": "Configure the required game location",

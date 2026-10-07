@@ -77,9 +77,6 @@ const variablePaths = computed(() => [
   ...tempGame.value.save_paths.map((unit) => getDevicePath(unit, selectedDeviceId.value)),
 ]);
 const selectedDeviceResources = computed(() => selectedDevice.value?.resources ?? []);
-const savedRestoreMappings = computed(
-  () => tempGame.value.device_bindings?.[selectedDeviceId.value]?.restoreMappings ?? []
-);
 
 const deviceOptions = computed(() =>
   availableDevices.value.map((device) => ({ value: device.id, label: device.name }))
@@ -87,19 +84,12 @@ const deviceOptions = computed(() =>
 
 function currentBinding(): GameDeviceBinding {
   tempGame.value.device_bindings ??= {};
-  return (tempGame.value.device_bindings[selectedDeviceId.value] ??= {
-    restoreMappings: [],
-  });
+  return (tempGame.value.device_bindings[selectedDeviceId.value] ??= {});
 }
 
 function updateBinding(binding: GameDeviceBinding) {
   tempGame.value.device_bindings ??= {};
   tempGame.value.device_bindings[selectedDeviceId.value] = binding;
-  hasUnsavedChanges.value = true;
-}
-
-function removeRestoreMapping(index: number) {
-  (currentBinding().restoreMappings ??= []).splice(index, 1);
   hasUnsavedChanges.value = true;
 }
 
@@ -230,9 +220,6 @@ function updatePathOverride(unit: SaveUnit, value: SavePathOverride | undefined)
   binding.pathOverrides ??= {};
   if (value) binding.pathOverrides[unit.id] = value;
   else delete binding.pathOverrides[unit.id];
-  binding.restoreMappings = (binding.restoreMappings ?? []).filter(
-    (rule) => rule.saveUnitId !== unit.id
-  );
   hasUnsavedChanges.value = true;
 }
 
@@ -587,25 +574,6 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
           ]"
           @update:model-value="updateBinding"
         />
-        <div v-if="savedRestoreMappings.length" class="mt-2 flex flex-col gap-1">
-          <div
-            v-for="(mapping, index) in savedRestoreMappings"
-            :key="`${mapping.saveUnitId}-${index}`"
-            class="flex items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5"
-          >
-            <span class="text-xs text-text-dim">{{
-              $t('save_location_drawer.saved_restore_choice', { id: mapping.saveUnitId })
-            }}</span>
-            <KButton
-              variant="ghost"
-              size="sm"
-              class="text-danger"
-              @click="removeRestoreMapping(index)"
-            >
-              {{ $t('save_location_drawer.forget_restore_choice') }}
-            </KButton>
-          </div>
-        </div>
       </section>
 
       <!-- Launch path -->

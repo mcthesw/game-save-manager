@@ -269,9 +269,6 @@ import type {
   ReviewV2GameProgressData,
   ReviewV2GameProgressErrors,
   ReviewV2GameProgressResponses,
-  SaveRestoreMappingData,
-  SaveRestoreMappingErrors,
-  SaveRestoreMappingResponses,
   ScanVnsData,
   ScanVnsErrors,
   ScanVnsResponses,
@@ -1449,22 +1446,6 @@ export const reviewV2GameProgress = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/api/v1/review-v2-game-progress',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-export const saveRestoreMapping = <ThrowOnError extends boolean = false>(
-  options: Options<SaveRestoreMappingData, ThrowOnError>
-): RequestResult<SaveRestoreMappingResponses, SaveRestoreMappingErrors, ThrowOnError> =>
-  (options.client ?? client).post<
-    SaveRestoreMappingResponses,
-    SaveRestoreMappingErrors,
-    ThrowOnError
-  >({
-    url: '/api/v1/save-restore-mapping',
     ...options,
     headers: {
       'Content-Type': 'application/json',

@@ -771,7 +771,7 @@ mod tests {
                 diagnostics: Vec::new(),
             },
         )]);
-        let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports, &[]).unwrap();
+        let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports).unwrap();
 
         ZipBackend.restore_capture_plan(&plan, &archive).unwrap();
 

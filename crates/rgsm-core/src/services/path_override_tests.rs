@@ -57,8 +57,7 @@ fn scoped_variables_restore_all_slots_to_target_device_account() {
     game.device_bindings.clear();
     let report = service.resolve_save_unit_for_restore(&config, &game, &game.save_paths[0]);
     let manifest = SevenZBackend.read_capture_manifest(&archive).unwrap();
-    let plan =
-        RestorePlan::build(&manifest.groups, &[(7, report)].into_iter().collect(), &[]).unwrap();
+    let plan = RestorePlan::build(&manifest.groups, &[(7, report)].into_iter().collect()).unwrap();
     SevenZBackend.restore_capture_plan(&plan, &archive).unwrap();
     for slot in ["slot1.sav", "slot2.sav"] {
         assert_eq!(
@@ -224,8 +223,7 @@ fn variables_after_globs_restore_each_slot_without_old_account_names() {
     config.devices.insert(id.clone(), serde_json::from_value(json!({"id": id, "name": "Target", "path_variables": {"root": target, "account": "new-account"}})).unwrap());
     let report = service.resolve_save_unit_for_restore(&config, &game, &game.save_paths[0]);
     let manifest = SevenZBackend.read_capture_manifest(&archive).unwrap();
-    let plan =
-        RestorePlan::build(&manifest.groups, &[(7, report)].into_iter().collect(), &[]).unwrap();
+    let plan = RestorePlan::build(&manifest.groups, &[(7, report)].into_iter().collect()).unwrap();
     SevenZBackend.restore_capture_plan(&plan, &archive).unwrap();
     for slot in ["slot1", "slot2"] {
         assert_eq!(

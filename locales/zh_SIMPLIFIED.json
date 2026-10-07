@@ -1273,6 +1273,8 @@
     },
     "path_variable": {
         "invalid_pattern": "路径格式无效",
+        "multiple_instances": "此备份包含多个安装或账号，请分别导入为不同游戏。",
+        "restore_overlap": "存档位置在 %{path} 重叠，请修改此游戏的存档位置后再恢复。",
         "choose_location": "请选择位置",
         "selection_unavailable": "所选位置不可用",
         "missing_context": "请配置所需的游戏位置",
