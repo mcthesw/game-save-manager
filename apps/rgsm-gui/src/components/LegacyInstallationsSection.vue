@@ -10,6 +10,7 @@ const props = defineProps<{ device: Device; games: Game[] }>();
 const emit = defineEmits<{ updated: [] }>();
 const chosen = ref<Record<number, string | number>>({});
 const busy = ref(false);
+const installationVariable = '<base>';
 const records = computed(
   () =>
     props.device.resources?.flatMap((resource) =>
@@ -56,7 +57,7 @@ async function assign(id: number, path: string) {
       <h2 class="text-sm font-semibold text-text">{{ $t('local_upgrade.installations_title') }}</h2>
     </div>
     <p class="mb-3 text-xs leading-relaxed text-text-dim">
-      {{ $t('local_upgrade.installations_hint', { variable: '<base />' }) }}
+      {{ $t('local_upgrade.installations_hint', { variable: installationVariable }) }}
     </p>
     <div
       v-for="record in records"
