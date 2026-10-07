@@ -1,5 +1,6 @@
 use super::{
     ArchiveFormat, CapturePlan, CreatedBy, Game, GameSnapshots, RestoreNotifier, Snapshot,
+    SnapshotCatalog,
     archive::{ArchiveIdentity, write_snapshot_archive},
     archive_file_name,
     extra_backups::cleanup_oldest_extra_backups,
@@ -30,7 +31,8 @@ impl Game {
     ) -> Result<SnapshotCreated, BackupError> {
         let backup_path = options.backup_base.join(self.backup_dir_name().as_ref());
         fs::create_dir_all(&backup_path)?;
-        let infos = match self.get_game_snapshots_info() {
+        let catalog = SnapshotCatalog::new(options.backup_base, self, options.device_id);
+        let infos = match catalog.read() {
             Ok(infos) => infos,
             Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
                 GameSnapshots::new(self.name.clone())
@@ -50,7 +52,7 @@ impl Game {
         }
         let parent = options
             .parent_date
-            .or_else(|| infos.current_device_head().cloned());
+            .or_else(|| infos.head_for_device(options.device_id).cloned());
         let mut snapshot = Snapshot {
             date: date.clone(),
             describe: options.describe.to_string(),
@@ -75,19 +77,14 @@ impl Game {
             ArchiveIdentity::for_snapshot(self, &snapshot, options.device_id),
             options.source_fingerprint,
         )?;
-        let infos = self.update_game_snapshots_info::<BackupError>(|current| {
+        let infos = catalog.update::<BackupError>(|current| {
             current.backups.push(snapshot);
-            current.set_current_device_head(Some(date.clone()));
+            current.set_head_for_device(options.device_id.clone(), Some(date.clone()));
             Ok(())
         })?;
 
         Ok(SnapshotCreated {
             snapshots: infos,
-            remote_archive_path: format!(
-                "save_data/{}/{}",
-                self.backup_dir_name(),
-                archive_file_name(&date, archive_format, Some(&name))
-            ),
             local_archive_path: archive_path,
         })
     }
