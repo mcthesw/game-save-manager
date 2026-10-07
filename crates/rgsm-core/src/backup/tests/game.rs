@@ -187,7 +187,11 @@ fn ordinary_snapshot_is_recoverable_without_the_catalog() -> TestResult {
         let instructions = String::from_utf8(extracted["RESTORE.txt"].clone())?;
         assert!(instructions.contains("Star Traveller"));
         assert!(instructions.contains("profile.sav"));
-        assert!(instructions.contains(&source.to_string_lossy().to_string()));
+        let recovery_path = instructions
+            .lines()
+            .find_map(|line| line.strip_prefix("Original path: "))
+            .ok_or("missing recovery destination")?;
+        assert_eq!(fs::canonicalize(recovery_path)?, fs::canonicalize(&source)?);
         Ok(())
     })
 }

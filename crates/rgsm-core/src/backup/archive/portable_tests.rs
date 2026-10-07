@@ -32,6 +32,30 @@ fn identity() -> ArchiveIdentity {
     }
 }
 
+#[test]
+fn recovery_document_uses_plain_english_and_preserves_player_text() {
+    let plan = CapturePlan {
+        groups: vec![group(
+            0,
+            0,
+            "C:/玩家/profile.sav",
+            "",
+            CaptureSourceKind::File,
+        )],
+    };
+    let mut identity = identity();
+    identity.game_name = "星海旅人".into();
+    identity.description = "最终战之前".into();
+    let (_, manifest) = prepare_archive(&plan, identity, None).unwrap();
+    let text = super::portable::recovery_instructions(&manifest);
+    assert!(text.starts_with("Game Save Manager backup\n"));
+    assert!(text.contains("Game: 星海旅人\n"));
+    assert!(text.contains("Note: 最终战之前\n"));
+    assert!(text.contains("Original path: C:/玩家/profile.sav"));
+    assert!(text.contains("_rgsm/manifest.json"));
+    assert!(!text.contains("Snapshot ID:"));
+}
+
 fn group(
     unit: u32,
     id: u32,

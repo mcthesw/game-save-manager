@@ -126,6 +126,8 @@ pub(super) fn prepare_archive(
     Ok((plan, manifest))
 }
 
+// Portable recovery documents use fixed English, independent of the app locale.
+// Player names, notes and paths remain verbatim UTF-8; full capture facts stay in JSON.
 pub(super) fn recovery_instructions(manifest: &ArchiveManifest) -> String {
     let identity = manifest
         .identity
@@ -139,62 +141,42 @@ pub(super) fn recovery_instructions(manifest: &ArchiveManifest) -> String {
             identity
                 .legacy_local_time
                 .as_ref()
-                .map(|time| rust_i18n::t!("portable_archive.local_time", time = time).into_owned())
+                .map(|time| format!("{time} (local time; time zone unknown)"))
         })
-        .unwrap_or_else(|| rust_i18n::t!("portable_archive.unknown_time").into_owned());
+        .unwrap_or_else(|| "Unknown".into());
     let mut text = format!(
-        "{}\n\n{}\n\n",
-        rust_i18n::t!(
-            "portable_archive.title",
-            game = identity.game_name,
-            time = time
-        ),
-        rust_i18n::t!("portable_archive.instructions")
+        "Game Save Manager backup\nGame: {}\nSaved: {time}\n",
+        identity.game_name
     );
+    if !identity.description.is_empty() {
+        text.push_str(&format!("Note: {}\n", identity.description));
+    }
+    text.push_str("\nClose the game. Keep a copy of your current saves.\nCopy the entries below to their save locations; adjust paths for this computer.\n");
+    if manifest
+        .groups
+        .iter()
+        .any(|group| group.kind == CaptureSourceKind::Registry)
+    {
+        text.push_str(
+            "For .reg files, check the keys, then import with Windows Registry Editor.\n",
+        );
+    }
     if identity.recovered_metadata {
-        text.push_str(&format!(
-            "{}\n\n",
-            rust_i18n::t!("portable_archive.recovered_metadata")
-        ));
+        text.push_str("Locations reconstructed during upgrade; verify them before restoring.\n");
     }
     for group in &manifest.groups {
-        let location = identity
-            .locations
-            .iter()
-            .find(|location| location.save_unit_id == group.save_unit_id);
-        text.push_str(&format!("{}\n", group.archive_path));
-        if let Some(location) = location {
-            text.push_str(&format!(
-                "  {}\n",
-                rust_i18n::t!("portable_archive.expression", path = location.expression)
-            ));
-        }
+        text.push_str(&format!("\n{}\n", group.archive_path));
         if let Some(path) = &group.source_path_diagnostic {
-            text.push_str(&format!(
-                "  {}\n",
-                rust_i18n::t!("portable_archive.source", path = path)
-            ));
+            text.push_str(&format!("Original path: {path}\n"));
+        } else if let Some(location) = identity.locations.iter().find(|location| {
+            location.save_unit_id == group.save_unit_id && !location.expression.is_empty()
+        }) {
+            text.push_str(&format!("Path pattern: {}\n", location.expression));
+        } else {
+            text.push_str("Original path unknown; locate this game's save folder.\n");
         }
-        if group.kind == CaptureSourceKind::Registry {
-            text.push_str(&format!(
-                "  {}\n",
-                rust_i18n::t!("portable_archive.registry")
-            ));
-        }
-        text.push('\n');
     }
-    text.push_str(&format!(
-        "{}\n{}\n",
-        rust_i18n::t!(
-            "portable_archive.description",
-            description = identity.description
-        ),
-        rust_i18n::t!(
-            "portable_archive.identity",
-            game = identity.game_id,
-            snapshot = identity.snapshot_id
-        )
-    ));
+    text.push_str("\nDetails: _rgsm/manifest.json (not game data).\n");
     text
 }
 

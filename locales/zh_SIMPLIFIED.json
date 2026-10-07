@@ -1399,20 +1399,10 @@
         "use_game_value": "用于本游戏",
         "setup_unavailable": "暂时无法检查本设备的路径变量，本次操作未执行。请重试。"
     },
-  "portable_archive": {
-    "legacy_association_required": "此旧备份无法安全对应存档条目。请在「设置 → 备份设置 → 升级旧备份」中确认后重试。%{reason}",
-    "recovered_metadata": "这是升级后的历史备份。旧备份缺失的位置说明由升级时的游戏配置补充，恢复前请核对。",
-    "identity_mismatch": "此备份属于其他游戏或存档点，请选择正确的备份文件。",
-    "title": "%{game} — %{time}",
-    "instructions": "恢复前请关闭游戏。将解压出的存档文件或文件夹复制到本设备的存档位置，替换对应文件。下面记录的是原设备的位置，本设备的账号或安装目录可能不同。替换前请保留一份当前存档。_rgsm 保存识别信息，无需复制到游戏目录。",
-    "local_time": "%{time}（原设备本地时间，时区未知）",
-    "unknown_time": "存档时间未知",
-    "expression": "存档位置：%{path}",
-    "source": "原设备位置：%{path}",
-    "registry": "注册表备份：这是标准 .reg 文件。请核对其中的键，再通过 Windows 注册表编辑器导入。",
-    "description": "备份时的备注：%{description}",
-    "identity": "游戏 ID：%{game}\n存档点 ID：%{snapshot}"
-  },
+    "portable_archive": {
+        "legacy_association_required": "此旧备份无法安全对应存档条目。请在「设置 → 备份设置 → 升级旧备份」中确认后重试。%{reason}",
+        "identity_mismatch": "此备份属于其他游戏或存档点，请选择正确的备份文件。"
+    },
     "local_upgrade": {
         "installations_title": "待确认的旧安装位置",
         "installations_hint": "为旧版设置中保留的位置选择对应游戏，作为该游戏在此设备上的安装目录（{variable}）。",
