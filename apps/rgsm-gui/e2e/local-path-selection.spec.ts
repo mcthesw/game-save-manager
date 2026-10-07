@@ -45,7 +45,7 @@ test('root selection stays local to the form and drives preview and backup', asy
     let dialog = page.getByRole('dialog');
     await dialog.locator('.pvi-editor').first().fill('<root>/game.exe');
     await expect(dialog).toContainText('Select a location');
-    await dialog.getByRole('button', { name: 'Game root directory', exact: true }).click();
+    await dialog.getByRole('combobox', { name: 'Game root directory', exact: true }).click();
     await page.getByText(`other · ${rootB}`, { exact: true }).click();
     await dialog.getByRole('heading', { level: 2 }).click();
     await expect(dialog).toContainText(`${rootB}/game.exe`);
@@ -59,7 +59,7 @@ test('root selection stays local to the form and drives preview and backup', asy
     const saveEditor = dialog.locator('.pvi-editor').nth(1);
     await saveEditor.fill('<root>/slot[[]1[]].sav');
     await expect(dialog.locator('.pvi-status--error')).toHaveCount(1);
-    await dialog.getByRole('button', { name: 'Game root directory', exact: true }).click();
+    await dialog.getByRole('combobox', { name: 'Game root directory', exact: true }).click();
     await page.getByText(`other · ${rootB}`, { exact: true }).click();
     await dialog.getByRole('heading', { level: 2 }).click();
     await expect(dialog.locator('.pvi-status--ok')).toHaveCount(1);

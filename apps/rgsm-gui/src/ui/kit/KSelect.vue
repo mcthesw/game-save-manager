@@ -92,9 +92,10 @@ function clear(event: Event) {
             :key="String(option.value)"
             :value="option.value"
             :disabled="option.disabled"
+            :title="option.label"
             class="flex h-8 cursor-pointer select-none items-center justify-between gap-2 rounded-sm px-2 text-sm outline-none data-[disabled]:cursor-not-allowed data-[highlighted]:bg-surface-2 data-[disabled]:opacity-50"
           >
-            <SelectItemText>{{ option.label }}</SelectItemText>
+            <SelectItemText class="min-w-0 truncate">{{ option.label }}</SelectItemText>
             <SelectItemIndicator
               ><Check :size="14" class="text-accent" aria-hidden="true"
             /></SelectItemIndicator>

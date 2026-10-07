@@ -189,11 +189,8 @@ fn assert_released_save_data_survives_upgrade(
         &Default::default(),
     );
     let report = rgsm_core::path_resolution::match_resolution_plan(&resolution)?;
-    let plan = RestorePlan::build_legacy_v2(
-        &manifest.groups,
-        &BTreeMap::from([(save_unit.id, report)]),
-        &[],
-    )?;
+    let plan =
+        RestorePlan::build_legacy_v2(&manifest.groups, &BTreeMap::from([(save_unit.id, report)]))?;
     ZipBackend.restore_capture_plan(&plan, &archive_path)?;
 
     let restored_file = match save_unit.unit_type() {
@@ -616,7 +613,7 @@ fn dynamic_v1_8_folder_restores_its_v2_archive_after_upgrade()
         .join(format!("{RELEASED_SNAPSHOT_DATE}.zip"));
     let mut manifest = ZipBackend.read_capture_manifest(&archive)?;
     manifest.groups[0].delete_before_apply = unit.delete_before_apply;
-    let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports, &[])?;
+    let plan = RestorePlan::build_legacy_v2(&manifest.groups, &reports)?;
 
     ZipBackend.restore_capture_plan(&plan, &archive)?;
 

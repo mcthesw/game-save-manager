@@ -75,7 +75,7 @@ pub fn plan_resolution(
                 selected_resource_ids: stale_ids,
                 candidate_ids,
             }
-        } else if has_unselected_alternatives(&candidates, context) {
+        } else if candidates.len() > 1 {
             diagnostics.push(diagnostic(
                 ResolutionDiagnosticKind::MultipleCandidates,
                 "multiple save-location candidates require a device selection",
@@ -113,51 +113,6 @@ pub fn plan_resolution(
         selection_state,
         diagnostics,
     }
-}
-
-fn has_unselected_alternatives(
-    candidates: &[CandidateExpression],
-    context: &ResolutionContext,
-) -> bool {
-    // An explicit installation choice also identifies its owning library.
-    let roots = if candidates
-        .iter()
-        .all(|c| c.dimensions.installation_id.is_some())
-    {
-        context
-            .selection
-            .root_ids
-            .as_ref()
-            .or(context.selection.installation_ids.as_ref())
-    } else {
-        context.selection.root_ids.as_ref()
-    };
-    let dimensions = [
-        (
-            roots,
-            candidates
-                .iter()
-                .filter_map(|c| c.dimensions.root_id.as_ref())
-                .collect::<BTreeSet<_>>(),
-        ),
-        (
-            context.selection.account_ids.as_ref(),
-            candidates
-                .iter()
-                .filter_map(|c| c.dimensions.account_id.as_ref())
-                .collect(),
-        ),
-        (
-            context.selection.installation_ids.as_ref(),
-            candidates
-                .iter()
-                .filter_map(|c| c.dimensions.installation_id.as_ref())
-                .collect(),
-        ),
-    ];
-    dimensions
-        .into_iter()
-        .any(|(selection, alternatives)| selection.is_none() && alternatives.len() > 1)
 }
 
 fn empty_plan(
@@ -652,6 +607,18 @@ mod tests {
     }
 
     #[test]
+    fn single_instance_rejects_an_explicit_selection_of_multiple_libraries() {
+        let parsed = parse_manifest_path_pattern("<root>/save.dat").unwrap();
+        let mut context = context();
+        context.selection.root_ids = Some(context.roots.iter().map(|r| r.id.clone()).collect());
+        let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context);
+        assert!(matches!(
+            plan.selection_state,
+            ResolutionSelectionState::Ambiguous { .. }
+        ));
+    }
+
+    #[test]
     fn explicit_selection_remains_stable_when_other_resources_exist() {
         let parsed = parse_manifest_path_pattern("<base>/save/*.sav").unwrap();
         let mut context = context();
@@ -668,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn selecting_an_account_does_not_select_all_roots() {
+    fn selecting_an_account_or_multiple_libraries_keeps_the_instance_ambiguous() {
         let parsed = parse_manifest_path_pattern("<root>/save.dat").unwrap();
         let mut context = context();
         context.selection.account_ids = Some(BTreeSet::from([context.accounts[0].id.clone()]));
@@ -682,7 +649,7 @@ mod tests {
         let plan = plan_resolution(&parsed, ManifestPathConstraints::default(), &context);
         assert!(matches!(
             plan.selection_state,
-            ResolutionSelectionState::Explicit { .. }
+            ResolutionSelectionState::Ambiguous { .. }
         ));
     }
 

@@ -10,7 +10,7 @@ Each term carries up to three annotations:
 - `_Hide by default_` — the underlying technical term; not shown to ordinary users but revealable through a "show technical terms" setting for advanced users and debugging.
 
 **Game**:
-A user-managed title whose save data can be backed up and restored.
+A user-managed save history for one game instance on each **Device**, with one selected account or profile wherever the game requires one. Separate instances or account histories of the same title are separate **Games**.
 _Avoid_: entry, project, app
 
 **Game Order**:
@@ -26,7 +26,7 @@ The display strategy used to present **Games** in the save list.
 _Avoid_: game order, stored game order
 
 **Save Unit**:
-A single file, folder, or registry location that belongs to a **Game**'s save data.
+A part of one **Game**'s save data, described by a file, folder, or registry location expression. One **Save Unit** may match multiple files or folders belonging to that same game instance.
 _Avoid_: path, item, source
 
 **Save Unit Type**:
@@ -185,6 +185,10 @@ _Avoid_: latest remote, automatic merge
 The shared description of known **Snapshots**, their parent relationships, and archive identities, independent of archive location.
 _Avoid_: local backup list, archive cache
 
+**Snapshot Archive**:
+A self-contained copy of one **Snapshot**'s captured save data, with enough information to identify its **Game**, known capture time, and **Save Units** and recover its contents independently of Game Save Manager.
+_Avoid_: Snapshot Catalog, Device Profile
+
 **Cloud Manifest**:
 The single versioned cloud file containing every **Game**'s **Snapshot Catalog**, **Tombstone Nodes**, per-Device **Current Position**, last-reported Local Archive presence, and verified **Cloud Archive** availability.
 _Avoid_: shared config, task queue, progress log, provider file list
@@ -206,11 +210,11 @@ The one-time transition that activates a new **Cloud Namespace** and ends mixed-
 _Avoid_: continuous migration, dual-write, ordinary sync
 
 **Local Archive**:
-The archive bytes for one **Snapshot** that are currently available on a **Device**.
+A **Snapshot Archive** copy that is currently available on a **Device**.
 _Avoid_: Snapshot, Snapshot Catalog
 
 **Cloud Archive**:
-The archive bytes for one **Snapshot** that are currently available through **Cloud Sync**.
+A **Snapshot Archive** copy that is currently available through **Cloud Sync**.
 _Avoid_: Snapshot, cloud save
 
 **Local Archive Eviction**:
@@ -296,28 +300,25 @@ A concrete file, folder, or registry location produced by evaluating a **Manifes
 _Avoid_: manifest path, path variable
 
 **Resolution Selection**:
-A **Device**-scoped choice that narrows a **Manifest Path Pattern** to one or more candidate store accounts, installation roots, or game installations.
+A **Game**- and **Device**-scoped choice of the installation and account context used by a **Manifest Path Pattern**. Multiple matching save files or folders within that instance do not require separate instance selections.
 _Avoid_: global path override, resolved path
 
 **Device Resource**:
-A store account, installation root, or game installation that is available on one **Device** for resolving **Manifest Path Patterns**.
+A store account, installation root, or game installation that is available on one **Device** for resolving **Manifest Path Patterns**. Its identity is local to that Device and does not establish equivalence with a resource on another Device.
 _Avoid_: global root, shared path
 
 **Game Device Binding**:
-A **Game**'s explicit selection of **Device Resources** on one **Device**, inherited by that **Game**'s manifest-derived **Save Units**.
+A **Game**'s installation, account, and game-specific path values on one **Device**, shared by that Game's **Save Units**. These values describe one instance of the Game, whether it was discovered or configured manually.
 _Avoid_: Device configuration, Save Unit path override
 
 **Capture Group**:
-The concrete data captured from one **Manifest Path Pattern** under one candidate combination in a **Snapshot**.
+The concrete data captured from one **Resolved Save Location** in a **Snapshot**, belonging to one **Save Unit** of the selected game instance.
 _Avoid_: absolute source path, Save Unit
-
-**Restore Mapping Rule**:
-An editable rule in a **Game Device Binding** that maps a source **Capture Group** identity to target **Device Resources** for later **Apply** operations.
-_Avoid_: archive path, one-time restore path
 
 ## Relationships
 
 - A **Game** has one or more **Save Units**.
+- A **Game** represents one game instance per **Device**; separate account histories or installation instances are separate **Games**, even when their title or store identity is the same.
 - A **Save Unit Type** describes what data a **Save Unit** contains, while its **Save Unit Source** describes how a Device locates that data.
 - Migrating a known concrete **Save Unit** to a portable **Manifest Path Pattern** preserves its declared **Save Unit Type**.
 - **Game Order** arranges **Games** for display without changing their save data.
@@ -437,13 +438,13 @@ _Avoid_: archive path, one-time restore path
 - A **Manifest Path Pattern** can produce zero or more **Resolved Save Locations** for one **Device**.
 - A **Save Unit** created from a **Manifest Path Pattern** retains that pattern and may resolve to a different set of **Resolved Save Locations** when a backup runs on another **Device** or at another time.
 - A **Resolved Save Location** can contribute to a **Save Unit**, but the two are not synonyms.
-- A **Resolution Selection** belongs to one **Device** and never rewrites the shared **Manifest Path Pattern**.
+- A **Resolution Selection** belongs to one **Game** on one **Device** and never rewrites the shared **Manifest Path Pattern**.
 - Without a **Resolution Selection**, exactly one candidate is used implicitly; zero candidates remain unresolved, while multiple candidates require an explicit **Resolution Selection**.
 - A **Device** exposes zero or more **Device Resources**.
 - A **Game Device Binding** selects **Device Resources** for exactly one **Game** on exactly one **Device**.
 - A manifest-derived **Save Unit** inherits its **Game Device Binding** and does not duplicate the same selection independently.
 - A **Snapshot** records one or more **Capture Groups** without storing target-Device configuration.
-- A **Restore Mapping Rule** belongs to a **Game Device Binding**, is reused by later **Apply** operations, and can be changed or removed by the player.
+- **Apply** relates captured data to the same **Game** and **Save Unit** on its target **Device**, using that Device's current **Game Device Binding**.
 
 ## Example dialogue
 

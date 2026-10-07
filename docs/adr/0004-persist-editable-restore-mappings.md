@@ -1,6 +1,6 @@
 # Persist editable restore mappings
 
-Status: accepted
+Status: superseded by ADR-0011
 
 Restore first honors the current Game Device Binding and automatically maps
 only when the source-to-target relationship is provably unique. An ambiguous

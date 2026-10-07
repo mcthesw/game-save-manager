@@ -1,0 +1,7 @@
+# Scope format upgrades to local migration
+
+The format upgrade migrates local configuration, catalogs, and archive files through one migration boundary. The existing legacy-cloud upgrade mechanism remains separate; this task does not introduce another cloud cutover, require all Devices to be online, or download the entire cloud history to rewrite it.
+
+The player starts migration after reviewing estimated additional local space and work; migration can pause and resume. Missing, damaged, or ambiguously associated archives retain their available original files and historical records as actionable pending items while other archives migrate, and supplying a valid copy allows retry. Original files remain until the player explicitly cleans them up after verification.
+
+Migration between internal 1.9 cloud-format revisions is deferred and is not an acceptance requirement for this task. In particular, automatically replacing previously synchronized archives and their integrity records, converting old cloud-only archives on download, and reconciling older Devices with converted cloud archives are not part of this migration design. Newly created archives use the target format through the existing synchronization flow; existing 1.9 cloud libraries are not promised seamless compatibility with changes to that format and must not be automatically rewritten or cleared by local migration. Redesigning cloud synchronization or adding distributed concurrency infrastructure is also outside this task.
