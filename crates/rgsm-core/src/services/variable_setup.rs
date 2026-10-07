@@ -50,11 +50,16 @@ pub fn discover_game_variable(
 ) -> anyhow::Result<crate::path_variables::VariableDiscovery> {
     let mut preview = config.clone();
     super::game_edit::apply_device_variables(&mut preview, edits)?;
-    let context = crate::path_resolution::context::game_context(
+    let context = super::game_path_context(
         game,
         preview.devices.get(crate::device::get_current_device_id()),
     );
-    crate::path_variables::discover_variable(paths, name, &context).map_err(anyhow::Error::msg)
+    crate::path_variables::discover_variable(
+        paths,
+        name,
+        context.resolution.as_ref().expect("game context"),
+    )
+    .map_err(anyhow::Error::msg)
 }
 
 #[cfg(test)]

@@ -296,7 +296,9 @@ fn migrate_path_resource_schema(
                         .device_bindings
                         .entry(device_id.clone())
                         .or_insert_with(GameDeviceBinding::default);
-                    binding.root_ids.get_or_insert_with(|| vec![root_id]);
+                    binding
+                        .root_ids
+                        .get_or_insert_with(|| vec![format!("resource:{root_id}")]);
                 }
             }
 
@@ -347,7 +349,7 @@ fn migrate_path_resource_schema(
                 game.device_bindings
                     .entry(device_id.clone())
                     .or_insert_with(GameDeviceBinding::default)
-                    .account_ids = Some(vec![account_id]);
+                    .account_ids = Some(vec![format!("resource:{account_id}")]);
             }
         }
     }
@@ -1157,7 +1159,10 @@ mod tests {
         assert_eq!(device.resources.len(), 2);
         assert_eq!(device.next_resource_id, 2);
         let binding = &migrated.games[0].device_bindings[&device_id];
-        assert_eq!(binding.account_ids.as_deref(), Some([1].as_slice()));
+        assert_eq!(
+            binding.account_ids.as_deref(),
+            Some(["resource:1".to_string()].as_slice())
+        );
         assert_eq!(
             migrated.games[0]
                 .ludusavi_meta

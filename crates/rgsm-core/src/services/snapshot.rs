@@ -246,7 +246,7 @@ impl ServiceContext {
                 }
                 ArchiveVersion::Legacy | ArchiveVersion::V1 => {
                     let device = config.devices.get(crate::device::get_current_device_id());
-                    let path_context = game.path_context(device);
+                    let path_context = crate::services::game_path_context(game, device);
                     game.restore_snapshot_with_context(
                         date,
                         notifier,
@@ -304,7 +304,7 @@ impl ServiceContext {
                         &game.save_paths,
                         &archive_path,
                         notifier,
-                        Some(&game.path_context(device)),
+                        Some(&crate::services::game_path_context(game, device)),
                     )?;
                     Ok(())
                 }
@@ -327,6 +327,10 @@ impl ServiceContext {
         if manifest.version == 2 {
             apply_legacy_v2_save_unit_metadata(&mut manifest.groups, &game.save_paths);
         }
+        let context = super::game_path_context(
+            game,
+            config.devices.get(crate::device::get_current_device_id()),
+        );
         let reports: std::collections::BTreeMap<_, _> = game
             .save_paths
             .iter()
@@ -334,7 +338,12 @@ impl ServiceContext {
             .map(|unit| {
                 (
                     unit.id,
-                    self.resolve_save_unit_for_restore(config, game, unit),
+                    self.resolve_save_unit_with_context(
+                        game,
+                        unit,
+                        &context,
+                        super::path_resolution::ResolutionPurpose::Restore,
+                    ),
                 )
             })
             .collect();

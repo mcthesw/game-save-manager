@@ -11,9 +11,9 @@ pub fn open_game_location(
     let mut config = config.clone();
     super::game_edit::apply_device_variables(&mut config, variables)?;
     let game = game.map(|draft| draft.into_game(None));
-    let context = game
-        .as_ref()
-        .map(|game| game.path_context(config.devices.get(get_current_device_id())));
+    let context = game.as_ref().map(|game| {
+        crate::services::game_path_context(game, config.devices.get(get_current_device_id()))
+    });
     if pattern && !crate::backup::registry::is_registry_path(raw) {
         let context = context
             .as_ref()

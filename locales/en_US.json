@@ -634,6 +634,10 @@
         "auto_backup_on": "Auto backup enabled"
     },
     "save_location_drawer": {
+    "installation_directory": "Game installation directory",
+    "installation_placeholder": "Enter or choose this game’s folder",
+    "detected_installations": "Detected installations",
+    "choose_installation": "Choose installation directory",
         "game_root": "Game root directory",
         "store_account": "Store account",
         "game_installation": "Game installation directory",
@@ -1297,7 +1301,7 @@
         "xdg_config": "XDG config directory",
         "root": "Game install root directory (configured in backup tool)",
         "store_user_id": "Current user's ID in the game store",
-        "base": "Shorthand for <root>/<game>",
+        "base": "This game’s installation directory on this device",
         "game": "Install directory name, or the game's canonical name in the manifest",
         "store_game_id": "Store-specific game ID from the manifest",
         "test_resolution": "Test path resolution",

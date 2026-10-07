@@ -39,7 +39,14 @@ test('merging roots preserves IDs, bindings, installations, other stores and emp
       },
     ],
   };
-  const games = [{ device_bindings: { pc: { rootIds: [5, 2, 8] }, other: { rootIds: [5] } } }];
+  const games = [
+    {
+      device_bindings: {
+        pc: { rootIds: ['resource:5', 'resource:2', 'resource:8'] },
+        other: { rootIds: ['resource:5'] },
+      },
+    },
+  ];
   mergeDuplicateGameRoots(device, games);
   assert.deepEqual(
     device.resources.map((resource) => resource.id),
@@ -47,8 +54,8 @@ test('merging roots preserves IDs, bindings, installations, other stores and emp
   );
   assert.equal(device.next_resource_id, 20);
   assert.equal(device.resources.at(-1).kind.root_id, 2);
-  assert.deepEqual(games[0].device_bindings.pc.rootIds, [2, 8]);
-  assert.deepEqual(games[0].device_bindings.other.rootIds, [5]);
+  assert.deepEqual(games[0].device_bindings.pc.rootIds, ['resource:2', 'resource:8']);
+  assert.deepEqual(games[0].device_bindings.other.rootIds, ['resource:5']);
   const once = structuredClone({ device, games });
   mergeDuplicateGameRoots(device, games);
   assert.deepEqual({ device, games }, once);

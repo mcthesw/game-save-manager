@@ -1,69 +1,155 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { Device, GameDeviceBinding } from '../api/commands';
+import { computed, ref, watch } from 'vue';
+import { ChevronDown, FolderOpen } from '@lucide/vue';
+import { commands, type Device, type GameDraft, type GameDeviceBinding } from '../api/commands';
 import { $t } from '../i18n';
-import { usePathResolution } from '../composables/usePathResolution';
-import { KSelect } from '../ui/kit';
+import { KButton, KInput, KMenu, KSelect } from '../ui/kit';
+import { notifyError } from '../composables/useActivityCenter';
 
 const props = defineProps<{
   device?: Device | null;
+  game: GameDraft;
   modelValue: GameDeviceBinding;
   paths: string[];
   hideAccounts?: boolean;
 }>();
 const emit = defineEmits<{ 'update:modelValue': [value: GameDeviceBinding] }>();
-const { resourceLabel } = usePathResolution();
-const selectors = computed(() => {
-  const paths = props.paths.join('\n');
-  return [
-    { kind: 'gameRoot', key: 'rootIds', token: /<(root|base|game)>/, label: 'game_root' },
-    { kind: 'storeAccount', key: 'accountIds', token: /<storeuserid>/i, label: 'store_account' },
+const locations = ref<{
+  roots: { id: string; label: string }[];
+  accounts: { id: string; label: string }[];
+  installations: string[];
+}>({ roots: [], accounts: [], installations: [] });
+let request = 0;
+watch(
+  () => JSON.stringify([props.device, props.game.ludusavi_meta]),
+  async () => {
+    const current = ++request;
+    locations.value = { roots: [], accounts: [], installations: [] };
+    if (!props.device) return;
+    try {
+      const result = await commands.gameLocationOptions(props.game, props.device.id);
+      if (current !== request) return;
+      if (result.status === 'ok') locations.value = result.data;
+      else notifyError(result.error);
+    } catch (error) {
+      if (current === request) notifyError(String(error));
+    }
+  },
+  { immediate: true }
+);
+const selectors = computed(() =>
+  [
     {
-      kind: 'gameInstallation',
-      key: 'installationIds',
-      token: /<(base|game)>/,
-      label: 'game_installation',
+      key: 'rootIds' as const,
+      options: locations.value.roots,
+      token: /<root>/,
+      label: 'game_root',
     },
-  ].flatMap((selector) => {
-    if (props.hideAccounts && selector.kind === 'storeAccount') return [];
-    const resources =
-      props.device?.resources?.filter((item) => item.kind.type === selector.kind) ?? [];
-    return selector.token.test(paths) && resources.length > 1
-      ? [
-          {
-            ...selector,
-            options: resources.map((item) => ({ value: item.id, label: resourceLabel(item) })),
-          },
-        ]
-      : [];
-  });
-});
-type SelectionKey = 'rootIds' | 'accountIds' | 'installationIds';
-function selectedId(key: string): number | undefined {
-  const ids = props.modelValue[key as SelectionKey];
-  return ids?.length === 1 ? ids[0] : undefined;
+    {
+      key: 'accountIds' as const,
+      options: locations.value.accounts,
+      token: /<storeuserid>/i,
+      label: 'store_account',
+    },
+  ].filter(
+    (s) => !(props.hideAccounts && s.key === 'accountIds') && s.token.test(props.paths.join('\n'))
+  )
+);
+function selectedId(key: 'rootIds' | 'accountIds', options: { id: string }[]): string | undefined {
+  const ids = props.modelValue[key];
+  return ids?.length === 1
+    ? ids[0]
+    : ids == null && options.length === 1
+      ? options[0]?.id
+      : undefined;
 }
-function update(key: string, id: string | number | undefined) {
-  emit('update:modelValue', { ...props.modelValue, [key]: id === undefined ? null : [Number(id)] });
+function update(key: 'rootIds' | 'accountIds', id: string | number | undefined) {
+  emit('update:modelValue', { ...props.modelValue, [key]: id === undefined ? null : [String(id)] });
+}
+const installationPath = computed(
+  () =>
+    props.modelValue.installationPath ??
+    (locations.value.installations.length === 1 ? locations.value.installations[0] : '') ??
+    ''
+);
+const installations = computed(() =>
+  locations.value.installations.map((path) => ({
+    type: 'item' as const,
+    key: path,
+    label: path.replaceAll('\\', '/').split('/').at(-1) || path,
+    description: path,
+    active: path === installationPath.value,
+  }))
+);
+function setInstallation(path: string | undefined) {
+  emit('update:modelValue', {
+    ...props.modelValue,
+    installationPath: path?.trim() || null,
+    installationIds: null,
+  });
+}
+async function chooseInstallation() {
+  try {
+    const result = await commands.chooseSaveDir();
+    if (result.status === 'ok' && result.data) setInstallation(result.data);
+    else if (result.status === 'error') notifyError(result.error);
+  } catch (error) {
+    notifyError(String(error));
+  }
 }
 </script>
 
 <template>
-  <div v-if="selectors.length" class="flex flex-col gap-2">
+  <div class="flex min-w-0 flex-col gap-3">
     <div v-for="selector in selectors" :key="selector.key" class="min-w-0">
       <div class="mb-1.5 text-sm font-medium text-text">
         {{ $t(`save_location_drawer.${selector.label}`) }}
       </div>
       <KSelect
-        :model-value="selectedId(selector.key)"
-        :options="selector.options"
+        :model-value="selectedId(selector.key, selector.options)"
+        :options="selector.options.map((o) => ({ value: o.id, label: o.label }))"
         :placeholder="$t(`save_location_drawer.${selector.label}`)"
         :aria-label="$t(`save_location_drawer.${selector.label}`)"
-        :title="selector.options.find((option) => option.value === selectedId(selector.key))?.label"
+        :title="
+          selector.options.find((o) => o.id === selectedId(selector.key, selector.options))?.label
+        "
         class="w-full min-w-0 [&>span:first-child]:truncate"
         clearable
         @update:model-value="update(selector.key, $event)"
       />
+    </div>
+    <div class="min-w-0">
+      <div class="mb-1.5 flex items-baseline gap-2 text-sm font-medium text-text">
+        {{ $t('save_location_drawer.installation_directory') }}
+        <code class="text-xs font-normal text-text-dim">&lt;base&gt;</code>
+      </div>
+      <div class="flex min-w-0 items-center gap-1">
+        <KInput
+          :model-value="installationPath"
+          class="min-w-0 flex-1"
+          :aria-label="$t('save_location_drawer.installation_directory')"
+          :placeholder="$t('save_location_drawer.installation_placeholder')"
+          :title="installationPath"
+          @update:model-value="setInstallation"
+        />
+        <KMenu
+          v-if="installations.length"
+          :entries="installations"
+          :aria-label="$t('save_location_drawer.detected_installations')"
+          @select="setInstallation"
+        >
+          <KButton variant="ghost" :aria-label="$t('save_location_drawer.detected_installations')"
+            ><ChevronDown :size="16"
+          /></KButton>
+        </KMenu>
+        <KButton
+          variant="ghost"
+          :aria-label="$t('save_location_drawer.choose_installation')"
+          :title="$t('save_location_drawer.choose_installation')"
+          @click="chooseInstallation"
+          ><FolderOpen :size="16"
+        /></KButton>
+      </div>
     </div>
   </div>
 </template>
