@@ -1,12 +1,7 @@
-use crate::config::get_config;
 use crate::preclude::*;
 
-use log::{error, info};
 use std::fs;
-use std::sync::Arc;
-use tokio::sync::Semaphore;
 
-use super::game::SnapshotCreated;
 use super::storage_key::generate_unique_storage_key;
 use super::{Game, GameDraft, GameSnapshots};
 
@@ -57,65 +52,4 @@ pub fn create_game_backup(
     config.games.push(new_game.clone());
 
     Ok(new_game)
-}
-
-pub async fn backup_all() -> Result<Vec<SnapshotCreated>, BackupError> {
-    let config = get_config()?;
-    if config.games.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    // Cap concurrent disk operations to avoid overwhelming the I/O subsystem.
-    const MAX_CONCURRENT_BACKUPS: usize = 4;
-    let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT_BACKUPS));
-    let mut set: tokio::task::JoinSet<Result<SnapshotCreated, BackupError>> =
-        tokio::task::JoinSet::new();
-
-    for game in config.games {
-        let sem = Arc::clone(&semaphore);
-        set.spawn(async move {
-            let game_name = game.name.clone();
-            let _permit = match sem.acquire_owned().await {
-                Ok(permit) => permit,
-                Err(e) => {
-                    let msg = format!(
-                        "Backup all semaphore closed while starting backup for game {game_name}: {e:?}"
-                    );
-                    error!(target: "rgsm::backup", "{msg}");
-                    return Err(BackupError::Unexpected(anyhow::anyhow!(msg)));
-                }
-            };
-            info!(target: "rgsm::backup", "Backup all: starting {}", game.name);
-            game.create_snapshot("Backup all").await
-        });
-    }
-
-    let mut created_snapshots = Vec::new();
-    let mut first_error: Option<BackupError> = None;
-
-    while let Some(join_result) = set.join_next().await {
-        match join_result {
-            Ok(Ok(created)) => {
-                info!(target: "rgsm::backup", "Backup all succeeded for game {}", created.snapshots.name);
-                created_snapshots.push(created);
-            }
-            Ok(Err(e)) => {
-                error!(target: "rgsm::backup", "Backup all failed: {e:?}");
-                first_error.get_or_insert(e);
-            }
-            Err(e) => {
-                let panic_msg = format!("Backup all task panicked or was cancelled: {e:?}");
-                error!(target: "rgsm::backup", "{panic_msg}");
-                set.abort_all();
-                first_error.get_or_insert(BackupError::Unexpected(anyhow::anyhow!(panic_msg)));
-                break;
-            }
-        }
-    }
-
-    if let Some(e) = first_error {
-        return Err(e);
-    }
-
-    Ok(created_snapshots)
 }

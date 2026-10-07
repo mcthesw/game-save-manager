@@ -13,6 +13,7 @@
 //! | V2      | `RGSM_ARCHIVE_V2\n{json}` | Local | Index-prefixed (`{i}/path`) |
 
 mod backend;
+#[cfg(test)]
 mod compress;
 mod compression_preset;
 mod decompress;

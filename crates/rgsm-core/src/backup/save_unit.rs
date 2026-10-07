@@ -5,8 +5,10 @@ use specta::Type;
 
 use crate::default_value;
 use crate::device::DeviceId;
+#[cfg(test)]
 use crate::device::get_current_device_id;
 use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
+#[cfg(test)]
 use crate::{path_resolver::PathContext, preclude::BackupFileError};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
@@ -265,6 +267,7 @@ impl SaveUnit {
 
     /// Transitional concrete-path adapter. Dynamic sources are resolved by the
     /// application service and never enter this scalar compatibility path.
+    #[cfg(test)]
     pub fn resolve_path_for_current_device(
         &self,
         path_ctx: Option<&PathContext>,
