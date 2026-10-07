@@ -11,6 +11,7 @@ use log::{debug, warn};
 use serde::Deserialize;
 use thiserror::Error;
 
+mod discovery;
 mod libraries;
 pub use libraries::get_steam_library_paths;
 
@@ -103,13 +104,9 @@ impl StringOrNumber {
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
-/// Get the Steam root directory.
-///
-/// Delegates to the existing detection logic in `path_resolver`, but returns
-/// a `PathBuf` for ergonomic use in this module.
+/// Discover the Steam client directory independently of path expressions.
 pub fn get_steam_root() -> Result<PathBuf, SteamError> {
-    let root = crate::path_resolver::get_steam_root().map_err(|_| SteamError::SteamNotFound)?;
-    Ok(PathBuf::from(root))
+    discovery::steam_root()
 }
 
 /// Scan a single Steam library for installed games via `appmanifest_*.acf` files.
@@ -188,92 +185,6 @@ pub(crate) fn scan_library_manifests(library_path: &Path) -> Vec<InstalledSteamG
     }
 
     games
-}
-
-/// Pre-scan ALL installed games across ALL Steam libraries.
-///
-/// Returns a `HashMap` keyed by **lowercase** install directory name.
-/// This enables O(1) lookup per manifest game during `detect_local_games`.
-pub fn scan_all_installed_games() -> Result<HashMap<String, InstalledSteamGame>, SteamError> {
-    let libraries = get_steam_library_paths()?;
-    let mut result = HashMap::new();
-
-    for lib_path in &libraries {
-        for game in scan_library_manifests(lib_path) {
-            let key = game.install_dir.to_lowercase();
-            result.entry(key).or_insert(game);
-        }
-    }
-
-    debug!(
-        target: "rgsm::steam",
-        "Scanned {} installed Steam games across {} libraries",
-        result.len(),
-        libraries.len()
-    );
-
-    Ok(result)
-}
-
-/// Find the install path for a game given its possible install directory names
-/// (from the Ludusavi manifest's `installDir` field).
-///
-/// Returns `(matched_dir_name, full_install_path)` — both `<game>` and `<base>`
-/// are derived from the same match to ensure consistency for multi-alias games.
-///
-/// When `cache` is provided, uses the pre-scanned HashMap for O(1) lookup.
-/// Otherwise, scans the filesystem directly (suitable for single-game operations).
-pub fn find_game_install_path(
-    install_dirs: &[String],
-    cache: Option<&HashMap<String, InstalledSteamGame>>,
-) -> Option<(String, PathBuf)> {
-    if install_dirs.is_empty() {
-        return None;
-    }
-
-    if let Some(cache) = cache {
-        // Fast O(1) lookup from pre-scanned cache
-        for dir_name in install_dirs {
-            let key = dir_name.to_lowercase();
-            if let Some(game) = cache.get(&key)
-                && game.install_path.exists()
-            {
-                return Some((game.install_dir.clone(), game.install_path.clone()));
-            }
-        }
-        return None;
-    }
-
-    // Slow path: scan filesystem directly (for single-game operations)
-    let libraries = match get_steam_library_paths() {
-        Ok(libs) => libs,
-        Err(_) => return None,
-    };
-
-    for dir_name in install_dirs {
-        let dir_lower = dir_name.to_lowercase();
-        for lib_path in &libraries {
-            let common = lib_path.join("steamapps").join("common");
-
-            // Try exact name first
-            let exact_path = common.join(dir_name);
-            if exact_path.exists() {
-                return Some((dir_name.clone(), exact_path));
-            }
-
-            // Case-insensitive fallback: scan the directory
-            if let Ok(entries) = std::fs::read_dir(&common) {
-                for entry in entries.flatten() {
-                    if entry.file_name().to_string_lossy().to_lowercase() == dir_lower {
-                        let matched_name = entry.file_name().to_string_lossy().into_owned();
-                        return Some((matched_name, entry.path()));
-                    }
-                }
-            }
-        }
-    }
-
-    None
 }
 
 /// A candidate Steam user ID with metadata for UI display.
@@ -468,98 +379,6 @@ mod tests {
         let state: AppState = keyvalues_serde::from_str(acf_content).unwrap();
         assert!(state.name.is_none());
         assert!(state.installdir.is_none());
-    }
-
-    // ── find_game_install_path with cache ───────────────────────────────
-
-    #[test]
-    fn find_game_install_path_from_cache_hit() {
-        let mut cache = HashMap::new();
-
-        // Create a temp dir to simulate the install path
-        let temp = temp_dir::TempDir::new().unwrap();
-        let game_path = temp.path().join("100 Orange Juice");
-        std::fs::create_dir_all(&game_path).unwrap();
-
-        cache.insert(
-            "100 orange juice".to_string(),
-            InstalledSteamGame {
-                app_id: 282800,
-                name: "100% Orange Juice!".to_string(),
-                install_dir: "100 Orange Juice".to_string(),
-                install_path: game_path.clone(),
-            },
-        );
-
-        let result = find_game_install_path(&["100 Orange Juice".to_string()], Some(&cache));
-        assert!(result.is_some());
-        let (matched_dir, matched_path) = result.unwrap();
-        assert_eq!(matched_dir, "100 Orange Juice");
-        assert_eq!(matched_path, game_path);
-    }
-
-    #[test]
-    fn find_game_install_path_from_cache_case_insensitive() {
-        let mut cache = HashMap::new();
-
-        let temp = temp_dir::TempDir::new().unwrap();
-        let game_path = temp.path().join("MyGame");
-        std::fs::create_dir_all(&game_path).unwrap();
-
-        cache.insert(
-            "mygame".to_string(),
-            InstalledSteamGame {
-                app_id: 12345,
-                name: "My Game".to_string(),
-                install_dir: "MyGame".to_string(),
-                install_path: game_path,
-            },
-        );
-
-        // Search with different case
-        let result = find_game_install_path(&["MYGAME".to_string()], Some(&cache));
-        assert!(result.is_some());
-    }
-
-    #[test]
-    fn find_game_install_path_from_cache_miss() {
-        let cache = HashMap::new();
-        let result = find_game_install_path(&["NonExistent".to_string()], Some(&cache));
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn find_game_install_path_empty_dirs() {
-        let cache = HashMap::new();
-        let result = find_game_install_path(&[], Some(&cache));
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn find_game_install_path_multiple_candidates() {
-        let mut cache = HashMap::new();
-
-        let temp = temp_dir::TempDir::new().unwrap();
-        let game_path = temp.path().join("AltName");
-        std::fs::create_dir_all(&game_path).unwrap();
-
-        cache.insert(
-            "altname".to_string(),
-            InstalledSteamGame {
-                app_id: 11111,
-                name: "Some Game".to_string(),
-                install_dir: "AltName".to_string(),
-                install_path: game_path.clone(),
-            },
-        );
-
-        // First candidate doesn't exist in cache, second does
-        let result = find_game_install_path(
-            &["PrimaryName".to_string(), "AltName".to_string()],
-            Some(&cache),
-        );
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().0, "AltName");
     }
 
     // ── scan_library_manifests ──────────────────────────────────────────

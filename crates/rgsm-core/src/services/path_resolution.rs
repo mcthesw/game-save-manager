@@ -42,7 +42,7 @@ impl ServiceContext {
     pub(crate) fn validate_game_paths(&self, config: &Config, game: &Game) -> anyhow::Result<()> {
         let device_id = get_current_device_id();
         let context = crate::services::game_path_context(game, config.devices.get(device_id));
-        let values = &context.resolution.as_ref().expect("game context").variables;
+        let values = &context.variables;
         crate::path_variables::validate(values).map_err(anyhow::Error::msg)?;
         if let Some(path) = game
             .game_paths
@@ -144,7 +144,7 @@ impl ServiceContext {
         let mut context =
             crate::services::game_path_context(&game, config.devices.get(get_current_device_id()));
         if let Some(user_id) = &preview.store_user_id {
-            let resolution = context.resolution.as_mut().expect("game path context");
+            let resolution = &mut context;
             let id = detected_id("preview-account", user_id);
             resolution.accounts = vec![StoreAccountCandidate {
                 id: id.clone(),
@@ -164,11 +164,7 @@ impl ServiceContext {
                 }
                 let report = match parse_manifest_path_pattern(path) {
                     Ok(parsed) => {
-                        let plan = plan_resolution(
-                            &parsed,
-                            Default::default(),
-                            context.resolution.as_ref().expect("game path context"),
-                        );
+                        let plan = plan_resolution(&parsed, Default::default(), &context);
                         match match_resolution_plan(&plan) {
                             Ok(report) => report,
                             Err(error) => {
@@ -241,9 +237,7 @@ impl ServiceContext {
             device_bindings: Default::default(),
         };
         let mut context =
-            super::game_path_context(&game, config.devices.get(get_current_device_id()))
-                .resolution
-                .expect("game context");
+            super::game_path_context(&game, config.devices.get(get_current_device_id()));
         if let Some(user_id) = store_user_id {
             let id = detected_id("preview-account", user_id);
             context.accounts = vec![StoreAccountCandidate {
@@ -369,7 +363,6 @@ impl ServiceContext {
                 purpose,
             );
         }
-        let context = context.resolution.as_ref().expect("game context");
         let parsed = match parse_manifest_path_pattern(path) {
             Ok(parsed) => parsed,
             Err(error) => return invalid_pattern_report(path, error),
@@ -562,7 +555,11 @@ mod concrete_tests {
         let temp = temp_dir::TempDir::new().unwrap();
         std::fs::write(temp.path().join("save.dat"), b"save").unwrap();
         let context = crate::path_resolver::PathContext {
-            game_roots: vec![temp.path().to_string_lossy().into_owned()],
+            roots: vec![crate::path_resolution::GameRootCandidate {
+                id: "test".into(),
+                store: crate::path_pattern::StoreKind::Other,
+                path: temp.path().into(),
+            }],
             ..Default::default()
         };
 

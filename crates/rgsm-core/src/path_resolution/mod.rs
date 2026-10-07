@@ -3,7 +3,7 @@ mod matcher;
 pub(crate) mod model;
 mod planner;
 
-pub use matcher::{MatchError, match_resolution_plan};
+pub use matcher::{MatchError, discover_resolution_matches, match_resolution_plan};
 pub use model::{
     CandidateDimensions, CandidateExpression, GameInstallationCandidate, GameRootCandidate,
     PlatformPaths, ResolutionContext, ResolutionDiagnostic, ResolutionDiagnosticKind,

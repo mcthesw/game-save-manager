@@ -10,7 +10,13 @@ pub(crate) fn game_context(
     environment: &ResolutionContext,
 ) -> ResolutionContext {
     let binding = device.and_then(|device| game.device_bindings.get(&device.id));
-    let mut context = environment.clone();
+    let mut context = ResolutionContext {
+        platform: environment.platform,
+        platform_paths: environment.platform_paths.clone(),
+        roots: environment.roots.clone(),
+        accounts: environment.accounts.clone(),
+        ..Default::default()
+    };
     context.variables = crate::path_variables::effective(
         &device.map(|d| d.path_variables.clone()).unwrap_or_default(),
         binding.map(|b| &b.path_variables),
@@ -26,22 +32,27 @@ pub(crate) fn game_context(
         account_ids: binding.and_then(|b| selected_ids(b.account_ids.as_deref())),
         installation_ids: binding.and_then(|b| selected_ids(b.installation_ids.as_deref())),
     };
-    context.installations.retain(|installation| {
-        context
-            .selection
-            .installation_ids
-            .as_ref()
-            .is_some_and(|ids| ids.contains(&installation.id))
-            || game.ludusavi_meta.as_ref().is_some_and(|meta| {
-                meta.install_dirs
-                    .iter()
-                    .any(|name| name.eq_ignore_ascii_case(&installation.install_dir))
-                    || installation
-                        .store_game_id
-                        .as_deref()
-                        .is_some_and(|id| meta.store_game_id(installation.store) == Some(id))
-            })
-    });
+    context.installations = environment
+        .installations
+        .iter()
+        .filter(|installation| {
+            context
+                .selection
+                .installation_ids
+                .as_ref()
+                .is_some_and(|ids| ids.contains(&installation.id))
+                || game.ludusavi_meta.as_ref().is_some_and(|meta| {
+                    meta.install_dirs
+                        .iter()
+                        .any(|name| name.eq_ignore_ascii_case(&installation.install_dir))
+                        || installation
+                            .store_game_id
+                            .as_deref()
+                            .is_some_and(|id| meta.store_game_id(installation.store) == Some(id))
+                })
+        })
+        .cloned()
+        .collect();
     if let Some(path) = binding
         .and_then(|b| b.installation_path.as_deref())
         .filter(|p| !p.trim().is_empty())
