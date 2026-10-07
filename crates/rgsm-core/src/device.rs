@@ -68,6 +68,8 @@ pub struct DeviceResource {
 // 设备信息结构体
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Type, utoipa::ToSchema)]
 pub struct Device {
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub path_variables: std::collections::BTreeMap<String, String>,
     pub id: DeviceId,
     pub name: String,
     #[serde(default)]
@@ -168,6 +170,7 @@ impl Default for Device {
             id: resolve_current_device_id(),
             name: get_system_hostname(),
             resources: Vec::new(),
+            path_variables: Default::default(),
             next_resource_id: 0,
         }
     }
@@ -194,6 +197,7 @@ mod tests {
             id: "device".to_string(),
             name: "Device".to_string(),
             resources: Vec::new(),
+            path_variables: Default::default(),
             next_resource_id: 0,
         };
         let id = device.add_resource(

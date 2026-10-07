@@ -31,3 +31,6 @@ pub use settings::{
     AppearanceSettings, SaveListExpandBehavior, SaveListSortMode, Settings, SortDirection,
 };
 pub use utils::*;
+
+mod transaction;
+pub(crate) use transaction::edit_config;

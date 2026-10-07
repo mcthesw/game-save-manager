@@ -603,6 +603,7 @@ mod tests {
                 id: device_id.to_string(),
                 name: device_id.to_string(),
                 resources: Vec::new(),
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
         );
@@ -616,6 +617,7 @@ mod tests {
                 id: device_id.to_string(),
                 name: name.to_string(),
                 resources: Vec::new(),
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
         );

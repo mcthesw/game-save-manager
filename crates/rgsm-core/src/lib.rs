@@ -23,6 +23,7 @@ pub mod path_launcher;
 pub mod path_pattern;
 pub mod path_resolution;
 pub mod path_resolver;
+pub mod path_variables;
 pub mod preclude;
 pub mod services;
 pub mod steam;

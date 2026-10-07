@@ -4,6 +4,7 @@ use crate::backup::{CapturePlan, CaptureSourceKind};
 use crate::path_resolution::CandidateDimensions;
 
 pub const V3_MANIFEST_ENTRY: &str = "_rgsm/manifest-v3.json";
+pub const V5_MANIFEST_ENTRY: &str = "_rgsm/manifest-v5.json";
 pub const V4_MANIFEST_ENTRY: &str = "_rgsm/manifest-v4.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,6 +26,8 @@ pub struct ArchiveManifestV4 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveCaptureGroup {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative_expression: Option<String>,
     pub id: u32,
     pub save_unit_id: u32,
     pub candidate_id: String,
@@ -45,6 +48,7 @@ impl From<&CapturePlan> for ArchiveManifestV3 {
                 .groups
                 .iter()
                 .map(|group| ArchiveCaptureGroup {
+                    relative_expression: group.relative_expression.clone(),
                     id: group.id,
                     save_unit_id: group.save_unit_id,
                     candidate_id: group.candidate_id.clone(),
@@ -64,7 +68,11 @@ impl ArchiveManifestV4 {
     pub fn from_plan(plan: &CapturePlan, source_fingerprint: Option<String>) -> Self {
         let v3 = ArchiveManifestV3::from(plan);
         Self {
-            version: 4,
+            version: if plan.groups.iter().any(|g| g.relative_expression.is_some()) {
+                5
+            } else {
+                4
+            },
             groups: v3.groups,
             source_fingerprint,
         }

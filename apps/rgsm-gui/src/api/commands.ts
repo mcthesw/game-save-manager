@@ -96,9 +96,14 @@ export const commands = {
       await sdk.installAppUpdate({ body: { expectedVersion } })
     );
   },
-  async openFileOrFolder(path: types.OpenFileOrFolderRequest['path'], game?: types.GameDraft) {
+  async openFileOrFolder(
+    path: types.OpenFileOrFolderRequest['path'],
+    game?: types.GameDraft,
+    pattern = false,
+    deviceVariables: Record<string, types.DeviceVariableEdit> = {}
+  ) {
     return unwrap<types.OpenFileOrFolderResponses[200]>(
-      await sdk.openFileOrFolder({ body: { path, game } })
+      await sdk.openFileOrFolder({ body: { path, game, pattern, deviceVariables } })
     );
   },
   async getAppLogDir() {
@@ -113,15 +118,21 @@ export const commands = {
   async getLocalConfig() {
     return unwrap<types.GetLocalConfigResponses[200]>(await sdk.getLocalConfig());
   },
-  async addGame(game: types.AddGameRequest['game']) {
-    return unwrap<types.AddGameResponses[200]>(await sdk.addGame({ body: { game } }));
+  async addGame(
+    game: types.AddGameRequest['game'],
+    deviceVariables: types.AddGameRequest['deviceVariables'] = {}
+  ) {
+    return unwrap<types.AddGameResponses[200]>(
+      await sdk.addGame({ body: { game, deviceVariables } })
+    );
   },
   async updateGame(
     storageKey: types.UpdateGameRequest['storageKey'],
-    game: types.UpdateGameRequest['game']
+    game: types.UpdateGameRequest['game'],
+    deviceVariables: types.UpdateGameRequest['deviceVariables'] = {}
   ) {
     return unwrap<types.UpdateGameResponses[200]>(
-      await sdk.updateGame({ body: { storageKey, game } })
+      await sdk.updateGame({ body: { storageKey, game, deviceVariables } })
     );
   },
   async restoreSnapshot(
@@ -616,10 +627,13 @@ export const commands = {
     installDirs: types.CheckPathsRequest['installDirs'],
     steamId: types.CheckPathsRequest['steamId'],
     game?: types.GameDraft,
-    literal = false
+    literal = false,
+    deviceVariables: types.CheckPathsRequest['deviceVariables'] = {}
   ) {
     return unwrap<types.CheckPathsResponses[200]>(
-      await sdk.checkPaths({ body: { paths, storeUserId, installDirs, steamId, game, literal } })
+      await sdk.checkPaths({
+        body: { paths, storeUserId, installDirs, steamId, game, literal, deviceVariables },
+      })
     );
   },
   async detectGameRoots() {

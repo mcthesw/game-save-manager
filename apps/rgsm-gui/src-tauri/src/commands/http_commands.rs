@@ -42,6 +42,11 @@ pub async fn http_get_build_info() -> Result<Json<BuildInfo>, ApiError> {
 pub struct OpenFileOrFolderRequest {
     pub path: String,
     pub game: Option<GameDraft>,
+    #[serde(default)]
+    pub pattern: bool,
+    #[serde(default)]
+    pub device_variables:
+        std::collections::BTreeMap<String, rgsm_core::services::DeviceVariableEdit>,
 }
 
 #[utoipa::path(
@@ -54,10 +59,15 @@ pub struct OpenFileOrFolderRequest {
 pub async fn http_open_file_or_folder(
     Json(request): Json<OpenFileOrFolderRequest>,
 ) -> Result<Json<OpenPathOutcome>, ApiError> {
-    commands::open_file_or_folder(request.path, request.game)
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
+    commands::open_file_or_folder(
+        request.path,
+        request.game,
+        request.pattern,
+        request.device_variables,
+    )
+    .await
+    .map(Json)
+    .map_err(ApiError::from_command)
 }
 
 #[utoipa::path(
@@ -121,6 +131,9 @@ pub async fn http_get_local_config() -> Result<Json<Config>, ApiError> {
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AddGameRequest {
+    #[serde(default)]
+    pub device_variables:
+        std::collections::BTreeMap<String, rgsm_core::services::DeviceVariableEdit>,
     pub game: GameDraft,
 }
 
@@ -135,7 +148,7 @@ pub async fn http_add_game(
     State(state): State<HttpHostState>,
     Json(request): Json<AddGameRequest>,
 ) -> Result<Json<Game>, ApiError> {
-    commands::add_game(request.game, state.app().clone())
+    commands::add_game(request.game, request.device_variables, state.app().clone())
         .await
         .map(Json)
         .map_err(ApiError::from_command)
@@ -144,6 +157,9 @@ pub async fn http_add_game(
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateGameRequest {
+    #[serde(default)]
+    pub device_variables:
+        std::collections::BTreeMap<String, rgsm_core::services::DeviceVariableEdit>,
     pub storage_key: String,
     pub game: GameDraft,
 }
@@ -159,10 +175,15 @@ pub async fn http_update_game(
     State(state): State<HttpHostState>,
     Json(request): Json<UpdateGameRequest>,
 ) -> Result<Json<()>, ApiError> {
-    commands::update_game(request.storage_key, request.game, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
+    commands::update_game(
+        request.storage_key,
+        request.game,
+        request.device_variables,
+        state.app().clone(),
+    )
+    .await
+    .map(Json)
+    .map_err(ApiError::from_command)
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -1868,6 +1889,9 @@ pub async fn http_reset_ludusavi_manifest_to_bundled()
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckPathsRequest {
+    #[serde(default)]
+    pub device_variables:
+        std::collections::BTreeMap<String, rgsm_core::services::DeviceVariableEdit>,
     pub paths: Vec<String>,
     pub store_user_id: Option<String>,
     pub install_dirs: Option<Vec<String>>,
@@ -1891,6 +1915,7 @@ pub async fn http_check_paths(
     commands::check_paths(
         request.paths,
         rgsm_core::services::PathPreviewContext {
+            device_variables: request.device_variables,
             game: request.game,
             store_user_id: request.store_user_id,
             install_dirs: request.install_dirs.unwrap_or_default(),

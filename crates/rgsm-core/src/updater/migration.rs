@@ -1072,6 +1072,7 @@ mod tests {
                 id: device_id.clone(),
                 name: "Test Device".to_string(),
                 resources: Vec::new(),
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
         );
@@ -1192,6 +1193,7 @@ mod tests {
                 id: "device".to_string(),
                 name: "Test".to_string(),
                 resources: Vec::new(),
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
         );
@@ -1231,6 +1233,7 @@ mod tests {
                 id: device_id.clone(),
                 name: "Test".to_string(),
                 resources: Vec::new(),
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
         );

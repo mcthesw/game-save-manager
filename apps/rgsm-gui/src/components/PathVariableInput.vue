@@ -3,8 +3,11 @@ import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { PopoverAnchor, PopoverContent, PopoverPortal, PopoverRoot } from 'reka-ui';
 import { $t } from '../i18n';
 import { commands, type GameDraft } from '../api/commands';
+import { usePathVariableDraft } from '../composables/usePathVariableDraft';
 import { LAYER } from '../ui/layers';
 import { KButton, KTooltip } from '../ui/kit';
+
+const variableDraft = usePathVariableDraft();
 
 type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 
@@ -52,7 +55,7 @@ const editorRef = ref<HTMLDivElement | null>(null);
 const suggestionsRef = ref<HTMLElement | null>(null);
 let savedCursorOffset = -1;
 
-const VAR_RE = /<([a-zA-Z]+)>/g;
+const VAR_RE = /<([a-zA-Z]+|var:[A-Za-z0-9_-]+)>/g;
 
 // ── Path variable definitions ──
 
@@ -62,10 +65,18 @@ interface PathVariable {
   value: string;
 }
 
-const pathVariables = ref<PathVariable[]>([]);
+const builtInVariables = ref<PathVariable[]>([]);
+const pathVariables = computed<PathVariable[]>(() => [
+  ...builtInVariables.value,
+  ...(variableDraft?.names.value ?? []).map((name) => ({
+    name: `var:${name}`,
+    labelKey: '',
+    value: `<var:${name}>`,
+  })),
+]);
 
 async function loadPathVariables() {
-  pathVariables.value = (await commands.getPathPlaceholderCatalog())
+  builtInVariables.value = (await commands.getPathPlaceholderCatalog())
     .filter((descriptor) => descriptor.windowsApplicable)
     .map((descriptor) => ({
       name: descriptor.placeholder,
@@ -92,7 +103,7 @@ const filteredVariables = computed(() => {
   return pathVariables.value.filter(
     (v) =>
       v.name.toLowerCase().includes(q) ||
-      $t(`path_variable.${v.labelKey}`).toLowerCase().includes(q)
+      (v.labelKey && $t(`path_variable.${v.labelKey}`).toLowerCase().includes(q))
   );
 });
 
@@ -328,6 +339,7 @@ function onCompositionEnd() {
 }
 
 function onFocus() {
+  if (variableDraft) variableDraft.insert.value = insertAtCursor;
   isEditing.value = true;
   scheduleResolve(props.modelValue);
   nextTick(checkAutocomplete);
@@ -488,7 +500,8 @@ function scheduleResolve(path: string) {
         props.installDirs.length > 0 ? props.installDirs : null,
         props.steamId,
         props.game,
-        !props.pattern
+        !props.pattern,
+        variableDraft?.edits.value
       );
       // Guard against stale responses
       if (generation !== resolveGeneration || path !== props.modelValue) return;
@@ -542,6 +555,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (variableDraft?.insert.value === insertAtCursor) variableDraft.insert.value = null;
   resolveGeneration += 1;
   if (resolveTimer) clearTimeout(resolveTimer);
 });
@@ -561,6 +575,11 @@ watch(
     // Path previews depend on resource selections, not sibling paths or overrides.
     JSON.stringify({
       metadata: props.game?.ludusavi_meta,
+      deviceVariables: variableDraft?.edits.value,
+      gameVariables: Object.entries(props.game?.device_bindings ?? {}).map(([id, binding]) => [
+        id,
+        binding.pathVariables,
+      ]),
       selections: Object.entries(props.game?.device_bindings ?? {})
         .filter(
           ([, binding]) =>
@@ -657,7 +676,9 @@ watch(
               @click="selectSuggestion(v)"
             >
               <span class="pvi-suggestion-var">{{ v.value }}</span>
-              <span class="pvi-suggestion-label">{{ $t(`path_variable.${v.labelKey}`) }}</span>
+              <span v-if="v.labelKey" class="pvi-suggestion-label">{{
+                $t(`path_variable.${v.labelKey}`)
+              }}</span>
             </div>
           </div>
         </PopoverContent>

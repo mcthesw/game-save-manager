@@ -167,11 +167,14 @@ impl ArchiveBackend for SevenZBackend {
         })
     }
 
-    fn archive_version(
-        &self,
-        _archive_path: &Path,
-    ) -> Result<super::ArchiveVersion, CompressError> {
-        Ok(super::ArchiveVersion::V4)
+    fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError> {
+        Ok(
+            if super::seven_z::read_manifest(archive_path)?.version == 5 {
+                super::ArchiveVersion::V5
+            } else {
+                super::ArchiveVersion::V4
+            },
+        )
     }
 
     fn read_source_fingerprint(&self, archive_path: &Path) -> Option<String> {

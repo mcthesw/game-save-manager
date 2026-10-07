@@ -29,6 +29,7 @@ pub fn parse_manifest_path_pattern(
     }
 
     let mut placeholders = Vec::new();
+    let mut variables = Vec::new();
     let mut cursor = 0;
     while cursor < raw.len() {
         let remaining = &raw[cursor..];
@@ -49,6 +50,21 @@ pub fn parse_manifest_path_pattern(
         };
         let close = open + 1 + relative_close;
         let token = &raw[open..=close];
+        if let Some(name) = token
+            .strip_prefix("<var:")
+            .and_then(|s| s.strip_suffix('>'))
+        {
+            if !crate::path_variables::valid_name(name) {
+                return Err(PathPatternError::UnknownPlaceholder {
+                    token: token.to_string(),
+                });
+            }
+            if !variables.iter().any(|v| v == name) {
+                variables.push(name.to_string());
+            }
+            cursor = close + 1;
+            continue;
+        }
         let placeholder = PathPlaceholder::from_token(token).ok_or_else(|| {
             PathPatternError::UnknownPlaceholder {
                 token: token.to_string(),
@@ -67,6 +83,7 @@ pub fn parse_manifest_path_pattern(
     Ok(ParsedManifestPathPattern {
         pattern: ManifestPathPattern::new(raw),
         placeholders,
+        variables,
     })
 }
 

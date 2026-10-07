@@ -284,20 +284,18 @@ pub async fn get_build_info() -> BuildInfo {
 pub async fn open_file_or_folder(
     path: String,
     game: Option<GameDraft>,
+    pattern: bool,
+    device_variables: rgsm_core::services::DeviceVariableEdits,
 ) -> Result<OpenPathOutcome, String> {
-    info!(target:"rgsm::commands", "Opening file or folder: {}", path);
-
-    let config = get_config().map_err(|e| e.to_string())?;
-    let game = game.map(|draft| draft.into_game(None));
-    let context = game
-        .as_ref()
-        .map(|game| game.path_context(config.devices.get(get_current_device_id())));
-    rgsm_core::path_launcher::open_managed_location(&path, context.as_ref(), &config)
-        .map(OpenPathOutcome::from)
-        .map_err(|e| {
-            error!(target:"rgsm::commands", "Failed to open file or folder: {:?}", e);
-            e.to_string()
-        })
+    rgsm_core::services::open_game_location(
+        &get_config().map_err(|e| e.to_string())?,
+        &path,
+        game,
+        pattern,
+        &device_variables,
+    )
+    .map(OpenPathOutcome::from)
+    .map_err(|e| e.to_string())
 }
 
 pub async fn get_app_log_dir(app: AppHandle) -> Result<String, String> {
@@ -339,9 +337,13 @@ pub async fn get_local_config() -> Result<Config, String> {
     get_config().map_err(|e| e.to_string())
 }
 
-pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<Game, String> {
+pub async fn add_game(
+    game: GameDraft,
+    device_variables: rgsm_core::services::DeviceVariableEdits,
+    app_handle: AppHandle,
+) -> Result<Game, String> {
     let saved = svc(&app_handle)
-        .add_game(&game, HookSource::UserManual)
+        .save_game_edit(None, &game, &device_variables, HookSource::UserManual)
         .await
         .map_err(|e| e.to_string())?;
     app_handle
@@ -353,11 +355,17 @@ pub async fn add_game(game: GameDraft, app_handle: AppHandle) -> Result<Game, St
 pub async fn update_game(
     storage_key: String,
     game: GameDraft,
+    device_variables: rgsm_core::services::DeviceVariableEdits,
     app_handle: AppHandle,
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Updating game (storage_key={}): {:?}", storage_key, game);
     svc(&app_handle)
-        .update_game(&storage_key, &game, HookSource::UserManual)
+        .save_game_edit(
+            Some(&storage_key),
+            &game,
+            &device_variables,
+            HookSource::UserManual,
+        )
         .await
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to update game: {:?}", e);

@@ -31,6 +31,8 @@ pub enum ArchiveVersion {
     V3,
     /// Standard 7z container with an internal Archive V4 capture manifest.
     V4,
+    /// 7z with explicit variable occurrences in relative capture paths.
+    V5,
 }
 
 impl ArchiveVersion {
@@ -54,12 +56,12 @@ impl ArchiveVersion {
 
     /// V2+ archives prefix entries with `{save_unit_id}/`.
     pub fn uses_save_unit_prefix(self) -> bool {
-        matches!(self, Self::V2 | Self::V3 | Self::V4)
+        matches!(self, Self::V2 | Self::V3 | Self::V4 | Self::V5)
     }
 
     /// V1+ archives store timestamps in local time; Legacy uses UTC.
     pub fn uses_local_timestamps(self) -> bool {
-        matches!(self, Self::V1 | Self::V2 | Self::V3 | Self::V4)
+        matches!(self, Self::V1 | Self::V2 | Self::V3 | Self::V4 | Self::V5)
     }
 
     /// Normalize an archive entry path by stripping the save-unit prefix if present.

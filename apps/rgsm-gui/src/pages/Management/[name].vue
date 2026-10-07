@@ -1034,15 +1034,22 @@ async function set_quick_backup() {
 }
 
 // 处理抽屉组件保存游戏路径的事件
-async function on_drawer_save_changes(updatedGame: Game) {
+async function on_drawer_save_changes(
+  updatedGame: Game,
+  deviceVariables: import('../../composables/usePathVariableDraft').VariableEdits
+) {
   try {
-    const result = await commands.updateGame(game.value.storage_key ?? game.value.name, {
-      name: updatedGame.name,
-      save_paths: updatedGame.save_paths,
-      game_paths: updatedGame.game_paths ?? {},
-      ludusavi_meta: updatedGame.ludusavi_meta ?? null,
-      device_bindings: updatedGame.device_bindings ?? {},
-    });
+    const result = await commands.updateGame(
+      game.value.storage_key ?? game.value.name,
+      {
+        name: updatedGame.name,
+        save_paths: updatedGame.save_paths,
+        game_paths: updatedGame.game_paths ?? {},
+        ludusavi_meta: updatedGame.ludusavi_meta ?? null,
+        device_bindings: updatedGame.device_bindings ?? {},
+      },
+      deviceVariables
+    );
 
     if (result.status === 'error') {
       notifyError(result.error);
