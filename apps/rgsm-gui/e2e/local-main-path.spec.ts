@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { DEVICE_A_ID, DEVICE_A_NAME } from './support/constants';
 import { seedLocalConfig, writeSaveText } from './support/local-fixture';
 import { startLocalSession } from './support/local-session';
@@ -7,6 +8,7 @@ import {
   expectLocalHead,
   expectSnapshotDates,
   localArchiveExists,
+  localArchivePath,
   snapshotMeta,
 } from './support/local-assertions';
 import {
@@ -122,9 +124,10 @@ test('main path: create, apply latest, apply old snapshot, confirmations, delete
     await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
 
     // Deleting one snapshot keeps the other and the head intact.
+    const firstArchive = localArchivePath(device.appDataDir, firstId);
     await deleteSnapshotViaUi(page, firstId);
     await expectSnapshotDates(device.appDataDir, [secondId]);
-    expect(localArchiveExists(device.appDataDir, firstId)).toBe(false);
+    expect(existsSync(firstArchive)).toBe(false);
     expect(localArchiveExists(device.appDataDir, secondId)).toBe(true);
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, secondId);
   } catch (error) {
