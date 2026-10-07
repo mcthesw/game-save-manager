@@ -116,6 +116,7 @@
           >
             <GameLocationSelection
               v-model="game.binding"
+              :game="previewGame(game)"
               hide-accounts
               :device="currentDevice"
               :paths="game.paths.map((row) => row.path)"

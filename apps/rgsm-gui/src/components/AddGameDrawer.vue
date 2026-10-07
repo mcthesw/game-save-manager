@@ -21,7 +21,7 @@ import GameLocationSelection from './GameLocationSelection.vue';
 import GameImportDialog from './GameImportDialog.vue';
 import GameImportCustomizeDialog from './GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from './GameBatchImportDialog.vue';
-import { KAlert, KButton, KDrawer, KInput, KTag, KTagInput } from '../ui/kit';
+import { KAlert, KButton, KDrawer, KInput, KTag } from '../ui/kit';
 import {
   concreteSaveUnit,
   manifestSaveUnit,
@@ -92,16 +92,6 @@ const activeSteamId = computed(
       null)
 );
 const activeStoreUserId = computed(() => pendingStoreUserId.value);
-const needsInstallDirectoryNames = computed(
-  () =>
-    manualInstallDirs.value.length > 0 ||
-    save_paths.some(
-      (unit) =>
-        unit.source.type === 'manifestPattern' &&
-        (unit.source.pattern.includes('<game>') || unit.source.pattern.includes('<base>'))
-    )
-);
-
 const previewGame = computed<GameDraft>(() => ({
   name: game_name.value,
   save_paths: save_paths,
@@ -722,7 +712,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
       if (accountResourceId !== null && currentDevice.value) {
         newGame.device_bindings![currentDevice.value.id] = {
           ...gameConfig.binding,
-          accountIds: [accountResourceId],
+          accountIds: [`resource:${accountResourceId}`],
         };
       }
 
@@ -823,7 +813,7 @@ async function save() {
     const existingBinding = game.device_bindings[currentDevice.value.id];
     game.device_bindings[currentDevice.value.id] = {
       ...existingBinding,
-      accountIds: [accountResourceId],
+      accountIds: [`resource:${accountResourceId}`],
     };
   }
 
@@ -924,19 +914,10 @@ function deleteRow(index: number) {
           </div>
           <GameLocationSelection
             v-model="deviceBinding"
+            :game="previewGame"
             :device="currentDevice"
             :paths="previewPaths"
           />
-          <div v-if="needsInstallDirectoryNames">
-            <label class="mb-1 block text-xs text-text-dim">{{ $t('addgame.install_dirs') }}</label>
-            <KTagInput
-              v-model="manualInstallDirs"
-              :placeholder="$t('addgame.install_dirs_placeholder')"
-            />
-            <p class="mt-1 text-xs leading-relaxed text-text-dim">
-              {{ $t('addgame.install_dirs_hint') }}
-            </p>
-          </div>
         </div>
       </section>
 

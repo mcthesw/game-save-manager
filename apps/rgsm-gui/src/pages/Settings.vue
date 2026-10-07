@@ -19,7 +19,6 @@ import {
   LoaderCircle,
   MonitorSmartphone,
   Palette,
-  Package,
   PanelsTopLeft,
   Play,
   Plus,
@@ -502,11 +501,6 @@ const gameRootResources = computed(() =>
 const storeAccountResources = computed(() =>
   (currentDevice.value.resources ?? []).filter((resource) => resource.kind.type === 'storeAccount')
 );
-const installationResources = computed(() =>
-  (currentDevice.value.resources ?? []).filter(
-    (resource) => resource.kind.type === 'gameInstallation'
-  )
-);
 
 function addGameRoot() {
   currentDevice.value.resources ??= [];
@@ -603,35 +597,6 @@ function addStoreAccount() {
 }
 
 async function removeStoreAccount(id: number) {
-  currentDevice.value.resources = (currentDevice.value.resources ?? []).filter(
-    (resource) => resource.id !== id
-  );
-  await persistDeviceInfo(false);
-}
-
-function addGameInstallation() {
-  const firstRoot = gameRootResources.value[0];
-  if (!firstRoot) {
-    notifyWarning($t('settings.installation_requires_root'));
-    return;
-  }
-  currentDevice.value.resources ??= [];
-  const id = currentDevice.value.next_resource_id ?? 0;
-  currentDevice.value.resources.push({
-    id,
-    source: 'manual',
-    kind: {
-      type: 'gameInstallation',
-      root_id: firstRoot.id,
-      store: firstRoot.kind.type === 'gameRoot' ? firstRoot.kind.store : 'other',
-      install_dir: '',
-      path: '',
-    },
-  });
-  currentDevice.value.next_resource_id = id + 1;
-}
-
-async function removeGameInstallation(id: number) {
   currentDevice.value.resources = (currentDevice.value.resources ?? []).filter(
     (resource) => resource.id !== id
   );
@@ -1039,13 +1004,6 @@ const soundModeOptions = computed(() => [
   { label: $t('settings.quick_action_sound_mode_default'), value: 'default' },
   { label: $t('settings.quick_action_sound_mode_custom'), value: 'file' },
 ]);
-const rootResourceOptions = computed(() =>
-  gameRootResources.value.map((root) => ({
-    value: root.id,
-    label: root.kind.type === 'gameRoot' ? root.kind.path : String(root.id),
-  }))
-);
-
 /** Number settings: 0 is meaningful, empty field maps to 0 via bridge. */
 const maxAutoBackupCount = computed({
   get: () => config.value.settings.max_auto_backup_count,
@@ -1403,67 +1361,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <KButton size="sm" @click="addStoreAccount">
                 <template #icon><Plus :size="13" aria-hidden="true" /></template>
                 {{ $t('settings.store_account_add') }}
-              </KButton>
-            </div>
-          </section>
-
-          <!-- 游戏安装位置 -->
-          <section>
-            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
-              <Package :size="15" class="text-text-dim" aria-hidden="true" />
-              <h2 class="text-sm font-semibold text-text">
-                {{ $t('settings.game_installations_title') }}
-              </h2>
-            </div>
-            <p class="mb-2 text-xs leading-relaxed text-text-dim">
-              {{ $t('settings.game_installations_hint') }}
-            </p>
-            <div class="flex flex-col gap-2">
-              <div
-                v-for="installation in installationResources"
-                :key="installation.id"
-                class="flex flex-wrap items-center gap-2"
-              >
-                <template v-if="installation.kind.type === 'gameInstallation'">
-                  <KSelect
-                    v-model="installation.kind.root_id"
-                    class="w-44 shrink-0"
-                    :options="rootResourceOptions"
-                    :placeholder="$t('settings.game_installation_root')"
-                    :aria-label="$t('settings.game_installation_root')"
-                    @update:model-value="persistDeviceInfo(false)"
-                  />
-                  <KInput
-                    v-model="installation.kind.install_dir"
-                    class="min-w-32 flex-1"
-                    :placeholder="$t('settings.game_installation_name')"
-                    :aria-label="$t('settings.game_installation_name')"
-                    @change="persistDeviceInfo(false)"
-                  />
-                  <KInput
-                    v-model="installation.kind.path"
-                    mono
-                    class="min-w-40 flex-1"
-                    :placeholder="$t('settings.game_installation_path')"
-                    :aria-label="$t('settings.game_installation_path')"
-                    @change="persistDeviceInfo(false)"
-                  />
-                  <KButton
-                    variant="ghost"
-                    size="sm"
-                    class="text-danger"
-                    :aria-label="$t('addgame.remove')"
-                    @click="removeGameInstallation(installation.id)"
-                  >
-                    <template #icon><X :size="14" aria-hidden="true" /></template>
-                  </KButton>
-                </template>
-              </div>
-            </div>
-            <div class="mt-2">
-              <KButton size="sm" @click="addGameInstallation">
-                <template #icon><Plus :size="13" aria-hidden="true" /></template>
-                {{ $t('settings.game_installation_add') }}
               </KButton>
             </div>
           </section>

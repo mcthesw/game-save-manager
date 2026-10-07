@@ -580,6 +580,11 @@ export const commands = {
       await sdk.getPathPlaceholderCatalog()
     );
   },
+  async gameLocationOptions(game: types.GameLocationOptionsRequest['game'], deviceId: string) {
+    return unwrap<types.GameLocationOptionsResponses[200]>(
+      await sdk.gameLocationOptions({ body: { game, deviceId } })
+    );
+  },
   async previewSaveUnitResolution(
     game: types.PreviewSaveUnitResolutionRequest['game'],
     saveUnit: types.PreviewSaveUnitResolutionRequest['saveUnit']

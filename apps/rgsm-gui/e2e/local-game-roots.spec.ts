@@ -77,7 +77,7 @@ test('auto-detection merges existing Windows root aliases and preserves bindings
     const storedDevice = stored.data.devices![DEVICE_A_ID]!;
     expect(storedDevice.resources!.map((resource) => resource.id)).toEqual([2, 6, 9]);
     expect(storedDevice.next_resource_id).toBe(10);
-    expect(stored.data.games[0]!.device_bindings?.[DEVICE_A_ID]?.rootIds).toEqual([2]);
+    expect(stored.data.games[0]!.device_bindings?.[DEVICE_A_ID]?.rootIds).toEqual(['resource:2']);
     const installation = storedDevice.resources!.find((resource) => resource.id === 6)!;
     expect(installation.kind.type === 'gameInstallation' && installation.kind.root_id).toBe(2);
     await page.reload();

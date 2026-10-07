@@ -43,7 +43,14 @@ pub(crate) fn reuse_profile_locations(
                 *ids = ids
                     .iter()
                     .filter_map(|id| {
-                        remap_resource(*id, source, &mut accepted.device, &mut resource_ids)
+                        if let Some(numeric) =
+                            id.strip_prefix("resource:").and_then(|id| id.parse().ok())
+                        {
+                            remap_resource(numeric, source, &mut accepted.device, &mut resource_ids)
+                                .map(|id| format!("resource:{id}"))
+                        } else {
+                            Some(id.clone())
+                        }
                     })
                     .collect();
             }
@@ -122,7 +129,7 @@ mod tests {
             .add_resource(DeviceResourceSource::Detected, kind("D:/Steam"));
         assert_eq!(existing, source_id);
         old.games.get_mut("shared").unwrap().binding = Some(crate::backup::GameDeviceBinding {
-            root_ids: Some(vec![source_id]),
+            root_ids: Some(vec![format!("resource:{source_id}")]),
             ..Default::default()
         });
         old.games.get_mut("shared").unwrap().sync_mode = SyncMode::MultiDeviceSync;
@@ -161,7 +168,11 @@ mod tests {
         assert_eq!(reused.snapshot_sync_activation_revision, None);
         assert!(!reused.live_save_snapshot_on_exit);
         assert!(reused.snapshot_sync_local_baseline.is_empty());
-        let root_id = reused.binding.as_ref().unwrap().root_ids.as_ref().unwrap()[0];
+        let root_id = reused.binding.as_ref().unwrap().root_ids.as_ref().unwrap()[0]
+            .strip_prefix("resource:")
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
         assert_ne!(root_id, existing);
         assert_eq!(
             accepted.device.resource(root_id).unwrap().kind,

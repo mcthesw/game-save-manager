@@ -14,10 +14,10 @@ use crate::path_resolution::{
 };
 
 use super::ServiceContext;
-use crate::path_resolution::context::{detected_id, game_context};
+use super::path_context::detected_id;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ResolutionPurpose {
+pub(super) enum ResolutionPurpose {
     Capture,
     Restore,
 }
@@ -41,7 +41,7 @@ pub struct PathPreviewContext {
 impl ServiceContext {
     pub(crate) fn validate_game_paths(&self, config: &Config, game: &Game) -> anyhow::Result<()> {
         let device_id = get_current_device_id();
-        let context = game.path_context(config.devices.get(device_id));
+        let context = crate::services::game_path_context(game, config.devices.get(device_id));
         let values = &context.resolution.as_ref().expect("game context").variables;
         crate::path_variables::validate(values).map_err(anyhow::Error::msg)?;
         if let Some(path) = game
@@ -58,7 +58,12 @@ impl ServiceContext {
             {
                 anyhow::bail!("{}", rust_i18n::t!("path_variable.invalid_override"));
             }
-            let report = self.resolve_save_unit_for_restore(config, game, unit);
+            let report = self.resolve_save_unit_with_context(
+                game,
+                unit,
+                &context,
+                ResolutionPurpose::Restore,
+            );
             if let Ok(parsed) = parse_manifest_path_pattern(&report.raw_pattern) {
                 crate::path_variables::expand(&report.raw_pattern, &parsed.variables, values)
                     .map_err(anyhow::Error::msg)?;
@@ -110,48 +115,49 @@ impl ServiceContext {
                 .collect();
         }
         let config = &preview_config;
+        let game = preview
+            .game
+            .clone()
+            .map(|draft| draft.into_game(None))
+            .unwrap_or_else(|| Game {
+                ludusavi_meta: Some(crate::backup::LudusaviMeta {
+                    install_dirs: preview.install_dirs.clone(),
+                    store_game_ids: preview
+                        .steam_id
+                        .map(|id| crate::backup::StoreGameId {
+                            store: crate::path_pattern::StoreKind::Steam,
+                            id: id.to_string(),
+                        })
+                        .into_iter()
+                        .collect(),
+                }),
+                name: "Path preview".into(),
+                storage_key: String::new(),
+                save_paths: vec![],
+                game_paths: Default::default(),
+                next_save_unit_id: 0,
+                cloud_sync_enabled: false,
+                auto_backup: None,
+                auto_backup_limit: None,
+                device_bindings: Default::default(),
+            });
+        let mut context =
+            crate::services::game_path_context(&game, config.devices.get(get_current_device_id()));
+        if let Some(user_id) = &preview.store_user_id {
+            let resolution = context.resolution.as_mut().expect("game path context");
+            let id = detected_id("preview-account", user_id);
+            resolution.accounts = vec![StoreAccountCandidate {
+                id: id.clone(),
+                store: crate::path_pattern::StoreKind::Steam,
+                user_id: user_id.clone(),
+            }];
+            resolution.selection.account_ids = Some([id].into_iter().collect());
+        }
         paths
             .iter()
             .map(|path| {
                 if crate::backup::registry::is_registry_path(path) {
-                    return crate::path_resolver::check_path(path, None, config);
-                }
-                let game = preview
-                    .game
-                    .clone()
-                    .map(|draft| draft.into_game(None))
-                    .unwrap_or_else(|| Game {
-                        ludusavi_meta: Some(crate::backup::LudusaviMeta {
-                            install_dirs: preview.install_dirs.clone(),
-                            store_game_ids: preview
-                                .steam_id
-                                .map(|id| crate::backup::StoreGameId {
-                                    store: crate::path_pattern::StoreKind::Steam,
-                                    id: id.to_string(),
-                                })
-                                .into_iter()
-                                .collect(),
-                        }),
-                        name: "Path preview".into(),
-                        storage_key: String::new(),
-                        save_paths: vec![],
-                        game_paths: Default::default(),
-                        next_save_unit_id: 0,
-                        cloud_sync_enabled: false,
-                        auto_backup: None,
-                        auto_backup_limit: None,
-                        device_bindings: Default::default(),
-                    });
-                let mut context = game.path_context(config.devices.get(get_current_device_id()));
-                if let Some(user_id) = &preview.store_user_id {
-                    let resolution = context.resolution.as_mut().expect("game path context");
-                    let id = detected_id("preview-account", user_id);
-                    resolution.accounts = vec![StoreAccountCandidate {
-                        id: id.clone(),
-                        store: crate::path_pattern::StoreKind::Steam,
-                        user_id: user_id.clone(),
-                    }];
-                    resolution.selection.account_ids = Some([id].into_iter().collect());
+                    return crate::path_resolver::check_path(path, Some(&context), config);
                 }
                 if preview.literal {
                     return crate::path_resolver::check_path(path, Some(&context), config);
@@ -234,7 +240,10 @@ impl ServiceContext {
             }),
             device_bindings: Default::default(),
         };
-        let mut context = game_context(&game, config.devices.get(get_current_device_id()));
+        let mut context =
+            super::game_path_context(&game, config.devices.get(get_current_device_id()))
+                .resolution
+                .expect("game context");
         if let Some(user_id) = store_user_id {
             let id = detected_id("preview-account", user_id);
             context.accounts = vec![StoreAccountCandidate {
@@ -273,6 +282,7 @@ impl ServiceContext {
         config: &Config,
         game: &Game,
     ) -> Result<CapturePlan, crate::backup::CapturePlanError> {
+        let context = super::game_path_context(game, config.devices.get(get_current_device_id()));
         CapturePlan::from_resolution_reports(
             game.save_paths
                 .iter()
@@ -280,7 +290,12 @@ impl ServiceContext {
                 .map(|save_unit| SaveUnitCaptureInput {
                     save_unit_id: save_unit.id,
                     delete_before_apply: save_unit.delete_before_apply,
-                    report: self.resolve_save_unit(config, game, save_unit),
+                    report: self.resolve_save_unit_with_context(
+                        game,
+                        save_unit,
+                        &context,
+                        ResolutionPurpose::Capture,
+                    ),
                 })
                 .collect(),
         )
@@ -294,23 +309,26 @@ impl ServiceContext {
         game: &Game,
         save_unit: &SaveUnit,
     ) -> ResolutionReport {
-        self.resolve_save_unit_for(config, game, save_unit, ResolutionPurpose::Capture)
+        let context = super::game_path_context(game, config.devices.get(get_current_device_id()));
+        self.resolve_save_unit_with_context(game, save_unit, &context, ResolutionPurpose::Capture)
     }
 
+    #[cfg(test)]
     pub(crate) fn resolve_save_unit_for_restore(
         &self,
         config: &Config,
         game: &Game,
         save_unit: &SaveUnit,
     ) -> ResolutionReport {
-        self.resolve_save_unit_for(config, game, save_unit, ResolutionPurpose::Restore)
+        let context = super::game_path_context(game, config.devices.get(get_current_device_id()));
+        self.resolve_save_unit_with_context(game, save_unit, &context, ResolutionPurpose::Restore)
     }
 
-    fn resolve_save_unit_for(
+    pub(super) fn resolve_save_unit_with_context(
         &self,
-        config: &Config,
         game: &Game,
         save_unit: &SaveUnit,
+        context: &crate::path_resolver::PathContext,
         purpose: ResolutionPurpose,
     ) -> ResolutionReport {
         let device_id = get_current_device_id();
@@ -347,16 +365,16 @@ impl ServiceContext {
             return resolve_concrete(
                 Some(&path.to_string()),
                 save_unit.unit_type(),
-                Some(&game.path_context(config.devices.get(device_id))),
+                Some(context),
                 purpose,
             );
         }
-        let context = game_context(game, config.devices.get(device_id));
+        let context = context.resolution.as_ref().expect("game context");
         let parsed = match parse_manifest_path_pattern(path) {
             Ok(parsed) => parsed,
             Err(error) => return invalid_pattern_report(path, error),
         };
-        let plan = plan_resolution(&parsed, constraints, &context);
+        let plan = plan_resolution(&parsed, constraints, context);
         let mut report = if purpose == ResolutionPurpose::Restore {
             ResolutionReport {
                 raw_pattern: path.to_string(),

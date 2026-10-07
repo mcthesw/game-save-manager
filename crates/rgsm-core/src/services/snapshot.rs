@@ -281,6 +281,10 @@ impl ServiceContext {
         if manifest.version == 2 {
             apply_legacy_v2_save_unit_metadata(&mut manifest.groups, &game.save_paths);
         }
+        let context = super::game_path_context(
+            game,
+            config.devices.get(crate::device::get_current_device_id()),
+        );
         let reports: std::collections::BTreeMap<_, _> = game
             .save_paths
             .iter()
@@ -288,7 +292,12 @@ impl ServiceContext {
             .map(|unit| {
                 (
                     unit.id,
-                    self.resolve_save_unit_for_restore(config, game, unit),
+                    self.resolve_save_unit_with_context(
+                        game,
+                        unit,
+                        &context,
+                        super::path_resolution::ResolutionPurpose::Restore,
+                    ),
                 )
             })
             .collect();

@@ -113,7 +113,7 @@ pub fn get_steam_root() -> Result<PathBuf, SteamError> {
 }
 
 /// Scan a single Steam library for installed games via `appmanifest_*.acf` files.
-fn scan_library_manifests(library_path: &Path) -> Vec<InstalledSteamGame> {
+pub(crate) fn scan_library_manifests(library_path: &Path) -> Vec<InstalledSteamGame> {
     let steamapps = library_path.join("steamapps");
     let common = steamapps.join("common");
 

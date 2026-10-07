@@ -585,13 +585,17 @@ watch(
       selections: Object.entries(props.game?.device_bindings ?? {})
         .filter(
           ([, binding]) =>
-            binding.rootIds != null || binding.accountIds != null || binding.installationIds != null
+            binding.rootIds != null ||
+            binding.accountIds != null ||
+            binding.installationIds != null ||
+            binding.installationPath != null
         )
         .map(([id, binding]) => [
           id,
           binding.rootIds ?? null,
           binding.accountIds ?? null,
           binding.installationIds ?? null,
+          binding.installationPath ?? null,
         ]),
     }),
     props.pattern,

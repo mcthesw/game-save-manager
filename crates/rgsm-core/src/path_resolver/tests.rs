@@ -302,7 +302,7 @@ fn test_path_context_from_game_includes_device_game_roots() {
         next_resource_id: 1,
     };
 
-    let ctx = game.path_context(Some(&device));
+    let ctx = crate::services::game_path_context(&game, Some(&device));
     assert_eq!(ctx.game_roots, vec!["/custom/root".to_string()]);
 }
 
@@ -323,7 +323,7 @@ fn test_path_context_from_game_without_device() {
         device_bindings: std::collections::HashMap::new(),
     };
 
-    let ctx = game.path_context(None);
+    let ctx = crate::services::game_path_context(&game, None);
     assert!(ctx.game_roots.is_empty());
 }
 
@@ -354,23 +354,39 @@ fn game_paths_require_a_root_selection_and_keep_other_devices_independent() {
         );
     }
     let raw = "<root>/Example/slot[1].sav";
-    assert!(resolve_path_explicit(raw, Some(&game.path_context(Some(&device)))).is_err());
+    assert!(
+        resolve_path_explicit(
+            raw,
+            Some(&crate::services::game_path_context(&game, Some(&device)))
+        )
+        .is_err()
+    );
 
     game.device_bindings.insert(
         device.id.clone(),
         GameDeviceBinding {
-            root_ids: Some(vec![1]),
+            root_ids: Some(vec!["resource:1".into()]),
             ..Default::default()
         },
     );
-    let resolved = resolve_path_explicit(raw, Some(&game.path_context(Some(&device)))).unwrap();
+    let resolved = resolve_path_explicit(
+        raw,
+        Some(&crate::services::game_path_context(&game, Some(&device))),
+    )
+    .unwrap();
     assert_eq!(
         resolved,
         std::path::PathBuf::from("H:/Games/Example/slot[1].sav")
     );
 
     device.id = "path-device-b".into();
-    assert!(resolve_path_explicit(raw, Some(&game.path_context(Some(&device)))).is_err());
+    assert!(
+        resolve_path_explicit(
+            raw,
+            Some(&crate::services::game_path_context(&game, Some(&device)))
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -402,7 +418,7 @@ fn test_path_context_includes_store_user_id_from_game() {
     let device_bindings = std::collections::HashMap::from([(
         "dev-1".to_string(),
         GameDeviceBinding {
-            account_ids: Some(vec![0]),
+            account_ids: Some(vec!["resource:0".into()]),
             ..GameDeviceBinding::default()
         },
     )]);
@@ -434,7 +450,7 @@ fn test_path_context_includes_store_user_id_from_game() {
         next_resource_id: 1,
     };
 
-    let ctx = game.path_context(Some(&device));
+    let ctx = crate::services::game_path_context(&game, Some(&device));
     assert_eq!(ctx.store_user_id, Some("12345678".to_string()));
 }
 
@@ -446,7 +462,7 @@ fn test_path_context_no_store_user_id_for_unknown_device() {
     let device_bindings = std::collections::HashMap::from([(
         "dev-1".to_string(),
         GameDeviceBinding {
-            account_ids: Some(vec![0]),
+            account_ids: Some(vec!["resource:0".into()]),
             ..GameDeviceBinding::default()
         },
     )]);
@@ -471,6 +487,46 @@ fn test_path_context_no_store_user_id_for_unknown_device() {
         next_resource_id: 0,
     };
 
-    let ctx = game.path_context(Some(&device));
+    let ctx = crate::services::game_path_context(&game, Some(&device));
     assert_eq!(ctx.store_user_id, None);
+}
+
+#[test]
+fn manual_game_installation_is_local_to_its_game_and_needs_no_library() {
+    let device: crate::device::Device = serde_json::from_value(serde_json::json!({
+        "id":"local", "name":"Local", "resources":[]
+    }))
+    .unwrap();
+    let game: crate::backup::Game = serde_json::from_value(serde_json::json!({
+        "name":"Manual", "save_paths":[],
+        "device_bindings":{"local":{"installationPath":"D:/Standalone/Game"}}
+    }))
+    .unwrap();
+    assert_eq!(
+        resolve_path_explicit(
+            "<base>/Saves",
+            Some(&crate::services::game_path_context(&game, Some(&device)))
+        )
+        .unwrap(),
+        PathBuf::from("D:/Standalone/Game/Saves")
+    );
+}
+
+#[test]
+fn manual_game_does_not_inherit_another_games_installation() {
+    let device: crate::device::Device = serde_json::from_value(serde_json::json!({
+        "id":"local", "name":"Local", "resources":[
+            {"id":0,"source":"manual","kind":{"type":"gameRoot","store":"other","path":"D:/Games"}},
+            {"id":1,"source":"manual","kind":{"type":"gameInstallation","root_id":0,"store":"other","install_dir":"Other","path":"D:/Games/Other"}}
+        ]
+    })).unwrap();
+    let game: crate::backup::Game =
+        serde_json::from_value(serde_json::json!({"name":"Manual","save_paths":[]})).unwrap();
+    assert!(
+        resolve_path_explicit(
+            "<base>/Saves",
+            Some(&crate::services::game_path_context(&game, Some(&device)))
+        )
+        .is_err()
+    );
 }

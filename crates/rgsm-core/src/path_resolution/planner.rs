@@ -158,9 +158,13 @@ fn build_combinations<'a>(
                 let root = context
                     .roots
                     .iter()
-                    .find(|root| root.id == installation.root_id)?;
-                selected(&context.selection.root_ids, &root.id).then_some(CandidateParts {
-                    root: Some(root),
+                    .find(|root| installation.root_id.as_ref() == Some(&root.id));
+                if needs_root && !root.is_some_and(|r| selected(&context.selection.root_ids, &r.id))
+                {
+                    return None;
+                }
+                Some(CandidateParts {
+                    root: if needs_root { root } else { None },
                     installation: Some(installation),
                     account: None,
                 })
@@ -492,7 +496,7 @@ mod tests {
             installations: vec![
                 GameInstallationCandidate {
                     id: "install-a".to_string(),
-                    root_id: "root-a".to_string(),
+                    root_id: Some("root-a".to_string()),
                     store: StoreKind::Steam,
                     install_dir: "Game[One]".to_string(),
                     install_path: PathBuf::from("D:/Steam[Main]/steamapps/common/Game[One]"),
@@ -500,7 +504,7 @@ mod tests {
                 },
                 GameInstallationCandidate {
                     id: "install-b".to_string(),
-                    root_id: "root-b".to_string(),
+                    root_id: Some("root-b".to_string()),
                     store: StoreKind::Steam,
                     install_dir: "Game Two".to_string(),
                     install_path: PathBuf::from("E:/Steam/steamapps/common/Game Two"),
@@ -556,7 +560,7 @@ mod tests {
         });
         context.installations.push(GameInstallationCandidate {
             id: "install-gog".to_string(),
-            root_id: "root-gog".to_string(),
+            root_id: Some("root-gog".to_string()),
             store: StoreKind::Gog,
             install_dir: "Game".to_string(),
             install_path: PathBuf::from("F:/GOG/Game"),

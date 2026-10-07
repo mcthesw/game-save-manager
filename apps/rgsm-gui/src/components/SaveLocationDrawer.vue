@@ -76,7 +76,6 @@ const variablePaths = computed(() => [
   getGameLaunchPath(selectedDeviceId.value),
   ...tempGame.value.save_paths.map((unit) => getDevicePath(unit, selectedDeviceId.value)),
 ]);
-const selectedDeviceResources = computed(() => selectedDevice.value?.resources ?? []);
 
 const deviceOptions = computed(() =>
   availableDevices.value.map((device) => ({ value: device.id, label: device.name }))
@@ -561,8 +560,9 @@ async function handleOpenPath(e: MouseEvent, path: string, unit?: SaveUnit) {
       </section>
 
       <!-- Device resources section -->
-      <section v-if="selectedDeviceResources.length">
+      <section>
         <GameLocationSelection
+          :game="tempGame"
           :device="selectedDevice"
           :model-value="currentBinding()"
           :paths="[
