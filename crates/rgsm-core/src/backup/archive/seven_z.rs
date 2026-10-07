@@ -15,7 +15,10 @@ use crate::{
     preclude::{BackupFileError, CompressError},
 };
 
-use super::{ArchiveManifestV4, V4_MANIFEST_ENTRY, restored_directory::remove_restored_directory};
+use super::{
+    ArchiveManifestV4, V4_MANIFEST_ENTRY, manifest::V5_MANIFEST_ENTRY,
+    restored_directory::remove_restored_directory,
+};
 
 const UNIX_EXTENSION: u32 = 0x8000;
 #[cfg(unix)]
@@ -70,7 +73,11 @@ fn write_archive(
     let manifest = ArchiveManifestV4::from_plan(plan, source_fingerprint);
     let bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|error| CompressError::Unexpected(error.into()))?;
-    let mut entry = ArchiveEntry::new_file(V4_MANIFEST_ENTRY);
+    let mut entry = ArchiveEntry::new_file(if manifest.version == 5 {
+        V5_MANIFEST_ENTRY
+    } else {
+        V4_MANIFEST_ENTRY
+    });
     set_entry_metadata(&mut entry, &metadata_now())?;
     writer
         .push_archive_entry(entry, Some(Cursor::new(bytes)))
@@ -202,7 +209,7 @@ pub(super) fn read_manifest(path: &Path) -> Result<ArchiveManifestV4, CompressEr
     let mut bytes = None;
     reader
         .for_each_entries(|entry, source| {
-            if entry.name() == V4_MANIFEST_ENTRY {
+            if matches!(entry.name(), V4_MANIFEST_ENTRY | V5_MANIFEST_ENTRY) {
                 let mut value = Vec::new();
                 source.read_to_end(&mut value)?;
                 bytes = Some(value);
@@ -215,7 +222,7 @@ pub(super) fn read_manifest(path: &Path) -> Result<ArchiveManifestV4, CompressEr
     })?;
     let manifest: ArchiveManifestV4 =
         serde_json::from_slice(&bytes).map_err(|error| CompressError::Unexpected(error.into()))?;
-    if manifest.version != 4 {
+    if !matches!(manifest.version, 4 | 5) {
         return Err(CompressError::Unexpected(anyhow::anyhow!(
             "unsupported Archive V4 manifest version: {}",
             manifest.version

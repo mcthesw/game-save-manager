@@ -1,4 +1,4 @@
-use crate::config::{get_backup_path, get_config, set_config_local};
+use crate::config::get_config;
 use crate::preclude::*;
 
 use log::{error, info};
@@ -10,8 +10,8 @@ use super::game::SnapshotCreated;
 use super::storage_key::generate_unique_storage_key;
 use super::{Game, GameDraft, GameSnapshots};
 
-async fn create_backup_folder(dir_name: &str) -> Result<(), BackupError> {
-    let backup_path = get_backup_path()?.join(dir_name);
+fn create_backup_folder(backup_root: &std::path::Path, dir_name: &str) -> Result<(), BackupError> {
+    let backup_path = backup_root.join(dir_name);
     let info: GameSnapshots = if !backup_path.exists() {
         fs::create_dir_all(&backup_path)?;
         GameSnapshots::new(dir_name)
@@ -26,9 +26,10 @@ async fn create_backup_folder(dir_name: &str) -> Result<(), BackupError> {
     Ok(())
 }
 
-pub async fn create_game_backup(game: &GameDraft) -> Result<Game, BackupError> {
-    let mut config = get_config()?;
-
+pub fn create_game_backup(
+    game: &GameDraft,
+    config: &mut crate::config::Config,
+) -> Result<Game, BackupError> {
     if config
         .games
         .iter()
@@ -47,12 +48,14 @@ pub async fn create_game_backup(game: &GameDraft) -> Result<Game, BackupError> {
         .map(|g| g.storage_key.clone())
         .collect();
     let storage_key = generate_unique_storage_key(&game.name, &existing_keys);
-    create_backup_folder(&storage_key).await?;
+    create_backup_folder(
+        &crate::config::resolve_backup_path(&config.backup_path),
+        &storage_key,
+    )?;
     let mut new_game = game.clone().into_game(None);
     new_game.storage_key = storage_key;
     config.games.push(new_game.clone());
 
-    set_config_local(&config)?;
     Ok(new_game)
 }
 

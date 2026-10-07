@@ -62,6 +62,7 @@ impl ResolutionSelection {
 
 #[derive(Debug, Clone)]
 pub struct ResolutionContext {
+    pub variables: crate::path_variables::PathVariables,
     pub platform: PlatformKind,
     pub platform_paths: PlatformPaths,
     pub roots: Vec<GameRootCandidate>,
@@ -74,6 +75,7 @@ pub struct ResolutionContext {
 impl Default for ResolutionContext {
     fn default() -> Self {
         Self {
+            variables: Default::default(),
             platform: PlatformKind::host(),
             platform_paths: PlatformPaths::default(),
             roots: Vec::new(),
@@ -101,6 +103,8 @@ pub struct CandidateDimensions {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CandidateExpression {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variable_pattern: Option<crate::path_variables::VariablePattern>,
     pub id: String,
     pub expression: String,
     pub logical_anchor: String,
@@ -252,6 +256,7 @@ mod tests {
 
     fn candidate(expression: &str, logical_anchor: &str) -> CandidateExpression {
         CandidateExpression {
+            variable_pattern: None,
             id: "candidate".to_string(),
             expression: expression.to_string(),
             logical_anchor: logical_anchor.to_string(),

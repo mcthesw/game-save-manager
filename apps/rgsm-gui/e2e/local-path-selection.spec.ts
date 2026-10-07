@@ -47,7 +47,7 @@ test('root selection stays local to the form and drives preview and backup', asy
     await expect(dialog).toContainText('Select a location');
     await dialog.getByRole('button', { name: 'Game root directory', exact: true }).click();
     await page.getByText(`other · ${rootB}`, { exact: true }).click();
-    await dialog.getByRole('heading').click();
+    await dialog.getByRole('heading', { level: 2 }).click();
     await expect(dialog).toContainText(`${rootB}/game.exe`);
     await page.screenshot({ path: testInfo.outputPath('path-selection-add.png') });
     // Closing a draft must not write a game or a device-wide selection.
@@ -61,7 +61,7 @@ test('root selection stays local to the form and drives preview and backup', asy
     await expect(dialog.locator('.pvi-status--error')).toHaveCount(1);
     await dialog.getByRole('button', { name: 'Game root directory', exact: true }).click();
     await page.getByText(`other · ${rootB}`, { exact: true }).click();
-    await dialog.getByRole('heading').click();
+    await dialog.getByRole('heading', { level: 2 }).click();
     await expect(dialog.locator('.pvi-status--ok')).toHaveCount(1);
     await dialog.locator('.pvi-editor').first().fill('<root>/game.exe');
     await dialog.getByRole('button', { name: 'save', exact: true }).click();

@@ -27,6 +27,8 @@ enum ResolutionPurpose {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct PathPreviewContext {
+    #[serde(default)]
+    pub device_variables: std::collections::BTreeMap<String, super::DeviceVariableEdit>,
     pub game: Option<crate::backup::GameDraft>,
     pub store_user_id: Option<String>,
     #[serde(default)]
@@ -40,6 +42,8 @@ impl ServiceContext {
     pub(crate) fn validate_game_paths(&self, config: &Config, game: &Game) -> anyhow::Result<()> {
         let device_id = get_current_device_id();
         let context = game.path_context(config.devices.get(device_id));
+        let values = &context.resolution.as_ref().expect("game context").variables;
+        crate::path_variables::validate(values).map_err(anyhow::Error::msg)?;
         if let Some(path) = game
             .game_paths
             .get(device_id)
@@ -55,6 +59,10 @@ impl ServiceContext {
                 anyhow::bail!("{}", rust_i18n::t!("path_variable.invalid_override"));
             }
             let report = self.resolve_save_unit_for_restore(config, game, unit);
+            if let Ok(parsed) = parse_manifest_path_pattern(&report.raw_pattern) {
+                crate::path_variables::expand(&report.raw_pattern, &parsed.variables, values)
+                    .map_err(anyhow::Error::msg)?;
+            }
             if matches!(
                 report.selection_state,
                 ResolutionSelectionState::Ambiguous { .. }
@@ -87,6 +95,21 @@ impl ServiceContext {
         paths: &[String],
         preview: &PathPreviewContext,
     ) -> Vec<crate::path_resolver::PathCheckResult> {
+        let mut preview_config = config.clone();
+        if let Err(error) =
+            super::game_edit::apply_device_variables(&mut preview_config, &preview.device_variables)
+        {
+            return paths
+                .iter()
+                .map(
+                    |path| crate::path_resolver::PathCheckResult::ResolveFailed {
+                        raw_path: path.clone(),
+                        error: error.to_string(),
+                    },
+                )
+                .collect();
+        }
+        let config = &preview_config;
         paths
             .iter()
             .map(|path| {
@@ -422,6 +445,7 @@ fn resolve_concrete(
             candidate_ids: vec!["concrete".to_string()],
         },
         candidates: vec![CandidateExpression {
+            variable_pattern: None,
             id: "concrete".to_string(),
             expression: globset::escape(&resolved.to_string_lossy()),
             logical_anchor: source

@@ -369,9 +369,16 @@ fn render_candidate(
         store,
     };
     let id = candidate_id(&dimensions);
+    let variable_pattern =
+        (!parsed.variables.is_empty()).then(|| crate::path_variables::VariablePattern {
+            expression: expression.clone(),
+            values: context.variables.clone(),
+        });
+    expression = crate::path_variables::expand(&expression, &parsed.variables, &context.variables)?;
     let logical_anchor = glob_logical_anchor(&expression);
 
     Ok(CandidateExpression {
+        variable_pattern,
         id,
         expression,
         logical_anchor: logical_anchor.to_string_lossy().into_owned(),
@@ -489,6 +496,7 @@ mod tests {
 
     fn context() -> ResolutionContext {
         ResolutionContext {
+            variables: Default::default(),
             platform: PlatformKind::Windows,
             platform_paths: PlatformPaths {
                 home: Some(PathBuf::from("C:/Users/Player")),

@@ -126,6 +126,9 @@ impl From<crate::backup::CapturePlanError> for BackupError {
         match error {
             crate::backup::CapturePlanError::Blocking(failures) => Self::PathPreflight(failures),
             crate::backup::CapturePlanError::NoDataMatched => Self::NoDataMatched,
+            crate::backup::CapturePlanError::VariableExpression(message) => {
+                Self::Unexpected(anyhow::anyhow!(message))
+            }
         }
     }
 }

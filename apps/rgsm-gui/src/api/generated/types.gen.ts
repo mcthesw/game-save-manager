@@ -18,6 +18,9 @@ export type AcceptV2RemoteProgressRequest = {
 };
 
 export type AddGameRequest = {
+  deviceVariables?: {
+    [key: string]: DeviceVariableEdit;
+  };
   game: GameDraft;
 };
 
@@ -139,6 +142,7 @@ export type CandidateExpression = {
   expression: string;
   id: string;
   logicalAnchor: string;
+  variablePattern?: null | VariablePattern;
 };
 
 export type CheckCloudBackendRequest = {
@@ -146,6 +150,9 @@ export type CheckCloudBackendRequest = {
 };
 
 export type CheckPathsRequest = {
+  deviceVariables?: {
+    [key: string]: DeviceVariableEdit;
+  };
   game?: null | GameDraft;
   installDirs?: Array<string> | null;
   literal?: boolean;
@@ -507,6 +514,9 @@ export type Device = {
   id: String;
   name: string;
   next_resource_id?: U32;
+  path_variables?: {
+    [key: string]: string;
+  };
   resources?: Array<DeviceResource>;
 };
 
@@ -552,6 +562,11 @@ export type DeviceResourceKind =
     };
 
 export type DeviceResourceSource = 'manual' | 'detected';
+
+export type DeviceVariableEdit = {
+  previousValue?: string | null;
+  value: string;
+};
 
 export type DownloadCloudArchiveRequest = {
   gameId: string;
@@ -667,6 +682,9 @@ export type GameDeviceBinding = {
   installationIds?: Array<U32> | null;
   pathOverrides?: {
     [key: string]: SavePathOverride;
+  };
+  pathVariables?: {
+    [key: string]: string;
   };
   restoreMappings?: Array<RestoreMappingRule>;
   rootIds?: Array<U32> | null;
@@ -937,8 +955,12 @@ export type OpenExtraBackupFolderRequest = {
 };
 
 export type OpenFileOrFolderRequest = {
+  deviceVariables?: {
+    [key: string]: DeviceVariableEdit;
+  };
   game?: null | GameDraft;
   path: string;
+  pattern?: boolean;
 };
 
 export type OpenPathOutcome =
@@ -1593,6 +1615,9 @@ export type UpdateCheck = {
 };
 
 export type UpdateGameRequest = {
+  deviceVariables?: {
+    [key: string]: DeviceVariableEdit;
+  };
   game: GameDraft;
   storageKey: string;
 };
@@ -1618,6 +1643,13 @@ export type V2ConflictReview = {
   local?: null | LocalProgressView;
   manifest_revision: number;
   requires_choice: boolean;
+};
+
+export type VariablePattern = {
+  expression: string;
+  values: {
+    [key: string]: string;
+  };
 };
 
 export type VerifyArchiveIntegrityRequest = {

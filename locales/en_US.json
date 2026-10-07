@@ -1342,6 +1342,30 @@
         "select_device": "Select Device",
         "import_success": "Paths imported successfully"
     },
+    "path_variables": {
+        "title": "Path variables",
+        "add": "Add variable",
+        "name": "Variable name",
+        "name_hint": "For example: saveAccount",
+        "inherited": "Device default",
+        "edit_default": "Edit device default",
+        "value": "Value of {name}",
+        "reset": "Use device default",
+        "insert": "Insert into path",
+        "affected": "Also affects {count} other games using the device default",
+        "missing": "Set a value for {name}.",
+        "invalid_value": "Invalid path variable: {name}. Use a name with letters, numbers, underscores or hyphens, and a nonempty literal value.",
+        "changed": "The device default for {name} has changed. Reopen the game editor and review your changes.",
+        "game_value": "This game",
+        "default_pending": "Device default · edited",
+        "unset": "Not set",
+        "undo_default": "Discard default change",
+        "edit_hint": "Editing a value here changes only this game.",
+        "actions": "Actions for {name}",
+        "default_description": "Used by games on {device} without their own value. Saved together with the game.",
+        "override_kept": "This game keeps its own value.",
+        "use_change": "Use this value"
+    },
     "portable_archive": {
         "legacy_association_required": "This older backup cannot be matched safely to the configured save entries. %{reason}"
     }

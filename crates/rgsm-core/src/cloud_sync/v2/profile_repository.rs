@@ -235,6 +235,7 @@ mod tests {
                 id: "deck".into(),
                 name: "Steam Deck".into(),
                 resources: Vec::new(),
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
             local_archive_root: Some("save_data".into()),

@@ -97,6 +97,7 @@ fn flat_manifest_from_entries(
             save_unit_id: unit.id,
             candidate_id: String::new(),
             dimensions: Default::default(),
+            relative_expression: None,
             relative_path: String::new(),
             archive_path: name,
             kind: if directory {

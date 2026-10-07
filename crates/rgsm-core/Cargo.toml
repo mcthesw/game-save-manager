@@ -44,6 +44,7 @@ font-kit = "0.14"
 base64 = "0.22.1"
 globetter = "0.2.0"
 globset = "0.4.15"
+regex = "1"
 async-trait.workspace = true
 futures-util = "0.3.32"
 http = "1"

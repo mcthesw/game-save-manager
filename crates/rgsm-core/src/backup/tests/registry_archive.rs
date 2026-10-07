@@ -110,6 +110,7 @@ mod tests {
             let (source, _) = hkcu.create_subkey(format!("{owned_subkey}\\OldName\\Nested"))?;
             let capture = CapturePlan {
                 groups: vec![CaptureGroup {
+                    relative_expression: None,
                     id: 0,
                     save_unit_id: 0,
                     candidate_id: "source".into(),

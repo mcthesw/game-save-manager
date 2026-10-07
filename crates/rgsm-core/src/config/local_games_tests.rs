@@ -30,6 +30,7 @@ fn fixture() -> (temp_dir::TempDir, OwnerStore, ConfigurationOwners) {
                 id: "pc".into(),
                 name: "My PC".into(),
                 resources: vec![],
+                path_variables: Default::default(),
                 next_resource_id: 0,
             },
         )]),

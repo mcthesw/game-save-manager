@@ -15,6 +15,8 @@ import {
 import { $t } from '../i18n';
 import { error } from '../utils/logger';
 import PathVariableInput from './PathVariableInput.vue';
+import PathVariablesEditor from './PathVariablesEditor.vue';
+import { providePathVariableDraft } from '../composables/usePathVariableDraft';
 import GameLocationSelection from './GameLocationSelection.vue';
 import GameImportDialog from './GameImportDialog.vue';
 import GameImportCustomizeDialog from './GameImportCustomizeDialog.vue';
@@ -46,6 +48,9 @@ const is_editing = ref(false); // 是否正在编辑已有的游戏
 const editing_storage_key = ref(''); // storage_key of the game being edited
 const deviceBinding = ref<GameDeviceBinding>({});
 const currentDevice = ref<Device | null>(null); // 当前设备信息
+
+const variables = providePathVariableDraft(currentDevice, deviceBinding);
+watch(visible, () => variables.reset());
 
 // Import dialog state
 const showImportDialog = ref(false);
@@ -153,6 +158,10 @@ fetchCurrentDevice();
 // 抽屉每次打开时初始化表单：编辑模式装载既有游戏，创建模式清空
 watch(visible, (isOpen) => {
   if (!isOpen) return;
+  if (currentDevice.value)
+    currentDevice.value = JSON.parse(
+      JSON.stringify(config.value.devices?.[currentDevice.value.id] ?? currentDevice.value)
+    );
   const gameName = editGameName.value;
   if (!gameName) {
     is_editing.value = false;
@@ -168,7 +177,11 @@ watch(visible, (isOpen) => {
     deviceBinding.value = JSON.parse(
       JSON.stringify(gameConfig.device_bindings?.[currentDevice.value?.id ?? ''] ?? {})
     );
-    save_paths.splice(0, save_paths.length, ...(gameConfig.save_paths ?? []));
+    save_paths.splice(
+      0,
+      save_paths.length,
+      ...JSON.parse(JSON.stringify(gameConfig.save_paths ?? []))
+    );
     manualInstallDirs.value = [...(gameConfig.ludusavi_meta?.installDirs ?? [])];
     pendingLudusaviMeta.value = null;
     pendingStoreUserId.value = null;
@@ -783,7 +796,12 @@ async function save() {
   }
 
   if (currentDevice.value) {
-    await warnUnavailableLocations(save_paths, currentDevice.value.id, previewGame.value);
+    await warnUnavailableLocations(
+      save_paths,
+      currentDevice.value.id,
+      previewGame.value,
+      variables.edits.value
+    );
   }
 
   const game: GameDraft = {
@@ -817,12 +835,16 @@ async function save() {
   }
   try {
     if (is_editing.value) {
-      const result = await commands.updateGame(editing_storage_key.value, game);
+      const result = await commands.updateGame(
+        editing_storage_key.value,
+        game,
+        variables.edits.value
+      );
       if (result.status === 'error') throw new Error(result.error);
       is_editing.value = false;
       notifySuccess($t('addgame.game_saved_locally'));
     } else {
-      const result = await commands.addGame(game);
+      const result = await commands.addGame(game, variables.edits.value);
       if (result.status === 'error') throw new Error(result.error);
       if (!(await saveImportedFavorites([result.data]))) return;
       notifySuccess($t('addgame.game_saved_locally'));
@@ -836,6 +858,7 @@ async function save() {
   }
 }
 function reset_info(show_notification: boolean = true) {
+  variables.reset();
   // 重置当前配置
   game_name.value = '';
   deviceBinding.value = {};
@@ -989,6 +1012,14 @@ function deleteRow(index: number) {
           </div>
         </div>
       </section>
+      <PathVariablesEditor
+        v-if="currentDevice"
+        v-model:binding="deviceBinding"
+        :device="currentDevice"
+        :paths="previewPaths"
+        :games="config.games"
+        :game-key="editing_storage_key"
+      />
     </div>
 
     <template #footer>

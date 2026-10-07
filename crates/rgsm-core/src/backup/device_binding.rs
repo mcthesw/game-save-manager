@@ -40,6 +40,8 @@ pub struct RestoreMappingRule {
 #[serde(rename_all = "camelCase")]
 pub struct GameDeviceBinding {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub path_variables: std::collections::BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub path_overrides: BTreeMap<u32, SavePathOverride>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_ids: Option<Vec<DeviceResourceId>>,

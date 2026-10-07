@@ -12,6 +12,7 @@ fn device(id: &str, name: &str) -> Device {
         id: id.to_string(),
         name: name.to_string(),
         resources: Vec::new(),
+        path_variables: Default::default(),
         next_resource_id: 0,
     }
 }
