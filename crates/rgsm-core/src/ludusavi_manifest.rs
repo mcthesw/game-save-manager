@@ -1,13 +1,7 @@
 use crate::path_pattern::{
     ManifestPathCondition, ManifestPathConstraints, PlatformKind, StoreKind,
 };
-use crate::{
-    app_dirs,
-    config::Config,
-    embedded_resources,
-    path_resolver::{self, PathContext},
-    steam,
-};
+use crate::{app_dirs, config::Config, embedded_resources};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use log::{debug, info, warn};
@@ -402,32 +396,27 @@ pub fn detect_local_games(
 
     info!(target: "rgsm::ludusavi", "Scanning for locally installed games on current OS...");
 
-    // Pre-scan all installed Steam games for O(1) per-game lookup
-    let steam_cache = Arc::new(match steam::scan_all_installed_games() {
-        Ok(cache) => cache,
-        Err(e) => {
-            warn!(
-                target: "rgsm::ludusavi",
-                "Failed to scan installed Steam games during local detection: {}",
-                e
-            );
-            HashMap::new()
-        }
-    });
-
+    let device = _config.devices.get(crate::device::get_current_device_id());
+    let environment = crate::services::path_context::device_path_environment(device);
     for (name, value) in manifest {
-        let install_dirs = extract_install_dirs(value);
-        let steam_id = extract_steam_id(value);
-
-        let ctx = PathContext {
-            resolution: None,
-            install_dirs,
-            steam_id,
-            install_dir_cache: Some(Arc::clone(&steam_cache)),
-            game_roots: Vec::new(),
-            store_user_id: None,
-        };
-
+        let game = crate::backup::GameDraft {
+            name: name.clone(),
+            ludusavi_meta: Some(crate::backup::LudusaviMeta {
+                install_dirs: extract_install_dirs(value),
+                store_game_ids: extract_steam_id(value)
+                    .map(|id| crate::backup::StoreGameId {
+                        store: StoreKind::Steam,
+                        id: id.to_string(),
+                    })
+                    .into_iter()
+                    .collect(),
+            }),
+            save_paths: Vec::new(),
+            game_paths: Default::default(),
+            device_bindings: Default::default(),
+        }
+        .into_game(None);
+        let context = game.path_context(device, &environment);
         // Check if any save paths exist locally
         if let Some(files) = value.get("files").and_then(|f| f.as_mapping()) {
             for (path_key, path_value) in files {
@@ -444,17 +433,20 @@ pub fn detect_local_games(
                         continue;
                     }
 
-                    // Try to resolve the path with game context
-                    match path_resolver::resolve_path(path_str, Some(&ctx), _config) {
-                        Ok(resolved) if resolved.exists() => {
-                            detected.insert(name.clone());
-                            debug!(target: "rgsm::ludusavi", "Detected installed game: {} (path: {})", name, path_str);
-                            break;
-                        }
-                        // Game not installed on this machine — skip silently
-                        Err(path_resolver::ResolveError::GameNotInstalled(_))
-                        | Err(path_resolver::ResolveError::StoreNotSupported(_)) => continue,
-                        _ => continue,
+                    let Ok(parsed) = crate::path_pattern::parse_manifest_path_pattern(path_str)
+                    else {
+                        continue;
+                    };
+                    let plan = crate::path_resolution::plan_resolution(
+                        &parsed,
+                        extract_constraints(when_conditions),
+                        &context,
+                    );
+                    if crate::path_resolution::discover_resolution_matches(&plan)
+                        .is_ok_and(|report| !report.locations.is_empty())
+                    {
+                        detected.insert(name.clone());
+                        break;
                     }
                 }
             }

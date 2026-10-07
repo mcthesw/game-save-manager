@@ -20,11 +20,30 @@ pub enum MatchError {
 }
 
 pub fn match_resolution_plan(plan: &ResolutionPlan) -> Result<ResolutionReport, MatchError> {
+    match_plan(plan, false)
+}
+
+/// Discovery may inspect all candidate locations; it never selects an instance.
+pub fn discover_resolution_matches(plan: &ResolutionPlan) -> Result<ResolutionReport, MatchError> {
+    match_plan(plan, true)
+}
+
+fn match_plan(plan: &ResolutionPlan, discovery: bool) -> Result<ResolutionReport, MatchError> {
     let mut diagnostics = plan.diagnostics.clone();
     let mut locations = Vec::new();
     let mut seen = BTreeSet::new();
 
-    if !plan.is_blocked() {
+    if !plan.is_blocked()
+        || (discovery
+            && matches!(
+                plan.selection_state,
+                super::ResolutionSelectionState::Ambiguous { .. }
+            )
+            && plan
+                .diagnostics
+                .iter()
+                .all(|d| matches!(d.kind, ResolutionDiagnosticKind::MultipleCandidates)))
+    {
         for candidate in &plan.candidates {
             let options = globetter::MatchOptions {
                 case_sensitive: candidate.case_sensitive,
@@ -113,6 +132,31 @@ mod tests {
     use crate::path_resolution::{
         PlatformPaths, ResolutionContext, ResolutionSelectionState, plan_resolution,
     };
+
+    #[test]
+    fn discovery_finds_all_libraries_without_authorizing_a_capture() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let mut context = ResolutionContext::default();
+        for name in ["A", "B"] {
+            let path = temp.path().join(name);
+            fs::create_dir_all(&path).unwrap();
+            fs::write(path.join("slot.sav"), name).unwrap();
+            context.roots.push(super::super::GameRootCandidate {
+                id: name.into(),
+                path,
+                store: crate::path_pattern::StoreKind::Steam,
+            });
+        }
+        let parsed = parse_manifest_path_pattern("<root>/*.sav").unwrap();
+        let plan = plan_resolution(&parsed, Default::default(), &context);
+        let discovery = discover_resolution_matches(&plan).unwrap();
+        assert_eq!(discovery.locations.len(), 2);
+        assert!(matches!(
+            discovery.selection_state,
+            ResolutionSelectionState::Ambiguous { .. }
+        ));
+        assert!(match_resolution_plan(&plan).unwrap().locations.is_empty());
+    }
 
     #[test]
     fn matches_files_recursively_and_in_stable_order() {

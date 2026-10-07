@@ -11,19 +11,17 @@ pub fn open_game_location(
     let mut config = config.clone();
     super::game_edit::apply_device_variables(&mut config, variables)?;
     let game = game.map(|draft| draft.into_game(None));
-    let context = game.as_ref().map(|game| {
-        crate::services::game_path_context(game, config.devices.get(get_current_device_id()))
-    });
+    let device = config.devices.get(get_current_device_id());
+    let context = game
+        .as_ref()
+        .map(|game| super::game_path_context(game, device))
+        .unwrap_or_else(|| super::device_path_context(device));
     if pattern && !crate::backup::registry::is_registry_path(raw) {
-        let context = context
-            .as_ref()
-            .and_then(|c| c.resolution.as_ref())
-            .ok_or_else(|| anyhow::anyhow!("game context is required for a save expression"))?;
-        let path = expression_open_target(raw, context)?;
+        let path = expression_open_target(raw, &context)?;
         crate::path_launcher::open_path(&path)?;
         return Ok(crate::path_launcher::OpenManagedLocationOutcome::Opened);
     }
-    crate::path_launcher::open_managed_location(raw, context.as_ref(), &config)
+    crate::path_launcher::open_managed_location(raw, Some(&context), &config)
 }
 
 fn expression_open_target(

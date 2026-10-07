@@ -1292,10 +1292,16 @@ pub async fn resolve_path(path: String) -> Result<String, String> {
         e.to_string()
     })?;
 
-    let resolved_path = path_resolver::resolve_path(&path, None, &config).map_err(|e| {
-        error!(target:"rgsm::commands", "Failed to resolve path: {:?}", e);
-        e.to_string()
-    })?;
+    let context = rgsm_core::services::device_path_context(
+        config
+            .devices
+            .get(rgsm_core::device::get_current_device_id()),
+    );
+    let resolved_path =
+        path_resolver::resolve_path_explicit(&path, Some(&context)).map_err(|e| {
+            error!(target:"rgsm::commands", "Failed to resolve path: {:?}", e);
+            e.to_string()
+        })?;
 
     let path_str = resolved_path.to_str().ok_or_else(|| {
         let err = "Failed to convert resolved path to string";
