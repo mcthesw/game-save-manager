@@ -52,6 +52,7 @@ jobs:
           e2e/production-startup.spec.ts
           e2e/desktop-window-lifecycle.spec.ts
           e2e/local-main-path.spec.ts
+          e2e/local-dialog-animation.spec.ts
           e2e/local-delete-recovery.spec.ts
           e2e/local-compression.spec.ts
           e2e/local-legacy-archive.spec.ts
