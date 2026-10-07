@@ -25,7 +25,7 @@ async function editUnitPathViaDrawer(page: Page, host: RgsmHost, nextPath: strin
       async () => {
         const game = await getLocalGame(host, GAME_NAME);
         const unit = game.save_paths[0];
-        return unit?.source.type === 'concrete' ? unit.source.paths?.[DEVICE_A_ID] : undefined;
+        return unit?.source.type === 'devicePaths' ? unit.source.paths?.[DEVICE_A_ID] : undefined;
       },
       { timeout: 15_000 }
     )

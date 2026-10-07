@@ -16,8 +16,10 @@ mod backend;
 mod compress;
 mod compression_preset;
 mod decompress;
+mod legacy_layout;
 mod location;
 mod manifest;
+mod payload;
 mod restored_directory;
 mod seven_z;
 #[cfg(test)]

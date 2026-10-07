@@ -118,7 +118,7 @@ test('cloud join code previews without changes, confirms an existing library, an
       .poll(async () => {
         const game = await getLocalGame(hostB, 'Echo Keep');
         const unit = game.save_paths[0];
-        return unit?.source.type === 'concrete' ? unit.source.paths[DEVICE_B_ID] : undefined;
+        return unit?.source.type === 'devicePaths' ? unit.source.paths[DEVICE_B_ID] : undefined;
       })
       .toBe(scene.deviceA.savePath.replaceAll('\\', '/'));
     expect((await hostPost<{ id: string }>(hostB, '/api/v1/get-current-device-info')).data.id).toBe(

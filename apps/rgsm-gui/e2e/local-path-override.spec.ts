@@ -45,7 +45,7 @@ for (const [kind, typed] of [
     };
     seed.games[0].device_bindings = {
       'other-device': {
-        pathOverrides: { [unitId]: { path: '/other-device/save' } },
+        pathOverrides: { [unitId]: { expression: '/other-device/save' } },
       },
     };
     await writeFile(configPath, JSON.stringify(seed));
@@ -71,9 +71,9 @@ for (const [kind, typed] of [
       await expect
         .poll(async () => (await getLocalGame(host, GAME_NAME)).device_bindings)
         .toMatchObject({
-          [DEVICE_A_ID]: { pathOverrides: { [unitId]: { path: local } } },
+          [DEVICE_A_ID]: { pathOverrides: { [unitId]: { expression: local } } },
           'other-device': {
-            pathOverrides: { [unitId]: { path: '/other-device/save' } },
+            pathOverrides: { [unitId]: { expression: '/other-device/save' } },
           },
         });
       const saved = await getLocalGame(host, GAME_NAME);
@@ -169,7 +169,7 @@ test('multiple captured files cannot be restored onto one override file', async 
     const game = await getLocalGame(host, GAME_NAME);
     game.device_bindings = {
       [DEVICE_A_ID]: {
-        pathOverrides: { [game.save_paths[0].id]: { path: local } },
+        pathOverrides: { [game.save_paths[0].id]: { expression: local } },
       },
     };
     const saved = await hostPost(host, '/api/v1/update-game', {

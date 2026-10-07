@@ -20,7 +20,13 @@ import GameImportDialog from './GameImportDialog.vue';
 import GameImportCustomizeDialog from './GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from './GameBatchImportDialog.vue';
 import { KAlert, KButton, KDrawer, KInput, KTag, KTagInput } from '../ui/kit';
-import { concreteSaveUnit, manifestSaveUnit, saveUnitPaths, saveUnitType } from '../utils/saveUnit';
+import {
+  concreteSaveUnit,
+  manifestSaveUnit,
+  saveUnitPaths,
+  saveUnitType,
+  escapePathLiteral,
+} from '../utils/saveUnit';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSaveLocationCheck } from '../composables/useSaveLocationCheck';
 import { createGameFavorite, collectFavoriteGameIds } from './favoriteTreeContext';
@@ -215,7 +221,7 @@ function generate_save_unit(
   // 如果有当前设备信息，则添加路径
   if (currentDevice.value) {
     const deviceId = currentDevice.value.id;
-    if (saveUnit.source.type === 'concrete') {
+    if (saveUnit.source.type === 'devicePaths') {
       saveUnit.source.paths![deviceId] = path;
     }
   }
@@ -240,30 +246,20 @@ function updateSaveUnitPath(row: SaveUnitDraft, value: string) {
   }
 }
 
-async function add_save_directory() {
-  try {
-    const dir = await commands.chooseSaveDir();
-    if (dir.status == 'error' || !check_save_unit_unique(dir.data)) {
-      return;
-    }
-    save_paths.push(generate_save_unit('Folder', dir.data));
-  } catch (e) {
-    error(`Error choosing save directory: ${e}`);
-    notifyError($t('error.choose_save_dir_error'));
-  }
+function add_save_directory() {
+  save_paths.push(generate_save_unit('Folder', ''));
 }
 
-async function add_save_file() {
-  try {
-    const file = await commands.chooseSaveFile();
-    if (file.status == 'error' || !check_save_unit_unique(file.data)) {
-      return;
-    }
-    save_paths.push(generate_save_unit('File', file.data));
-  } catch (e) {
-    error(`Error choosing save file: ${e}`);
-    notifyError($t('error.choose_save_file_error'));
-  }
+function add_save_file() {
+  save_paths.push(generate_save_unit('File', ''));
+}
+
+async function chooseSavePath(row: SaveUnitDraft) {
+  const result =
+    saveUnitType(row) === 'Folder'
+      ? await commands.chooseSaveDir()
+      : await commands.chooseSaveFile();
+  if (result.status === 'ok') updateSaveUnitPath(row, escapePathLiteral(result.data));
 }
 
 async function add_registry_key() {
@@ -552,7 +548,7 @@ async function handleCustomizeConfirm(data: {
     for (const path of registryPaths) {
       const saveUnit = concreteSaveUnit('WinRegistry', {}, { enabled: true });
 
-      if (currentDevice.value && saveUnit.source.type === 'concrete') {
+      if (currentDevice.value && saveUnit.source.type === 'devicePaths') {
         saveUnit.source.paths![currentDevice.value.id] = path;
       }
 
@@ -657,7 +653,7 @@ async function handleBatchImportConfirm(configs: GameConfig[], storeUserId: stri
         const isRegistry = sp.path.startsWith('REGISTRY:') || sp.path.startsWith('HKEY_');
         if (isRegistry) {
           const saveUnit = concreteSaveUnit('WinRegistry', {}, { enabled: true });
-          if (currentDevice.value && saveUnit.source.type === 'concrete') {
+          if (currentDevice.value && saveUnit.source.type === 'devicePaths') {
             saveUnit.source.paths![currentDevice.value.id] = sp.path;
           }
           savePaths.push(saveUnit);
@@ -957,14 +953,25 @@ function deleteRow(index: number) {
             <div class="min-w-0 flex-1">
               <PathVariableInput
                 :game="previewGame"
-                :pattern="row.source.type === 'manifestPattern'"
+                :pattern="saveUnitType(row) !== 'WinRegistry'"
                 :model-value="saveUnitDisplayPath(row)"
                 status-mode="below"
                 :install-dirs="manualInstallDirs"
                 :steam-id="activeSteamId"
                 :store-user-id="activeStoreUserId"
                 @update:model-value="(value: string) => updateSaveUnitPath(row, value)"
-              />
+              >
+                <template v-if="saveUnitType(row) !== 'WinRegistry'" #append>
+                  <KButton
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="$t('save_location_drawer.pick_path')"
+                    @click="chooseSavePath(row)"
+                  >
+                    <FilePlus2 :size="14" aria-hidden="true" />
+                  </KButton>
+                </template>
+              </PathVariableInput>
             </div>
             <KTag v-if="currentDevice" class="shrink-0">{{ currentDevice.name }}</KTag>
             <KButton

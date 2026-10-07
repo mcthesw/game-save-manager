@@ -43,6 +43,36 @@ fn restore_plan(target: &Path, kind: CaptureSourceKind) -> RestorePlan {
 }
 
 #[test]
+fn corrupt_7z_payload_cannot_delete_or_overwrite_live_saves() {
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source.dat");
+    let payload = b"unique-archived-progress";
+    fs::write(&source, payload).unwrap();
+    let archive = temp.path().join("damaged.7z");
+    compress_capture_plan(
+        &capture_plan(&source, CaptureSourceKind::File),
+        &archive,
+        CompressionPreset::Store,
+        None,
+    )
+    .unwrap();
+    let mut bytes = fs::read(&archive).unwrap();
+    let offset = bytes
+        .windows(payload.len())
+        .position(|window| window == payload)
+        .unwrap();
+    bytes[offset] ^= 1;
+    fs::write(&archive, bytes).unwrap();
+
+    let target = temp.path().join("live.dat");
+    fs::write(&target, b"live-progress").unwrap();
+    let mut plan = restore_plan(&target, CaptureSourceKind::File);
+    plan.entries[0].delete_before_apply = true;
+    assert!(restore_capture_plan(&plan, &archive).is_err());
+    assert_eq!(fs::read(target).unwrap(), b"live-progress");
+}
+
+#[test]
 fn v4_round_trip_preserves_file_content_mtime_and_manifest() {
     let temp = temp_dir::TempDir::new().unwrap();
     let source = temp.path().join("source.dat");
