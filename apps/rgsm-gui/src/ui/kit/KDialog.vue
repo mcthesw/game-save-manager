@@ -83,7 +83,7 @@ function onEscape(event: KeyboardEvent) {
 @keyframes k-dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.98);
+    transform: scale(0.98);
   }
 }
 @keyframes k-overlay-in {
