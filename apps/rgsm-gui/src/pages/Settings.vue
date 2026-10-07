@@ -1421,7 +1421,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
           </section>
         </div>
         <div v-else-if="activeSection === 'backup'" class="flex flex-col gap-8">
-          <LocalUpgradeSection />
           <!-- 备份设置 -->
           <section>
             <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
@@ -1523,6 +1522,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               </KButton>
             </div>
           </section>
+          <LocalUpgradeSection />
         </div>
         <div v-else-if="activeSection === 'ui'" class="flex flex-col gap-8">
           <!-- 界面 -->

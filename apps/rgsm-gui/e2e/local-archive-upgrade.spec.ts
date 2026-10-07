@@ -119,7 +119,9 @@ test('local upgrades pause, resume, repair pending entries and retain originals 
     for (const id of ['missing', 'damaged']) {
       const pending = panel.locator('details').filter({ hasText: `${id}.zip` });
       await pending.locator('summary').click();
-      await pending.getByRole('textbox', { name: 'Backup copy (optional)' }).fill(replacement);
+      await pending
+        .getByRole('textbox', { name: 'Recover from another copy (optional)' })
+        .fill(replacement);
       await pending.getByRole('button', { name: 'Retry', exact: true }).click();
       await expect(pending).toHaveCount(0);
     }
