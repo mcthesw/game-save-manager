@@ -33,6 +33,8 @@ import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '.
 import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue';
 import AppUpdatePanel from '../components/AppUpdatePanel.vue';
 import SnapshotTimeSettings from '../components/SnapshotTimeSettings.vue';
+import LocalUpgradeSection from '../components/LocalUpgradeSection.vue';
+import LegacyInstallationsSection from '../components/LegacyInstallationsSection.vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -459,6 +461,11 @@ async function fetchDeviceInfo() {
 }
 
 // 更新设备信息
+async function refreshInstallationUpgrade() {
+  await refreshConfig();
+  await fetchDeviceInfo();
+}
+
 async function persistDeviceInfo(showSuccessMessage: boolean = true) {
   try {
     if (!config.value || !currentDevice.value) return;
@@ -1038,12 +1045,15 @@ const { linksWithGames: router_list } = useNavigationLinks();
 
 <template>
   <div class="h-full overflow-y-auto">
-    <div class="mx-auto flex max-w-[960px] gap-10 px-6 py-6">
-      <aside class="sticky top-6 w-44 shrink-0 self-start">
+    <div class="mx-auto flex max-w-[960px] flex-col gap-6 px-6 py-6 lg:flex-row lg:gap-10">
+      <aside class="w-full shrink-0 self-start lg:sticky lg:top-6 lg:w-44">
         <h1 class="mb-4 px-2 text-lg font-semibold text-text">
           {{ $t('settings.customizable_settings') }}
         </h1>
-        <nav class="flex flex-col gap-0.5" :aria-label="$t('settings.customizable_settings')">
+        <nav
+          class="flex flex-wrap gap-0.5 lg:flex-col"
+          :aria-label="$t('settings.customizable_settings')"
+        >
           <button
             v-for="item in sectionNav"
             :key="item.key"
@@ -1057,12 +1067,12 @@ const { linksWithGames: router_list } = useNavigationLinks();
             :aria-current="activeSection === item.key ? 'page' : undefined"
             @click="activeSection = item.key"
           >
-            <component :is="item.icon" :size="14" aria-hidden="true" />
+            <component :is="item.icon" :size="14" class="shrink-0" aria-hidden="true" />
             {{ item.label }}
           </button>
         </nav>
       </aside>
-      <div class="min-w-0 max-w-[640px] flex-1 pb-16">
+      <div class="w-full min-w-0 max-w-[640px] flex-1 pb-16">
         <div v-if="activeSection === 'general'" class="flex flex-col gap-8">
           <!-- 通用 -->
           <section>
@@ -1071,7 +1081,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <h2 class="text-sm font-semibold text-text">{{ $t('settings.general') }}</h2>
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('home.choose_language') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('home.choose_language') }}</span>
               <div class="flex items-center gap-2">
                 <KSelect
                   v-model="config.settings.locale"
@@ -1082,7 +1092,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               </div>
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.homepage') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.homepage') }}</span>
               <KSelect
                 v-model="config.settings.home_page"
                 class="w-56"
@@ -1091,16 +1101,16 @@ const { linksWithGames: router_list } = useNavigationLinks();
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.exit_to_tray') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.exit_to_tray') }}</span>
               <KSwitch v-model="config.settings.exit_to_tray" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('updates.auto_check') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('updates.auto_check') }}</span>
               <KSwitch v-model="config.settings.auto_check_for_updates" />
             </div>
             <AppUpdatePanel />
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.log_to_file') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.log_to_file') }}</span>
               <KSwitch v-model="config.settings.log_to_file" />
             </div>
             <div class="mt-3 flex items-center gap-2 border-t border-border pt-4">
@@ -1365,6 +1375,12 @@ const { linksWithGames: router_list } = useNavigationLinks();
             </div>
           </section>
 
+          <LegacyInstallationsSection
+            :device="currentDevice"
+            :games="config.games"
+            @updated="refreshInstallationUpgrade"
+          />
+
           <!-- VN 扫描 -->
           <section>
             <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
@@ -1375,7 +1391,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               {{ $t('settings.vn_scanner_hint') }}
             </p>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.vn_scan_dirs') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.vn_scan_dirs') }}</span>
               <KButton size="sm" variant="primary" @click="addVnScanDir">
                 <template #icon><Plus :size="13" aria-hidden="true" /></template>
                 {{ $t('settings.add_scan_dir') }}
@@ -1412,60 +1428,63 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <h2 class="text-sm font-semibold text-text">{{ $t('settings.backup_settings') }}</h2>
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.prompt_when_auto_backup')
               }}</span>
               <KSwitch v-model="config.settings.prompt_when_auto_backup" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <div class="min-w-0 shrink-0">
+              <div class="min-w-0">
                 <span class="text-sm text-text">{{ $t('settings.max_auto_backup_count') }}</span>
                 <p class="mt-0.5 text-xs leading-relaxed text-text-dim">
                   {{ $t('settings.max_auto_backup_count_hint') }}
                 </p>
               </div>
-              <KNumberInput v-model="maxAutoBackupCount" :min="0" :max="999" class="w-28" />
+              <KNumberInput
+                v-model="maxAutoBackupCount"
+                :min="0"
+                :max="999"
+                class="w-28 shrink-0"
+              />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.extra_backup_when_apply')
               }}</span>
               <KSwitch v-model="config.settings.extra_backup_when_apply" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.max_extra_backup_count')
               }}</span>
               <KNumberInput
                 v-model="maxExtraBackupCount"
                 :min="0"
                 :max="999"
-                class="w-28"
+                class="w-28 shrink-0"
                 :disabled="!config.settings.extra_backup_when_apply"
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.default_delete_before_apply')
               }}</span>
               <KSwitch v-model="config.settings.default_delete_before_apply" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.confirm_before_apply_latest')
               }}</span>
               <KSwitch v-model="confirmBeforeApplyLatest" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.confirm_before_apply_snapshot')
               }}</span>
               <KSwitch v-model="confirmBeforeApplySnapshot" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
-                $t('settings.compression_preset')
-              }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.compression_preset') }}</span>
               <KSelect
                 v-model="config.settings.compression_preset"
                 class="w-44"
@@ -1474,19 +1493,19 @@ const { linksWithGames: router_list } = useNavigationLinks();
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.add_new_to_favorites')
               }}</span>
               <KSwitch v-model="config.settings.add_new_to_favorites" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.compute_archive_hash')
               }}</span>
               <KSwitch v-model="config.settings.compute_archive_hash" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.verify_archive_before_apply')
               }}</span>
               <KSwitch
@@ -1503,6 +1522,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               </KButton>
             </div>
           </section>
+          <LocalUpgradeSection />
         </div>
         <div v-else-if="activeSection === 'ui'" class="flex flex-col gap-8">
           <!-- 界面 -->
@@ -1513,7 +1533,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
             </div>
             <SnapshotTimeSettings v-model="config.settings.appearance!.snapshot_time_format" />
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.default_game_list') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.default_game_list') }}</span>
               <KSelect
                 :model-value="defaultGameList"
                 class="w-56"
@@ -1523,7 +1543,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.save_list_expand_behavior')
               }}</span>
               <KSelect
@@ -1534,7 +1554,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.default_expend_favorites_tree')
               }}</span>
               <KSwitch v-model="config.settings.default_expend_favorites_tree" />
@@ -1550,17 +1570,17 @@ const { linksWithGames: router_list } = useNavigationLinks();
               </h2>
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.enable_dark_mode') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.enable_dark_mode') }}</span>
               <KSwitch v-model="isDark" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.custom_font_enabled')
               }}</span>
               <KSwitch v-model="config.settings.appearance!.custom_font_enabled" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{ $t('settings.ui_font_family') }}</span>
+              <span class="min-w-0 text-sm text-text">{{ $t('settings.ui_font_family') }}</span>
               <KInput
                 v-model="config.settings.appearance!.ui_font_family"
                 class="w-72"
@@ -1587,7 +1607,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               </h2>
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.save_list_sort_mode')
               }}</span>
               <KSelect
@@ -1599,7 +1619,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.save_list_sort_direction')
               }}</span>
               <KSelect
@@ -1718,19 +1738,19 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <span class="font-medium text-text">{{ currentQuickActionGame.name }}</span>
             </p>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.quick_action_enable_sound')
               }}</span>
               <KSwitch v-model="config.quick_action!.enable_sound" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.quick_action_enable_notification')
               }}</span>
               <KSwitch v-model="config.quick_action!.enable_notification" />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="shrink-0 text-sm text-text">{{
+              <span class="min-w-0 text-sm text-text">{{
                 $t('settings.quick_action_notify_when_unchanged')
               }}</span>
               <KSwitch v-model="config.quick_action!.notify_when_unchanged" />

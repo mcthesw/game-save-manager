@@ -1,6 +1,8 @@
+mod local_upgrade;
 mod variables;
 use super::*;
 use crate::commands;
+use local_upgrade::*;
 use variables::*;
 
 use axum::{Json, Router, extract::State, routing::post};
@@ -2385,6 +2387,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_game_location_options),
         )
         .route(
+            "/api/v1/local-archive-upgrade",
+            post(http_local_archive_upgrade),
+        )
+        .route(
             "/api/v1/preview-save-unit-resolution",
             post(http_preview_save_unit_resolution),
         )
@@ -2532,6 +2538,7 @@ pub fn router() -> Router<HttpHostState> {
         http_get_path_placeholder_catalog,
         http_preview_save_unit_resolution,
         http_game_location_options,
+        http_local_archive_upgrade,
         http_set_game_device_binding,
         http_get_ludusavi_manifest_status,
         http_update_ludusavi_manifest,

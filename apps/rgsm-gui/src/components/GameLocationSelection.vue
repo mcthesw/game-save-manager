@@ -69,7 +69,9 @@ function update(key: 'rootIds' | 'accountIds', id: string | number | undefined) 
 const installationPath = computed(
   () =>
     props.modelValue.installationPath ??
-    (locations.value.installations.length === 1 ? locations.value.installations[0] : '') ??
+    (!props.modelValue.installationIds && locations.value.installations.length === 1
+      ? locations.value.installations[0]
+      : '') ??
     ''
 );
 const installations = computed(() =>
@@ -85,7 +87,6 @@ function setInstallation(path: string | undefined) {
   emit('update:modelValue', {
     ...props.modelValue,
     installationPath: path?.trim() || null,
-    installationIds: null,
   });
 }
 async function chooseInstallation() {

@@ -52,6 +52,8 @@ pub struct GameDeviceBinding {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "read_resource_ids"
     )]
+    /// Unresolved historical selection, cleared when installation_path is set.
+    /// Retains ambiguous imports without treating them as multiple instances.
     pub installation_ids: Option<Vec<String>>,
 }
 

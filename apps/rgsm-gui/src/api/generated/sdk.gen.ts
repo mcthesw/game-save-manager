@@ -194,6 +194,9 @@ import type {
   ListRunningProcessesData,
   ListRunningProcessesErrors,
   ListRunningProcessesResponses,
+  LocalArchiveUpgradeData,
+  LocalArchiveUpgradeErrors,
+  LocalArchiveUpgradeResponses,
   MaterializeAllCloudArchivesData,
   MaterializeAllCloudArchivesErrors,
   MaterializeAllCloudArchivesResponses,
@@ -1100,6 +1103,22 @@ export const listRunningProcesses = <ThrowOnError extends boolean = false>(
     ListRunningProcessesErrors,
     ThrowOnError
   >({ url: '/api/v1/list-running-processes', ...options });
+
+export const localArchiveUpgrade = <ThrowOnError extends boolean = false>(
+  options: Options<LocalArchiveUpgradeData, ThrowOnError>
+): RequestResult<LocalArchiveUpgradeResponses, LocalArchiveUpgradeErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    LocalArchiveUpgradeResponses,
+    LocalArchiveUpgradeErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/local-archive-upgrade',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
 export const materializeAllCloudArchives = <ThrowOnError extends boolean = false>(
   options?: Options<MaterializeAllCloudArchivesData, ThrowOnError>

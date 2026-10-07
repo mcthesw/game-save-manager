@@ -16,6 +16,8 @@ use super::{
 
 #[path = "cloud_connection.rs"]
 mod cloud_connection;
+#[path = "installation_owner_upgrade.rs"]
+mod installation_upgrade;
 #[path = "metadata_reconciliation.rs"]
 mod metadata_reconciliation;
 

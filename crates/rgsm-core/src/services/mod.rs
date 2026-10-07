@@ -11,6 +11,8 @@ mod game;
 mod game_edit;
 pub use game_edit::{DeviceVariableEdit, DeviceVariableEdits};
 mod game_deletion;
+mod local_upgrade;
+pub use local_upgrade::{LocalUpgradeAction, local_archive_upgrade};
 mod variable_setup;
 pub use variable_setup::{discover_game_variable, missing_game_variables};
 pub(crate) mod path_context;
