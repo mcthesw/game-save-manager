@@ -14,7 +14,7 @@ From the repository root:
 node .agents/skills/rgsm-gui-acceptance/scripts/device.mjs .rgsm-dev/acceptance/example/device-a review-a 5188
 ```
 
-The arguments are the prepared data directory, simulated device ID, and an unused loopback port. The launcher fails on a busy port instead of adopting or stopping its owner. It copies the binary into the data directory so subsequent builds do not overwrite the running executable.
+The arguments are the prepared data directory, simulated device ID, and an unused loopback port. The launcher fails on a busy port instead of adopting or stopping its owner. It copies the binary and snapshots the built frontend into the owned data directory so subsequent builds cannot mix a running backend with newer frontend assets. The frontend snapshot is removed on stop; configuration and saves are preserved.
 
 Wait for the printed ready URL before opening the GUI. Use the printed `/__acceptance` stop page for reliable shutdown, including when the launcher runs in a hidden window. Keep the process supervised; Ctrl+C in a normal terminal also requests shutdown, but force-terminating a supervisor may bypass cleanup. Closing the browser does not stop it. For an embedded packet/control page, import `startAcceptanceDevice({ dataDir, deviceId, port })`, retain the returned handle, and await `handle.stop()` during cleanup.
 

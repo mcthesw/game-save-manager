@@ -1,9 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm, realpath } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  rm,
+  realpath,
+  readFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { validateDataDir, validateOptions } from "./device.mjs";
+import {
+  validateDataDir,
+  validateOptions,
+  snapshotFrontend,
+} from "./device.mjs";
 
 test("requires an explicit test identity and non-privileged port", () => {
   assert.doesNotThrow(() =>
@@ -31,6 +42,31 @@ test("only launches prepared data inside the task area", async () => {
       await mkdir(outside, { recursive: true });
       await assert.rejects(validateDataDir(outside, root));
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a running device keeps its frontend when the workspace is rebuilt", async () => {
+  const root = await mkdtemp(join(tmpdir(), "rgsm-frontend-test-"));
+  try {
+    const source = join(root, "dist"),
+      lock = join(root, "owned-lock");
+    await mkdir(join(source, "assets"), { recursive: true });
+    await mkdir(lock);
+    await writeFile(join(source, "index.html"), "old frontend");
+    await writeFile(join(source, "assets/app.js"), "old API calls");
+    const snapshot = await snapshotFrontend(source, lock);
+    await writeFile(join(source, "index.html"), "new frontend");
+    await writeFile(join(source, "assets/app.js"), "new API calls");
+    assert.equal(
+      await readFile(join(snapshot, "index.html"), "utf8"),
+      "old frontend",
+    );
+    assert.equal(
+      await readFile(join(snapshot, "assets/app.js"), "utf8"),
+      "old API calls",
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
