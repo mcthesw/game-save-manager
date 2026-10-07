@@ -11,9 +11,7 @@ pub(crate) fn edit_config<T>(
     let previous = super::utils::get_config_unlocked()?;
     let mut next = previous.clone();
     let result = edit(&mut next)?;
-    for game in &mut next.games {
-        game.normalize_save_unit_ids();
-    }
+    next.normalize_local_fields();
     super::backup::rotate_config_backups(&previous);
     OwnerStore::runtime().merge_effective(&next)?;
     Ok((result, next))

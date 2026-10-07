@@ -36,20 +36,13 @@ pub(crate) fn game_context(
         .installations
         .iter()
         .filter(|installation| {
-            context
-                .selection
-                .installation_ids
-                .as_ref()
-                .is_some_and(|ids| ids.contains(&installation.id))
-                || game.ludusavi_meta.as_ref().is_some_and(|meta| {
-                    meta.install_dirs
-                        .iter()
-                        .any(|name| name.eq_ignore_ascii_case(&installation.install_dir))
-                        || installation
-                            .store_game_id
-                            .as_deref()
-                            .is_some_and(|id| meta.store_game_id(installation.store) == Some(id))
-                })
+            game.ludusavi_meta.as_ref().is_some_and(|meta| {
+                meta.matches_installation(
+                    installation.store,
+                    installation.store_game_id.as_deref(),
+                    &installation.install_dir,
+                )
+            })
         })
         .cloned()
         .collect();

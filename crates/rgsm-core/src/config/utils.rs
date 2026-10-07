@@ -361,9 +361,7 @@ pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     let mut normalized = config.clone();
-    for game in &mut normalized.games {
-        game.normalize_save_unit_ids();
-    }
+    normalized.normalize_local_fields();
     if let Ok(previous) = get_config_unlocked() {
         backup::rotate_config_backups(&previous);
     }
@@ -381,9 +379,7 @@ pub fn replace_config_local(config: &Config) -> Result<(), ConfigError> {
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     let mut normalized = config.clone();
-    for game in &mut normalized.games {
-        game.normalize_save_unit_ids();
-    }
+    normalized.normalize_local_fields();
     if let Ok(previous) = get_config_unlocked() {
         backup::rotate_config_backups(&previous);
     }
@@ -408,11 +404,10 @@ pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {
+        let config_migrated = owner_store.upgrade_local_installations()?;
         let config = owner_store.load_effective()?;
         rust_i18n::set_locale(&config.settings.locale);
-        return Ok(ConfigCheckOutcome {
-            config_migrated: false,
-        });
+        return Ok(ConfigCheckOutcome { config_migrated });
     }
 
     let config_path = resolve_app_path("GameSaveManager.config.json");
@@ -426,6 +421,7 @@ pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
     let content = fs::read_to_string(&config_path)?;
     let config: Config = serde_json::from_str(&content)?;
     owner_store.initialize_from_legacy(&config)?;
+    let config_migrated = owner_store.upgrade_local_installations()? || config_migrated;
     let config = owner_store.load_effective()?;
     // 应用本地化语言
     rust_i18n::set_locale(&config.settings.locale);

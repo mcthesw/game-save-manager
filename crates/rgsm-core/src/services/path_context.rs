@@ -41,20 +41,7 @@ fn device_path_environment_with_discovery(
                     user_id: user_id.clone(),
                 })
             }
-            DeviceResourceKind::GameInstallation {
-                root_id,
-                store,
-                install_dir,
-                path,
-                store_game_id,
-            } => environment.installations.push(GameInstallationCandidate {
-                id,
-                root_id: Some(format!("resource:{root_id}")),
-                store: *store,
-                install_dir: install_dir.clone(),
-                install_path: path.into(),
-                store_game_id: store_game_id.clone(),
-            }),
+            DeviceResourceKind::GameInstallation { .. } => {}
         }
     }
     if !discover {
@@ -183,8 +170,29 @@ pub fn game_location_options(
     let mut draft = game.clone();
     for binding in draft.device_bindings.values_mut() {
         binding.installation_path = None;
+        binding.installation_ids = None;
     }
     let context = crate::path_resolution::context::game_context(&draft, device, &environment);
+    let mut installations = context
+        .installations
+        .iter()
+        .map(|i| i.install_path.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    for resource in device
+        .into_iter()
+        .flat_map(|device| crate::config::installation_upgrade::legacy_choices(game, device))
+    {
+        if let DeviceResourceKind::GameInstallation { path, .. } = &resource.kind
+            && !installations.iter().any(|existing| {
+                same_path(
+                    PathBuf::from(existing).as_path(),
+                    PathBuf::from(path).as_path(),
+                )
+            })
+        {
+            installations.push(path.clone());
+        }
+    }
     GameLocationOptions {
         roots: context
             .roots
@@ -202,11 +210,7 @@ pub fn game_location_options(
                 label: format!("{:?} · {}", a.store, a.user_id),
             })
             .collect(),
-        installations: context
-            .installations
-            .into_iter()
-            .map(|i| i.install_path.to_string_lossy().into_owned())
-            .collect(),
+        installations,
     }
 }
 
@@ -214,6 +218,28 @@ pub fn game_location_options(
 mod tests {
     use super::*;
     use crate::device::DeviceResourceSource;
+
+    #[test]
+    fn unresolved_global_installations_are_choices_only_and_do_not_drive_runtime_paths() {
+        let device: Device = serde_json::from_value(serde_json::json!({
+            "id":"test", "name":"Test", "resources":[{"id":1,"source":"manual","kind":{
+                "type":"gameInstallation", "root_id":0,"store":"steam","install_dir":"Game","path":"D:/Game", "store_game_id":"42"
+            }}]
+        })).unwrap();
+        let game: Game = serde_json::from_value(serde_json::json!({"name":"Test", "save_paths":[], "device_bindings":{"test":{"installationIds":[1]}}})).unwrap();
+        let environment = device_path_environment_with_discovery(Some(&device), false);
+        assert!(environment.installations.is_empty());
+        let context =
+            crate::path_resolution::context::game_context(&game, Some(&device), &environment);
+        let expression = crate::path_pattern::parse_manifest_path_pattern("<base>/Saves").unwrap();
+        let plan =
+            crate::path_resolution::plan_resolution(&expression, Default::default(), &context);
+        assert!(plan.candidates.is_empty());
+        assert_eq!(
+            game_location_options(&game, Some(&device), false).installations,
+            vec!["D:/Game"]
+        );
+    }
 
     #[test]
     fn scanning_keeps_each_installation_and_context_survives_manifest_changes() {

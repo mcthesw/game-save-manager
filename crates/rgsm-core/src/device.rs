@@ -42,6 +42,8 @@ pub enum DeviceResourceKind {
         #[serde(alias = "userId")]
         user_id: String,
     },
+    /// Historical input only. Kept until migration can associate it with a Game;
+    /// runtime path resolution uses GameDeviceBinding::installation_path.
     GameInstallation {
         #[serde(alias = "rootId")]
         root_id: DeviceResourceId,

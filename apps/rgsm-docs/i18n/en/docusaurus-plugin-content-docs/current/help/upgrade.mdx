@@ -13,6 +13,19 @@ description: Upgrade your local data and Cloud Library.
 
 Older configurations convert automatically. Existing ZIP snapshots remain readable.
 
+An older installation location that uniquely matches a game becomes that game's installation directory on the corresponding device. Locations that need a choice remain in **Settings → Auto Scan → Unassigned installation folders**. You can later change a game's directory in **View managed files**.
+
+## Upgrade local older backups
+
+Open **Settings → Backup settings → Upgrade older backups** to review the count and estimated extra space, then select **Start upgrade**.
+
+- Upgraded archives have a timestamp and random suffix in their filenames. Extract them to find the saves and recovery instructions. Snapshot history, notes, ancestry, and current snapshot markers are preserved.
+- Pausing or leaving the page stops after the current archive. Reopen the page to continue. The upgrade reads backup files without changing live game saves.
+- Missing, damaged, or unassociated archives stay pending while other archives continue. Choose an undamaged copy of that same backup from another device or disk, or confirm the corresponding save entry, then retry. A newer backup cannot replace it. Without a copy, leave the item pending.
+- Originals remain in `.rgsm-upgrade/originals` inside the backup directory. Once you have checked the upgraded backups, select **Clean up originals**. Copies you selected manually are not deleted.
+
+This action upgrades files already on this device. It does not download or replace older cloud copies. Internal format upgrades of existing 1.9 Cloud Libraries are handled separately.
+
 ## Upgrade the Cloud Library
 
 1. Back up the cloud data and update every participating device to a compatible 1.9 version.
