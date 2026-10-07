@@ -1,7 +1,10 @@
 use std::path::Path;
 
+#[cfg(test)]
+use crate::backup::{CapturePlan, CompressionPreset};
+
 use crate::{
-    backup::{CapturePlan, CompressionPreset, RestorePlan, SaveUnit},
+    backup::{RestorePlan, SaveUnit},
     path_resolver::PathContext,
     preclude::*,
 };
@@ -26,7 +29,7 @@ pub trait ArchiveBackend {
     fn read_capture_manifest(
         &self,
         archive_path: &Path,
-    ) -> Result<super::ArchiveManifestV3, CompressError>;
+    ) -> Result<super::ArchiveManifest, CompressError>;
 
     fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError>;
 
@@ -53,10 +56,10 @@ pub trait ArchiveBackend {
     fn extension(&self) -> &str;
 }
 
-/// ZIP-based archive backend (the default and currently only implementation).
+/// Reader for historical ZIP archives.
 pub struct ZipBackend;
 
-/// Standard 7z Archive V4 backend.
+/// Reader and current writer for standard 7z archives.
 pub struct SevenZBackend;
 
 impl ArchiveBackend for ZipBackend {
@@ -79,7 +82,7 @@ impl ArchiveBackend for ZipBackend {
     fn read_capture_manifest(
         &self,
         archive_path: &Path,
-    ) -> Result<super::ArchiveManifestV3, CompressError> {
+    ) -> Result<super::ArchiveManifest, CompressError> {
         super::decompress::read_capture_manifest(archive_path)
     }
 
@@ -115,6 +118,7 @@ impl ArchiveBackend for ZipBackend {
 }
 
 impl SevenZBackend {
+    #[cfg(test)]
     pub fn compress_capture_plan(
         &self,
         plan: &CapturePlan,
@@ -141,22 +145,16 @@ impl ArchiveBackend for SevenZBackend {
     fn read_capture_manifest(
         &self,
         archive_path: &Path,
-    ) -> Result<super::ArchiveManifestV3, CompressError> {
-        let manifest = super::seven_z::read_manifest(archive_path)?;
-        Ok(super::ArchiveManifestV3 {
-            version: manifest.version,
-            groups: manifest.groups,
-        })
+    ) -> Result<super::ArchiveManifest, CompressError> {
+        super::seven_z::read_manifest(archive_path)
     }
 
     fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError> {
-        Ok(
-            if super::seven_z::read_manifest(archive_path)?.version == 5 {
-                super::ArchiveVersion::V5
-            } else {
-                super::ArchiveVersion::V4
-            },
-        )
+        Ok(match super::seven_z::read_manifest(archive_path)?.version {
+            4 => super::ArchiveVersion::V4,
+            5 => super::ArchiveVersion::V5,
+            _ => super::ArchiveVersion::V6,
+        })
     }
 
     fn read_source_fingerprint(&self, archive_path: &Path) -> Option<String> {

@@ -16,9 +16,13 @@ use crate::{
 };
 
 use super::{
-    ArchiveManifestV4, V4_MANIFEST_ENTRY, manifest::V5_MANIFEST_ENTRY,
+    ArchiveIdentity, ArchiveManifest,
+    portable::{MANIFEST_ENTRY, RECOVERY_ENTRY, prepare_archive, recovery_instructions},
     restored_directory::remove_restored_directory,
 };
+
+#[cfg(test)]
+use super::{V4_MANIFEST_ENTRY, manifest::V5_MANIFEST_ENTRY};
 
 const UNIX_EXTENSION: u32 = 0x8000;
 #[cfg(unix)]
@@ -37,14 +41,42 @@ struct DeferredDirectory {
     entry: ArchiveEntry,
 }
 
+#[cfg(test)]
 pub(super) fn compress_capture_plan(
     plan: &CapturePlan,
     archive_path: &Path,
     preset: CompressionPreset,
     source_fingerprint: Option<String>,
 ) -> Result<u64, CompressError> {
+    let manifest = ArchiveManifest::from_plan(plan, source_fingerprint);
+    let entry = if manifest.version == 5 {
+        V5_MANIFEST_ENTRY
+    } else {
+        V4_MANIFEST_ENTRY
+    };
+    write_atomic(plan, archive_path, preset, &manifest, entry)
+}
+
+pub fn write_snapshot(
+    plan: &CapturePlan,
+    archive_path: &Path,
+    preset: CompressionPreset,
+    identity: ArchiveIdentity,
+    source_fingerprint: Option<String>,
+) -> Result<u64, CompressError> {
+    let (plan, manifest) = prepare_archive(plan, identity, source_fingerprint)?;
+    write_atomic(&plan, archive_path, preset, &manifest, MANIFEST_ENTRY)
+}
+
+fn write_atomic(
+    plan: &CapturePlan,
+    archive_path: &Path,
+    preset: CompressionPreset,
+    manifest: &ArchiveManifest,
+    manifest_entry: &str,
+) -> Result<u64, CompressError> {
     let temp_path = archive_path.with_extension("7z.capture.tmp");
-    let result = write_archive(plan, &temp_path, preset, source_fingerprint);
+    let result = write_archive(plan, &temp_path, preset, manifest, manifest_entry);
     let size = match result {
         Ok(size) => size,
         Err(error) => {
@@ -63,25 +95,29 @@ fn write_archive(
     plan: &CapturePlan,
     path: &Path,
     preset: CompressionPreset,
-    source_fingerprint: Option<String>,
+    manifest: &ArchiveManifest,
+    manifest_entry: &str,
 ) -> Result<u64, CompressError> {
     let mut writer = ArchiveWriter::create(path).map_err(unexpected)?;
     configure_writer(&mut writer, preset);
     for group in &plan.groups {
         append_group(&mut writer, group)?;
     }
-    let manifest = ArchiveManifestV4::from_plan(plan, source_fingerprint);
     let bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|error| CompressError::Unexpected(error.into()))?;
-    let mut entry = ArchiveEntry::new_file(if manifest.version == 5 {
-        V5_MANIFEST_ENTRY
-    } else {
-        V4_MANIFEST_ENTRY
-    });
+    let mut entry = ArchiveEntry::new_file(manifest_entry);
     set_entry_metadata(&mut entry, &metadata_now())?;
     writer
         .push_archive_entry(entry, Some(Cursor::new(bytes)))
         .map_err(unexpected)?;
+    if manifest.identity.is_some() {
+        writer
+            .push_archive_entry(
+                ArchiveEntry::new_file(RECOVERY_ENTRY),
+                Some(Cursor::new(recovery_instructions(manifest).into_bytes())),
+            )
+            .map_err(unexpected)?;
+    }
     writer.finish().map_err(unexpected)?;
     fs::metadata(path)
         .map(|metadata| metadata.len())
@@ -203,33 +239,7 @@ fn is_link_like(metadata: &fs::Metadata) -> bool {
     metadata.file_type().is_symlink()
 }
 
-pub(super) fn read_manifest(path: &Path) -> Result<ArchiveManifestV4, CompressError> {
-    let file = File::open(path).map_err(single)?;
-    let mut reader = ArchiveReader::new(file, Password::empty()).map_err(unexpected)?;
-    let mut bytes = None;
-    reader
-        .for_each_entries(|entry, source| {
-            if matches!(entry.name(), V4_MANIFEST_ENTRY | V5_MANIFEST_ENTRY) {
-                let mut value = Vec::new();
-                source.read_to_end(&mut value)?;
-                bytes = Some(value);
-            }
-            Ok(true)
-        })
-        .map_err(unexpected)?;
-    let bytes = bytes.ok_or_else(|| {
-        CompressError::Unexpected(anyhow::anyhow!("Archive V4 manifest is missing"))
-    })?;
-    let manifest: ArchiveManifestV4 =
-        serde_json::from_slice(&bytes).map_err(|error| CompressError::Unexpected(error.into()))?;
-    if !matches!(manifest.version, 4 | 5) {
-        return Err(CompressError::Unexpected(anyhow::anyhow!(
-            "unsupported Archive V4 manifest version: {}",
-            manifest.version
-        )));
-    }
-    Ok(manifest)
-}
+pub(super) use super::seven_z_manifest::read_manifest;
 
 pub(super) fn restore_capture_plan(plan: &RestorePlan, path: &Path) -> Result<(), CompressError> {
     let file = File::open(path).map_err(single)?;

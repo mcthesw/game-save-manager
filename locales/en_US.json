@@ -1394,5 +1394,17 @@
         "choose_folder": "Choose folder",
         "use_game_value": "Use for this game",
         "setup_unavailable": "Could not check path variables on this device. No operation was performed. Please try again."
-    }
+    },
+  "portable_archive": {
+    "identity_mismatch": "This archive belongs to a different game or snapshot. Select the correct backup file.",
+    "title": "%{game} — %{time}",
+    "instructions": "Close the game before restoring. Copy the extracted save files or folders to the save location used by this device, replacing the corresponding files. The paths below describe the original device; account and installation folders may differ here. Keep a copy of current saves before replacing them. _rgsm contains identification metadata and does not need to be copied into the game.",
+    "local_time": "%{time} (original local time; time zone unknown)",
+    "unknown_time": "Capture time unknown",
+    "expression": "Save location: %{path}",
+    "source": "Original location: %{path}",
+    "registry": "Registry backup: this is a standard .reg file. Check its keys before importing it with Windows Registry Editor.",
+    "description": "Note at capture: %{description}",
+    "identity": "Game ID: %{game}\nSnapshot ID: %{snapshot}"
+  }
 }

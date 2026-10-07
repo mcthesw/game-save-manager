@@ -48,6 +48,7 @@ impl LifecycleHook for PreRestoreBackupHook {
                 &crate::config::resolve_backup_path(&ctx.config.backup_path),
                 ctx.config.settings.compression_preset,
                 ctx.config.settings.max_extra_backup_count,
+                crate::device::get_current_device_id(),
             )
         });
         if let Some(Err(e)) = result {

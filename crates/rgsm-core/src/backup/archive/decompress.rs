@@ -38,7 +38,7 @@ pub trait RestoreNotifier: Send + Sync {
 }
 
 use super::{
-    ArchiveCaptureGroup, ArchiveManifestV3, V3_MANIFEST_ENTRY,
+    ArchiveCaptureGroup, ArchiveManifest, V3_MANIFEST_ENTRY,
     timestamp::zip_datetime_to_system_time, version::ArchiveVersion,
 };
 
@@ -48,9 +48,7 @@ pub(super) fn archive_version(archive_path: &Path) -> Result<ArchiveVersion, Com
     Ok(ArchiveVersion::from_comment(zip.comment()))
 }
 
-pub(super) fn read_capture_manifest(
-    archive_path: &Path,
-) -> Result<ArchiveManifestV3, CompressError> {
+pub(super) fn read_capture_manifest(archive_path: &Path) -> Result<ArchiveManifest, CompressError> {
     let file = File::open(archive_path).map_err(|error| CompressError::Single(error.into()))?;
     let mut zip =
         zip::ZipArchive::new(file).map_err(|error| CompressError::Single(error.into()))?;
@@ -69,7 +67,7 @@ pub(super) fn read_capture_manifest(
 
 fn read_v2_capture_manifest(
     zip: &mut zip::ZipArchive<File>,
-) -> Result<ArchiveManifestV3, CompressError> {
+) -> Result<ArchiveManifest, CompressError> {
     #[derive(Default)]
     struct LegacyGroup {
         root: Option<String>,
@@ -141,7 +139,12 @@ fn read_v2_capture_manifest(
             anyhow::anyhow!("Archive V2 contains no save-unit entries"),
         )));
     }
-    Ok(ArchiveManifestV3 { version: 2, groups })
+    Ok(ArchiveManifest {
+        version: 2,
+        groups,
+        source_fingerprint: None,
+        identity: None,
+    })
 }
 
 pub(super) fn restore_capture_plan(

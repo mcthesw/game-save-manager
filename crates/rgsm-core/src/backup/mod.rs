@@ -12,6 +12,7 @@ mod restore_plan;
 mod restore_targets;
 mod save_unit;
 mod snapshot;
+mod snapshot_capture;
 pub(crate) mod state_fingerprint;
 pub mod storage_key;
 #[cfg(test)]
@@ -33,8 +34,7 @@ pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{delete_extra_backup, extra_backup_folder_path, list_extra_backups};
 pub use extra_info::{extra_info_dir, extra_info_namespace_dir, extra_info_namespace_file};
 pub use game::{
-    AutoBackupConfig, CaptureSnapshotOptions, Game, GameDraft, LudusaviMeta, StoreGameId,
-    TimerSnapshotDecision,
+    AutoBackupConfig, Game, GameDraft, LudusaviMeta, StoreGameId, TimerSnapshotDecision,
 };
 pub use game_snapshots::{GameSnapshots, PendingDescription};
 pub use restore_plan::{RestoreEntry, RestorePlan, RestorePlanError};
@@ -44,3 +44,5 @@ pub use state_fingerprint::compute_file_hash;
 pub use utils::*;
 
 pub const TIMER_AUTO_BACKUP_DESCRIPTION: &str = "Auto Backup (Timer)";
+
+pub use snapshot_capture::CaptureSnapshotOptions;

@@ -6,13 +6,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::backup::archive::RestoreNotifier;
-use crate::backup::extra_backups::cleanup_oldest_extra_backups;
 use crate::backup::{
-    ArchiveBackend, ArchiveFormat, CapturePlan, CreatedBy, GameDeviceBinding, GameSnapshots,
-    SaveUnit, SaveUnitDraft, SevenZBackend, Snapshot, ZipBackend, archive_file_name,
+    ArchiveBackend, ArchiveFormat, GameDeviceBinding, GameSnapshots, SaveUnit, SaveUnitDraft,
+    ZipBackend, archive_file_name,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
-use crate::device::{DeviceId, get_current_device_id};
+use crate::device::DeviceId;
 use crate::path_pattern::StoreKind;
 use crate::path_resolver::PathContext;
 use crate::preclude::*;
@@ -150,17 +149,6 @@ pub struct SnapshotCreated {
     pub snapshots: GameSnapshots,
     pub local_archive_path: PathBuf,
     pub remote_archive_path: String,
-}
-
-pub struct CaptureSnapshotOptions<'a> {
-    pub backup_base: &'a Path,
-    pub preset: crate::backup::CompressionPreset,
-    pub describe: &'a str,
-    pub parent_date: Option<String>,
-    pub created_by: CreatedBy,
-    pub source_fingerprint: Option<String>,
-    /// Stage notifications during capture (compression is the long pole).
-    pub notifier: Option<&'a dyn RestoreNotifier>,
 }
 
 #[derive(Debug, Clone)]
@@ -389,72 +377,6 @@ impl Game {
         crate::atomic_file::write_bytes_atomically(&saves_path, &bytes)?;
         Ok(())
     }
-    /// Persist a snapshot from a fully preflighted immutable capture plan.
-    /// Configuration and host discovery stay outside this domain operation.
-    pub async fn create_snapshot_from_capture_plan(
-        &self,
-        plan: &CapturePlan,
-        options: CaptureSnapshotOptions<'_>,
-    ) -> Result<SnapshotCreated, BackupError> {
-        let backup_path = options.backup_base.join(self.backup_dir_name().as_ref());
-        fs::create_dir_all(&backup_path)?;
-        let infos = match self.get_game_snapshots_info() {
-            Ok(infos) => infos,
-            Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
-                GameSnapshots::new(self.name.clone())
-            }
-            Err(error) => return Err(error),
-        };
-        let date = unused_snapshot_id(&backup_path, &infos)?;
-        let created_at = Some(chrono::Utc::now().timestamp_millis());
-        let archive_format = ArchiveFormat::SevenZ;
-        let archive_path = backup_path.join(archive_file_name(&date, archive_format));
-        if let Some(notifier) = options.notifier {
-            notifier.notify(
-                crate::backup::RestoreNotificationLevel::Info,
-                rust_i18n::t!("backend.stage.title").as_ref(),
-                rust_i18n::t!("backend.stage.compress", count = plan.groups.len()).as_ref(),
-            );
-        }
-        let file_size = SevenZBackend.compress_capture_plan(
-            plan,
-            &archive_path,
-            options.preset,
-            options.source_fingerprint,
-        )?;
-
-        let parent = options
-            .parent_date
-            .or_else(|| infos.current_device_head().cloned());
-        let snapshot = Snapshot {
-            date: date.clone(),
-            describe: options.describe.to_string(),
-            path: archive_path.to_string_lossy().into_owned(),
-            archive_format,
-            size: file_size,
-            parent,
-            archive_hash: None,
-            created_at,
-            device_id: Some(get_current_device_id().clone()),
-            created_by: options.created_by,
-        };
-        let infos = self.update_game_snapshots_info::<BackupError>(|current| {
-            current.backups.push(snapshot);
-            current.set_current_device_head(Some(date.clone()));
-            Ok(())
-        })?;
-
-        Ok(SnapshotCreated {
-            snapshots: infos,
-            remote_archive_path: format!(
-                "save_data/{}/{}",
-                self.backup_dir_name(),
-                archive_file_name(&date, archive_format)
-            ),
-            local_archive_path: archive_path,
-        })
-    }
-
     pub async fn cleanup_old_auto_backups(
         &self,
         max_count: u32,
@@ -523,25 +445,6 @@ impl Game {
         self.set_game_snapshots_info(&infos)?;
 
         Ok(infos)
-    }
-    pub fn create_overwrite_snapshot_from_capture_plan(
-        &self,
-        plan: &CapturePlan,
-        backup_base: &Path,
-        preset: crate::backup::CompressionPreset,
-        max_extra_backup_count: u32,
-    ) -> Result<String, BackupError> {
-        let extra_backup_path = backup_base
-            .join(self.backup_dir_name().as_ref())
-            .join("extra_backup");
-        fs::create_dir_all(&extra_backup_path)?;
-        let date = chrono::Local::now()
-            .format("Overwrite_%Y-%m-%d_%H-%M-%S")
-            .to_string();
-        let archive_path = extra_backup_path.join(archive_file_name(&date, ArchiveFormat::SevenZ));
-        SevenZBackend.compress_capture_plan(plan, &archive_path, preset, None)?;
-        cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
-        Ok(date)
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
         let mut saves = self.get_game_snapshots_info()?;

@@ -142,6 +142,50 @@ fn restore_config_guard(config: &Config) -> Result<ConfigFileGuard, Box<dyn std:
 }
 
 #[test]
+fn ordinary_snapshot_is_recoverable_without_the_catalog() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let temp = temp_dir::TempDir::new()?;
+        let config = Config {
+            backup_path: temp.path().join("backups").to_string_lossy().into_owned(),
+            ..Config::default()
+        };
+        let _guard = restore_config_guard(&config)?;
+        let source = temp.path().join("profile.sav");
+        fs::write(&source, b"player-progress")?;
+        let game: Game = serde_json::from_value(serde_json::json!({
+            "name": "Star Traveller", "storage_key": "star-traveller",
+            "save_paths": [build_file_save_unit(&source)]
+        }))?;
+        manual_backup(&game, "Before the last boss").await?;
+        let snapshot = game.get_game_snapshots_info()?.backups.remove(0);
+        fs::remove_file(Path::new(&config.backup_path).join("star-traveller/Backups.json"))?;
+        let mut reader =
+            sevenz_rust2::ArchiveReader::open(&snapshot.path, sevenz_rust2::Password::empty())?;
+        let mut extracted = std::collections::BTreeMap::new();
+        reader.for_each_entries(|entry, input| {
+            let mut bytes = Vec::new();
+            input.read_to_end(&mut bytes)?;
+            extracted.insert(entry.name().to_string(), bytes);
+            Ok(true)
+        })?;
+        assert_eq!(
+            extracted.get("profile.sav"),
+            Some(&b"player-progress".to_vec())
+        );
+        let info: serde_json::Value = serde_json::from_slice(&extracted["_rgsm/manifest.json"])?;
+        assert_eq!(info["identity"]["gameId"], "star-traveller");
+        assert_eq!(info["identity"]["snapshotId"], snapshot.date);
+        assert_eq!(info["identity"]["description"], "Before the last boss");
+        let instructions = String::from_utf8(extracted["RESTORE.txt"].clone())?;
+        assert!(instructions.contains("Star Traveller"));
+        assert!(instructions.contains("profile.sav"));
+        assert!(instructions.contains(&source.to_string_lossy().to_string()));
+        Ok(())
+    })
+}
+
+#[test]
 fn timer_backup_skips_when_unchanged() -> TestResult {
     let _config_lock = lock_config_file();
     run_async_test(async {

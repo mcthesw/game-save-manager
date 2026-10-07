@@ -19,8 +19,12 @@ mod compression_preset;
 mod decompress;
 mod location;
 mod manifest;
+mod portable;
+#[cfg(test)]
+mod portable_tests;
 mod restored_directory;
 mod seven_z;
+mod seven_z_manifest;
 #[cfg(test)]
 mod seven_z_tests;
 mod timestamp;
@@ -31,7 +35,7 @@ pub use compression_preset::CompressionPreset;
 pub use decompress::{RestoreNotificationLevel, RestoreNotifier};
 pub use location::{archive_file_name, archive_path, remote_archive_path, snapshot_archive_path};
 pub(crate) use manifest::{
-    ArchiveCaptureGroup, ArchiveManifestV3, ArchiveManifestV4, V3_MANIFEST_ENTRY, V4_MANIFEST_ENTRY,
+    ArchiveCaptureGroup, ArchiveManifest, V3_MANIFEST_ENTRY, V4_MANIFEST_ENTRY,
 };
 pub(crate) use version::ArchiveMeta;
 pub use version::ArchiveVersion;
@@ -46,3 +50,7 @@ pub(crate) use decompress::decompress_from_file;
 pub(crate) use timestamp::{local_result_to_timestamp, zip_datetime_to_system_time};
 #[cfg(test)]
 pub(crate) use version::V1_COMMENT_MARKER;
+
+pub use portable::ArchiveIdentity;
+
+pub use seven_z::write_snapshot as write_snapshot_archive;

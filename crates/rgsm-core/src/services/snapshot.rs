@@ -78,6 +78,7 @@ impl ServiceContext {
             .create_snapshot_from_capture_plan(
                 &plan,
                 CaptureSnapshotOptions {
+                    device_id: crate::device::get_current_device_id(),
                     backup_base: &resolve_backup_path(&config.backup_path),
                     preset: config.settings.compression_preset,
                     describe,
@@ -152,6 +153,7 @@ impl ServiceContext {
             .create_snapshot_from_capture_plan(
                 &plan,
                 CaptureSnapshotOptions {
+                    device_id: crate::device::get_current_device_id(),
                     backup_base: &resolve_backup_path(&config.backup_path),
                     preset: config.settings.compression_preset,
                     describe,
@@ -224,7 +226,14 @@ impl ServiceContext {
             .await?;
 
         let snapshots = if snapshot.archive_format == ArchiveFormat::SevenZ {
-            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)?;
+            self.restore_capture_archive(
+                &config,
+                game,
+                &archive_path,
+                &SevenZBackend,
+                notifier,
+                Some(date),
+            )?;
             game.update_game_snapshots_info::<BackupError>(|current| {
                 current.set_current_device_head(Some(date.to_string()));
                 Ok(())
@@ -238,6 +247,7 @@ impl ServiceContext {
                         &archive_path,
                         &ZipBackend,
                         notifier,
+                        Some(date),
                     )?;
                     let mut snapshots = game.get_game_snapshots_info()?;
                     snapshots.set_current_device_head(Some(date.to_string()));
@@ -254,7 +264,7 @@ impl ServiceContext {
                         &path_context,
                     )?
                 }
-                ArchiveVersion::V4 | ArchiveVersion::V5 => {
+                ArchiveVersion::V4 | ArchiveVersion::V5 | ArchiveVersion::V6 => {
                     unreachable!("Archive V4 uses the 7z backend")
                 }
             }
@@ -288,7 +298,14 @@ impl ServiceContext {
             folder.join(archive_file_name(date, ArchiveFormat::Zip))
         };
         if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
-            self.restore_capture_archive(&config, game, &archive_path, &SevenZBackend, notifier)
+            self.restore_capture_archive(
+                &config,
+                game,
+                &archive_path,
+                &SevenZBackend,
+                notifier,
+                None,
+            )
         } else {
             match ZipBackend.archive_version(&archive_path)? {
                 ArchiveVersion::V2 | ArchiveVersion::V3 => self.restore_capture_archive(
@@ -297,6 +314,7 @@ impl ServiceContext {
                     &archive_path,
                     &ZipBackend,
                     notifier,
+                    None,
                 ),
                 ArchiveVersion::Legacy | ArchiveVersion::V1 => {
                     let device = config.devices.get(crate::device::get_current_device_id());
@@ -308,7 +326,7 @@ impl ServiceContext {
                     )?;
                     Ok(())
                 }
-                ArchiveVersion::V4 | ArchiveVersion::V5 => {
+                ArchiveVersion::V4 | ArchiveVersion::V5 | ArchiveVersion::V6 => {
                     unreachable!("Archive V4 uses the 7z backend")
                 }
             }
@@ -322,8 +340,17 @@ impl ServiceContext {
         archive_path: &std::path::Path,
         backend: &dyn ArchiveBackend,
         notifier: Option<&dyn RestoreNotifier>,
+        expected_snapshot_id: Option<&str>,
     ) -> Result<(), BackupError> {
         let mut manifest = backend.read_capture_manifest(archive_path)?;
+        if manifest.identity.as_ref().is_some_and(|identity| {
+            identity.game_id != game.backup_dir_name().as_ref()
+                || expected_snapshot_id.is_some_and(|id| id != identity.snapshot_id)
+        }) {
+            return Err(BackupError::Unexpected(anyhow::anyhow!(
+                rust_i18n::t!("portable_archive.identity_mismatch").into_owned()
+            )));
+        }
         if manifest.version == 2 {
             apply_legacy_v2_save_unit_metadata(&mut manifest.groups, &game.save_paths);
         }
