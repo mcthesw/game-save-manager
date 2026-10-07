@@ -51,11 +51,6 @@ pub struct ArchiveMigrationInput<'a> {
 pub fn convert_snapshot_archive(
     input: ArchiveMigrationInput<'_>,
 ) -> Result<u64, ArchiveMigrationError> {
-    if input.destination.exists() {
-        return Err(ArchiveMigrationError::Invalid(
-            "destination already exists".into(),
-        ));
-    }
     let original_hash = compute_file_hash(input.source)?;
     if input
         .snapshot
@@ -212,14 +207,19 @@ pub fn convert_snapshot_archive(
                 .unwrap_or_else(|| PayloadSource::FileSystem(group.source_path.clone().into())),
         })
         .collect();
+    let existed = input.destination.exists();
     let result = (|| {
-        let size = super::seven_z::write_atomic(
-            &payloads,
-            input.destination,
-            input.preset,
-            &manifest,
-            MANIFEST_ENTRY,
-        )?;
+        let size = if existed {
+            fs::metadata(input.destination)?.len()
+        } else {
+            super::seven_z::write_atomic(
+                &payloads,
+                input.destination,
+                input.preset,
+                &manifest,
+                MANIFEST_ENTRY,
+            )?
+        };
         super::migration_verify::verify_payloads(&payloads, input.destination, &manifest)?;
         if compute_file_hash(input.source)? != original_hash {
             return Err(ArchiveMigrationError::Invalid(
@@ -228,7 +228,7 @@ pub fn convert_snapshot_archive(
         }
         Ok(size)
     })();
-    if result.is_err() {
+    if result.is_err() && !existed {
         let _ = fs::remove_file(input.destination);
     }
     result

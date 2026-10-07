@@ -273,10 +273,8 @@ impl ArchiveIdentity {
                 }
             })
             .collect();
-        let legacy_local_time = if snapshot.created_at.is_none()
-            && chrono::NaiveDateTime::parse_from_str(&snapshot.date, "%Y-%m-%d_%H-%M-%S").is_ok()
-        {
-            Some(snapshot.date.clone())
+        let legacy_local_time = if snapshot.created_at.is_none() {
+            super::naming::legacy_archive_time(&snapshot.date)
         } else {
             None
         };

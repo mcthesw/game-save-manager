@@ -6,6 +6,7 @@ mod extra_backups;
 mod extra_info;
 mod game;
 mod game_snapshots;
+pub mod local_upgrade;
 mod path_format;
 pub(crate) mod registry;
 mod restore_plan;

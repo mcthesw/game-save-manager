@@ -353,29 +353,6 @@ impl Game {
         self.next_save_unit_id = next_id;
     }
 
-    pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
-        let backup_path = get_backup_path()?
-            .join(self.backup_dir_name().as_ref())
-            .join("Backups.json");
-        let mut backup_info: GameSnapshots = serde_json::from_slice(&fs::read(backup_path)?)?;
-        backup_info.normalize_heads();
-        Ok(backup_info)
-    }
-    pub fn set_game_snapshots_info(&self, new_info: &GameSnapshots) -> Result<(), BackupError> {
-        let saves_path = get_backup_path()?
-            .join(self.backup_dir_name().as_ref())
-            .join("Backups.json");
-        // 处理文件夹不存在的情况，一般发生在初次下载云存档时
-        let prefix_root = saves_path.parent().ok_or(BackupError::NonePathError)?;
-        if !prefix_root.exists() {
-            fs::create_dir_all(prefix_root)?;
-        }
-        let mut normalized = new_info.clone();
-        normalized.normalize_heads();
-        let bytes = serde_json::to_vec_pretty(&normalized)?;
-        crate::atomic_file::write_bytes_atomically(&saves_path, &bytes)?;
-        Ok(())
-    }
     pub async fn cleanup_old_auto_backups(
         &self,
         max_count: u32,
