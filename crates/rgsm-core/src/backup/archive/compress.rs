@@ -228,6 +228,7 @@ where
 
 /// Compress save units to a zip file.
 /// Returns the compressed file size in bytes.
+#[cfg(test)]
 pub fn compress_to_file(
     save_paths: &[SaveUnit],
     zip_path: &Path,

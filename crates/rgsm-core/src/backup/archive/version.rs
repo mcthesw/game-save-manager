@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
 use super::compression_preset::CompressionPreset;
 
 /// Header line in ZIP comment identifying V2 RGSM archives.
@@ -100,6 +101,7 @@ pub struct ArchiveMeta {
 }
 
 impl ArchiveMeta {
+    #[cfg(test)]
     pub fn new(preset: CompressionPreset) -> Self {
         Self {
             version: 2,
@@ -108,6 +110,7 @@ impl ArchiveMeta {
         }
     }
 
+    #[cfg(test)]
     pub fn new_v3(preset: CompressionPreset) -> Self {
         Self {
             version: 3,
@@ -117,6 +120,7 @@ impl ArchiveMeta {
     }
 
     /// Serialize to a ZIP comment string: header line + JSON body.
+    #[cfg(test)]
     pub fn to_comment(&self) -> String {
         let json = serde_json::to_string(self).expect("ArchiveMeta serialization cannot fail");
         let header = if self.version >= 3 {

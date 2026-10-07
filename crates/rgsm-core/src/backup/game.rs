@@ -1,5 +1,5 @@
 use crate::backup::archive::RestoreNotifier;
-use log::{info, warn};
+use log::info;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
@@ -7,12 +7,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::backup::extra_backups::cleanup_oldest_extra_backups;
-use crate::backup::state_fingerprint::{
-    fingerprint_source_state, fingerprint_zip_state, read_stored_fingerprint,
-};
 use crate::backup::{
-    ArchiveBackend, ArchiveFormat, CapturePlan, CreatedBy, GameDeviceBinding, GameSnapshots,
-    SaveUnit, SaveUnitDraft, SevenZBackend, Snapshot, ZipBackend, archive_file_name,
+    ArchiveFormat, CapturePlan, CreatedBy, GameDeviceBinding, GameSnapshots, SaveUnit,
+    SaveUnitDraft, SevenZBackend, Snapshot, archive_file_name,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
 use crate::device::{DeviceId, get_current_device_id};
@@ -302,12 +299,6 @@ impl Game {
         crate::path_resolution::context::game_context(self, device, environment)
     }
 
-    /// Build a `PathContext` using the current device from config.
-    /// Convenience wrapper around `path_context()` for runtime callers.
-    fn path_context_current_device(&self, config: &crate::config::Config) -> PathContext {
-        crate::services::game_path_context(self, config.devices.get(get_current_device_id()))
-    }
-
     /// The directory/path component used for local backup storage and remote
     /// cloud paths. Returns `storage_key` when populated; otherwise computes
     /// a sanitized key from the display name as a safe fallback (this path
@@ -398,73 +389,6 @@ impl Game {
         crate::atomic_file::write_bytes_atomically(&saves_path, &bytes)?;
         Ok(())
     }
-    pub async fn create_snapshot(&self, describe: &str) -> Result<SnapshotCreated, BackupError> {
-        self.create_snapshot_with_parent(describe, None, CreatedBy::Manual)
-            .await
-    }
-
-    pub async fn create_snapshot_with_parent(
-        &self,
-        describe: &str,
-        parent_date: Option<String>,
-        created_by: CreatedBy,
-    ) -> Result<SnapshotCreated, BackupError> {
-        let backup_path = get_backup_path()?.join(self.backup_dir_name().as_ref());
-        let infos = match self.get_game_snapshots_info() {
-            Ok(infos) => infos,
-            Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
-                GameSnapshots::new(self.name.clone())
-            }
-            Err(error) => return Err(error),
-        };
-        let date = unused_snapshot_id(&backup_path, &infos)?;
-        let created_at = Some(chrono::Utc::now().timestamp_millis());
-        let save_paths = &self.save_paths; // everything you should copy
-        let config = get_config()?;
-        let preset = config.settings.compression_preset;
-
-        let zip_path = backup_path.join([&date, ".zip"].concat());
-        // 获取压缩后的文件大小
-        let path_ctx = self.path_context_current_device(&config);
-        let file_size = match ZipBackend.compress(save_paths, &zip_path, preset, Some(&path_ctx)) {
-            Ok(size) => size,
-            Err(e) => {
-                // delete the zip if failed to write
-                fs::remove_file(&zip_path)?;
-                return Err(BackupError::Compress(e));
-            }
-        };
-
-        let parent = parent_date.or_else(|| infos.current_device_head().cloned());
-
-        let game_snapshots_info = Snapshot {
-            date: date.clone(),
-            describe: describe.to_string(),
-            path: zip_path
-                .to_str()
-                .ok_or(BackupError::NonePathError)?
-                .to_string(),
-            archive_format: crate::backup::ArchiveFormat::Zip,
-            size: file_size,
-            parent,
-            archive_hash: None,
-            created_at,
-            device_id: Some(get_current_device_id().clone()),
-            created_by,
-        };
-        let infos = self.update_game_snapshots_info::<BackupError>(|current| {
-            current.backups.push(game_snapshots_info);
-            current.set_current_device_head(Some(date.clone()));
-            Ok(())
-        })?;
-
-        Ok(SnapshotCreated {
-            snapshots: infos,
-            remote_archive_path: format!("save_data/{}/{date}.zip", self.backup_dir_name()),
-            local_archive_path: zip_path,
-        })
-    }
-
     /// Persist a snapshot from a fully preflighted immutable capture plan.
     /// Configuration and host discovery stay outside this domain operation.
     pub async fn create_snapshot_from_capture_plan(
@@ -531,80 +455,6 @@ impl Game {
         })
     }
 
-    pub async fn create_timer_snapshot_if_changed(
-        &self,
-        describe: &str,
-    ) -> Result<TimerSnapshotDecision, BackupError> {
-        self.create_snapshot_if_changed(describe, CreatedBy::Timer)
-            .await
-    }
-
-    pub async fn create_snapshot_if_changed(
-        &self,
-        describe: &str,
-        created_by: CreatedBy,
-    ) -> Result<TimerSnapshotDecision, BackupError> {
-        let infos = self.get_game_snapshots_info()?;
-        let latest_auto_snapshot = infos
-            .backups
-            .iter()
-            .filter(|snapshot| snapshot.created_by.is_automatic_backup())
-            .max_by_key(|snapshot| snapshot.creation_time());
-
-        let Some(latest_auto_snapshot) = latest_auto_snapshot else {
-            self.create_snapshot_with_parent(describe, None, created_by)
-                .await?;
-            return Ok(TimerSnapshotDecision::Created);
-        };
-
-        let config = get_config()?;
-        let path_ctx = self.path_context_current_device(&config);
-        let current_fingerprint = match fingerprint_source_state(&self.save_paths, Some(&path_ctx))
-        {
-            Ok(fingerprint) => fingerprint,
-            Err(err) => {
-                warn!(
-                    target: "rgsm::backup::game",
-                    "Failed to fingerprint current save state, fallback to creating snapshot: {err:?}"
-                );
-                self.create_snapshot_with_parent(describe, None, created_by)
-                    .await?;
-                return Ok(TimerSnapshotDecision::Created);
-            }
-        };
-
-        let latest_zip_path = PathBuf::from(&latest_auto_snapshot.path);
-        // Prefer stored fingerprint from ZIP comment (handles registry units),
-        // fall back to scanning ZIP entries for legacy archives.
-        let previous_fingerprint = read_stored_fingerprint(&latest_zip_path)
-            .or_else(|| fingerprint_zip_state(&latest_zip_path).ok().flatten());
-
-        match previous_fingerprint {
-            Some(ref fp) if *fp == current_fingerprint => {
-                info!(
-                    target: "rgsm::backup::game",
-                    "Skip timer auto backup for game {} because fingerprint is unchanged",
-                    self.name
-                );
-                Ok(TimerSnapshotDecision::SkippedUnchanged)
-            }
-            Some(_) => {
-                self.create_snapshot_with_parent(describe, None, created_by)
-                    .await?;
-                Ok(TimerSnapshotDecision::Created)
-            }
-            None => {
-                info!(
-                    target: "rgsm::backup::game",
-                    "Latest automatic backup is legacy format; create one new automatic backup before dedup"
-                );
-                self.create_snapshot_with_parent(describe, None, created_by)
-                    .await?;
-                Ok(TimerSnapshotDecision::Created)
-            }
-        }
-    }
-
     pub async fn cleanup_old_auto_backups(
         &self,
         max_count: u32,
@@ -656,40 +506,6 @@ impl Game {
             deleted_remote_paths: result.deleted_remote_paths,
         })
     }
-    pub fn create_overwrite_snapshot(
-        &self,
-        max_extra_backup_count: u32,
-    ) -> Result<(), BackupError> {
-        let extra_backup_path = get_backup_path()?
-            .join(self.backup_dir_name().as_ref())
-            .join("extra_backup");
-
-        // Create extra backup
-        if !extra_backup_path.exists() {
-            fs::create_dir_all(&extra_backup_path)?;
-        }
-        let date = chrono::Local::now()
-            .format("Overwrite_%Y-%m-%d_%H-%M-%S")
-            .to_string();
-        let zip_path = &extra_backup_path.join([&date, ".zip"].concat());
-        let config = get_config()?;
-        let preset = config.settings.compression_preset;
-        let path_ctx = self.path_context_current_device(&config);
-        if let Err(e) = ZipBackend.compress(&self.save_paths, zip_path, preset, Some(&path_ctx)) {
-            if let Err(rm_err) = fs::remove_file(zip_path) {
-                warn!(
-                    target: "rgsm::backup",
-                    "Failed to cleanup failed extra backup zip: {:?}",
-                    rm_err
-                );
-            }
-            return Err(e.into());
-        }
-
-        cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
-        Result::Ok(())
-    }
-
     pub fn create_overwrite_snapshot_from_capture_plan(
         &self,
         plan: &CapturePlan,

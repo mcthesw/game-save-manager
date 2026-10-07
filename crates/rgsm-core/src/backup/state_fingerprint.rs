@@ -11,15 +11,18 @@ use xxhash_rust::xxh3::Xxh3;
 use crate::backup::path_format::path_to_zip_style;
 #[cfg(target_os = "windows")]
 use crate::backup::registry;
-#[cfg(target_os = "windows")]
+#[cfg(all(test, target_os = "windows"))]
 use crate::device::get_current_device_id;
+#[cfg(test)]
 use crate::path_resolver::PathContext;
 use crate::{
-    backup::{CapturePlan, CaptureSourceKind, SaveUnit, SaveUnitType},
+    backup::{CapturePlan, CaptureSourceKind},
     preclude::*,
 };
 
-use super::archive::{ArchiveMeta, ArchiveVersion, system_time_to_zip_datetime};
+use super::archive::{ArchiveMeta, system_time_to_zip_datetime};
+#[cfg(test)]
+use super::{SaveUnit, SaveUnitType, archive::ArchiveVersion};
 
 const FINGERPRINT_MAGIC: &[u8] = b"RGSM_FP_V1";
 
@@ -125,6 +128,7 @@ fn build_fingerprint(mut entries: Vec<SaveEntryMeta>) -> String {
     format!("{:016x}", hasher.finish())
 }
 
+#[cfg(test)]
 fn collect_entries_from_source(
     save_paths: &[SaveUnit],
     path_ctx: Option<&PathContext>,
@@ -169,6 +173,7 @@ fn collect_entries_from_source(
 /// `WinRegistry` save units. For file-only games the base is returned unchanged,
 /// keeping backward compatibility with older archives.
 #[cfg(target_os = "windows")]
+#[cfg(test)]
 fn extend_with_registry(base: String, save_paths: &[SaveUnit]) -> Result<String, CompressError> {
     let mut registry_data = Vec::new();
     for save_unit in save_paths.iter().filter(|save_unit| save_unit.enabled) {
@@ -200,10 +205,12 @@ fn extend_with_registry(base: String, save_paths: &[SaveUnit]) -> Result<String,
 }
 
 #[cfg(not(target_os = "windows"))]
+#[cfg(test)]
 fn extend_with_registry(base: String, _save_paths: &[SaveUnit]) -> Result<String, CompressError> {
     Ok(base)
 }
 
+#[cfg(test)]
 pub(crate) fn fingerprint_source_state(
     save_paths: &[SaveUnit],
     path_ctx: Option<&PathContext>,
@@ -269,6 +276,7 @@ pub(crate) fn read_stored_fingerprint(zip_path: &Path) -> Option<String> {
     meta.source_fingerprint
 }
 
+#[cfg(test)]
 fn normalize_zip_entry_name(name: &str, is_dir: bool) -> String {
     let normalized = name.replace('\\', "/");
     if is_dir {
@@ -278,6 +286,7 @@ fn normalize_zip_entry_name(name: &str, is_dir: bool) -> String {
     }
 }
 
+#[cfg(test)]
 fn collect_entries_from_zip(
     archive: &mut zip::ZipArchive<File>,
     version: ArchiveVersion,
@@ -315,6 +324,7 @@ fn collect_entries_from_zip(
     Ok(entries)
 }
 
+#[cfg(test)]
 pub(crate) fn fingerprint_zip_state(zip_path: &Path) -> Result<Option<String>, CompressError> {
     let file = File::open(zip_path).map_err(|e| CompressError::Single(e.into()))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| CompressError::Single(e.into()))?;
