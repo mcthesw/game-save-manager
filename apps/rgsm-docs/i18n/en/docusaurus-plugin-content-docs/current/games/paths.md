@@ -53,10 +53,14 @@ A glob such as `D:/Saves/*/SaveGames` captures every matching directory and pres
 Configure **Path variables** while adding or editing a game, then reference them as `<var:name>`, for example `<var:saveRoot>/MyGame/<var:account>/*.sav`.
 
 - Editing a value changes only this game on the current device. Each field shows its value source.
-- Choose **Edit device default** from the variable's **⋯** menu to review affected games and edit the shared value. Existing game overrides are preserved.
-- **Use device default** clears a game override; **Discard default change** discards only the pending shared edit.
+- Choose **Edit device variable…** from the variable's **⋯** menu to review affected games and edit the shared value. Existing game overrides are preserved.
+- **Use device variable** clears a game override; **Discard default change** discards only the pending shared edit.
 - Cancel discards edits; Save persists the variables and game together.
 
 Set the same variable names to the appropriate values on another device. Restore uses the target device's values while retaining distinct glob matches. Values are literal text or paths; nested variables and scripts are unsupported, and glob characters inside values are treated literally. Referenced variables must have values.
 
 Variables after a glob require Archive V5 relocation metadata in new backups. These backups require a V5-capable application to restore. Existing archives remain readable, but old directory names are not automatically interpreted as variables.
+
+Choose **Insert variable** beside a path to select a variable or create and insert one by name and value. You do not need to type `var:`. Device variables are shared on this device; game variables apply only to this game on this device. If another device lacks a value, choose **Set up variables** on the game page. Backup and restore also open setup when needed: **Save and continue** resumes the requested operation, while closing cancels it.
+
+Choose **Find local location** beside a variable to search for values matching the save path. Selecting a result updates only this game’s draft; save the game to apply it. Confirm the candidate even when only one is found. Configure other missing variables, such as the root directory, first. If no location matches, enter a value manually. Search is bounded, reports incomplete results, and does not follow symbolic links.

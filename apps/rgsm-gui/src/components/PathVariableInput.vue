@@ -5,9 +5,11 @@ import { $t } from '../i18n';
 import { commands, type GameDraft } from '../api/commands';
 import { usePathVariableDraft } from '../composables/usePathVariableDraft';
 import { LAYER } from '../ui/layers';
+import VariablePicker from './VariablePicker.vue';
 import { KButton, KTooltip } from '../ui/kit';
 
 const variableDraft = usePathVariableDraft();
+const pickerOpen = ref(false);
 
 type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 
@@ -339,7 +341,6 @@ function onCompositionEnd() {
 }
 
 function onFocus() {
-  if (variableDraft) variableDraft.insert.value = insertAtCursor;
   isEditing.value = true;
   scheduleResolve(props.modelValue);
   nextTick(checkAutocomplete);
@@ -555,7 +556,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (variableDraft?.insert.value === insertAtCursor) variableDraft.insert.value = null;
+  if (variableDraft?.pendingInsert.value === insertAtCursor)
+    variableDraft.pendingInsert.value = null;
   resolveGeneration += 1;
   if (resolveTimer) clearTimeout(resolveTimer);
 });
@@ -606,6 +608,14 @@ watch(
 
 <template>
   <div class="pvi-wrapper">
+    <VariablePicker
+      v-model:open="pickerOpen"
+      :variables="pathVariables"
+      :values="variableDraft?.values.value"
+      :can-create="!!variableDraft"
+      @select="insertAtCursor"
+      @create="variableDraft && (variableDraft.pendingInsert.value = insertAtCursor)"
+    />
     <PopoverRoot
       :open="showSuggestions && filteredVariables.length > 0"
       @update:open="showSuggestions = $event"
@@ -628,9 +638,15 @@ watch(
               @keydown="onKeydown"
               @paste="onPaste"
             />
-            <KTooltip :content="$t('path_variable.editor_badge_tooltip')">
-              <span class="pvi-editor-badge">&lt;/&gt;</span>
-            </KTooltip>
+            <KButton
+              size="sm"
+              variant="ghost"
+              class="shrink-0"
+              @pointerdown.prevent
+              @click="pickerOpen = true"
+            >
+              {{ $t('path_variable.insert_variable') }}
+            </KButton>
           </div>
           <!-- Keep the status indicator present even when no path has been checked. -->
           <KTooltip

@@ -74,6 +74,13 @@ export type AutoBackupGameStatus = {
   interval_secs: number;
 };
 
+export type BTreeMap = {
+  [key: string]: {
+    previousValue?: string | null;
+    value: string;
+  };
+};
+
 export type Backend =
   | {
       type: 'Disabled';
@@ -566,6 +573,13 @@ export type DeviceResourceSource = 'manual' | 'detected';
 export type DeviceVariableEdit = {
   previousValue?: string | null;
   value: string;
+};
+
+export type DiscoverVariableRequest = {
+  deviceVariables?: BTreeMap;
+  game: GameDraft;
+  name: string;
+  paths: Array<string>;
 };
 
 export type DownloadCloudArchiveRequest = {
@@ -1645,11 +1659,27 @@ export type V2ConflictReview = {
   requires_choice: boolean;
 };
 
+export type VariableCandidate = {
+  paths: Array<string>;
+  value: string;
+};
+
+export type VariableDiscovery = {
+  candidates: Array<VariableCandidate>;
+  incomplete: boolean;
+  missingVariables: Array<string>;
+  needsRoot: boolean;
+};
+
 export type VariablePattern = {
   expression: string;
   values: {
     [key: string]: string;
   };
+};
+
+export type VariableSetupRequest = {
+  game: GameDraft;
 };
 
 export type VerifyArchiveIntegrityRequest = {
@@ -2228,6 +2258,27 @@ export type DetectStoreUserIdsResponses = {
 
 export type DetectStoreUserIdsResponse =
   DetectStoreUserIdsResponses[keyof DetectStoreUserIdsResponses];
+
+export type DiscoverPathVariableData = {
+  body: DiscoverVariableRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/discover-path-variable';
+};
+
+export type DiscoverPathVariableErrors = {
+  500: ApiError;
+};
+
+export type DiscoverPathVariableError =
+  DiscoverPathVariableErrors[keyof DiscoverPathVariableErrors];
+
+export type DiscoverPathVariableResponses = {
+  200: VariableDiscovery;
+};
+
+export type DiscoverPathVariableResponse =
+  DiscoverPathVariableResponses[keyof DiscoverPathVariableResponses];
 
 export type DownloadAppUpdateData = {
   body: InstallUpdateRequest;
@@ -2955,6 +3006,27 @@ export type MaterializeAllCloudArchivesResponses = {
 
 export type MaterializeAllCloudArchivesResponse =
   MaterializeAllCloudArchivesResponses[keyof MaterializeAllCloudArchivesResponses];
+
+export type MissingGameVariablesData = {
+  body: VariableSetupRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/missing-game-variables';
+};
+
+export type MissingGameVariablesErrors = {
+  500: ApiError;
+};
+
+export type MissingGameVariablesError =
+  MissingGameVariablesErrors[keyof MissingGameVariablesErrors];
+
+export type MissingGameVariablesResponses = {
+  200: Array<string>;
+};
+
+export type MissingGameVariablesResponse =
+  MissingGameVariablesResponses[keyof MissingGameVariablesResponses];
 
 export type OpenBackupFolderData = {
   body: OpenBackupFolderRequest;

@@ -44,3 +44,6 @@ pub fn expand(raw: &str, names: &[String], values: &PathVariables) -> Result<Str
 
 mod capture;
 pub use capture::{VariablePattern, capture_relative_expression, restore_relative_expression};
+
+mod discovery;
+pub use discovery::{VariableCandidate, VariableDiscovery, discover_variable};

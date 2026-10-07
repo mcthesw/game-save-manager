@@ -1,5 +1,7 @@
+mod variables;
 use super::*;
 use crate::commands;
+use variables::*;
 
 use axum::{Json, Router, extract::State, routing::post};
 use serde::{Deserialize, Serialize};
@@ -2412,6 +2414,14 @@ pub fn router() -> Router<HttpHostState> {
             post(http_reset_ludusavi_manifest_to_bundled),
         )
         .route("/api/v1/check-paths", post(http_check_paths))
+        .route(
+            "/api/v1/discover-path-variable",
+            post(http_discover_path_variable),
+        )
+        .route(
+            "/api/v1/missing-game-variables",
+            post(http_missing_game_variables),
+        )
         .route("/api/v1/detect-game-roots", post(http_detect_game_roots))
         .route(
             "/api/v1/detect-store-user-ids",
@@ -2536,6 +2546,8 @@ pub fn router() -> Router<HttpHostState> {
         http_update_ludusavi_manifest,
         http_reset_ludusavi_manifest_to_bundled,
         http_check_paths,
+        http_missing_game_variables,
+        http_discover_path_variable,
         http_detect_game_roots,
         http_detect_store_user_ids,
         http_get_system_fonts,

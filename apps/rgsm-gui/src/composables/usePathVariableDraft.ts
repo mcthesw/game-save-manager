@@ -8,7 +8,7 @@ function createDraft(
   binding: Ref<GameDeviceBinding | undefined>
 ) {
   const edits = ref<VariableEdits>({});
-  const insert = shallowRef<((token: string) => void) | null>(null);
+  const pendingInsert = shallowRef<((token: string) => void) | null>(null);
   const names = computed(() =>
     [
       ...new Set([
@@ -21,7 +21,12 @@ function createDraft(
   return {
     edits,
     names,
-    insert,
+    pendingInsert,
+    values: computed(() => ({
+      ...device.value?.path_variables,
+      ...Object.fromEntries(Object.entries(edits.value).map(([name, edit]) => [name, edit.value])),
+      ...binding.value?.pathVariables,
+    })),
     reset: () => {
       edits.value = {};
     },

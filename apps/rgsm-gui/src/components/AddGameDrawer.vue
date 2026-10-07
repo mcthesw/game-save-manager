@@ -1015,6 +1015,7 @@ function deleteRow(index: number) {
       <PathVariablesEditor
         v-if="currentDevice"
         v-model:binding="deviceBinding"
+        :game="previewGame"
         :device="currentDevice"
         :paths="previewPaths"
         :games="config.games"

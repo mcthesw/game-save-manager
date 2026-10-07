@@ -93,6 +93,9 @@ import type {
   DetectStoreUserIdsData,
   DetectStoreUserIdsErrors,
   DetectStoreUserIdsResponses,
+  DiscoverPathVariableData,
+  DiscoverPathVariableErrors,
+  DiscoverPathVariableResponses,
   DownloadAppUpdateData,
   DownloadAppUpdateErrors,
   DownloadAppUpdateResponses,
@@ -191,6 +194,9 @@ import type {
   MaterializeAllCloudArchivesData,
   MaterializeAllCloudArchivesErrors,
   MaterializeAllCloudArchivesResponses,
+  MissingGameVariablesData,
+  MissingGameVariablesErrors,
+  MissingGameVariablesResponses,
   OpenBackupFolderData,
   OpenBackupFolderErrors,
   OpenBackupFolderResponses,
@@ -686,6 +692,22 @@ export const detectStoreUserIds = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({ url: '/api/v1/detect-store-user-ids', ...options });
 
+export const discoverPathVariable = <ThrowOnError extends boolean = false>(
+  options: Options<DiscoverPathVariableData, ThrowOnError>
+): RequestResult<DiscoverPathVariableResponses, DiscoverPathVariableErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    DiscoverPathVariableResponses,
+    DiscoverPathVariableErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/discover-path-variable',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
 export const downloadAppUpdate = <ThrowOnError extends boolean = false>(
   options: Options<DownloadAppUpdateData, ThrowOnError>
 ): RequestResult<DownloadAppUpdateResponses, DownloadAppUpdateErrors, ThrowOnError> =>
@@ -1075,6 +1097,22 @@ export const materializeAllCloudArchives = <ThrowOnError extends boolean = false
     MaterializeAllCloudArchivesErrors,
     ThrowOnError
   >({ url: '/api/v1/materialize-all-cloud-archives', ...options });
+
+export const missingGameVariables = <ThrowOnError extends boolean = false>(
+  options: Options<MissingGameVariablesData, ThrowOnError>
+): RequestResult<MissingGameVariablesResponses, MissingGameVariablesErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    MissingGameVariablesResponses,
+    MissingGameVariablesErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/missing-game-variables',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
 export const openBackupFolder = <ThrowOnError extends boolean = false>(
   options: Options<OpenBackupFolderData, ThrowOnError>

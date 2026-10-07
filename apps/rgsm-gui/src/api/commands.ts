@@ -621,6 +621,16 @@ export const commands = {
       await sdk.resetLudusaviManifestToBundled()
     );
   },
+  async discoverPathVariable(body: types.DiscoverVariableRequest) {
+    return unwrap<types.DiscoverPathVariableResponses[200]>(
+      await sdk.discoverPathVariable({ body })
+    );
+  },
+  async missingGameVariables(game: types.GameDraft) {
+    return unwrap<types.MissingGameVariablesResponses[200]>(
+      await sdk.missingGameVariables({ body: { game } })
+    );
+  },
   async checkPaths(
     paths: types.CheckPathsRequest['paths'],
     storeUserId: types.CheckPathsRequest['storeUserId'],
