@@ -8,22 +8,13 @@ use crate::{
 
 use super::decompress::RestoreNotifier;
 
-/// Abstraction over archive backends (ZIP, future TAR, etc.).
+/// Readers for current and historical snapshot archives.
 ///
 /// Each backend handles its own format-specific details: entry layout,
 /// metadata storage, compression methods, and permission handling.
 pub trait ArchiveBackend {
-    /// Compress save units into an archive file.
-    /// Returns the compressed file size in bytes.
-    fn compress(
-        &self,
-        save_units: &[SaveUnit],
-        archive_path: &Path,
-        preset: CompressionPreset,
-        path_ctx: Option<&PathContext>,
-    ) -> Result<u64, CompressError>;
-
     /// Compress a fully resolved immutable capture plan as a V3 archive.
+    #[cfg(test)]
     fn compress_capture_plan(
         &self,
         plan: &CapturePlan,
@@ -69,16 +60,7 @@ pub struct ZipBackend;
 pub struct SevenZBackend;
 
 impl ArchiveBackend for ZipBackend {
-    fn compress(
-        &self,
-        save_units: &[SaveUnit],
-        archive_path: &Path,
-        preset: CompressionPreset,
-        path_ctx: Option<&PathContext>,
-    ) -> Result<u64, CompressError> {
-        super::compress::compress_to_file(save_units, archive_path, preset, path_ctx)
-    }
-
+    #[cfg(test)]
     fn compress_capture_plan(
         &self,
         plan: &CapturePlan,
@@ -132,20 +114,8 @@ impl ArchiveBackend for ZipBackend {
     }
 }
 
-impl ArchiveBackend for SevenZBackend {
-    fn compress(
-        &self,
-        _save_units: &[SaveUnit],
-        _archive_path: &Path,
-        _preset: CompressionPreset,
-        _path_ctx: Option<&PathContext>,
-    ) -> Result<u64, CompressError> {
-        Err(CompressError::Unexpected(anyhow::anyhow!(
-            "Archive V4 requires a preflighted Capture Plan"
-        )))
-    }
-
-    fn compress_capture_plan(
+impl SevenZBackend {
+    pub fn compress_capture_plan(
         &self,
         plan: &CapturePlan,
         archive_path: &Path,
@@ -153,6 +123,19 @@ impl ArchiveBackend for SevenZBackend {
         source_fingerprint: Option<String>,
     ) -> Result<u64, CompressError> {
         super::seven_z::compress_capture_plan(plan, archive_path, preset, source_fingerprint)
+    }
+}
+
+impl ArchiveBackend for SevenZBackend {
+    #[cfg(test)]
+    fn compress_capture_plan(
+        &self,
+        plan: &CapturePlan,
+        archive_path: &Path,
+        preset: CompressionPreset,
+        source_fingerprint: Option<String>,
+    ) -> Result<u64, CompressError> {
+        self.compress_capture_plan(plan, archive_path, preset, source_fingerprint)
     }
 
     fn read_capture_manifest(

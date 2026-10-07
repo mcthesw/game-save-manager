@@ -1,6 +1,6 @@
 use super::utils::{ConfigFileGuard, lock_config_file};
 use crate::backup::archive::system_time_to_zip_datetime;
-use crate::backup::state_fingerprint::{fingerprint_source_state, fingerprint_zip_state};
+use crate::backup::state_fingerprint::fingerprint_capture_plan;
 use crate::backup::{
     CreatedBy, Game, GameDraft, GameSnapshots, SaveUnit, SaveUnitDraft, SaveUnitType, Snapshot,
     TIMER_AUTO_BACKUP_DESCRIPTION, TimerSnapshotDecision,
@@ -15,6 +15,33 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 use zip::{ZipWriter, write::SimpleFileOptions};
+
+fn snapshot_service() -> crate::services::ServiceContext {
+    crate::services::ServiceContext::new(std::sync::Arc::new(crate::hooks::HookPipeline::new(
+        vec![],
+    )))
+}
+async fn manual_backup(game: &Game, description: &str) -> Result<(), crate::preclude::BackupError> {
+    snapshot_service()
+        .create_snapshot(
+            game,
+            description,
+            crate::hooks::HookSource::UserManual,
+            None,
+        )
+        .await
+}
+async fn timer_backup(game: &Game) -> Result<TimerSnapshotDecision, crate::preclude::BackupError> {
+    snapshot_service()
+        .create_snapshot_if_changed(
+            game,
+            TIMER_AUTO_BACKUP_DESCRIPTION,
+            CreatedBy::Timer,
+            crate::hooks::HookSource::TimerAutoBackup,
+            None,
+        )
+        .await
+}
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -148,14 +175,10 @@ fn timer_backup_skips_when_unchanged() -> TestResult {
             device_bindings: std::collections::HashMap::new(),
         };
 
-        let first = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let first = timer_backup(&game).await?;
         assert_eq!(first, TimerSnapshotDecision::Created);
 
-        let second = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let second = timer_backup(&game).await?;
         assert_eq!(second, TimerSnapshotDecision::SkippedUnchanged);
         assert_eq!(auto_backup_count(&game)?, 1);
         Ok(())
@@ -196,9 +219,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
             device_bindings: std::collections::HashMap::new(),
         };
 
-        let first = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let first = timer_backup(&game).await?;
         assert_eq!(first, TimerSnapshotDecision::Created);
 
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -208,9 +229,7 @@ fn timer_backup_creates_when_changed() -> TestResult {
             SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_200),
         )?;
 
-        let second = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let second = timer_backup(&game).await?;
         assert_eq!(second, TimerSnapshotDecision::Created);
         assert_eq!(auto_backup_count(&game)?, 2);
         Ok(())
@@ -252,21 +271,17 @@ fn timer_backup_compares_only_latest_auto_backup() -> TestResult {
             device_bindings: std::collections::HashMap::new(),
         };
 
-        let first = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let first = timer_backup(&game).await?;
         assert_eq!(first, TimerSnapshotDecision::Created);
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         overwrite_save_file(&save_file, b"content-b", changed_time)?;
-        game.create_snapshot("Manual Snapshot").await?;
+        manual_backup(&game, "Manual Snapshot").await?;
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         overwrite_save_file(&save_file, b"content-a", initial_time)?;
 
-        let decision = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let decision = timer_backup(&game).await?;
         assert_eq!(decision, TimerSnapshotDecision::SkippedUnchanged);
         assert_eq!(auto_backup_count(&game)?, 1);
         Ok(())
@@ -308,14 +323,10 @@ fn legacy_auto_snapshot_creates_once_before_dedup() -> TestResult {
         };
 
         create_legacy_auto_snapshot(&game, &save_file, "2000-01-01_00-00-00")?;
-        let first = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let first = timer_backup(&game).await?;
         assert_eq!(first, TimerSnapshotDecision::Created);
 
-        let second = game
-            .create_timer_snapshot_if_changed(TIMER_AUTO_BACKUP_DESCRIPTION)
-            .await?;
+        let second = timer_backup(&game).await?;
         assert_eq!(second, TimerSnapshotDecision::SkippedUnchanged);
         assert_eq!(auto_backup_count(&game)?, 2);
         Ok(())
@@ -356,17 +367,20 @@ fn fingerprint_source_and_zip_match_for_fresh_snapshot() -> TestResult {
             device_bindings: std::collections::HashMap::new(),
         };
 
-        game.create_snapshot("Manual Snapshot").await?;
+        timer_backup(&game).await?;
         let snapshots = game.get_game_snapshots_info()?;
         let latest_snapshot = snapshots
             .backups
             .last()
             .ok_or("missing latest snapshot for fingerprint test")?;
 
-        let source_fp = fingerprint_source_state(&game.save_paths, None)?;
-        let zip_fp = fingerprint_zip_state(Path::new(&latest_snapshot.path))?
-            .ok_or("zip fingerprint should exist for fresh snapshots")?;
-        assert_eq!(source_fp, zip_fp);
+        let capture = snapshot_service().capture_plan(&config, &game)?;
+        let source_fp = fingerprint_capture_plan(&capture)?;
+        use crate::backup::ArchiveBackend;
+        let archive_fp = crate::backup::SevenZBackend
+            .read_source_fingerprint(Path::new(&latest_snapshot.path))
+            .ok_or("capture fingerprint is missing")?;
+        assert_eq!(source_fp, archive_fp);
         Ok(())
     })
 }
@@ -1389,7 +1403,7 @@ fn game_with_colon_in_name_can_create_snapshot() -> TestResult {
             device_bindings: std::collections::HashMap::new(),
         };
 
-        let result = game.create_snapshot("test backup").await;
+        let result = manual_backup(&game, "test backup").await;
         assert!(
             result.is_ok(),
             "Should create snapshot for game with colon in name"
@@ -1399,6 +1413,10 @@ fn game_with_colon_in_name_can_create_snapshot() -> TestResult {
         assert_eq!(snapshots.backups.len(), 1);
         assert!(uuid::Uuid::parse_str(&snapshots.backups[0].date).is_ok());
         assert!(snapshots.backups[0].created_at.is_some());
+        assert_eq!(
+            snapshots.backups[0].archive_format,
+            crate::backup::ArchiveFormat::SevenZ
+        );
         Ok(())
     })
 }
