@@ -14,7 +14,7 @@ Type `<` in a path field and choose a suggested variable. The field shows the re
 
 For example, `<home>/Saved Games/MyGame` uses the current user's home folder.
 
-Detected dynamic paths match files on the current device. Add game library folders and installation locations in **Settings → Auto Scan**.
+Detected dynamic paths match files on the current device. Configure game libraries in **Settings → Auto Scan**. Set a game's installation directory while adding it or in **View managed files**.
 
 ## Choosing between game libraries
 
@@ -22,11 +22,13 @@ Detected dynamic paths match files on the current device. Add game library folde
 
 When several locations are available, select the library in the add or import dialog. For an existing game, use **View managed files → Game root directory**. A single candidate is used automatically. File existence does not decide which library to use.
 
-The selection is saved with the paths for this game and this device. Another device can use a different library while keeping the same relative path. Launch paths require one location; dynamic save patterns can explicitly select several libraries or accounts.
+Each game configuration manages one installation and account instance per device, with as many save entries as needed. Choose one library or account when several candidates are available. Add separate games to manage separate instances. Other devices can bind their own locations and accounts.
+
+**Game installation directory** supplies `<base>`. If the directory is `D:/Games/MyGame`, a save path can be `<base>/Saves/*.sav`. Change the installation directory after moving the game; backup and restore then use the new location. Choose a detected directory, use the folder picker, or type it yourself. Manually added games work the same way.
+
+Game library roots help discover games; they do not mean backing up every library. **Game store accounts** supply candidates for `<storeUserId>`, and a choice is needed only when a save path references that variable. Custom account variables are resolved from their own configured values.
 
 View the resolved path below the input or hover over its status dot. If it says “Select a location”, choose one first. If the file does not exist, check the path or run the game to create a save before backing up. You can also pick the actual file or folder directly.
-
-![Select a game root directory](../../../../../../../docs/screenshots/game-path-selection.png)
 
 ## Device paths
 
@@ -48,7 +50,7 @@ Name your devices in **Settings → Device Management**. To reuse another device
 
 **Add save file / folder** appends an editable row. Use **Choose path** on its right to open a picker. Typed paths, dynamic paths, and device overrides share the same expression syntax.
 
-A glob such as `D:/Saves/*/SaveGames` captures every matching directory and preserves their relative locations. It does not identify different directories as the same logical save. Opening a glob opens its containing root.
+A glob such as `<base>/Saves/*.sav` captures every matching save file within the instance and preserves relative locations. It does not identify different account directories as the same logical save. Opening a glob opens its containing root.
 
 Configure **Path variables** while adding or editing a game, then reference them as `<var:name>`, for example `<var:saveRoot>/MyGame/<var:account>/*.sav`.
 
@@ -59,7 +61,7 @@ Configure **Path variables** while adding or editing a game, then reference them
 
 Set the same variable names to the appropriate values on another device. Restore uses the target device's values while retaining distinct glob matches. Values are literal text or paths; nested variables and scripts are unsupported, and glob characters inside values are treated literally. Referenced variables must have values.
 
-Variables after a glob require Archive V5 relocation metadata in new backups. These backups require a V5-capable application to restore. Existing archives remain readable, but old directory names are not automatically interpreted as variables.
+Variables can appear after a glob. New backups record the path relationships needed for relocation. If an older backup lacks that information, directory names are not automatically interpreted as variables.
 
 Choose **Insert variable** beside a path to select a variable or create and insert one by name and value. You do not need to type `var:`. Device variables are shared on this device; game variables apply only to this game on this device. If another device lacks a value, choose **Set up variables** on the game page. Backup and restore also open setup when needed: **Save and continue** resumes the requested operation, while closing cancels it.
 
