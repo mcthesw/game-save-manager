@@ -1407,5 +1407,42 @@
     "registry": "Registry backup: this is a standard .reg file. Check its keys before importing it with Windows Registry Editor.",
     "description": "Note at capture: %{description}",
     "identity": "Game ID: %{game}\nSnapshot ID: %{snapshot}"
-  }
+  },
+    "local_upgrade": {
+        "title": "Upgrade older backups",
+        "refresh": "Check older backups again",
+        "loading": "Checking local backups…",
+        "load_failed": "Could not read local backups. Try checking again.",
+        "found": "{total} older backups",
+        "progress": "{completed} of {total} backups upgraded",
+        "purpose": "Use readable filenames and extract saves without the app. Original files are kept; existing cloud copies are not replaced.",
+        "space": "Estimated additional space: {size}.",
+        "space_unknown": " Some archives could not be measured.",
+        "start": "Start upgrade",
+        "resume": "Continue upgrade",
+        "pause": "Pause",
+        "pausing": "Pausing…",
+        "pause_hint": "Pausing or leaving this page stops after the current archive.",
+        "pending": "{count} items need attention",
+        "originals": "{count} original files kept · {size}",
+        "cleanup": "Clean up originals",
+        "cleanup_confirm": "Remove original files only for backups whose upgraded copies and history still pass verification? Pending backups and copies you selected for retry will be kept.",
+        "cleaned": "Original files cleaned up",
+        "failed": "Could not complete this upgrade step",
+        "copy": "Backup copy (optional)",
+        "copy_placeholder": "Path to an intact copy of this backup",
+        "choose_copy": "Choose backup copy",
+        "association": "Which save entry contains “{entry}”?",
+        "choose_unit": "Choose save entry",
+        "retry": "Retry",
+        "issues": {
+            "missingArchive": "The archive is missing. Put it back at the path below or choose an intact copy, then retry.",
+            "unreadableArchive": "This archive could not be verified. Choose an intact copy of the same backup, then retry. The original is kept.",
+            "associationRequired": "Select the save entry that this archived location belongs to. No live save files will be changed.",
+            "multipleInstances": "This backup contains multiple installations or accounts. Separate those saves before upgrading; the original is kept.",
+            "historyChanged": "The backup history changed. Check the game’s backup list, then retry. The original is kept.",
+            "originalChanged": "The files or history could not be verified for cleanup. The originals are kept. Check them before trying cleanup again.",
+            "catalogUnreadable": "The backup list cannot be read. Restore an intact copy of this list file, then retry. Other games can continue upgrading."
+        }
+    }
 }

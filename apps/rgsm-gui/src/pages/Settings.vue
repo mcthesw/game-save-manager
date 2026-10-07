@@ -33,6 +33,7 @@ import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '.
 import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue';
 import AppUpdatePanel from '../components/AppUpdatePanel.vue';
 import SnapshotTimeSettings from '../components/SnapshotTimeSettings.vue';
+import LocalUpgradeSection from '../components/LocalUpgradeSection.vue';
 import HotkeySelector from '../components/HotkeySelector.vue';
 import { useNavigationLinks } from '../composables/useNavigationLinks';
 import { useDark, useDebounceFn } from '@vueuse/core';
@@ -1405,6 +1406,7 @@ const { linksWithGames: router_list } = useNavigationLinks();
           </section>
         </div>
         <div v-else-if="activeSection === 'backup'" class="flex flex-col gap-8">
+          <LocalUpgradeSection />
           <!-- 备份设置 -->
           <section>
             <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">

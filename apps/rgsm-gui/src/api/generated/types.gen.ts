@@ -903,6 +903,36 @@ export type LocalProgressView = {
   snapshot_id: string;
 };
 
+export type LocalUpgradeAction =
+  | {
+      action: 'preview';
+    }
+  | {
+      action: 'start';
+    }
+  | {
+      action: 'step';
+    }
+  | {
+      action: 'retry';
+      request: UpgradeRetry;
+    }
+  | {
+      action: 'cleanup';
+    };
+
+export type LocalUpgradeView = {
+  completed: number;
+  estimatedExtraBytes: number;
+  originalBytes: number;
+  originalCount: number;
+  pending: Array<UpgradePendingItem>;
+  remaining: number;
+  started: boolean;
+  total: number;
+  unknownSizes: number;
+};
+
 export type LudusaviManifestStatus = {
   /**
    * Bundled manifest size in bytes.
@@ -1646,6 +1676,42 @@ export type UpdateProgress = {
 };
 
 export type UpdateStage = 'idle' | 'downloading' | 'ready' | 'waiting' | 'installing' | 'failed';
+
+export type UpgradeIssue = {
+  archiveEntry?: string | null;
+  kind: UpgradeIssueKind;
+};
+
+export type UpgradeIssueKind =
+  | 'missingArchive'
+  | 'unreadableArchive'
+  | 'associationRequired'
+  | 'multipleInstances'
+  | 'historyChanged'
+  | 'originalChanged'
+  | 'catalogUnreadable';
+
+export type UpgradePendingItem = {
+  gameId: string;
+  gameName: string;
+  id: string;
+  issue: UpgradeIssue;
+  saveUnits: Array<UpgradeUnitChoice>;
+  snapshotId: string;
+  sourcePath: string;
+};
+
+export type UpgradeRetry = {
+  archiveEntry?: string | null;
+  itemId: string;
+  replacementPath?: string | null;
+  saveUnitId?: number | null;
+};
+
+export type UpgradeUnitChoice = {
+  id: number;
+  path: string;
+};
 
 export type UploadCloudArchiveRequest = {
   gameId: string;
@@ -3006,6 +3072,26 @@ export type ListRunningProcessesResponses = {
 
 export type ListRunningProcessesResponse =
   ListRunningProcessesResponses[keyof ListRunningProcessesResponses];
+
+export type LocalArchiveUpgradeData = {
+  body: LocalUpgradeAction;
+  path?: never;
+  query?: never;
+  url: '/api/v1/local-archive-upgrade';
+};
+
+export type LocalArchiveUpgradeErrors = {
+  500: ApiError;
+};
+
+export type LocalArchiveUpgradeError = LocalArchiveUpgradeErrors[keyof LocalArchiveUpgradeErrors];
+
+export type LocalArchiveUpgradeResponses = {
+  200: LocalUpgradeView;
+};
+
+export type LocalArchiveUpgradeResponse =
+  LocalArchiveUpgradeResponses[keyof LocalArchiveUpgradeResponses];
 
 export type MaterializeAllCloudArchivesData = {
   body?: never;

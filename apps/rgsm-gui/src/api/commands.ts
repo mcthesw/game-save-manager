@@ -47,6 +47,9 @@ function unwrap<T>(result: { data?: T; error?: unknown }): CommandResult<T> {
 }
 
 export const commands = {
+  async localArchiveUpgrade(action: types.LocalUpgradeAction) {
+    return unwrap(await sdk.localArchiveUpgrade({ body: action }));
+  },
   async exportCloudJoinCode() {
     return unwrap(await sdk.exportCloudJoinCode());
   },

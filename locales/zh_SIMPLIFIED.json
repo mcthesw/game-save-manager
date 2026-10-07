@@ -1407,5 +1407,42 @@
     "registry": "注册表备份：这是标准 .reg 文件。请核对其中的键，再通过 Windows 注册表编辑器导入。",
     "description": "备份时的备注：%{description}",
     "identity": "游戏 ID：%{game}\n存档点 ID：%{snapshot}"
-  }
+  },
+    "local_upgrade": {
+        "title": "升级旧备份",
+        "refresh": "重新检查旧备份",
+        "loading": "正在检查本地备份…",
+        "load_failed": "无法读取本地备份，请重新检查。",
+        "found": "发现 {total} 个旧备份",
+        "progress": "已升级 {completed} / {total} 个备份",
+        "purpose": "使用易读文件名，解压后即可手动恢复存档。原件会保留，已有云端副本不会替换。",
+        "space": "预计额外需要 {size} 空间。",
+        "space_unknown": "部分备份暂时无法估算。",
+        "start": "开始升级",
+        "resume": "继续升级",
+        "pause": "暂停",
+        "pausing": "正在暂停…",
+        "pause_hint": "暂停或离开此页面后，将在当前备份处理完毕时停止。",
+        "pending": "{count} 项需要处理",
+        "originals": "已保留 {count} 个原件 · {size}",
+        "cleanup": "清理原件",
+        "cleanup_confirm": "只清理新版备份及其历史记录仍通过校验的原件。待处理备份、手动选择的副本均会保留。确认清理？",
+        "cleaned": "原件已清理",
+        "failed": "未能完成此步升级",
+        "copy": "备份副本（可选）",
+        "copy_placeholder": "填写同一备份的完好副本路径",
+        "choose_copy": "选择备份副本",
+        "association": "“{entry}”对应哪个存档条目？",
+        "choose_unit": "选择存档条目",
+        "retry": "重试",
+        "issues": {
+            "missingArchive": "找不到备份文件。将原件放回下方路径，或选择一个完好副本后重试。",
+            "unreadableArchive": "备份未通过校验。请选择同一备份的完好副本后重试；原件已保留。",
+            "associationRequired": "请选择归档中的这处存档属于哪个条目。此操作不会改动游戏的实际存档。",
+            "multipleInstances": "此备份包含多个安装位置或账号的存档，需要先拆分后升级；原件已保留。",
+            "historyChanged": "备份历史已发生变化。请检查游戏的备份列表后重试；原件已保留。",
+            "originalChanged": "文件或历史记录未通过清理校验，原件已保留。请检查后再次尝试清理。",
+            "catalogUnreadable": "无法读取备份列表。请将此列表文件替换为完好副本后重试；其他游戏仍可继续升级。"
+        }
+    }
 }
