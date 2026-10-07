@@ -48,3 +48,7 @@ pub const TIMER_AUTO_BACKUP_DESCRIPTION: &str = "Auto Backup (Timer)";
 pub use snapshot_capture::CaptureSnapshotOptions;
 
 pub(crate) use archive::{deserialize_archive_name, new_archive_name};
+
+pub use archive::{
+    ArchiveMigrationError, ArchiveMigrationInput, convert_snapshot_archive, inspect_archive_size,
+};
