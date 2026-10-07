@@ -52,7 +52,7 @@
           v-for="game in paginatedGames"
           :key="game.name"
           class="flex items-center gap-3 border-b border-border px-3 py-1.5 last:border-b-0"
-          :class="game.isManaged ? 'opacity-60' : 'cursor-pointer hover:bg-surface-2'"
+          :class="!game.isManaged && 'cursor-pointer hover:bg-surface-2'"
           @click="toggleRow(game)"
         >
           <KCheckbox
@@ -62,9 +62,20 @@
             @click.stop
             @update:model-value="toggleRow(game)"
           />
-          <div class="flex min-w-0 flex-1 items-center gap-2">
-            <span class="truncate text-sm text-text">{{ game.name }}</span>
-            <KTag v-if="game.isManaged" class="shrink-0">{{ $t('game_import.managed') }}</KTag>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="truncate text-sm text-text">{{ game.name }}</span>
+              <KTag v-if="game.isManaged" class="shrink-0">{{ $t('game_import.managed') }}</KTag>
+            </div>
+            <KButton
+              v-if="game.isManaged"
+              size="sm"
+              variant="ghost"
+              class="mt-1"
+              @click.stop="emit('import', [game])"
+            >
+              {{ $t('game_import.add_instance') }}
+            </KButton>
           </div>
           <span class="w-28 shrink-0 font-mono text-xs text-text-dim">
             {{ game.steamId || '-' }}

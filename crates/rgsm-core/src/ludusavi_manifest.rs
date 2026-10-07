@@ -484,6 +484,11 @@ pub fn parse_manifest_games(
 ) -> Vec<ImportableGame> {
     // Create a HashSet of lowercase managed game names for O(1) lookups
     let managed_set: HashSet<String> = managed_games.iter().map(|g| g.to_lowercase()).collect();
+    let managed_steam_ids: HashSet<&str> = config
+        .games
+        .iter()
+        .filter_map(|game| game.ludusavi_meta.as_ref()?.store_game_id(StoreKind::Steam))
+        .collect();
 
     // Detect local games if filtering is enabled
     let local_games = if filter_local_only {
@@ -512,7 +517,8 @@ pub fn parse_manifest_games(
         let save_paths_count = count_save_paths(value);
 
         // Check if already managed (case-insensitive) using O(1) lookup
-        let is_managed = managed_set.contains(&name.to_lowercase());
+        let is_managed = managed_set.contains(&name.to_lowercase())
+            || steam_id.is_some_and(|id| managed_steam_ids.contains(id.to_string().as_str()));
 
         games.push(ImportableGame {
             name: name.clone(),
@@ -872,5 +878,23 @@ files:
         let games = parse_manifest_games(&manifest, &managed_games, false, &Config::default());
         assert_eq!(games.len(), 1);
         assert!(games[0].is_managed);
+    }
+
+    #[test]
+    fn renamed_instance_remains_managed_by_store_identity() {
+        let manifest = HashMap::from([(
+            "Test Game".into(),
+            serde_yaml::from_str("steam:\n  id: 123\nfiles:\n  '<base>/Saves': {}\n").unwrap(),
+        )]);
+        let mut config = Config::default();
+        config.games.push(
+            serde_json::from_value(serde_json::json!({
+                "name": "Test Game - second account",
+                "save_paths": [],
+                "ludusavi_meta": {"storeGameIds": [{"store": "steam", "id": "123"}]}
+            }))
+            .unwrap(),
+        );
+        assert!(parse_manifest_games(&manifest, &[], false, &config)[0].is_managed);
     }
 }
