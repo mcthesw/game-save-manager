@@ -11,12 +11,13 @@ use sevenz_rust2::{
 };
 
 use crate::{
-    backup::{CaptureGroup, CapturePlan, CaptureSourceKind, CompressionPreset, RestorePlan},
-    preclude::{BackupFileError, CompressError},
+    backup::{CapturePlan, CaptureSourceKind, CompressionPreset, RestorePlan},
+    preclude::CompressError,
 };
 
 use super::{
     ArchiveIdentity, ArchiveManifest,
+    payload::{ArchivePayload, append_payload, capture_payloads},
     portable::{MANIFEST_ENTRY, RECOVERY_ENTRY, prepare_archive, recovery_instructions},
     restored_directory::remove_restored_directory,
 };
@@ -54,7 +55,13 @@ pub(super) fn compress_capture_plan(
     } else {
         V4_MANIFEST_ENTRY
     };
-    write_atomic(plan, archive_path, preset, &manifest, entry)
+    write_atomic(
+        &capture_payloads(plan)?,
+        archive_path,
+        preset,
+        &manifest,
+        entry,
+    )
 }
 
 pub fn write_snapshot(
@@ -65,18 +72,24 @@ pub fn write_snapshot(
     source_fingerprint: Option<String>,
 ) -> Result<u64, CompressError> {
     let (plan, manifest) = prepare_archive(plan, identity, source_fingerprint)?;
-    write_atomic(&plan, archive_path, preset, &manifest, MANIFEST_ENTRY)
+    write_atomic(
+        &capture_payloads(&plan)?,
+        archive_path,
+        preset,
+        &manifest,
+        MANIFEST_ENTRY,
+    )
 }
 
-fn write_atomic(
-    plan: &CapturePlan,
+pub(super) fn write_atomic(
+    payloads: &[ArchivePayload],
     archive_path: &Path,
     preset: CompressionPreset,
     manifest: &ArchiveManifest,
     manifest_entry: &str,
 ) -> Result<u64, CompressError> {
     let temp_path = archive_path.with_extension("7z.capture.tmp");
-    let result = write_archive(plan, &temp_path, preset, manifest, manifest_entry);
+    let result = write_archive(payloads, &temp_path, preset, manifest, manifest_entry);
     let size = match result {
         Ok(size) => size,
         Err(error) => {
@@ -92,7 +105,7 @@ fn write_atomic(
 }
 
 fn write_archive(
-    plan: &CapturePlan,
+    payloads: &[ArchivePayload],
     path: &Path,
     preset: CompressionPreset,
     manifest: &ArchiveManifest,
@@ -100,8 +113,8 @@ fn write_archive(
 ) -> Result<u64, CompressError> {
     let mut writer = ArchiveWriter::create(path).map_err(unexpected)?;
     configure_writer(&mut writer, preset);
-    for group in &plan.groups {
-        append_group(&mut writer, group)?;
+    for payload in payloads {
+        append_payload(&mut writer, payload)?;
     }
     let bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|error| CompressError::Unexpected(error.into()))?;
@@ -137,36 +150,6 @@ fn configure_writer(writer: &mut ArchiveWriter<File>, preset: CompressionPreset)
         }
         CompressionPreset::Best => {
             writer.set_content_methods(vec![DeflateOptions::from_level(9).into()]);
-        }
-    }
-}
-
-fn append_group(
-    writer: &mut ArchiveWriter<File>,
-    group: &CaptureGroup,
-) -> Result<(), CompressError> {
-    match group.kind {
-        CaptureSourceKind::File => append_path(
-            writer,
-            Path::new(&group.source_path),
-            group.archive_path.trim_end_matches('/'),
-        ),
-        CaptureSourceKind::Directory => append_path(
-            writer,
-            Path::new(&group.source_path),
-            group.archive_path.trim_end_matches('/'),
-        ),
-        CaptureSourceKind::Registry => {
-            let data = crate::backup::registry::export_registry_key(&group.source_path)
-                .map_err(|error| registry_error(error.to_string()))?;
-            let bytes = crate::backup::registry::serialize_reg_file(&data)
-                .map_err(|error| registry_error(error.to_string()))?;
-            let mut entry = ArchiveEntry::new_file(&group.archive_path);
-            set_entry_metadata(&mut entry, &metadata_now())?;
-            writer
-                .push_archive_entry(entry, Some(Cursor::new(bytes)))
-                .map(|_| ())
-                .map_err(unexpected)
         }
     }
 }
@@ -515,7 +498,10 @@ fn open_without_atime(path: &Path) -> std::io::Result<File> {
     File::open(path)
 }
 
-fn apply_entry_metadata(path: &Path, entry: &ArchiveEntry) -> Result<(), sevenz_rust2::Error> {
+pub(super) fn apply_entry_metadata(
+    path: &Path,
+    entry: &ArchiveEntry,
+) -> Result<(), sevenz_rust2::Error> {
     apply_posix_mode(path, entry)?;
     if let Err(error) = apply_raw_times(
         path,
@@ -710,8 +696,4 @@ fn unexpected(error: impl Into<anyhow::Error>) -> CompressError {
 
 fn single(error: std::io::Error) -> CompressError {
     CompressError::Single(error.into())
-}
-
-fn registry_error(message: String) -> CompressError {
-    CompressError::Single(BackupFileError::RegistryError(message))
 }

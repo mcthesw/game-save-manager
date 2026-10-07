@@ -9,33 +9,45 @@ use crate::{
     path_resolution::model::{first_unescaped_glob, unescape_glob_literal},
 };
 
-use super::{ArchiveCaptureGroup, ArchiveManifest};
+use super::{ArchiveCaptureGroup, ArchiveManifest, migration::ArchiveMigrationError};
+
+/// Before Save Unit IDs were recorded, a unique historical basename is the
+/// only automatic association available. Never choose the first matching unit.
+pub(super) fn flat_manifest(
+    game: &Game,
+    staging: &Path,
+    associations: &BTreeMap<String, u32>,
+) -> Result<ArchiveManifest, ArchiveMigrationError> {
+    let entries = fs::read_dir(staging)?
+        .map(|entry| {
+            let entry = entry?;
+            Ok((
+                entry.file_name().to_string_lossy().into_owned(),
+                entry.file_type()?.is_dir(),
+            ))
+        })
+        .collect::<std::io::Result<BTreeMap<_, _>>>()?;
+    flat_manifest_from_entries(game, entries, associations)
+}
 
 pub(super) fn read_flat_zip_manifest(
     game: &Game,
     archive: &Path,
 ) -> Result<ArchiveManifest, crate::preclude::CompressError> {
     use crate::preclude::{BackupFileError, CompressError};
-    let read = || -> Result<_, anyhow::Error> {
+    let read = || -> Result<_, ArchiveMigrationError> {
         let mut zip = zip::ZipArchive::new(fs::File::open(archive)?)
-            .map_err(|error| anyhow::anyhow!(error))?;
+            .map_err(|error| ArchiveMigrationError::Invalid(error.to_string()))?;
         let mut entries = BTreeMap::new();
         let mut seen = BTreeSet::new();
         for index in 0..zip.len() {
             let entry = zip
                 .by_index(index)
-                .map_err(|error| anyhow::anyhow!(error))?;
+                .map_err(|error| ArchiveMigrationError::Invalid(error.to_string()))?;
             let name = entry.name().trim_end_matches('/');
-            if entry.enclosed_name().is_none()
-                || name.is_empty()
-                || name.replace('\\', "/").split('/').any(|part| {
-                    part.is_empty() || part == "." || part == ".." || part.contains(':')
-                })
-            {
-                return Err(anyhow::anyhow!("unsafe archive path: {name}"));
-            }
+            super::portable::validate_relative_name(name)?;
             if !seen.insert(name.to_string()) {
-                return Err(anyhow::anyhow!("duplicate entry"));
+                return Err(ArchiveMigrationError::Invalid("duplicate entry".into()));
             }
             let mut parts = name.split('/');
             let root = parts.next().unwrap_or_default().to_string();
@@ -44,7 +56,9 @@ pub(super) fn read_flat_zip_manifest(
                 .insert(root, directory)
                 .is_some_and(|previous| previous != directory)
             {
-                return Err(anyhow::anyhow!("conflicting archive entries"));
+                return Err(ArchiveMigrationError::Invalid(
+                    "conflicting archive entries".into(),
+                ));
             }
         }
         flat_manifest_from_entries(game, entries, &BTreeMap::new())
@@ -64,7 +78,7 @@ fn flat_manifest_from_entries(
     game: &Game,
     entries: BTreeMap<String, bool>,
     associations: &BTreeMap<String, u32>,
-) -> Result<ArchiveManifest, anyhow::Error> {
+) -> Result<ArchiveManifest, ArchiveMigrationError> {
     let mut groups = Vec::new();
     let mut claimed = BTreeSet::new();
     for (name, directory) in entries {
@@ -87,10 +101,10 @@ fn flat_manifest_from_entries(
             })
             .collect();
         let [unit] = candidates.as_slice() else {
-            return Err(anyhow::anyhow!("cannot associate archive entry {name}"));
+            return Err(ArchiveMigrationError::Association(name));
         };
         if !claimed.insert(unit.id) {
-            return Err(anyhow::anyhow!("cannot associate archive entry {name}"));
+            return Err(ArchiveMigrationError::Association(name));
         }
         groups.push(ArchiveCaptureGroup {
             id: groups.len() as u32,
@@ -110,7 +124,7 @@ fn flat_manifest_from_entries(
         });
     }
     if groups.is_empty() {
-        return Err(anyhow::anyhow!("empty archive"));
+        return Err(ArchiveMigrationError::Invalid("empty archive".into()));
     }
     Ok(ArchiveManifest {
         version: 1,
