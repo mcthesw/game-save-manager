@@ -18,7 +18,12 @@ test('batch import with automatic favorites keeps all imported games and binds t
   try {
     const { page, host } = session;
     await page.getByRole('button', { name: 'Add game' }).first().click();
-    await page.getByRole('button', { name: 'Detect local games' }).click();
+    await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith('/api/v1/fetch-ludusavi-games'), {
+        timeout: 120_000,
+      }),
+      page.getByRole('button', { name: 'Detect local games' }).click(),
+    ]);
     const dialog = page.getByRole('dialog', { name: 'Import Games (Auto-detect Save Locations)' });
     await dialog.getByRole('checkbox', { name: 'Show only locally installed games' }).uncheck();
     const search = dialog.getByRole('textbox', { name: 'Search games...' });
@@ -91,7 +96,12 @@ test('ludusavi import: search manifest, customize paths, game joins the library'
   try {
     await page.goto('/');
     await page.getByRole('button', { name: 'Add game' }).first().click();
-    await page.getByRole('button', { name: 'Detect local games' }).click();
+    await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith('/api/v1/fetch-ludusavi-games'), {
+        timeout: 120_000,
+      }),
+      page.getByRole('button', { name: 'Detect local games' }).click(),
+    ]);
 
     const dialog = page.getByRole('dialog', {
       name: 'Import Games (Auto-detect Save Locations)',
