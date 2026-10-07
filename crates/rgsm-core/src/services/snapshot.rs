@@ -1,8 +1,8 @@
 use crate::backup::{
     ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, CaptureSnapshotOptions, CaptureSourceKind,
     CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier, RestorePlan,
-    SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend, archive_file_name,
-    snapshot_archive_path,
+    SaveUnit, SaveUnitType, SevenZBackend, SnapshotCatalog, TimerSnapshotDecision, ZipBackend,
+    archive_file_name, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -74,12 +74,15 @@ impl ServiceContext {
         notify_stage(notifier, rust_i18n::t!("backend.stage.scan").as_ref());
         let config = get_config()?;
         let plan = self.capture_plan(&config, game)?;
+        let backup_base = resolve_backup_path(&config.backup_path);
+        let device_id = crate::device::get_current_device_id();
+        let catalog = SnapshotCatalog::new(&backup_base, game, device_id);
         let created = game
             .create_snapshot_from_capture_plan(
                 &plan,
                 CaptureSnapshotOptions {
-                    device_id: crate::device::get_current_device_id(),
-                    backup_base: &resolve_backup_path(&config.backup_path),
+                    device_id,
+                    backup_base: &backup_base,
                     preset: config.settings.compression_preset,
                     describe,
                     parent_date,
@@ -99,10 +102,9 @@ impl ServiceContext {
                 snapshot,
                 snapshots: created.snapshots,
                 local_archive_path: created.local_archive_path,
-                remote_archive_path: created.remote_archive_path,
             };
             self.pipeline().fire_snapshot_created(&mut ctx).await;
-            ctx.snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
+            ctx.snapshots = catalog.update::<BackupError>(|current| {
                 if let Some(snapshot) = current
                     .backups
                     .iter_mut()
@@ -130,7 +132,10 @@ impl ServiceContext {
         let config = get_config()?;
         let plan = self.capture_plan(&config, game)?;
         let fingerprint = crate::backup::state_fingerprint::fingerprint_capture_plan(&plan)?;
-        let snapshots = game.get_game_snapshots_info()?;
+        let backup_base = resolve_backup_path(&config.backup_path);
+        let device_id = crate::device::get_current_device_id();
+        let catalog = SnapshotCatalog::new(&backup_base, game, device_id);
+        let snapshots = catalog.read()?;
         let latest = snapshots
             .backups
             .iter()
@@ -153,8 +158,8 @@ impl ServiceContext {
             .create_snapshot_from_capture_plan(
                 &plan,
                 CaptureSnapshotOptions {
-                    device_id: crate::device::get_current_device_id(),
-                    backup_base: &resolve_backup_path(&config.backup_path),
+                    device_id,
+                    backup_base: &backup_base,
                     preset: config.settings.compression_preset,
                     describe,
                     parent_date: None,
@@ -173,10 +178,9 @@ impl ServiceContext {
                 snapshot,
                 snapshots: created.snapshots,
                 local_archive_path: created.local_archive_path,
-                remote_archive_path: created.remote_archive_path,
             };
             self.pipeline().fire_snapshot_created(&mut ctx).await;
-            ctx.snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
+            ctx.snapshots = catalog.update::<BackupError>(|current| {
                 if let Some(snapshot) = current
                     .backups
                     .iter_mut()

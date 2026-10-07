@@ -30,6 +30,7 @@ pub use capture_plan::{
     CaptureGroup, CapturePlan, CapturePlanError, CapturePreflightFailure, CaptureSourceKind,
     SaveUnitCaptureInput,
 };
+pub(crate) use catalog::SnapshotCatalog;
 pub use device_binding::{GameDeviceBinding, SavePathOverride};
 pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{delete_extra_backup, extra_backup_folder_path, list_extra_backups};

@@ -158,7 +158,6 @@ pub enum TimerSnapshotDecision {
 pub struct SnapshotCreated {
     pub snapshots: GameSnapshots,
     pub local_archive_path: PathBuf,
-    pub remote_archive_path: String,
 }
 
 #[derive(Debug, Clone)]

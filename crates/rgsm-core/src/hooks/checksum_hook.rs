@@ -137,7 +137,6 @@ mod tests {
             snapshot: snapshot.clone(),
             snapshots,
             local_archive_path: archive_path.clone(),
-            remote_archive_path: "save_data/ChecksumGame/2025-01-01T00:00:00.zip".into(),
         };
 
         ArchiveHashHook.on_snapshot_created(&mut ctx).await?;
