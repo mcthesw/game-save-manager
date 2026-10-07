@@ -45,7 +45,7 @@ pub fn plan_resolution(
         return empty_plan(parsed, constraints, diagnostics, context);
     }
 
-    let stale_ids = stale_selected_ids(context);
+    let stale_ids = stale_selected_ids(parsed, context);
     let combinations = build_combinations(parsed, &constraints, context);
     let mut candidates = Vec::new();
     for parts in combinations {
@@ -69,35 +69,36 @@ pub fn plan_resolution(
         .iter()
         .map(|candidate| candidate.id.clone())
         .collect::<Vec<_>>();
-    let selection_state =
-        if !stale_ids.is_empty() || (context.selection.is_explicit() && candidates.is_empty()) {
-            ResolutionSelectionState::StaleSelection {
-                selected_resource_ids: stale_ids,
-                candidate_ids,
+    let selection_state = if !stale_ids.is_empty()
+        || (relevant_selections(parsed, context).next().is_some() && candidates.is_empty())
+    {
+        ResolutionSelectionState::StaleSelection {
+            selected_resource_ids: stale_ids,
+            candidate_ids,
+        }
+    } else if candidates.len() > 1 {
+        diagnostics.push(diagnostic(
+            ResolutionDiagnosticKind::MultipleCandidates,
+            "multiple save-location candidates require a device selection",
+        ));
+        ResolutionSelectionState::Ambiguous { candidate_ids }
+    } else if relevant_selections(parsed, context).next().is_some() {
+        ResolutionSelectionState::Explicit { candidate_ids }
+    } else {
+        match candidate_ids.as_slice() {
+            [] => ResolutionSelectionState::Missing,
+            [candidate_id] => ResolutionSelectionState::ImplicitUnique {
+                candidate_id: candidate_id.clone(),
+            },
+            _ => {
+                diagnostics.push(diagnostic(
+                    ResolutionDiagnosticKind::MultipleCandidates,
+                    "multiple save-location candidates require a device selection",
+                ));
+                ResolutionSelectionState::Ambiguous { candidate_ids }
             }
-        } else if candidates.len() > 1 {
-            diagnostics.push(diagnostic(
-                ResolutionDiagnosticKind::MultipleCandidates,
-                "multiple save-location candidates require a device selection",
-            ));
-            ResolutionSelectionState::Ambiguous { candidate_ids }
-        } else if context.selection.is_explicit() {
-            ResolutionSelectionState::Explicit { candidate_ids }
-        } else {
-            match candidate_ids.as_slice() {
-                [] => ResolutionSelectionState::Missing,
-                [candidate_id] => ResolutionSelectionState::ImplicitUnique {
-                    candidate_id: candidate_id.clone(),
-                },
-                _ => {
-                    diagnostics.push(diagnostic(
-                        ResolutionDiagnosticKind::MultipleCandidates,
-                        "multiple save-location candidates require a device selection",
-                    ));
-                    ResolutionSelectionState::Ambiguous { candidate_ids }
-                }
-            }
-        };
+        }
+    };
 
     if candidates.is_empty() && diagnostics.is_empty() {
         diagnostics.push(diagnostic(
@@ -121,12 +122,12 @@ fn empty_plan(
     diagnostics: Vec<ResolutionDiagnostic>,
     context: &ResolutionContext,
 ) -> ResolutionPlan {
-    let selected_resource_ids = selected_ids(context);
+    let selected_resource_ids = selected_ids(parsed, context);
     ResolutionPlan {
         pattern: parsed.pattern.clone(),
         constraints,
         candidates: Vec::new(),
-        selection_state: if context.selection.is_explicit() {
+        selection_state: if relevant_selections(parsed, context).next().is_some() {
             ResolutionSelectionState::StaleSelection {
                 selected_resource_ids,
                 candidate_ids: Vec::new(),
@@ -387,18 +388,39 @@ fn selected(selection: &Option<BTreeSet<String>>, id: &str) -> bool {
         .is_none_or(|selected| selected.contains(id))
 }
 
-fn selected_ids(context: &ResolutionContext) -> Vec<String> {
-    context
-        .selection
-        .root_ids
-        .iter()
-        .chain(context.selection.account_ids.iter())
-        .chain(context.selection.installation_ids.iter())
+fn relevant_selections<'a>(
+    parsed: &ParsedManifestPathPattern,
+    context: &'a ResolutionContext,
+) -> impl Iterator<Item = &'a BTreeSet<String>> {
+    [
+        (
+            parsed.contains(PathPlaceholder::Root),
+            &context.selection.root_ids,
+        ),
+        (
+            parsed.contains(PathPlaceholder::StoreUserId),
+            &context.selection.account_ids,
+        ),
+        (
+            parsed.contains(PathPlaceholder::Base) || parsed.contains(PathPlaceholder::Game),
+            &context.selection.installation_ids,
+        ),
+    ]
+    .into_iter()
+    .filter(|(needed, _)| *needed)
+    .filter_map(|(_, selection)| selection.as_ref())
+}
+
+fn selected_ids(parsed: &ParsedManifestPathPattern, context: &ResolutionContext) -> Vec<String> {
+    relevant_selections(parsed, context)
         .flat_map(|ids| ids.iter().cloned())
         .collect()
 }
 
-fn stale_selected_ids(context: &ResolutionContext) -> Vec<String> {
+fn stale_selected_ids(
+    parsed: &ParsedManifestPathPattern,
+    context: &ResolutionContext,
+) -> Vec<String> {
     let known = context
         .roots
         .iter()
@@ -411,7 +433,7 @@ fn stale_selected_ids(context: &ResolutionContext) -> Vec<String> {
                 .map(|resource| resource.id.as_str()),
         )
         .collect::<BTreeSet<_>>();
-    selected_ids(context)
+    selected_ids(parsed, context)
         .into_iter()
         .filter(|id| !known.contains(id.as_str()))
         .collect()
@@ -655,6 +677,15 @@ mod tests {
             plan.selection_state,
             ResolutionSelectionState::Ambiguous { .. }
         ));
+    }
+
+    #[test]
+    fn unrelated_missing_selection_does_not_block_an_absolute_path() {
+        let mut context = context();
+        context.selection.root_ids = Some(["removed-root".into()].into_iter().collect());
+        let parsed = parse_manifest_path_pattern("C:/Saves/*.sav").unwrap();
+        let plan = plan_resolution(&parsed, Default::default(), &context);
+        assert!(!plan.is_blocked());
     }
 
     #[test]

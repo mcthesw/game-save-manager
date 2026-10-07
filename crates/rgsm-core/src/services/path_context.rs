@@ -112,6 +112,13 @@ fn device_path_environment_with_discovery(
     environment
 }
 
+pub fn device_path_context(device: Option<&Device>) -> crate::path_resolver::PathContext {
+    let mut context = device_path_environment(device);
+    context.installations.clear();
+    context.variables = device.map(|d| d.path_variables.clone()).unwrap_or_default();
+    context
+}
+
 pub fn game_path_context(
     game: &Game,
     device: Option<&Device>,

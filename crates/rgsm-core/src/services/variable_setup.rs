@@ -54,12 +54,7 @@ pub fn discover_game_variable(
         game,
         preview.devices.get(crate::device::get_current_device_id()),
     );
-    crate::path_variables::discover_variable(
-        paths,
-        name,
-        context.resolution.as_ref().expect("game context"),
-    )
-    .map_err(anyhow::Error::msg)
+    crate::path_variables::discover_variable(paths, name, &context).map_err(anyhow::Error::msg)
 }
 
 #[cfg(test)]

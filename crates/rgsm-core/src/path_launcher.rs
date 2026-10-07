@@ -81,13 +81,13 @@ fn launch_strategy(path: &Path) -> LaunchStrategy {
 fn managed_launch_target(
     raw_path: &str,
     path_ctx: Option<&PathContext>,
-    config: &Config,
+    _config: &Config,
 ) -> Result<ManagedLaunchTarget> {
     if crate::backup::registry::is_registry_path(raw_path) {
         return Ok(ManagedLaunchTarget::Registry);
     }
 
-    let path = path_resolver::resolve_path(raw_path, path_ctx, config)
+    let path = path_resolver::resolve_path_explicit(raw_path, path_ctx)
         .with_context(|| format!("Failed to resolve path '{raw_path}'"))?;
     Ok(ManagedLaunchTarget::Filesystem(path))
 }
@@ -218,7 +218,14 @@ mod tests {
 
     #[test]
     fn routes_filesystem_locations_through_path_resolution() {
-        let target = managed_launch_target("<home>", None, &Config::default()).unwrap();
+        let context = crate::path_resolver::PathContext {
+            platform_paths: crate::path_resolution::PlatformPaths {
+                home: Some("/users/player".into()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let target = managed_launch_target("<home>", Some(&context), &Config::default()).unwrap();
 
         assert!(matches!(target, ManagedLaunchTarget::Filesystem(_)));
     }

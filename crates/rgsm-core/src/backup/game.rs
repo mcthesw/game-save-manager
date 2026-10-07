@@ -15,7 +15,7 @@ use crate::backup::{
     SaveUnit, SaveUnitDraft, SevenZBackend, Snapshot, ZipBackend, archive_file_name,
 };
 use crate::config::{get_backup_path, get_config, set_config_local};
-use crate::device::{DeviceId, DeviceResourceKind, get_current_device_id};
+use crate::device::{DeviceId, get_current_device_id};
 use crate::path_pattern::StoreKind;
 use crate::path_resolver::PathContext;
 use crate::preclude::*;
@@ -293,67 +293,13 @@ impl Game {
             .get(&unit_id)
     }
 
-    /// Build a `PathContext` from this game's metadata for path variable resolution.
-    /// Pass the current `Device` to include explicit Device Resources.
+    /// Project an explicitly discovered environment onto this game and device.
     pub fn path_context(
         &self,
         device: Option<&crate::device::Device>,
         environment: &crate::path_resolution::ResolutionContext,
     ) -> PathContext {
-        let device_id = device.map(|d| &d.id);
-        let binding = device_id.and_then(|id| self.device_bindings.get(id));
-        let selected_account_ids = binding.and_then(|binding| binding.account_ids.as_ref());
-        let steam_accounts = device
-            .into_iter()
-            .flat_map(|device| device.store_accounts())
-            .filter_map(|resource| match &resource.kind {
-                DeviceResourceKind::StoreAccount { store, user_id }
-                    if *store == StoreKind::Steam
-                        && selected_account_ids.is_none_or(|ids| {
-                            ids.contains(&format!("resource:{}", resource.id))
-                        }) =>
-                {
-                    Some(user_id.clone())
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let store_user_id = (steam_accounts.len() == 1).then(|| steam_accounts[0].clone());
-        let base = match &self.ludusavi_meta {
-            Some(meta) => PathContext {
-                resolution: None,
-                install_dirs: meta.install_dirs.clone(),
-                steam_id: meta
-                    .store_game_id(StoreKind::Steam)
-                    .and_then(|id| id.parse().ok()),
-                install_dir_cache: None,
-                game_roots: Vec::new(),
-                store_user_id: None,
-            },
-            None => PathContext::default(),
-        };
-        PathContext {
-            resolution: Some(crate::path_resolution::context::game_context(
-                self,
-                device,
-                environment,
-            )),
-            game_roots: device
-                .into_iter()
-                .flat_map(|device| device.game_roots())
-                .filter(|resource| {
-                    binding
-                        .and_then(|binding| binding.root_ids.as_ref())
-                        .is_none_or(|ids| ids.contains(&format!("resource:{}", resource.id)))
-                })
-                .filter_map(|resource| match &resource.kind {
-                    DeviceResourceKind::GameRoot { path, .. } => Some(path.clone()),
-                    _ => None,
-                })
-                .collect(),
-            store_user_id,
-            ..base
-        }
+        crate::path_resolution::context::game_context(self, device, environment)
     }
 
     /// Build a `PathContext` using the current device from config.
