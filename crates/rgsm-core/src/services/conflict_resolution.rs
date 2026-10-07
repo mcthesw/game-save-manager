@@ -109,6 +109,7 @@ impl ServiceContext {
                 &resolve_backup_path(&config.backup_path),
                 config.settings.compression_preset,
                 config.settings.max_extra_backup_count,
+                crate::device::get_current_device_id(),
             )?),
             Err(CapturePlanError::NoDataMatched) => None,
             Err(error) => return Err(crate::preclude::BackupError::from(error).into()),

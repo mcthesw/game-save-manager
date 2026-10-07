@@ -1,5 +1,7 @@
-use crate::backup::{CapturePlan, CompressionPreset};
 use std::path::Path;
+
+#[cfg(test)]
+use crate::backup::{CapturePlan, CompressionPreset};
 
 use crate::{
     backup::{Game, RestorePlan},
@@ -24,14 +26,14 @@ pub trait ArchiveBackend {
     fn read_capture_manifest(
         &self,
         archive_path: &Path,
-    ) -> Result<super::ArchiveManifestV3, CompressError>;
+    ) -> Result<super::ArchiveManifest, CompressError>;
 
     /// Normalize ID-less historical layouts at the reader boundary.
     fn read_manifest_for_game(
         &self,
         archive_path: &Path,
         _game: &Game,
-    ) -> Result<super::ArchiveManifestV3, CompressError> {
+    ) -> Result<super::ArchiveManifest, CompressError> {
         self.read_capture_manifest(archive_path)
     }
 
@@ -51,10 +53,10 @@ pub trait ArchiveBackend {
     fn extension(&self) -> &str;
 }
 
-/// ZIP-based archive backend (the default and currently only implementation).
+/// Reader for historical ZIP archives.
 pub struct ZipBackend;
 
-/// Standard 7z Archive V4 backend.
+/// Reader and current writer for standard 7z archives.
 pub struct SevenZBackend;
 
 impl ArchiveBackend for ZipBackend {
@@ -77,7 +79,7 @@ impl ArchiveBackend for ZipBackend {
     fn read_capture_manifest(
         &self,
         archive_path: &Path,
-    ) -> Result<super::ArchiveManifestV3, CompressError> {
+    ) -> Result<super::ArchiveManifest, CompressError> {
         super::decompress::read_capture_manifest(archive_path)
     }
 
@@ -85,7 +87,7 @@ impl ArchiveBackend for ZipBackend {
         &self,
         archive_path: &Path,
         game: &Game,
-    ) -> Result<super::ArchiveManifestV3, CompressError> {
+    ) -> Result<super::ArchiveManifest, CompressError> {
         match self.archive_version(archive_path)? {
             super::ArchiveVersion::Legacy | super::ArchiveVersion::V1 => {
                 super::legacy_layout::read_flat_zip_manifest(game, archive_path)
@@ -116,6 +118,7 @@ impl ArchiveBackend for ZipBackend {
 }
 
 impl SevenZBackend {
+    #[cfg(test)]
     pub fn compress_capture_plan(
         &self,
         plan: &CapturePlan,
@@ -142,22 +145,16 @@ impl ArchiveBackend for SevenZBackend {
     fn read_capture_manifest(
         &self,
         archive_path: &Path,
-    ) -> Result<super::ArchiveManifestV3, CompressError> {
-        let manifest = super::seven_z::read_manifest(archive_path)?;
-        Ok(super::ArchiveManifestV3 {
-            version: manifest.version,
-            groups: manifest.groups,
-        })
+    ) -> Result<super::ArchiveManifest, CompressError> {
+        super::seven_z::read_manifest(archive_path)
     }
 
     fn archive_version(&self, archive_path: &Path) -> Result<super::ArchiveVersion, CompressError> {
-        Ok(
-            if super::seven_z::read_manifest(archive_path)?.version == 5 {
-                super::ArchiveVersion::V5
-            } else {
-                super::ArchiveVersion::V4
-            },
-        )
+        Ok(match super::seven_z::read_manifest(archive_path)?.version {
+            4 => super::ArchiveVersion::V4,
+            5 => super::ArchiveVersion::V5,
+            _ => super::ArchiveVersion::V6,
+        })
     }
 
     fn read_source_fingerprint(&self, archive_path: &Path) -> Option<String> {

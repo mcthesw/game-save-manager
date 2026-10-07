@@ -625,7 +625,7 @@ fn official_7zip_archive_is_accepted_by_v4_apply() {
     fs::write(fixture.join("7/0/data/save.dat"), b"official-save").unwrap();
     let source = fixture.join("7/0/data/save.dat");
     let manifest =
-        super::ArchiveManifestV4::from_plan(&capture_plan(&source, CaptureSourceKind::File), None);
+        super::ArchiveManifest::from_plan(&capture_plan(&source, CaptureSourceKind::File), None);
     fs::create_dir_all(fixture.join("_rgsm")).unwrap();
     fs::write(
         fixture.join("_rgsm/manifest-v4.json"),

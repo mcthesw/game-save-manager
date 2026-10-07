@@ -24,7 +24,7 @@ use crate::{
     preclude::*,
 };
 
-use super::{ArchiveManifestV3, V3_MANIFEST_ENTRY, version::ArchiveMeta};
+use super::{ArchiveManifest, V3_MANIFEST_ENTRY, version::ArchiveMeta};
 
 use super::timestamp::system_time_to_zip_datetime;
 
@@ -319,7 +319,7 @@ fn write_capture_plan_archive(
     for group in &plan.groups {
         append_capture_group(&mut zip, group, preset).map_err(CompressError::Single)?;
     }
-    let manifest = ArchiveManifestV3::from(plan);
+    let manifest = ArchiveManifest::from(plan);
     let manifest_bytes = serde_json::to_vec_pretty(&manifest)
         .map_err(|error| CompressError::Single(BackupFileError::Unexpected(error.into())))?;
     write_bytes_entry(
@@ -420,7 +420,7 @@ mod capture_plan_tests {
             .read_to_string(&mut captured)
             .unwrap();
         assert_eq!(captured, "save");
-        let manifest: ArchiveManifestV3 =
+        let manifest: ArchiveManifest =
             serde_json::from_reader(zip.by_name(V3_MANIFEST_ENTRY).unwrap()).unwrap();
         assert_eq!(manifest.groups.len(), 1);
         assert_eq!(manifest.groups[0].relative_path, "save.dat");

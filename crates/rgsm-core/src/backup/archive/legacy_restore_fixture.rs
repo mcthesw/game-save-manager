@@ -26,5 +26,6 @@ pub fn decompress_from_file(
         &backup_path.join(format!("{date}.zip")),
         &ZipBackend,
         notifier,
+        None,
     )
 }

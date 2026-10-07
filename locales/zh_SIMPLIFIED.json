@@ -634,10 +634,10 @@
         "auto_backup_on": "已启用自动备份"
     },
     "save_location_drawer": {
-    "installation_directory": "游戏安装目录",
-    "installation_placeholder": "填写或选择此游戏的文件夹",
-    "detected_installations": "已检测到的安装目录",
-    "choose_installation": "选择安装目录",
+        "installation_directory": "游戏安装目录",
+        "installation_placeholder": "填写或选择此游戏的文件夹",
+        "detected_installations": "已检测到的安装目录",
+        "choose_installation": "选择安装目录",
         "game_root": "游戏根目录",
         "store_account": "商店账号",
         "game_installation": "游戏安装目录",
@@ -1396,6 +1396,7 @@
         "setup_unavailable": "暂时无法检查本设备的路径变量，本次操作未执行。请重试。"
     },
     "portable_archive": {
-        "legacy_association_required": "此旧备份无法安全对应当前配置的存档条目。%{reason}"
+        "legacy_association_required": "此旧备份无法安全对应当前配置的存档条目。%{reason}",
+        "identity_mismatch": "此备份属于其他游戏或存档点，请选择正确的备份文件。"
     }
 }
