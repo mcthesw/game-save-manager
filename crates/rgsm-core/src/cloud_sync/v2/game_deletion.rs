@@ -358,7 +358,7 @@ mod tests {
             .unwrap();
         operator
             .write(
-                &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+                &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap(),
                 b"data".to_vec(),
             )
             .await

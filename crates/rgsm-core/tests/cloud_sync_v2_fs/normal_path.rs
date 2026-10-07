@@ -89,7 +89,10 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
         .await
         .expect("Device Profile should publish");
 
-    let local_snapshot = snapshot(SNAPSHOT_ID, None, &device.id, ARCHIVE_BYTES.len());
+    let mut local_snapshot = snapshot(SNAPSHOT_ID, None, &device.id, ARCHIVE_BYTES.len());
+    local_snapshot.archive_name = Some("2026-10-07_14-30-25_a123b456c789.7z".into());
+    local_snapshot.archive_format = ArchiveFormat::SevenZ;
+    local_snapshot.created_at = Some(1_791_354_625_000);
     let local_path = device.write_archive(GAME_ID, &local_snapshot, ARCHIVE_BYTES);
     let local_snapshots = device.snapshots(GAME_NAME, vec![local_snapshot.clone()], SNAPSHOT_ID);
     let first = SnapshotSyncCoordinator::new(
@@ -134,6 +137,36 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
         .snapshots
         .get(SNAPSHOT_ID)
         .expect("synced Snapshot should exist");
+    assert_eq!(node.archive_name, local_snapshot.archive_name);
+    assert_eq!(node.created_at, local_snapshot.created_at);
+    let other_device = DeviceFixture::new("device-b");
+    CloudArchiveMaterializer::new(
+        cloud.new_operator(),
+        other_device.archive_root.clone(),
+        other_device.id.clone(),
+        other_device.progress_path.clone(),
+        MAX_ATTEMPTS,
+    )
+    .download(GAME_ID, SNAPSHOT_ID)
+    .await
+    .unwrap();
+    assert_eq!(
+        std::fs::read(
+            other_device
+                .archive_root
+                .join(GAME_ID)
+                .join(local_snapshot.archive_name.as_ref().unwrap())
+        )
+        .unwrap(),
+        ARCHIVE_BYTES
+    );
+    assert!(
+        !other_device
+            .archive_root
+            .join(GAME_ID)
+            .join(format!("{SNAPSHOT_ID}.7z"))
+            .exists()
+    );
     let SnapshotState::Live(live) = &node.state else {
         panic!("synced Snapshot should be live");
     };
@@ -142,8 +175,13 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
         live.integrity.as_ref().map(|integrity| integrity.size),
         Some(ARCHIVE_BYTES.len() as u64)
     );
-    let remote_path = cloud_archive_path(GAME_ID, SNAPSHOT_ID, ArchiveFormat::Zip)
-        .expect("cloud archive path should be valid");
+    let remote_path = cloud_archive_path(
+        GAME_ID,
+        SNAPSHOT_ID,
+        ArchiveFormat::SevenZ,
+        local_snapshot.archive_name.as_deref(),
+    )
+    .expect("cloud archive path should be valid");
     assert_eq!(
         fresh_operator
             .read(&remote_path)
@@ -185,7 +223,8 @@ async fn single_device_snapshot_round_trip_survives_fresh_operators() {
         archive_path(
             &device.archive_root.join(GAME_ID),
             SNAPSHOT_ID,
-            ArchiveFormat::Zip
+            ArchiveFormat::SevenZ,
+            local_snapshot.archive_name.as_deref()
         )
     );
 

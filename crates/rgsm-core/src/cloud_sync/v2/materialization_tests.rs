@@ -63,7 +63,7 @@ async fn excluded_game_clears_its_old_scoped_plan_without_blocking_other_games()
         manifest.games.insert(id.into(), game);
         operator
             .write(
-                &cloud_archive_path(id, "snapshot", ArchiveFormat::Zip).unwrap(),
+                &cloud_archive_path(id, "snapshot", ArchiveFormat::Zip, None).unwrap(),
                 b"bytes".to_vec(),
             )
             .await
@@ -117,12 +117,13 @@ async fn unresolved_definitions_are_excluded_from_deletion_and_batch_transfer() 
             &root.path().join("pc").join(game_id),
             "deleted",
             ArchiveFormat::Zip,
+            None,
         );
         std::fs::create_dir_all(local.parent().unwrap()).unwrap();
         std::fs::write(local, b"local bytes").unwrap();
         operator
             .write(
-                &cloud_archive_path(game_id, "download", ArchiveFormat::Zip).unwrap(),
+                &cloud_archive_path(game_id, "download", ArchiveFormat::Zip, None).unwrap(),
                 b"cloud bytes".to_vec(),
             )
             .await
@@ -183,7 +184,7 @@ async fn resumed_transfer_rechecks_definition_scope() {
         manifest.games.insert(game_id.into(), game);
         operator
             .write(
-                &cloud_archive_path(game_id, "snapshot", ArchiveFormat::Zip).unwrap(),
+                &cloud_archive_path(game_id, "snapshot", ArchiveFormat::Zip, None).unwrap(),
                 b"bytes".to_vec(),
             )
             .await
@@ -230,6 +231,7 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
         &root.path().join("pc").join("game"),
         "local",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
     std::fs::write(&local_path, b"local bytes").unwrap();
@@ -271,6 +273,7 @@ async fn same_size_local_corruption_is_planned_for_repair() {
         &root.path().join("pc").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
     std::fs::write(&local_path, b"corrupt!").unwrap();
@@ -298,10 +301,11 @@ async fn local_eviction_keeps_shared_snapshot_and_cloud_archive() {
         &root.path().join("pc").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
     std::fs::write(&local_path, b"bytes").unwrap();
-    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap();
+    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap();
     operator
         .write(&cloud_path, b"bytes".to_vec())
         .await
@@ -361,10 +365,11 @@ async fn permanent_deletion_requires_confirmation_then_removes_local_and_cloud_c
         &root.path().join("pc").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
     std::fs::write(&local_path, b"bytes").unwrap();
-    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap();
+    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap();
     operator
         .write(&cloud_path, b"bytes".to_vec())
         .await
@@ -407,6 +412,7 @@ async fn reconciling_pending_tombstone_removes_this_devices_local_copy() {
         &root.path().join("pc").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
     std::fs::write(&local_path, b"bytes").unwrap();
@@ -453,10 +459,11 @@ async fn initiating_device_can_directly_retry_a_pending_deletion() {
         &root.path().join("pc").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
     std::fs::write(&local_path, b"bytes").unwrap();
-    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap();
+    let cloud_path = cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap();
     operator
         .write(&cloud_path, b"bytes".to_vec())
         .await
@@ -490,6 +497,7 @@ async fn upload_and_download_publish_availability_only_after_hash_verification()
         &root.path().join("pc").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     std::fs::create_dir_all(pc_path.parent().unwrap()).unwrap();
     std::fs::write(&pc_path, bytes).unwrap();
@@ -510,6 +518,7 @@ async fn upload_and_download_publish_availability_only_after_hash_verification()
         &root.path().join("deck").join("game"),
         "snapshot",
         ArchiveFormat::Zip,
+        None,
     );
     assert_eq!(std::fs::read(deck_path).unwrap(), bytes);
     let stored: CloudManifest =
@@ -543,14 +552,14 @@ async fn download_returns_parent_preserving_lineage() {
     write_manifest(&operator, &manifest).await;
     operator
         .write(
-            &cloud_archive_path("game", "root", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "root", ArchiveFormat::Zip, None).unwrap(),
             parent_bytes.to_vec(),
         )
         .await
         .unwrap();
     operator
         .write(
-            &cloud_archive_path("game", "child", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "child", ArchiveFormat::Zip, None).unwrap(),
             child_bytes.to_vec(),
         )
         .await
@@ -580,7 +589,7 @@ async fn materialize_all_resume_keeps_the_original_catalog_boundary() {
         game.upsert_live(live(snapshot, bytes, true)).unwrap();
         operator
             .write(
-                &cloud_archive_path("game", snapshot, ArchiveFormat::Zip).unwrap(),
+                &cloud_archive_path("game", snapshot, ArchiveFormat::Zip, None).unwrap(),
                 bytes.to_vec(),
             )
             .await
@@ -607,7 +616,7 @@ async fn materialize_all_resume_keeps_the_original_catalog_boundary() {
         .unwrap();
     operator
         .write(
-            &cloud_archive_path("game", "later", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "later", ArchiveFormat::Zip, None).unwrap(),
             b"later".to_vec(),
         )
         .await
@@ -624,7 +633,8 @@ async fn materialize_all_resume_keeps_the_original_catalog_boundary() {
         !archive_path(
             &root.path().join("deck").join("game"),
             "later",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .exists()
     );
@@ -650,7 +660,7 @@ async fn game_materialization_respects_scope_and_activation_revision() {
             game.upsert_live(node).unwrap();
             operator
                 .write(
-                    &cloud_archive_path(game_id, snapshot_id, ArchiveFormat::Zip).unwrap(),
+                    &cloud_archive_path(game_id, snapshot_id, ArchiveFormat::Zip, None).unwrap(),
                     bytes.to_vec(),
                 )
                 .await
@@ -670,7 +680,8 @@ async fn game_materialization_respects_scope_and_activation_revision() {
         archive_path(
             &root.path().join("deck").join("selected"),
             "before",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .is_file()
     );
@@ -678,7 +689,8 @@ async fn game_materialization_respects_scope_and_activation_revision() {
         !archive_path(
             &root.path().join("deck").join("selected"),
             "after",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .exists()
     );
@@ -686,7 +698,8 @@ async fn game_materialization_respects_scope_and_activation_revision() {
         !archive_path(
             &root.path().join("deck").join("other"),
             "other",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .exists()
     );
@@ -700,7 +713,8 @@ async fn game_materialization_respects_scope_and_activation_revision() {
         !archive_path(
             &root.path().join("laptop").join("selected"),
             "before",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .exists()
     );
@@ -708,7 +722,8 @@ async fn game_materialization_respects_scope_and_activation_revision() {
         archive_path(
             &root.path().join("laptop").join("selected"),
             "after",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .is_file()
     );
@@ -729,7 +744,7 @@ async fn catch_up_uses_current_catalog_revision_not_legacy_zero() {
     game.upsert_live(node).unwrap();
     operator
         .write(
-            &cloud_archive_path("selected", "later", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("selected", "later", ArchiveFormat::Zip, None).unwrap(),
             bytes.to_vec(),
         )
         .await
@@ -758,7 +773,8 @@ async fn catch_up_uses_current_catalog_revision_not_legacy_zero() {
         archive_path(
             &root.path().join("deck").join("selected"),
             "later",
-            ArchiveFormat::Zip
+            ArchiveFormat::Zip,
+            None
         )
         .is_file()
     );
@@ -774,7 +790,7 @@ async fn materialize_all_resumes_the_one_pending_scope() {
     manifest.games.insert("game".into(), game);
     operator
         .write(
-            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap(),
             b"bytes".to_vec(),
         )
         .await
@@ -815,7 +831,7 @@ async fn pending_plan_is_replanned_when_its_snapshot_identity_changes_remotely()
     manifest.games.insert("game".into(), game);
     operator
         .write(
-            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap(),
             b"bytes".to_vec(),
         )
         .await
@@ -837,7 +853,7 @@ async fn pending_plan_is_replanned_when_its_snapshot_identity_changes_remotely()
         .insert("snapshot".into(), live("snapshot", b"replacement", true));
     operator
         .write(
-            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap(),
             b"replacement".to_vec(),
         )
         .await
@@ -863,7 +879,7 @@ async fn pending_plan_skips_a_snapshot_deleted_remotely() {
     manifest.games.insert("game".into(), game);
     operator
         .write(
-            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "snapshot", ArchiveFormat::Zip, None).unwrap(),
             b"bytes".to_vec(),
         )
         .await

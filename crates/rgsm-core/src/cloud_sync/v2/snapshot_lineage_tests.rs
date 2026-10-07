@@ -48,7 +48,7 @@ async fn fixture() -> (Operator, temp_dir::TempDir, CloudManifest) {
         .unwrap();
     operator
         .write(
-            &cloud_archive_path("game", "leaf", ArchiveFormat::Zip).unwrap(),
+            &cloud_archive_path("game", "leaf", ArchiveFormat::Zip, None).unwrap(),
             b"live descendant".to_vec(),
         )
         .await

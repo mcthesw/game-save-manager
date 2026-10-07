@@ -74,6 +74,13 @@ pub struct Snapshot {
     /// Archive container. Missing values in historical Backups.json default to ZIP.
     #[serde(default)]
     pub archive_format: ArchiveFormat,
+    /// Immutable basename, independent of Snapshot identity and local directory.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::backup::deserialize_archive_name"
+    )]
+    pub archive_name: Option<String>,
     #[serde(default = "default_value::default_zero")]
     pub size: u64, // in bytes
     /// Parent snapshot's identity (None means this is a root node)

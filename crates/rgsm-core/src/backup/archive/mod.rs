@@ -19,6 +19,7 @@ mod compression_preset;
 mod decompress;
 mod location;
 mod manifest;
+mod naming;
 mod portable;
 #[cfg(test)]
 mod portable_tests;
@@ -54,3 +55,5 @@ pub(crate) use version::V1_COMMENT_MARKER;
 pub use portable::ArchiveIdentity;
 
 pub use seven_z::write_snapshot as write_snapshot_archive;
+
+pub(crate) use naming::{deserialize_archive_name, new_archive_name};

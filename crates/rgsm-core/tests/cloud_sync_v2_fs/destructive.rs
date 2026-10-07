@@ -105,6 +105,7 @@ async fn permanent_deletion_tombstones_shared_state_and_converges_other_device_l
         &device_b.archive_root.join(GAME_ID),
         SNAPSHOT_ID,
         rgsm_core::backup::ArchiveFormat::Zip,
+        None,
     );
     assert_eq!(
         std::fs::read(&device_b_path).expect("device B should materialize the archive"),
@@ -135,8 +136,13 @@ async fn permanent_deletion_tombstones_shared_state_and_converges_other_device_l
         !cloud
             .new_operator()
             .exists(
-                &cloud_archive_path(GAME_ID, SNAPSHOT_ID, rgsm_core::backup::ArchiveFormat::Zip)
-                    .expect("cloud archive path should be valid")
+                &cloud_archive_path(
+                    GAME_ID,
+                    SNAPSHOT_ID,
+                    rgsm_core::backup::ArchiveFormat::Zip,
+                    None
+                )
+                .expect("cloud archive path should be valid")
             )
             .await
             .expect("cloud archive absence should be observable")
@@ -245,7 +251,8 @@ async fn retention_removes_only_expired_automatic_snapshot_and_keeps_live_branch
             archive_path(
                 &device.archive_root.join(GAME_ID),
                 snapshot_id,
-                rgsm_core::backup::ArchiveFormat::Zip
+                rgsm_core::backup::ArchiveFormat::Zip,
+                None
             )
             .exists(),
             exists
@@ -256,7 +263,8 @@ async fn retention_removes_only_expired_automatic_snapshot_and_keeps_live_branch
                     &cloud_archive_path(
                         GAME_ID,
                         snapshot_id,
-                        rgsm_core::backup::ArchiveFormat::Zip
+                        rgsm_core::backup::ArchiveFormat::Zip,
+                        None
                     )
                     .expect("cloud archive path should be valid")
                 )
@@ -332,8 +340,13 @@ async fn profile_removal_preserves_other_device_head_and_blocks_stale_republicat
     assert!(
         fresh_operator
             .exists(
-                &cloud_archive_path(GAME_ID, SNAPSHOT_ID, rgsm_core::backup::ArchiveFormat::Zip)
-                    .expect("cloud archive path should be valid")
+                &cloud_archive_path(
+                    GAME_ID,
+                    SNAPSHOT_ID,
+                    rgsm_core::backup::ArchiveFormat::Zip,
+                    None
+                )
+                .expect("cloud archive path should be valid")
             )
             .await
             .expect("shared archive should remain readable")

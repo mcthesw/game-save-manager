@@ -395,6 +395,7 @@ mod tests {
                 date: SNAPSHOT_ID.to_string(),
                 describe: "service deletion snapshot".to_string(),
                 path: format!("{SNAPSHOT_ID}.zip"),
+                archive_name: None,
                 archive_format: ArchiveFormat::Zip,
                 size: ARCHIVE_BYTES.len() as u64,
                 parent: None,
@@ -407,6 +408,7 @@ mod tests {
                 &local_root.path().join(GAME_ID),
                 SNAPSHOT_ID,
                 ArchiveFormat::Zip,
+                None,
             );
             std::fs::create_dir_all(
                 local_archive
@@ -434,7 +436,7 @@ mod tests {
             )
             .await
             .expect("verified archive should populate the Cloud Manifest");
-            let cloud_archive = cloud_archive_path(GAME_ID, SNAPSHOT_ID, ArchiveFormat::Zip)
+            let cloud_archive = cloud_archive_path(GAME_ID, SNAPSHOT_ID, ArchiveFormat::Zip, None)
                 .expect("cloud archive path should be valid");
             assert!(
                 operator

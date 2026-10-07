@@ -291,11 +291,11 @@ impl ServiceContext {
     ) -> Result<(), BackupError> {
         let config = get_config()?;
         let folder = crate::backup::extra_backup_folder_path(game)?;
-        let seven_z = folder.join(archive_file_name(date, ArchiveFormat::SevenZ));
+        let seven_z = folder.join(archive_file_name(date, ArchiveFormat::SevenZ, None));
         let archive_path = if seven_z.exists() {
             seven_z
         } else {
-            folder.join(archive_file_name(date, ArchiveFormat::Zip))
+            folder.join(archive_file_name(date, ArchiveFormat::Zip, None))
         };
         if archive_path.extension().and_then(|value| value.to_str()) == Some("7z") {
             self.restore_capture_archive(

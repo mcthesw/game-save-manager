@@ -3,7 +3,7 @@ use super::{
     archive::{ArchiveIdentity, write_snapshot_archive},
     archive_file_name,
     extra_backups::cleanup_oldest_extra_backups,
-    game::{SnapshotCreated, unused_snapshot_id},
+    game::SnapshotCreated,
 };
 use crate::{device::DeviceId, preclude::BackupError};
 use std::{fs, path::Path};
@@ -40,7 +40,7 @@ impl Game {
         let date = unused_snapshot_id(&backup_path, &infos)?;
         let created_at = Some(chrono::Utc::now().timestamp_millis());
         let archive_format = ArchiveFormat::SevenZ;
-        let archive_path = backup_path.join(archive_file_name(&date, archive_format));
+
         if let Some(notifier) = options.notifier {
             notifier.notify(
                 crate::backup::RestoreNotificationLevel::Info,
@@ -54,7 +54,8 @@ impl Game {
         let mut snapshot = Snapshot {
             date: date.clone(),
             describe: options.describe.to_string(),
-            path: archive_path.to_string_lossy().into_owned(),
+            path: String::new(),
+            archive_name: None,
             archive_format,
             size: 0,
             parent,
@@ -63,6 +64,10 @@ impl Game {
             device_id: Some(options.device_id.clone()),
             created_by: options.created_by,
         };
+        let name = super::new_archive_name(&snapshot, &backup_path)?;
+        let archive_path = backup_path.join(&name);
+        snapshot.path = archive_path.to_string_lossy().into_owned();
+        snapshot.archive_name = Some(name.clone());
         snapshot.size = write_snapshot_archive(
             plan,
             &archive_path,
@@ -81,7 +86,7 @@ impl Game {
             remote_archive_path: format!(
                 "save_data/{}/{}",
                 self.backup_dir_name(),
-                archive_file_name(&date, archive_format)
+                archive_file_name(&date, archive_format, Some(&name))
             ),
             local_archive_path: archive_path,
         })
@@ -102,11 +107,17 @@ impl Game {
         let date = chrono::Local::now()
             .format("Overwrite_%Y-%m-%d_%H-%M-%S")
             .to_string();
-        let archive_path = extra_backup_path.join(archive_file_name(&date, ArchiveFormat::SevenZ));
+        let date = format!(
+            "{date}_{}",
+            &uuid::Uuid::new_v4().simple().to_string()[..12]
+        );
+        let archive_path =
+            extra_backup_path.join(archive_file_name(&date, ArchiveFormat::SevenZ, None));
         let snapshot = Snapshot {
             date: date.clone(),
             describe: String::new(),
             path: String::new(),
+            archive_name: None,
             archive_format: ArchiveFormat::SevenZ,
             size: 0,
             parent: None,
@@ -125,4 +136,30 @@ impl Game {
         cleanup_oldest_extra_backups(&extra_backup_path, max_extra_backup_count)?;
         Ok(date)
     }
+}
+
+pub(super) fn unused_snapshot_id(
+    backup_path: &Path,
+    infos: &GameSnapshots,
+) -> Result<String, BackupError> {
+    let taken: std::collections::HashSet<&str> = infos
+        .backups
+        .iter()
+        .map(|snapshot| snapshot.date.as_str())
+        .collect();
+    for _ in 0..3 {
+        let candidate = uuid::Uuid::new_v4().to_string();
+        if taken.contains(candidate.as_str()) {
+            continue;
+        }
+        let zip = backup_path.join(archive_file_name(&candidate, ArchiveFormat::Zip, None));
+        let seven_z = backup_path.join(archive_file_name(&candidate, ArchiveFormat::SevenZ, None));
+        if zip.exists() || seven_z.exists() {
+            continue;
+        }
+        return Ok(candidate);
+    }
+    Err(BackupError::Unexpected(anyhow::anyhow!(
+        "Could not allocate a unique snapshot identity"
+    )))
 }

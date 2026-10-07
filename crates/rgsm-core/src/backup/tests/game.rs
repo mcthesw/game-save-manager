@@ -124,6 +124,7 @@ fn create_legacy_auto_snapshot(
         date: date.to_string(),
         describe: TIMER_AUTO_BACKUP_DESCRIPTION.to_string(),
         path: zip_path.to_string_lossy().to_string(),
+        archive_name: None,
         archive_format: crate::backup::ArchiveFormat::Zip,
         size: fs::metadata(&zip_path)?.len(),
         parent: None,
@@ -159,6 +160,12 @@ fn ordinary_snapshot_is_recoverable_without_the_catalog() -> TestResult {
         }))?;
         manual_backup(&game, "Before the last boss").await?;
         let snapshot = game.get_game_snapshots_info()?.backups.remove(0);
+        let filename = Path::new(&snapshot.path)
+            .file_name()
+            .unwrap()
+            .to_string_lossy();
+        assert!(filename.starts_with(&chrono::Local::now().format("%Y-%m-%d_").to_string()));
+        assert!(uuid::Uuid::parse_str(&snapshot.date).is_ok());
         fs::remove_file(Path::new(&config.backup_path).join("star-traveller/Backups.json"))?;
         let mut reader =
             sevenz_rust2::ArchiveReader::open(&snapshot.path, sevenz_rust2::Password::empty())?;
@@ -452,6 +459,7 @@ fn insert_snapshot(
         date: date.to_string(),
         describe: "test".to_string(),
         path: zip_path.to_string_lossy().to_string(),
+        archive_name: None,
         archive_format: crate::backup::ArchiveFormat::Zip,
         size: fs::metadata(&zip_path)?.len(),
         parent: parent.map(|s| s.to_string()),
@@ -479,6 +487,7 @@ fn insert_v4_snapshot(
         date: date.to_string(),
         describe: "test".to_string(),
         path: archive_path.to_string_lossy().to_string(),
+        archive_name: None,
         archive_format: crate::backup::ArchiveFormat::SevenZ,
         size: fs::metadata(&archive_path)?.len(),
         parent: parent.map(str::to_string),
@@ -1395,6 +1404,7 @@ fn snapshot_ids_are_opaque_and_do_not_depend_on_the_clock() -> TestResult {
         date: occupied.clone(),
         describe: String::new(),
         path: String::new(),
+        archive_name: None,
         archive_format: crate::backup::ArchiveFormat::Zip,
         size: 0,
         parent: None,
@@ -1405,7 +1415,7 @@ fn snapshot_ids_are_opaque_and_do_not_depend_on_the_clock() -> TestResult {
     });
     let mut ids = BTreeSet::new();
     for _ in 0..100 {
-        let allocated = crate::backup::game::unused_snapshot_id(backup_path, &infos)?;
+        let allocated = crate::backup::snapshot_capture::unused_snapshot_id(backup_path, &infos)?;
         assert_ne!(allocated, occupied);
         assert!(uuid::Uuid::parse_str(&allocated).is_ok());
         assert!(ids.insert(allocated));

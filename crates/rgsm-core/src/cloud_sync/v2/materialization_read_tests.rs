@@ -11,7 +11,12 @@ use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
 async fn assert_read_does_not_reconcile(preview: bool) {
     let root = temp_dir::TempDir::new().unwrap();
     let operator = Operator::new(services::Memory::default()).unwrap().finish();
-    let local = archive_path(&root.path().join("game"), "deleted", ArchiveFormat::Zip);
+    let local = archive_path(
+        &root.path().join("game"),
+        "deleted",
+        ArchiveFormat::Zip,
+        None,
+    );
     std::fs::create_dir_all(local.parent().unwrap()).unwrap();
     std::fs::write(&local, b"archive awaiting explicit reconciliation").unwrap();
     let mut node = SnapshotNode::live(

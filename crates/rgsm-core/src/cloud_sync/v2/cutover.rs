@@ -270,7 +270,12 @@ impl CloudLibraryCutover {
                     Err(error) => return Err(error.into()),
                 }
             };
-        let v2_path = cloud_archive_path(game_id, &snapshot.date, snapshot.archive_format)?;
+        let v2_path = cloud_archive_path(
+            game_id,
+            &snapshot.date,
+            snapshot.archive_format,
+            snapshot.archive_name.as_deref(),
+        )?;
         let transfer = CloudTransfer::new(&self.operator);
         let mut verified = false;
         for _ in 0..self.max_attempts {
@@ -617,6 +622,7 @@ mod tests {
             date: id.into(),
             describe: format!("Snapshot {id}"),
             path: format!("ignored/{id}.zip"),
+            archive_name: None,
             archive_format: ArchiveFormat::Zip,
             size: payload.len() as u64,
             parent: parent.map(str::to_string),
@@ -736,7 +742,7 @@ mod tests {
         let result = runner.execute().await.unwrap();
         assert_eq!(result.unavailable_archives, 0);
         assert_eq!(std::fs::read_dir(runner.staging_root()).unwrap().count(), 0);
-        let v2_path = cloud_archive_path("test-game", "cloud", ArchiveFormat::Zip).unwrap();
+        let v2_path = cloud_archive_path("test-game", "cloud", ArchiveFormat::Zip, None).unwrap();
         assert_eq!(op.read(&v2_path).await.unwrap().to_vec(), bytes);
     }
     #[tokio::test]
@@ -762,7 +768,7 @@ mod tests {
             },
         );
         runner.store_progress(&plan).await.unwrap();
-        let v2_path = cloud_archive_path("test-game", "done", ArchiveFormat::Zip).unwrap();
+        let v2_path = cloud_archive_path("test-game", "done", ArchiveFormat::Zip, None).unwrap();
         op.write(&v2_path, bytes.to_vec()).await.unwrap();
         op.delete(V1_CONFIG_PATH).await.unwrap();
         op.delete(&game_cloud_archive_path("test-game", &snapshot).unwrap())
