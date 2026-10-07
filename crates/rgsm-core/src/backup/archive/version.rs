@@ -34,6 +34,8 @@ pub enum ArchiveVersion {
     V4,
     /// 7z with explicit variable occurrences in relative capture paths.
     V5,
+    /// Self-contained standard 7z with readable paths and recovery instructions.
+    V6,
 }
 
 impl ArchiveVersion {

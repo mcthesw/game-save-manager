@@ -634,10 +634,10 @@
         "auto_backup_on": "Auto backup enabled"
     },
     "save_location_drawer": {
-    "installation_directory": "Game installation directory",
-    "installation_placeholder": "Enter or choose this game’s folder",
-    "detected_installations": "Detected installations",
-    "choose_installation": "Choose installation directory",
+        "installation_directory": "Game installation directory",
+        "installation_placeholder": "Enter or choose this game’s folder",
+        "detected_installations": "Detected installations",
+        "choose_installation": "Choose installation directory",
         "game_root": "Game root directory",
         "store_account": "Store account",
         "game_installation": "Game installation directory",
@@ -1396,6 +1396,7 @@
         "setup_unavailable": "Could not check path variables on this device. No operation was performed. Please try again."
     },
     "portable_archive": {
-        "legacy_association_required": "This older backup cannot be matched safely to the configured save entries. %{reason}"
+        "legacy_association_required": "This older backup cannot be matched safely to the configured save entries. %{reason}",
+        "identity_mismatch": "This archive belongs to a different game or snapshot. Select the correct backup file."
     }
 }

@@ -37,6 +37,7 @@ const sidebars = {
   developerSidebar: [
     'developers/intro',
     'developers/architecture',
+    'developers/backup-format',
     'developers/debugging',
     'developers/testing',
     'developers/contributing',

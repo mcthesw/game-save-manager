@@ -9,12 +9,12 @@ use crate::{
     path_resolution::model::{first_unescaped_glob, unescape_glob_literal},
 };
 
-use super::{ArchiveCaptureGroup, ArchiveManifestV3};
+use super::{ArchiveCaptureGroup, ArchiveManifest};
 
 pub(super) fn read_flat_zip_manifest(
     game: &Game,
     archive: &Path,
-) -> Result<ArchiveManifestV3, crate::preclude::CompressError> {
+) -> Result<ArchiveManifest, crate::preclude::CompressError> {
     use crate::preclude::{BackupFileError, CompressError};
     let read = || -> Result<_, anyhow::Error> {
         let mut zip = zip::ZipArchive::new(fs::File::open(archive)?)
@@ -64,7 +64,7 @@ fn flat_manifest_from_entries(
     game: &Game,
     entries: BTreeMap<String, bool>,
     associations: &BTreeMap<String, u32>,
-) -> Result<ArchiveManifestV3, anyhow::Error> {
+) -> Result<ArchiveManifest, anyhow::Error> {
     let mut groups = Vec::new();
     let mut claimed = BTreeSet::new();
     for (name, directory) in entries {
@@ -112,7 +112,12 @@ fn flat_manifest_from_entries(
     if groups.is_empty() {
         return Err(anyhow::anyhow!("empty archive"));
     }
-    Ok(ArchiveManifestV3 { version: 1, groups })
+    Ok(ArchiveManifest {
+        version: 1,
+        groups,
+        source_fingerprint: None,
+        identity: None,
+    })
 }
 
 pub(super) fn basename(path: &str) -> &str {
