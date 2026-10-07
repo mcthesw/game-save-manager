@@ -13,6 +13,7 @@ use super::{
 
 fn identity() -> ArchiveIdentity {
     ArchiveIdentity {
+        recovered_metadata: false,
         game_id: "game".into(),
         game_name: "Game".into(),
         snapshot_id: "snapshot".into(),

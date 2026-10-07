@@ -18,6 +18,8 @@ pub const CURRENT_VERSION: u32 = 6;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchiveIdentity {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub recovered_metadata: bool,
     pub game_id: String,
     pub game_name: String,
     pub snapshot_id: String,
@@ -60,7 +62,9 @@ pub(super) fn prepare_archive(
             continue;
         }
         let name = match group.kind {
-            CaptureSourceKind::Registry => format!("{}.reg", basename(&group.source_path)),
+            CaptureSourceKind::Registry => {
+                format!("{}.reg", basename(&group.logical_anchor.to_string_lossy()))
+            }
             _ if group.relative_path.is_empty() => basename(&group.source_path),
             _ => basename(&group.logical_anchor.to_string_lossy()),
         };
@@ -156,6 +160,9 @@ pub(super) fn recovery_instructions(manifest: &ArchiveManifest) -> String {
         text.push_str(
             "For .reg files, check the keys, then import with Windows Registry Editor.\n",
         );
+    }
+    if identity.recovered_metadata {
+        text.push_str("Locations reconstructed during upgrade; verify them before restoring.\n");
     }
     for group in &manifest.groups {
         text.push_str(&format!("\n{}\n", group.archive_path));
@@ -255,6 +262,7 @@ impl ArchiveIdentity {
             None
         };
         Self {
+            recovered_metadata: false,
             game_id: game.backup_dir_name().into_owned(),
             game_name: game.name.clone(),
             snapshot_id: snapshot.date.clone(),

@@ -20,6 +20,10 @@ mod decompress;
 mod legacy_layout;
 mod location;
 mod manifest;
+mod migration;
+#[cfg(test)]
+mod migration_tests;
+mod migration_verify;
 mod naming;
 mod payload;
 mod portable;
@@ -30,6 +34,7 @@ mod seven_z;
 mod seven_z_manifest;
 #[cfg(test)]
 mod seven_z_tests;
+mod staging;
 mod timestamp;
 mod version;
 
@@ -59,3 +64,7 @@ pub use portable::ArchiveIdentity;
 pub use seven_z::write_snapshot as write_snapshot_archive;
 
 pub(crate) use naming::{deserialize_archive_name, new_archive_name};
+
+pub use migration::{
+    ArchiveMigrationError, ArchiveMigrationInput, convert_snapshot_archive, inspect_archive_size,
+};
