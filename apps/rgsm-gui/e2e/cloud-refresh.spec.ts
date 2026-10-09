@@ -174,6 +174,11 @@ test('returning to an open game refreshes cloud snapshots without clearing known
     await session.pageB.clock.setSystemTime(new Date(Date.now() + 10 * 60_000));
     await session.pageB.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(snapshotRow(session.pageB, next)).toBeVisible({ timeout: 10_000 });
+    // Finish the focus refresh before counting a separate set of coalesced reads.
+    await session.pageB.evaluate(async () => {
+      const modulePath = '/src/composables/useCloudLibrary.ts';
+      await (await import(modulePath)).refreshCloudLibrary();
+    });
     let reads = 0;
     await session.pageB.route('**/api/v1/refresh-cloud-archive-library', async (route) => {
       reads += 1;
