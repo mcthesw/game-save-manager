@@ -39,16 +39,11 @@ async function expectDeviceHeadEventually(
 ): Promise<void> {
   // In Multi-device Sync the device head advances on the snapshot sync
   // coordinator cycle, not synchronously with the upload; allow for a tick.
-  await expect
-    .poll(
-      async () => {
-        const manifest = await readJson(cloudPaths(cloudRoot).manifest);
-        const games = manifest.games as Record<string, { device_heads: Record<string, string> }>;
-        return games[GAME_NAME].device_heads[deviceId];
-      },
-      { timeout: 90_000 }
-    )
-    .toBe(snapshotId);
+  await expect(async () => {
+    const manifest = await readJson(cloudPaths(cloudRoot).manifest);
+    const games = manifest.games as Record<string, { device_heads: Record<string, string> }>;
+    expect(games[GAME_NAME].device_heads[deviceId]).toBe(snapshotId);
+  }).toPass({ timeout: 90_000 });
 }
 
 test('repeated upload download round trips stay consistent', async ({ browser }, testInfo) => {

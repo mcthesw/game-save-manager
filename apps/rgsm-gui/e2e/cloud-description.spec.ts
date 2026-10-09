@@ -55,12 +55,10 @@ test('editing a shared description updates existing copies without transferring 
     await expect(dialog.getByRole('textbox')).toHaveValue('Original description');
     await dialog.getByRole('textbox').fill('Revised description');
     await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-    await expect
-      .poll(async () => {
-        const data = await manifest();
-        return data.games[STORAGE_KEY]!.snapshots[id]!.description;
-      })
-      .toBe('Revised description');
+    await expect(async () => {
+      const data = await manifest();
+      expect(data.games[STORAGE_KEY]!.snapshots[id]!.description).toBe('Revised description');
+    }).toPass({ timeout: 20_000 });
     // A stale local copy must not overwrite an explicit edit during upload.
     await uploadArchiveViaApi(session.hostB, id);
     const refreshed = await hostPost(session.hostB, '/api/v1/refresh-cloud-archive-library');
@@ -78,9 +76,9 @@ test('editing a shared description updates existing copies without transferring 
       describe: '',
     });
     expect(cleared.ok, cleared.raw).toBe(true);
-    await expect
-      .poll(async () => (await manifest()).games[STORAGE_KEY]!.snapshots[id]!.description)
-      .toBe('');
+    await expect(async () => {
+      expect((await manifest()).games[STORAGE_KEY]!.snapshots[id]!.description).toBe('');
+    }).toPass({ timeout: 20_000 });
     await hostPost(session.hostA, '/api/v1/refresh-cloud-archive-library');
     expect((await listSnapshots(session.hostA)).find((s) => s.date === id)?.describe).toBe('');
     const after = await manifest();
