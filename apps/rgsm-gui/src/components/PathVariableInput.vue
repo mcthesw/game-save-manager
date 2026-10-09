@@ -16,6 +16,7 @@ type PathStatus = 'idle' | 'resolving' | 'ok' | 'not-found' | 'error';
 const props = defineProps({
   game: { type: Object as () => GameDraft, default: undefined },
   pattern: { type: Boolean, default: false },
+  label: { type: String, default: undefined },
   modelValue: {
     type: String,
     default: '',
@@ -27,7 +28,7 @@ const props = defineProps({
     default: false,
   },
   /** Controls how the path resolution status is displayed.
-   * - 'below': status dot with details below the editor (default when showStatus=true)
+   * - 'below': persistent path feedback below the editor (default when showStatus=true)
    * - 'tooltip': compact status dot inside the editor with resolved path as tooltip
    * - 'none': skip checking and show an idle dot (default when showStatus=false) */
   statusMode: {
@@ -630,6 +631,8 @@ watch(
             <div
               ref="editorRef"
               class="pvi-editor"
+              :role="label ? 'textbox' : undefined"
+              :aria-label="label"
               :data-placeholder="$t('path_variable.placeholder')"
               contenteditable="true"
               spellcheck="false"
@@ -705,11 +708,13 @@ watch(
       </PopoverPortal>
     </PopoverRoot>
     <div
-      v-if="effectiveStatusMode === 'below' && modelValue && pathStatus !== 'idle'"
+      v-if="effectiveStatusMode === 'below'"
       class="pvi-status"
       :class="{ 'pvi-status-detail-error': pathStatus === 'error' }"
     >
-      <span class="pvi-status-text">{{ resolvedPathText }}</span>
+      <span class="pvi-status-text" :title="resolvedPathText || modelValue">{{
+        resolvedPathText || modelValue || $t('path_variable.empty_path_hint')
+      }}</span>
     </div>
     <div
       v-if="currentUserPath && effectiveStatusMode !== 'none'"

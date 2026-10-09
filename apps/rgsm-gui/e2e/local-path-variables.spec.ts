@@ -6,7 +6,7 @@ import { startLocalSession } from './support/local-session';
 import { createRunRoot, hostPost } from './support/rgsm-instance';
 import { openGame } from './support/gui';
 import { applySnapshotViaApi, createSnapshotForGame, getLocalGame } from './support/local-gui';
-import { DEVICE_A_ID, GAME_NAME } from './support/constants';
+import { DEVICE_A_ID, DEVICE_A_NAME, GAME_NAME } from './support/constants';
 
 test('game variables inherit, preview drafts, cancel, save defaults and restore every glob match', async ({
   browser,
@@ -130,7 +130,14 @@ test('Add game inserts a newly created variable into the intended path', async (
     await dialog.getByPlaceholder('Please enter the game name (required)').fill('Typed game');
     await dialog.getByRole('button', { name: 'Add save file', exact: true }).click();
     await expect(dialog.locator('.pvi-editor')).toHaveCount(2);
+    const row = dialog.locator('.pvi-wrapper').nth(1).locator('..');
+    await expect(row.locator('.pvi-status')).toHaveCount(1);
+    await expect(row.locator('.pvi-status')).toHaveText('Enter a path to see its location');
+    await expect(row.getByText('New #1', { exact: true })).toBeVisible();
+    const emptyHeight = (await row.boundingBox())!.height;
     await dialog.locator('.pvi-editor').nth(1).fill(`${root}/`);
+    await expect(row.locator('.pvi-status')).toContainText(root);
+    await expect.poll(async () => (await row.boundingBox())!.height).toBe(emptyHeight);
     await dialog.getByRole('button', { name: 'Insert variable', exact: true }).nth(1).click();
     await page.getByRole('button', { name: 'Create variable and insert' }).click();
     const variableDialog = page.getByRole('dialog', { name: 'Add variable', exact: true });
@@ -144,10 +151,74 @@ test('Add game inserts a newly created variable into the intended path', async (
     await dialog.locator('.pvi-editor').nth(1).press('End');
     await dialog.locator('.pvi-editor').nth(1).pressSequentially('/*.sav');
     await expect(dialog.locator('.pvi-status--ok')).toHaveCount(1);
+    const expectInputAlignment = async () => {
+      const input = await row.locator('.pvi-root').boundingBox();
+      const bounds = await row.boundingBox();
+      expect(input).not.toBeNull();
+      expect(bounds).not.toBeNull();
+      expect(input!.x).toBeGreaterThanOrEqual(bounds!.x);
+      expect(input!.x + input!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+      const label = await row.getByText('File', { exact: true }).boundingBox();
+      expect(label).not.toBeNull();
+      expect(label!.y + label!.height).toBeLessThanOrEqual(input!.y);
+      expect(bounds!.height).toBe(emptyHeight);
+      for (const control of [
+        row.getByText('File', { exact: true }),
+        row.getByText(DEVICE_A_NAME, { exact: true }),
+        row.getByRole('button', { name: 'Remove', exact: true }),
+      ]) {
+        const box = await control.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.x).toBeGreaterThanOrEqual(bounds!.x);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+        expect(Math.abs(box!.y + box!.height / 2 - label!.y - label!.height / 2)).toBeLessThan(1);
+      }
+    };
+    await expectInputAlignment();
+    await dialog.locator('.pvi-editor').nth(1).fill('');
+    await expect(row.locator('.pvi-status')).toHaveCount(1);
+    await expect(row.locator('.pvi-status')).toHaveText('Enter a path to see its location');
+    await expectInputAlignment();
+    await dialog.locator('.pvi-editor').nth(1).fill(`${root}/player/first.sav`);
+    await expect(row.locator('.pvi-status--ok')).toHaveCount(1);
+    await expect(row.locator('.pvi-status')).toContainText('first.sav');
+    await expectInputAlignment();
+    await dialog.locator('.pvi-editor').nth(1).fill('<var:missing>');
+    await expect(row.locator('.pvi-status--error')).toHaveCount(1);
+    await expectInputAlignment();
+    await dialog.locator('.pvi-editor').nth(1).fill(`${root}/<var:account>/*.sav`);
+    await expect(row.locator('.pvi-status--ok')).toHaveCount(1);
+    await page.setViewportSize({ width: 640, height: 900 });
+    await expectInputAlignment();
+    await page.screenshot({
+      path: testInfo.outputPath('acceptance-add-save-row-narrow.png'),
+      animations: 'disabled',
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.screenshot({
       path: testInfo.outputPath('add-game-variables.png'),
       animations: 'disabled',
     });
+    await dialog.getByRole('button', { name: 'Add save folder', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Add save folder', exact: true }).click();
+    await expect(dialog.getByRole('textbox', { name: 'Folder New #2', exact: true })).toBeVisible();
+    await expect(dialog.getByRole('textbox', { name: 'Folder New #3', exact: true })).toBeVisible();
+    await dialog
+      .locator('.pvi-wrapper')
+      .nth(2)
+      .locator('..')
+      .getByRole('button', { name: 'Remove' })
+      .click();
+    await expect(dialog.getByRole('textbox', { name: 'Folder New #2', exact: true })).toBeVisible();
+    await expect(dialog.getByRole('textbox', { name: 'Folder New #3', exact: true })).toHaveCount(
+      0
+    );
+    await dialog
+      .locator('.pvi-wrapper')
+      .nth(2)
+      .locator('..')
+      .getByRole('button', { name: 'Remove' })
+      .click();
     await dialog.getByRole('button', { name: 'save', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     await expect

@@ -21,7 +21,7 @@ import GameLocationSelection from './GameLocationSelection.vue';
 import GameImportDialog from './GameImportDialog.vue';
 import GameImportCustomizeDialog from './GameImportCustomizeDialog.vue';
 import GameBatchImportDialog from './GameBatchImportDialog.vue';
-import { KAlert, KButton, KDrawer, KInput, KTag } from '../ui/kit';
+import { KAlert, KButton, KDrawer, KInput } from '../ui/kit';
 import {
   concreteSaveUnit,
   manifestSaveUnit,
@@ -241,6 +241,25 @@ function saveUnitDisplayPath(row: SaveUnitDraft): string {
   if (unit.source.type === 'manifestPattern') return unit.source.pattern;
   if (!currentDevice.value) return Object.values(unit.source.paths ?? {})[0] ?? '';
   return unit.source.paths?.[currentDevice.value.id] ?? '';
+}
+
+function saveUnitLabel(row: SaveUnitDraft): string {
+  switch (saveUnitType(row)) {
+    case 'Folder':
+      return $t('save_location_drawer.type_folder');
+    case 'File':
+      return $t('save_location_drawer.type_file');
+    case 'WinRegistry':
+      return $t('save_location_drawer.type_registry');
+    default:
+      return $t('addgame.dynamic_path');
+  }
+}
+
+function saveUnitNumber(row: SaveUnitDraft, index: number): string {
+  return row.id !== undefined
+    ? `#${row.id}`
+    : $t('addgame.new_entry_number', { number: index + 1 });
 }
 
 function updateSaveUnitPath(row: SaveUnitDraft, value: string) {
@@ -930,52 +949,53 @@ function deleteRow(index: number) {
         </div>
         <KAlert tone="info" class="mb-3">{{ $t('addgame.path_variable_hint') }}</KAlert>
 
-        <div class="rounded-sm border border-border">
+        <div class="flex flex-col gap-4">
           <div
             v-for="(row, index) in save_paths"
             :key="index"
-            class="flex items-center gap-2 border-b border-border px-3 py-2 last:border-b-0"
+            class="flex min-w-0 flex-col gap-1.5"
           >
-            <KTag class="w-20 shrink-0 justify-center text-center">
-              {{
-                row.source.type === 'manifestPattern'
-                  ? $t('addgame.dynamic_path')
-                  : row.source.unit_type
-              }}
-            </KTag>
-            <div class="min-w-0 flex-1">
-              <PathVariableInput
-                :game="previewGame"
-                :pattern="saveUnitType(row) !== 'WinRegistry'"
-                :model-value="saveUnitDisplayPath(row)"
-                status-mode="below"
-                :install-dirs="manualInstallDirs"
-                :steam-id="activeSteamId"
-                :store-user-id="activeStoreUserId"
-                @update:model-value="(value: string) => updateSaveUnitPath(row, value)"
+            <div class="flex min-h-7 min-w-0 items-center gap-3">
+              <span class="text-sm">{{ saveUnitLabel(row) }}</span>
+              <span class="text-xs text-text-dim">{{ saveUnitNumber(row, index) }}</span>
+              <span
+                v-if="currentDevice"
+                class="ml-auto min-w-0 truncate text-xs text-text-dim"
+                :title="currentDevice.name"
+                >{{ currentDevice.name }}</span
               >
-                <template v-if="saveUnitType(row) !== 'WinRegistry'" #append>
-                  <KButton
-                    variant="ghost"
-                    size="sm"
-                    :aria-label="$t('save_location_drawer.pick_path')"
-                    @click="chooseSavePath(row)"
-                  >
-                    <FilePlus2 :size="14" aria-hidden="true" />
-                  </KButton>
-                </template>
-              </PathVariableInput>
+              <KButton
+                variant="ghost"
+                size="sm"
+                :aria-label="$t('addgame.remove')"
+                class="shrink-0 text-text-dim hover:bg-danger-soft hover:text-danger"
+                @click="deleteRow(index)"
+              >
+                <Trash2 :size="14" aria-hidden="true" />
+              </KButton>
             </div>
-            <KTag v-if="currentDevice" class="shrink-0">{{ currentDevice.name }}</KTag>
-            <KButton
-              variant="ghost"
-              size="sm"
-              :aria-label="$t('addgame.remove')"
-              class="shrink-0 text-danger hover:bg-danger-soft"
-              @click="deleteRow(index)"
+            <PathVariableInput
+              :label="`${saveUnitLabel(row)} ${saveUnitNumber(row, index)}`"
+              :game="previewGame"
+              :pattern="saveUnitType(row) !== 'WinRegistry'"
+              :model-value="saveUnitDisplayPath(row)"
+              status-mode="below"
+              :install-dirs="manualInstallDirs"
+              :steam-id="activeSteamId"
+              :store-user-id="activeStoreUserId"
+              @update:model-value="(value: string) => updateSaveUnitPath(row, value)"
             >
-              <Trash2 :size="14" aria-hidden="true" />
-            </KButton>
+              <template v-if="saveUnitType(row) !== 'WinRegistry'" #append>
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('save_location_drawer.pick_path')"
+                  @click="chooseSavePath(row)"
+                >
+                  <FilePlus2 :size="14" aria-hidden="true" />
+                </KButton>
+              </template>
+            </PathVariableInput>
           </div>
           <div v-if="save_paths.length === 0" class="px-3 py-6 text-center text-sm text-text-dim">
             {{ $t('addgame.no_save_paths') }}
