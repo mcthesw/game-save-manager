@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { existsSync } from 'node:fs';
-import { DEVICE_A_ID, DEVICE_B_ID } from './support/constants';
+import { basename, join } from 'node:path';
+import { DEVICE_A_ID, DEVICE_B_ID, STORAGE_KEY } from './support/constants';
 import {
-  cloudArchivePath,
+  localArchivePath,
   cloudPaths,
   expectDeviceHead,
   readJson,
@@ -51,8 +52,16 @@ for (const mode of ['Manual', 'Multi-device Sync'] as const) {
       await createSnapshotViaApi(session.hostB, 'B branch');
       const aBranch = await latestSnapshotId(session.hostA, 'A branch');
       const bBranch = await latestSnapshotId(session.hostB, 'B branch');
+      // Uploads preserve the local archive name, including unpublished snapshots.
+      const cloudDirectory = join(seeded.cloudRoot, 'v2', 'archives', STORAGE_KEY);
+      const aLocalCopy = localArchivePath(seeded.deviceA.appDataDir, aBranch);
+      const bLocalCopy = localArchivePath(seeded.deviceB.appDataDir, bBranch);
+      expect(existsSync(aLocalCopy)).toBe(true);
+      expect(existsSync(bLocalCopy)).toBe(true);
+      const aCloudCopy = join(cloudDirectory, basename(aLocalCopy));
+      const bCloudCopy = join(cloudDirectory, basename(bLocalCopy));
       if (mode === 'Manual') {
-        expect(existsSync(cloudArchivePath(seeded.cloudRoot, aBranch))).toBe(false);
+        expect(existsSync(aCloudCopy)).toBe(false);
       }
 
       await expect
@@ -83,14 +92,16 @@ for (const mode of ['Manual', 'Multi-device Sync'] as const) {
         session.pageA.getByRole('button', { name: 'Sync mode', includeHidden: true })
       ).toContainText(mode);
       await expect(prompt).toBeHidden();
-      const manifest = await readJson(cloudPaths(seeded.cloudRoot).manifest);
-      expectDeviceHead(manifest, DEVICE_A_ID, aBranch);
-      expectDeviceHead(manifest, DEVICE_B_ID, bBranch);
+      await expect(async () => {
+        const manifest = await readJson(cloudPaths(seeded.cloudRoot).manifest);
+        expectDeviceHead(manifest, DEVICE_A_ID, aBranch);
+        expectDeviceHead(manifest, DEVICE_B_ID, bBranch);
+      }).toPass({ timeout: 20_000 });
       expect(await readSave(seeded.deviceA)).toBe('branch-a\n');
       expect(await readSave(seeded.deviceB)).toBe('branch-b\n');
       if (mode === 'Manual') {
-        expect(existsSync(cloudArchivePath(seeded.cloudRoot, aBranch))).toBe(false);
-        expect(existsSync(cloudArchivePath(seeded.cloudRoot, bBranch))).toBe(false);
+        expect(existsSync(aCloudCopy)).toBe(false);
+        expect(existsSync(bCloudCopy)).toBe(false);
       }
     } catch (error) {
       failed = true;
