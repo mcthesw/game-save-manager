@@ -187,10 +187,14 @@ export async function acceptRemoteProgress(page: Page, snapshotId: string): Prom
   await candidate.getByRole('button', { name: 'Use this progress' }).click();
   const confirm = page.getByRole('dialog', { name: "Apply another device's progress?" });
   await expect(confirm).toBeVisible();
+  const completed = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/v1/accept-v2-remote-progress'
+  );
   await confirm.getByRole('button', { name: 'Use this progress' }).click();
-  await expect(page.getByText(/The selected progress was applied/).first()).toBeAttached({
-    timeout: 30_000,
-  });
+  const response = await completed;
+  expect(response.ok()).toBe(true);
+  expect((await response.json()).snapshot_id).toBe(snapshotId);
+  await expect(review).toBeHidden();
 }
 
 export async function changeGameMode(page: Page, modeLabel: string): Promise<void> {
