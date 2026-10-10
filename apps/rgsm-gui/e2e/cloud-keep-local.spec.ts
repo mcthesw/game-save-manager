@@ -76,7 +76,9 @@ for (const mode of ['Manual', 'Multi-device Sync'] as const) {
           .getByRole('button', { name: /^(Compare|Progress diverged, compare)$/ })
           .click();
       } else {
-        await (await pendingProgress(session.pageA))
+        await (
+          await pendingProgress(session.pageA)
+        )
           .getByRole('button', { name: 'Compare', exact: true })
           .click();
       }

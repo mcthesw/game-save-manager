@@ -9,10 +9,10 @@ const hotkey_out = defineModel<{
   backup: string[];
   apply: string[];
 }>({
-  default: {
+  default: () => ({
     backup: ['', '', ''],
     apply: ['', '', ''],
-  },
+  }),
 });
 
 /**

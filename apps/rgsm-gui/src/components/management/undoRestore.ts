@@ -1,8 +1,7 @@
 type StepResult = { status: 'ok' } | { status: 'error'; error: unknown };
 type RestoreStep = () => Promise<StepResult>;
 type UndoRestoreResult =
-  | { status: 'ok' }
-  | { status: 'error'; stage: 'files' | 'position'; error: unknown };
+  { status: 'ok' } | { status: 'error'; stage: 'files' | 'position'; error: unknown };
 
 /** Keep partial completion explicit; restoring files is not safe to repeat implicitly. */
 export async function runUndoRestore(
