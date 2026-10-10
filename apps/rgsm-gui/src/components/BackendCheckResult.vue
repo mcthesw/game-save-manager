@@ -193,8 +193,7 @@ async function copyError(message: string, key: string) {
             </p>
             <pre
               class="mb-2.5 max-h-52 overflow-auto rounded-sm border border-border bg-surface-2 p-2 text-xs leading-relaxed whitespace-pre-wrap break-all text-text-dim"
-              >{{ truncate(item.message, 500) }}</pre
-            >
+              >{{ truncate(item.message, 500) }}</pre>
             <KButton size="sm" @click="copyError(item.message ?? '', item.step)">
               <template #icon><Copy :size="12" aria-hidden="true" /></template>
               {{

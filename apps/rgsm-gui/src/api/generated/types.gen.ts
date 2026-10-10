@@ -31,12 +31,7 @@ export type ApiError = {
 };
 
 export type ApiErrorCode =
-  | 'invalid_request'
-  | 'unauthorized'
-  | 'not_found'
-  | 'conflict'
-  | 'unavailable'
-  | 'internal';
+  'invalid_request' | 'unauthorized' | 'not_found' | 'conflict' | 'unavailable' | 'internal';
 
 export type AppearanceSettings = {
   custom_font_enabled?: boolean;
@@ -248,12 +243,7 @@ export type CloudBackendCheckReport = {
 };
 
 export type CloudBackendCheckStep =
-  | 'prepare_backend'
-  | 'list_files'
-  | 'write_file'
-  | 'read_file'
-  | 'verify_content'
-  | 'delete_file';
+  'prepare_backend' | 'list_files' | 'write_file' | 'read_file' | 'verify_content' | 'delete_file';
 
 export type CloudDeviceProfileView = {
   current: boolean;
@@ -725,10 +715,7 @@ export type GameDraft = {
 };
 
 export type GameJoinClassification =
-  | 'same'
-  | 'local_only'
-  | 'possible_duplicate'
-  | 'game_definition_conflict';
+  'same' | 'local_only' | 'possible_duplicate' | 'game_definition_conflict';
 
 export type GameListView = 'favorites' | 'all';
 
@@ -1134,11 +1121,7 @@ export type ProgressNotice = {
 };
 
 export type ProgressRelation =
-  | 'same'
-  | 'remote_ahead'
-  | 'remote_earlier'
-  | 'different_progress'
-  | 'no_local_position';
+  'same' | 'remote_ahead' | 'remote_earlier' | 'different_progress' | 'no_local_position';
 
 export type QuickActionCompleted = {
   game_name?: string | null;
@@ -1178,12 +1161,7 @@ export type QuickActionSoundSource =
 export type QuickActionStatus = 'Success' | 'Failure' | 'SkippedUnchanged';
 
 export type QuickActionType =
-  | 'Timer'
-  | 'Tray'
-  | 'Hotkey'
-  | 'ProcessStart'
-  | 'ProcessExit'
-  | 'ProcessInterval';
+  'Timer' | 'Tray' | 'Hotkey' | 'ProcessStart' | 'ProcessExit' | 'ProcessInterval';
 
 export type QuickActionsSettings = {
   enable_notification?: boolean;
