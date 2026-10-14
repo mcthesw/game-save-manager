@@ -1409,6 +1409,21 @@ pub async fn http_set_quick_backup_game(
         .map_err(ApiError::from_command)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/clear-quick-backup-game",
+    operation_id = "clearQuickBackupGame",
+    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_clear_quick_backup_game(
+    State(state): State<HttpHostState>,
+) -> Result<Json<()>, ApiError> {
+    commands::clear_quick_backup_game(state.app().clone())
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SetGameAutoBackupRequest {

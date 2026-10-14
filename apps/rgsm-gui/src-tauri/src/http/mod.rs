@@ -111,6 +111,16 @@ fn is_stateful_event(event_type: &str) -> bool {
     )
 }
 
+#[derive(Serialize)]
+struct NavigationRequest<'a> {
+    route: &'a str,
+}
+
+/// Asks an open window to show an in-app route without reloading it.
+pub fn navigate(app: &AppHandle, route: &str) {
+    emit(app, "navigate", &NavigationRequest { route });
+}
+
 pub fn emit<T: Serialize>(app: &AppHandle, event_type: &str, payload: &T) {
     let Some(state) = app.try_state::<HttpHostState>() else {
         return;
