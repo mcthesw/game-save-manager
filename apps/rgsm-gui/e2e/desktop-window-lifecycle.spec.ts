@@ -174,3 +174,48 @@ test('desktop recreates a destroyed window with live runtime credentials', async
     if (!failed) await removeRunRoot(runRoot);
   }
 });
+
+test('desktop starts with an unusable hotkey configured', async () => {
+  const runRoot = await createRunRoot('desktop-hotkeys');
+  const deviceId = `desktop-hotkeys-${process.pid}`;
+  let desktop: DesktopProcess | undefined;
+  try {
+    const device = await seedLocalConfig(runRoot, {
+      // A key name no keyboard produces must not take the app down with it.
+      quickAction: { hotkeys: { apply: ['NotAKey', '', ''], backup: ['Ctrl', 'Alt', 'F10'] } },
+    });
+    const port = await reservePort();
+    desktop = startDesktop(device.appDataDir, deviceId, port);
+    // Registration runs during startup, so a rejected shortcut used to end the
+    // process before the window could load.
+    const connected = await connectDesktop(desktop, port);
+    expect((await readBuildInfo(connected.page)).version).toBeTruthy();
+    const saved = await connected.page.evaluate(async () => {
+      const modulePath = '/src/api/commands.ts';
+      const { commands } = await import(modulePath);
+      const loaded = await commands.getLocalConfig();
+      if (loaded.status !== 'ok') throw new Error(loaded.error);
+      const config = loaded.data;
+      config.quick_action.hotkeys = { backup: ['Ctrl', 'Alt', 'F23'], apply: ['', '', ''] };
+      const valid = await commands.setConfig(config);
+      config.quick_action.hotkeys.apply = ['NotAKey', '', ''];
+      const invalid = await commands.setConfig(config);
+      const persisted = await commands.getLocalConfig();
+      return { valid, invalid, persisted };
+    });
+    expect(saved.valid.status).toBe('ok');
+    expect(saved.invalid.status).toBe('error');
+    expect(saved.persisted.status).toBe('ok');
+    if (saved.persisted.status === 'ok') {
+      expect(saved.persisted.data.quick_action.hotkeys).toEqual({
+        backup: ['Ctrl', 'Alt', 'F23'],
+        apply: ['', '', ''],
+      });
+    }
+    await connected.browser.close();
+    expect(desktop.child.exitCode).toBeNull();
+  } finally {
+    stopProcessTree(desktop?.child);
+    await removeRunRoot(runRoot);
+  }
+});

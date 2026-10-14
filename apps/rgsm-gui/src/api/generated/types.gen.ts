@@ -2002,6 +2002,26 @@ export type ChooseSaveFileResponses = {
 
 export type ChooseSaveFileResponse = ChooseSaveFileResponses[keyof ChooseSaveFileResponses];
 
+export type ClearQuickBackupGameData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/clear-quick-backup-game';
+};
+
+export type ClearQuickBackupGameErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type ClearQuickBackupGameError =
+  ClearQuickBackupGameErrors[keyof ClearQuickBackupGameErrors];
+
+export type ClearQuickBackupGameResponses = {
+  200: unknown;
+};
+
 export type CloudDownloadAllData = {
   body: CloudDownloadAllRequest;
   path?: never;

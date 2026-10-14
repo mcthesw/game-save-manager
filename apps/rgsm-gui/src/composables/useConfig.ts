@@ -77,7 +77,7 @@ async function saveConfig(): Promise<boolean> {
     return true;
   } catch (e) {
     error(`Failed to set config: ${e}`);
-    notifyError($t('error.set_config_failed'));
+    notifyError($t('error.set_config_failed'), String(e));
     return false;
   }
 }

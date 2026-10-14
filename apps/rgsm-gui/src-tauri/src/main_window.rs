@@ -1,6 +1,6 @@
 use log::error;
 use serde::Serialize;
-use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 use crate::http::HttpHostState;
@@ -47,15 +47,21 @@ fn current_runtime_initialization_script(app: &AppHandle) -> anyhow::Result<Stri
     runtime_initialization_script(host.base_url(), &host.api_token())
 }
 
-pub fn create_main_window(app: &AppHandle) -> anyhow::Result<WebviewWindow> {
-    let config = app
+/// Creates the main window, optionally opening it on an in-app route.
+pub fn create_main_window(app: &AppHandle, route: Option<&str>) -> anyhow::Result<WebviewWindow> {
+    let mut config = app
         .config()
         .app
         .windows
         .iter()
         .find(|window| window.label == MAIN_WINDOW_LABEL)
+        .cloned()
         .ok_or_else(|| anyhow::anyhow!("Main window configuration is not available"))?;
-    let builder = WebviewWindowBuilder::from_config(app, config)?;
+    if let Some(route) = route {
+        // The frontend validates the route at startup like any other deep link.
+        config.url = WebviewUrl::App(route.trim_start_matches('/').into());
+    }
+    let builder = WebviewWindowBuilder::from_config(app, &config)?;
     #[cfg(all(debug_assertions, target_os = "windows"))]
     let builder = match e2e_browser_args(std::env::var(E2E_WEBVIEW_DEBUG_PORT).ok().as_deref())? {
         Some(arguments) => builder.additional_browser_args(&arguments),
@@ -71,10 +77,28 @@ pub fn create_main_window(app: &AppHandle) -> anyhow::Result<WebviewWindow> {
 pub fn show_main_window(app: &AppHandle) -> anyhow::Result<()> {
     let window = match app.get_webview_window(MAIN_WINDOW_LABEL) {
         Some(window) => window,
-        None => create_main_window(app)?,
+        None => create_main_window(app, None)?,
     };
     window.show()?;
     window.set_focus()?;
+    Ok(())
+}
+
+/// Shows the main window on an in-app route.
+///
+/// Closing to the tray destroys the window, and a window that is still loading
+/// would miss a navigation event, so a closed window is created on the route.
+/// An open window keeps its state and navigates in place.
+pub fn show_main_window_at(app: &AppHandle, route: &str) -> anyhow::Result<()> {
+    let (window, created) = match app.get_webview_window(MAIN_WINDOW_LABEL) {
+        Some(window) => (window, false),
+        None => (create_main_window(app, Some(route))?, true),
+    };
+    window.show()?;
+    window.set_focus()?;
+    if !created {
+        crate::http::navigate(app, route);
+    }
     Ok(())
 }
 

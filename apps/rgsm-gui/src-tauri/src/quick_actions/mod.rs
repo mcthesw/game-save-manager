@@ -18,15 +18,17 @@ pub use utils::{
     quick_backup, should_show_auto_backup_notification,
 };
 
-use hotkeys::setup_hotkeys;
-use tauri::Manager;
+use std::sync::Arc;
+
+use hotkeys::{RegisteredHotkeys, apply_hotkeys};
+use tauri::{AppHandle, Manager};
 use tray::setup_tray;
 
 use rgsm_core::config::get_config;
 
 pub fn setup(app: &mut tauri::App, desktop_enabled: bool) -> anyhow::Result<()> {
     let manager = QuickActionManager::new(app.handle());
-    app.manage(manager);
+    app.manage(Arc::clone(&manager));
 
     let scheduler = AutoBackupScheduler::spawn(app.handle().clone());
     scheduler.sync_from_config();
@@ -39,7 +41,31 @@ pub fn setup(app: &mut tauri::App, desktop_enabled: bool) -> anyhow::Result<()> 
     if desktop_enabled {
         let config = get_config()?;
         setup_tray(app)?;
-        setup_hotkeys(&config, app)?;
+        // Global shortcuts are system-wide, so only desktop hosts own any.
+        let registered_hotkeys = RegisteredHotkeys::default();
+        if let Err(error) = apply_hotkeys(app.handle(), &config, &registered_hotkeys, &manager) {
+            log::warn!("Could not register quick action hotkeys: {error:#}");
+        }
+        app.manage(registered_hotkeys);
     }
     Ok(())
+}
+
+/// Re-registers hotkeys after the configuration changed; a no-op on HTTP-only
+/// hosts, which never register any.
+pub fn refresh_hotkeys(app: &AppHandle) -> anyhow::Result<()> {
+    apply_config_hotkeys(app, &get_config()?)
+}
+
+pub fn apply_config_hotkeys(
+    app: &AppHandle,
+    config: &rgsm_core::config::Config,
+) -> anyhow::Result<()> {
+    let Some(registered) = app.try_state::<RegisteredHotkeys>() else {
+        return Ok(());
+    };
+    let Some(manager) = app.try_state::<Arc<QuickActionManager>>() else {
+        return Ok(());
+    };
+    apply_hotkeys(app, config, &registered, &manager)
 }

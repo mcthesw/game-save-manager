@@ -22,6 +22,13 @@ impl TauriQuickActionRuntimeSync {
 #[async_trait]
 impl ConfigRuntimeSync for TauriQuickActionRuntimeSync {
     async fn sync_from_config(&self) -> Result<()> {
+        if let Err(error) = crate::quick_actions::refresh_hotkeys(&self.app) {
+            // A hotkey that another program already owns must not fail the save.
+            log::warn!(
+                target: "rgsm::hooks::quick_action_sync",
+                "Could not refresh quick action hotkeys: {error:#}"
+            );
+        }
         if let Some(manager) = self.app.try_state::<Arc<QuickActionManager>>() {
             manager.reload_current_game_from_config().await?;
         }

@@ -7,7 +7,6 @@ import {
   Archive,
   BookText,
   Copy,
-  Download,
   Eye,
   EyeOff,
   FolderSearch,
@@ -30,7 +29,7 @@ import {
   Zap,
 } from '@lucide/vue';
 import { KAlert, KButton, KInput, KNumberInput, KSelect, KSwitch, KTag } from '../ui/kit';
-import CloudDeviceProfilesPanel from '../components/CloudDeviceProfilesPanel.vue';
+import DeviceSettingsSection from '../components/DeviceSettingsSection.vue';
 import AppUpdatePanel from '../components/AppUpdatePanel.vue';
 import SnapshotTimeSettings from '../components/SnapshotTimeSettings.vue';
 import LocalUpgradeSection from '../components/LocalUpgradeSection.vue';
@@ -76,6 +75,7 @@ const currentQuickActionGame = computed(() => {
   if (!identity) return undefined;
   return config.value.games.find((game) => game.storage_key === identity || game.name === identity);
 });
+
 const httpHostBaseUrl = ref('');
 const httpApiToken = ref('');
 const rotatingHttpApiToken = ref(false);
@@ -397,7 +397,7 @@ async function open_log_folder() {
 // 保存快捷键设置
 async function saveHotkeys() {
   try {
-    await saveConfig();
+    if (!(await saveConfig())) return;
     hotkeysChanged.value = false;
     // 只显示功能完成的消息，而不是保存成功
     notifySuccess($t('settings.hotkeys_saved'));
@@ -1665,66 +1665,16 @@ const { linksWithGames: router_list } = useNavigationLinks();
           </section>
         </div>
         <div v-else-if="activeSection === 'device'" class="flex flex-col gap-8">
-          <!-- 设备 -->
-          <section>
-            <div class="mb-3 flex items-center gap-2 border-b border-border pb-2">
-              <MonitorSmartphone :size="15" class="text-text-dim" aria-hidden="true" />
-              <h2 class="text-sm font-semibold text-text">{{ $t('settings.device_settings') }}</h2>
-            </div>
-
-            <h3 class="mb-2 text-xs font-medium text-text">{{ $t('settings.current_device') }}</h3>
-            <div class="mb-1">
-              <div class="mb-1 block text-xs text-text-dim">{{ $t('settings.device_name') }}</div>
-              <KInput
-                v-model="currentDevice.name"
-                class="w-full"
-                :aria-label="$t('settings.device_name')"
-                @change="updateDeviceInfo"
-              />
-            </div>
-            <div class="mb-4">
-              <div class="mb-1 block text-xs text-text-dim">{{ $t('settings.device_id') }}</div>
-              <KInput
-                v-model="currentDevice.id"
-                class="w-full"
-                mono
-                disabled
-                :aria-label="$t('settings.device_id')"
-              />
-            </div>
-
-            <CloudDeviceProfilesPanel
-              v-if="v2LibraryActive"
-              class="mt-5"
-              @reused="fetchDeviceInfo"
-            />
-
-            <h3 class="mb-2 mt-5 text-xs font-medium text-text">
-              {{ $t('settings.other_devices') }}
-            </h3>
-            <div class="flex flex-col">
-              <div
-                v-for="device in otherDevices"
-                :key="device.id"
-                class="flex items-center justify-between gap-3 border-t border-border py-2"
-              >
-                <div class="min-w-0">
-                  <div class="truncate text-sm text-text">{{ device.name }}</div>
-                  <div class="truncate font-mono text-[11px] text-text-dim">{{ device.id }}</div>
-                </div>
-                <div class="flex shrink-0 gap-1.5">
-                  <KButton size="sm" @click="importFromDevice(device.id)">
-                    <template #icon><Download :size="13" aria-hidden="true" /></template>
-                    {{ $t('settings.import_paths') }}
-                  </KButton>
-                  <KButton size="sm" variant="danger" @click="deleteDevice(device.id)">
-                    {{ $t('settings.delete_device') }}
-                  </KButton>
-                </div>
-              </div>
-              <p v-if="otherDevices.length === 0" class="py-2 text-xs text-text-dim">-</p>
-            </div>
-          </section>
+          <DeviceSettingsSection
+            v-model:device-name="currentDevice.name"
+            :current-device="currentDevice"
+            :other-devices="otherDevices"
+            :show-cloud-profiles="v2LibraryActive"
+            @rename="updateDeviceInfo"
+            @import-paths="importFromDevice"
+            @delete-device="deleteDevice"
+            @refreshed="fetchDeviceInfo"
+          />
         </div>
         <div v-else-if="activeSection === 'hotkeys'" class="flex flex-col gap-8">
           <!-- 快捷键 -->

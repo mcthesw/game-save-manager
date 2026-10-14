@@ -157,7 +157,7 @@
         "quick_action_sound_preview_button": "试听/终止",
         "quick_action_sound_file_placeholder": "输入或选择音频文件路径",
         "hotkey": {
-            "hint": "此处的快捷键需要点击下方按钮保存，重启后生效；全部留空即禁用快捷操作",
+            "hint": "此处的快捷键需要点击下方按钮保存，保存后立即生效；全部留空即禁用快捷操作",
             "quick_backup": "快速备份",
             "quick_apply": "快速读档",
             "capturing": "按下组合键…(Esc 取消)",
@@ -346,6 +346,9 @@
         "description_sync_pending": "描述已保存到本机，等待云端同步",
         "change_description_failed": "修改失败",
         "set_quick_backup": "启用快捷备份",
+        "unset_quick_backup": "关闭快捷备份",
+        "unset_quick_backup_success": "已关闭快捷备份",
+        "unset_quick_backup_failed": "关闭快捷备份失败",
         "set_quick_backup_success": "设置成功，可以用快捷键或托盘图标快捷操作",
         "set_quick_backup_failed": "设置失败",
         "batch_delete": "批量删除",
@@ -1187,6 +1190,7 @@
         "active_count": "{count} 个进行中"
     },
     "error": {
+        "hotkey_registration_failed": "无法应用快捷键：%{reason}",
         "legacy_cloud_operation_unavailable": "旧版云库操作已停用，请前往云同步页面升级或加入当前云库。",
         "open_url_failed": "无法打开链接",
         "open_path_failed": "无法打开路径",

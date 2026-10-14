@@ -332,7 +332,9 @@ test('refresh after a mutation does not reuse a response read before that mutati
     });
     release();
     await expect(snapshotRow(session.pageB, next)).toBeVisible({ timeout: 10_000 });
-    expect(reads).toBe(2);
+    // Focus/navigation may also refresh. The mutation must cause a fresh read,
+    // but its correctness does not depend on an exact background request count.
+    expect(reads).toBeGreaterThanOrEqual(2);
   } catch (error) {
     failed = true;
     throw error;

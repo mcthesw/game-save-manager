@@ -404,6 +404,12 @@ pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
     let owner_store = OwnerStore::runtime();
     if owner_store.has_authoritative_state() {
+        // Load/recover through the owner store before any identity consumer runs.
+        // Corrupt existing state must fail startup, never create a new device.
+        let id = owner_store.load()?.local_state.current_device_id;
+        if !crate::device::initialize_current_device_id(id) {
+            return Err(ConfigError::DeviceIdentityAlreadyInitialized);
+        }
         let config_migrated = owner_store.upgrade_local_installations()?;
         let config = owner_store.load_effective()?;
         rust_i18n::set_locale(&config.settings.locale);
