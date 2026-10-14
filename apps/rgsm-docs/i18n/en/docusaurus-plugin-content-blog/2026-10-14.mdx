@@ -1,0 +1,94 @@
+---
+title: V1.9 Cloud Library, self-contained archives, and path variables
+slug: v1_9_1
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+date: 2026-10-14
+draft: true
+---
+
+# Cloud Library, self-contained archives, and path variables
+
+This release rebuilds cloud sync as the **Cloud Library**, turns snapshots into **self-contained 7z archives**, and adds **per-device path variables**, **per-game automatic backups**, and a new interface.
+
+:::warning Back up before upgrading
+
+The old configuration is converted automatically and the change is **one-way**: 1.8 cannot read the new configuration afterwards. Every device in a cloud library must be upgraded to 1.9 to keep syncing. See [Upgrading to 1.9](/docs/help/upgrade).
+
+:::
+
+## Highlights
+
+### Cloud Library
+
+- Choose **Manual**, **Cloud backup**, or **Multi-device sync** for each game on each device
+- When another device has newer progress, RGSM asks you to **compare progress** instead of overwriting local saves
+- Upload, download, or "download everything to this device" from the snapshot list, one snapshot or many at a time
+- Deleting now has three scopes: remove the local copy, remove it from the cloud, or remove it from every device and the cloud
+- **Cloud join codes** connect another device by pasting one code (the code contains credentials, so keep it private)
+- A **local folder** can act as the cloud backend, and S3-compatible storage supports virtual-hosted addresses (Tencent COS, Alibaba OSS, and similar)
+- Backups, restores, and metadata edits work offline and synchronize in the background afterwards
+
+### Self-contained archives
+
+- New snapshots are ordinary `.7z` files containing `RESTORE.txt`, so they can be **restored by hand without this app**
+- File timestamps and permissions are preserved, Windows hidden and read-only files are restored, and registry data is stored as standard `.reg`
+- Older ZIP snapshots still restore normally
+- **Upgrade old backups** (Settings → Backup) converts historical snapshots to the new format; it can be paused, and originals are kept until you clean them up
+
+### Per-device path variables
+
+- Set the game installation directory, game root, and store account for each game **per device**
+- **Override this device's path** when one machine keeps saves somewhere unusual
+- Every Ludusavi path variable plus `*` and `?` wildcards are supported; type `<` to pick a variable and preview the resolved path
+- Custom `<var:name>` variables can be defined per device or per game, with help to fill in a missing value or find it locally
+
+### Automatic and quick backup
+
+- Scheduled backups are configured **per game**, several games can run timers at once, and the interval is configurable
+- Process monitoring adds triggers on game start, on exit, and at a chosen interval while running
+- The retention count for automatic backups can differ from the global setting
+- Quick actions stop pointing at a game once it is deleted
+
+### Game library
+
+- Edit a game after adding it: rename it, add or remove save entries; files with the same name no longer conflict
+- Import the same game a second time as another instance
+- Scan visual novels automatically (Kirikiri2, Ren'Py, RPG Maker, Wolf RPG) and skip OneDrive files that are not downloaded yet
+- Sort the library by last played and other orders
+
+### Interface and updates
+
+- Grouped settings navigation, with About folded into Settings; one result notification per backup or restore
+- The current snapshot is highlighted, and timestamps can show relative time
+- Choose whether the app opens on Favorites or All
+- Opt-in **check for updates at startup**; Windows installers download in the background and install when you press "Restart and install", while portable, Linux, and macOS builds stay manual
+- A local API section in Settings shows the address and manages its token
+- A native English documentation site
+
+## Fixes
+
+- Create a library when the Jianguoyun root folder does not exist yet
+- Opening save management no longer triggers a sync
+- Wildcard save paths resolve during snapshots, not only while editing
+- Games whose names contain special characters import and open correctly
+- Quick backup notices when its game is deleted
+- "Delete then restore" now undoes the deletion when the restore fails
+- Partial undo failures are reported accurately
+- Writes retry when Windows briefly locks a file
+- The portable build reports its real version instead of `RGSM_undefined`
+
+## Upgrade notes
+
+- The tray's auto-backup interval menu (5/10/30/60 minutes and off) is gone; intervals are per game
+- Installation locations that cannot be matched to one game stay under **Settings → Auto scan → Unmatched installation directories** for you to confirm
+- Deleting from every device and the cloud, and permanently deleting a shared game, cannot be undone; offline devices carry out the deletion when they reconnect
+- Configuration from 1.9 test builds has no compatibility promise, and upgrading an existing 1.9 cloud library has its own entry point
+- The portable build here is the slim variant without the bundled Ludusavi database; update it from Settings when needed
+
+## Download
+
+## Discussions
+
+- [Feature ideas and feedback](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug reports](https://github.com/mcthesw/game-save-manager/issues)
