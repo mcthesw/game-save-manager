@@ -161,6 +161,8 @@ impl From<BackendError> for ConfigError {
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    #[error("The device identity was initialized before the local configuration was loaded")]
+    DeviceIdentityAlreadyInitialized,
     #[error("Deserialize error: {0:#?}")]
     Deserialize(#[from] serde_json::Error),
     #[error("IO error: {0:#?}")]
