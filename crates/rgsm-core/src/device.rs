@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 
 use crate::path_pattern::StoreKind;
 
@@ -129,8 +129,12 @@ impl Device {
     }
 }
 
-// 存储当前设备的静态变量，使用 LazyLock 确保只初始化一次
-static CURRENT_DEVICE_ID: LazyLock<DeviceId> = LazyLock::new(resolve_current_device_id);
+// Configuration startup supplies an existing identity before runtime consumers run.
+static CURRENT_DEVICE_ID: OnceLock<DeviceId> = OnceLock::new();
+
+pub(crate) fn initialize_current_device_id(id: DeviceId) -> bool {
+    CURRENT_DEVICE_ID.get_or_init(|| id.clone()) == &id
+}
 
 fn resolve_current_device_id() -> DeviceId {
     #[cfg(debug_assertions)]
@@ -147,14 +151,43 @@ fn resolve_current_device_id() -> DeviceId {
             Err(error) => panic!("RGSM_E2E_DEVICE_ID is invalid: {error}"),
         }
     }
-    machine_uid::get().expect("Failed to get machine ID")
+    detect_device_id()
+}
+
+fn detect_device_id() -> DeviceId {
+    match machine_uid::get() {
+        Ok(value) if !value.trim().is_empty() => value.trim().to_string(),
+        Ok(_) => {
+            log::warn!(target: "rgsm::device", "Machine ID is empty; using a new Device ID");
+            generate_device_id()
+        }
+        // Reading the machine ID must never take the whole application down: an
+        // unreadable system store is recoverable, while refusing to start is not.
+        // The first configuration write persists the generated identity.
+        Err(error) => {
+            log::warn!(
+                target: "rgsm::device",
+                "Cannot read machine ID ({error}); using a new Device ID"
+            );
+            generate_device_id()
+        }
+    }
+}
+
+fn generate_device_id() -> DeviceId {
+    let device_id = uuid::Uuid::new_v4().to_string();
+    log::info!(
+        target: "rgsm::device",
+        "Generated Device ID {device_id}; the first configuration write stores it"
+    );
+    device_id
 }
 
 /// 获取当前设备的ID。
-/// 首次调用时会生成 UUID 作为设备 ID。
+/// 优先使用本机配置的 ID；新安装使用机器 ID，读取失败时生成 UUID。
 /// 后续调用将返回缓存的设备ID。
 pub fn get_current_device_id() -> &'static DeviceId {
-    &CURRENT_DEVICE_ID
+    CURRENT_DEVICE_ID.get_or_init(resolve_current_device_id)
 }
 
 /// 获取当前系统的主机名
@@ -169,7 +202,7 @@ pub fn get_system_hostname() -> String {
 impl Default for Device {
     fn default() -> Self {
         Self {
-            id: resolve_current_device_id(),
+            id: get_current_device_id().clone(),
             name: get_system_hostname(),
             resources: Vec::new(),
             path_variables: Default::default(),
@@ -184,13 +217,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_current_device_returns_consistent_info() {
-        // 多次调用应返回相同的设备信息（在同一次运行中）
-        let device1 = get_current_device_id();
-        let device2 = get_current_device_id();
-        assert_eq!(device1, device2);
-        assert!(!device1.is_empty());
-        println!("Device ID: {}", device1);
+    fn default_devices_share_the_cached_identity() {
+        assert_eq!(&Device::default().id, get_current_device_id());
+        assert_eq!(Device::default().id, Device::default().id);
     }
 
     #[test]

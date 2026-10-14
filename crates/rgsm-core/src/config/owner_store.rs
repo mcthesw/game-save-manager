@@ -626,6 +626,28 @@ mod tests {
     }
 
     #[test]
+    fn a_generated_identity_is_persisted_in_local_state_and_reused() {
+        let dir = temp_dir::TempDir::new().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let store = OwnerStore::new(dir.path().to_path_buf());
+        store
+            .write(&ConfigurationOwners::from_legacy(&Config::default(), &id))
+            .unwrap();
+        let reopened = OwnerStore::new(dir.path().to_path_buf());
+        let owners = reopened.load().unwrap();
+        assert_eq!(owners.local_state.current_device_id, id);
+        assert_eq!(owners.device_profiles[&id].device.id, id);
+        fs::write(
+            dir.path()
+                .join(OWNER_DIRECTORY_NAME)
+                .join(LOCAL_STATE_FILE_NAME),
+            "{",
+        )
+        .unwrap();
+        assert!(reopened.load().is_err());
+    }
+
+    #[test]
     fn writes_separate_owner_files_and_loads_effective_config() {
         let (_root, store) = store();
         let input = config(get_current_device_id(), "D:/Backups");
