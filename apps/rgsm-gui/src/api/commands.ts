@@ -476,6 +476,9 @@ export const commands = {
       await sdk.setQuickBackupGame({ body: { game } })
     );
   },
+  async clearQuickBackupGame() {
+    return unwrap<types.ClearQuickBackupGameResponses[200]>(await sdk.clearQuickBackupGame());
+  },
   async setGameAutoBackup(
     gameName: types.SetGameAutoBackupRequest['gameName'],
     autoBackup: types.SetGameAutoBackupRequest['autoBackup']

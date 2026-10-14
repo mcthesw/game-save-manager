@@ -53,11 +53,20 @@ test('HTTP-only selection saves the quick backup game without a tray', async ({ 
       '/api/v1/get-local-config'
     );
     expect(after.data?.quick_action.quick_action_game_id).toBe(game.storage_key);
+
+    const cleared = await hostPost(session.host, '/api/v1/clear-quick-backup-game');
+    expect(cleared.ok, cleared.raw).toBe(true);
+    const afterClear = await hostPost<{ quick_action: { quick_action_game_id: string | null } }>(
+      session.host,
+      '/api/v1/get-local-config'
+    );
+    expect(afterClear.data?.quick_action.quick_action_game_id ?? null).toBeNull();
+
     await session.close(true);
     const log = await readFile(join(runRoot, 'logs', 'quick-game-no-tray.log'), 'utf8');
     expect(log).not.toContain('Cannot get tray');
     expect(log).not.toContain('Setting up tray icon');
-    expect(log).not.toContain('Setting up hotkeys');
+    expect(log).not.toContain('hotkey');
   } finally {
     await session.close();
   }
@@ -105,7 +114,7 @@ test('a failed second host startup closes the first host and retains diagnostic 
     ).rejects.toThrow();
     const log = await readFile(join(runRoot, 'logs', 'startup-cleanup-a.log'), 'utf8');
     expect(log).not.toContain('Setting up tray icon');
-    expect(log).not.toContain('Setting up hotkeys');
+    expect(log).not.toContain('hotkey');
   } finally {
     await session?.close(true);
     await removeRunRoot(runRoot);

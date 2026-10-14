@@ -48,6 +48,9 @@ import type {
   ChooseSaveFileData,
   ChooseSaveFileErrors,
   ChooseSaveFileResponses,
+  ClearQuickBackupGameData,
+  ClearQuickBackupGameErrors,
+  ClearQuickBackupGameResponses,
   CloudDownloadAllData,
   CloudDownloadAllErrors,
   CloudDownloadAllResponses,
@@ -508,6 +511,15 @@ export const chooseSaveFile = <ThrowOnError extends boolean = false>(
     url: '/api/v1/choose-save-file',
     ...options,
   });
+
+export const clearQuickBackupGame = <ThrowOnError extends boolean = false>(
+  options?: Options<ClearQuickBackupGameData, ThrowOnError>
+): RequestResult<ClearQuickBackupGameResponses, ClearQuickBackupGameErrors, ThrowOnError> =>
+  (options?.client ?? client).post<
+    ClearQuickBackupGameResponses,
+    ClearQuickBackupGameErrors,
+    ThrowOnError
+  >({ url: '/api/v1/clear-quick-backup-game', ...options });
 
 export const cloudDownloadAll = <ThrowOnError extends boolean = false>(
   options: Options<CloudDownloadAllData, ThrowOnError>

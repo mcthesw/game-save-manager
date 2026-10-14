@@ -22,6 +22,7 @@ export type LocalSeedOptions = {
   games?: LocalGameSeed[];
   /** Merged over the default settings object. */
   settings?: Record<string, unknown>;
+  quickAction?: Record<string, unknown>;
   favorites?: unknown[];
 };
 
@@ -96,6 +97,7 @@ export async function seedLocalConfig(
       hotkeys: { apply: ['', '', ''], backup: ['', '', ''] },
       enable_sound: false,
       enable_notification: false,
+      ...(options.quickAction ?? {}),
     },
     devices: {
       [DEVICE_A_ID]: { id: DEVICE_A_ID, name: DEVICE_A_NAME, resources: [], next_resource_id: 0 },
