@@ -963,17 +963,28 @@ const isQuickBackupGame = computed(() => {
   const selected =
     config.value.games.find((item) => item.storage_key === identity) ??
     resolveGameReference(config.value.games, identity);
-  return selected?.storage_key === game.value.storage_key;
+  if (!selected) return false;
+  return selected.storage_key
+    ? selected.storage_key === game.value.storage_key
+    : selected.name === game.value.name;
 });
 
-async function set_quick_backup() {
-  const result = await commands.setQuickBackupGame(game.value);
+// 快捷备份开关：已启用时再次点击即取消
+async function toggle_quick_backup() {
+  const enabled = isQuickBackupGame.value;
+  const result = enabled
+    ? await commands.clearQuickBackupGame()
+    : await commands.setQuickBackupGame(game.value);
   if (result.status === 'error') {
-    notifyError($t('manage.set_quick_backup_failed'));
+    notifyError(
+      $t(enabled ? 'manage.unset_quick_backup_failed' : 'manage.set_quick_backup_failed')
+    );
     return;
   }
   await refreshConfig();
-  notifySuccess($t('manage.set_quick_backup_success'));
+  notifySuccess(
+    $t(enabled ? 'manage.unset_quick_backup_success' : 'manage.set_quick_backup_success')
+  );
 }
 
 // 处理抽屉组件保存游戏路径的事件
@@ -1318,7 +1329,7 @@ const headerMenuEntries = computed<KMenuEntry[]>(() => {
     {
       type: 'item',
       key: 'quickBackup',
-      label: $t('manage.set_quick_backup'),
+      label: $t(isQuickBackupGame.value ? 'manage.unset_quick_backup' : 'manage.set_quick_backup'),
       icon: Zap,
       active: isQuickBackupGame.value,
     },
@@ -1339,7 +1350,7 @@ function onHeaderMenuSelect(key: string) {
   if (key === 'openFolder') open_backup_folder();
   else if (key === 'verify') verify_archive_hashes();
   else if (key === 'extraBackups') extraBackupDrawer.value = true;
-  else if (key === 'quickBackup') set_quick_backup();
+  else if (key === 'quickBackup') toggle_quick_backup();
   else if (key === 'autoSave') autoSaveSettingsDrawer.value = true;
   else if (key === 'deleteLocal' || key === 'deleteEverywhere') void deleteGame(key);
 }

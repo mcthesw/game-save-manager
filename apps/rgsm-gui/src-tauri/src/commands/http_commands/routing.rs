@@ -204,6 +204,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_set_quick_backup_game),
         )
         .route(
+            "/api/v1/clear-quick-backup-game",
+            post(http_clear_quick_backup_game),
+        )
+        .route(
             "/api/v1/set-game-auto-backup",
             post(http_set_game_auto_backup),
         )
@@ -396,6 +400,7 @@ pub fn router() -> Router<HttpHostState> {
         http_backup_all,
         http_apply_all,
         http_set_quick_backup_game,
+        http_clear_quick_backup_game,
         http_set_game_auto_backup,
         http_set_game_automation,
         http_set_game_auto_save_settings,

@@ -158,7 +158,7 @@
         "quick_action_sound_file_placeholder": "Enter an audio file path",
         "hotkey": {
             "quick_backup": "Quick backup",
-            "hint": "Hotkeys here must be saved (button below) and take effect after a restart. Leave all keys empty to disable quick actions.",
+            "hint": "Save hotkeys with the button below; they take effect immediately. Leave all keys empty to disable quick actions.",
             "quick_apply": "Quick file reading",
             "capturing": "Press the key combo… (Esc to cancel)",
             "not_set": "Not set",
@@ -346,6 +346,9 @@
         "description_sync_pending": "Description saved locally · Cloud sync pending",
         "change_description_failed": "Modification failed",
         "set_quick_backup": "Enable quick backup",
+        "unset_quick_backup": "Disable quick backup",
+        "unset_quick_backup_success": "Quick backup is off",
+        "unset_quick_backup_failed": "Couldn't disable quick backup",
         "set_quick_backup_success": "Settings saved. You can now use keyboard shortcuts or the tray icon for quick operations",
         "set_quick_backup_failed": "Setting failed",
         "batch_delete": "Batch delete",
@@ -1187,6 +1190,7 @@
         "active_count": "{count} active"
     },
     "error": {
+        "hotkey_registration_failed": "Could not apply hotkeys: %{reason}",
         "legacy_cloud_operation_unavailable": "Legacy cloud operations are unavailable. Open Cloud Sync to upgrade or join the current cloud library.",
         "open_url_failed": "Unable to open url",
         "open_path_failed": "Unable to open path",

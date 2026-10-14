@@ -18,7 +18,7 @@ use rgsm_core::{
 use super::{QuickActionType, quick_apply, quick_backup};
 
 pub enum QuickActionCommand {
-    RegisterTrayItems {
+    RegisterTrayGameItem {
         game_item: tauri::menu::MenuItem<tauri::Wry>,
     },
     SetCurrentGame {
@@ -115,12 +115,12 @@ impl QuickActionManager {
         }
     }
 
-    pub fn register_tray_items(&self, game_item: tauri::menu::MenuItem<tauri::Wry>) {
+    pub fn register_tray_game_item(&self, game_item: tauri::menu::MenuItem<tauri::Wry>) {
         if let Err(err) = self
             .command_tx
-            .send(QuickActionCommand::RegisterTrayItems { game_item })
+            .send(QuickActionCommand::RegisterTrayGameItem { game_item })
         {
-            warn!(target: "rgsm::quick_action::manager", "Failed to send RegisterTrayItems command: {err}");
+            warn!(target: "rgsm::quick_action::manager", "Failed to send RegisterTrayGameItem command: {err}");
         }
     }
 
@@ -182,7 +182,7 @@ impl QuickActionWorker {
 
     async fn handle_command(&mut self, command: QuickActionCommand) {
         match command {
-            QuickActionCommand::RegisterTrayItems { game_item } => {
+            QuickActionCommand::RegisterTrayGameItem { game_item } => {
                 self.handle_register_tray(game_item)
             }
             QuickActionCommand::SetCurrentGame { game, respond_to } => {

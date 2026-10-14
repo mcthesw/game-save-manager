@@ -75,6 +75,7 @@ const currentQuickActionGame = computed(() => {
   if (!identity) return undefined;
   return config.value.games.find((game) => game.storage_key === identity || game.name === identity);
 });
+
 const httpHostBaseUrl = ref('');
 const httpApiToken = ref('');
 const rotatingHttpApiToken = ref(false);
@@ -396,7 +397,7 @@ async function open_log_folder() {
 // 保存快捷键设置
 async function saveHotkeys() {
   try {
-    await saveConfig();
+    if (!(await saveConfig())) return;
     hotkeysChanged.value = false;
     // 只显示功能完成的消息，而不是保存成功
     notifySuccess($t('settings.hotkeys_saved'));
