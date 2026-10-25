@@ -641,10 +641,10 @@
         "auto_backup_on": "Auto backup enabled"
     },
     "save_location_drawer": {
-    "installation_directory": "Game installation directory",
-    "installation_placeholder": "Enter or choose this game’s folder",
-    "detected_installations": "Detected installations",
-    "choose_installation": "Choose installation directory",
+        "installation_directory": "Game installation directory",
+        "installation_placeholder": "Enter or choose this game’s folder",
+        "detected_installations": "Detected installations",
+        "choose_installation": "Choose installation directory",
         "game_root": "Game root directory",
         "store_account": "Store account",
         "game_installation": "Game installation directory",
@@ -1420,7 +1420,7 @@
         "progress": "{completed} of {total} backups upgraded",
         "purpose": "Use readable filenames and extract saves without the app. Original files are kept; existing cloud copies are not replaced.",
         "space": "Estimated additional space: {size}.",
-        "space_unknown": " Some archives could not be measured.",
+        "space_unknown": "Some archives could not be measured.",
         "start": "Start upgrade",
         "resume": "Continue upgrade",
         "pause": "Pause",
