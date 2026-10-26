@@ -44,6 +44,7 @@ const contributors = [
   { name: 'banzhe', role: $t('about.developer') },
   { name: 'Максим Горпиніч', role: $t('about.active_translator') },
   { name: 'தமிழ்நேரம்', role: $t('about.active_translator') },
+  { name: 'Andrei Stepanov', role: $t('about.active_translator') },
 ];
 
 const frontendDeps = [
@@ -127,9 +128,13 @@ const headerLinks = [
           {{ $t('about.thank_you_list') }}
         </h2>
         <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-          <div v-for="c in contributors" :key="c.name" class="flex items-baseline gap-2">
-            <span class="truncate text-sm text-text">{{ c.name }}</span>
-            <span class="shrink-0 text-xs text-text-dim">{{ c.role }}</span>
+          <div
+            v-for="c in contributors"
+            :key="c.name"
+            class="flex flex-wrap items-baseline gap-x-2"
+          >
+            <span class="text-sm wrap-break-word text-text">{{ c.name }}</span>
+            <span class="text-xs text-text-dim">{{ c.role }}</span>
           </div>
         </div>
       </section>

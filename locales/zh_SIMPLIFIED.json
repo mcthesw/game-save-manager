@@ -311,7 +311,7 @@
         "undo_position_failed": "游戏存档已恢复，但列表中的「当前所在」标记未更新",
         "undo_confirm": "确定要撤销上次应用的快照并恢复到之前的状态吗？",
         "undo_not_available": "没有可撤销的操作",
-        "undo_requires_extra_backup": "请在设置中开启「应用前额外备份」以使用撤销功能",
+        "undo_requires_extra_backup": "请在设置中开启「恢复前备份当前存档」以使用撤销功能",
         "restoring_backup": "正在恢复备份...",
         "no_backup_error": "发生了错误，可能您没有任何存档",
         "stop_managing_title": "停止在此设备管理吗？",
