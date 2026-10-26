@@ -4,6 +4,7 @@ import en_US from '../../../locales/en_US.json';
 import fr from '../../../locales/fr.json';
 import ko from '../../../locales/ko.json';
 import nb_NO from '../../../locales/nb_NO.json';
+import ru from '../../../locales/ru.json';
 import ta from '../../../locales/ta.json';
 import uk from '../../../locales/uk.json';
 import zh_SIMPLIFIED from '../../../locales/zh_SIMPLIFIED.json';
@@ -15,6 +16,7 @@ export const i18n = createI18n({
     fr: fr,
     ko: ko,
     nb_NO: nb_NO,
+    ru: ru,
     ta: ta,
     uk: uk,
     zh_SIMPLIFIED: zh_SIMPLIFIED,
