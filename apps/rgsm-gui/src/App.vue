@@ -26,7 +26,11 @@ import { LAYER } from './ui/layers';
 import { $t, i18n } from './i18n';
 import { computed, provide, ref, watch } from 'vue';
 import { saveUnitPaths } from './utils/saveUnit';
-import { mapLegacyHomePage, resolveStartupDestination } from './utils/appRoutes';
+import {
+  mapLegacyHomePage,
+  isValidAppDestination,
+  resolveStartupDestination,
+} from './utils/appRoutes';
 import { error as logError } from './utils/logger';
 
 const { config, refreshConfig, saveConfig } = useConfig();
@@ -208,6 +212,15 @@ async function initializeApp() {
 }
 
 void initializeApp();
+// The tray asks an open window to show a page; a closed window is opened on it.
+events.navigate.listen((event) => {
+  const { route: destination } = event.payload;
+  if (!isValidAppDestination(destination, config.value.games)) {
+    void logError(`Ignoring navigation to ${destination}`);
+    return;
+  }
+  void navigateTo(destination);
+});
 events.ipcNotification.listen((event) => {
   const ev = event.payload;
   if (addIfCollecting(ev)) return;

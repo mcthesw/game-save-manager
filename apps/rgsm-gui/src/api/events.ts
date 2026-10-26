@@ -21,6 +21,12 @@ type HostEventMap = {
   'quick-action-completed': QuickActionCompleted;
   'remote-progress-pending': PendingProgress;
   'app-update-progress': UpdateProgress;
+  navigate: NavigationRequest;
+};
+
+/** The tray asks an open window to show an in-app route. */
+export type NavigationRequest = {
+  route: string;
 };
 
 type Listener<T> = (event: { payload: T }) => void;
@@ -83,5 +89,8 @@ export const events = {
   },
   appUpdateProgress: {
     listen: (listener: Listener<UpdateProgress>) => listen('app-update-progress', listener),
+  },
+  navigate: {
+    listen: (listener: Listener<NavigationRequest>) => listen('navigate', listener),
   },
 };

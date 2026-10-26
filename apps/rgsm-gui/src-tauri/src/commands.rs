@@ -476,10 +476,22 @@ pub async fn verify_archive_integrity(
 
 pub async fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
     debug!(target:"rgsm::commands", "Setting config: {:?}", config.clone().sanitize());
-    svc(&app_handle).save_config(&config).await.map_err(|e| {
-        error!(target:"rgsm::commands", "Failed to set config: {:?}", e);
-        e.to_string()
-    })?;
+    let previous = get_config().map_err(|error| error.to_string())?;
+    if previous.quick_action.hotkeys != config.quick_action.hotkeys {
+        quick_actions::apply_config_hotkeys(&app_handle, &config).map_err(|error| {
+            t!(
+                "error.hotkey_registration_failed",
+                reason = format!("{error:#}")
+            )
+            .to_string()
+        })?;
+    }
+    if let Err(error) = svc(&app_handle).save_config(&config).await {
+        if let Err(restore_error) = quick_actions::apply_config_hotkeys(&app_handle, &previous) {
+            error!("Failed to restore previous hotkeys after saving failed: {restore_error:#}");
+        }
+        return Err(error.to_string());
+    }
     rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
     Ok(())
 }
@@ -1122,6 +1134,23 @@ pub async fn set_quick_backup_game(app_handle: AppHandle, game: Game) -> Result<
             e.to_string()
         })?;
     info!(target:"rgsm::commands","Successfully set quick backup game to: {:?}", game);
+    Ok(())
+}
+
+pub async fn clear_quick_backup_game(app_handle: AppHandle) -> Result<(), String> {
+    info!(target:"rgsm::commands","Clearing quick backup game");
+    let mut config = get_config().map_err(|e| {
+        error!(target:"rgsm::commands", "Failed to get config: {:?}", e);
+        e.to_string()
+    })?;
+    config.quick_action.quick_action_game_id = None;
+    // Saving refreshes every runtime that mirrors the selection, including the
+    // quick action manager and the tray label.
+    svc(&app_handle).save_config(&config).await.map_err(|e| {
+        error!(target:"rgsm::commands", "Failed to clear quick backup game: {:?}", e);
+        e.to_string()
+    })?;
+    rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
     Ok(())
 }
 
