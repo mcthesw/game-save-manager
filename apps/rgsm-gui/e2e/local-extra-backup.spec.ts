@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import en from '../../../locales/en_US.json' with { type: 'json' };
 import { DEVICE_A_ID, GAME_NAME } from './support/constants';
 import { seedLocalConfig, writeSaveText } from './support/local-fixture';
 import { startLocalSession } from './support/local-session';
@@ -108,7 +109,7 @@ test('extra backups: created on apply, undo restores content and head, retention
       .toBe('v2\n');
     expect((await getExtraBackups(host, GAME_NAME)).length).toBe(2);
     const undo = page.getByRole('button', {
-      name: 'Enable "Extra backup before apply" in Settings to use the undo feature',
+      name: en.manage.undo_requires_extra_backup,
     });
     await expect(undo).toBeVisible();
     await expect(undo).toBeDisabled();
