@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex as StdMutex};
@@ -5,9 +6,10 @@ use std::sync::{LazyLock, Mutex as StdMutex};
 use tokio::sync::{Mutex as TokioMutex, MutexGuard};
 
 use crate::app_dirs::resolve_app_path;
+use crate::backup::Game;
 use crate::config::owner_store::OwnerStore;
 use crate::config::{
-    CloudNamespaceGeneration, Config, DeviceProfile, LocalState, SharedLibrary, backup,
+    CloudNamespaceGeneration, Config, DeviceProfile, LocalState, SharedGame, SharedLibrary, backup,
 };
 use crate::preclude::*;
 use crate::updater::update_config;
@@ -360,6 +362,84 @@ pub fn set_config_local(config: &Config) -> Result<(), ConfigError> {
     let _guard = CONFIG_STORE_LOCK
         .lock()
         .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    merge_config_unlocked(config)
+}
+
+/// Save a whole Config submitted by a settings-style caller without letting it
+/// redefine Games of a connected Cloud Library.
+///
+/// The submitted copy can be older than the stored one, and an accepted stale
+/// definition would be published as a local edit. Game definitions change only
+/// through the Game commands; this keeps the stored definition of any Game whose
+/// submitted definition differs and still takes per-Device fields and settings.
+pub fn set_config_keeping_definitions(config: &Config) -> Result<(), ConfigError> {
+    let _guard = CONFIG_STORE_LOCK
+        .lock()
+        .map_err(|_| ConfigError::StoreLockPoisoned)?;
+    let store = OwnerStore::runtime();
+    if !store.has_authoritative_state() {
+        return merge_config_unlocked(config);
+    }
+    let owners = store.load()?;
+    if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
+        return merge_config_unlocked(config);
+    }
+    let connected = owners
+        .shared_library
+        .games
+        .iter()
+        .map(|game| game.storage_key.as_str())
+        .filter(|id| {
+            !owners
+                .local_state
+                .local_games
+                .iter()
+                .any(|local| local.storage_key == *id)
+        })
+        .collect::<HashSet<_>>();
+    let mut merged = config.clone();
+    let stored = owners
+        .assemble_effective()
+        .map_err(crate::config::OwnerStoreError::from)?;
+    merged.games = keep_stored_definitions(&stored.games, &config.games, &connected);
+    merge_config_unlocked(&merged)
+}
+
+fn keep_stored_definitions(
+    stored: &[Game],
+    submitted: &[Game],
+    connected: &HashSet<&str>,
+) -> Vec<Game> {
+    let mut games = Vec::with_capacity(stored.len());
+    for game in submitted {
+        let Some(current) = stored
+            .iter()
+            .find(|current| current.storage_key == game.storage_key)
+        else {
+            continue;
+        };
+        let keep_submitted = !connected.contains(game.storage_key.as_str())
+            || SharedGame::from(game) == SharedGame::from(current);
+        games.push(if keep_submitted {
+            game.clone()
+        } else {
+            current.clone()
+        });
+    }
+    games.extend(
+        stored
+            .iter()
+            .filter(|current| {
+                !submitted
+                    .iter()
+                    .any(|game| game.storage_key == current.storage_key)
+            })
+            .cloned(),
+    );
+    games
+}
+
+fn merge_config_unlocked(config: &Config) -> Result<(), ConfigError> {
     let mut normalized = config.clone();
     normalized.normalize_local_fields();
     if let Ok(previous) = get_config_unlocked() {

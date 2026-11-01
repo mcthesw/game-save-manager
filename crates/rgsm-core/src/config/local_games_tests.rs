@@ -519,3 +519,44 @@ fn global_deletion_clears_pending_metadata_without_republishing_it() {
     assert!(after.local_state.pending_game_metadata.is_empty());
     assert!(after.assemble_effective().unwrap().games.is_empty());
 }
+
+#[test]
+fn settings_saves_keep_connected_definitions_but_edit_local_ones() {
+    let _config_lock = crate::config::lock_config_test_file();
+    let config = Config {
+        games: serde_json::from_value(serde_json::json!([
+            {"name": "Connected", "storage_key": "connected", "save_paths": []},
+            {"name": "Kept local", "storage_key": "kept-local", "save_paths": []}
+        ]))
+        .unwrap(),
+        ..Default::default()
+    };
+    let _guard = crate::config::ConfigTestStateGuard::replace_with(&config).unwrap();
+    crate::config::set_config_local(&config).unwrap();
+    let (library, profile, _) = crate::config::cloud_bootstrap_inputs().unwrap();
+    crate::config::activate_cloud_namespace_v2(
+        &library,
+        &profile,
+        "11111111-1111-4111-8111-111111111111",
+    )
+    .unwrap();
+    let store = OwnerStore::runtime();
+    let mut owners = store.load().unwrap();
+    let kept = owners.shared_library.games[1].clone();
+    owners.local_state.local_games.push(kept);
+    store.write(&owners).unwrap();
+
+    let mut edited = store.load_effective().unwrap();
+    edited.games[0].name = "Stale rename".into();
+    edited.games[1].name = "Renamed locally".into();
+    crate::config::set_config_keeping_definitions(&edited).unwrap();
+
+    let names = store
+        .load_effective()
+        .unwrap()
+        .games
+        .into_iter()
+        .map(|game| game.name)
+        .collect::<Vec<_>>();
+    assert_eq!(names, ["Connected", "Renamed locally"]);
+}
