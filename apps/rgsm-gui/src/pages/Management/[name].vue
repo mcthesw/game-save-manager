@@ -21,6 +21,7 @@ import SnapshotTable from '../../components/management/SnapshotTable.vue';
 import { canApplySnapshot } from '../../components/management/snapshotAvailability';
 import { useDeviceHeads, type DeviceHeadEntry } from '../../components/management/useDeviceHeads';
 import { useSnapshotTransfers } from '../../components/management/useSnapshotTransfers';
+import { quickActionAffectsGame } from '../../components/management/quickActionRefresh';
 import { runUndoRestore } from '../../components/management/undoRestore';
 import { $t } from '../../i18n';
 import { error, info } from '../../utils/logger';
@@ -166,13 +167,9 @@ let stopQuickActionListener: (() => void) | null = null;
 onMounted(async () => {
   try {
     stopQuickActionListener = await events.quickActionCompleted.listen(async (event) => {
-      const payload = event.payload;
-      if (
-        payload.status === 'Success' &&
-        payload.operation === 'Backup' &&
-        payload.game_name &&
-        payload.game_name === game.value.name
-      ) {
+      if (quickActionAffectsGame(event.payload, game.value)) {
+        // A quick-action Apply replaces the live saves, so the undo point of an earlier restore here is stale.
+        if (event.payload.operation === 'Apply') undoInfo.value = null;
         await refresh_backups_info();
       }
     });
