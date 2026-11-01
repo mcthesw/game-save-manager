@@ -534,6 +534,57 @@ async fn upload_and_download_publish_availability_only_after_hash_verification()
 }
 
 #[tokio::test]
+async fn transfers_stage_beside_the_archive_not_beside_the_progress_file() {
+    let operator = memory_operator();
+    let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let program_dir = temp_dir::TempDir::new().expect("temporary directory should initialize");
+    let bytes = b"staged archive";
+    let mut manifest = CloudManifest::default();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(live("snapshot", bytes, false)).unwrap();
+    manifest.games.insert("game".into(), game);
+    write_manifest(&operator, &manifest).await;
+    let game_dir = |device: &str| root.path().join(device).join("game");
+    let pc_path = archive_path(&game_dir("pc"), "snapshot", ArchiveFormat::Zip, None);
+    std::fs::create_dir_all(pc_path.parent().unwrap()).unwrap();
+    std::fs::write(&pc_path, bytes).unwrap();
+    let on_other_volume = |device: &str| {
+        CloudArchiveMaterializer::new(
+            operator.clone(),
+            root.path().join(device),
+            device.to_string(),
+            program_dir.path().join(format!("{device}.json")),
+            2,
+        )
+    };
+
+    on_other_volume("pc")
+        .upload("game", "snapshot")
+        .await
+        .unwrap();
+    on_other_volume("deck")
+        .download("game", "snapshot")
+        .await
+        .unwrap();
+
+    assert_eq!(std::fs::read_dir(program_dir.path()).unwrap().count(), 0);
+    for device in ["pc", "deck"] {
+        let leftovers = std::fs::read_dir(game_dir(device))
+            .unwrap()
+            .filter(|entry| {
+                entry
+                    .as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".tmp")
+            })
+            .count();
+        assert_eq!(leftovers, 0);
+    }
+}
+
+#[tokio::test]
 async fn download_returns_parent_preserving_lineage() {
     let operator = memory_operator();
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
