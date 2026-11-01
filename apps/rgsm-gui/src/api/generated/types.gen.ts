@@ -274,6 +274,13 @@ export type CloudLibraryCutoverOutcome = {
 };
 
 export type CloudLibraryCutoverReview = {
+  /**
+   * Games whose automatic-snapshot limit this device had before the upgrade.
+   * Carrying a limit into the Cloud Library makes cleanup delete old
+   * automatic Snapshots on every Device and in the cloud, so it is offered
+   * rather than applied silently.
+   */
+  automatic_cleanup: Array<CutoverAutomaticCleanup>;
   declared_bytes: number;
   game_count: number;
   snapshot_count: number;
@@ -467,7 +474,14 @@ export type CurrentPositionDecision =
       type: 'fallback_to_parent';
     };
 
+export type CutoverAutomaticCleanup = {
+  automatic_snapshots_per_branch: number;
+  game_id: string;
+  game_name: string;
+};
+
 export type CutoverCloudLibraryRequest = {
+  applyAutomaticCleanup?: boolean;
   confirmed: boolean;
 };
 

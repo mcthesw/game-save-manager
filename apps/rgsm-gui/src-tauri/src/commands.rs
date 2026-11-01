@@ -655,10 +655,11 @@ pub async fn review_cloud_library_cutover(
 
 pub async fn cutover_cloud_library(
     confirmed: bool,
+    apply_automatic_cleanup: bool,
     app_handle: AppHandle,
 ) -> Result<CloudLibraryCutoverOutcome, String> {
     info!(target:"rgsm::commands", "Cutting over legacy Cloud Library");
-    crate::cloud_library::cutover(&app_handle, confirmed)
+    crate::cloud_library::cutover(&app_handle, confirmed, apply_automatic_cleanup)
         .await
         .map_err(|error| error.to_string())
 }

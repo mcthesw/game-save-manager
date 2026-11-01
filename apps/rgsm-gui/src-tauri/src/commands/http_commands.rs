@@ -698,6 +698,8 @@ pub async fn http_review_cloud_library_cutover(
 #[serde(rename_all = "camelCase")]
 pub struct CutoverCloudLibraryRequest {
     pub confirmed: bool,
+    #[serde(default)]
+    pub apply_automatic_cleanup: bool,
 }
 
 #[utoipa::path(
@@ -711,10 +713,14 @@ pub async fn http_cutover_cloud_library(
     State(state): State<HttpHostState>,
     Json(request): Json<CutoverCloudLibraryRequest>,
 ) -> Result<Json<CloudLibraryCutoverOutcome>, ApiError> {
-    commands::cutover_cloud_library(request.confirmed, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
+    commands::cutover_cloud_library(
+        request.confirmed,
+        request.apply_automatic_cleanup,
+        state.app().clone(),
+    )
+    .await
+    .map(Json)
+    .map_err(ApiError::from_command)
 }
 
 #[utoipa::path(

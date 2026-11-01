@@ -125,10 +125,11 @@ pub async fn review_cutover(
 pub async fn cutover(
     app: &AppHandle,
     confirmed: bool,
+    apply_automatic_cleanup: bool,
 ) -> Result<CloudLibraryCutoverOutcome, CloudLibraryServiceError> {
     crate::cloud_operation::run_after_cancelling(app, async {
         let outcome = ServiceContext::new(app.state::<HookPipelineState>().snapshot())
-            .cutover_cloud_library(confirmed)
+            .cutover_cloud_library(confirmed, apply_automatic_cleanup)
             .await?;
         crate::hooks::rebuild_pipeline(app, &get_config()?);
         Ok(outcome)
