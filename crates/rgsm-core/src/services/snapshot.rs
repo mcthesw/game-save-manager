@@ -149,13 +149,14 @@ impl ServiceContext {
             .iter()
             .filter(|snapshot| snapshot.created_by.is_automatic_backup())
             .max_by_key(|snapshot| snapshot.creation_time());
+        let game_dir = backup_base.join(game.backup_dir_name().as_ref());
         if latest.is_some_and(|snapshot| {
             let backend: &dyn ArchiveBackend = match snapshot.archive_format {
                 ArchiveFormat::Zip => &ZipBackend,
                 ArchiveFormat::SevenZ => &SevenZBackend,
             };
             backend
-                .read_source_fingerprint(std::path::Path::new(&snapshot.path))
+                .read_source_fingerprint(&snapshot_archive_path(&game_dir, snapshot))
                 .as_deref()
                 == Some(fingerprint.as_str())
         }) {
