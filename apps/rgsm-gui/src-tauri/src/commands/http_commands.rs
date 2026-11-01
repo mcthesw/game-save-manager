@@ -310,6 +310,29 @@ pub async fn http_delete_game(
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct GetLocalCopyRemovalPreviewRequest {
+    pub identity: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/get-local-copy-removal-preview",
+    operation_id = "getLocalCopyRemovalPreview",
+    request_body = GetLocalCopyRemovalPreviewRequest,
+    responses((status = 200, body = LocalCopyRemovalPreview), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_get_local_copy_removal_preview(
+    State(state): State<HttpHostState>,
+    Json(request): Json<GetLocalCopyRemovalPreviewRequest>,
+) -> Result<Json<LocalCopyRemovalPreview>, ApiError> {
+    commands::get_local_copy_removal_preview(request.identity, state.app().clone())
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct GetGameSnapshotsInfoRequest {
     pub game: Game,
 }

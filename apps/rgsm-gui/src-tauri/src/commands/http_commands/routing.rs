@@ -35,6 +35,10 @@ pub fn router() -> Router<HttpHostState> {
         )
         .route("/api/v1/delete-game", post(http_delete_game))
         .route(
+            "/api/v1/get-local-copy-removal-preview",
+            post(http_get_local_copy_removal_preview),
+        )
+        .route(
             "/api/v1/get-game-snapshots-info",
             post(http_get_game_snapshots_info),
         )
@@ -346,6 +350,7 @@ pub fn router() -> Router<HttpHostState> {
         http_batch_delete_snapshots,
         http_get_cloud_namespace_generation,
         http_delete_game,
+        http_get_local_copy_removal_preview,
         http_get_game_snapshots_info,
         http_verify_archive_integrity,
         http_set_config,
@@ -464,6 +469,7 @@ pub fn router() -> Router<HttpHostState> {
         DeleteSnapshotRequest,
         BatchDeleteSnapshotsRequest,
         DeleteGameRequest,
+        GetLocalCopyRemovalPreviewRequest,
         GetGameSnapshotsInfoRequest,
         VerifyArchiveIntegrityRequest,
         SetConfigRequest,

@@ -164,6 +164,9 @@ import type {
   GetLocalConfigData,
   GetLocalConfigErrors,
   GetLocalConfigResponses,
+  GetLocalCopyRemovalPreviewData,
+  GetLocalCopyRemovalPreviewErrors,
+  GetLocalCopyRemovalPreviewResponses,
   GetLudusaviManifestStatusData,
   GetLudusaviManifestStatusErrors,
   GetLudusaviManifestStatusResponses,
@@ -989,6 +992,26 @@ export const getLocalConfig = <ThrowOnError extends boolean = false>(
   (options?.client ?? client).post<GetLocalConfigResponses, GetLocalConfigErrors, ThrowOnError>({
     url: '/api/v1/get-local-config',
     ...options,
+  });
+
+export const getLocalCopyRemovalPreview = <ThrowOnError extends boolean = false>(
+  options: Options<GetLocalCopyRemovalPreviewData, ThrowOnError>
+): RequestResult<
+  GetLocalCopyRemovalPreviewResponses,
+  GetLocalCopyRemovalPreviewErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    GetLocalCopyRemovalPreviewResponses,
+    GetLocalCopyRemovalPreviewErrors,
+    ThrowOnError
+  >({
+    url: '/api/v1/get-local-copy-removal-preview',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
 
 export const getLudusaviManifestStatus = <ThrowOnError extends boolean = false>(

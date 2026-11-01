@@ -275,6 +275,8 @@
         "delete_actions": "Delete game",
         "add_to_device": "Manage on this device",
         "delete_local_confirm": "Enter yes to delete {game} from this device, including its management settings and local backups. Cloud history, other devices and your actual game save files will be kept.",
+        "delete_local_unuploaded_confirm": "{count} local backup(s) of {game} are not in the cloud and will be lost permanently if you delete it from this device. Enter yes to delete {game} from this device anyway. Your actual game save files will be kept.",
+        "delete_local_unchecked_confirm": "The cloud could not be checked. Up to {count} local backup(s) of {game} may not be in the cloud and would be lost permanently if you delete it from this device. Enter yes to delete {game} from this device anyway. Your actual game save files will be kept.",
         "delete_everywhere_confirm": "Enter yes to permanently delete {game}, its management settings and all backups from the cloud and every device. Offline devices will delete their backups when they reconnect. Your actual game save files will be kept. This cannot be undone.",
         "delete_game_confirmation_error": "Enter yes to confirm deletion",
         "choose_restore_location": "Choose restore location",
