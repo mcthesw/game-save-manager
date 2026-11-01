@@ -66,8 +66,10 @@ impl DeletionRegistryRepository {
             self.max_attempts,
         )
         .await?;
+        // Absence must not read as "nothing was ever deleted": that would let
+        // permanently deleted Games and removed Devices come back.
         let Some(bytes) = bytes else {
-            return Ok(DeletionRegistry::default());
+            return Err(DeletionRegistryError::Missing);
         };
         let registry: DeletionRegistry = serde_json::from_slice(&bytes)?;
         if registry.schema_version != DELETION_REGISTRY_SCHEMA_VERSION {
@@ -185,6 +187,8 @@ impl DeletionRegistryRepository {
 
 #[derive(Debug, Error)]
 pub enum DeletionRegistryError {
+    #[error("Deletion registry is missing; rebuild the Cloud Library")]
+    Missing,
     #[error("Unsupported deletion registry schema: {0}")]
     UnsupportedSchema(u32),
     #[error("Deletion registry update was not visible after {attempts} attempts")]
@@ -206,14 +210,25 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn missing_registry_is_empty_and_markers_are_durable() {
+    async fn missing_registry_is_reported_and_never_recreated_by_a_marker() {
         let operator = Operator::new(services::Memory::default()).unwrap().finish();
         let repository = DeletionRegistryRepository::new(operator.clone(), 2);
 
-        assert_eq!(
-            repository.load().await.unwrap(),
-            DeletionRegistry::default()
-        );
+        assert!(matches!(
+            repository.load().await,
+            Err(DeletionRegistryError::Missing)
+        ));
+        assert!(matches!(
+            repository.mark_profile_deleted("deck", "pc").await,
+            Err(DeletionRegistryError::Missing)
+        ));
+        assert!(!operator.exists(DELETION_REGISTRY_PATH).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn markers_are_durable() {
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
+        let repository = DeletionRegistryRepository::new(operator.clone(), 2);
         repository.mark_profile_deleted("deck", "pc").await.unwrap();
 
         let stored = repository.load().await.unwrap();
@@ -255,7 +270,7 @@ mod tests {
 
     #[tokio::test]
     async fn existing_markers_are_idempotent_and_preserve_the_first_actor() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let repository = DeletionRegistryRepository::new(operator, 2);
 
         repository.mark_profile_deleted("deck", "pc").await.unwrap();
@@ -269,7 +284,7 @@ mod tests {
 
     #[tokio::test]
     async fn game_marker_preserves_the_first_name_and_actor() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let repository = DeletionRegistryRepository::new(operator, 2);
 
         repository
@@ -287,7 +302,7 @@ mod tests {
 
     #[tokio::test]
     async fn deleted_profile_and_game_are_rejected_as_writers() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let repository = DeletionRegistryRepository::new(operator, 2);
         repository
             .mark_profile_deleted("removed-device", "pc")

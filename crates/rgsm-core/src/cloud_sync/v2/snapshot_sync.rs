@@ -629,15 +629,10 @@ impl From<ManifestRepositoryError> for SnapshotSyncError {
 
 #[cfg(test)]
 mod tests {
-    use opendal::services;
 
     use super::*;
     use crate::backup::{ArchiveFormat, CreatedBy};
     use crate::cloud_sync::v2::{GameManifest, SnapshotState, cloud_archive_path};
-
-    fn memory_operator() -> Operator {
-        Operator::new(services::Memory::default()).unwrap().finish()
-    }
 
     fn snapshot(id: &str, parent: Option<&str>) -> Snapshot {
         Snapshot {
@@ -667,7 +662,7 @@ mod tests {
 
     #[tokio::test]
     async fn baseline_ancestors_are_catalogued_but_only_new_snapshots_upload() {
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("deck");
         let game_root = archive_root.join("game");
@@ -750,7 +745,7 @@ mod tests {
 
     #[tokio::test]
     async fn reconciliation_leaves_remote_archives_until_the_player_requests_one() {
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("deck");
         let mut manifest = CloudManifest {
@@ -840,7 +835,7 @@ mod tests {
 
     #[tokio::test]
     async fn retention_enforcement_uses_global_tombstones_and_keeps_each_head() {
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("deck");
         let game_root = archive_root.join("game");
@@ -905,7 +900,7 @@ mod tests {
 
     #[tokio::test]
     async fn unpublished_local_snapshot_can_be_uploaded_after_publish() {
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("pc");
         let game_root = archive_root.join("game");
@@ -952,7 +947,7 @@ mod tests {
 
     #[tokio::test]
     async fn upload_publishes_missing_ancestors_before_selected_snapshot() {
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("pc");
         let game_root = archive_root.join("game");
@@ -1019,7 +1014,7 @@ mod tests {
 
     #[tokio::test]
     async fn upload_rejects_same_identity_with_different_content() {
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("deck");
         let game_root = archive_root.join("game");

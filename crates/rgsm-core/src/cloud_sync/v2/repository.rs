@@ -76,11 +76,13 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
     }
 
     pub async fn load(&self) -> Result<CloudManifest, ManifestRepositoryError> {
-        let manifest = match read_complete_json(|| self.transport.read(), self.max_attempts).await?
-        {
-            Some(bytes) => serde_json::from_slice(&bytes)?,
-            None => CloudManifest::default(),
-        };
+        let manifest: CloudManifest =
+            match read_complete_json(|| self.transport.read(), self.max_attempts).await? {
+                Some(bytes) => serde_json::from_slice(&bytes)?,
+                // A bound library always has its Manifest; treating absence as an
+                // empty one would let the next write erase every published Snapshot.
+                None => return Err(ManifestRepositoryError::Missing),
+            };
         manifest.validate()?;
         Ok(manifest)
     }
@@ -150,6 +152,8 @@ pub enum ManifestRepositoryError {
     Serialization(#[from] serde_json::Error),
     #[error(transparent)]
     Manifest(#[from] ManifestError),
+    #[error("Cloud Manifest is missing; rebuild the Cloud Library")]
+    Missing,
     #[error("Cloud Manifest revision overflow")]
     RevisionOverflow,
     #[error("Cloud Manifest read-back verification failed after {attempts} attempts")]
@@ -179,7 +183,7 @@ mod tests {
         fn new(overwrite_writes: usize) -> Self {
             Self {
                 state: StdMutex::new(FakeState {
-                    bytes: None,
+                    bytes: Some(serde_json::to_vec_pretty(&CloudManifest::default()).unwrap()),
                     overwrite_writes,
                 }),
             }
@@ -277,6 +281,23 @@ mod tests {
             repository.load().await,
             Err(ManifestRepositoryError::Serialization(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn a_missing_manifest_is_reported_and_never_recreated_by_a_mutation() {
+        let transport = FakeTransport::new(0);
+        transport.state.lock().unwrap().bytes = None;
+        let repository = CloudManifestRepository::with_transport(transport, 2);
+
+        assert!(matches!(
+            repository.load().await,
+            Err(ManifestRepositoryError::Missing)
+        ));
+        assert!(matches!(
+            repository.mutate(|_| Ok(())).await,
+            Err(ManifestRepositoryError::Missing)
+        ));
+        assert!(repository.transport.read().await.unwrap().is_none());
     }
 
     #[tokio::test]

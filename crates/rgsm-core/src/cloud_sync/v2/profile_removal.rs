@@ -106,7 +106,6 @@ pub enum DeviceProfileRemovalError {
 
 #[cfg(test)]
 mod tests {
-    use opendal::services;
 
     use super::*;
     use crate::backup::{ArchiveFormat, CreatedBy};
@@ -117,7 +116,7 @@ mod tests {
 
     #[tokio::test]
     async fn tombstone_blocks_stale_profile_and_removes_only_matching_heads() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let owners = ConfigurationOwners::from_legacy(
             &crate::config::Config::default(),
             &"deck".to_string(),

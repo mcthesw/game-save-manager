@@ -270,7 +270,6 @@ pub enum SharedGameDeletionError {
 
 #[cfg(test)]
 mod tests {
-    use opendal::services;
 
     use super::*;
     use crate::backup::{ArchiveFormat, CreatedBy};
@@ -317,7 +316,7 @@ mod tests {
     }
 
     async fn fixture() -> (Operator, temp_dir::TempDir) {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         operator
             .write(
                 super::super::SHARED_LIBRARY_PATH,

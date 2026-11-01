@@ -1,10 +1,10 @@
-use opendal::{Operator, services};
+use opendal::Operator;
 
 use super::*;
 use crate::backup::{ArchiveFormat, CreatedBy, GameSnapshots};
 
 async fn fixture() -> (Operator, temp_dir::TempDir, CloudManifest) {
-    let operator = Operator::new(services::Memory::default()).unwrap().finish();
+    let operator = super::test_support::seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().unwrap();
     let source = root.path().join("source.zip");
     std::fs::write(&source, b"live descendant").unwrap();

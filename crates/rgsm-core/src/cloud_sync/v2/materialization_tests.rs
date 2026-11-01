@@ -1,20 +1,15 @@
 use std::collections::BTreeMap;
 
-use opendal::{Operator, services};
+use opendal::Operator;
 use tokio_util::sync::CancellationToken;
 
+use super::test_support::seeded_memory_operator;
 use super::{
     ArchiveIntegrity, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer, CloudManifest, DeletionKind,
     GameManifest, LocalArchiveEviction, LocalArchiveEvidence, MaterializationError,
     SnapshotDeletionLifecycleError, SnapshotNode, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
-
-fn memory_operator() -> Operator {
-    Operator::new(services::Memory::default())
-        .expect("memory backend should initialize")
-        .finish()
-}
 
 fn live(snapshot_id: &str, bytes: &[u8], cloud_verified: bool) -> SnapshotNode {
     let temp = temp_dir::TempDir::new().expect("temporary directory should initialize");
@@ -54,7 +49,7 @@ fn materializer(
 
 #[tokio::test]
 async fn excluded_game_clears_its_old_scoped_plan_without_blocking_other_games() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().unwrap();
     let mut manifest = CloudManifest::default();
     for id in ["pending", "ready"] {
@@ -99,7 +94,7 @@ async fn excluded_game_clears_its_old_scoped_plan_without_blocking_other_games()
 
 #[tokio::test]
 async fn unresolved_definitions_are_excluded_from_deletion_and_batch_transfer() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().unwrap();
     let mut manifest = CloudManifest::default();
     for game_id in ["pending", "ready"] {
@@ -175,7 +170,7 @@ async fn unresolved_definitions_are_excluded_from_deletion_and_batch_transfer() 
 
 #[tokio::test]
 async fn resumed_transfer_rechecks_definition_scope() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().unwrap();
     let mut manifest = CloudManifest::default();
     for game_id in ["pending", "ready"] {
@@ -216,7 +211,7 @@ async fn resumed_transfer_rechecks_definition_scope() {
 
 #[tokio::test]
 async fn view_keeps_catalog_cloud_and_device_availability_separate() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -261,7 +256,7 @@ async fn view_keeps_catalog_cloud_and_device_availability_separate() {
 
 #[tokio::test]
 async fn same_size_local_corruption_is_planned_for_repair() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -289,7 +284,7 @@ async fn same_size_local_corruption_is_planned_for_repair() {
 
 #[tokio::test]
 async fn local_eviction_keeps_shared_snapshot_and_cloud_archive() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -331,7 +326,7 @@ async fn local_eviction_keeps_shared_snapshot_and_cloud_archive() {
 
 #[tokio::test]
 async fn another_devices_local_only_archive_cannot_be_downloaded() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -353,7 +348,7 @@ async fn another_devices_local_only_archive_cannot_be_downloaded() {
 
 #[tokio::test]
 async fn permanent_deletion_requires_confirmation_then_removes_local_and_cloud_copies() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -399,7 +394,7 @@ async fn permanent_deletion_requires_confirmation_then_removes_local_and_cloud_c
 
 #[tokio::test]
 async fn reconciling_pending_tombstone_removes_this_devices_local_copy() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -447,7 +442,7 @@ async fn reconciling_pending_tombstone_removes_this_devices_local_copy() {
 
 #[tokio::test]
 async fn initiating_device_can_directly_retry_a_pending_deletion() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -485,7 +480,7 @@ async fn initiating_device_can_directly_retry_a_pending_deletion() {
 
 #[tokio::test]
 async fn upload_and_download_publish_availability_only_after_hash_verification() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let bytes = b"verified archive";
     let mut manifest = CloudManifest::default();
@@ -535,7 +530,7 @@ async fn upload_and_download_publish_availability_only_after_hash_verification()
 
 #[tokio::test]
 async fn transfers_stage_beside_the_archive_not_beside_the_progress_file() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let program_dir = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let bytes = b"staged archive";
@@ -586,7 +581,7 @@ async fn transfers_stage_beside_the_archive_not_beside_the_progress_file() {
 
 #[tokio::test]
 async fn download_returns_parent_preserving_lineage() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let parent_bytes = b"parent archive";
     let child_bytes = b"child archive";
@@ -632,7 +627,7 @@ async fn download_returns_parent_preserving_lineage() {
 
 #[tokio::test]
 async fn materialize_all_resume_keeps_the_original_catalog_boundary() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -693,7 +688,7 @@ async fn materialize_all_resume_keeps_the_original_catalog_boundary() {
 
 #[tokio::test]
 async fn game_materialization_respects_scope_and_activation_revision() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest {
         revision: 4,
@@ -782,7 +777,7 @@ async fn game_materialization_respects_scope_and_activation_revision() {
 
 #[tokio::test]
 async fn catch_up_uses_current_catalog_revision_not_legacy_zero() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest {
         revision: 4,
@@ -833,7 +828,7 @@ async fn catch_up_uses_current_catalog_revision_not_legacy_zero() {
 
 #[tokio::test]
 async fn materialize_all_resumes_the_one_pending_scope() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -874,7 +869,7 @@ async fn materialize_all_resumes_the_one_pending_scope() {
 
 #[tokio::test]
 async fn pending_plan_is_replanned_when_its_snapshot_identity_changes_remotely() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");
@@ -922,7 +917,7 @@ async fn pending_plan_is_replanned_when_its_snapshot_identity_changes_remotely()
 
 #[tokio::test]
 async fn pending_plan_skips_a_snapshot_deleted_remotely() {
-    let operator = memory_operator();
+    let operator = seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().expect("temporary directory should initialize");
     let mut manifest = CloudManifest::default();
     let mut game = GameManifest::new("game");

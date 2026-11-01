@@ -262,6 +262,8 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
         let manifest: CloudManifest = parse_json(CLOUD_MANIFEST_PATH, &manifest_bytes)?;
         manifest.validate()?;
 
+        self.required_object(DELETION_REGISTRY_PATH).await?;
+
         Ok(CloudNamespaceClassification::SupportedV2 {
             descriptor,
             shared_library,
@@ -390,6 +392,10 @@ mod tests {
             CLOUD_MANIFEST_PATH.into(),
             serde_json::to_vec(&CloudManifest::default()).unwrap(),
         );
+        transport.objects.insert(
+            DELETION_REGISTRY_PATH.into(),
+            serde_json::to_vec(&super::super::DeletionRegistry::default()).unwrap(),
+        );
         transport
     }
 
@@ -423,6 +429,7 @@ mod tests {
             V2_NAMESPACE_DESCRIPTOR_PATH,
             SHARED_LIBRARY_PATH,
             CLOUD_MANIFEST_PATH,
+            DELETION_REGISTRY_PATH,
         ] {
             let classifier = CloudNamespaceClassifier::with_transport(OverwritingTransport {
                 ready: complete_v2(),
@@ -522,6 +529,17 @@ mod tests {
                 path: CLOUD_MANIFEST_PATH,
                 ..
             })
+        ));
+
+        let mut missing_registry = complete_v2();
+        missing_registry.objects.remove(DELETION_REGISTRY_PATH);
+        assert!(matches!(
+            CloudNamespaceClassifier::with_transport(missing_registry)
+                .classify()
+                .await,
+            Err(CloudNamespaceError::MissingRequiredObject(
+                DELETION_REGISTRY_PATH
+            ))
         ));
 
         let mut invalid_library = complete_v2();
