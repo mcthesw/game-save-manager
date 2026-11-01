@@ -106,7 +106,13 @@ pub(super) async fn refresh_snapshot_descriptions() -> Result<(), CloudLibrarySe
         let mut local = match game.get_game_snapshots_info() {
             Ok(local) => local,
             Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
+            Err(error) => {
+                log::warn!(
+                    "Skipping snapshot descriptions of '{}': {error}",
+                    game.storage_key
+                );
+                continue;
+            }
         };
         let before = local.clone();
         sync_descriptions(&repository, library_id, &game.storage_key, &mut local).await?;
