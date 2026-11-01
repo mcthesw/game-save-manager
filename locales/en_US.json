@@ -361,6 +361,7 @@
         "batch_upload": "Upload to cloud",
         "batch_download": "Download to this device",
         "batch_evict": "Remove from this device",
+        "local_remove_needs_cloud": "Connect to the cloud to confirm the cloud copy before removing from this device",
         "batch_evict_confirm": "Remove {count} selected snapshot copies from this device? Cloud copies stay",
         "batch_evict_confirm_mixed": "Remove {count} selected snapshot copies from this device? {unverified} of them have no verified cloud copy",
         "batch_evict_success": "Removed {count} snapshot copies from this device",

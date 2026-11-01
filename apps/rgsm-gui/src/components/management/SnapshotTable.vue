@@ -37,6 +37,8 @@ const props = defineProps<{
   sortDesc: boolean;
   selectedDates: Set<string>;
   cloudGame: CloudArchiveGameView | null;
+  /** The game is in the cloud library but its cloud view could not be loaded. */
+  cloudUnavailable?: boolean;
   localCatalogDates: Set<string>;
   retentionProtectedDates: Set<string>;
   activeTransfer: string;
@@ -242,6 +244,19 @@ const locationLabel = (date: string) =>
                   :disabled="!canEvict(snapshot.date)"
                   :loading="activeTransfer === snapshot.date"
                   @click="emit('evict', snapshot.date)"
+                >
+                  <template #icon><FolderMinus :size="15" aria-hidden="true" /></template>
+                </KButton>
+              </KTooltip>
+              <KTooltip
+                v-else-if="cloudUnavailable && isOnDevice(snapshot.date)"
+                :content="$t('manage.local_remove_needs_cloud')"
+              >
+                <KButton
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="$t('manage.local_remove_needs_cloud')"
+                  disabled
                 >
                   <template #icon><FolderMinus :size="15" aria-hidden="true" /></template>
                 </KButton>

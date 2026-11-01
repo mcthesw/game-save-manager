@@ -117,6 +117,11 @@ const gameStatus = computed(() =>
   )
 );
 const isSharedGame = computed(() => gameStatus.value?.shared === true);
+// A definition conflict also empties `cloudGame`, but reconnecting would not fix that.
+const cloudUnavailable = computed(
+  () => isSharedGame.value && !cloudGame.value && !definitionConflict.value
+);
+const cloudUnavailableHint = computed(() => $t('manage.local_remove_needs_cloud'));
 const deleteLabel = computed(() =>
   $t(isSharedGame.value ? 'sync_settings.archives.delete_permanently' : 'manage.delete')
 );
@@ -404,6 +409,10 @@ const {
   snapshotLabel: formatSnapshotPromptLine,
   refresh: refresh_backups_info,
 });
+
+const selectedOnDevice = computed(() =>
+  selected_game_snapshots.value.some((snapshot) => localCatalogDates.value.has(snapshot.date))
+);
 
 function backupSuccessMessage() {
   const backendEnabled = config.value?.settings.cloud_settings?.backend?.type !== 'Disabled';
@@ -1484,6 +1493,15 @@ const viewModeOptions = computed(() => [
             <template #icon><FolderMinus :size="13" aria-hidden="true" /></template>
             {{ $t('manage.batch_evict') }}
           </KButton>
+          <KTooltip
+            v-else-if="cloudUnavailable && selectedOnDevice"
+            :content="cloudUnavailableHint"
+          >
+            <KButton size="sm" disabled>
+              <template #icon><FolderMinus :size="13" aria-hidden="true" /></template>
+              {{ $t('manage.batch_evict') }}
+            </KButton>
+          </KTooltip>
           <KButton v-if="selectedUploadable.length > 0" size="sm" @click="batchTransfer(true)">
             <template #icon><Upload :size="13" aria-hidden="true" /></template>
             {{ $t('manage.batch_upload') }}
@@ -1562,6 +1580,7 @@ const viewModeOptions = computed(() => [
           :sort-desc="sortDesc"
           :selected-dates="selectedDates"
           :cloud-game="cloudGame"
+          :cloud-unavailable="cloudUnavailable"
           :local-catalog-dates="localCatalogDates"
           :retention-protected-dates="retentionProtectedDates"
           :active-transfer="activeTransfer"

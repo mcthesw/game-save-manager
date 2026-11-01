@@ -361,6 +361,7 @@
         "batch_upload": "上传到云",
         "batch_download": "下载到本机",
         "batch_evict": "从本机移除",
+        "local_remove_needs_cloud": "需要连接云端才能确认云端副本，再移除本机副本",
         "batch_evict_confirm": "要从本机移除选中的 {count} 个快照副本吗，云端仍会保留",
         "batch_evict_confirm_mixed": "从此设备移除 {count} 个选中的快照副本？其中 {unverified} 个没有已验证的云端副本",
         "batch_evict_success": "已从本机移除 {count} 个快照副本",
