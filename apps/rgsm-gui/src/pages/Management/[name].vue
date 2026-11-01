@@ -723,6 +723,8 @@ async function apply_save(date: string) {
             restoreError = $t('manage.backup_not_found', { date: err.date });
           } else if (err.type === 'LocationSelectionRequired') {
             locationSelectionRequired = true;
+          } else if (err.type === 'SafetyBackupFailed') {
+            restoreError = $t('manage.safety_backup_failed', { reason: err.message });
           } else {
             restoreError = err.message;
           }

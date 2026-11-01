@@ -276,23 +276,33 @@ impl ServiceContext {
         config: &Config,
         game: &Game,
     ) -> Result<CapturePlan, crate::backup::CapturePlanError> {
+        CapturePlan::from_resolution_reports(self.capture_inputs(config, game))
+    }
+
+    pub(crate) fn safety_backup_plan(
+        &self,
+        config: &Config,
+        game: &Game,
+    ) -> Result<Option<CapturePlan>, crate::backup::CapturePlanError> {
+        CapturePlan::for_safety_backup(self.capture_inputs(config, game))
+    }
+
+    fn capture_inputs(&self, config: &Config, game: &Game) -> Vec<SaveUnitCaptureInput> {
         let context = super::game_path_context(game, config.devices.get(get_current_device_id()));
-        CapturePlan::from_resolution_reports(
-            game.save_paths
-                .iter()
-                .filter(|save_unit| save_unit.enabled)
-                .map(|save_unit| SaveUnitCaptureInput {
-                    save_unit_id: save_unit.id,
-                    delete_before_apply: save_unit.delete_before_apply,
-                    report: self.resolve_save_unit_with_context(
-                        game,
-                        save_unit,
-                        &context,
-                        ResolutionPurpose::Capture,
-                    ),
-                })
-                .collect(),
-        )
+        game.save_paths
+            .iter()
+            .filter(|save_unit| save_unit.enabled)
+            .map(|save_unit| SaveUnitCaptureInput {
+                save_unit_id: save_unit.id,
+                delete_before_apply: save_unit.delete_before_apply,
+                report: self.resolve_save_unit_with_context(
+                    game,
+                    save_unit,
+                    &context,
+                    ResolutionPurpose::Capture,
+                ),
+            })
+            .collect()
     }
 
     /// Resolve a Save Unit against an explicitly supplied configuration snapshot.

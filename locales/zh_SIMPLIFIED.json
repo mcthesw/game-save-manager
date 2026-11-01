@@ -376,6 +376,7 @@
         "batch_delete_partial": "删除了 {succeeded} 个快照，{failed} 个失败",
         "recover_failed": "恢复失败",
         "backup_not_found": "未找到备份：{date}",
+        "safety_backup_failed": "已取消恢复：无法为当前存档创建备份，存档未被改动。请释放磁盘空间，或在设置中关闭「恢复前备份当前存档」后重试。原因：{reason}",
         "size": "文件大小",
         "size_not_available": "未记录",
         "save_paths_updated": "游戏设置更新成功",

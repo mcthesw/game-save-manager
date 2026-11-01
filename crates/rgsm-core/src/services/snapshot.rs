@@ -217,6 +217,16 @@ impl ServiceContext {
         let archive_path = snapshot_archive_path(&game_dir, &snapshot);
         let config = get_config()?;
 
+        // Conflict resolution takes its own mandatory backup before restoring.
+        let capture_plan = if config.settings.extra_backup_when_apply
+            && source != HookSource::CloudConflictResolution
+        {
+            self.safety_backup_plan(&config, game)
+                .map_err(|error| BackupError::PreRestoreBackupFailed(Box::new(error.into())))?
+        } else {
+            None
+        };
+
         self.pipeline()
             .fire_before_restore(&BeforeRestoreCtx {
                 config: config.clone(),
@@ -225,7 +235,7 @@ impl ServiceContext {
                 snapshot: snapshot.clone(),
                 snapshots: snapshots_before_restore,
                 archive_path: archive_path.clone(),
-                capture_plan: self.capture_plan(&config, game).ok(),
+                capture_plan,
             })
             .await?;
 
