@@ -3,7 +3,6 @@ use tauri::{AppHandle, Manager};
 
 use rgsm_core::backup::{AutoBackupConfig, Game, TimerSnapshotDecision};
 use rgsm_core::config::get_config;
-use rgsm_core::hooks::SnapshotDeletedCtx;
 use rgsm_core::services::ServiceContext;
 
 use super::{QuickActionType, notify_backup_failed, notify_backup_skipped_unchanged};
@@ -67,46 +66,22 @@ pub async fn perform_changed_auto_backup(
         }
     };
 
-    cleanup_old_auto_backups(app, game, retention, config, trigger).await;
-}
-
-async fn cleanup_old_auto_backups(
-    app: &AppHandle,
-    game: &Game,
-    retention: Option<&AutoBackupConfig>,
-    config: rgsm_core::config::Config,
-    trigger: QuickActionType,
-) {
     let effective_max = game
         .auto_backup_limit
         .or_else(|| retention.and_then(|retention| retention.max_backup_count))
         .unwrap_or(config.settings.max_auto_backup_count);
-
     if effective_max == 0 {
         return;
     }
 
-    match game.cleanup_old_auto_backups(effective_max).await {
-        Ok(cleanup_result) => {
-            if !cleanup_result.deleted_remote_paths.is_empty() {
-                let pipeline = app.state::<crate::hooks::HookPipelineState>().snapshot();
-                pipeline
-                    .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                        config,
-                        source: trigger.to_hook_source(),
-                        game: game.clone(),
-                        snapshots: cleanup_result.snapshots,
-                        deleted_remote_paths: cleanup_result.deleted_remote_paths,
-                    })
-                    .await;
-            }
-        }
-        Err(err) => {
-            warn!(
-                target: "rgsm::quick_action::auto_backup",
-                "Automatic backup cleanup failed for '{}': {err:?}",
-                game.name
-            );
-        }
+    if let Err(err) = service
+        .cleanup_old_auto_backups(game, effective_max, trigger.to_hook_source())
+        .await
+    {
+        warn!(
+            target: "rgsm::quick_action::auto_backup",
+            "Automatic backup cleanup failed for '{}': {err:?}",
+            game.name
+        );
     }
 }
