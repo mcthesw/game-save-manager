@@ -254,6 +254,7 @@
     },
     "manage": {
         "retention_shared_save_failed": "Local settings are saved, but shared settings could not be confirmed. Refresh and try again.",
+        "retention_local_shared_note": "This game is in a Cloud Library. Its automatic backups are limited by the cloud setting below instead of a limit on this device.",
         "retention_local_hint": "Applies to all automatic triggers. Older backups are cleaned up after a new automatic backup is created. Manual backups are unaffected.",
         "retention_unlimited": "Unlimited",
         "retention_custom": "Set for this game",
@@ -1119,6 +1120,10 @@
                 "after_title": "After you start",
                 "card": "Legacy cloud saves found for {count} games",
                 "card_kicker": "Upgrade required",
+                "cleanup_title": "Automatic cleanup for {count} games",
+                "cleanup_description": "Before the upgrade, this device kept only the newest automatic backups of these games. You can keep that limit in the new library. Cleanup permanently deletes older automatic snapshots on all devices and in the cloud. Your current progress and protected snapshots are not affected.",
+                "cleanup_item": "{game}: newest {count} automatic snapshots on each branch",
+                "cleanup_confirm": "Turn on automatic cleanup for these games",
                 "card_resume": "Last upgrade did not finish",
                 "card_resume_title": "Continue moving your saves to the new library",
                 "gate_action": "Go upgrade",

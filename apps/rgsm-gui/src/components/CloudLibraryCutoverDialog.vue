@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { commands, type CloudLibraryCutoverReview } from '~/api/commands';
 import { $t } from '~/i18n';
 import { LoaderCircle } from '@lucide/vue';
-import { KButton, KDialog } from '../ui/kit';
+import { KButton, KCheckbox, KDialog } from '../ui/kit';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 const review = ref<CloudLibraryCutoverReview | null>(null);
 const loading = ref(false);
 const running = ref(false);
+const applyAutomaticCleanup = ref(false);
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
@@ -24,6 +25,7 @@ const visible = computed({
 
 async function loadReview() {
   loading.value = true;
+  applyAutomaticCleanup.value = false;
   try {
     const result = await commands.reviewCloudLibraryCutover();
     if (result.status === 'error') {
@@ -44,7 +46,7 @@ async function submit() {
   if (!review.value || running.value) return;
   running.value = true;
   try {
-    const result = await commands.cutoverCloudLibrary(true);
+    const result = await commands.cutoverCloudLibrary(true, applyAutomaticCleanup.value);
     if (result.status === 'error') {
       notifyError(`${$t('sync_settings.library.cutover.failed')}: ${result.error}`);
       return;
@@ -109,6 +111,31 @@ watch(
           <li>{{ $t('sync_settings.library.cutover.after_resume') }}</li>
         </ul>
       </template>
+      <div v-if="review.automatic_cleanup.length" class="mt-4">
+        <p class="text-sm font-medium text-text">
+          {{
+            $t('sync_settings.library.cutover.cleanup_title', {
+              count: review.automatic_cleanup.length,
+            })
+          }}
+        </p>
+        <p class="mt-1 text-sm leading-relaxed text-text-dim">
+          {{ $t('sync_settings.library.cutover.cleanup_description') }}
+        </p>
+        <ul class="mt-2 max-h-32 list-disc overflow-auto pl-5 text-sm text-text-dim">
+          <li v-for="item in review.automatic_cleanup" :key="item.game_id">
+            {{
+              $t('sync_settings.library.cutover.cleanup_item', {
+                game: item.game_name,
+                count: item.automatic_snapshots_per_branch,
+              })
+            }}
+          </li>
+        </ul>
+        <KCheckbox v-model="applyAutomaticCleanup" class="mt-3">
+          {{ $t('sync_settings.library.cutover.cleanup_confirm') }}
+        </KCheckbox>
+      </div>
       <p v-if="running" class="mt-3 text-sm text-text-dim">
         {{ $t('sync_settings.library.cutover.running') }}
       </p>
