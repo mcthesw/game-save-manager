@@ -201,6 +201,16 @@ pub fn convert_snapshot_archive(
                 .unwrap_or_else(|| PayloadSource::FileSystem(group.source_path.clone().into())),
         })
         .collect();
+    // An unreadable destination is debris from an interrupted attempt and would
+    // fail every retry. A readable archive is never deleted: it may hold other
+    // data, and it is only reused when it verifies.
+    if input.destination.exists()
+        && SevenZBackend
+            .read_capture_manifest(input.destination)
+            .is_err()
+    {
+        fs::remove_file(input.destination)?;
+    }
     let existed = input.destination.exists();
     let result = (|| {
         let size = if existed {
