@@ -74,7 +74,7 @@ test('cloud join code previews without changes, confirms an existing library, an
     const writesBefore = dav.writes.length;
     await dialog.getByRole('textbox', { name: 'Cloud join code' }).fill(code);
     await dialog.getByRole('button', { name: 'Preview library', exact: true }).click();
-    await expect(dialog.getByText('1 shared games')).toBeVisible();
+    await expect(dialog.getByText('1 games in the cloud library')).toBeVisible();
     await pageB.screenshot({
       path: testInfo.outputPath('acceptance-cloud-join.png'),
       mask: [dialog.getByRole('textbox', { name: 'Cloud join code' })],

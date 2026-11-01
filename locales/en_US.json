@@ -52,7 +52,7 @@
         "copy_failed": "Could not copy; select and copy the code manually",
         "failed": "Could not access this cloud library",
         "connected": "Cloud library connected",
-        "games": "{count} shared games",
+        "games": "{count} games in the cloud library",
         "confirm_hint": "Connecting replaces the current cloud settings. Local games and saves are kept"
     },
     "settings": {
@@ -833,7 +833,7 @@
             "both_available": "Here and cloud",
             "other_device_only": "On another device",
             "unavailable": "No known copy",
-            "delete_game": "Permanently delete shared game"
+            "delete_game": "Permanently delete from the shared cloud library"
         },
         "archives": {
             "title": "Shared snapshot history",
@@ -929,12 +929,12 @@
                 "load_failed": "Could not load cloud Devices"
             },
             "games": {
-                "danger_title": "Permanent shared Game deletion",
+                "danger_title": "Permanently delete from the shared cloud library",
                 "danger_description": "Use this only when the game and all of its shared history should disappear from every device",
                 "delete_action": "Delete Game permanently",
-                "delete_title": "Permanently delete shared Game?",
+                "delete_title": "Permanently delete this game from the shared cloud library?",
                 "delete_confirm": "Permanently delete “{game}”, all its backups and management settings from every device and the cloud? Offline devices will delete local backups when they reconnect. Game saves are unchanged. This cannot be undone",
-                "delete_success": "Shared Game permanently deleted; {snapshots} Snapshot(s) removed",
+                "delete_success": "Game permanently deleted from the shared cloud library; {snapshots} Snapshot(s) removed",
                 "delete_incomplete": "Deletion is incomplete, please retry",
                 "deleted_title": "Permanently deleted Games",
                 "removed": "Deleted",
@@ -1061,7 +1061,7 @@
             "join": {
                 "title": "Confirm Cloud Library join",
                 "risk_title": "Confirm differences before joining",
-                "risk_description": "Joining switches this device to the shared game list. Local-only games are not added automatically",
+                "risk_description": "Joining switches this device to the cloud library's game list. Local-only games are not added automatically",
                 "summary": "The cloud has {cloud} games. {review} local games need confirmation",
                 "games_label": "Games that need confirmation",
                 "classification": {
@@ -1082,7 +1082,7 @@
                 "no_difference": "Game definitions match",
                 "keep_cloud": "Keep the cloud version",
                 "add_local": "Add this game to Cloud Library",
-                "replace_cloud": "Replace the shared game definition",
+                "replace_cloud": "Replace the game definition in the cloud library",
                 "join_action": "Join library",
                 "choice_required": "Choose a version for {count} conflicting game(s)",
                 "replace_title": "Replace shared definitions",

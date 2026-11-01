@@ -28,4 +28,4 @@ Manual snapshots, quick-action snapshots, each device's current position, and pr
 
 ## Remove a game
 
-**Stop managing here** keeps shared history and existing backups. **Permanently delete shared game** removes the game's shared history and copies on all devices and in the cloud.
+**Stop managing here** keeps shared history and existing backups. **Permanently delete from the shared cloud library** removes the game's shared history and copies on all devices and in the cloud.
