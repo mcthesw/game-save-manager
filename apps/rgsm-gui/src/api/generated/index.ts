@@ -274,6 +274,7 @@ export type {
   CutoverCloudLibraryRequest,
   CutoverCloudLibraryResponse,
   CutoverCloudLibraryResponses,
+  CutoverUnlistedGame,
   DeferProgressNoticesData,
   DeferProgressNoticesError,
   DeferProgressNoticesErrors,

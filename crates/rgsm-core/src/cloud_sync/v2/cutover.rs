@@ -6,6 +6,7 @@ use super::{
     cloud_archive_path, device_profile_path,
 };
 use crate::backup::{GameSnapshots, Snapshot, snapshot_archive_path};
+use crate::cloud_sync::V1_SAVE_DATA_PREFIX;
 use crate::cloud_sync::transfer::CloudTransfer;
 use crate::cloud_sync::utils::{
     SyncOperationError, game_cloud_archive_path, load_remote_game_snapshots,
@@ -33,6 +34,17 @@ pub struct CloudLibraryCutoverReview {
     /// automatic Snapshots on every Device and in the cloud, so it is offered
     /// rather than applied silently.
     pub automatic_cleanup: Vec<CutoverAutomaticCleanup>,
+    /// Games with history in the old cloud folder that the old cloud
+    /// configuration does not list. Their Snapshots are not carried over.
+    pub unlisted_cloud_games: Vec<CutoverUnlistedGame>,
+    /// Games on this Device that the old cloud configuration does not list.
+    /// They stay local, with cloud sync off.
+    pub local_only_games: Vec<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
+pub struct CutoverUnlistedGame {
+    pub game_id: String,
+    pub snapshot_count: usize,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CutoverAutomaticCleanup {
@@ -59,6 +71,8 @@ struct CutoverPlan {
     /// has stored the choice in `shared_library`.
     #[serde(default)]
     automatic_cleanup_offer: BTreeMap<String, u32>,
+    #[serde(default)]
+    unlisted_cloud_games: Vec<CutoverUnlistedGame>,
 }
 #[derive(Debug, Serialize, Deserialize)]
 struct FrozenGame {
@@ -101,12 +115,15 @@ impl CloudLibraryCutover {
             max_attempts: max_attempts.max(1),
         }
     }
-    pub async fn review(&self) -> Result<CloudLibraryCutoverReview, CloudLibraryCutoverError> {
+    pub async fn review(
+        &self,
+        local_library: &SharedLibrary,
+    ) -> Result<CloudLibraryCutoverReview, CloudLibraryCutoverError> {
         let plan = match self.load_progress().await? {
             Some(plan) => plan,
             None => self.freeze_plan().await?,
         };
-        Ok(Self::summarize(&plan))
+        Ok(Self::summarize(&plan, local_library))
     }
     /// `apply_automatic_cleanup` is only consulted when the plan is first
     /// frozen; a resumed Cutover keeps the choice it started with.
@@ -241,6 +258,7 @@ impl CloudLibraryCutover {
             });
         }
         let automatic_cleanup_offer = self.automatic_cleanup_offer(&owners.shared_library);
+        let unlisted_cloud_games = self.unlisted_cloud_games(&owners.shared_library).await?;
         Ok(CutoverPlan {
             schema_version: CUTOVER_PROGRESS_SCHEMA_VERSION,
             library_id: CloudNamespaceDescriptor::default().library_id,
@@ -248,7 +266,49 @@ impl CloudLibraryCutover {
             device_profiles: owners.device_profiles,
             games,
             automatic_cleanup_offer,
+            unlisted_cloud_games,
         })
+    }
+    /// The old cloud configuration is the last saver's game list, so history
+    /// folders of games it lacks would otherwise vanish without a word.
+    async fn unlisted_cloud_games(
+        &self,
+        library: &SharedLibrary,
+    ) -> Result<Vec<CutoverUnlistedGame>, CloudLibraryCutoverError> {
+        let entries = match self.operator.list(V1_SAVE_DATA_PREFIX).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error.into()),
+        };
+        let mut unlisted = Vec::new();
+        for entry in entries {
+            let game_id = entry.name().trim_end_matches('/');
+            if !entry.metadata().is_dir()
+                || game_id.is_empty()
+                || library.games.iter().any(|game| game.storage_key == game_id)
+            {
+                continue;
+            }
+            match load_remote_game_snapshots(&self.operator, game_id, None).await {
+                Ok(Some(snapshots)) if !snapshots.backups.is_empty() => {
+                    unlisted.push(CutoverUnlistedGame {
+                        game_id: game_id.to_string(),
+                        snapshot_count: snapshots.backups.len(),
+                    });
+                }
+                Ok(_) => {}
+                Err(SyncOperationError::Backend(BackendError::Cloud(error))) => {
+                    return Err((*error).into());
+                }
+                // A damaged folder nobody listed must not stop the upgrade.
+                Err(error) => log::warn!(
+                    target: "rgsm::cloud::cutover",
+                    "Ignoring unreadable legacy folder {game_id}: {error}"
+                ),
+            }
+        }
+        unlisted.sort_by(|a, b| a.game_id.cmp(&b.game_id));
+        Ok(unlisted)
     }
     /// The limit the initiating Device applied to its own automatic backups:
     /// the Game's own limit wins over the global one, and 0 means unlimited.
@@ -268,7 +328,7 @@ impl CloudLibraryCutover {
             })
             .collect()
     }
-    fn summarize(plan: &CutoverPlan) -> CloudLibraryCutoverReview {
+    fn summarize(plan: &CutoverPlan, local_library: &SharedLibrary) -> CloudLibraryCutoverReview {
         let snapshot_count = plan
             .games
             .iter()
@@ -297,10 +357,27 @@ impl CloudLibraryCutover {
                         })
                 })
                 .collect(),
+            unlisted_cloud_games: plan.unlisted_cloud_games.clone(),
+            local_only_games: local_library
+                .games
+                .iter()
+                .filter(|local| {
+                    !plan
+                        .shared_library
+                        .games
+                        .iter()
+                        .any(|game| game.storage_key == local.storage_key)
+                })
+                .map(|game| game.name.clone())
+                .collect(),
         }
     }
     fn result(plan: CutoverPlan) -> CloudLibraryCutoverResult {
-        let summary = Self::summarize(&plan);
+        let snapshot_count = plan
+            .games
+            .iter()
+            .map(|game| game.snapshots.backups.len())
+            .sum();
         let unavailable_archives = plan
             .games
             .iter()
@@ -311,7 +388,7 @@ impl CloudLibraryCutover {
             library_id: plan.library_id,
             shared_library: plan.shared_library,
             device_profiles: plan.device_profiles,
-            snapshot_count: summary.snapshot_count,
+            snapshot_count,
             unavailable_archives,
         }
     }
@@ -694,6 +771,12 @@ mod tests {
     use crate::config::Config;
     use opendal::services;
     use std::collections::HashMap;
+    fn no_local_games() -> SharedLibrary {
+        SharedLibrary {
+            schema_version: V2_CONFIG_SCHEMA_VERSION,
+            games: Vec::new(),
+        }
+    }
     fn operator() -> Operator {
         Operator::new(services::Memory::default()).unwrap().finish()
     }
@@ -955,7 +1038,7 @@ mod tests {
                 let root = temp_dir::TempDir::new().unwrap();
                 seed(&op, GameSnapshots::new("test-game"), &[]).await;
                 let runner = cutover_for_local_config(op.clone(), root.path(), &config);
-                let review = runner.review().await.unwrap();
+                let review = runner.review(&no_local_games()).await.unwrap();
                 assert_eq!(
                     review
                         .automatic_cleanup
@@ -992,9 +1075,67 @@ mod tests {
         let mut plan = runner.freeze_plan().await.unwrap();
         plan.automatic_cleanup_offer.clear();
         runner.store_progress(&plan).await.unwrap();
-        assert!(runner.review().await.unwrap().automatic_cleanup.is_empty());
+        assert!(
+            runner
+                .review(&no_local_games())
+                .await
+                .unwrap()
+                .automatic_cleanup
+                .is_empty()
+        );
         runner.execute(true).await.unwrap();
         assert_eq!(published_retention(&op).await, None);
+    }
+    #[tokio::test]
+    async fn review_names_history_and_games_the_old_cloud_configuration_does_not_list() {
+        let op = operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let listed = snapshot("listed", None, b"listed");
+        let mut catalog = GameSnapshots::new("test-game");
+        catalog.backups.push(listed.clone());
+        seed(&op, catalog, &[(&listed, b"listed")]).await;
+        let mut stray = GameSnapshots::new("Stray Game");
+        stray.backups = vec![snapshot("a", None, b"a"), snapshot("b", Some("a"), b"b")];
+        for (key, bytes) in [
+            ("Stray Game", serde_json::to_vec(&stray).unwrap()),
+            (
+                "Empty Game",
+                serde_json::to_vec(&GameSnapshots::new("Empty Game")).unwrap(),
+            ),
+            ("Broken Game", b"{broken".to_vec()),
+        ] {
+            op.write(&game_cloud_metadata_path(key).unwrap(), bytes)
+                .await
+                .unwrap();
+        }
+        let local = ConfigurationOwners::from_legacy(
+            &Config {
+                games: vec![
+                    game(),
+                    Game {
+                        name: "Local Only".into(),
+                        storage_key: "local-only".into(),
+                        ..game()
+                    },
+                ],
+                ..Config::default()
+            },
+            &"current-device".to_string(),
+        )
+        .shared_library;
+        let runner = cutover(op.clone(), root.path());
+
+        let review = runner.review(&local).await.unwrap();
+
+        assert_eq!(
+            review.unlisted_cloud_games,
+            vec![CutoverUnlistedGame {
+                game_id: "Stray Game".into(),
+                snapshot_count: 2
+            }]
+        );
+        assert_eq!(review.local_only_games, vec!["Local Only".to_string()]);
+        assert_eq!(review.game_count, 1);
     }
     #[tokio::test]
     async fn restarts_over_unpublished_v2_objects_when_progress_is_lost() {
@@ -1022,7 +1163,7 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(
-            cutover(op, root.path()).review().await,
+            cutover(op, root.path()).review(&no_local_games()).await,
             Err(CloudLibraryCutoverError::CutoverUnavailable)
         ));
     }
