@@ -33,6 +33,8 @@ mod snapshot_lineage_tests;
 #[cfg(test)]
 mod snapshot_metadata_tests;
 mod snapshot_sync;
+#[cfg(test)]
+mod test_support;
 
 pub use bootstrap::{CloudLibraryBootstrap, CloudLibraryBootstrapError, CloudLibraryTransport};
 pub use conflict_resolution::{

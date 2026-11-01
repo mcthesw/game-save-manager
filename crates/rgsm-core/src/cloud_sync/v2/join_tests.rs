@@ -5,8 +5,8 @@ use async_trait::async_trait;
 
 use super::*;
 use crate::cloud_sync::v2::{
-    CLOUD_MANIFEST_PATH, CloudManifest, CloudNamespaceDescriptor, NamespaceTransport,
-    V2_NAMESPACE_DESCRIPTOR_PATH,
+    CLOUD_MANIFEST_PATH, CloudManifest, CloudNamespaceDescriptor, DELETION_REGISTRY_PATH,
+    DeletionRegistry, NamespaceTransport, V2_NAMESPACE_DESCRIPTOR_PATH,
 };
 use crate::config::{
     ConfigurationOwners, SharedSaveUnit, SharedSaveUnitSource, SharedSnapshotRetentionPolicy,
@@ -208,6 +208,10 @@ fn transport(cloud: &SharedLibrary) -> FakeTransport {
     objects.insert(
         CLOUD_MANIFEST_PATH.into(),
         serde_json::to_vec(&CloudManifest::default()).unwrap(),
+    );
+    objects.insert(
+        DELETION_REGISTRY_PATH.into(),
+        serde_json::to_vec(&DeletionRegistry::default()).unwrap(),
     );
     objects.insert(
         SHARED_LIBRARY_PATH.into(),

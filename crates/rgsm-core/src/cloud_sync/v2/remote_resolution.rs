@@ -248,8 +248,6 @@ pub enum AcceptRemoteProgressError {
 mod tests {
     use std::collections::BTreeMap;
 
-    use opendal::services;
-
     use super::*;
     use crate::backup::{ArchiveFormat, CreatedBy};
     use crate::cloud_sync::v2::{
@@ -262,7 +260,7 @@ mod tests {
         V2RemoteProgressResolver,
         GameSnapshots,
     ) {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let mut game = GameManifest::new("game");
         let mut root_node = SnapshotNode::live(

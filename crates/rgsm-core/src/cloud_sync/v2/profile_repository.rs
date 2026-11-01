@@ -262,7 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn only_the_current_device_can_publish_its_verified_profile() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let repository = DeviceProfileRepository::new(operator.clone(), 2);
 
         assert!(matches!(
@@ -279,7 +279,7 @@ mod tests {
 
     #[tokio::test]
     async fn reconnect_validates_before_clearing_removal_and_normal_publish_stays_blocked() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let registry = DeletionRegistryRepository::new(operator.clone(), 3);
         registry.mark_profile_deleted("deck", "pc").await.unwrap();
         registry

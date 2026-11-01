@@ -179,8 +179,6 @@ pub enum KeepLocalProgressError {
 mod tests {
     use std::collections::BTreeMap;
 
-    use opendal::services;
-
     use super::*;
     use crate::backup::{ArchiveFormat, CreatedBy, archive_path};
     use crate::cloud_sync::v2::{
@@ -222,7 +220,7 @@ mod tests {
         V2ConflictResolver,
         GameSnapshots,
     ) {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         let root = temp_dir::TempDir::new().unwrap();
         let archive_root = root.path().join("archives");
         let game_root = archive_root.join("game");

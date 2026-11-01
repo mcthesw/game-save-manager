@@ -402,8 +402,6 @@ pub enum SnapshotDeletionLifecycleError {
 mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    use opendal::services;
-
     use super::*;
     use crate::backup::CreatedBy;
     use crate::cloud_sync::v2::{
@@ -475,7 +473,9 @@ mod tests {
 
     async fn repository() -> CloudManifestRepository<MemoryManifestTransport> {
         let transport = MemoryManifestTransport {
-            bytes: std::sync::Mutex::new(None),
+            bytes: std::sync::Mutex::new(Some(
+                serde_json::to_vec_pretty(&CloudManifest::default()).unwrap(),
+            )),
         };
         let repository = CloudManifestRepository::with_transport(transport, 2);
         repository
@@ -502,14 +502,10 @@ mod tests {
         repository
     }
 
-    fn memory_operator() -> Operator {
-        Operator::new(services::Memory::default()).unwrap().finish()
-    }
-
     #[tokio::test]
     async fn deletion_is_pending_before_bytes_and_retry_reaches_final() {
         let repository = repository().await;
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         operator.write("archive.7z", b"x".to_vec()).await.unwrap();
         let root = temp_dir::TempDir::new().unwrap();
         let local = root.path().join("archive.7z");
@@ -567,7 +563,7 @@ mod tests {
     #[tokio::test]
     async fn provider_visibility_failure_remains_pending_and_is_retryable() {
         let repository = repository().await;
-        let operator = memory_operator();
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
         operator.write("archive.7z", b"x".to_vec()).await.unwrap();
         let root = temp_dir::TempDir::new().unwrap();
         let local = root.path().join("archive.7z");

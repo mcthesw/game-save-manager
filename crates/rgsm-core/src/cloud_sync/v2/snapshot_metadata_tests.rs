@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 
-use opendal::{Operator, services};
-
 use super::*;
 use crate::backup::{GameSnapshots, Snapshot};
 
@@ -10,7 +8,7 @@ const CREATED_AT: i64 = 1_785_585_600_123;
 
 #[tokio::test]
 async fn transfer_preserves_original_creator_and_time_without_changing_archive_identity() {
-    let operator = Operator::new(services::Memory::default()).unwrap().finish();
+    let operator = super::test_support::seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().unwrap();
     let game_root = root.path().join("uploader/game");
     std::fs::create_dir_all(&game_root).unwrap();
@@ -142,7 +140,7 @@ fn optional_creation_time_round_trips_without_rewriting_legacy_ids() {
 
 #[tokio::test]
 async fn legacy_cloud_metadata_can_be_filled_but_transfers_never_relabel_known_origin() {
-    let operator = Operator::new(services::Memory::default()).unwrap().finish();
+    let operator = super::test_support::seeded_memory_operator().await;
     let root = temp_dir::TempDir::new().unwrap();
     let game_root = root.path().join("game");
     std::fs::create_dir_all(&game_root).unwrap();
