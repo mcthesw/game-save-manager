@@ -52,7 +52,7 @@
         "copy_failed": "复制失败，请手动选择并复制加入码",
         "failed": "无法访问此云端资料库",
         "connected": "已连接云端资料库",
-        "games": "{count} 个共享游戏",
+        "games": "{count} 个已加入云库的游戏",
         "confirm_hint": "连接后将替换当前云端设置，本机游戏和存档保留"
     },
     "settings": {
@@ -833,7 +833,7 @@
             "both_available": "本机和云端",
             "other_device_only": "其他设备有",
             "unavailable": "无已知副本",
-            "delete_game": "永久删除共享游戏"
+            "delete_game": "从共享云库永久删除"
         },
         "archives": {
             "title": "共享快照历史",
@@ -929,12 +929,12 @@
                 "load_failed": "无法读取云端设备"
             },
             "games": {
-                "danger_title": "永久删除共享游戏",
+                "danger_title": "从共享云库永久删除",
                 "danger_description": "仅当你希望此游戏及其全部共享历史从所有设备消失时使用",
                 "delete_action": "永久删除游戏",
-                "delete_title": "永久删除共享游戏吗？",
+                "delete_title": "从共享云库永久删除此游戏吗？",
                 "delete_confirm": "从所有设备和云端永久删除「{game}」及其全部备份和管理设置？离线设备将在重新连接时删除本地备份。游戏存档不变，此操作无法撤销",
-                "delete_success": "共享游戏已永久删除，并移除 {snapshots} 个快照",
+                "delete_success": "游戏已从共享云库永久删除，并移除 {snapshots} 个快照",
                 "delete_incomplete": "删除尚未完成，请重试",
                 "deleted_title": "已永久删除的游戏",
                 "removed": "已删除",
@@ -1061,7 +1061,7 @@
             "join": {
                 "title": "确认加入云端资料库",
                 "risk_title": "加入前请确认差异",
-                "risk_description": "加入后此设备改用共享游戏列表，仅本机的游戏不会自动加入",
+                "risk_description": "加入后此设备改用云库中的游戏列表，仅本机的游戏不会自动加入",
                 "summary": "云端已有 {cloud} 个游戏，另有 {review} 个本机游戏需要确认",
                 "games_label": "需要确认的游戏",
                 "classification": {
@@ -1082,7 +1082,7 @@
                 "no_difference": "游戏定义相同",
                 "keep_cloud": "保留云端版本",
                 "add_local": "将此游戏加入云端资料库",
-                "replace_cloud": "替换共享游戏定义",
+                "replace_cloud": "替换云库中的游戏定义",
                 "join_action": "加入资料库",
                 "choice_required": "请为 {count} 个冲突游戏选择版本",
                 "replace_title": "替换共享定义",
