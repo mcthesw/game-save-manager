@@ -26,7 +26,7 @@ use rgsm_core::preclude::*;
 use rgsm_core::services::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus,
     CurrentPositionDecision, GameSyncModeOutcome, LiveSaveSyncOptions, LocalCopyRemovalPreview,
-    ServiceContext,
+    ServiceContext, cloud_error_message,
 };
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
@@ -613,14 +613,14 @@ pub async fn inspect_cloud_library(app_handle: AppHandle) -> Result<CloudLibrary
         .await
         .map_err(|error| {
             error!(target:"rgsm::commands", "Failed to inspect Cloud Library: {error:?}");
-            error.to_string()
+            cloud_error_message(&error)
         })
 }
 
 pub async fn connect_cloud_library(app_handle: AppHandle) -> Result<CloudLibraryStatus, String> {
     crate::cloud_library::connect(&app_handle)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn create_cloud_library(
@@ -632,7 +632,7 @@ pub async fn create_cloud_library(
         .await
         .map_err(|error| {
             error!(target:"rgsm::commands", "Failed to create Cloud Library: {error:?}");
-            error.to_string()
+            cloud_error_message(&error)
         })
 }
 
@@ -642,7 +642,7 @@ pub async fn review_cloud_library_join(
     info!(target:"rgsm::commands", "Reviewing an existing Cloud Library");
     crate::cloud_library::review(&app_handle)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn join_cloud_library(
@@ -653,7 +653,7 @@ pub async fn join_cloud_library(
     info!(target:"rgsm::commands", "Joining an existing Cloud Library");
     crate::cloud_library::join(&app_handle, &decisions, confirmed_replacements)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn review_cloud_library_cutover(
@@ -662,7 +662,7 @@ pub async fn review_cloud_library_cutover(
     info!(target:"rgsm::commands", "Reviewing legacy Cloud Library Cutover");
     crate::cloud_library::review_cutover(&app_handle)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn cutover_cloud_library(
@@ -673,7 +673,7 @@ pub async fn cutover_cloud_library(
     info!(target:"rgsm::commands", "Cutting over legacy Cloud Library");
     crate::cloud_library::cutover(&app_handle, confirmed, apply_automatic_cleanup)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn get_cloud_archive_library(
@@ -682,7 +682,7 @@ pub async fn get_cloud_archive_library(
     svc(&app_handle)
         .cloud_archive_library()
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn refresh_cloud_archive_library(
@@ -698,7 +698,7 @@ pub async fn review_v2_game_progress(
     svc(&app_handle)
         .review_v2_game_progress(&game_id)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn keep_v2_local_progress(
@@ -711,7 +711,7 @@ pub async fn keep_v2_local_progress(
         svc(&app_handle)
             .keep_v2_local_progress(&game_id, manifest_revision, &local_snapshot_id)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -732,7 +732,7 @@ pub async fn accept_v2_remote_progress(
                 &selected_snapshot_id,
             )
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -744,7 +744,7 @@ pub async fn preview_materialize_all(
         svc(&app_handle)
             .preview_materialize_all()
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -758,7 +758,7 @@ pub async fn upload_cloud_archive(
         svc(&app_handle)
             .upload_cloud_archive(&game_id, &snapshot_id)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -772,7 +772,7 @@ pub async fn download_cloud_archive(
         svc(&app_handle)
             .download_cloud_archive(&game_id, &snapshot_id)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -788,7 +788,7 @@ pub async fn delete_v2_snapshot(
         ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
             .delete_v2_snapshot(&game_id, &snapshot_id, confirmed, current_position)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -799,7 +799,7 @@ pub async fn rebuild_cloud_library_from_local(
 ) -> Result<CloudLibraryStatus, String> {
     crate::cloud_library::rebuild(&app_handle, confirmed)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn reconnect_cloud_library(
@@ -808,7 +808,7 @@ pub async fn reconnect_cloud_library(
 ) -> Result<CloudLibraryStatus, String> {
     crate::cloud_library::reconnect(&app_handle, confirmed)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn set_shared_snapshot_retention(
@@ -821,7 +821,7 @@ pub async fn set_shared_snapshot_retention(
         ServiceContext::new(app_handle.state::<HookPipelineState>().snapshot())
             .set_shared_snapshot_retention(&game_id, limit, confirmed)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -842,7 +842,7 @@ pub async fn set_snapshot_retention_protected(
                 confirmed,
             )
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -864,7 +864,7 @@ pub async fn set_device_game_visibility(
         let status = svc(&app_handle)
             .set_device_game_visibility(&game_id, visible)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| cloud_error_message(&error))?;
         reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
         Ok(status)
     })
@@ -881,7 +881,7 @@ pub async fn set_device_game_managed(
         let status = svc(&app_handle)
             .set_device_game_managed(&game_id, managed, confirmed)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| cloud_error_message(&error))?;
         reload_pipeline_and_fire_config_saved(&app_handle, HookSource::UserManual).await?;
         Ok(status)
     })
@@ -898,7 +898,7 @@ pub async fn evict_local_archive(
         svc(&app_handle)
             .evict_local_archive(&game_id, &snapshot_id, confirmed)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -913,7 +913,7 @@ pub async fn evict_cloud_archive(
         svc(&app_handle)
             .evict_cloud_archive(&game_id, &snapshot_id, confirmed)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -924,7 +924,7 @@ pub async fn get_cloud_device_profiles(
     svc(&app_handle)
         .cloud_device_profiles()
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn remove_cloud_device_profile(
@@ -936,7 +936,7 @@ pub async fn remove_cloud_device_profile(
         svc(&app_handle)
             .remove_cloud_device_profile(&device_id, confirmed)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -947,7 +947,7 @@ pub async fn get_deleted_cloud_games(
     svc(&app_handle)
         .deleted_cloud_games()
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn permanently_delete_cloud_game(
@@ -959,7 +959,7 @@ pub async fn permanently_delete_cloud_game(
         svc(&app_handle)
             .permanently_delete_cloud_game(&game_id, confirmed)
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -982,11 +982,14 @@ pub async fn materialize_all_cloud_archives(
         } else {
             cloud_sync::CloudSyncJobStatus::Failed
         };
-        let error = result.as_ref().err().map(ToString::to_string);
+        let error = result
+            .as_ref()
+            .err()
+            .map(|error| cloud_error_message(error));
         manager
             .finish_manual_job(job_id, "Downloading all Cloud Snapshots", status, error)
             .await;
-        result.map_err(|error| error.to_string())
+        result.map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -1008,7 +1011,7 @@ pub async fn set_game_sync_mode(
         live_save,
     )
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| cloud_error_message(&error))
 }
 
 pub async fn cloud_upload_all(

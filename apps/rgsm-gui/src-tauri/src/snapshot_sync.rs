@@ -149,7 +149,13 @@ async fn reconcile_once(app: &AppHandle, cancellation: &CancellationToken) {
     let state = app.state::<CloudOperationState>();
     let result = rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await;
     crate::http::emit(app, "cloud-metadata-changed", &result.is_ok());
-    state.report_background_result(app, result.as_ref().err().map(|error| error.to_string()));
+    state.report_background_result(
+        app,
+        result
+            .as_ref()
+            .err()
+            .map(|error| rgsm_core::services::cloud_error_message(error)),
+    );
     match result {
         Ok(outcome) if outcome != Default::default() => info!(
             target: "rgsm::cloud::v2_snapshot_sync",

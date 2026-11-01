@@ -187,7 +187,7 @@ impl DeletionRegistryRepository {
 
 #[derive(Debug, Error)]
 pub enum DeletionRegistryError {
-    #[error("Deletion registry is missing; rebuild the Cloud Library")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_damaged"))]
     Missing,
     #[error("Unsupported deletion registry schema: {0}")]
     UnsupportedSchema(u32),

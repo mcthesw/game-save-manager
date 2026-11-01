@@ -152,7 +152,7 @@ pub enum ManifestRepositoryError {
     Serialization(#[from] serde_json::Error),
     #[error(transparent)]
     Manifest(#[from] ManifestError),
-    #[error("Cloud Manifest is missing; rebuild the Cloud Library")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_damaged"))]
     Missing,
     #[error("Cloud Manifest revision overflow")]
     RevisionOverflow,
