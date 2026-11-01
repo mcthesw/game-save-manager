@@ -1,8 +1,8 @@
 use crate::backup::{
     ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, CaptureSnapshotOptions, CaptureSourceKind,
     CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier, RestorePlan,
-    SaveUnit, SaveUnitType, SevenZBackend, SnapshotCatalog, TimerSnapshotDecision, ZipBackend,
-    archive_file_name, snapshot_archive_path,
+    SaveUnit, SaveUnitType, SevenZBackend, Snapshot, SnapshotCatalog, SnapshotCreated,
+    TimerSnapshotDecision, ZipBackend, archive_file_name, compute_file_hash, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
@@ -98,30 +98,57 @@ impl ServiceContext {
             .await?;
         drop(capture_guard);
 
-        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-            notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
-            let mut ctx = crate::hooks::SnapshotCreatedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshot,
-                snapshots: created.snapshots,
-                local_archive_path: created.local_archive_path,
-            };
-            self.pipeline().fire_snapshot_created(&mut ctx).await;
-            ctx.snapshots = catalog.update::<BackupError>(|current| {
-                if let Some(snapshot) = current
-                    .backups
-                    .iter_mut()
-                    .find(|s| s.date == ctx.snapshot.date)
-                {
-                    snapshot.archive_hash.clone_from(&ctx.snapshot.archive_hash);
-                }
-                Ok(())
-            })?;
-            self.pipeline().fire_snapshot_committed(&ctx).await;
-        }
+        self.finish_created_snapshot(game, &catalog, created, config, source, notifier)
+            .await?;
 
+        Ok(())
+    }
+
+    /// Every snapshot carries an archive hash before hooks see it, so cloud
+    /// upload and restore verification never depend on an optional setting.
+    async fn finish_created_snapshot(
+        &self,
+        game: &Game,
+        catalog: &SnapshotCatalog,
+        created: SnapshotCreated,
+        config: crate::config::Config,
+        source: HookSource,
+        notifier: Option<&dyn RestoreNotifier>,
+    ) -> Result<(), BackupError> {
+        let Some(mut snapshot) = created.snapshots.backups.last().cloned() else {
+            return Ok(());
+        };
+        notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
+        let hash = compute_file_hash(&created.local_archive_path)?;
+        snapshot.archive_hash = Some(hash.clone());
+        let mut snapshots = created.snapshots;
+        if let Some(entry) = snapshots
+            .backups
+            .iter_mut()
+            .find(|entry| entry.date == snapshot.date)
+        {
+            entry.archive_hash = Some(hash);
+        }
+        let mut ctx = crate::hooks::SnapshotCreatedCtx {
+            config,
+            source,
+            game: game.clone(),
+            snapshot,
+            snapshots,
+            local_archive_path: created.local_archive_path,
+        };
+        self.pipeline().fire_snapshot_created(&mut ctx).await;
+        ctx.snapshots = catalog.update::<BackupError>(|current| {
+            if let Some(snapshot) = current
+                .backups
+                .iter_mut()
+                .find(|s| s.date == ctx.snapshot.date)
+            {
+                snapshot.archive_hash.clone_from(&ctx.snapshot.archive_hash);
+            }
+            Ok(())
+        })?;
+        self.pipeline().fire_snapshot_committed(&ctx).await;
         Ok(())
     }
 
@@ -179,29 +206,8 @@ impl ServiceContext {
             )
             .await?;
         drop(capture_guard);
-        if let Some(snapshot) = created.snapshots.backups.last().cloned() {
-            notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
-            let mut ctx = crate::hooks::SnapshotCreatedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshot,
-                snapshots: created.snapshots,
-                local_archive_path: created.local_archive_path,
-            };
-            self.pipeline().fire_snapshot_created(&mut ctx).await;
-            ctx.snapshots = catalog.update::<BackupError>(|current| {
-                if let Some(snapshot) = current
-                    .backups
-                    .iter_mut()
-                    .find(|s| s.date == ctx.snapshot.date)
-                {
-                    snapshot.archive_hash.clone_from(&ctx.snapshot.archive_hash);
-                }
-                Ok(())
-            })?;
-            self.pipeline().fire_snapshot_committed(&ctx).await;
-        }
+        self.finish_created_snapshot(game, &catalog, created, config, source, notifier)
+            .await?;
         Ok(TimerSnapshotDecision::Created)
     }
 
@@ -227,6 +233,7 @@ impl ServiceContext {
         let archive_path = snapshot_archive_path(&game_dir, &snapshot);
         let config = get_config()?;
         let restore_guard = lock_game(game).await;
+        verify_archive_integrity(&snapshot, &archive_path)?;
 
         // Conflict resolution takes its own mandatory backup before restoring.
         let capture_plan = if config.settings.extra_backup_when_apply
@@ -642,6 +649,24 @@ impl ServiceContext {
 
         Ok(())
     }
+}
+
+/// Snapshots made before archive hashing became mandatory have no stored hash.
+fn verify_archive_integrity(
+    snapshot: &Snapshot,
+    archive_path: &std::path::Path,
+) -> Result<(), BackupError> {
+    let Some(expected) = &snapshot.archive_hash else {
+        return Ok(());
+    };
+    let actual = compute_file_hash(archive_path)?;
+    if &actual != expected {
+        return Err(BackupError::IntegrityCheckFailed {
+            expected: expected.clone(),
+            actual,
+        });
+    }
+    Ok(())
 }
 
 fn retain_first_error(first_error: &mut Option<BackupError>, result: Result<(), BackupError>) {

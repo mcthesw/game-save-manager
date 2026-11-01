@@ -11,9 +11,9 @@ use crate::preclude::BackupError;
 
 /// Creates an extra (overwrite) backup before a snapshot is restored.
 ///
-/// Priority 20 — runs after the integrity check (15). A corrupt archive must
-/// be rejected before this hook creates a backup, because the backup's
-/// retention cleanup could evict the only older extra backup.
+/// The archive hash is verified before hooks run, so a corrupt archive never
+/// reaches this hook; otherwise the backup's retention cleanup could evict
+/// the only older extra backup.
 ///
 /// A missing capture plan means there is no save data to protect and the
 /// hook does nothing. Any other failure aborts the restore.
@@ -26,7 +26,7 @@ impl LifecycleHook for PreRestoreBackupHook {
     }
 
     fn priority(&self) -> u32 {
-        20
+        5
     }
 
     async fn on_before_restore(&self, ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
