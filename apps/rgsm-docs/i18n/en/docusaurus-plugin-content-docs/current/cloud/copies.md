@@ -22,10 +22,10 @@ Before removing a copy, confirm that another location has a usable copy.
 
 ## Clean up automatic snapshots
 
-Set the **Shared automatic snapshot limit** in the game's **Auto-save settings** to permanently remove old automatic snapshots and their copies along each progress line.
+Set the **Automatic snapshots in the Cloud Library** in the game's **Auto-save settings** to permanently remove old automatic snapshots and their copies along each progress line.
 
 Manual snapshots, quick-action snapshots, each device's current position, and protected snapshots are kept.
 
 ## Remove a game
 
-**Stop managing here** keeps shared history and existing backups. **Permanently delete from the shared cloud library** removes the game's shared history and copies on all devices and in the cloud.
+**Stop managing here** keeps the snapshot history in the Cloud Library and existing backups. **Permanently delete from the Cloud Library** removes the game's snapshot history and copies on all devices and in the cloud.

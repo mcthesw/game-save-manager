@@ -40,7 +40,7 @@ _Avoid_: Save Unit Type, Resolved Save Location
 **Snapshot**:
 A point-in-time capture of a **Game**'s enabled **Save Units**, represented as a progress point in the shared history. It may parent later **Snapshots**; when a verified Archive is available, a **Device** can **Apply** it and continue from there.
 Its identity is independent of creation time. The original creating **Device**, when known, is preserved across transfers and is distinct from the Devices holding Archive copies.
-_Player-facing_: 存档点
+_Player-facing_: 快照
 _Avoid_: backup, archive, version, memory, 记忆, Device-owned save
 
 **Branch**:
@@ -67,7 +67,7 @@ _Hide by default_: detach
 A local-only, per-**Device**, per-**Game** recovery artifact used to undo an **Apply**, according to the player's Extra Backup preference.
 _Player-facing_: 额外备份
 _Hide by default_: extra backup, overwrite backup
-_Avoid_: snapshot, 存档点
+_Avoid_: snapshot, 快照
 
 **Device**:
 A computer installation with its own game paths, save paths, and progress position.
@@ -80,6 +80,7 @@ _Avoid_: upload, remote save, cloud backup as an umbrella term
 
 **Shared Library**:
 The portable game definitions and shared preferences understood by every participating **Device**.
+_Player-facing_: 云库
 _Avoid_: local config, Device Profile
 
 **Local-only Game**:
@@ -119,7 +120,7 @@ _Avoid_: Cloud Sync Conflict, Save conflict, automatic merge
 
 **Permanent Shared Game Deletion**:
 An explicit irreversible removal of one **Game**, its shared history, and its Archive copies for every **Device**.
-_Player-facing_: 从共享云库永久删除
+_Player-facing_: 从云库永久删除
 _Avoid_: disable Game Cloud Sync, Device Visibility, Local Archive Eviction
 
 **Game Tombstone**:
@@ -246,12 +247,12 @@ _Avoid_: garbage-collected Snapshot, deletion history, restorable record
 
 **Shared Snapshot Retention**:
 A per-**Game** shared policy that permanently deletes qualifying **Snapshots** and all available Archive copies uniformly across **Devices**.
-_Player-facing_: 自动清理共享存档点
+_Player-facing_: 自动清理云库快照
 _Avoid_: Extra Backup retention, Local Archive Eviction, Device retention
 
 **Retention Protection**:
 A shared **Snapshot** choice that excludes one automatic Snapshot from **Shared Snapshot Retention** without changing its creation source.
-_Player-facing_: 保留此存档点
+_Player-facing_: 保护、已保护
 _Avoid_: Manual Snapshot, Device favorite, Current Position
 
 **Materialize All**:
