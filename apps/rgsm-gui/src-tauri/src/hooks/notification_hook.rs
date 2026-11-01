@@ -1,7 +1,7 @@
 //! Built-in hook for user-facing notifications, sounds, and frontend events.
 //!
-//! It runs late in the pipeline so visible feedback reflects already-committed
-//! lifecycle changes.
+//! Backup feedback is sent from the committed stage, so a catalog write failure
+//! never produces a success notification followed by a failure one.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -13,7 +13,7 @@ use crate::quick_actions::{
     should_show_auto_backup_notification,
 };
 use crate::sound::{QuickActionSoundEffect, play_quick_action_sound};
-use rgsm_core::backup::CreatedBy;
+use rgsm_core::backup::{CreatedBy, Game};
 use rgsm_core::config::QuickActionSoundPreferences;
 use rgsm_core::preclude::show_notification;
 
@@ -22,7 +22,7 @@ use rgsm_core::hooks::{HookSource, LifecycleHook, SnapshotAppliedCtx, SnapshotCr
 /// Plays sounds, shows system notifications, and emits frontend events
 /// for quick-action / timer sources.
 ///
-/// Priority 90 — runs last so all data mutations are already committed.
+/// Priority 90 — runs after the other hooks of each stage.
 pub struct NotificationHook {
     app: AppHandle,
 }
@@ -55,7 +55,7 @@ impl NotificationHook {
         config: &rgsm_core::config::Config,
         qa_type: QuickActionType,
         operation: QuickActionOperation,
-        game_name: &str,
+        game: &Game,
     ) {
         let quick_settings = &config.quick_action;
         let sound_prefs = QuickActionSoundPreferences::from(quick_settings);
@@ -70,8 +70,8 @@ impl NotificationHook {
             show_notification(
                 rust_i18n::t!("backend.tray.success"),
                 format!(
-                    "{:#?} {} {}",
-                    game_name,
+                    "{} {} {}",
+                    game.name,
                     op_key,
                     rust_i18n::t!("backend.tray.success")
                 ),
@@ -87,7 +87,7 @@ impl NotificationHook {
             qa_type,
             operation,
             QuickActionStatus::Success,
-            Some(game_name.to_string()),
+            game,
         );
     }
 }
@@ -102,7 +102,7 @@ impl LifecycleHook for NotificationHook {
         90
     }
 
-    async fn on_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) -> Result<()> {
+    async fn on_snapshot_committed(&self, ctx: &SnapshotCreatedCtx) -> Result<()> {
         if let Some(qa_type) =
             Self::to_quick_action_type(&ctx.source, Some(&ctx.snapshot.created_by))
         {
@@ -115,7 +115,7 @@ impl LifecycleHook for NotificationHook {
                 &ctx.config,
                 qa_type,
                 QuickActionOperation::Backup,
-                &ctx.game.name,
+                &ctx.game,
             );
         }
         Ok(())
@@ -130,12 +130,7 @@ impl LifecycleHook for NotificationHook {
                 "Snapshot applied via {:?} for {} — sending notification",
                 ctx.source, ctx.game.name
             );
-            self.notify_success(
-                &ctx.config,
-                qa_type,
-                QuickActionOperation::Apply,
-                &ctx.game.name,
-            );
+            self.notify_success(&ctx.config, qa_type, QuickActionOperation::Apply, &ctx.game);
         }
         Ok(())
     }

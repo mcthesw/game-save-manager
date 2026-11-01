@@ -1245,7 +1245,9 @@
             "find_error_detail": "Please check the log file for details",
             "unchanged": "No save changes",
             "unchanged_detail": "%{game} was not backed up because the save data did not change",
-            "backup_failed_detail": "%{game} backup failed"
+            "backup_failed_detail": "%{game} backup failed",
+            "apply_failed_detail": "%{game} restore failed",
+            "paused_for_update": "An update is being installed. Try again after the app restarts."
         },
         "backup": {
             "extra_backup_file_not_exist": "Since the file does not exist, the extra backup (pre-overwrite backup) cannot be completed. If you don't need this feature, turn it off in settings.",
