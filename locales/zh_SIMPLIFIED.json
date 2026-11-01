@@ -1238,7 +1238,9 @@
         },
         "config": {
             "updating_config_title": "更新配置文件",
-            "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak"
+            "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak",
+            "startup_failed_title": "游戏存档管理器无法启动",
+            "startup_failed_body": "无法读取或更新应用数据，应用已退出。请检查磁盘空间和文件夹权限后重新启动。详情：%{error}"
         },
         "tray": {
             "no_game_selected": "未选择游戏",

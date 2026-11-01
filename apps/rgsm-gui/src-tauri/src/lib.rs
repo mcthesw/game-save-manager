@@ -96,15 +96,6 @@ pub fn run() -> anyhow::Result<()> {
     let http_host_only = std::env::var_os("RGSM_HTTP_HOST_ONLY").is_some();
     configure_development_data_dir()?;
 
-    info!("{}", t!("home.hello_world"));
-    let config_outcome = config_check()?;
-    if should_notify_config_update(http_host_only, config_outcome.config_migrated) {
-        rgsm_core::preclude::show_notification(
-            t!("backend.config.updating_config_title"),
-            t!("backend.config.updating_config_body"),
-        );
-    }
-
     // 将 panic 信息记录到日志中
     std::panic::set_hook(Box::new(|panic_info| {
         // 获取 panic 的位置信息
@@ -158,7 +149,39 @@ pub fn run() -> anyhow::Result<()> {
                 main_window::defer_show_main_window(app);
             }));
     }
+    let exit_to_tray = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let exit_to_tray_in_setup = exit_to_tray.clone();
     let app = builder.setup(move |app| {
+        // Config migration rewrites user data, so it runs only after the
+        // single-instance lock is held and the log plugin is writing.
+        info!("{}", t!("home.hello_world"));
+        let config_outcome = match config_check() {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                error!(target: "rgsm::main", "Startup configuration check failed: {error}");
+                if !http_host_only {
+                    rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Error)
+                        .set_title(t!("backend.config.startup_failed_title").as_ref())
+                        .set_description(
+                            t!(
+                                "backend.config.startup_failed_body",
+                                error = error.to_string()
+                            )
+                            .as_ref(),
+                        )
+                        .show();
+                }
+                app.cleanup_before_exit();
+                std::process::exit(1);
+            }
+        };
+        if should_notify_config_update(http_host_only, config_outcome.config_migrated) {
+            rgsm_core::preclude::show_notification(
+                t!("backend.config.updating_config_title"),
+                t!("backend.config.updating_config_body"),
+            );
+        }
         let http_host = tauri::async_runtime::block_on(http::start(app.handle().clone()))?;
         info!(
             target: "rgsm::http",
@@ -173,6 +196,10 @@ pub fn run() -> anyhow::Result<()> {
         });
         let cloud_sync_manager = rgsm_core::cloud_sync::CloudSyncTaskManager::new(emitter);
         let config = get_config().expect("Failed to load config while building hooks");
+        exit_to_tray_in_setup.store(
+            config.settings.exit_to_tray,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let cloud_operation_state = cloud_operation::CloudOperationState::default();
         app.manage(cloud_operation_state.clone());
         let pipeline = hooks::build_builtin_pipeline(app.handle(), &config);
@@ -188,7 +215,6 @@ pub fn run() -> anyhow::Result<()> {
     });
 
     // 处理退出到托盘（关闭窗口不退出）
-    let config = get_config()?;
     info!(target: "rgsm::main", "App has started.");
 
     let exit_code = app
@@ -203,7 +229,8 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 // The HTTP-only host has no window by design, so its event loop
                 // stays alive until the test harness explicitly terminates it.
-                if should_prevent_exit(http_host_only, config.settings.exit_to_tray, code) {
+                let exit_to_tray = exit_to_tray.load(std::sync::atomic::Ordering::Relaxed);
+                if should_prevent_exit(http_host_only, exit_to_tray, code) {
                     api.prevent_exit();
                 }
             }
