@@ -74,6 +74,8 @@ pub(super) enum UpgradeItemState {
     Completed,
     Cleaned,
     Pending,
+    /// The Snapshot left the catalog (deleted or cleaned up) while it waited.
+    Dropped,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

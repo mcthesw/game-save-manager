@@ -1206,6 +1206,7 @@
     "error": {
         "hotkey_registration_failed": "无法应用快捷键：%{reason}",
         "legacy_cloud_operation_unavailable": "旧版云库操作已停用，请前往云同步页面升级或加入当前云库。",
+        "local_upgrade_environment_failed": "无法写入升级后的备份，升级已暂停。请释放磁盘空间或检查文件夹权限后继续。详情：%{error}",
         "open_url_failed": "无法打开链接",
         "open_path_failed": "无法打开路径",
         "config_load_failed": "配置文件加载失败，可能是因为配置文件损坏或者不存在",
