@@ -22,8 +22,10 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use thiserror::Error;
 const CUTOVER_PROGRESS_SCHEMA_VERSION: u32 = 1;
+const SOURCE_RETRY_DELAY: Duration = Duration::from_secs(2);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct CloudLibraryCutoverReview {
     pub game_count: usize,
@@ -96,6 +98,7 @@ pub struct CloudLibraryCutover {
     current_device_id: DeviceId,
     current_device_profile: DeviceProfile,
     max_attempts: usize,
+    source_retry_delay: Duration,
 }
 impl CloudLibraryCutover {
     pub fn new(
@@ -113,6 +116,7 @@ impl CloudLibraryCutover {
             current_device_id,
             current_device_profile,
             max_attempts: max_attempts.max(1),
+            source_retry_delay: SOURCE_RETRY_DELAY,
         }
     }
     pub async fn review(
@@ -423,22 +427,12 @@ impl CloudLibraryCutover {
             if let Some(integrity) = accepted_legacy_archive(&local_path, snapshot) {
                 (local_path, integrity, true)
             } else {
-                let legacy_path = game_cloud_archive_path(game_id, snapshot)?;
-                match CloudTransfer::new(&self.operator)
-                    .download_file_streaming(&legacy_path, &source_staging)
-                    .await
+                match self
+                    .fetch_legacy_archive(game_id, snapshot, &source_staging)
+                    .await?
                 {
-                    Ok(()) => match accepted_legacy_archive(&source_staging, snapshot) {
-                        Some(integrity) => (source_staging.clone(), integrity, false),
-                        None => {
-                            remove_path_if_exists(&source_staging).await?;
-                            return Ok(CutoverArchiveResult::Unavailable);
-                        }
-                    },
-                    Err(error) if is_backend_not_found(&error) => {
-                        return Ok(CutoverArchiveResult::Unavailable);
-                    }
-                    Err(error) => return Err(error.into()),
+                    Some(integrity) => (source_staging.clone(), integrity, false),
+                    None => return Ok(CutoverArchiveResult::Unavailable),
                 }
             };
         let v2_path = cloud_archive_path(
@@ -472,6 +466,36 @@ impl CloudLibraryCutover {
             integrity,
             local_present,
         })
+    }
+    /// A 1.8 device uploads the metadata before the archive and WebDAV can cut a
+    /// response short, so a missing or mismatching source gets a few spaced
+    /// attempts before it is recorded as unavailable for good.
+    async fn fetch_legacy_archive(
+        &self,
+        game_id: &str,
+        snapshot: &Snapshot,
+        staging: &Path,
+    ) -> Result<Option<ArchiveIntegrity>, CloudLibraryCutoverError> {
+        let legacy_path = game_cloud_archive_path(game_id, snapshot)?;
+        for attempt in 0..self.max_attempts {
+            if attempt > 0 {
+                tokio::time::sleep(self.source_retry_delay).await;
+            }
+            match CloudTransfer::new(&self.operator)
+                .download_file_streaming(&legacy_path, staging)
+                .await
+            {
+                Ok(()) => {
+                    if let Some(integrity) = accepted_legacy_archive(staging, snapshot) {
+                        return Ok(Some(integrity));
+                    }
+                    remove_path_if_exists(staging).await?;
+                }
+                Err(error) if is_backend_not_found(&error) => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(None)
     }
     fn build_manifest(
         &self,
@@ -852,14 +876,16 @@ mod tests {
             .remove(&device_id)
             .unwrap();
         current_profile.local_archive_root = Some("current-device-private-root".into());
-        CloudLibraryCutover::new(
+        let mut runner = CloudLibraryCutover::new(
             op,
             root.join("local"),
             root.join("progress.json"),
             device_id,
             current_profile,
             2,
-        )
+        );
+        runner.source_retry_delay = Duration::ZERO;
+        runner
     }
     #[tokio::test]
     async fn migrates_local_and_marks_missing_without_touching_v1() {
@@ -912,6 +938,41 @@ mod tests {
         let json = serde_json::to_string(&manifest).unwrap();
         assert!(json.contains("creator-device"));
         assert_eq!(game.device_heads["deck"], "missing");
+    }
+    #[tokio::test]
+    async fn source_archive_that_arrives_late_is_not_recorded_as_unavailable() {
+        let op = operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let bytes = b"uploaded after its metadata";
+        let late = snapshot("late", None, bytes);
+        let mut catalog = GameSnapshots::new("test-game");
+        catalog.backups.push(late.clone());
+        seed(&op, catalog, &[]).await;
+        let mut runner = cutover(op.clone(), root.path());
+        runner.source_retry_delay = Duration::from_millis(100);
+        let upload_path = game_cloud_archive_path("test-game", &late).unwrap();
+        let writer = op.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            writer.write(&upload_path, bytes.to_vec()).await.unwrap();
+        });
+
+        let result = runner.execute(false).await.unwrap();
+
+        assert_eq!(result.unavailable_archives, 0);
+    }
+    #[tokio::test]
+    async fn source_archive_that_never_arrives_is_recorded_after_the_attempts() {
+        let op = operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let absent = snapshot("absent", None, b"never uploaded");
+        let mut catalog = GameSnapshots::new("test-game");
+        catalog.backups.push(absent);
+        seed(&op, catalog, &[]).await;
+
+        let result = cutover(op, root.path()).execute(false).await.unwrap();
+
+        assert_eq!(result.unavailable_archives, 1);
     }
     #[tokio::test]
     async fn cloud_only_archive_uses_bounded_staging_and_cleans_it() {
