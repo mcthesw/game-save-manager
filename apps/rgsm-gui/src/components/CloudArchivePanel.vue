@@ -88,6 +88,7 @@ onMounted(() => {
       :local-snapshots="localSnapshots"
       :cloud-snapshots="cloudSnapshots"
       :total-snapshots="totalSnapshots"
+      :loaded="library !== null"
       :materializing="materializing"
       :pending-materialization="library?.pending_materialization ?? false"
       @download-all="materializeAll"
