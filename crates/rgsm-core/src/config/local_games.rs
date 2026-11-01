@@ -158,4 +158,14 @@ impl LocalState {
             .iter()
             .any(|game| game.storage_key == game_id)
     }
+
+    /// Whether this device is bound to a V2 Cloud Library that includes `game_id`.
+    /// The binding outlives a disabled backend, so converting an archive or deleting
+    /// a snapshot offline would make the library's copy differ on reconnect and fail
+    /// as an identity conflict.
+    pub(crate) fn is_cloud_library_game(&self, library: &SharedLibrary, game_id: &str) -> bool {
+        self.cloud_namespace_generation == super::CloudNamespaceGeneration::V2
+            && !self.is_local_game(game_id)
+            && library.games.iter().any(|game| game.storage_key == game_id)
+    }
 }

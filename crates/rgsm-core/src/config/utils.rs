@@ -381,22 +381,20 @@ pub fn set_config_keeping_definitions(config: &Config) -> Result<(), ConfigError
         return merge_config_unlocked(config);
     }
     let owners = store.load()?;
-    if owners.local_state.cloud_namespace_generation != CloudNamespaceGeneration::V2 {
-        return merge_config_unlocked(config);
-    }
     let connected = owners
         .shared_library
         .games
         .iter()
         .map(|game| game.storage_key.as_str())
         .filter(|id| {
-            !owners
+            owners
                 .local_state
-                .local_games
-                .iter()
-                .any(|local| local.storage_key == *id)
+                .is_cloud_library_game(&owners.shared_library, id)
         })
         .collect::<HashSet<_>>();
+    if connected.is_empty() {
+        return merge_config_unlocked(config);
+    }
     let mut merged = config.clone();
     let stored = owners
         .assemble_effective()

@@ -59,11 +59,7 @@ fn games_outside_cloud_library(
         .iter()
         .filter(|game| {
             if local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2 {
-                local_state.is_local_game(&game.storage_key)
-                    || !library
-                        .games
-                        .iter()
-                        .any(|shared| shared.storage_key == game.storage_key)
+                !local_state.is_cloud_library_game(library, &game.storage_key)
             } else {
                 !(legacy_cloud_connected && game.cloud_sync_enabled)
             }

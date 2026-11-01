@@ -28,14 +28,7 @@ impl ServiceContext {
         };
         let game_id = &config.games[index].storage_key;
         let (library, _, local_state) = cloud_bootstrap_inputs()?;
-        Ok(
-            local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2
-                && !local_state.is_local_game(game_id)
-                && library
-                    .games
-                    .iter()
-                    .any(|game| &game.storage_key == game_id),
-        )
+        Ok(local_state.is_cloud_library_game(&library, game_id))
     }
 
     pub fn current_device_game_statuses(
@@ -70,11 +63,7 @@ impl ServiceContext {
             .map(|game| {
                 let settings = profile.games.get(&game.storage_key);
                 DeviceGameStatus {
-                    shared: !local_ids.contains(&game.storage_key)
-                        && library
-                            .games
-                            .iter()
-                            .any(|shared| shared.storage_key == game.storage_key),
+                    shared: local_state.is_cloud_library_game(&library, &game.storage_key),
                     metadata_sync_pending: local_state
                         .pending_game_metadata
                         .contains_key(&game.storage_key),

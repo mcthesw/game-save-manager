@@ -119,7 +119,6 @@
       "backend": { "type": "Disabled" },
       "max_concurrency": 1
     },
-    "cloud_namespace_generation": "v2",
-    "cloud_library_id": "historical-local-fixture"
+    "cloud_namespace_generation": "legacy_v1"
   }
 }
