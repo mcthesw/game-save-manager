@@ -7,10 +7,10 @@ use rust_i18n::{i18n, t};
 i18n!("../../../locales", fallback = ["en_US", "zh_SIMPLIFIED"]);
 
 use rgsm_core::cloud_sync::SyncEventEmitter;
-use rgsm_core::config::get_config;
+use rgsm_core::config::{Settings, get_config};
 use tauri::Manager;
 
-use log::{error, info};
+use log::{error, info, warn};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 use rgsm_core::config::config_check;
@@ -149,8 +149,6 @@ pub fn run() -> anyhow::Result<()> {
                 main_window::defer_show_main_window(app);
             }));
     }
-    let exit_to_tray = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let exit_to_tray_in_setup = exit_to_tray.clone();
     let app = builder.setup(move |app| {
         // Config migration rewrites user data, so it runs only after the
         // single-instance lock is held and the log plugin is writing.
@@ -196,10 +194,6 @@ pub fn run() -> anyhow::Result<()> {
         });
         let cloud_sync_manager = rgsm_core::cloud_sync::CloudSyncTaskManager::new(emitter);
         let config = get_config().expect("Failed to load config while building hooks");
-        exit_to_tray_in_setup.store(
-            config.settings.exit_to_tray,
-            std::sync::atomic::Ordering::Relaxed,
-        );
         let cloud_operation_state = cloud_operation::CloudOperationState::default();
         app.manage(cloud_operation_state.clone());
         let pipeline = hooks::build_builtin_pipeline(app.handle(), &config);
@@ -229,8 +223,7 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 // The HTTP-only host has no window by design, so its event loop
                 // stays alive until the test harness explicitly terminates it.
-                let exit_to_tray = exit_to_tray.load(std::sync::atomic::Ordering::Relaxed);
-                if should_prevent_exit(http_host_only, exit_to_tray, code) {
+                if should_prevent_exit(http_host_only, exit_to_tray_enabled(), code) {
                     api.prevent_exit();
                 }
             }
@@ -245,6 +238,18 @@ pub fn run() -> anyhow::Result<()> {
             "App has exited with error code {}.",
             exit_code
         ))
+    }
+}
+
+/// Read on every exit request: a setting saved while the app runs must govern
+/// the very next window close.
+fn exit_to_tray_enabled() -> bool {
+    match get_config() {
+        Ok(config) => config.settings.exit_to_tray,
+        Err(error) => {
+            warn!(target: "rgsm::main", "Cannot read the exit-to-tray setting, using its default: {error}");
+            Settings::default().exit_to_tray
+        }
     }
 }
 
@@ -265,7 +270,9 @@ fn validate_e2e_cutover_failpoint() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod lifecycle_tests {
-    use super::{should_notify_config_update, should_prevent_exit};
+    use super::{
+        exit_to_tray_enabled, get_config, should_notify_config_update, should_prevent_exit,
+    };
 
     #[test]
     fn configuration_update_notice_is_owned_by_desktop_startup() {
@@ -285,5 +292,22 @@ mod lifecycle_tests {
         assert!(should_prevent_exit(false, true, None));
         assert!(!should_prevent_exit(false, false, None));
         assert!(!should_prevent_exit(true, true, Some(0)));
+    }
+
+    #[test]
+    fn exit_to_tray_follows_the_setting_saved_while_running() {
+        let data_dir = temp_dir::TempDir::new().unwrap();
+        rgsm_core::app_dirs::set_app_data_dir_override(data_dir.path().to_path_buf()).unwrap();
+        rgsm_core::config::config_check().unwrap();
+        assert!(exit_to_tray_enabled());
+
+        let mut config = get_config().unwrap();
+        config.settings.exit_to_tray = false;
+        rgsm_core::config::set_config_local(&config).unwrap();
+        assert!(!exit_to_tray_enabled());
+
+        config.settings.exit_to_tray = true;
+        rgsm_core::config::set_config_local(&config).unwrap();
+        assert!(exit_to_tray_enabled());
     }
 }
