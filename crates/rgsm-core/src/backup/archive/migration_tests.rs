@@ -160,6 +160,20 @@ fn every_historical_archive_generation_converts_without_live_game_paths() {
 }
 
 #[test]
+fn a_damaged_leftover_destination_is_replaced_on_retry() {
+    let temp = temp_dir::TempDir::new().unwrap();
+    let old = temp.path().join("old.zip");
+    let new = temp.path().join("new.7z");
+    zip(&old, "", "profile.sav", b"save");
+    fs::write(&new, b"half written by an interrupted conversion").unwrap();
+
+    convert(&game(), &old, &new, ArchiveFormat::Zip, &BTreeMap::new()).unwrap();
+
+    SevenZBackend.read_capture_manifest(&new).unwrap();
+    assert!(old.exists());
+}
+
+#[test]
 fn ambiguous_flat_archives_wait_for_an_explicit_association() {
     let temp = temp_dir::TempDir::new().unwrap();
     let old = temp.path().join("old.zip");
