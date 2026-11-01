@@ -130,3 +130,59 @@ async fn catalog_reports_device_positions_without_treating_our_stale_position_as
         "our cleared local position must not rediscover our own stale publication"
     );
 }
+
+#[tokio::test]
+async fn local_catalog_import_skips_reported_archives_missing_from_disk() {
+    let root = temp_dir::TempDir::new().unwrap();
+    let operator = Operator::new(services::Memory::default()).unwrap().finish();
+    let present = archive_path(
+        &root.path().join("game"),
+        "present",
+        ArchiveFormat::Zip,
+        None,
+    );
+    std::fs::create_dir_all(present.parent().unwrap()).unwrap();
+    std::fs::write(&present, b"kept archive").unwrap();
+    let mut game = GameManifest::new("game");
+    game.upsert_live(SnapshotNode::live(
+        "present",
+        None,
+        ArchiveIntegrity::from_file(&present).unwrap(),
+        CreatedBy::Manual,
+    ))
+    .unwrap();
+    let removed_integrity = ArchiveIntegrity {
+        size: 7,
+        xxh3_64: "0000000000000000".into(),
+    };
+    game.upsert_live(SnapshotNode::live(
+        "removed",
+        Some("present".into()),
+        removed_integrity,
+        CreatedBy::Manual,
+    ))
+    .unwrap();
+    game.report_local_archive("pc".into(), "present".into(), true);
+    game.report_local_archive("pc".into(), "removed".into(), true);
+    let mut manifest = CloudManifest::default();
+    manifest.games.insert("game".into(), game);
+    operator
+        .write(CLOUD_MANIFEST_PATH, serde_json::to_vec(&manifest).unwrap())
+        .await
+        .unwrap();
+    let materializer = CloudArchiveMaterializer::new(
+        operator,
+        root.path().into(),
+        "pc".into(),
+        root.path().join("progress.json"),
+        2,
+    );
+
+    let catalog = materializer.imported_local_catalog().await.unwrap();
+
+    let imported = catalog["game"]
+        .iter()
+        .map(|snapshot| snapshot.date.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(imported, ["present"]);
+}
