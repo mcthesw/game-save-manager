@@ -15,6 +15,7 @@ pub(super) struct StagingDirectory(pub PathBuf);
 
 impl StagingDirectory {
     pub fn new(parent: &Path) -> std::io::Result<Self> {
+        super::leftovers::remove_stale_leftovers(parent);
         let path = parent.join(format!(".upgrade-{}", uuid::Uuid::new_v4()));
         fs::create_dir(&path)?;
         Ok(Self(path))

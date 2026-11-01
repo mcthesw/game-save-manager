@@ -11,9 +11,12 @@ use sevenz_rust2::{
 };
 
 use crate::{
+    atomic_file::publish_file,
     backup::{CapturePlan, CaptureSourceKind, CompressionPreset, RestorePlan},
     preclude::CompressError,
 };
+
+use super::leftovers::remove_stale_leftovers;
 
 use super::{
     ArchiveIdentity, ArchiveManifest,
@@ -88,6 +91,9 @@ pub(super) fn write_atomic(
     manifest: &ArchiveManifest,
     manifest_entry: &str,
 ) -> Result<u64, CompressError> {
+    if let Some(directory) = archive_path.parent() {
+        remove_stale_leftovers(directory);
+    }
     let temp_path = archive_path.with_extension("7z.capture.tmp");
     let result = write_archive(payloads, &temp_path, preset, manifest, manifest_entry);
     let size = match result {
@@ -97,7 +103,7 @@ pub(super) fn write_atomic(
             return Err(error);
         }
     };
-    if let Err(error) = fs::rename(&temp_path, archive_path) {
+    if let Err(error) = publish_file(&temp_path, archive_path) {
         let _ = fs::remove_file(&temp_path);
         return Err(single(error));
     }

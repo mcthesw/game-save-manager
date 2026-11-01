@@ -15,6 +15,7 @@ use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::backup::path_format::path_to_zip_style;
 use crate::{
+    atomic_file::publish_file,
     backup::{
         CaptureGroup, CapturePlan, CaptureSourceKind, CompressionPreset, SaveUnit, SaveUnitType,
         registry,
@@ -24,6 +25,7 @@ use crate::{
     preclude::*,
 };
 
+use super::leftovers::remove_stale_leftovers;
 use super::{ArchiveManifest, V3_MANIFEST_ENTRY, version::ArchiveMeta};
 
 use super::timestamp::system_time_to_zip_datetime;
@@ -288,6 +290,9 @@ pub(crate) fn compress_capture_plan_to_file(
             "Portable variable paths require Archive V5 (7z)"
         )));
     }
+    if let Some(directory) = zip_path.parent() {
+        remove_stale_leftovers(directory);
+    }
     let temp_path = zip_path.with_extension("zip.capture.tmp");
     let result = write_capture_plan_archive(plan, &temp_path, preset, source_fingerprint);
     let size = match result {
@@ -297,7 +302,7 @@ pub(crate) fn compress_capture_plan_to_file(
             return Err(error);
         }
     };
-    if let Err(error) = fs::rename(&temp_path, zip_path) {
+    if let Err(error) = publish_file(&temp_path, zip_path) {
         let _ = fs::remove_file(&temp_path);
         return Err(CompressError::Single(error.into()));
     }
