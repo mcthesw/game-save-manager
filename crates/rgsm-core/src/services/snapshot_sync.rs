@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::future::Future;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -60,64 +61,114 @@ pub async fn run_v2_snapshot_sync_once(
             game.forget_v2_tombstones(ids)?;
         }
     }
+    let games = runtime
+        .targets
+        .keys()
+        .map(|game_id| {
+            let name = runtime
+                .game_names
+                .get(game_id)
+                .cloned()
+                .unwrap_or_else(|| game_id.clone());
+            (game_id.clone(), name)
+        })
+        .collect::<Vec<_>>();
+    reconcile_games(games, cancellation, |game_id| {
+        reconcile_one_game(&runtime, game_id, cancellation)
+    })
+    .await
+}
+
+async fn reconcile_one_game(
+    runtime: &SnapshotSyncRuntime,
+    game_id: String,
+    cancellation: &CancellationToken,
+) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError> {
+    let target = &runtime.targets[&game_id];
+    let game = runtime
+        .config
+        .games
+        .iter()
+        .find(|game| game.storage_key == game_id);
+    let snapshots = match game {
+        Some(game) => match game.get_game_snapshots_info() {
+            Ok(snapshots) => snapshots,
+            Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                GameSnapshots::new(game.name.clone())
+            }
+            Err(error) => return Err(error.into()),
+        },
+        None => GameSnapshots::new(
+            runtime
+                .game_names
+                .get(&game_id)
+                .cloned()
+                .unwrap_or_else(|| game_id.clone()),
+        ),
+    };
+
+    let outcome = runtime
+        .coordinator
+        .reconcile_game_with_policy(
+            &game_id,
+            &snapshots,
+            target.activation_revision,
+            &target.local_baseline,
+            cancellation,
+            crate::cloud_sync::v2::SnapshotReconcilePolicy {
+                upload_new_archives: target.upload_new_archives,
+            },
+        )
+        .await?;
+    if let Some(limit) = target.retention_limit {
+        let retention = runtime
+            .coordinator
+            .enforce_retention(&game_id, limit)
+            .await?;
+        if let Some(game) = game {
+            game.forget_v2_tombstones(&retention.tombstones)?;
+        }
+    }
+    Ok(outcome)
+}
+/// A failing Game must not stop unrelated Games from publishing, uploading or
+/// enforcing retention. Only cancellation ends the round early; every other
+/// failure is reported together with the Game it belongs to.
+async fn reconcile_games<F, Fut>(
+    games: impl IntoIterator<Item = (String, String)>,
+    cancellation: &CancellationToken,
+    mut reconcile: F,
+) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError>
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError>>,
+{
     let mut total = SnapshotReconciliationOutcome::default();
-    for (game_id, target) in &runtime.targets {
+    let mut failures = Vec::new();
+    for (game_id, game_name) in games {
         if cancellation.is_cancelled() {
             return Err(SnapshotSyncServiceError::Cancelled);
         }
-        let snapshots = match runtime
-            .config
-            .games
-            .iter()
-            .find(|game| game.storage_key == *game_id)
-        {
-            Some(game) => match game.get_game_snapshots_info() {
-                Ok(snapshots) => snapshots,
-                Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
-                    GameSnapshots::new(game.name.clone())
-                }
-                Err(error) => return Err(error.into()),
-            },
-            None => GameSnapshots::new(
-                runtime
-                    .game_names
-                    .get(game_id)
-                    .cloned()
-                    .unwrap_or_else(|| game_id.clone()),
-            ),
-        };
-
-        let outcome = runtime
-            .coordinator
-            .reconcile_game_with_policy(
-                game_id,
-                &snapshots,
-                target.activation_revision,
-                &target.local_baseline,
-                cancellation,
-                crate::cloud_sync::v2::SnapshotReconcilePolicy {
-                    upload_new_archives: target.upload_new_archives,
-                },
-            )
-            .await?;
-        total.published += outcome.published;
-        total.uploaded += outcome.uploaded;
-        if let Some(limit) = target.retention_limit {
-            let retention = runtime
-                .coordinator
-                .enforce_retention(game_id, limit)
-                .await?;
-            if let Some(game) = runtime
-                .config
-                .games
-                .iter()
-                .find(|game| game.storage_key == *game_id)
-            {
-                game.forget_v2_tombstones(&retention.tombstones)?;
+        match reconcile(game_id).await {
+            Ok(outcome) => {
+                total.published += outcome.published;
+                total.uploaded += outcome.uploaded;
             }
+            Err(SnapshotSyncServiceError::Cancelled)
+            | Err(SnapshotSyncServiceError::SnapshotSync(SnapshotSyncError::Cancelled)) => {
+                return Err(SnapshotSyncServiceError::Cancelled);
+            }
+            Err(error) => failures.push(GameSyncFailure {
+                game: game_name,
+                error: error.to_string(),
+            }),
         }
     }
-    Ok(total)
+    if failures.is_empty() {
+        Ok(total)
+    } else {
+        Err(SnapshotSyncServiceError::Games(failures))
+    }
 }
 
 pub async fn resume_v2_snapshot_sync(
@@ -265,12 +316,77 @@ pub enum SnapshotSyncServiceError {
     SnapshotSync(#[from] SnapshotSyncError),
     #[error(transparent)]
     Retention(#[from] super::CloudLibraryServiceError),
+    #[error("Snapshot Sync failed for {}", describe_failures(.0))]
+    Games(Vec<GameSyncFailure>),
+}
+
+#[derive(Debug)]
+pub struct GameSyncFailure {
+    pub game: String,
+    pub error: String,
+}
+
+fn describe_failures(failures: &[GameSyncFailure]) -> String {
+    failures
+        .iter()
+        .map(|failure| format!("{}: {}", failure.game, failure.error))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::{DeviceGameProfile, InitialCatchUpPolicy, SyncMode};
+
+    fn uploaded(count: usize) -> SnapshotReconciliationOutcome {
+        SnapshotReconciliationOutcome {
+            published: 0,
+            uploaded: count,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failing_game_does_not_stop_later_games() {
+        let games = ["alpha", "broken", "omega"].map(|id| (id.to_string(), id.to_uppercase()));
+        let mut visited = Vec::new();
+        let result = reconcile_games(games, &CancellationToken::new(), |game_id| {
+            visited.push(game_id.clone());
+            async move {
+                if game_id == "broken" {
+                    Err(SnapshotSyncServiceError::StorageLocationRequired)
+                } else {
+                    Ok(uploaded(1))
+                }
+            }
+        })
+        .await;
+
+        assert_eq!(visited, ["alpha", "broken", "omega"]);
+        let Err(SnapshotSyncServiceError::Games(failures)) = result else {
+            panic!("the failed game must be reported");
+        };
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].game, "BROKEN");
+    }
+
+    #[tokio::test]
+    async fn cancellation_ends_the_round_without_reporting_a_game_failure() {
+        let games = ["alpha", "omega"].map(|id| (id.to_string(), id.to_string()));
+        let mut visited = 0;
+        let result = reconcile_games(games, &CancellationToken::new(), |_| {
+            visited += 1;
+            async {
+                Err(SnapshotSyncServiceError::SnapshotSync(
+                    SnapshotSyncError::Cancelled,
+                ))
+            }
+        })
+        .await;
+
+        assert_eq!(visited, 1);
+        assert!(matches!(result, Err(SnapshotSyncServiceError::Cancelled)));
+    }
 
     #[test]
     fn synchronized_profiles_with_boundaries_become_targets() {

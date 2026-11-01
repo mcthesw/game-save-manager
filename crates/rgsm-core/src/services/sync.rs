@@ -1089,10 +1089,14 @@ pub(crate) async fn import_local_verified_catalog(
     materializer: &CloudArchiveMaterializer,
 ) -> Result<(), CloudLibraryServiceError> {
     let catalog = materializer.imported_local_catalog().await?;
+    let mut first_error = None;
     for (game_id, lineage) in catalog {
-        import_downloaded_lineage(&game_id, &lineage)?;
+        if let Err(error) = import_downloaded_lineage(&game_id, &lineage) {
+            log::warn!("Importing local archives of '{game_id}' failed: {error}");
+            first_error.get_or_insert(error);
+        }
     }
-    Ok(())
+    first_error.map_or(Ok(()), Err)
 }
 
 #[cfg(test)]
