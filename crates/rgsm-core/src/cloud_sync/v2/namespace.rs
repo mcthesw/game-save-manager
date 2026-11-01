@@ -216,10 +216,7 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
             return Err(CloudNamespaceError::PartialV2(v2_entries));
         }
 
-        if let Some(bytes) = self.read_object(V1_CONFIG_PATH).await? {
-            let raw: serde_json::Value = parse_json(V1_CONFIG_PATH, &bytes)?;
-            let config = crate::updater::decode_legacy_cloud_config(&raw.to_string())
-                .map_err(|error| CloudNamespaceError::LegacyConfiguration(error.to_string()))?;
+        if let Some(config) = self.read_legacy_config().await? {
             return Ok(CloudNamespaceClassification::V1Only {
                 config: Box::new(config),
             });
@@ -234,6 +231,18 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
         } else {
             Err(CloudNamespaceError::UnrecognizedRoot(root_entries))
         }
+    }
+
+    /// The legacy configuration is read-only input for an upgrade; it is never
+    /// written back.
+    pub async fn read_legacy_config(&self) -> Result<Option<Config>, CloudNamespaceError> {
+        let Some(bytes) = self.read_object(V1_CONFIG_PATH).await? else {
+            return Ok(None);
+        };
+        let raw: serde_json::Value = parse_json(V1_CONFIG_PATH, &bytes)?;
+        crate::updater::decode_legacy_cloud_config(&raw.to_string())
+            .map(Some)
+            .map_err(|error| CloudNamespaceError::LegacyConfiguration(error.to_string()))
     }
 
     async fn classify_v2(

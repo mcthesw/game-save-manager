@@ -146,12 +146,18 @@ impl CloudLibraryCutover {
         Ok(())
     }
     async fn freeze_plan(&self) -> Result<CutoverPlan, CloudLibraryCutoverError> {
-        let config = match CloudNamespaceClassifier::new(self.operator.clone())
-            .classify()
-            .await?
-        {
-            CloudNamespaceClassification::V1Only { config } => *config,
-            _ => return Err(CloudLibraryCutoverError::CutoverUnavailable),
+        let classifier = CloudNamespaceClassifier::new(self.operator.clone());
+        let config = match classifier.classify().await {
+            Ok(CloudNamespaceClassification::V1Only { config }) => *config,
+            // Without a descriptor nothing in `v2/` is published. After local
+            // progress is lost the legacy configuration is still the source of
+            // truth, and re-uploading an archive overwrites identical bytes.
+            Err(CloudNamespaceError::PartialV2(_)) => classifier
+                .read_legacy_config()
+                .await?
+                .ok_or(CloudLibraryCutoverError::CutoverUnavailable)?,
+            Ok(_) => return Err(CloudLibraryCutoverError::CutoverUnavailable),
+            Err(error) => return Err(error.into()),
         };
         let mut owners = ConfigurationOwners::from_legacy(&config, &self.current_device_id);
         owners.device_profiles.insert(
@@ -778,6 +784,36 @@ mod tests {
         assert_eq!(result.snapshot_count, 1);
         assert_eq!(op.read(&v2_path).await.unwrap().to_vec(), bytes);
         assert!(op.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());
+    }
+    #[tokio::test]
+    async fn restarts_over_unpublished_v2_objects_when_progress_is_lost() {
+        let op = operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let bytes = b"uploaded before the interruption";
+        let snapshot = snapshot("done", None, bytes);
+        let mut catalog = GameSnapshots::new("test-game");
+        catalog.backups.push(snapshot.clone());
+        seed(&op, catalog, &[(&snapshot, bytes)]).await;
+        let v2_path = cloud_archive_path("test-game", "done", ArchiveFormat::Zip, None).unwrap();
+        op.write(&v2_path, bytes.to_vec()).await.unwrap();
+        let runner = cutover(op.clone(), root.path());
+        assert!(!root.path().join("progress.json").exists());
+        let result = runner.execute().await.unwrap();
+        assert_eq!(result.snapshot_count, 1);
+        assert_eq!(result.unavailable_archives, 0);
+        assert!(op.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());
+    }
+    #[tokio::test]
+    async fn partial_v2_without_legacy_configuration_is_not_restarted() {
+        let op = operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        op.write("v2/archives/orphan.zip", b"x".to_vec())
+            .await
+            .unwrap();
+        assert!(matches!(
+            cutover(op, root.path()).review().await,
+            Err(CloudLibraryCutoverError::CutoverUnavailable)
+        ));
     }
 
     #[test]
