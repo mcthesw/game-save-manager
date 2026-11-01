@@ -410,9 +410,7 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, OwnerStoreError> {
 
 fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), OwnerStoreError> {
     let bytes = serde_json::to_vec_pretty(value)?;
-    let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, bytes)?;
-    replace_file(&tmp, path)?;
+    crate::atomic_file::write_bytes_atomically(path, &bytes)?;
     Ok(())
 }
 
@@ -471,8 +469,7 @@ fn pending_marker_exists(active: &Path) -> bool {
 }
 
 fn write_pending_marker(active: &Path) -> Result<(), OwnerStoreError> {
-    fs::create_dir_all(active)?;
-    fs::write(pending_marker_path(active), b"pending\n")?;
+    crate::atomic_file::write_bytes_atomically(&pending_marker_path(active), b"pending\n")?;
     Ok(())
 }
 
