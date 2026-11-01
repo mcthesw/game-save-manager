@@ -29,6 +29,13 @@ pub(crate) fn write_bytes_atomically(path: &Path, bytes: &[u8]) -> io::Result<()
     write_result
 }
 
+/// Makes an already written, closed file visible at `target`. The content is
+/// flushed first so a power loss cannot leave a renamed but empty archive.
+pub(crate) fn publish_file(source: &Path, target: &Path) -> io::Result<()> {
+    OpenOptions::new().write(true).open(source)?.sync_all()?;
+    replace_file(source, target)
+}
+
 fn create_temp_file(path: &Path) -> io::Result<(PathBuf, fs::File)> {
     let mut last_collision = None;
     for _ in 0..TEMP_FILE_CREATE_RETRY_LIMIT {

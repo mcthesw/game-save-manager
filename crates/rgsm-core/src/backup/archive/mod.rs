@@ -17,6 +17,7 @@ mod backend;
 mod compress;
 mod compression_preset;
 mod decompress;
+mod leftovers;
 mod legacy_layout;
 mod location;
 mod manifest;
