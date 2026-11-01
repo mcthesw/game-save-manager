@@ -115,3 +115,16 @@ pub fn rebuild_pipeline(app: &AppHandle, config: &Config) -> Arc<HookPipeline> {
     let pipeline_state = app.state::<HookPipelineState>();
     pipeline_state.replace(build_builtin_pipeline(app, config))
 }
+
+/// Applies a persisted configuration change to every runtime mirror of it
+/// (pipeline composition, timers, process monitor, hotkeys, tray).
+pub async fn rebuild_pipeline_and_fire_config_saved(
+    app: &AppHandle,
+    config: Config,
+    source: HookSource,
+) {
+    let pipeline = rebuild_pipeline(app, &config);
+    rgsm_core::services::ServiceContext::new(pipeline)
+        .fire_config_saved(config, source)
+        .await;
+}

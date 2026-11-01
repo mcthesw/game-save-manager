@@ -23,9 +23,10 @@ pub async fn refresh(
         .clone();
     state
         .run_sync(|cancellation| async move {
-            rgsm_core::services::run_v2_snapshot_sync_once(&cancellation)
-                .await
-                .map_err(|error| error.to_string())?;
+            let before = ConfigFingerprint::capture();
+            let synced = rgsm_core::services::run_v2_snapshot_sync_once(&cancellation).await;
+            before.reload_if_changed(app).await;
+            synced.map_err(|error| error.to_string())?;
             crate::remote_progress::refresh(
                 app,
                 &rgsm_core::services::ServiceContext::new(
@@ -53,9 +54,11 @@ async fn run(app: AppHandle, state: CloudOperationState) {
             let Some(_operation) = operations.begin() else {
                 return;
             };
+            let before = ConfigFingerprint::capture();
             if let Err(error) = rgsm_core::services::resume_v2_snapshot_sync(&cancellation).await {
                 warn!("Snapshot download recovery failed: {error}");
             }
+            before.reload_if_changed(app).await;
             run_reconciliation(app, &cancellation).await;
         })
         .await;
@@ -99,7 +102,50 @@ async fn run(app: AppHandle, state: CloudOperationState) {
     }
 }
 
+/// Reconciliation rewrites game definitions and removes deleted games straight
+/// in the configuration store, bypassing the hook pipeline. Timers, the process
+/// monitor, hotkeys and the tray keep their own copies of those games, so they
+/// must be refreshed whenever the stored configuration actually changed, even
+/// if reconciliation failed half-way.
+struct ConfigFingerprint(Option<String>);
+
+impl ConfigFingerprint {
+    fn capture() -> Self {
+        Self(
+            rgsm_core::config::get_config()
+                .ok()
+                .and_then(|config| serde_json::to_string(&config).ok()),
+        )
+    }
+
+    async fn reload_if_changed(&self, app: &AppHandle) {
+        let after = Self::capture();
+        if self.0 == after.0 {
+            return;
+        }
+        match rgsm_core::config::get_config() {
+            Ok(config) => {
+                crate::hooks::rebuild_pipeline_and_fire_config_saved(
+                    app,
+                    config,
+                    rgsm_core::hooks::HookSource::CloudSync,
+                )
+                .await;
+            }
+            Err(error) => {
+                warn!("Failed to reload runtime state after cloud reconciliation: {error}")
+            }
+        }
+    }
+}
+
 async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
+    let before = ConfigFingerprint::capture();
+    reconcile_once(app, cancellation).await;
+    before.reload_if_changed(app).await;
+}
+
+async fn reconcile_once(app: &AppHandle, cancellation: &CancellationToken) {
     let state = app.state::<CloudOperationState>();
     let result = rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await;
     crate::http::emit(app, "cloud-metadata-changed", &result.is_ok());

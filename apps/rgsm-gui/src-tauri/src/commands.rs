@@ -40,7 +40,7 @@ use specta::Type;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-use crate::hooks::HookPipelineState;
+use crate::hooks::{HookPipelineState, rebuild_pipeline_and_fire_config_saved};
 
 pub mod app_updates_http;
 pub mod cloud_join;
@@ -132,17 +132,6 @@ async fn run_cloud_operation<T>(
     operation: impl std::future::Future<Output = T>,
 ) -> T {
     crate::cloud_operation::run(app, operation).await
-}
-
-async fn rebuild_pipeline_and_fire_config_saved(
-    app_handle: &AppHandle,
-    config: Config,
-    source: HookSource,
-) {
-    let pipeline = crate::hooks::rebuild_pipeline(app_handle, &config);
-    ServiceContext::new(pipeline)
-        .fire_config_saved(config, source)
-        .await;
 }
 
 async fn reload_pipeline_and_fire_config_saved(
