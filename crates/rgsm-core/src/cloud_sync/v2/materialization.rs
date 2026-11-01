@@ -16,7 +16,7 @@ use super::{
 use crate::backup::{ArchiveFormat, CreatedBy, Snapshot, archive_path};
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
 use crate::config::SyncMode;
-use crate::device::{DeviceId, encode_device_id};
+use crate::device::DeviceId;
 use crate::preclude::BackendError;
 
 const MATERIALIZATION_PROGRESS_SCHEMA_VERSION: u32 = 1;
@@ -694,6 +694,9 @@ impl CloudArchiveMaterializer {
             item.archive_format,
             item.archive_name.as_deref(),
         );
+        if let Some(parent) = local_path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         CloudTransfer::new(&self.operator)
             .download_file_streaming(&remote_path, &staging_path)
             .await?;
@@ -701,10 +704,10 @@ impl CloudArchiveMaterializer {
             remove_file_if_exists(&staging_path).await?;
             return Err(error);
         }
-        if let Some(parent) = local_path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
+        if let Err(error) = replace_path_preserving_existing(&staging_path, &local_path).await {
+            remove_file_if_exists(&staging_path).await?;
+            return Err(error.into());
         }
-        replace_path_preserving_existing(&staging_path, &local_path).await?;
         let current_device = self.current_device_id.clone();
         let game_id = item.game_id.clone();
         let snapshot_id = item.snapshot_id.clone();
@@ -908,12 +911,19 @@ impl CloudArchiveMaterializer {
         )
     }
 
+    /// Stage next to the final archive: a rename within one directory cannot
+    /// cross volumes, unlike the progress file's directory (the program folder).
     fn staging_path(&self, item: &MaterializationItem, suffix: &str) -> PathBuf {
-        self.progress_path.with_extension("staging").join(format!(
-            "{}-{}-{suffix}.tmp",
-            encode_device_id(&item.game_id),
-            encode_device_id(&item.snapshot_id)
-        ))
+        let local_path = self.local_path(
+            &item.game_id,
+            &item.snapshot_id,
+            item.archive_format,
+            item.archive_name.as_deref(),
+        );
+        let mut name = std::ffi::OsString::from(".");
+        name.push(local_path.file_name().unwrap_or_default());
+        name.push(format!(".{suffix}.tmp"));
+        local_path.with_file_name(name)
     }
 }
 
