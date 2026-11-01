@@ -291,18 +291,9 @@ impl ServiceContext {
             .cloud_library_id
             .as_deref()
             .ok_or(CloudLibraryServiceError::ActiveLibraryUnavailable)?;
-        match operator
-            .delete_with(crate::cloud_sync::v2::V2_NAMESPACE_PREFIX)
-            .recursive(true)
-            .await
-        {
-            Ok(()) => {}
-            Err(err) if err.kind() == opendal::ErrorKind::NotFound => {}
-            Err(err) => return Err(BackendError::from(err).into()),
-        }
         let descriptor = CloudNamespaceDescriptor::with_library_id(library_id);
         CloudLibraryBootstrap::new(operator, 3)
-            .create_empty(&descriptor, &shared_library, &device_profile)
+            .rebuild_metadata(&descriptor, &shared_library, &device_profile)
             .await?;
         self.reupload_enabled_local_progress(&CancellationToken::new())
             .await?;
