@@ -24,8 +24,6 @@
         "enable_edit_manage": "Зміни, відображені в інтерфейсі управління архівом",
         "default_delete_before_apply": "Придбання для видалення резервного копіювання (ефективні для нових ігор)",
         "compression_preset": "Backup compression level",
-        "compute_archive_hash": "Compute integrity hash (XXH3) when creating backups",
-        "verify_archive_before_apply": "Verify archive integrity before restoring",
         "backup_all": "Всі файли резервного копіювання",
         "backup_all_hint": "для всіх ігор, і може зайняти довгий час, щоб визначити вхідні іграшки",
         "backup_all_success_with_sync": "All games backed up. Cloud sync continues in background.",
@@ -117,7 +115,7 @@
         "size": "Розмір файлу",
         "size_not_available": "Не записано",
         "verify_archive_hashes": "Verify archive integrity",
-        "verify_no_hashes": "No snapshots have integrity hashes. Enable \"Compute integrity hash\" in Settings.",
+        "verify_no_hashes": "No snapshots have integrity hashes. Backups created by older versions do not store one.",
         "verify_all_passed": "All {count} archive(s) verified successfully",
         "verify_failed_title": "Archive Integrity Check Failed",
         "verify_failed_summary": "{passed} passed, {failed} failed integrity check.",
@@ -125,7 +123,7 @@
         "verify_select_corrupted": "Select corrupted",
         "verifying_archives": "Verifying archive integrity...",
         "integrity_failed_title": "Archive Corrupted",
-        "integrity_failed_detail": "The archive file failed integrity verification. It may have been corrupted during storage or transfer. The restore has been aborted to protect your save data.\n\nYou can try re-downloading from cloud sync, or disable integrity verification in Settings."
+        "integrity_failed_detail": "The archive file failed integrity verification. It may have been corrupted during storage or transfer. The restore has been aborted to protect your save data.\n\nYou can try re-downloading from cloud sync."
     },
     "favorite": {
         "enable_drag": "Увімкнути сортування перетягуванням",

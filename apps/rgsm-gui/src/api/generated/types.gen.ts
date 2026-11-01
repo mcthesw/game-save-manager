@@ -1505,7 +1505,8 @@ export type Settings = {
   cloud_settings?: CloudSettings;
   compression_preset?: CompressionPreset;
   /**
-   * Compute an XXH3 hash when creating snapshots (for integrity verification).
+   * Ignored: snapshots are always hashed. Kept because 1.9 test builds read
+   * it as a required field of the device profile stored in the cloud.
    */
   compute_archive_hash?: boolean;
   confirm_before_apply_latest?: boolean;
@@ -1531,7 +1532,8 @@ export type Settings = {
   save_list_sort_mode?: SaveListSortMode;
   show_edit_button?: boolean;
   /**
-   * Verify archive hash before applying a snapshot.
+   * Ignored: archives are always verified before restoring. Kept for the
+   * same compatibility reason as `compute_archive_hash`.
    */
   verify_archive_before_apply?: boolean;
   vn_scan_dirs?: Array<string>;

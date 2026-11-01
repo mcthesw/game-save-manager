@@ -1498,21 +1498,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
               }}</span>
               <KSwitch v-model="config.settings.add_new_to_favorites" />
             </div>
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="min-w-0 text-sm text-text">{{
-                $t('settings.compute_archive_hash')
-              }}</span>
-              <KSwitch v-model="config.settings.compute_archive_hash" />
-            </div>
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="min-w-0 text-sm text-text">{{
-                $t('settings.verify_archive_before_apply')
-              }}</span>
-              <KSwitch
-                v-model="config.settings.verify_archive_before_apply"
-                :disabled="!config.settings.compute_archive_hash"
-              />
-            </div>
             <div class="mt-3 flex items-center gap-2 border-t border-border pt-4">
               <KButton size="sm" @click="backup_all">
                 {{ $t('settings.backup_all') }}
