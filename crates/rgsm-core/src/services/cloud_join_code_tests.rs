@@ -118,7 +118,11 @@ async fn empty_and_replaced_targets_are_rejected_without_creating_metadata() {
             .await
             .is_err()
     );
-    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+    assert!(
+        std::fs::read_dir(root.path())
+            .unwrap()
+            .all(|entry| entry.unwrap().file_name() == crate::cloud_sync::FS_ATOMIC_WRITE_DIR)
+    );
     let operator = CloudSyncSessionConfig::from(&settings).get_op().unwrap();
     let replacement = serde_json::to_vec(&CloudNamespaceDescriptor::default()).unwrap();
     operator

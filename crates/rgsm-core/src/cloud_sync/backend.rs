@@ -12,6 +12,10 @@ use super::CloudSettings;
 use crate::config::get_config;
 use crate::preclude::*;
 
+/// Staging directory for atomic writes under a local-folder root. Namespace
+/// classification must ignore it so an empty root stays empty.
+pub(crate) const FS_ATOMIC_WRITE_DIR: &str = ".rgsm-atomic-writes";
+
 /// How the S3 client addresses buckets.
 ///
 /// - `PathStyle`: `https://endpoint/bucket/key` (default, works for most generic S3-compatible services)
@@ -283,7 +287,12 @@ impl Backend {
                         "Local folder backend requires an absolute root path.".to_string(),
                     ));
                 }
-                let builder = services::Fs::default().root(root);
+                // Without this, OpenDAL truncates the destination in place, so an
+                // interrupted metadata write leaves a half-written manifest. The
+                // directory must share the root's volume for the final rename.
+                let builder = services::Fs::default()
+                    .root(root)
+                    .atomic_write_dir(&Path::new(root).join(FS_ATOMIC_WRITE_DIR).to_string_lossy());
                 Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
             }
             Backend::WebDAV {
@@ -651,6 +660,55 @@ mod tests {
         );
     }
 
+    fn visible_root_entries(root: &std::path::Path) -> Vec<std::ffi::OsString> {
+        std::fs::read_dir(root)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .filter(|name| name != super::FS_ATOMIC_WRITE_DIR)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn interrupted_fs_write_leaves_the_previous_object_intact() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let op = Backend::Fs
+            .get_op_with_root(&root.path().to_string_lossy())
+            .unwrap();
+        op.write("v2/cloud-manifest.json", b"{\"revision\":1}".to_vec())
+            .await
+            .unwrap();
+
+        let mut writer = op.writer("v2/cloud-manifest.json").await.unwrap();
+        writer.write(b"{\"revision\":2,".to_vec()).await.unwrap();
+        drop(writer);
+
+        assert_eq!(
+            op.read("v2/cloud-manifest.json").await.unwrap().to_vec(),
+            b"{\"revision\":1}"
+        );
+    }
+
+    #[tokio::test]
+    async fn fs_staging_directory_does_not_make_an_empty_root_unrecognized() {
+        let root = temp_dir::TempDir::new().unwrap();
+        let op = Backend::Fs
+            .get_op_with_root(&root.path().to_string_lossy())
+            .unwrap();
+        op.write("probe", b"x".to_vec()).await.unwrap();
+        op.delete("probe").await.unwrap();
+        assert!(root.path().join(super::FS_ATOMIC_WRITE_DIR).is_dir());
+
+        let classification = crate::cloud_sync::v2::CloudNamespaceClassifier::new(op)
+            .classify()
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            classification,
+            crate::cloud_sync::v2::CloudNamespaceClassification::Empty
+        ));
+    }
+
     #[tokio::test]
     async fn fs_backend_health_check_succeeds_without_leaving_a_probe_file() {
         let root = temp_dir::TempDir::new().unwrap();
@@ -663,7 +721,7 @@ mod tests {
         let report = session.check_report().await;
 
         assert_eq!(report.outcome, CloudBackendCheckOutcome::Available);
-        assert!(std::fs::read_dir(root.path()).unwrap().next().is_none());
+        assert!(visible_root_entries(root.path()).is_empty());
     }
 
     #[tokio::test]
@@ -688,7 +746,7 @@ mod tests {
             std::fs::read(root.path().join("GameSaveManager.config.json")).unwrap(),
             config
         );
-        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+        assert_eq!(visible_root_entries(root.path()).len(), 1);
     }
 
     #[test]
