@@ -475,6 +475,39 @@ impl ServiceContext {
         Ok(())
     }
 
+    /// Enforce the automatic-backup limit on a local-only game.
+    ///
+    /// A shared game keeps its history under Shared Snapshot Retention: a
+    /// device-local deletion would leave no Tombstone, so the Cloud Manifest
+    /// would still list the snapshot and later synchronization would conflict.
+    pub async fn cleanup_old_auto_backups(
+        &self,
+        game: &Game,
+        max_count: u32,
+        source: HookSource,
+    ) -> Result<(), BackupError> {
+        if self
+            .is_shared_game(game.backup_dir_name().as_ref())
+            .map_err(|error| BackupError::Unexpected(error.into()))?
+        {
+            return Ok(());
+        }
+        let cleanup = game.cleanup_old_auto_backups(max_count).await?;
+        if cleanup.deleted_remote_paths.is_empty() {
+            return Ok(());
+        }
+        self.pipeline()
+            .fire_snapshot_deleted(&SnapshotDeletedCtx {
+                config: get_config()?,
+                source,
+                game: game.clone(),
+                snapshots: cleanup.snapshots,
+                deleted_remote_paths: cleanup.deleted_remote_paths,
+            })
+            .await;
+        Ok(())
+    }
+
     pub async fn set_snapshot_created_by(
         &self,
         game_name: &str,
