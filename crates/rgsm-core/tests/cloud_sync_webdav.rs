@@ -396,7 +396,7 @@ async fn v1_8_copy_upgrades_on_a_then_b_joins_with_its_own_absolute_paths() {
         1,
     );
     assert_eq!(cutover.review().await.unwrap().snapshot_count, 1);
-    let upgraded = cutover.execute().await.unwrap();
+    let upgraded = cutover.execute(false).await.unwrap();
     assert_eq!(upgraded.snapshot_count, 1);
     assert_eq!(upgraded.unavailable_archives, 0);
     let v2_archive = cloud_archive_path(game_id, snapshot_id, ArchiveFormat::Zip, None).unwrap();

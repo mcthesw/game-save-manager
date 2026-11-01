@@ -457,6 +457,7 @@ impl ServiceContext {
     pub async fn cutover_cloud_library(
         &self,
         confirmed: bool,
+        apply_automatic_cleanup: bool,
     ) -> Result<CloudLibraryCutoverOutcome, CloudLibraryServiceError> {
         if !confirmed {
             return Err(CloudLibraryServiceError::ConfirmationRequired);
@@ -466,7 +467,7 @@ impl ServiceContext {
             return Err(CloudLibraryServiceError::CutoverNotRequired);
         }
         let cutover = self.cutover(&local_profile, &local_state)?;
-        let result = cutover.execute().await?;
+        let result = cutover.execute(apply_automatic_cleanup).await?;
         activate_cutover_cloud_library(
             &local_library,
             &local_profile,

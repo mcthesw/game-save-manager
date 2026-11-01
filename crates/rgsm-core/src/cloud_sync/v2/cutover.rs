@@ -11,7 +11,8 @@ use crate::cloud_sync::utils::{
     SyncOperationError, game_cloud_archive_path, load_remote_game_snapshots,
 };
 use crate::config::{
-    ConfigurationOwners, DeviceProfile, OwnershipError, SharedLibrary, V2_CONFIG_SCHEMA_VERSION,
+    ConfigurationOwners, DeviceProfile, OwnershipError, SharedLibrary,
+    SharedSnapshotRetentionPolicy, V2_CONFIG_SCHEMA_VERSION,
 };
 use crate::device::{DeviceId, encode_device_id};
 use crate::preclude::BackendError;
@@ -27,6 +28,17 @@ pub struct CloudLibraryCutoverReview {
     pub game_count: usize,
     pub snapshot_count: usize,
     pub declared_bytes: u64,
+    /// Games whose automatic-snapshot limit this device had before the upgrade.
+    /// Carrying a limit into the Cloud Library makes cleanup delete old
+    /// automatic Snapshots on every Device and in the cloud, so it is offered
+    /// rather than applied silently.
+    pub automatic_cleanup: Vec<CutoverAutomaticCleanup>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, utoipa::ToSchema)]
+pub struct CutoverAutomaticCleanup {
+    pub game_id: String,
+    pub game_name: String,
+    pub automatic_snapshots_per_branch: u32,
 }
 #[derive(Debug)]
 pub struct CloudLibraryCutoverResult {
@@ -43,6 +55,10 @@ struct CutoverPlan {
     shared_library: SharedLibrary,
     device_profiles: HashMap<DeviceId, DeviceProfile>,
     games: Vec<FrozenGame>,
+    /// Limits still waiting for the player's decision. Empty once `execute`
+    /// has stored the choice in `shared_library`.
+    #[serde(default)]
+    automatic_cleanup_offer: BTreeMap<String, u32>,
 }
 #[derive(Debug, Serialize, Deserialize)]
 struct FrozenGame {
@@ -92,11 +108,26 @@ impl CloudLibraryCutover {
         };
         Ok(Self::summarize(&plan))
     }
-    pub async fn execute(&self) -> Result<CloudLibraryCutoverResult, CloudLibraryCutoverError> {
+    /// `apply_automatic_cleanup` is only consulted when the plan is first
+    /// frozen; a resumed Cutover keeps the choice it started with.
+    pub async fn execute(
+        &self,
+        apply_automatic_cleanup: bool,
+    ) -> Result<CloudLibraryCutoverResult, CloudLibraryCutoverError> {
         let mut plan = match self.load_progress().await? {
             Some(plan) => plan,
             None => {
-                let plan = self.freeze_plan().await?;
+                let mut plan = self.freeze_plan().await?;
+                let offer = std::mem::take(&mut plan.automatic_cleanup_offer);
+                if apply_automatic_cleanup {
+                    for game in &mut plan.shared_library.games {
+                        game.snapshot_retention = offer.get(&game.storage_key).map(|&limit| {
+                            SharedSnapshotRetentionPolicy {
+                                automatic_snapshots_per_branch: limit,
+                            }
+                        });
+                    }
+                }
                 self.store_progress(&plan).await?;
                 plan
             }
@@ -186,13 +217,33 @@ impl CloudLibraryCutover {
                 results: BTreeMap::new(),
             });
         }
+        let automatic_cleanup_offer = self.automatic_cleanup_offer(&owners.shared_library);
         Ok(CutoverPlan {
             schema_version: CUTOVER_PROGRESS_SCHEMA_VERSION,
             library_id: CloudNamespaceDescriptor::default().library_id,
             shared_library: owners.shared_library,
             device_profiles: owners.device_profiles,
             games,
+            automatic_cleanup_offer,
         })
+    }
+    /// The limit the initiating Device applied to its own automatic backups:
+    /// the Game's own limit wins over the global one, and 0 means unlimited.
+    fn automatic_cleanup_offer(&self, library: &SharedLibrary) -> BTreeMap<String, u32> {
+        let global = self.current_device_profile.behavior.max_auto_backup_count;
+        library
+            .games
+            .iter()
+            .filter_map(|game| {
+                let limit = self
+                    .current_device_profile
+                    .games
+                    .get(&game.storage_key)
+                    .and_then(|profile| profile.auto_backup_limit)
+                    .unwrap_or(global);
+                (limit > 0).then(|| (game.storage_key.clone(), limit))
+            })
+            .collect()
     }
     fn summarize(plan: &CutoverPlan) -> CloudLibraryCutoverReview {
         let snapshot_count = plan
@@ -209,6 +260,20 @@ impl CloudLibraryCutover {
             game_count: plan.shared_library.games.len(),
             snapshot_count,
             declared_bytes,
+            automatic_cleanup: plan
+                .shared_library
+                .games
+                .iter()
+                .filter_map(|game| {
+                    plan.automatic_cleanup_offer
+                        .get(&game.storage_key)
+                        .map(|&limit| CutoverAutomaticCleanup {
+                            game_id: game.storage_key.clone(),
+                            game_name: game.name.clone(),
+                            automatic_snapshots_per_branch: limit,
+                        })
+                })
+                .collect(),
         }
     }
     fn result(plan: CutoverPlan) -> CloudLibraryCutoverResult {
@@ -668,8 +733,15 @@ mod tests {
         config_bytes
     }
     fn cutover(op: Operator, root: &Path) -> CloudLibraryCutover {
+        cutover_for_local_config(op, root, &Config::default())
+    }
+    fn cutover_for_local_config(
+        op: Operator,
+        root: &Path,
+        local_config: &Config,
+    ) -> CloudLibraryCutover {
         let device_id = "current-device".to_string();
-        let mut current_profile = ConfigurationOwners::from_legacy(&Config::default(), &device_id)
+        let mut current_profile = ConfigurationOwners::from_legacy(local_config, &device_id)
             .device_profiles
             .remove(&device_id)
             .unwrap();
@@ -699,7 +771,7 @@ mod tests {
         std::fs::create_dir_all(local_path.parent().unwrap()).unwrap();
         std::fs::write(&local_path, local_bytes).unwrap();
         let runner = cutover(op.clone(), root.path());
-        let result = runner.execute().await.unwrap();
+        let result = runner.execute(false).await.unwrap();
         assert_eq!(result.snapshot_count, 2);
         assert!(result.device_profiles["current-device"].games.is_empty());
         let published: DeviceProfile = serde_json::from_slice(
@@ -745,7 +817,7 @@ mod tests {
         catalog.backups.push(cloud.clone());
         seed(&op, catalog, &[(&cloud, bytes)]).await;
         let runner = cutover(op.clone(), root.path());
-        let result = runner.execute().await.unwrap();
+        let result = runner.execute(false).await.unwrap();
         assert_eq!(result.unavailable_archives, 0);
         assert_eq!(std::fs::read_dir(runner.staging_root()).unwrap().count(), 0);
         let v2_path = cloud_archive_path("test-game", "cloud", ArchiveFormat::Zip, None).unwrap();
@@ -780,10 +852,80 @@ mod tests {
         op.delete(&game_cloud_archive_path("test-game", &snapshot).unwrap())
             .await
             .unwrap();
-        let result = runner.execute().await.unwrap();
+        let result = runner.execute(false).await.unwrap();
         assert_eq!(result.snapshot_count, 1);
         assert_eq!(op.read(&v2_path).await.unwrap().to_vec(), bytes);
         assert!(op.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());
+    }
+    async fn published_retention(op: &Operator) -> Option<u32> {
+        let library: SharedLibrary =
+            serde_json::from_slice(&op.read(SHARED_LIBRARY_PATH).await.unwrap().to_vec()).unwrap();
+        library.games[0]
+            .snapshot_retention
+            .map(|policy| policy.automatic_snapshots_per_branch)
+    }
+    #[tokio::test]
+    async fn automatic_cleanup_is_offered_and_written_only_after_the_player_agrees() {
+        let local = |global: u32, per_game: Option<u32>| {
+            let mut config = Config {
+                games: vec![game()],
+                ..Config::default()
+            };
+            config.settings.max_auto_backup_count = global;
+            config.games[0].auto_backup_limit = per_game;
+            config
+        };
+        for (config, expected) in [
+            (local(5, None), Some(5)),
+            (local(5, Some(2)), Some(2)),
+            (local(5, Some(0)), None),
+            (local(0, None), None),
+        ] {
+            for apply in [false, true] {
+                let op = operator();
+                let root = temp_dir::TempDir::new().unwrap();
+                seed(&op, GameSnapshots::new("test-game"), &[]).await;
+                let runner = cutover_for_local_config(op.clone(), root.path(), &config);
+                let review = runner.review().await.unwrap();
+                assert_eq!(
+                    review
+                        .automatic_cleanup
+                        .iter()
+                        .map(|game| (game.game_id.as_str(), game.automatic_snapshots_per_branch))
+                        .collect::<Vec<_>>(),
+                    expected.map_or(vec![], |limit| vec![("test-game", limit)])
+                );
+                runner.execute(apply).await.unwrap();
+                assert_eq!(
+                    published_retention(&op).await,
+                    expected.filter(|_| apply),
+                    "apply={apply}"
+                );
+            }
+        }
+    }
+    #[tokio::test]
+    async fn resumed_cutover_keeps_its_automatic_cleanup_choice() {
+        let op = operator();
+        let root = temp_dir::TempDir::new().unwrap();
+        let bytes = b"one";
+        let first = snapshot("one", None, bytes);
+        let second = snapshot("two", Some("one"), b"two");
+        let mut catalog = GameSnapshots::new("test-game");
+        catalog.backups = vec![first.clone(), second.clone()];
+        seed(&op, catalog, &[(&first, bytes), (&second, b"two")]).await;
+        let mut config = Config {
+            games: vec![game()],
+            ..Config::default()
+        };
+        config.settings.max_auto_backup_count = 4;
+        let runner = cutover_for_local_config(op.clone(), root.path(), &config);
+        let mut plan = runner.freeze_plan().await.unwrap();
+        plan.automatic_cleanup_offer.clear();
+        runner.store_progress(&plan).await.unwrap();
+        assert!(runner.review().await.unwrap().automatic_cleanup.is_empty());
+        runner.execute(true).await.unwrap();
+        assert_eq!(published_retention(&op).await, None);
     }
     #[tokio::test]
     async fn restarts_over_unpublished_v2_objects_when_progress_is_lost() {
@@ -798,7 +940,7 @@ mod tests {
         op.write(&v2_path, bytes.to_vec()).await.unwrap();
         let runner = cutover(op.clone(), root.path());
         assert!(!root.path().join("progress.json").exists());
-        let result = runner.execute().await.unwrap();
+        let result = runner.execute(false).await.unwrap();
         assert_eq!(result.snapshot_count, 1);
         assert_eq!(result.unavailable_archives, 0);
         assert!(op.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());

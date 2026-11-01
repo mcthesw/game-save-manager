@@ -266,6 +266,7 @@ export type {
   CreateSnapshotRequest,
   CreateSnapshotResponses,
   CurrentPositionDecision,
+  CutoverAutomaticCleanup,
   CutoverCloudLibraryData,
   CutoverCloudLibraryError,
   CutoverCloudLibraryErrors,

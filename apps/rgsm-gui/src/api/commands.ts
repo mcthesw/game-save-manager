@@ -272,9 +272,12 @@ export const commands = {
       await sdk.reviewCloudLibraryCutover()
     );
   },
-  async cutoverCloudLibrary(confirmed: types.CutoverCloudLibraryRequest['confirmed']) {
+  async cutoverCloudLibrary(
+    confirmed: types.CutoverCloudLibraryRequest['confirmed'],
+    applyAutomaticCleanup: boolean = false
+  ) {
     return unwrap<types.CutoverCloudLibraryResponses[200]>(
-      await sdk.cutoverCloudLibrary({ body: { confirmed } })
+      await sdk.cutoverCloudLibrary({ body: { confirmed, applyAutomaticCleanup } })
     );
   },
   async getCloudArchiveLibrary() {
