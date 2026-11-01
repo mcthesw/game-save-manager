@@ -246,3 +246,97 @@ fn corrupt_catalogs_are_reported_without_blocking_other_games() {
         b"broken"
     );
 }
+
+#[test]
+fn snapshots_removed_during_the_upgrade_leave_nothing_to_finish() {
+    let (root, game) = fixture();
+    add_snapshot(root.path(), &game, "converted", None, true);
+    add_snapshot(root.path(), &game, "missing", Some("converted"), false);
+    let job = engine(root.path(), &game);
+    job.start().unwrap();
+    job.step().unwrap();
+    let view = job.step().unwrap();
+    assert_eq!((view.original_count, view.pending.len()), (1, 1));
+    let retained = job.load().unwrap().items[0].retained_path.clone();
+
+    SnapshotCatalog::new(root.path(), &game, &"device".into())
+        .update::<BackupError>(|catalog| {
+            catalog.backups.clear();
+            Ok(())
+        })
+        .unwrap();
+    let view = job.inspect().unwrap();
+
+    assert_eq!((view.total, view.remaining), (0, 0));
+    assert!(view.pending.is_empty());
+    // Dropping never deletes the only original; the player's cleanup does.
+    assert_eq!(view.original_count, 1);
+    assert!(Path::new(&retained).exists());
+    assert_eq!(job.cleanup_originals().unwrap().original_count, 0);
+    assert!(!Path::new(&retained).exists());
+}
+
+#[test]
+fn a_missing_catalog_never_drops_queued_work() {
+    let (root, game) = fixture();
+    add_snapshot(root.path(), &game, "snapshot", None, true);
+    let job = engine(root.path(), &game);
+    job.start().unwrap();
+    fs::remove_file(root.path().join("traveller/Backups.json")).unwrap();
+    assert_eq!(job.inspect().unwrap().remaining, 1);
+}
+
+#[test]
+fn retrying_a_changed_history_converts_the_snapshot_as_it_is_now() {
+    let (root, game) = fixture();
+    add_snapshot(root.path(), &game, "snapshot", None, true);
+    let job = engine(root.path(), &game);
+    job.start().unwrap();
+    let mut journal = job.load().unwrap();
+    let mut prepared = journal.items[0].clone();
+    job.prepare(&mut prepared).unwrap();
+    journal.items[0] = prepared;
+    job.store(&journal).unwrap();
+    let hash = compute_file_hash(&root.path().join("traveller/snapshot.zip")).unwrap();
+    SnapshotCatalog::new(root.path(), &game, &"device".into())
+        .update::<BackupError>(|catalog| {
+            catalog.backups[0].archive_hash = Some(hash);
+            Ok(())
+        })
+        .unwrap();
+    let view = job.step().unwrap();
+    assert_eq!(view.pending[0].issue.kind, UpgradeIssueKind::HistoryChanged);
+
+    job.retry(retry(&view.pending[0].id)).unwrap();
+    let view = job.step().unwrap();
+
+    assert_eq!((view.completed, view.pending.len()), (1, 0));
+}
+
+#[test]
+fn full_disks_and_refused_writes_are_not_archive_damage() {
+    use std::io::{Error, ErrorKind};
+    for kind in [
+        ErrorKind::StorageFull,
+        ErrorKind::PermissionDenied,
+        ErrorKind::ReadOnlyFilesystem,
+    ] {
+        assert!(is_environment_failure(&ArchiveMigrationError::Io(
+            Error::from(kind)
+        )));
+        let wrapped = CompressError::Single(BackupFileError::CreateFileFailed(Error::from(kind)));
+        assert!(is_environment_failure(&ArchiveMigrationError::Archive(
+            wrapped
+        )));
+        let chained = CompressError::Unexpected(anyhow::Error::new(Error::from(kind)));
+        assert!(is_environment_failure(&ArchiveMigrationError::Archive(
+            chained
+        )));
+    }
+    assert!(!is_environment_failure(&ArchiveMigrationError::Io(
+        Error::from(ErrorKind::UnexpectedEof)
+    )));
+    assert!(!is_environment_failure(&ArchiveMigrationError::Invalid(
+        "damaged".into()
+    )));
+}

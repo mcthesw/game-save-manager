@@ -13,9 +13,10 @@ use crate::{
     backup::{
         ArchiveFormat, ArchiveMigrationError, ArchiveMigrationInput, CompressionPreset, Game,
         catalog::SnapshotCatalog, compute_file_hash, convert_snapshot_archive,
+        snapshot_archive_path,
     },
     device::DeviceId,
-    preclude::BackupError,
+    preclude::{BackupError, BackupFileError, CompressError},
 };
 
 pub use model::{
@@ -104,6 +105,20 @@ impl LocalUpgrade {
                 self.retain_original(&item);
             }
         } else if let Err(error) = result {
+            // A full disk or a refused write says nothing about the archive, and every
+            // later item would fail the same way, so stop the whole step instead of
+            // filing each archive as damaged. The item stays queued.
+            let source = item
+                .replacement_path
+                .as_deref()
+                .unwrap_or(&item.source_path);
+            if is_environment_failure(&error) && fs::File::open(source).is_ok() {
+                log::warn!("Local archive upgrade stopped by the environment: {error}");
+                return Err(BackupError::Unexpected(anyhow::anyhow!(rust_i18n::t!(
+                    "error.local_upgrade_environment_failed",
+                    error = error.to_string()
+                ))));
+            }
             log::warn!("Local archive upgrade needs attention: {error}");
             item.state = UpgradeItemState::Pending;
             item.issue = Some(match error {
@@ -143,6 +158,9 @@ impl LocalUpgrade {
         if item.state != UpgradeItemState::Pending {
             return Err(unexpected("upgrade item does not need retry"));
         }
+        if item.issue.as_ref().map(|issue| issue.kind) == Some(UpgradeIssueKind::HistoryChanged) {
+            self.refresh_snapshot(item);
+        }
         if let Some(path) = request.replacement_path {
             item.replacement_path = (!path.trim().is_empty()).then_some(path);
         }
@@ -177,6 +195,10 @@ impl LocalUpgrade {
         let (mut journal, problems) = self.inventory()?;
         for index in 0..journal.items.len() {
             let item = &mut journal.items[index];
+            if item.state == UpgradeItemState::Dropped {
+                self.cleanup_dropped_original(item);
+                continue;
+            }
             if item.state != UpgradeItemState::Completed {
                 continue;
             }
@@ -280,6 +302,52 @@ impl LocalUpgrade {
         Ok(())
     }
 
+    /// The catalog row changed after this item was queued; convert what it describes now.
+    fn refresh_snapshot(&self, item: &mut UpgradeItem) {
+        if item.extra_backup {
+            return;
+        }
+        let Some(game) = self
+            .games
+            .iter()
+            .find(|game| game.backup_dir_name().as_ref() == item.game_id)
+        else {
+            return;
+        };
+        let Ok(catalog) = SnapshotCatalog::new(&self.root, game, &self.device_id).read() else {
+            return;
+        };
+        if let Some(snapshot) = catalog
+            .backups
+            .into_iter()
+            .find(|snapshot| snapshot.date == item.snapshot.date)
+        {
+            item.source_path = snapshot_archive_path(&self.root.join(&item.game_id), &snapshot)
+                .to_string_lossy()
+                .into_owned();
+            item.snapshot = snapshot;
+            item.output_hash = None;
+            item.output_size = 0;
+        }
+    }
+
+    /// The Snapshot is gone, so only the copy this upgrade retained is left to remove.
+    fn cleanup_dropped_original(&self, item: &mut UpgradeItem) {
+        let retained = Path::new(&item.retained_path);
+        if !retained.is_file() {
+            return;
+        }
+        if item.original_hash.is_some()
+            && item.original_hash.as_deref() != compute_file_hash(retained).ok().as_deref()
+        {
+            item.issue = Some(issue(UpgradeIssueKind::OriginalChanged));
+            return;
+        }
+        if let Err(error) = fs::remove_file(retained) {
+            log::warn!("Could not remove retained original: {error}");
+        }
+    }
+
     fn cleanup_one(&self, item: &UpgradeItem) -> Result<(), BackupError> {
         let destination = self
             .destination(item)
@@ -372,6 +440,36 @@ impl LocalUpgrade {
             &serde_json::to_vec_pretty(journal)?,
         )?;
         Ok(())
+    }
+}
+
+fn is_environment_failure(error: &ArchiveMigrationError) -> bool {
+    fn io(error: &std::io::Error) -> bool {
+        use std::io::ErrorKind::*;
+        matches!(
+            error.kind(),
+            StorageFull | QuotaExceeded | PermissionDenied | ReadOnlyFilesystem | WriteZero
+        )
+    }
+    fn chain(error: &anyhow::Error) -> bool {
+        error
+            .chain()
+            .any(|cause| cause.downcast_ref::<std::io::Error>().is_some_and(io))
+    }
+    fn file(error: &BackupFileError) -> bool {
+        match error {
+            BackupFileError::CreateFileFailed(error) => io(error),
+            BackupFileError::Zip(zip::result::ZipError::Io(error)) => io(error),
+            BackupFileError::Unexpected(error) => chain(error),
+            _ => false,
+        }
+    }
+    match error {
+        ArchiveMigrationError::Io(error) => io(error),
+        ArchiveMigrationError::Archive(CompressError::Single(error)) => file(error),
+        ArchiveMigrationError::Archive(CompressError::Multiple(errors)) => errors.iter().any(file),
+        ArchiveMigrationError::Archive(CompressError::Unexpected(error)) => chain(error),
+        _ => false,
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs};
+use std::{collections::BTreeMap, fs, path::Path};
 
 use crate::{
     backup::{
@@ -19,7 +19,10 @@ impl LocalUpgrade {
         for game in &self.games {
             let catalog = SnapshotCatalog::new(&self.root, game, &self.device_id);
             let snapshots = match catalog.read() {
-                Ok(snapshots) => snapshots,
+                Ok(snapshots) => {
+                    self.drop_vanished_items(&mut journal, game, &snapshots);
+                    snapshots
+                }
                 Err(BackupError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
                     crate::backup::GameSnapshots::new(&game.name)
                 }
@@ -45,6 +48,7 @@ impl LocalUpgrade {
                     && snapshot.archive_name.is_some())
                     || journal.items.iter().any(|item| {
                         !item.extra_backup
+                            && item.state != UpgradeItemState::Dropped
                             && item.game_id == game.backup_dir_name().as_ref()
                             && item.snapshot.date == snapshot.date
                     })
@@ -96,6 +100,41 @@ impl LocalUpgrade {
             }
         }
         Ok((journal, problems))
+    }
+
+    /// Only a catalog that was actually read can say a Snapshot is gone; a missing
+    /// or unreadable one must never discard queued work. Retained originals stay
+    /// until the player chooses cleanup.
+    fn drop_vanished_items(
+        &self,
+        journal: &mut UpgradeJournal,
+        game: &crate::backup::Game,
+        snapshots: &crate::backup::GameSnapshots,
+    ) {
+        for item in &mut journal.items {
+            if item.extra_backup
+                || item.game_id != game.backup_dir_name().as_ref()
+                || matches!(
+                    item.state,
+                    UpgradeItemState::Cleaned | UpgradeItemState::Dropped
+                )
+                || snapshots
+                    .backups
+                    .iter()
+                    .any(|snapshot| snapshot.date == item.snapshot.date)
+            {
+                continue;
+            }
+            if matches!(
+                item.state,
+                UpgradeItemState::Prepared | UpgradeItemState::Pending
+            ) && let Ok(output) = self.destination(item)
+            {
+                let _ = fs::remove_file(output);
+            }
+            item.state = UpgradeItemState::Dropped;
+            item.issue = None;
+        }
     }
 
     fn add_item(
@@ -161,7 +200,11 @@ impl LocalUpgrade {
     ) -> LocalUpgradeView {
         let mut view = LocalUpgradeView {
             started: journal.started,
-            total: journal.items.len(),
+            total: journal
+                .items
+                .iter()
+                .filter(|item| item.state != UpgradeItemState::Dropped)
+                .count(),
             remaining: 0,
             completed: 0,
             original_count: 0,
@@ -188,9 +231,14 @@ impl LocalUpgrade {
                 UpgradeItemState::Completed | UpgradeItemState::Cleaned => {
                     view.completed += 1;
                 }
-                UpgradeItemState::Pending => {}
+                UpgradeItemState::Pending | UpgradeItemState::Dropped => {}
             }
-            if item.state == UpgradeItemState::Completed && self.original_path(item).is_file() {
+            let retained_original = match item.state {
+                UpgradeItemState::Completed => self.original_path(item).is_file(),
+                UpgradeItemState::Dropped => Path::new(&item.retained_path).is_file(),
+                _ => false,
+            };
+            if retained_original {
                 view.original_count += 1;
                 view.original_bytes = view.original_bytes.saturating_add(item.original_size);
             }
