@@ -20,7 +20,7 @@ export const PARENT_SAVE_BYTES = 'parent-save-v1\n';
 export const CHILD_SAVE_BYTES = 'child-save-v2-forward\n';
 
 export const V2_ACTIVE_ERROR =
-  'Legacy cloud operations are unavailable. Open Cloud Sync to upgrade or join the current cloud library.';
+  'Legacy cloud operations are unavailable. Open Cloud Sync to upgrade or join the current Cloud Library.';
 
 export function encodeDeviceId(deviceId: string): string {
   return Buffer.from(deviceId, 'utf8').toString('hex');

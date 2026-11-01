@@ -532,16 +532,16 @@ export async function protectSnapshot(page: Page, snapshotId: string): Promise<v
 export async function setSharedRetention(page: Page, limit: number): Promise<void> {
   await page.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
-  await expect(page.getByText('Automatic snapshots in shared history')).toBeVisible();
+  await expect(page.getByText('Automatic snapshots in the Cloud Library')).toBeVisible();
   const block = page.getByRole('dialog');
-  const enabled = block.getByRole('switch', { name: 'Limit snapshots in shared history' });
+  const enabled = block.getByRole('switch', { name: 'Limit snapshots in the Cloud Library' });
   if (!(await enabled.isChecked())) {
     await enabled.click();
   }
-  await block.getByLabel('Automatic snapshots in shared history').fill(String(limit));
+  await block.getByLabel('Automatic snapshots in the Cloud Library').fill(String(limit));
   await page.getByRole('button', { name: 'Save settings' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Allow permanent cleanup' }).click();
-  await expect(page.getByText('Automatic snapshots in shared history')).toBeHidden({
+  await expect(page.getByText('Automatic snapshots in the Cloud Library')).toBeHidden({
     timeout: 15_000,
   });
 }
