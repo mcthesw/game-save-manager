@@ -1245,7 +1245,9 @@
             "find_error_detail": "请在日志文件中查看详情",
             "unchanged": "存档未变化",
             "unchanged_detail": "%{game} 的存档未发生变化，本次未创建备份",
-            "backup_failed_detail": "%{game} 备份失败"
+            "backup_failed_detail": "%{game} 备份失败",
+            "apply_failed_detail": "%{game} 读档失败",
+            "paused_for_update": "正在安装更新，请在应用重启后重试"
         },
         "backup": {
             "extra_backup_file_not_exist": "由于文件不存在，没有完成额外备份(覆盖前备份)。如果不需要该功能，请在设置中关闭。",

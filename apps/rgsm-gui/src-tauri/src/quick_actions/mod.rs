@@ -14,8 +14,8 @@ pub use process_monitor::ProcessMonitor;
 pub use scheduler::{AutoBackupGameStatus, AutoBackupScheduler};
 pub use utils::{
     QuickActionCompleted, QuickActionOperation, QuickActionStatus, QuickActionType,
-    emit_quick_action_event, notify_backup_failed, notify_backup_skipped_unchanged, quick_apply,
-    quick_backup, should_show_auto_backup_notification,
+    emit_quick_action_event, notify_backup_skipped_unchanged, notify_quick_action_failed,
+    quick_apply, quick_backup, should_show_auto_backup_notification,
 };
 
 use std::sync::Arc;

@@ -1,7 +1,7 @@
 use crate::sound::{QuickActionSoundEffect, play_quick_action_sound};
 use log::{error, info, warn};
 use rgsm_core::{
-    backup::{CreatedBy, TIMER_AUTO_BACKUP_DESCRIPTION},
+    backup::{CreatedBy, Game, TIMER_AUTO_BACKUP_DESCRIPTION},
     config::{QuickActionSoundPreferences, QuickActionsSettings, get_config},
     hooks::HookSource,
     preclude::*,
@@ -87,6 +87,8 @@ pub struct QuickActionCompleted {
     pub operation: QuickActionOperation,
     pub status: QuickActionStatus,
     pub trigger: QuickActionType,
+    /// Storage key of the game; display names are not unique.
+    pub game_id: Option<String>,
     pub game_name: Option<String>,
 }
 
@@ -95,13 +97,14 @@ pub fn emit_quick_action_event(
     trigger: QuickActionType,
     operation: QuickActionOperation,
     status: QuickActionStatus,
-    game_name: Option<String>,
+    game: &Game,
 ) {
     let event = QuickActionCompleted {
         operation,
         status,
         trigger,
-        game_name,
+        game_id: Some(game.storage_key.clone()),
+        game_name: Some(game.name.clone()),
     };
     crate::http::emit(app, "quick-action-completed", &event);
 }
@@ -110,7 +113,7 @@ pub fn notify_backup_skipped_unchanged(
     app: &AppHandle,
     config: &rgsm_core::config::Config,
     trigger: QuickActionType,
-    game_name: &str,
+    game: &Game,
 ) {
     let quick_settings = &config.quick_action;
     let sound_preferences = QuickActionSoundPreferences::from(quick_settings);
@@ -119,7 +122,7 @@ pub fn notify_backup_skipped_unchanged(
     if quick_settings.enable_notification && should_feedback {
         show_notification(
             t!("backend.tray.unchanged"),
-            t!("backend.tray.unchanged_detail", game = game_name),
+            t!("backend.tray.unchanged_detail", game = game.name),
         );
     }
     if should_feedback {
@@ -130,41 +133,63 @@ pub fn notify_backup_skipped_unchanged(
         trigger,
         QuickActionOperation::Backup,
         QuickActionStatus::SkippedUnchanged,
-        Some(game_name.to_string()),
+        game,
     );
 }
 
-pub fn notify_backup_failed(
+pub fn notify_quick_action_failed(
     app: &AppHandle,
     config: &rgsm_core::config::Config,
     trigger: QuickActionType,
-    game_name: &str,
+    operation: QuickActionOperation,
+    game: &Game,
     error: &str,
 ) {
     let quick_settings = &config.quick_action;
     let sound_preferences = QuickActionSoundPreferences::from(quick_settings);
     if quick_settings.enable_notification {
-        show_notification(
-            t!("backend.tray.error"),
-            format!(
-                "{}\n{}",
-                t!("backend.tray.backup_failed_detail", game = game_name),
-                error
-            ),
-        );
+        let detail = match operation {
+            QuickActionOperation::Backup => {
+                t!("backend.tray.backup_failed_detail", game = game.name)
+            }
+            QuickActionOperation::Apply => t!("backend.tray.apply_failed_detail", game = game.name),
+        };
+        show_notification(t!("backend.tray.error"), format!("{detail}\n{error}"));
     }
     play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
-    emit_quick_action_event(
+    emit_quick_action_event(app, trigger, operation, QuickActionStatus::Failure, game);
+}
+
+/// Hotkey and tray presses are explicit requests, so a refusal must be visible.
+/// Automatic triggers only log: a notification on every tick would be noise.
+pub fn notify_paused_for_update(app: &AppHandle, trigger: QuickActionType) {
+    warn!(
+        target: "rgsm::quick_action",
+        "Skipped {:?} quick action: an application update is being installed",
+        trigger
+    );
+    if trigger.is_auto_backup() {
+        return;
+    }
+    let Ok(config) = get_config() else {
+        return;
+    };
+    let quick_settings = &config.quick_action;
+    maybe_show_notification(
+        quick_settings,
+        t!("backend.tray.error"),
+        t!("backend.tray.paused_for_update"),
+    );
+    play_quick_action_sound(
         app,
-        trigger,
-        QuickActionOperation::Backup,
-        QuickActionStatus::Failure,
-        Some(game_name.to_string()),
+        QuickActionSoundPreferences::from(quick_settings),
+        QuickActionSoundEffect::Failure,
     );
 }
 
 pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
     let Some(_operation) = app.state::<crate::app_operations::AppOperations>().begin() else {
+        notify_paused_for_update(app, t);
         return;
     };
     info!(target:"rgsm::quick_action", "Auto apply triggered: {:#?}", t.generate_describe());
@@ -198,19 +223,21 @@ pub async fn quick_apply(app: &AppHandle, t: QuickActionType) {
 
     // 处理结果
     if let Err(e) = result {
-        error!(target:"rgsm::quick_action", "Quick apply failed: {:#?}", e);
-        // Failure notifications stay inline — no hook event for failures
-        maybe_show_notification(
-            &quick_settings,
-            t!("backend.tray.error"),
-            format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+        error!(target:"rgsm::quick_action", "Quick apply failed: {e:?}");
+        notify_quick_action_failed(
+            app,
+            &config,
+            t,
+            QuickActionOperation::Apply,
+            &game,
+            &e.to_string(),
         );
-        play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
     }
 }
 
 pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
     let Some(_operation) = app.state::<crate::app_operations::AppOperations>().begin() else {
+        notify_paused_for_update(app, t);
         return;
     };
     info!(target:"rgsm::quick_action", "Auto backup triggered: {:#?}", t.generate_describe());
@@ -246,13 +273,15 @@ pub async fn quick_backup(app: &AppHandle, t: QuickActionType) {
         .await;
 
     if let Err(e) = result {
-        error!(target:"rgsm::quick_action", "Quick backup failed: {:#?}", e);
-        maybe_show_notification(
-            &quick_settings,
-            t!("backend.tray.error"),
-            format!("{:#?}\n{:#?}", t!("backend.tray.find_error_detail"), e),
+        error!(target:"rgsm::quick_action", "Quick backup failed: {e:?}");
+        notify_quick_action_failed(
+            app,
+            &config,
+            t,
+            QuickActionOperation::Backup,
+            &game,
+            &e.to_string(),
         );
-        play_quick_action_sound(app, sound_preferences, QuickActionSoundEffect::Failure);
     }
 }
 

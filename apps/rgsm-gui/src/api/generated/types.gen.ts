@@ -1124,6 +1124,10 @@ export type ProgressRelation =
   'same' | 'remote_ahead' | 'remote_earlier' | 'different_progress' | 'no_local_position';
 
 export type QuickActionCompleted = {
+  /**
+   * Storage key of the game; display names are not unique.
+   */
+  game_id?: string | null;
   game_name?: string | null;
   operation: QuickActionOperation;
   status: QuickActionStatus;
