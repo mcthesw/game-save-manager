@@ -107,10 +107,48 @@ watch(
         <ul class="mt-2 list-disc pl-5 text-sm leading-relaxed text-text-dim">
           <li>{{ $t('sync_settings.library.cutover.after_this_device') }}</li>
           <li>{{ $t('sync_settings.library.cutover.after_old_clients') }}</li>
+          <li>{{ $t('sync_settings.library.cutover.after_other_devices') }}</li>
           <li>{{ $t('sync_settings.library.cutover.after_damage') }}</li>
           <li>{{ $t('sync_settings.library.cutover.after_resume') }}</li>
         </ul>
       </template>
+      <div v-if="review.unlisted_cloud_games.length" class="mt-4">
+        <p class="text-sm font-medium text-text">
+          {{
+            $t('sync_settings.library.cutover.unlisted_title', {
+              count: review.unlisted_cloud_games.length,
+            })
+          }}
+        </p>
+        <p class="mt-1 text-sm leading-relaxed text-text-dim">
+          {{ $t('sync_settings.library.cutover.unlisted_description') }}
+        </p>
+        <ul class="mt-2 max-h-32 list-disc overflow-auto pl-5 text-sm text-text-dim">
+          <li v-for="item in review.unlisted_cloud_games" :key="item.game_id">
+            {{
+              $t('sync_settings.library.cutover.unlisted_item', {
+                game: item.game_id,
+                count: item.snapshot_count,
+              })
+            }}
+          </li>
+        </ul>
+      </div>
+      <div v-if="review.local_only_games.length" class="mt-4">
+        <p class="text-sm font-medium text-text">
+          {{
+            $t('sync_settings.library.cutover.local_only_title', {
+              count: review.local_only_games.length,
+            })
+          }}
+        </p>
+        <p class="mt-1 text-sm leading-relaxed text-text-dim">
+          {{ $t('sync_settings.library.cutover.local_only_description') }}
+        </p>
+        <ul class="mt-2 max-h-32 list-disc overflow-auto pl-5 text-sm text-text-dim">
+          <li v-for="name in review.local_only_games" :key="name">{{ name }}</li>
+        </ul>
+      </div>
       <div v-if="review.automatic_cleanup.length" class="mt-4">
         <p class="text-sm font-medium text-text">
           {{

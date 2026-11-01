@@ -435,12 +435,12 @@ impl ServiceContext {
     pub async fn review_cloud_library_cutover(
         &self,
     ) -> Result<CloudLibraryCutoverReview, CloudLibraryServiceError> {
-        let (_, profile, local_state) = cloud_bootstrap_inputs()?;
+        let (local_library, profile, local_state) = cloud_bootstrap_inputs()?;
         if local_state.cloud_namespace_generation != CloudNamespaceGeneration::LegacyV1 {
             return Err(CloudLibraryServiceError::CutoverNotRequired);
         }
         self.cutover(&profile, &local_state)?
-            .review()
+            .review(&local_library)
             .await
             .map_err(Into::into)
     }

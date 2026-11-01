@@ -395,7 +395,14 @@ async fn v1_8_copy_upgrades_on_a_then_b_joins_with_its_own_absolute_paths() {
         owners_a.device_profiles["desktop-gamma"].clone(),
         1,
     );
-    assert_eq!(cutover.review().await.unwrap().snapshot_count, 1);
+    assert_eq!(
+        cutover
+            .review(&owners_a.shared_library)
+            .await
+            .unwrap()
+            .snapshot_count,
+        1
+    );
     let upgraded = cutover.execute(false).await.unwrap();
     assert_eq!(upgraded.snapshot_count, 1);
     assert_eq!(upgraded.unavailable_archives, 0);
@@ -410,7 +417,7 @@ async fn v1_8_copy_upgrades_on_a_then_b_joins_with_its_own_absolute_paths() {
         CloudNamespaceClassification::SupportedV2 { .. }
     ));
     assert!(matches!(
-        cutover.review().await,
+        cutover.review(&owners_a.shared_library).await,
         Err(CloudLibraryCutoverError::CutoverUnavailable)
     ));
     let join = CloudLibraryJoin::new(operator.clone(), 1);

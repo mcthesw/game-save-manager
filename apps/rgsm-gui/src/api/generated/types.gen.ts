@@ -283,7 +283,17 @@ export type CloudLibraryCutoverReview = {
   automatic_cleanup: Array<CutoverAutomaticCleanup>;
   declared_bytes: number;
   game_count: number;
+  /**
+   * Games on this Device that the old cloud configuration does not list.
+   * They stay local, with cloud sync off.
+   */
+  local_only_games: Array<string>;
   snapshot_count: number;
+  /**
+   * Games with history in the old cloud folder that the old cloud
+   * configuration does not list. Their Snapshots are not carried over.
+   */
+  unlisted_cloud_games: Array<CutoverUnlistedGame>;
 };
 
 export type CloudLibraryJoinItem = {
@@ -483,6 +493,11 @@ export type CutoverAutomaticCleanup = {
 export type CutoverCloudLibraryRequest = {
   applyAutomaticCleanup?: boolean;
   confirmed: boolean;
+};
+
+export type CutoverUnlistedGame = {
+  game_id: string;
+  snapshot_count: number;
 };
 
 export type DeferProgressNoticesRequest = {
