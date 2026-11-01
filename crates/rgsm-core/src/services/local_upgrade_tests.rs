@@ -58,6 +58,36 @@ fn legacy_games_with_cloud_sync_keep_their_archives() {
 }
 
 #[test]
+fn a_disabled_backend_keeps_the_library_binding_and_its_archives() {
+    let config = Config {
+        games: serde_json::from_value(serde_json::json!([
+            {"name": "Shared", "storage_key": "shared", "save_paths": []},
+            {"name": "Local", "storage_key": "local", "save_paths": []}
+        ]))
+        .unwrap(),
+        ..Config::default()
+    };
+    let mut owners = ConfigurationOwners::from_legacy(&config, &"device".into());
+    let names = |owners: &ConfigurationOwners| {
+        games_outside_cloud_library(&config, &owners.shared_library, &owners.local_state)
+            .into_iter()
+            .map(|game| game.storage_key)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names(&owners), ["shared", "local"]);
+
+    owners.local_state.cloud_namespace_generation = CloudNamespaceGeneration::V2;
+    owners.local_state.cloud_library_id = Some("library".into());
+    owners.local_state.local_games = owners.shared_library.games[1..].to_vec();
+
+    assert!(matches!(
+        owners.local_state.cloud_settings.backend,
+        Backend::Disabled
+    ));
+    assert_eq!(names(&owners), ["local"]);
+}
+
+#[test]
 fn connected_library_games_stay_zip_and_keep_syncing_after_local_upgrade() {
     let _lock = crate::config::lock_config_test_file();
     let cloud = temp_dir::TempDir::new().unwrap();
