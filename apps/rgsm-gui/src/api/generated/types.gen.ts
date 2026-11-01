@@ -1293,6 +1293,10 @@ export type RestoreError =
     }
   | {
       message: string;
+      type: 'SafetyBackupFailed';
+    }
+  | {
+      message: string;
       type: 'Other';
     };
 

@@ -56,6 +56,9 @@ pub struct BeforeRestoreCtx {
     pub snapshot: Snapshot,
     pub snapshots: GameSnapshots,
     pub archive_path: PathBuf,
+    /// Current save data for the pre-restore safety backup. `None` means there
+    /// is nothing to back up (or the backup is disabled); a plan that cannot be
+    /// built aborts the restore before any hook runs.
     pub capture_plan: Option<crate::backup::CapturePlan>,
 }
 

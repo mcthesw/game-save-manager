@@ -138,6 +138,28 @@ impl CapturePlan {
     }
 }
 
+impl CapturePlan {
+    /// Plan for the pre-restore safety backup: save units that cannot be
+    /// captured (nothing on disk, or a location the restore itself will ask the
+    /// user to choose) are left out instead of blocking the whole backup.
+    /// `None` means there is nothing to protect.
+    pub fn for_safety_backup(
+        inputs: Vec<SaveUnitCaptureInput>,
+    ) -> Result<Option<Self>, CapturePlanError> {
+        let capturable = inputs
+            .into_iter()
+            .filter(|input| {
+                is_non_applicable_report(&input.report) || !is_blocking_report(&input.report)
+            })
+            .collect();
+        match Self::from_resolution_reports(capturable) {
+            Ok(plan) => Ok(Some(plan)),
+            Err(CapturePlanError::NoDataMatched) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+}
+
 fn is_non_applicable_report(report: &ResolutionReport) -> bool {
     report.diagnostics.iter().any(|diagnostic| {
         diagnostic.kind == crate::path_resolution::ResolutionDiagnosticKind::UnsupportedPlatform

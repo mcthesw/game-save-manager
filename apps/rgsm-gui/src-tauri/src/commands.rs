@@ -87,6 +87,8 @@ pub enum RestoreError {
     Io { message: String },
     #[error("A save location must be chosen before restore")]
     LocationSelectionRequired { save_unit_id: u32 },
+    #[error("Safety backup before restore failed: {message}")]
+    SafetyBackupFailed { message: String },
     #[error("{message}")]
     Other { message: String },
 }
@@ -107,6 +109,9 @@ impl From<BackupError> for RestoreError {
             BackupError::RestorePlan(backup::RestorePlanError::SelectionRequired {
                 save_unit_id,
             }) => RestoreError::LocationSelectionRequired { save_unit_id },
+            BackupError::PreRestoreBackupFailed(cause) => RestoreError::SafetyBackupFailed {
+                message: cause.to_string(),
+            },
             other => RestoreError::Other {
                 message: other.to_string(),
             },

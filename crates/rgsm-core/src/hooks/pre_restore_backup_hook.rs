@@ -1,22 +1,22 @@
 //! Built-in gate hook that creates a safety backup before restore.
 //!
-//! Because it participates in `before_restore`, failures here can abort the
-//! apply operation instead of silently proceeding.
+//! Because it participates in `before_restore`, a failure here aborts the
+//! restore: the live save is about to be overwritten and has no other copy.
 
 use async_trait::async_trait;
-use log::{info, warn};
+use log::info;
 
 use super::pipeline::{BeforeRestoreCtx, LifecycleHook};
 use crate::preclude::BackupError;
 
 /// Creates an extra (overwrite) backup before a snapshot is restored.
 ///
-/// Priority 5 — runs before integrity check so the safety net exists
-/// even if the checksum verification later aborts the restore.
+/// Priority 20 — runs after the integrity check (15). A corrupt archive must
+/// be rejected before this hook creates a backup, because the backup's
+/// retention cleanup could evict the only older extra backup.
 ///
-/// This hook handles its own errors internally (logs a warning) and
-/// always returns `Ok(())` — a failed extra backup should not block
-/// the restore operation.
+/// A missing capture plan means there is no save data to protect and the
+/// hook does nothing. Any other failure aborts the restore.
 pub struct PreRestoreBackupHook;
 
 #[async_trait]
@@ -26,7 +26,7 @@ impl LifecycleHook for PreRestoreBackupHook {
     }
 
     fn priority(&self) -> u32 {
-        5
+        20
     }
 
     async fn on_before_restore(&self, ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
@@ -36,29 +36,24 @@ impl LifecycleHook for PreRestoreBackupHook {
         if ctx.source == super::HookSource::CloudConflictResolution {
             return Ok(());
         }
+        let Some(plan) = &ctx.capture_plan else {
+            return Ok(());
+        };
         info!(
             target: "rgsm::hooks::pre_restore_backup",
             "Creating extra backup before restoring {} / {}",
             ctx.game.name, ctx.snapshot.date
         );
 
-        let result = ctx.capture_plan.as_ref().map(|plan| {
-            ctx.game.create_overwrite_snapshot_from_capture_plan(
+        ctx.game
+            .create_overwrite_snapshot_from_capture_plan(
                 plan,
                 &crate::config::resolve_backup_path(&ctx.config.backup_path),
                 ctx.config.settings.compression_preset,
                 ctx.config.settings.max_extra_backup_count,
                 crate::device::get_current_device_id(),
             )
-        });
-        if let Some(Err(e)) = result {
-            warn!(
-                target: "rgsm::hooks::pre_restore_backup",
-                "Failed to create extra backup for {}: {e:#}",
-                ctx.game.name
-            );
-        }
-
-        Ok(())
+            .map(drop)
+            .map_err(|error| BackupError::PreRestoreBackupFailed(Box::new(error)))
     }
 }

@@ -376,6 +376,7 @@
         "batch_delete_partial": "Deleted {succeeded} snapshot(s), {failed} failed",
         "recover_failed": "Recovery failed",
         "backup_not_found": "Backup not found: {date}",
+        "safety_backup_failed": "Restore canceled: the backup of your current saves could not be created, so nothing was changed. Free up disk space or turn off \"Back up current saves before restoring\" in Settings, then try again. Reason: {reason}",
         "size": "File size",
         "size_not_available": "Unrecorded",
         "save_paths_updated": "Game settings are updated successfully",
