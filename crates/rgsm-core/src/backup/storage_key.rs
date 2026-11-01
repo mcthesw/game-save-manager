@@ -50,20 +50,7 @@ pub fn generate_storage_key(display_name: &str) -> String {
     key.truncate(trimmed_len);
 
     // Step 4: collapse consecutive underscores
-    let mut collapsed = String::with_capacity(key.len());
-    let mut prev_was_underscore = false;
-    for c in key.chars() {
-        if c == '_' {
-            if !prev_was_underscore {
-                collapsed.push('_');
-            }
-            prev_was_underscore = true;
-        } else {
-            collapsed.push(c);
-            prev_was_underscore = false;
-        }
-    }
-    key = collapsed;
+    key = collapse_underscores(&key);
 
     // Step 5: handle "." / ".." and reserved names (bare or with extension)
     if key == "." || key == ".." || is_reserved_stem(&key) {
@@ -87,6 +74,29 @@ pub fn generate_storage_key(display_name: &str) -> String {
     key
 }
 
+fn collapse_underscores(value: &str) -> String {
+    let mut collapsed = String::with_capacity(value.len());
+    let mut prev_was_underscore = false;
+    for c in value.chars() {
+        if c == '_' {
+            if !prev_was_underscore {
+                collapsed.push('_');
+            }
+            prev_was_underscore = true;
+        } else {
+            collapsed.push(c);
+            prev_was_underscore = false;
+        }
+    }
+    collapsed
+}
+
+/// Whether `name` can already be used as a single directory name on every
+/// supported OS. Repeated underscores are only cosmetic, so a name that
+/// differs from its key by them alone still qualifies.
+pub fn is_safe_directory_name(name: &str) -> bool {
+    generate_storage_key(name) == collapse_underscores(name)
+}
 /// Check if the *stem* (part before the first `.`) matches a Windows reserved
 /// device name. E.g. `CON`, `CON.txt`, `nul.save` are all reserved.
 fn is_reserved_stem(name: &str) -> bool {

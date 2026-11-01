@@ -679,8 +679,12 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
         }
 
         // Prefer the existing directory name (which equals game.name for legacy data).
-        // If a directory exists under that name, adopt it as-is to avoid renames.
-        let candidate = if backup_path.join(&game.name).exists() {
+        // If a directory exists under that name, adopt it as-is to avoid renames,
+        // but only when the name is safe as a single directory name.
+        let legacy_dir = backup_path.join(&game.name);
+        let candidate = if crate::backup::storage_key::is_safe_directory_name(&game.name)
+            && legacy_dir.exists()
+        {
             game.name.clone()
         } else {
             crate::backup::storage_key::generate_storage_key(&game.name)
@@ -697,6 +701,9 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
             "Assigned storage_key '{}' to game '{}'",
             key, game.name
         );
+        if key != game.name {
+            move_legacy_backup_directory(backup_path, &game.name, &key);
+        }
         game.storage_key = key.clone();
         assigned.insert(key);
     }
@@ -708,6 +715,34 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
     config
 }
 
+/// A legacy display name that cannot be a storage key (for example `a/b`)
+/// still names the directory holding that game's history. Move it under the
+/// new key so the history stays visible; names that could leave the backup
+/// root (.., absolute paths) are never touched.
+fn move_legacy_backup_directory(backup_path: &Path, legacy_name: &str, key: &str) {
+    let legacy_dir = backup_path.join(legacy_name);
+    let target = backup_path.join(key);
+    let stays_inside = Path::new(legacy_name)
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)));
+    if !stays_inside || !legacy_dir.is_dir() || target.exists() {
+        return;
+    }
+    match fs::rename(&legacy_dir, &target) {
+        Ok(()) => info!(
+            target: "rgsm::updater",
+            "Moved backup directory '{}' to '{}'",
+            legacy_dir.display(),
+            target.display()
+        ),
+        Err(error) => warn!(
+            target: "rgsm::updater",
+            "Could not move backup directory '{}' to '{}': {error}",
+            legacy_dir.display(),
+            target.display()
+        ),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1349,6 +1384,54 @@ mod tests {
         assert_eq!(migrated.games[0].storage_key, "My Game");
     }
 
+    fn legacy_game(name: &str) -> crate::backup::Game {
+        crate::backup::Game {
+            name: name.to_string(),
+            storage_key: String::new(),
+            save_paths: vec![],
+            game_paths: Default::default(),
+            next_save_unit_id: 0,
+            cloud_sync_enabled: true,
+            auto_backup: None,
+            auto_backup_limit: None,
+            ludusavi_meta: None,
+            device_bindings: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn migrate_storage_keys_keeps_history_of_names_that_are_not_valid_keys() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().join("backups");
+        fs::create_dir_all(backup_path.join("a").join("b")).unwrap();
+        fs::write(backup_path.join("a").join("b").join("Backups.json"), b"{}").unwrap();
+
+        let mut config = Config::default();
+        config.games.push(legacy_game("a/b"));
+        config.games.push(legacy_game(".."));
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+
+        assert_eq!(migrated.games[0].storage_key, "a_b");
+        assert!(backup_path.join("a_b").join("Backups.json").is_file());
+        assert_eq!(migrated.games[1].storage_key, "_unnamed");
+        assert!(backup_path.is_dir(), ".. must never move the backup root");
+    }
+
+    #[test]
+    fn migrate_storage_keys_adopts_directories_that_only_repeat_underscores() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().to_path_buf();
+        fs::create_dir(backup_path.join("My__Game")).unwrap();
+
+        let mut config = Config::default();
+        config.games.push(legacy_game("My__Game"));
+
+        let migrated = migrate_storage_keys(config, &backup_path);
+
+        assert_eq!(migrated.games[0].storage_key, "My__Game");
+        assert!(backup_path.join("My__Game").is_dir());
+    }
     #[test]
     fn migrate_storage_keys_skips_already_populated() {
         let temp_dir = temp_dir::TempDir::new().unwrap();
