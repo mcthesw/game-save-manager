@@ -6,8 +6,9 @@ use thiserror::Error;
 
 use super::{
     CLOUD_MANIFEST_PATH, CloudManifest, CloudNamespaceClassification, CloudNamespaceClassifier,
-    CloudNamespaceDescriptor, CloudNamespaceError, DELETION_REGISTRY_PATH, DeletionRegistry,
-    ManifestError, NamespaceTransport, OpenDalNamespaceTransport, SHARED_LIBRARY_PATH,
+    CloudNamespaceDescriptor, CloudNamespaceError, DELETION_REGISTRY_PATH,
+    DELETION_REGISTRY_SCHEMA_VERSION, DeletionRegistry, ManifestError, NamespaceTransport,
+    OpenDalNamespaceTransport, SHARED_LIBRARY_PATH, V2_DEVICE_PROFILES_PREFIX,
     V2_NAMESPACE_DESCRIPTOR_PATH, device_profile_path,
 };
 use crate::config::{DeviceProfile, OwnershipError, SharedLibrary};
@@ -33,6 +34,89 @@ pub struct CloudLibraryBootstrap<T: CloudLibraryTransport> {
 impl CloudLibraryBootstrap<OpenDalNamespaceTransport> {
     pub fn new(operator: opendal::Operator, max_attempts: usize) -> Self {
         Self::with_transport(OpenDalNamespaceTransport::new(operator), max_attempts)
+    }
+
+    /// Replace the metadata of a missing or damaged namespace while keeping
+    /// every Archive under `v2/archives/` and a readable deletion registry.
+    ///
+    /// Eligibility is judged again here, right before anything is removed, so a
+    /// library that another Device already repaired is never overwritten.
+    pub async fn rebuild_metadata(
+        &self,
+        descriptor: &CloudNamespaceDescriptor,
+        shared_library: &SharedLibrary,
+        device_profile: &DeviceProfile,
+    ) -> Result<(), CloudLibraryBootstrapError> {
+        match self.inspect().await {
+            Ok(CloudNamespaceClassification::Empty) => {}
+            Ok(CloudNamespaceClassification::SupportedV2 { .. }) => {
+                return Err(CloudLibraryBootstrapError::RootChanged("existing_v2"));
+            }
+            Ok(CloudNamespaceClassification::V1Only { .. }) => {
+                return Err(CloudLibraryBootstrapError::RootChanged("legacy_v1"));
+            }
+            Err(CloudLibraryBootstrapError::Namespace(
+                CloudNamespaceError::MalformedObject { .. }
+                | CloudNamespaceError::MissingRequiredObject(_)
+                | CloudNamespaceError::PartialV2(_)
+                | CloudNamespaceError::SharedLibrary(_)
+                | CloudNamespaceError::Manifest(_),
+            )) => {}
+            Err(error) => return Err(error),
+        }
+
+        // The descriptor goes first so an interrupted rebuild stays fail-closed.
+        for path in [
+            V2_NAMESPACE_DESCRIPTOR_PATH,
+            SHARED_LIBRARY_PATH,
+            CLOUD_MANIFEST_PATH,
+        ] {
+            self.remove(path, false).await?;
+        }
+        self.remove(V2_DEVICE_PROFILES_PREFIX, true).await?;
+
+        let readable_registry = self
+            .transport
+            .read(DELETION_REGISTRY_PATH)
+            .await?
+            .and_then(|bytes| serde_json::from_slice::<DeletionRegistry>(&bytes).ok())
+            .filter(|registry| registry.schema_version == DELETION_REGISTRY_SCHEMA_VERSION);
+        match readable_registry {
+            Some(mut registry) => {
+                // Rebuilding is the explicit choice to bring this Device back.
+                if registry
+                    .deleted_profiles
+                    .remove(&device_profile.device.id)
+                    .is_some()
+                {
+                    registry.revision = registry.revision.saturating_add(1);
+                    self.write_verified(DELETION_REGISTRY_PATH, &pretty_bytes(&registry)?)
+                        .await?;
+                }
+            }
+            None => {
+                self.write_verified(
+                    DELETION_REGISTRY_PATH,
+                    &pretty_bytes(&DeletionRegistry::default())?,
+                )
+                .await?;
+            }
+        }
+        self.write_namespace(descriptor, shared_library, device_profile, false)
+            .await
+    }
+
+    async fn remove(&self, path: &str, recursive: bool) -> Result<(), opendal::Error> {
+        match self
+            .transport
+            .operator
+            .delete_with(path)
+            .recursive(recursive)
+            .await
+        {
+            Err(error) if error.kind() != opendal::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -75,6 +159,17 @@ impl<T: CloudLibraryTransport> CloudLibraryBootstrap<T> {
             }
         }
 
+        self.write_namespace(descriptor, shared_library, device_profile, true)
+            .await
+    }
+
+    async fn write_namespace(
+        &self,
+        descriptor: &CloudNamespaceDescriptor,
+        shared_library: &SharedLibrary,
+        device_profile: &DeviceProfile,
+        write_registry: bool,
+    ) -> Result<(), CloudLibraryBootstrapError> {
         descriptor.validate()?;
         shared_library.validate()?;
         let manifest = CloudManifest::default();
@@ -85,11 +180,13 @@ impl<T: CloudLibraryTransport> CloudLibraryBootstrap<T> {
             .await?;
         self.write_verified(CLOUD_MANIFEST_PATH, &pretty_bytes(&manifest)?)
             .await?;
-        self.write_verified(
-            DELETION_REGISTRY_PATH,
-            &pretty_bytes(&DeletionRegistry::default())?,
-        )
-        .await?;
+        if write_registry {
+            self.write_verified(
+                DELETION_REGISTRY_PATH,
+                &pretty_bytes(&DeletionRegistry::default())?,
+            )
+            .await?;
+        }
         self.write_verified(&profile_path, &pretty_bytes(device_profile)?)
             .await?;
         self.write_verified(V2_NAMESPACE_DESCRIPTOR_PATH, &pretty_bytes(descriptor)?)
@@ -266,6 +363,132 @@ mod tests {
             ))
         ));
         assert!(bootstrap.transport.state.lock().unwrap().writes.is_empty());
+    }
+
+    fn memory_operator() -> opendal::Operator {
+        opendal::Operator::new(opendal::services::Memory::default())
+            .unwrap()
+            .finish()
+    }
+
+    #[tokio::test]
+    async fn rebuild_keeps_archives_and_the_readable_deletion_registry() {
+        let operator = memory_operator();
+        let (shared, profile) = inputs();
+        let bootstrap = CloudLibraryBootstrap::new(operator.clone(), 2);
+        bootstrap
+            .create_empty(&CloudNamespaceDescriptor::default(), &shared, &profile)
+            .await
+            .unwrap();
+        // A legacy V1 config beside the damaged namespace must not block it.
+        operator
+            .write("GameSaveManager.config.json", b"{}".to_vec())
+            .await
+            .unwrap();
+        operator
+            .write("v2/archives/game/a.7z", b"archive".to_vec())
+            .await
+            .unwrap();
+        operator
+            .write(&device_profile_path("other"), b"{}".to_vec())
+            .await
+            .unwrap();
+        let mut registry = DeletionRegistry {
+            revision: 4,
+            ..DeletionRegistry::default()
+        };
+        for id in ["device", "gone"] {
+            registry.deleted_profiles.insert(
+                id.into(),
+                super::super::ProfileDeletion {
+                    deleted_by: "other".into(),
+                },
+            );
+        }
+        operator
+            .write(
+                DELETION_REGISTRY_PATH,
+                serde_json::to_vec(&registry).unwrap(),
+            )
+            .await
+            .unwrap();
+        operator.delete(CLOUD_MANIFEST_PATH).await.unwrap();
+
+        let descriptor = CloudNamespaceDescriptor::default();
+        bootstrap
+            .rebuild_metadata(&descriptor, &shared, &profile)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            operator
+                .read("v2/archives/game/a.7z")
+                .await
+                .unwrap()
+                .to_vec(),
+            b"archive"
+        );
+        assert!(operator.read(&device_profile_path("other")).await.is_err());
+        let kept: DeletionRegistry = serde_json::from_slice(
+            &operator
+                .read(DELETION_REGISTRY_PATH)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert_eq!(kept.revision, 5);
+        assert!(!kept.deleted_profiles.contains_key("device"));
+        assert!(kept.deleted_profiles.contains_key("gone"));
+        assert!(matches!(
+            bootstrap.inspect().await.unwrap(),
+            CloudNamespaceClassification::SupportedV2 { descriptor: stored, .. }
+                if stored == descriptor
+        ));
+    }
+
+    #[tokio::test]
+    async fn rebuild_replaces_an_unreadable_deletion_registry() {
+        let operator = memory_operator();
+        let (shared, profile) = inputs();
+        operator
+            .write(DELETION_REGISTRY_PATH, b"{broken".to_vec())
+            .await
+            .unwrap();
+
+        CloudLibraryBootstrap::new(operator.clone(), 2)
+            .rebuild_metadata(&CloudNamespaceDescriptor::default(), &shared, &profile)
+            .await
+            .unwrap();
+
+        let registry: DeletionRegistry = serde_json::from_slice(
+            &operator
+                .read(DELETION_REGISTRY_PATH)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert_eq!(registry, DeletionRegistry::default());
+    }
+
+    #[tokio::test]
+    async fn rebuild_refuses_a_library_that_is_healthy_again() {
+        let operator = memory_operator();
+        let (shared, profile) = inputs();
+        let bootstrap = CloudLibraryBootstrap::new(operator.clone(), 2);
+        bootstrap
+            .create_empty(&CloudNamespaceDescriptor::default(), &shared, &profile)
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            bootstrap
+                .rebuild_metadata(&CloudNamespaceDescriptor::default(), &shared, &profile)
+                .await,
+            Err(CloudLibraryBootstrapError::RootChanged("existing_v2"))
+        ));
+        assert!(operator.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());
     }
 
     #[tokio::test]

@@ -1141,7 +1141,7 @@
             "rebuild_description": "The saved Cloud Library is incomplete or was deleted. Rebuild it from this device to continue.",
             "rebuild_success": "Cloud Library rebuilt",
             "rebuild_failed": "Could not rebuild the Cloud Library",
-            "rebuild_confirm": "This replaces the damaged Cloud Library with this device's games and re-uploads its available snapshots. Other devices will need to reconnect. Enter yes to confirm.",
+            "rebuild_confirm": "This replaces the Cloud Library's game list and records with this device's and re-uploads its available snapshots. Archives already in the cloud are kept. Other devices must reconnect, and snapshots that exist only on them appear again after they sync. Enter yes to confirm.",
             "reconnect": "Reconnect this device",
             "reconnect_description": "This device needs to reconnect to the cloud library before continuing sync",
             "reconnect_success": "This device reconnected",

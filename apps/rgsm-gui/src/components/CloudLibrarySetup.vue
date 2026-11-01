@@ -145,7 +145,7 @@ async function rebuild() {
       {
         confirmButtonText: $t('sync_settings.library.rebuild'),
         cancelButtonText: $t('sync_settings.cancel'),
-        inputPattern: /yes/,
+        inputPattern: /^yes$/,
         inputErrorMessage: $t('manage.invalid_input_error'),
       }
     );
