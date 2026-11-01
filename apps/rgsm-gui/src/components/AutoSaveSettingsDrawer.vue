@@ -349,7 +349,8 @@ watch(
 
       <section class="settings-section">
         <h2 class="section-title">{{ $t('manage.backup_retention') }}</h2>
-        <div class="settings-group">
+        <p v-if="isShared" class="setting-hint">{{ $t('manage.retention_local_shared_note') }}</p>
+        <div v-else class="settings-group">
           <h3>{{ $t('manage.retention_local') }}</h3>
           <div class="form-row">
             <span>{{ $t('manage.retention_source') }}</span>

@@ -254,6 +254,7 @@
     },
     "manage": {
         "retention_shared_save_failed": "本机设置已保存，共享设置未能确认。请刷新后重试。",
+        "retention_local_shared_note": "此游戏已加入云库，自动备份的数量由下方的云端设置统一控制，不再单独限制本机数量。",
         "retention_local_hint": "适用于所有自动备份方式。新的自动备份创建成功后清理超出数量的旧备份，手动备份不受影响。",
         "retention_unlimited": "不限制",
         "retention_custom": "为此游戏单独设置",
@@ -1119,6 +1120,10 @@
                 "after_title": "开始之后",
                 "card": "检测到 {count} 个游戏的旧版云存档",
                 "card_kicker": "需要升级",
+                "cleanup_title": "为 {count} 个游戏开启自动清理",
+                "cleanup_description": "升级前，这台设备只保留了这些游戏最新的若干个自动备份。新云库可以沿用这个数量。开启后会从所有设备和云端永久删除更早的自动存档点；当前进度和标记为“保留此存档点”的存档点不受影响。",
+                "cleanup_item": "{game}：每条进度线保留最新 {count} 个自动存档点",
+                "cleanup_confirm": "为这些游戏开启自动清理",
                 "card_resume": "上次升级未完成",
                 "card_resume_title": "继续把存档迁移到新云库",
                 "gate_action": "去升级",
