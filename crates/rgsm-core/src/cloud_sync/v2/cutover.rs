@@ -132,13 +132,7 @@ impl CloudLibraryCutover {
                 plan
             }
         };
-        if self.descriptor_exists().await? {
-            if !Self::is_complete(&plan) {
-                return Err(CloudLibraryCutoverError::UnexpectedPublishedNamespace);
-            }
-            let manifest = self.build_manifest(&plan)?;
-            self.verify_published(&plan.library_id, &plan.shared_library, &manifest)
-                .await?;
+        if self.verify_if_published(&plan).await? {
             return Ok(Self::result(plan));
         }
         for game_index in 0..plan.games.len() {
@@ -165,11 +159,40 @@ impl CloudLibraryCutover {
                 }
             }
         }
-        let manifest = self.build_manifest(&plan)?;
-        self.publish(&plan, &manifest).await?;
+        self.publish_unless_claimed(&plan).await?;
+        Ok(Self::result(plan))
+    }
+    /// Another device may have published while this one was uploading archives;
+    /// publishing over it would mix two libraries, so look again right before
+    /// writing the shared files.
+    async fn publish_unless_claimed(
+        &self,
+        plan: &CutoverPlan,
+    ) -> Result<(), CloudLibraryCutoverError> {
+        if self.verify_if_published(plan).await? {
+            return Ok(());
+        }
+        let manifest = self.build_manifest(plan)?;
+        self.publish(plan, &manifest).await?;
+        self.verify_published(&plan.library_id, &plan.shared_library, &manifest)
+            .await
+    }
+    /// Ok(true) when this plan is already published; an unrelated published
+    /// namespace is an error.
+    async fn verify_if_published(
+        &self,
+        plan: &CutoverPlan,
+    ) -> Result<bool, CloudLibraryCutoverError> {
+        if !self.descriptor_exists().await? {
+            return Ok(false);
+        }
+        if !Self::is_complete(plan) {
+            return Err(CloudLibraryCutoverError::UnexpectedPublishedNamespace);
+        }
+        let manifest = self.build_manifest(plan)?;
         self.verify_published(&plan.library_id, &plan.shared_library, &manifest)
             .await?;
-        Ok(Self::result(plan))
+        Ok(true)
     }
     pub async fn finish(&self) -> Result<(), CloudLibraryCutoverError> {
         remove_path_if_exists(&self.progress_path).await?;
@@ -856,6 +879,52 @@ mod tests {
         assert_eq!(result.snapshot_count, 1);
         assert_eq!(op.read(&v2_path).await.unwrap().to_vec(), bytes);
         assert!(op.read(V2_NAMESPACE_DESCRIPTOR_PATH).await.is_ok());
+    }
+    #[tokio::test]
+    async fn does_not_publish_over_a_library_another_device_published_meanwhile() {
+        let op = operator();
+        let (first_root, second_root) = (
+            temp_dir::TempDir::new().unwrap(),
+            temp_dir::TempDir::new().unwrap(),
+        );
+        let bytes = b"shared archive";
+        let snapshot = snapshot("one", None, bytes);
+        let mut catalog = GameSnapshots::new("test-game");
+        catalog.backups.push(snapshot.clone());
+        seed(&op, catalog, &[(&snapshot, bytes)]).await;
+        let first = cutover(op.clone(), first_root.path());
+        let second = cutover(op.clone(), second_root.path());
+        let mut late_plan = second.freeze_plan().await.unwrap();
+        let result = second
+            .migrate_archive("test-game", &snapshot)
+            .await
+            .unwrap();
+        late_plan.games[0].results.insert("one".into(), result);
+        first.execute(false).await.unwrap();
+        let published = op.read(SHARED_LIBRARY_PATH).await.unwrap().to_vec();
+        let descriptor = op
+            .read(V2_NAMESPACE_DESCRIPTOR_PATH)
+            .await
+            .unwrap()
+            .to_vec();
+
+        let error = second.publish_unless_claimed(&late_plan).await.unwrap_err();
+
+        assert!(matches!(
+            error,
+            CloudLibraryCutoverError::FinalVerificationMismatch
+        ));
+        assert_eq!(
+            op.read(SHARED_LIBRARY_PATH).await.unwrap().to_vec(),
+            published
+        );
+        assert_eq!(
+            op.read(V2_NAMESPACE_DESCRIPTOR_PATH)
+                .await
+                .unwrap()
+                .to_vec(),
+            descriptor
+        );
     }
     async fn published_retention(op: &Operator) -> Option<u32> {
         let library: SharedLibrary =
