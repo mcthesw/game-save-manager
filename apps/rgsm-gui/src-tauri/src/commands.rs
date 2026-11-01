@@ -549,6 +549,7 @@ pub async fn restore_extra_backup(game: Game, date: String, app: AppHandle) -> R
     let n = notifier(&app);
     svc(&app)
         .restore_extra_backup(&game, &date, Some(&n))
+        .await
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to restore extra backup: {:?}", e);
             e.to_string()

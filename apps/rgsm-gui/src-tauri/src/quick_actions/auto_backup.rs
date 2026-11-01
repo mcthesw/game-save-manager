@@ -73,6 +73,14 @@ pub async fn perform_changed_auto_backup(
             }
             return;
         }
+        Ok(TimerSnapshotDecision::SkippedBusy) => {
+            info!(
+                target: "rgsm::quick_action::auto_backup",
+                "Skipped automatic backup for '{}': another backup or restore is running",
+                game.name
+            );
+            return;
+        }
         Ok(TimerSnapshotDecision::Created) => {
             info!(
                 target: "rgsm::quick_action::auto_backup",

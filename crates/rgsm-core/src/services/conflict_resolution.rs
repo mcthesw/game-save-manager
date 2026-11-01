@@ -135,7 +135,8 @@ impl ServiceContext {
                     &original,
                     &prepared.lineage,
                     backup_date.as_deref(),
-                ),
+                )
+                .await,
             });
         }
 
@@ -154,7 +155,8 @@ impl ServiceContext {
                         &original,
                         &prepared.lineage,
                         backup_date.as_deref(),
-                    ),
+                    )
+                    .await,
                 });
             }
         };
@@ -212,7 +214,7 @@ pub(crate) fn merge_remote_lineage(
     Ok(())
 }
 
-fn rollback_remote_progress(
+async fn rollback_remote_progress(
     services: &ServiceContext,
     game: &Game,
     original: &GameSnapshots,
@@ -222,7 +224,7 @@ fn rollback_remote_progress(
     let mut failures = Vec::new();
     match backup_date {
         Some(date) => {
-            if let Err(error) = services.restore_extra_backup(game, date, None) {
+            if let Err(error) = services.restore_extra_backup(game, date, None).await {
                 failures.push(format!("live save: {error}"));
             }
         }

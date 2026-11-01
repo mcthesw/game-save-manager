@@ -10,7 +10,10 @@ use crate::hooks::{
 };
 use crate::preclude::BackupError;
 
-use super::ServiceContext;
+use super::{
+    ServiceContext,
+    game_operation_lock::{lock_game, try_lock_game},
+};
 
 /// Emit a stage notification when a notifier is attached. Stage payloads are
 /// pure progress text; the frontend folds them into the running activity entry.
@@ -73,6 +76,7 @@ impl ServiceContext {
     ) -> Result<(), BackupError> {
         notify_stage(notifier, rust_i18n::t!("backend.stage.scan").as_ref());
         let config = get_config()?;
+        let capture_guard = lock_game(game).await;
         let plan = self.capture_plan(&config, game)?;
         let backup_base = resolve_backup_path(&config.backup_path);
         let device_id = crate::device::get_current_device_id();
@@ -92,6 +96,7 @@ impl ServiceContext {
                 },
             )
             .await?;
+        drop(capture_guard);
 
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
             notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
@@ -130,6 +135,9 @@ impl ServiceContext {
     ) -> Result<TimerSnapshotDecision, BackupError> {
         notify_stage(notifier, rust_i18n::t!("backend.stage.scan").as_ref());
         let config = get_config()?;
+        let Some(capture_guard) = try_lock_game(game) else {
+            return Ok(TimerSnapshotDecision::SkippedBusy);
+        };
         let plan = self.capture_plan(&config, game)?;
         let fingerprint = crate::backup::state_fingerprint::fingerprint_capture_plan(&plan)?;
         let backup_base = resolve_backup_path(&config.backup_path);
@@ -169,6 +177,7 @@ impl ServiceContext {
                 },
             )
             .await?;
+        drop(capture_guard);
         if let Some(snapshot) = created.snapshots.backups.last().cloned() {
             notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
             let mut ctx = crate::hooks::SnapshotCreatedCtx {
@@ -216,6 +225,7 @@ impl ServiceContext {
         let game_dir = get_backup_path()?.join(game.backup_dir_name().as_ref());
         let archive_path = snapshot_archive_path(&game_dir, &snapshot);
         let config = get_config()?;
+        let restore_guard = lock_game(game).await;
 
         // Conflict resolution takes its own mandatory backup before restoring.
         let capture_plan = if config.settings.extra_backup_when_apply
@@ -244,6 +254,7 @@ impl ServiceContext {
             ArchiveFormat::Zip => &ZipBackend,
         };
         self.restore_capture_archive(&config, game, &archive_path, backend, notifier, Some(date))?;
+        drop(restore_guard);
         let snapshots = game.update_game_snapshots_info::<BackupError>(|current| {
             current.set_current_device_head(Some(date.to_string()));
             Ok(())
@@ -262,13 +273,14 @@ impl ServiceContext {
         Ok(())
     }
 
-    pub fn restore_extra_backup(
+    pub async fn restore_extra_backup(
         &self,
         game: &Game,
         date: &str,
         notifier: Option<&dyn RestoreNotifier>,
     ) -> Result<(), BackupError> {
         let config = get_config()?;
+        let _restore_guard = lock_game(game).await;
         let folder = crate::backup::extra_backup_folder_path(game)?;
         let seven_z = folder.join(archive_file_name(date, ArchiveFormat::SevenZ, None));
         let archive_path = if seven_z.exists() {
