@@ -304,9 +304,9 @@ pub enum CloudNamespaceError {
     },
     #[error("Unsupported schema {found} in {object}")]
     UnsupportedSchema { object: &'static str, found: u32 },
-    #[error("V2 namespace is missing required object {0}")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_damaged"))]
     MissingRequiredObject(&'static str),
-    #[error("V2 namespace descriptor is absent but V2 objects remain: {0:?}")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_damaged"))]
     PartialV2(Vec<String>),
     #[error("Cloud root is non-empty but is not recognized: {0:?}")]
     UnrecognizedRoot(Vec<String>),

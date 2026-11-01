@@ -94,7 +94,7 @@ pub enum CloudLibraryServiceError {
     CurrentPositionBlocksDeletion(String),
     #[error("The active V2 Cloud Library no longer matches the saved connection")]
     ActiveLibraryUnavailable,
-    #[error("This device must reconnect to the Cloud Library")]
+    #[error("{}", rust_i18n::t!("error.cloud_reconnect_required"))]
     DeviceReconnectRequired,
     #[error("This installation does not need to join a Cloud Library")]
     JoinNotRequired,

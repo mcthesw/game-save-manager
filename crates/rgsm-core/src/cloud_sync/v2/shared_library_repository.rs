@@ -115,11 +115,11 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
 
 #[derive(Debug, Error)]
 pub enum SharedLibraryRepositoryError {
-    #[error("Shared Library object is missing")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_damaged"))]
     Missing,
-    #[error("Shared Library changed before this update could be committed")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_changed"))]
     Stale,
-    #[error("Shared Library read-back verification failed after {attempts} attempts")]
+    #[error("{}", rust_i18n::t!("error.cloud_library_changed"))]
     RetryExhausted { attempts: usize },
     #[error("Shared Library transport error: {0}")]
     Transport(#[from] opendal::Error),

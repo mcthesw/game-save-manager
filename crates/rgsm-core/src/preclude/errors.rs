@@ -52,7 +52,7 @@ pub enum BackendError {
     #[error("IO error: {0:#?}")]
     Io(#[from] io::Error),
     #[error("Opendal error: {0:#?}")]
-    Cloud(Box<opendal::Error>),
+    Cloud(#[source] Box<opendal::Error>),
     #[error("Cannot read cloud file: {0:#?}")]
     ReadCloudInfo(#[from] FromUtf8Error),
     #[error("Deserialize error: {0:#?}")]
