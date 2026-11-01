@@ -476,7 +476,7 @@ test('retention remains independent of the timer and retries only the failed sha
     await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
     const drawer = page.getByRole('dialog');
     await expect(
-      drawer.getByRole('heading', { name: 'Automatic snapshots in shared history' })
+      drawer.getByRole('heading', { name: 'Automatic snapshots in the Cloud Library' })
     ).toBeVisible();
     const timerInterval = drawer.getByRole('spinbutton', { name: 'Timer interval (seconds)' });
     await expect(timerInterval).toBeVisible();
@@ -499,9 +499,11 @@ test('retention remains independent of the timer and retries only the failed sha
       .first();
     await timer.click();
     await expect(timer).toBeChecked();
-    const sharedSwitch = drawer.getByRole('switch', { name: 'Limit snapshots in shared history' });
+    const sharedSwitch = drawer.getByRole('switch', {
+      name: 'Limit snapshots in the Cloud Library',
+    });
     const sharedLimit = drawer.getByRole('spinbutton', {
-      name: 'Automatic snapshots in shared history',
+      name: 'Automatic snapshots in the Cloud Library',
     });
     await sharedSwitch.click();
     await expect(sharedLimit).toBeVisible();
@@ -558,7 +560,7 @@ test('retention remains independent of the timer and retries only the failed sha
       animations: 'disabled',
     });
     await page.setViewportSize({ width: 1100, height: 800 });
-    await drawer.getByRole('spinbutton', { name: '共享历史的自动存档点' }).scrollIntoViewIfNeeded();
+    await drawer.getByRole('spinbutton', { name: '云库中的自动快照' }).scrollIntoViewIfNeeded();
     await drawer.screenshot({
       path: test.info().outputPath('backup-settings-retention-zh.png'),
       animations: 'disabled',

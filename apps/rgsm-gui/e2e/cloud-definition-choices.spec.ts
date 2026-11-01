@@ -92,7 +92,7 @@ for (const choice of ['cloud', 'local'] as const) {
         name:
           choice === 'cloud'
             ? 'Keep the cloud version'
-            : 'Replace the game definition in the cloud library',
+            : 'Replace the game definition in the Cloud Library',
         exact: true,
       });
       await expect(option).toHaveAttribute('aria-pressed', 'false');
