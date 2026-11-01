@@ -121,9 +121,8 @@ for (const editor of ['managed files', 'auto-save settings'] as const) {
         await path.fill(changedPath);
       } else {
         await timer.click();
-        await drawer.getByRole('combobox', { name: 'Automatic backups on this device' }).click();
-        await page.getByRole('option', { name: 'Set for this game', exact: true }).click();
-        await drawer.getByRole('spinbutton', { name: 'Max auto backups' }).fill('7');
+        await drawer.getByRole('combobox', { name: 'Backup interval' }).click();
+        await page.getByRole('option', { name: '10 min', exact: true }).click();
       }
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       await page.evaluate(async () => {
@@ -141,12 +140,13 @@ for (const editor of ['managed files', 'auto-save settings'] as const) {
           .toBe(changedPath);
       } else {
         await expect(timer).toBeChecked();
-        await expect(drawer.getByRole('spinbutton', { name: 'Max auto backups' })).toHaveValue('7');
+        await expect(drawer.getByRole('combobox', { name: 'Backup interval' })).toContainText(
+          '10 min'
+        );
         await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
         await expect
           .poll(async () => (await getLocalGame(host, GAME_NAME)).auto_backup)
-          .toEqual({ interval_secs: 300 });
-        expect((await getLocalGame(host, GAME_NAME)).auto_backup_limit).toBe(7);
+          .toEqual({ interval_secs: 600 });
       }
     } catch (error) {
       failed = true;
@@ -487,21 +487,18 @@ test('retention remains independent of the timer and retries only the failed sha
     });
     await expect(processInterval).toBeVisible();
     await expect(processInterval).toBeDisabled();
-    await expect(drawer.getByRole('spinbutton', { name: 'Max auto backups' })).toBeDisabled();
-    await drawer.getByRole('combobox', { name: 'Automatic backups on this device' }).click();
-    await page.getByRole('option', { name: 'Set for this game', exact: true }).click();
-    await drawer.getByRole('spinbutton', { name: 'Max auto backups' }).fill('7');
-    const localLimit = drawer.getByRole('spinbutton', { name: 'Max auto backups' });
-    const localSwitch = drawer.getByRole('switch', { name: 'Limit backups on this device' });
-    const numberInputs = await drawer.getByRole('spinbutton').count();
-    const beforeToggle = await localLimit.boundingBox();
-    await localSwitch.click();
-    await expect(localLimit).toBeVisible();
-    await expect(localLimit).toBeDisabled();
-    await localSwitch.click();
-    await expect(localLimit).toHaveValue('7');
-    expect(await localLimit.boundingBox()).toEqual(beforeToggle);
-    expect(await drawer.getByRole('spinbutton').count()).toBe(numberInputs);
+    // Cloud games keep their history under shared retention, so no device-local limit is offered.
+    await expect(drawer.getByRole('spinbutton', { name: 'Max auto backups' })).toHaveCount(0);
+    await expect(
+      drawer.getByRole('combobox', { name: 'Automatic backups on this device' })
+    ).toHaveCount(0);
+    const timer = drawer
+      .getByRole('heading', { name: 'Auto Backup', exact: true })
+      .locator('xpath=ancestor::section[1]')
+      .getByRole('switch')
+      .first();
+    await timer.click();
+    await expect(timer).toBeChecked();
     const sharedSwitch = drawer.getByRole('switch', { name: 'Limit snapshots in shared history' });
     const sharedLimit = drawer.getByRole('spinbutton', {
       name: 'Automatic snapshots in shared history',
@@ -524,8 +521,10 @@ test('retention remains independent of the timer and retries only the failed sha
     });
     await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
     await expect.poll(() => sharedWrites).toBe(1);
-    await expect.poll(async () => (await getLocalGame(host, GAME_NAME)).auto_backup_limit).toBe(7);
-    expect((await getLocalGame(host, GAME_NAME)).auto_backup ?? null).toBeNull();
+    await expect
+      .poll(async () => (await getLocalGame(host, GAME_NAME)).auto_backup)
+      .toEqual({ interval_secs: 300 });
+    expect((await getLocalGame(host, GAME_NAME)).auto_backup_limit ?? null).toBeNull();
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole('button', { name: 'Save settings', exact: true })).toBeEnabled();
     await drawer.getByRole('button', { name: 'Save settings', exact: true }).click();
@@ -537,7 +536,7 @@ test('retention remains independent of the timer and retries only the failed sha
     expect(localWrites).toBe(1);
     await page.getByRole('button', { name: 'More actions' }).click();
     await page.getByRole('menuitem', { name: 'Auto-save settings' }).click();
-    await expect(drawer.getByRole('spinbutton', { name: 'Max auto backups' })).toHaveValue('7');
+    await expect(timer).toBeChecked();
     await page.setViewportSize({ width: 1440, height: 1100 });
     await expect(page.getByText('Auto-save settings saved', { exact: true })).not.toBeVisible();
     await page.screenshot({
