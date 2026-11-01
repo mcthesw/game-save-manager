@@ -1,0 +1,132 @@
+---
+title: V1.9.1 Cloud Library, self-contained archives, and path variables
+slug: v1_9_1
+authors: [Sworld]
+tags: [{label: Release, permalink: /发布}]
+date: 2026-11-01
+---
+
+# Cloud Library, self-contained archives, and path variables
+
+This release rebuilds cloud sync as the **Cloud Library**, turns snapshots into **self-contained 7z archives**, and adds **per-device path variables**, **per-game automatic backups**, and a new interface.
+
+:::warning Back up before upgrading
+
+The old configuration is converted automatically and the change is **one-way**: 1.8 cannot read the new configuration afterwards, so make a full backup first. If you use cloud sync, **upgrade every device to 1.9 first**, then choose **Upgrade to the new library** on one of them; keep the app running during the switch, and it can resume if interrupted. See [Upgrading to 1.9](/docs/help/upgrade).
+
+:::
+
+## Highlights
+
+### Cloud Library
+
+- Choose **Manual**, **Cloud backup**, or **Multi-device sync** for each game on each device
+- When another device has newer progress, RGSM asks you to **compare progress** instead of overwriting local saves
+- Upload, download, or "download everything to this device" from the snapshot list, one snapshot or many at a time
+- Deletion comes in separate scopes: **Remove local copy** keeps the snapshot history and the cloud copy; **Delete from this device** only affects this device; **Delete from cloud and all devices** and **Permanently delete from the Cloud Library** cannot be undone, and offline devices carry them out when they reconnect
+- **Cloud join codes** connect another device by pasting one code (the code contains credentials, so keep it private)
+- A **local folder** can act as the cloud backend, and S3-compatible storage supports virtual-hosted addresses (Tencent COS, Alibaba OSS, and similar)
+- Backups, restores, and metadata edits work offline and synchronize in the background afterwards
+
+### Self-contained archives
+
+- New snapshots are ordinary `.7z` files containing `RESTORE.txt`, so they can be **restored by hand without this app**
+- File timestamps and permissions are preserved, Windows hidden and read-only files are restored, and registry data is stored as standard `.reg`
+- Older ZIP snapshots still restore normally
+- **Upgrade older backups** (Settings → Backup settings) converts historical snapshots to the new format; it can be paused, and originals are kept until you clean them up
+
+### Per-device path variables
+
+- Set the game installation directory, game root, and store account for each game **per device**
+- **Override this device's path** when one machine keeps saves somewhere unusual
+- Every Ludusavi path variable plus `*` and `?` wildcards are supported; type `<` to pick a variable and preview the resolved path
+- Custom `<var:name>` variables can be defined per device or per game, with help to fill in a missing value or find it locally
+
+### Automatic and quick backup
+
+- Scheduled backups are configured **per game**, several games can run timers at once, and the interval is configurable
+- Process monitoring adds triggers on game start, on exit, and at a chosen interval while running
+- The retention count for automatic backups can differ from the global setting
+
+### Game library
+
+- Edit a game after adding it: rename it, add or remove save entries; files with the same name no longer conflict
+- Import the same game a second time as another instance
+- Scan visual novels automatically (Kirikiri2, Ren'Py, RPG Maker, Wolf RPG) and skip OneDrive files that are not downloaded yet
+- Sort the library by last played and other orders
+
+### Interface and updates
+
+- Grouped settings navigation, with About folded into Settings; one result notification per backup or restore
+- The current snapshot is highlighted, and timestamps can show relative time
+- Choose whether the app opens on Favorites or All
+- Opt-in **check for updates at startup**; Windows installers download in the background and install when you press "Restart and install", while portable, Linux, and macOS builds stay manual
+- A local API section in Settings shows the address and manages its token
+- A native English documentation site
+
+## Fixes
+
+### Backup and restore
+
+- A restore stops if its extra backup cannot be created: your current save is not overwritten and the app explains why. The extra backup is skipped only when the game has no save files at the moment.
+- Every new backup is checked for integrity and verified before a restore, and a damaged backup is rejected. The settings "Compute integrity hash (XXH3) when creating backups" and "Verify archive integrity before restoring" are removed.
+- Backing up and restoring the same game no longer run at the same time, and automatic backup skips a game that is being restored; snapshots are no longer lost when a backup and a deletion happen together.
+- A power loss no longer leaves an empty save, and temporary files left by interrupted runs are cleaned up.
+- Upgrade older backups: a full disk or a permission error is now reported with its cause and stops the upgrade, and you can resume after freeing space; retrying an interrupted upgrade replaces a damaged leftover file; upgrade items for deleted snapshots finish automatically; historical backups stay reachable after storage folder names are upgraded.
+- Wildcard save paths resolve during snapshots, not only while editing.
+- "Delete then restore" undoes the deletion when the restore fails, and partial undo failures are reported accurately.
+- Writes retry when Windows briefly locks a file.
+
+### Cloud Library
+
+- Opening save management no longer triggers a sync and shows local snapshots right away instead of waiting for the cloud refresh.
+- Requests to the cloud that stop responding now time out instead of hanging the sync.
+- Cloud errors now come with a message you can act on (check the network or settings, reconnect, rebuild, refresh) instead of raw English text containing the request address.
+- While the cloud cannot be reached, the sync overview lists the games this device already knows and marks them as "checking" instead of showing zero games.
+- When Cloud Library files are missing, RGSM reports a damaged library and offers **Rebuild from this device** instead of treating it as empty and erasing existing snapshots; rebuilding keeps the archives already in the cloud.
+- With a local folder as the cloud, an interrupted write no longer damages the library, and transfers no longer fail when saves are on another drive.
+- A sync failure in one game no longer affects the others, and after background sync changes a game, automatic backups and quick actions follow.
+- Saving settings no longer restores an outdated configuration for a Cloud Library game.
+- Create a library when the Jianguoyun root folder does not exist yet.
+- On the save management page, **Remove local copy** first confirms that the cloud holds a copy; when the cloud information cannot be loaded, the button is disabled and explains why.
+- Before deleting a Cloud Library game from this device, RGSM tells you how many snapshots exist only on this device and are not uploaded. If the cloud cannot be reached it only warns, and you can still continue.
+
+### Quick actions
+
+- Quick backup and restore report failures and skip games that were deleted.
+- The management page of the game refreshes after a quick action.
+
+### Other
+
+- Games whose names contain special characters import and open correctly.
+- The portable build reports its real version instead of `RGSM_undefined`.
+
+## Upgrade notes
+
+### Upgrading the Cloud Library
+
+- **After the switch this device uses only the new library.** Old cloud data is not deleted and older or downgraded versions can still view it, but they **cannot see later progress**. Progress made on a device that still runs an old version does not enter the new library.
+- **The switch lists what will not be carried over.** Games that the old cloud configuration does not list keep their snapshots in the old folder and do not appear in the new library; games that exist only on this device keep working locally with cloud sync off. A failed download of an old archive during the switch is retried automatically.
+- **You can turn on automatic Cloud Library snapshot cleanup.** If this device limited automatic backups for some games, the switch asks whether to carry that count over. Turning it on permanently deletes older automatic snapshots from every device and the cloud; the current position and protected snapshots are not affected. If you do not turn it on, nothing is cleaned up.
+- Games in the Cloud Library no longer use this device's automatic-backup count limit; their older snapshots are managed only by automatic Cloud Library snapshot cleanup, and are not cleaned up locally while cloud storage is turned off on this device.
+
+### Upgrading this device
+
+- **History of games in the Cloud Library stays in ZIP format.** "Upgrade older backups" does not convert it and it keeps syncing normally; new backups use 7z.
+- **The tray's auto-backup interval menu** (5/10/30/60 minutes and off) is gone; intervals are set per game in its backup settings.
+- **Installation locations that cannot be matched to one game** stay under **Settings → Auto scan → Unmatched installation directories** for you to confirm.
+- **Configuration from 1.9 test builds** is not guaranteed to upgrade; upgrading an existing 1.9 Cloud Library is handled separately, see [Upgrading to 1.9](/docs/help/upgrade).
+- **The portable build here is the slim variant** without the bundled Ludusavi database; update it from Settings when needed.
+
+## Download
+
+The portable build is recommended. If it will not start, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+- [GitHub Release](https://github.com/mcthesw/game-save-manager/releases/tag/v1.9.1)
+
+**Full Changelog**: https://github.com/mcthesw/game-save-manager/compare/v1.8.0...v1.9.1
+
+## Discussions
+
+- [Feature ideas and feedback](https://github.com/mcthesw/game-save-manager/discussions)
+- [Bug reports](https://github.com/mcthesw/game-save-manager/issues)
