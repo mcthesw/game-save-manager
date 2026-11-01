@@ -1238,7 +1238,9 @@
         },
         "config": {
             "updating_config_title": "Updating config file",
-            "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManagerConfig.json.bak"
+            "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManagerConfig.json.bak",
+            "startup_failed_title": "Game Save Manager could not start",
+            "startup_failed_body": "Game Save Manager could not read or update its data and has closed. Check free disk space and folder permissions, then start it again. Details: %{error}"
         },
         "tray": {
             "no_game_selected": "No game selected",
