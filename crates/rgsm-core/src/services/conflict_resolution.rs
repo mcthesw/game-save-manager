@@ -97,12 +97,6 @@ impl ServiceContext {
             )
             .await?;
 
-        let latest = game.get_game_snapshots_info()?;
-        if latest != original {
-            return Err(CloudLibraryServiceError::LocalSnapshotHistoryChanged);
-        }
-        let mut staged = latest;
-        merge_remote_lineage(&mut staged, &prepared.lineage)?;
         let backup_date = match self.capture_plan(&config, &game) {
             Ok(plan) => Some(game.create_overwrite_snapshot_from_capture_plan(
                 &plan,
@@ -115,7 +109,14 @@ impl ServiceContext {
             Err(error) => return Err(crate::preclude::BackupError::from(error).into()),
         };
 
-        game.set_game_snapshots_info(&staged)?;
+        // The comparison and the merge share one catalog lock, so a snapshot
+        // committed since `prepare` cannot be overwritten.
+        game.update_game_snapshots_info::<CloudLibraryServiceError>(|current| {
+            if *current != original {
+                return Err(CloudLibraryServiceError::LocalSnapshotHistoryChanged);
+            }
+            merge_remote_lineage(current, &prepared.lineage)
+        })?;
         if let Err(error) = self
             .restore_snapshot(
                 &game,
@@ -128,7 +129,13 @@ impl ServiceContext {
             return Err(CloudLibraryServiceError::RemoteProgressApply {
                 stage: "Apply",
                 operation: error.to_string(),
-                rollback: rollback_remote_progress(self, &game, &original, backup_date.as_deref()),
+                rollback: rollback_remote_progress(
+                    self,
+                    &game,
+                    &original,
+                    &prepared.lineage,
+                    backup_date.as_deref(),
+                ),
             });
         }
 
@@ -145,6 +152,7 @@ impl ServiceContext {
                         self,
                         &game,
                         &original,
+                        &prepared.lineage,
                         backup_date.as_deref(),
                     ),
                 });
@@ -208,6 +216,7 @@ fn rollback_remote_progress(
     services: &ServiceContext,
     game: &Game,
     original: &GameSnapshots,
+    lineage: &[Snapshot],
     backup_date: Option<&str>,
 ) -> String {
     let mut failures = Vec::new();
@@ -219,7 +228,28 @@ fn rollback_remote_progress(
         }
         None => failures.push("live save: no prior save data was available to archive".to_string()),
     }
-    if let Err(error) = game.set_game_snapshots_info(original) {
+    // Undo only this operation's changes; snapshots committed meanwhile stay.
+    let rolled_back = game.update_game_snapshots_info::<crate::preclude::BackupError>(|current| {
+        current.backups.retain(|snapshot| {
+            original
+                .backups
+                .iter()
+                .any(|kept| kept.date == snapshot.date)
+                || !lineage.iter().any(|added| added.date == snapshot.date)
+        });
+        for snapshot in &mut current.backups {
+            if let Some(before) = original
+                .backups
+                .iter()
+                .find(|before| before.date == snapshot.date)
+            {
+                *snapshot = before.clone();
+            }
+        }
+        current.set_current_device_head(original.current_device_head().cloned());
+        Ok(())
+    });
+    if let Err(error) = rolled_back {
         failures.push(format!("Snapshot metadata: {error}"));
     }
     if failures.is_empty() {

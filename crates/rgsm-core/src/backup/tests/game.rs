@@ -967,6 +967,70 @@ fn opaque_snapshot_selection_uses_creation_time() -> TestResult {
 }
 
 #[test]
+fn concurrent_deletions_and_commits_keep_every_catalog_entry() -> TestResult {
+    let _config_lock = lock_config_file();
+    run_async_test(async {
+        let root = temp_dir::TempDir::new()?;
+        let config = Config {
+            backup_path: root.path().to_string_lossy().into_owned(),
+            ..Config::default()
+        };
+        let _config_guard = restore_config_guard(&config)?;
+        let game = make_test_game("interleaved", root.path())?;
+        const COUNT: usize = 40;
+        for index in 0..COUNT {
+            insert_snapshot(&game, root.path(), &format!("old-{index}"), None)?;
+        }
+
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .build()
+                    .unwrap();
+                for index in 0..COUNT {
+                    runtime
+                        .block_on(game.delete_snapshot(&format!("old-{index}")))
+                        .unwrap();
+                }
+            });
+            scope.spawn(|| {
+                for index in 0..COUNT {
+                    game.update_game_snapshots_info::<crate::preclude::BackupError>(|current| {
+                        current.backups.push(Snapshot {
+                            date: format!("new-{index}"),
+                            describe: String::new(),
+                            path: String::new(),
+                            archive_name: None,
+                            archive_format: crate::backup::ArchiveFormat::SevenZ,
+                            size: 0,
+                            parent: None,
+                            archive_hash: None,
+                            created_at: None,
+                            device_id: None,
+                            created_by: Default::default(),
+                        });
+                        Ok(())
+                    })
+                    .unwrap();
+                }
+            });
+        });
+
+        let dates: BTreeSet<_> = game
+            .get_game_snapshots_info()?
+            .backups
+            .into_iter()
+            .map(|snapshot| snapshot.date)
+            .collect();
+        assert_eq!(
+            dates,
+            (0..COUNT).map(|index| format!("new-{index}")).collect()
+        );
+        Ok(())
+    })
+}
+
+#[test]
 fn delete_game_without_backups_still_removes_management() -> TestResult {
     let _config_lock = lock_config_file();
     run_async_test(async {
