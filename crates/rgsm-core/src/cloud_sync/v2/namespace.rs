@@ -10,6 +10,7 @@ use uuid::Uuid;
 use super::super::V1_CONFIG_PATH;
 #[cfg(test)]
 use super::super::V1_SAVE_DATA_PREFIX;
+use super::super::backend::FS_ATOMIC_WRITE_DIR;
 use super::metadata_read::read_complete_json;
 use super::{CloudManifest, ManifestError};
 use crate::config::{Config, OwnershipError, SharedLibrary};
@@ -177,7 +178,7 @@ impl NamespaceTransport for OpenDalNamespaceTransport {
             let Some(entry) = lister.try_next().await? else {
                 break;
             };
-            if entry.path() == prefix {
+            if entry.path() == prefix || entry.path().trim_end_matches('/') == FS_ATOMIC_WRITE_DIR {
                 continue;
             }
             paths.push(entry.path().to_string());
