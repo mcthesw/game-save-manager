@@ -101,6 +101,52 @@ mod auto_cleanup {
     }
 }
 
+#[test]
+fn automatic_backup_skips_a_game_that_is_being_restored() {
+    let _lock = crate::config::lock_config_test_file();
+    let root = temp_dir::TempDir::new().unwrap();
+    let save = root.path().join("save.sav");
+    std::fs::write(&save, "state").unwrap();
+    let paths = HashMap::from([(
+        crate::device::get_current_device_id().clone(),
+        save.to_string_lossy().into_owned(),
+    )]);
+    let game: Game = serde_json::from_value(serde_json::json!({
+        "name": "Busy game", "storage_key": "busy-game",
+        "save_paths": [SaveUnit::concrete(1, SaveUnitType::File, paths, false, true)],
+        "next_save_unit_id": 2,
+    }))
+    .unwrap();
+    let config = crate::config::Config {
+        backup_path: root.path().join("archives").to_string_lossy().into_owned(),
+        games: vec![game.clone()],
+        ..Default::default()
+    };
+    let _guard = crate::config::ConfigTestStateGuard::replace_with(&config).unwrap();
+    crate::config::set_config_local(&config).unwrap();
+    game.set_game_snapshots_info(&GameSnapshots::new("Busy game"))
+        .unwrap();
+    let service = ServiceContext::new(std::sync::Arc::new(crate::hooks::HookPipeline::new(vec![])));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let backup = || {
+        runtime.block_on(service.create_snapshot_if_changed(
+            &game,
+            "auto",
+            CreatedBy::Timer,
+            HookSource::TimerAutoBackup,
+            None,
+        ))
+    };
+
+    let restoring = runtime.block_on(lock_game(&game));
+    assert_eq!(backup().unwrap(), TimerSnapshotDecision::SkippedBusy);
+    drop(restoring);
+    assert_eq!(backup().unwrap(), TimerSnapshotDecision::Created);
+}
+
 fn legacy_v2_group(kind: CaptureSourceKind) -> ArchiveCaptureGroup {
     ArchiveCaptureGroup {
         relative_expression: None,

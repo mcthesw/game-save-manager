@@ -9,6 +9,7 @@ mod conflict_resolution;
 mod device_game_lifecycle;
 mod game;
 mod game_edit;
+mod game_operation_lock;
 pub use game_edit::{DeviceVariableEdit, DeviceVariableEdits};
 mod game_deletion;
 mod local_upgrade;

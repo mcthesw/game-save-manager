@@ -152,6 +152,8 @@ fn save_unit_identity(source: &crate::backup::SaveUnitSource) -> String {
 pub enum TimerSnapshotDecision {
     Created,
     SkippedUnchanged,
+    /// Another capture or restore of the same game is running.
+    SkippedBusy,
 }
 
 #[derive(Debug, Clone)]
