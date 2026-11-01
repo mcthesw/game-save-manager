@@ -494,7 +494,15 @@ impl CloudArchiveMaterializer {
             };
             let mut snapshots = Vec::new();
             for snapshot_id in reported {
-                snapshots.extend(self.imported_lineage(&manifest, game_id, snapshot_id)?);
+                let lineage = self.imported_lineage(&manifest, game_id, snapshot_id)?;
+                // A holder report outlives local cleanup; only archives still on
+                // disk may reintroduce their lineage into the local catalog.
+                if lineage
+                    .last()
+                    .is_some_and(|seed| Path::new(&seed.path).is_file())
+                {
+                    snapshots.extend(lineage);
+                }
             }
             if !snapshots.is_empty() {
                 imported.insert(game_id.clone(), snapshots);
