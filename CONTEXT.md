@@ -228,9 +228,9 @@ _Player-facing_: 从云端移除
 _Avoid_: delete Snapshot, Global Snapshot Deletion, Local Archive Eviction
 
 **Global Snapshot Deletion**:
-A permanent deletion of one **Snapshot** and its available Archive copies, initiated directly or by **Shared Snapshot Retention**, that propagates to offline **Devices** through a **Tombstone Node**. Direct deletion requires the initiating Device to resolve its own matching **Current Position** first; other Devices do not block deletion and lose matching positions when they observe the Tombstone.
+A permanent deletion of one **Snapshot** and its available Archive copies, initiated directly or by **Shared Snapshot Retention**, that propagates to offline **Devices** through a **Tombstone Node**.
 _Player-facing_: 从所有设备和云端删除
-_Avoid_: local cleanup, missing archive, Local Archive Eviction, automatic ancestor fallback
+_Avoid_: local cleanup, missing archive, Local Archive Eviction
 
 **Tombstone Node**:
 A hidden structural replacement for a globally deleted **Snapshot** that preserves ancestry and prevents stale Devices from resurrecting it, while remaining unavailable for transfer or **Apply**.
@@ -384,6 +384,8 @@ _Avoid_: absolute source path, Save Unit
 - All remote Device positions remain visible; no Device automatically adopts another's position or live save data.
 - Divergence does not stop Archive upload: preserving both branches is separate from choosing which progress to Apply.
 - An **Extra Backup** never enters the **Snapshot Catalog**, becomes a **Cloud Archive**, or participates in **Cloud Sync**.
+- An **Apply** that is configured to create an **Extra Backup** is aborted when that backup cannot be created while live save data exists; the live save data is then left untouched.
+- Every **Snapshot Archive** is hashed when created, and its hash is verified before any **Apply** starts; there is no setting to turn either off.
 - **Materialize All** never changes live save locations and never moves a **Device**'s **Current Position**.
 - Enabling **Cloud Backup** or **Multi-device Sync** never implies **Materialize All**; downloading all Cloud Archives is a separate explicit operation.
 - The **Snapshot Catalog** may describe a **Snapshot** with no **Local Archive** on the current **Device**.
@@ -406,22 +408,23 @@ _Avoid_: absolute source path, Save Unit
 - Evicting the last known Archive copy leaves the **Snapshot** and its graph position intact but unavailable for transfer or **Apply**; it never implies a **Tombstone Node**.
 - **Global Snapshot Deletion** is mandatory shared state; it is never inferred from a missing **Local Archive**, retention cleanup, or **Device Visibility**.
 - **Shared Snapshot Retention** initiates **Global Snapshot Deletion** and never performs Device-local-only Snapshot cleanup.
+- A per-**Game** automatic backup count limit never deletes Snapshots of a **Game** that belongs to the **Shared Library**; only **Shared Snapshot Retention** removes those.
 - Every **Device** observes the same **Shared Snapshot Retention** policy for one **Game**.
 - **Shared Snapshot Retention** applies its count independently to each live **Branch**.
 - One **Branch** never consumes another Branch's retention allowance.
 - Every active **Current Position** and every **Retention Protection** excludes its **Snapshot** from **Shared Snapshot Retention**.
 - **Retention Protection** never changes how a **Snapshot** was created.
 - **Extra Backup** retention belongs to one **Device** and one **Game** and never participates in **Shared Snapshot Retention**.
-- **Global Snapshot Deletion** replaces the visible **Snapshot** with a **Tombstone Node**; children retain structural ancestry, while affected **Current Position** references are cleared.
+- **Global Snapshot Deletion** replaces the visible **Snapshot** with a **Tombstone Node**; children retain structural ancestry.
 - A **Pending Tombstone** becomes a **Final Tombstone** only after the required Archive removal is verified.
 - **Pending Tombstone** and **Final Tombstone** have the same anti-resurrection and ancestry meaning.
 - A **Final Tombstone** remains permanently even though completed-operation detail does not.
 - A **Tombstone Node** may be traversed for ancestry but can never be materialized, downloaded, or Applied.
 - **Global Snapshot Deletion** has no undo and removes available Local and Cloud Archives only after its **Tombstone Node** becomes durable.
 - A **Device** that learns a **Tombstone Node** removes its matching **Local Archive** before it can publish or transfer that deleted Snapshot.
-- Direct **Global Snapshot Deletion** requires the initiating **Device** whose **Current Position** targets the Snapshot to choose a protected **Apply** to another Snapshot, capture current live save data as a new Snapshot, or explicitly clear its position before deletion.
-- Another Device's matching **Current Position** never blocks deletion; it is cleared when that Device observes the **Tombstone Node**, and the Device may select or capture progress without blocking uploads.
-- **Global Snapshot Deletion** never moves a **Current Position** automatically to an ancestor and never changes live save data except through an explicitly chosen protected **Apply**.
+- Direct **Global Snapshot Deletion** whose Snapshot is the initiating **Device**'s **Current Position** moves that position to the nearest remaining ancestor, or clears it when no ancestor remains; the confirmation says so.
+- Another Device's matching **Current Position** never blocks deletion; it is cleared, without ancestor fallback, when that Device observes the **Tombstone Node**, and the Device may select or capture progress without blocking uploads.
+- **Global Snapshot Deletion** never changes live save data, including when the initiating Device's position falls back to an ancestor.
 - Physical Archive removal never removes the corresponding **Tombstone Node**.
 - One **Device** never distributes an upload task to another Device; uploads arise only from the acting Device's **Sync Mode**, its own explicit upload action, or retry of its previously authorized work.
 - The explicit "download all snapshots to this device" action invokes **Materialize All**; no **Sync Mode** implies it.
