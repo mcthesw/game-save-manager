@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::Utc;
 use opendal::Operator;
-use opendal::layers::RetryLayer;
+use opendal::layers::{RetryLayer, TimeoutLayer};
 use opendal::services;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -270,6 +270,24 @@ fn check_failure_message(action: &str, err: impl std::fmt::Display) -> String {
 }
 
 impl Backend {
+    /// A stalled connection would otherwise hang a sync, and the exclusive cloud
+    /// operation lock with it, until the OS drops the socket. The limits apply per
+    /// request or chunk, not per archive, and stay loose for slow links.
+    fn timeout_layer() -> TimeoutLayer {
+        TimeoutLayer::new()
+            .with_timeout(Duration::from_secs(120))
+            .with_io_timeout(Duration::from_secs(60))
+    }
+
+    /// Timeout must sit inside retry: it drops the timed-out future, which retry
+    /// then replays.
+    fn harden<A: opendal::raw::Access>(
+        builder: opendal::OperatorBuilder<A>,
+        timeout: TimeoutLayer,
+    ) -> Operator {
+        builder.layer(timeout).layer(Self::retry_layer()).finish()
+    }
+
     fn retry_layer() -> RetryLayer {
         RetryLayer::new()
             .with_jitter()
@@ -293,7 +311,7 @@ impl Backend {
                 let builder = services::Fs::default()
                     .root(root)
                     .atomic_write_dir(&Path::new(root).join(FS_ATOMIC_WRITE_DIR).to_string_lossy());
-                Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
+                Ok(Self::harden(Operator::new(builder)?, Self::timeout_layer()))
             }
             Backend::WebDAV {
                 endpoint,
@@ -305,10 +323,10 @@ impl Backend {
                     .username(username)
                     .password(password)
                     .root(root);
-                Ok(Operator::new(builder)?
-                    .layer(super::webdav::compatibility_layer()?)
-                    .layer(Self::retry_layer())
-                    .finish())
+                Ok(Self::harden(
+                    Operator::new(builder)?.layer(super::webdav::compatibility_layer()?),
+                    Self::timeout_layer(),
+                ))
             }
             Backend::S3 {
                 endpoint,
@@ -332,7 +350,7 @@ impl Backend {
                 } else {
                     builder
                 };
-                Ok(Operator::new(builder)?.layer(Self::retry_layer()).finish())
+                Ok(Self::harden(Operator::new(builder)?, Self::timeout_layer()))
             }
         }
     }
@@ -666,6 +684,38 @@ mod tests {
             .map(|entry| entry.unwrap().file_name())
             .filter(|name| name != super::FS_ATOMIC_WRITE_DIR)
             .collect()
+    }
+
+    #[tokio::test]
+    async fn a_silent_server_fails_the_operation_instead_of_hanging() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let accepted = tokio::spawn(async move {
+            let mut held = Vec::new();
+            while let Ok((stream, _)) = listener.accept().await {
+                held.push(stream);
+            }
+        });
+        let builder =
+            opendal::Operator::new(opendal::services::Webdav::default().endpoint(&endpoint))
+                .unwrap()
+                .layer(crate::cloud_sync::webdav::compatibility_layer().unwrap());
+        let operator = Backend::harden(
+            builder,
+            super::TimeoutLayer::new()
+                .with_timeout(std::time::Duration::from_millis(200))
+                .with_io_timeout(std::time::Duration::from_millis(200)),
+        );
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            operator.read("manifest.json"),
+        )
+        .await
+        .expect("the timeout layer must end the request");
+
+        assert!(result.is_err());
+        accepted.abort();
     }
 
     #[tokio::test]
