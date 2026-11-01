@@ -201,6 +201,7 @@ export async function changeGameMode(page: Page, modeLabel: string): Promise<voi
   await openSyncSettings(page);
   const modeButton = page.getByRole('button', { name: 'Sync mode' });
   await expect(modeButton).toBeVisible({ timeout: 30_000 });
+  await expect(modeButton).not.toHaveText('—', { timeout: 30_000 });
   const current = (await modeButton.textContent()) ?? '';
   if (current.includes(modeLabel)) {
     return;
@@ -384,6 +385,7 @@ export async function enableMode(
   await openSyncSettings(page);
   const modeButton = page.getByRole('button', { name: 'Sync mode' });
   await expect(modeButton).toBeVisible({ timeout: 30_000 });
+  await expect(modeButton).not.toHaveText('—', { timeout: 30_000 });
   const current = (await modeButton.textContent()) ?? '';
   if (current.includes(modeLabel) && catchUp === 'Keep in cloud') {
     return;

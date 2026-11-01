@@ -21,11 +21,47 @@ const busyGameId = ref('');
 const fleet = ref<{ load: () => Promise<void> } | null>(null);
 const definitionGameId = ref('');
 const publishingGame = ref(false);
-const { refreshConfig } = useConfig();
+const { config, deviceGameStatuses, refreshConfig } = useConfig();
+
+// Until the cloud answers, list the games this device already knows so the page never looks emptied.
+const localRows = computed<CloudArchiveGameView[]>(() =>
+  config.value.games.flatMap((game) => {
+    const id = game.storage_key || game.name;
+    const status = deviceGameStatuses.value.find((item) => item.game_id === id);
+    if (!status) return [];
+    return {
+      advertised_head_count: 0,
+      both_available_count: 0,
+      cloud_count: 0,
+      cloud_only_count: 0,
+      cloud_sync_enabled: game.cloud_sync_enabled ?? false,
+      definition_conflict: status.definition_conflict,
+      device_heads: {},
+      game_id: id,
+      has_update: false,
+      live_save_snapshot_on_exit: false,
+      local_count: 0,
+      local_only: !status.shared && !status.definition_conflict,
+      local_only_count: 0,
+      managed: status.managed,
+      metadata_sync_pending: status.metadata_sync_pending,
+      name: game.name,
+      other_device_only_count: 0,
+      pending_deletions: [],
+      requires_choice: false,
+      retention_limit: status.retention_limit,
+      snapshots: [],
+      sync_mode: 'manual',
+      unavailable_count: 0,
+      visible: status.visible,
+    } satisfies CloudArchiveGameView;
+  })
+);
+const cloudReady = computed(() => library.value !== null);
 
 const games = computed(() => {
   const keyword = search.value.trim().toLowerCase();
-  const rows = library.value?.games ?? [];
+  const rows = library.value?.games ?? localRows.value;
   if (!keyword) return rows;
   return rows.filter((game) => game.name.toLowerCase().includes(keyword));
 });
@@ -79,6 +115,7 @@ function syncStatus(game: CloudArchiveGameView) {
   if (game.definition_conflict) return 'conflict';
   if (game.metadata_sync_pending) return 'metadata_pending';
   if (lastError.value) return 'unavailable';
+  if (!cloudReady.value) return 'loading';
   if (game.local_only) return 'local_only';
   if (!game.managed || !game.cloud_sync_enabled) return 'disabled';
   if (game.requires_choice) return 'conflict';
@@ -145,6 +182,7 @@ async function setCloudEnabled(game: CloudArchiveGameView, enabled: boolean) {
     );
     if (result.status === 'error') {
       notifyError($t('sync_settings.archives.mode_change_failed'), result.error);
+      await reload();
       return;
     }
     notifySuccess($t('sync_settings.archives.mode_changed'));
@@ -236,7 +274,7 @@ function openGame(game: CloudArchiveGameView) {
 
       <div v-if="games.length === 0" class="px-3 py-8 text-center text-sm text-text-dim">
         {{
-          library && library.games.length === 0
+          !search.trim()
             ? $t('sync_settings.overview.no_games')
             : $t('sync_settings.overview.no_matches')
         }}
@@ -296,23 +334,27 @@ function openGame(game: CloudArchiveGameView) {
           <button
             type="button"
             class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 text-xs text-text transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!game.managed || !game.cloud_sync_enabled"
+            :disabled="!cloudReady || !game.managed || !game.cloud_sync_enabled"
             :aria-label="$t('sync_settings.overview.mode')"
           >
-            <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
-            <span>{{ modeLabel(game.sync_mode) }}</span>
-            <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
+            <template v-if="cloudReady">
+              <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
+              <span>{{ modeLabel(game.sync_mode) }}</span>
+              <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
+            </template>
+            <span v-else class="text-text-dim">—</span>
           </button>
         </KMenu>
 
         <div class="truncate text-xs text-text-dim">
-          {{ distribution(game) }}
+          {{ cloudReady ? distribution(game) : '' }}
         </div>
 
         <div class="flex justify-center">
           <KSwitch
             :model-value="game.managed && game.cloud_sync_enabled"
             :disabled="
+              !cloudReady ||
               game.definition_conflict ||
               game.metadata_sync_pending ||
               !game.managed ||
@@ -325,7 +367,7 @@ function openGame(game: CloudArchiveGameView) {
 
         <div class="flex items-center gap-1">
           <button
-            v-if="!game.managed && !game.local_only && !game.definition_conflict"
+            v-if="cloudReady && !game.managed && !game.local_only && !game.definition_conflict"
             type="button"
             class="text-xs text-accent"
             @click="manageHere(game)"
@@ -333,6 +375,7 @@ function openGame(game: CloudArchiveGameView) {
             {{ $t('manage.add_to_device') }}
           </button>
           <KMenu
+            v-if="cloudReady"
             :entries="gameDeletion.entries(deletionTarget(game))"
             :aria-label="$t('manage.delete_actions')"
             @select="(key: string) => deleteGame(game, key)"

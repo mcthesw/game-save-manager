@@ -8,6 +8,7 @@ defineProps<{
   localSnapshots: number;
   cloudSnapshots: number;
   totalSnapshots: number;
+  loaded: boolean;
   materializing: boolean;
   pendingMaterialization: boolean;
 }>();
@@ -23,11 +24,13 @@ defineEmits<{
       <h3 class="text-sm font-semibold text-text">{{ $t('sync_settings.archives.title') }}</h3>
       <p class="mt-1 text-xs text-text-dim">
         {{
-          $t('sync_settings.archives.game_summary', {
-            local: localSnapshots,
-            cloud: cloudSnapshots,
-            total: totalSnapshots,
-          })
+          loaded
+            ? $t('sync_settings.archives.game_summary', {
+                local: localSnapshots,
+                cloud: cloudSnapshots,
+                total: totalSnapshots,
+              })
+            : $t('sync_settings.archives.game_summary_pending')
         }}
       </p>
     </div>
