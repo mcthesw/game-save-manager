@@ -292,7 +292,9 @@ async function refresh_backups_info(refreshCloud = true) {
   const request = ++backupRead;
   const target = game.value;
   if (!target?.name) return;
-  if (refreshCloud) await refreshCloudLibrary(true);
+  // Local snapshots must not wait for the cloud; the watcher on cloudLibrary
+  // re-renders once the refreshed cloud view differs.
+  if (refreshCloud) void refreshCloudLibrary(true);
   const result = await commands.getGameSnapshotsInfo(target);
   if (request !== backupRead || target.storage_key !== game.value?.storage_key) return;
   if (result.status === 'error') {
