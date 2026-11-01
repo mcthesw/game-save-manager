@@ -170,6 +170,11 @@ export const commands = {
   async deleteGame(game: types.DeleteGameRequest['game']) {
     return unwrap<types.DeleteGameResponses[200]>(await sdk.deleteGame({ body: { game } }));
   },
+  async getLocalCopyRemovalPreview(identity: types.GetLocalCopyRemovalPreviewRequest['identity']) {
+    return unwrap<types.GetLocalCopyRemovalPreviewResponses[200]>(
+      await sdk.getLocalCopyRemovalPreview({ body: { identity } })
+    );
+  },
   async getGameSnapshotsInfo(game: types.GetGameSnapshotsInfoRequest['game']) {
     return unwrap<types.GetGameSnapshotsInfoResponses[200]>(
       await sdk.getGameSnapshotsInfo({ body: { game } })

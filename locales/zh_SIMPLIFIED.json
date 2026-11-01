@@ -275,6 +275,8 @@
         "delete_actions": "删除游戏",
         "add_to_device": "在本机管理",
         "delete_local_confirm": "输入 yes 以从本机删除“{game}”的管理记录和全部本地备份。云端历史、其他设备和游戏实际存档均保留。",
+        "delete_local_unuploaded_confirm": "“{game}”有 {count} 个存档点只保存在本机、尚未上传到云端，从本机删除后将永久丢失。输入 yes 仍要从本机删除“{game}”。游戏实际存档均保留。",
+        "delete_local_unchecked_confirm": "无法检查云端。“{game}”最多有 {count} 个存档点可能只保存在本机，从本机删除后将永久丢失。输入 yes 仍要从本机删除“{game}”。游戏实际存档均保留。",
         "delete_everywhere_confirm": "输入 yes 以永久删除“{game}”在云端和所有设备上的管理记录及全部备份。离线设备将在重新连接后删除备份。游戏实际存档保留，此操作无法撤销。",
         "delete_game_confirmation_error": "请输入 yes 确认删除",
         "choose_restore_location": "选择恢复位置",

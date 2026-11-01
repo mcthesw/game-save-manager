@@ -808,6 +808,10 @@ export type GetGameSnapshotsInfoRequest = {
   game: Game;
 };
 
+export type GetLocalCopyRemovalPreviewRequest = {
+  identity: string;
+};
+
 export type HostEvent = {
   eventType: string;
   payload: unknown;
@@ -898,6 +902,18 @@ export type LiveSaveSyncOptions = {
  * cheap metadata check, while transfer operations perform the full hash check.
  */
 export type LocalArchiveEvidence = 'unknown' | 'present' | 'mismatch';
+
+export type LocalCopyRemovalPreview = {
+  /**
+   * False when the cloud could not be reached, in which case every local
+   * archive is counted because none can be shown to exist elsewhere.
+   */
+  cloud_checked: boolean;
+  /**
+   * Local archives that the cloud does not hold.
+   */
+  only_on_this_device: number;
+};
 
 export type LocalProgressView = {
   cloud_available: boolean;
@@ -2861,6 +2877,29 @@ export type GetLocalConfigResponses = {
 };
 
 export type GetLocalConfigResponse = GetLocalConfigResponses[keyof GetLocalConfigResponses];
+
+export type GetLocalCopyRemovalPreviewData = {
+  body: GetLocalCopyRemovalPreviewRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/get-local-copy-removal-preview';
+};
+
+export type GetLocalCopyRemovalPreviewErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type GetLocalCopyRemovalPreviewError =
+  GetLocalCopyRemovalPreviewErrors[keyof GetLocalCopyRemovalPreviewErrors];
+
+export type GetLocalCopyRemovalPreviewResponses = {
+  200: LocalCopyRemovalPreview;
+};
+
+export type GetLocalCopyRemovalPreviewResponse =
+  GetLocalCopyRemovalPreviewResponses[keyof GetLocalCopyRemovalPreviewResponses];
 
 export type GetLudusaviManifestStatusData = {
   body?: never;

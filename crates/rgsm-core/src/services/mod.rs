@@ -12,6 +12,8 @@ mod game_edit;
 mod game_operation_lock;
 pub use game_edit::{DeviceVariableEdit, DeviceVariableEdits};
 mod game_deletion;
+mod local_copy_removal;
+pub use local_copy_removal::LocalCopyRemovalPreview;
 mod local_upgrade;
 pub use local_upgrade::{LocalUpgradeAction, local_archive_upgrade};
 mod variable_setup;

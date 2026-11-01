@@ -25,7 +25,8 @@ use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus,
-    CurrentPositionDecision, GameSyncModeOutcome, LiveSaveSyncOptions, ServiceContext,
+    CurrentPositionDecision, GameSyncModeOutcome, LiveSaveSyncOptions, LocalCopyRemovalPreview,
+    ServiceContext,
 };
 use rgsm_core::steam;
 use rgsm_core::vn_scanner;
@@ -434,6 +435,16 @@ pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+pub async fn get_local_copy_removal_preview(
+    identity: String,
+    app_handle: AppHandle,
+) -> Result<LocalCopyRemovalPreview, String> {
+    svc(&app_handle)
+        .local_copy_removal_preview(&identity)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String> {
