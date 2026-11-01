@@ -144,6 +144,9 @@ onBeforeUnmount(() => {
           <p class="mt-1 text-xs leading-relaxed text-text-dim">
             {{ $t('local_upgrade.purpose') }}
           </p>
+          <p class="mt-1 text-xs leading-relaxed text-text-dim">
+            {{ $t('local_upgrade.shared_note') }}
+          </p>
           <p v-if="view.remaining" class="mt-1 text-xs text-text-dim">
             {{ $t('local_upgrade.space', { size: size(view.estimatedExtraBytes) }) }}
             <span v-if="view.unknownSizes">{{ $t('local_upgrade.space_unknown') }}</span>

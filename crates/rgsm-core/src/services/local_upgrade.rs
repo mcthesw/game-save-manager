@@ -1,6 +1,13 @@
 use crate::{
-    backup::local_upgrade::{LocalUpgrade, LocalUpgradeView, UpgradeRetry},
-    config::{get_config, resolve_backup_path},
+    backup::{
+        Game,
+        local_upgrade::{LocalUpgrade, LocalUpgradeView, UpgradeRetry},
+    },
+    cloud_sync::Backend,
+    config::{
+        CloudNamespaceGeneration, Config, LocalState, SharedLibrary, cloud_bootstrap_inputs,
+        get_config, resolve_backup_path,
+    },
     device::get_current_device_id,
     preclude::BackupError,
 };
@@ -19,10 +26,11 @@ pub enum LocalUpgradeAction {
 /// no access to global configuration, hooks, live saves or cloud storage.
 pub fn local_archive_upgrade(action: LocalUpgradeAction) -> Result<LocalUpgradeView, BackupError> {
     let config = get_config()?;
+    let (library, _, local_state) = cloud_bootstrap_inputs()?;
     let upgrade = LocalUpgrade::new(
         resolve_backup_path(&config.backup_path),
         get_current_device_id().clone(),
-        config.games.clone(),
+        games_outside_cloud_library(&config, &library, &local_state),
         config.settings.compression_preset,
     );
     drop(config);
@@ -34,3 +42,36 @@ pub fn local_archive_upgrade(action: LocalUpgradeAction) -> Result<LocalUpgradeV
         LocalUpgradeAction::Cleanup => upgrade.cleanup_originals(),
     }
 }
+
+/// A converted archive has different bytes, hash and extension than the one a
+/// Cloud Library may already hold, so games whose history is (or may be)
+/// shared keep their archives as they are. The Library keeps serving them
+/// and new Snapshots use the current format.
+fn games_outside_cloud_library(
+    config: &Config,
+    library: &SharedLibrary,
+    local_state: &LocalState,
+) -> Vec<Game> {
+    let legacy_cloud_connected =
+        !matches!(config.settings.cloud_settings.backend, Backend::Disabled);
+    config
+        .games
+        .iter()
+        .filter(|game| {
+            if local_state.cloud_namespace_generation == CloudNamespaceGeneration::V2 {
+                local_state.is_local_game(&game.storage_key)
+                    || !library
+                        .games
+                        .iter()
+                        .any(|shared| shared.storage_key == game.storage_key)
+            } else {
+                !(legacy_cloud_connected && game.cloud_sync_enabled)
+            }
+        })
+        .cloned()
+        .collect()
+}
+
+#[cfg(test)]
+#[path = "local_upgrade_tests.rs"]
+mod tests;
