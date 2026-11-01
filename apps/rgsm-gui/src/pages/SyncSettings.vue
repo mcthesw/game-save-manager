@@ -173,6 +173,13 @@ const joinRequired = computed(() => cloudLibraryStatus.value?.kind === 'join_req
 const cutoverResumable = computed(
   () => cloudLibraryStatus.value?.kind === 'cutover_required' && cloudLibraryStatus.value.resumable
 );
+const cutoverCardTitle = computed(() =>
+  cloudLibraryStatus.value?.kind !== 'cutover_required'
+    ? ''
+    : cloudLibraryStatus.value.resumable
+      ? $t('sync_settings.library.cutover.card_resume_title')
+      : $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.value.game_count })
+);
 const snapshotSyncInterval = computed({
   get: () => cloud_settings.value.auto_sync_interval || 5,
   set: (minutes: number | undefined) => {
@@ -237,6 +244,25 @@ function normalizedConnectionKey(settings: Partial<EditableCloudSettings> | unde
   return JSON.stringify(normalized);
 }
 
+// Interrupted-upgrade progress is kept per cloud location; credentials and
+// tuning values do not move it.
+function connectionLocationKey(settings: Partial<EditableCloudSettings> | undefined): string {
+  const { backend, root_path } = toEditableCloudSettings(settings);
+  const trimmed = (value: string) => value.replace(/\/+$/, '');
+  const location =
+    backend.type === 'WebDAV'
+      ? [backend.type, trimmed(backend.endpoint)]
+      : backend.type === 'S3'
+        ? [backend.type, trimmed(backend.endpoint), backend.bucket, backend.region]
+        : [backend.type];
+  return JSON.stringify([...location, trimmed(root_path)]);
+}
+function movesCloudLocation(backend: Backend): boolean {
+  return (
+    connectionLocationKey({ ...cloud_settings.value, backend }) !==
+    connectionLocationKey(config.value?.settings.cloud_settings)
+  );
+}
 function currentBackend(normalize = true): Backend | null {
   const type = cloud_settings.value?.backend?.type;
   if (type === 'WebDAV') {
@@ -333,7 +359,7 @@ async function save() {
     return;
   }
 
-  if (cutoverResumable.value && hasUnsavedCloudSettings.value) {
+  if (cutoverResumable.value && movesCloudLocation(backend)) {
     try {
       await feedback.confirm(
         $t('sync_settings.library.cutover.save_warning'),
@@ -500,9 +526,7 @@ onMounted(async () => {
                   ? $t('sync_settings.library.cutover.card_resume')
                   : $t('sync_settings.library.cutover.card_kicker')
               "
-              :title="
-                $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
-              "
+              :title="cutoverCardTitle"
               :action="
                 cloudLibraryStatus.resumable
                   ? $t('sync_settings.library.cutover.resume_action')
@@ -539,9 +563,7 @@ onMounted(async () => {
                 ? $t('sync_settings.library.cutover.card_resume')
                 : $t('sync_settings.library.cutover.card_kicker')
             "
-            :title="
-              $t('sync_settings.library.cutover.card', { count: cloudLibraryStatus.game_count })
-            "
+            :title="cutoverCardTitle"
             :action="
               cloudLibraryStatus.resumable
                 ? $t('sync_settings.library.cutover.resume_action')
