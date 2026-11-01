@@ -415,71 +415,73 @@ impl Game {
         })
     }
     pub async fn delete_snapshot(&self, date: &str) -> Result<SnapshotDeleted, BackupError> {
-        let mut saves = self.get_game_snapshots_info()?;
-        let deleted = saves
-            .backups
-            .iter()
-            .find(|snapshot| snapshot.date == date)
-            .ok_or_else(|| {
-                BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
-            })?;
         let backup_dir = get_backup_path()?.join(self.backup_dir_name().as_ref());
-        let archive_path = crate::backup::snapshot_archive_path(&backup_dir, deleted);
-        remove_snapshot_archive(&archive_path)?;
-        let remote_archive_path = crate::backup::remote_archive_path(
-            self.backup_dir_name().as_ref(),
-            date,
-            deleted.archive_format,
-            deleted.archive_name.as_deref(),
-        )
-        .to_string_lossy()
-        .replace('\\', "/");
-
-        // Find the parent of the deleted node
-        let deleted_parent = saves
-            .backups
-            .iter()
-            .find(|x| x.date == date)
-            .and_then(|x| x.parent.clone());
-
-        // Find children of the deleted node BEFORE re-parenting them
-        let newest_child = saves
-            .backups
-            .iter()
-            .filter(|x| x.parent.as_deref() == Some(date))
-            .max_by_key(|snapshot| snapshot.creation_time())
-            .map(|snapshot| snapshot.date.clone());
-
-        // Update children's parent to point to deleted node's parent
-        for snapshot in saves.backups.iter_mut() {
-            if snapshot.parent.as_deref() == Some(date) {
-                snapshot.parent = deleted_parent.clone();
-            }
-        }
-
-        let replacement_head = if newest_child.is_some() {
-            newest_child
-        } else if deleted_parent.is_some() {
-            deleted_parent.clone()
-        } else {
-            saves
+        let mut remote_archive_path = String::new();
+        let saves = self.update_game_snapshots_info::<BackupError>(|saves| {
+            let deleted = saves
                 .backups
                 .iter()
-                .filter(|x| x.date != date)
-                .max_by_key(|snapshot| snapshot.creation_time())
-                .map(|x| x.date.clone())
-        };
-        let affected_devices: Vec<_> = saves
-            .head_entries()
-            .filter(|(_, head)| head.as_str() == date)
-            .map(|(device_id, _)| device_id.clone())
-            .collect();
-        for device_id in affected_devices {
-            saves.set_head_for_device(device_id, replacement_head.clone());
-        }
+                .find(|snapshot| snapshot.date == date)
+                .ok_or_else(|| {
+                    BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
+                })?;
+            let archive_path = crate::backup::snapshot_archive_path(&backup_dir, deleted);
+            remove_snapshot_archive(&archive_path)?;
+            remote_archive_path = crate::backup::remote_archive_path(
+                self.backup_dir_name().as_ref(),
+                date,
+                deleted.archive_format,
+                deleted.archive_name.as_deref(),
+            )
+            .to_string_lossy()
+            .replace('\\', "/");
 
-        saves.backups.retain(|x| x.date != date);
-        self.set_game_snapshots_info(&saves)?;
+            // Find the parent of the deleted node
+            let deleted_parent = saves
+                .backups
+                .iter()
+                .find(|x| x.date == date)
+                .and_then(|x| x.parent.clone());
+
+            // Find children of the deleted node BEFORE re-parenting them
+            let newest_child = saves
+                .backups
+                .iter()
+                .filter(|x| x.parent.as_deref() == Some(date))
+                .max_by_key(|snapshot| snapshot.creation_time())
+                .map(|snapshot| snapshot.date.clone());
+
+            // Update children's parent to point to deleted node's parent
+            for snapshot in saves.backups.iter_mut() {
+                if snapshot.parent.as_deref() == Some(date) {
+                    snapshot.parent = deleted_parent.clone();
+                }
+            }
+
+            let replacement_head = if newest_child.is_some() {
+                newest_child
+            } else if deleted_parent.is_some() {
+                deleted_parent.clone()
+            } else {
+                saves
+                    .backups
+                    .iter()
+                    .filter(|x| x.date != date)
+                    .max_by_key(|snapshot| snapshot.creation_time())
+                    .map(|x| x.date.clone())
+            };
+            let affected_devices: Vec<_> = saves
+                .head_entries()
+                .filter(|(_, head)| head.as_str() == date)
+                .map(|(device_id, _)| device_id.clone())
+                .collect();
+            for device_id in affected_devices {
+                saves.set_head_for_device(device_id, replacement_head.clone());
+            }
+
+            saves.backups.retain(|x| x.date != date);
+            Ok(())
+        })?;
 
         Ok(SnapshotDeleted {
             snapshots: saves,
@@ -504,12 +506,11 @@ impl Game {
         if !metadata_path.is_file() {
             return Ok(0);
         }
-        let mut saves = self.get_game_snapshots_info()?;
-        let previous_heads = saves.device_heads.clone();
-        let removed = saves.forget_v2_tombstones(snapshot_ids);
-        if removed > 0 || saves.device_heads != previous_heads {
-            self.set_game_snapshots_info(&saves)?;
-        }
+        let mut removed = 0;
+        self.update_game_snapshots_info::<BackupError>(|saves| {
+            removed = saves.forget_v2_tombstones(snapshot_ids);
+            Ok(())
+        })?;
         Ok(removed)
     }
 
@@ -525,93 +526,93 @@ impl Game {
         }
 
         let backup_dir = get_backup_path()?.join(self.backup_dir_name().as_ref());
-        let mut saves = self.get_game_snapshots_info()?;
         let to_delete: HashSet<&str> = dates.iter().map(|d| d.as_str()).collect();
-
-        // Resolve every archive from persisted metadata before mutating the snapshot graph.
         let mut deleted_remote_paths = Vec::new();
-        for date in dates {
-            let snapshot = saves
+        let saves = self.update_game_snapshots_info::<BackupError>(|saves| {
+            // Resolve every archive from persisted metadata before mutating the snapshot graph.
+            for date in dates {
+                let snapshot = saves
+                    .backups
+                    .iter()
+                    .find(|snapshot| snapshot.date == *date)
+                    .ok_or_else(|| {
+                        BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
+                    })?;
+                let archive_path = crate::backup::snapshot_archive_path(&backup_dir, snapshot);
+                remove_snapshot_archive(&archive_path)?;
+                deleted_remote_paths.push(
+                    crate::backup::remote_archive_path(
+                        self.backup_dir_name().as_ref(),
+                        date,
+                        snapshot.archive_format,
+                        snapshot.archive_name.as_deref(),
+                    )
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                );
+            }
+
+            // Build parent lookup for resolving ancestor chains
+            let parent_map: HashMap<String, Option<String>> = saves
                 .backups
                 .iter()
-                .find(|snapshot| snapshot.date == *date)
-                .ok_or_else(|| {
-                    BackupError::Unexpected(anyhow::anyhow!("Snapshot '{date}' was not found"))
-                })?;
-            let archive_path = crate::backup::snapshot_archive_path(&backup_dir, snapshot);
-            remove_snapshot_archive(&archive_path)?;
-            deleted_remote_paths.push(
-                crate::backup::remote_archive_path(
-                    self.backup_dir_name().as_ref(),
-                    date,
-                    snapshot.archive_format,
-                    snapshot.archive_name.as_deref(),
-                )
-                .to_string_lossy()
-                .replace('\\', "/"),
-            );
-        }
+                .map(|s| (s.date.clone(), s.parent.clone()))
+                .collect();
 
-        // Build parent lookup for resolving ancestor chains
-        let parent_map: HashMap<String, Option<String>> = saves
-            .backups
-            .iter()
-            .map(|s| (s.date.clone(), s.parent.clone()))
-            .collect();
-
-        // Find the nearest surviving ancestor for a deleted date
-        let find_surviving_ancestor = |date: &str| -> Option<String> {
-            let mut current = parent_map.get(date).cloned().flatten();
-            while let Some(p) = current {
-                if !to_delete.contains(p.as_str()) {
-                    return Some(p);
+            // Find the nearest surviving ancestor for a deleted date
+            let find_surviving_ancestor = |date: &str| -> Option<String> {
+                let mut current = parent_map.get(date).cloned().flatten();
+                while let Some(p) = current {
+                    if !to_delete.contains(p.as_str()) {
+                        return Some(p);
+                    }
+                    current = parent_map.get(&p).cloned().flatten();
                 }
-                current = parent_map.get(&p).cloned().flatten();
+                None
+            };
+
+            // Pre-compute surviving ancestor for each deleted date
+            let surviving_ancestors: HashMap<&str, Option<String>> = to_delete
+                .iter()
+                .map(|&d| (d, find_surviving_ancestor(d)))
+                .collect();
+
+            // Re-parent surviving children of deleted nodes
+            for snapshot in saves.backups.iter_mut() {
+                if to_delete.contains(snapshot.date.as_str()) {
+                    continue;
+                }
+                if let Some(ref parent) = snapshot.parent
+                    && to_delete.contains(parent.as_str())
+                {
+                    snapshot.parent = surviving_ancestors[parent.as_str()].clone();
+                }
             }
-            None
-        };
 
-        // Pre-compute surviving ancestor for each deleted date
-        let surviving_ancestors: HashMap<&str, Option<String>> = to_delete
-            .iter()
-            .map(|&d| (d, find_surviving_ancestor(d)))
-            .collect();
-
-        // Re-parent surviving children of deleted nodes
-        for snapshot in saves.backups.iter_mut() {
-            if to_delete.contains(snapshot.date.as_str()) {
-                continue;
+            let newest_surviving = saves
+                .backups
+                .iter()
+                .filter(|s| !to_delete.contains(s.date.as_str()))
+                .max_by_key(|snapshot| snapshot.creation_time())
+                .map(|s| s.date.clone());
+            let affected_devices: Vec<_> = saves
+                .head_entries()
+                .filter(|(_, head)| to_delete.contains(head.as_str()))
+                .map(|(device_id, head)| {
+                    let replacement =
+                        find_surviving_ancestor(head).or_else(|| newest_surviving.clone());
+                    (device_id.clone(), replacement)
+                })
+                .collect();
+            for (device_id, replacement) in affected_devices {
+                saves.set_head_for_device(device_id, replacement);
             }
-            if let Some(ref parent) = snapshot.parent
-                && to_delete.contains(parent.as_str())
-            {
-                snapshot.parent = surviving_ancestors[parent.as_str()].clone();
-            }
-        }
 
-        let newest_surviving = saves
-            .backups
-            .iter()
-            .filter(|s| !to_delete.contains(s.date.as_str()))
-            .max_by_key(|snapshot| snapshot.creation_time())
-            .map(|s| s.date.clone());
-        let affected_devices: Vec<_> = saves
-            .head_entries()
-            .filter(|(_, head)| to_delete.contains(head.as_str()))
-            .map(|(device_id, head)| {
-                let replacement =
-                    find_surviving_ancestor(head).or_else(|| newest_surviving.clone());
-                (device_id.clone(), replacement)
-            })
-            .collect();
-        for (device_id, replacement) in affected_devices {
-            saves.set_head_for_device(device_id, replacement);
-        }
-
-        saves
-            .backups
-            .retain(|s| !to_delete.contains(s.date.as_str()));
-        self.set_game_snapshots_info(&saves)?;
+            saves
+                .backups
+                .retain(|s| !to_delete.contains(s.date.as_str()));
+            Ok(())
+        })?;
 
         Ok(BatchSnapshotsDeleted {
             snapshots: saves,

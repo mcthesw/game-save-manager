@@ -78,7 +78,13 @@ impl Game {
     pub fn get_game_snapshots_info(&self) -> Result<GameSnapshots, BackupError> {
         self.catalog()?.read()
     }
-    pub fn set_game_snapshots_info(&self, snapshots: &GameSnapshots) -> Result<(), BackupError> {
+    /// Whole-catalog overwrite for test fixtures; production edits must go through
+    /// `update_game_snapshots_info` so concurrent commits are not lost.
+    #[cfg(test)]
+    pub(crate) fn set_game_snapshots_info(
+        &self,
+        snapshots: &GameSnapshots,
+    ) -> Result<(), BackupError> {
         let catalog = self.catalog()?;
         let _guard = CATALOG_WRITE
             .lock()

@@ -952,9 +952,10 @@ impl ServiceContext {
                     .await?;
             }
             Some(CurrentPositionDecision::Clear) => {
-                let mut next = snapshots;
-                next.set_current_device_head(None);
-                game.set_game_snapshots_info(&next)?;
+                let next = game.update_game_snapshots_info::<CloudLibraryServiceError>(|next| {
+                    next.set_current_device_head(None);
+                    Ok(())
+                })?;
                 self.publish_current_position(game_id, &next).await?;
             }
             Some(CurrentPositionDecision::FallbackToParent) => {
@@ -972,9 +973,10 @@ impl ServiceContext {
                     snapshot_id,
                 )
                 .map_err(ManifestRepositoryError::from)?;
-                let mut next = snapshots;
-                next.set_current_device_head(parent);
-                game.set_game_snapshots_info(&next)?;
+                let next = game.update_game_snapshots_info::<CloudLibraryServiceError>(|next| {
+                    next.set_current_device_head(parent);
+                    Ok(())
+                })?;
                 self.publish_current_position(game_id, &next).await?;
             }
         }

@@ -539,18 +539,18 @@ impl ServiceContext {
             return Err(BackupError::SharedSnapshotProvenance);
         }
 
-        let mut snapshots = game.get_game_snapshots_info()?;
-        let snapshot = snapshots
-            .backups
-            .iter_mut()
-            .find(|snapshot| snapshot.date == snapshot_date)
-            .ok_or_else(|| BackupError::BackupNotExist {
-                name: game_name.to_string(),
-                date: snapshot_date.to_string(),
-            })?;
-        snapshot.created_by = created_by;
-
-        game.set_game_snapshots_info(&snapshots)?;
+        let snapshots = game.update_game_snapshots_info::<BackupError>(|snapshots| {
+            let snapshot = snapshots
+                .backups
+                .iter_mut()
+                .find(|snapshot| snapshot.date == snapshot_date)
+                .ok_or_else(|| BackupError::BackupNotExist {
+                    name: game_name.to_string(),
+                    date: snapshot_date.to_string(),
+                })?;
+            snapshot.created_by = created_by;
+            Ok(())
+        })?;
 
         self.pipeline()
             .fire_metadata_changed(&MetadataChangedCtx {
@@ -570,20 +570,20 @@ impl ServiceContext {
         date: &str,
         source: HookSource,
     ) -> Result<(), BackupError> {
-        let mut snapshots = game.get_game_snapshots_info()?;
-        if !snapshots
-            .backups
-            .iter()
-            .any(|snapshot| snapshot.date == date)
-        {
-            return Err(BackupError::BackupNotExist {
-                name: game.name.clone(),
-                date: date.to_string(),
-            });
-        }
-
-        snapshots.set_current_device_head(Some(date.to_string()));
-        game.set_game_snapshots_info(&snapshots)?;
+        let snapshots = game.update_game_snapshots_info::<BackupError>(|snapshots| {
+            if !snapshots
+                .backups
+                .iter()
+                .any(|snapshot| snapshot.date == date)
+            {
+                return Err(BackupError::BackupNotExist {
+                    name: game.name.clone(),
+                    date: date.to_string(),
+                });
+            }
+            snapshots.set_current_device_head(Some(date.to_string()));
+            Ok(())
+        })?;
 
         let config = get_config()?;
         self.pipeline()
@@ -604,18 +604,18 @@ impl ServiceContext {
         date: &str,
         source: HookSource,
     ) -> Result<(), BackupError> {
-        let mut snapshots = game.get_game_snapshots_info()?;
-        let snapshot = snapshots
-            .backups
-            .iter_mut()
-            .find(|snapshot| snapshot.date == date)
-            .ok_or_else(|| BackupError::BackupNotExist {
-                name: game.name.clone(),
-                date: date.to_string(),
-            })?;
-        snapshot.parent = None;
-
-        game.set_game_snapshots_info(&snapshots)?;
+        let snapshots = game.update_game_snapshots_info::<BackupError>(|snapshots| {
+            let snapshot = snapshots
+                .backups
+                .iter_mut()
+                .find(|snapshot| snapshot.date == date)
+                .ok_or_else(|| BackupError::BackupNotExist {
+                    name: game.name.clone(),
+                    date: date.to_string(),
+                })?;
+            snapshot.parent = None;
+            Ok(())
+        })?;
 
         let config = get_config()?;
         self.pipeline()
