@@ -12,11 +12,11 @@ use crate::cloud_sync::v2::{
     CloudArchiveMaterializer, CloudLibraryBootstrap, CloudLibraryBootstrapError,
     CloudLibraryCutover, CloudLibraryCutoverError, CloudLibraryCutoverReview, CloudLibraryJoin,
     CloudLibraryJoinError, CloudLibraryJoinReview, CloudManifestRepository,
-    CloudNamespaceClassification, CloudNamespaceDescriptor, CloudNamespaceError,
-    ConflictReviewError, DeletionRegistryError, DeviceProfileRemovalError, DeviceProfileRepository,
-    DeviceProfileRepositoryError, GlobalSnapshotDeletion, JoinGameDecision, KeepLocalProgressError,
-    LocalArchiveEvictionError, ManifestRepositoryError, MaterializationError,
-    MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
+    CloudNamespaceClassification, CloudNamespaceClassifier, CloudNamespaceDescriptor,
+    CloudNamespaceError, ConflictReviewError, DeletionRegistryError, DeviceProfileRemovalError,
+    DeviceProfileRepository, DeviceProfileRepositoryError, GlobalSnapshotDeletion,
+    JoinGameDecision, KeepLocalProgressError, LocalArchiveEvictionError, ManifestRepositoryError,
+    MaterializationError, MaterializationOutcome, MaterializationPreview, SharedGameDeletionError,
     SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotReconcilePolicy,
     SnapshotSyncCoordinator, SnapshotSyncError, V2ConflictReview,
 };
@@ -214,7 +214,7 @@ impl ServiceContext {
         let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
         let operator = session.get_op()?;
         let bootstrap = CloudLibraryBootstrap::new(operator.clone(), 3);
-        let resumable_cutover = cutover_progress_path(&local_state.cloud_settings)?.is_file();
+        let resumable_cutover = cutover_progress_path(&local_state.cloud_settings).is_file();
         match bootstrap.inspect().await {
             Ok(classification) => {
                 if generation == CloudNamespaceGeneration::V2
@@ -251,6 +251,22 @@ impl ServiceContext {
                     }
                 }
                 map_library_status(generation, classification, resumable_cutover)
+            }
+            Err(
+                error @ CloudLibraryBootstrapError::Namespace(CloudNamespaceError::PartialV2(_)),
+            ) if generation == CloudNamespaceGeneration::LegacyV1 && !resumable_cutover => {
+                // The upgrade was interrupted and its local progress is gone.
+                // The untouched legacy data is enough to start it again.
+                let legacy = CloudNamespaceClassifier::new(operator)
+                    .read_legacy_config()
+                    .await
+                    .map_err(CloudLibraryBootstrapError::from)?;
+                legacy
+                    .map(|config| CloudLibraryStatus::CutoverRequired {
+                        game_count: config.games.len(),
+                        resumable: false,
+                    })
+                    .ok_or_else(|| error.into())
             }
             Err(error) => map_inspect_error(generation, resumable_cutover, error),
         }
@@ -787,7 +803,7 @@ impl ServiceContext {
         Ok(CloudLibraryCutover::new(
             CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?,
             archive_root,
-            cutover_progress_path(&local_state.cloud_settings)?,
+            cutover_progress_path(&local_state.cloud_settings),
             local_state.current_device_id.clone(),
             profile.clone(),
             3,
@@ -991,19 +1007,34 @@ impl ServiceContext {
     }
 }
 
-fn cutover_progress_path(
-    cloud_settings: &crate::cloud_sync::CloudSettings,
-) -> Result<std::path::PathBuf, CloudLibraryServiceError> {
-    Ok(crate::app_dirs::get_app_data_dir().join(cutover_progress_file_name(cloud_settings)?))
+fn cutover_progress_path(cloud_settings: &crate::cloud_sync::CloudSettings) -> std::path::PathBuf {
+    crate::app_dirs::get_app_data_dir().join(cutover_progress_file_name(cloud_settings))
 }
 
-fn cutover_progress_file_name(
-    cloud_settings: &crate::cloud_sync::CloudSettings,
-) -> Result<String, CloudLibraryServiceError> {
-    let identity = xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(cloud_settings)?);
-    Ok(format!(
-        "GameSaveManager.cloud-cutover.{identity:016x}.json"
-    ))
+/// Interrupted-upgrade progress belongs to the cloud location, not to the
+/// credentials or tuning knobs used to reach it. Changing a password or the
+/// concurrency must not orphan the progress of a half-uploaded namespace.
+fn cutover_progress_file_name(cloud_settings: &crate::cloud_sync::CloudSettings) -> String {
+    use crate::cloud_sync::Backend;
+    let location = match &cloud_settings.backend {
+        Backend::Disabled => "disabled".to_string(),
+        Backend::Fs => "fs".to_string(),
+        Backend::WebDAV { endpoint, .. } => format!("webdav\n{}", endpoint.trim_end_matches('/')),
+        Backend::S3 {
+            endpoint,
+            bucket,
+            region,
+            ..
+        } => format!("s3\n{}\n{bucket}\n{region}", endpoint.trim_end_matches('/')),
+    };
+    let identity = xxhash_rust::xxh3::xxh3_64(
+        format!(
+            "{location}\n{}",
+            cloud_settings.root_path.trim_end_matches('/')
+        )
+        .as_bytes(),
+    );
+    format!("GameSaveManager.cloud-cutover.{identity:016x}.json")
 }
 
 fn map_library_status(
@@ -1284,10 +1315,40 @@ mod tests {
 
     #[test]
     fn cutover_progress_file_follows_saved_cloud_settings() {
-        let mut settings = CloudSettings::default();
-        let first = cutover_progress_file_name(&settings).unwrap();
-        assert_eq!(first, cutover_progress_file_name(&settings).unwrap());
-        settings.root_path = "/other-root".into();
-        assert_ne!(first, cutover_progress_file_name(&settings).unwrap());
+        let mut settings = CloudSettings {
+            backend: Backend::S3 {
+                endpoint: "https://s3.example.com/".into(),
+                bucket: "saves".into(),
+                region: "auto".into(),
+                access_key_id: "key".into(),
+                secret_access_key: "secret".into(),
+                addressing_style: Default::default(),
+            },
+            ..CloudSettings::default()
+        };
+        let first = cutover_progress_file_name(&settings);
+
+        // Credentials, tuning knobs and a trailing slash do not move the library.
+        settings.max_concurrency += 1;
+        settings.auto_sync_interval += 1;
+        if let Backend::S3 {
+            endpoint,
+            secret_access_key,
+            ..
+        } = &mut settings.backend
+        {
+            *endpoint = "https://s3.example.com".into();
+            *secret_access_key = "rotated".into();
+        }
+        assert_eq!(first, cutover_progress_file_name(&settings));
+
+        let mut moved = settings.clone();
+        moved.root_path = "/other-root".into();
+        assert_ne!(first, cutover_progress_file_name(&moved));
+        let mut moved = settings.clone();
+        if let Backend::S3 { bucket, .. } = &mut moved.backend {
+            *bucket = "other".into();
+        }
+        assert_ne!(first, cutover_progress_file_name(&moved));
     }
 }
