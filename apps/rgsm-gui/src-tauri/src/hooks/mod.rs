@@ -53,12 +53,6 @@ pub fn build_builtin_pipeline(app: &AppHandle, config: &Config) -> HookPipeline 
             rgsm_core::hooks::pre_restore_backup_hook::PreRestoreBackupHook,
         ));
     }
-    if config.settings.compute_archive_hash {
-        hooks.push(Box::new(rgsm_core::hooks::checksum_hook::ArchiveHashHook));
-    }
-    if config.settings.verify_archive_before_apply {
-        hooks.push(Box::new(rgsm_core::hooks::checksum_hook::ArchiveVerifyHook));
-    }
     let scheduler_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> =
         Arc::new(scheduler_sync_hook::TauriSchedulerSync::new(app.clone()));
     hooks.push(Box::new(scheduler_sync_hook::SchedulerSyncHook::new(

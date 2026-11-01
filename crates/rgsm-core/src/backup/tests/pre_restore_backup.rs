@@ -4,7 +4,7 @@ use crate::{
     backup::{Game, SaveUnit, SaveUnitSource, SaveUnitType},
     config::Config,
     device::get_current_device_id,
-    hooks::{ArchiveVerifyHook, HookPipeline, HookSource, PreRestoreBackupHook},
+    hooks::{HookPipeline, HookSource, PreRestoreBackupHook},
     preclude::BackupError,
     services::ServiceContext,
 };
@@ -31,10 +31,9 @@ fn game_for(path: &Path) -> Game {
 }
 
 fn service() -> ServiceContext {
-    ServiceContext::new(Arc::new(HookPipeline::new(vec![
-        Box::new(PreRestoreBackupHook),
-        Box::new(ArchiveVerifyHook),
-    ])))
+    ServiceContext::new(Arc::new(HookPipeline::new(vec![Box::new(
+        PreRestoreBackupHook,
+    )])))
 }
 
 struct Fixture {
@@ -175,13 +174,7 @@ fn corrupt_archive_is_rejected_before_safety_backup_evicts_older_one()
                 &crate::config::get_backup_path()?.join(fixture.game.backup_dir_name().as_ref()),
                 &snapshot,
             );
-            fixture
-                .game
-                .update_game_snapshots_info::<BackupError>(|current| {
-                    current.backups[0].archive_hash =
-                        Some(crate::backup::compute_file_hash(&archive)?);
-                    Ok(())
-                })?;
+            assert!(snapshot.archive_hash.is_some());
             let extra = extra_backup_dir(&fixture);
             fs::create_dir_all(&extra)?;
             let existing = extra.join("Overwrite_old.7z");

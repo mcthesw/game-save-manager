@@ -11,11 +11,9 @@ pub mod contexts;
 pub mod pipeline;
 pub mod traits;
 
-pub mod checksum_hook;
 pub mod pre_restore_backup_hook;
 mod v2_snapshot_sync_hook;
 
-pub use checksum_hook::{ArchiveHashHook, ArchiveVerifyHook};
 pub use contexts::*;
 pub use pipeline::*;
 pub use pre_restore_backup_hook::PreRestoreBackupHook;
