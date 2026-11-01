@@ -123,10 +123,12 @@ pub struct Settings {
     pub appearance: AppearanceSettings,
     #[serde(default)]
     pub compression_preset: CompressionPreset,
-    /// Compute an XXH3 hash when creating snapshots (for integrity verification).
+    /// Ignored: snapshots are always hashed. Kept because 1.9 test builds read
+    /// it as a required field of the device profile stored in the cloud.
     #[serde(default = "default_value::default_false")]
     pub compute_archive_hash: bool,
-    /// Verify archive hash before applying a snapshot.
+    /// Ignored: archives are always verified before restoring. Kept for the
+    /// same compatibility reason as `compute_archive_hash`.
     #[serde(default = "default_value::default_false")]
     pub verify_archive_before_apply: bool,
 }
