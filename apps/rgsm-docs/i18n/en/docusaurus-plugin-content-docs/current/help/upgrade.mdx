@@ -11,7 +11,7 @@ description: Upgrade your local data and Cloud Library.
 3. Install the new version and keep application data.
 4. Start the application and check the game list, save locations, and snapshot history.
 
-Older configurations convert automatically. Existing ZIP snapshots remain readable.
+Older configurations convert automatically. Existing ZIP snapshots remain readable. Afterwards the data directory keeps a single `GameSaveManager.config.json.bak`, the configuration from before the upgrade.
 
 An older installation location that uniquely matches a game becomes that game's installation directory on the corresponding device. Locations that need a choice remain in **Settings → Auto Scan → Unassigned installation folders**. You can later change a game's directory in **View managed files**.
 
@@ -38,4 +38,4 @@ If an upgrade is interrupted, use the resume action. If the library is incomplet
 
 ## Roll back
 
-Save a separate copy of any progress made after upgrading, then restore the complete pre-upgrade backup using the matching older application version.
+Save a separate copy of any progress made after upgrading, then restore the complete pre-upgrade backup using the matching older application version. To go back to an older version without restoring the backup, rename `GameSaveManager.config.json.bak` back to `GameSaveManager.config.json`. See [Backing up and moving your data](../extras/json.md) for what each file does.

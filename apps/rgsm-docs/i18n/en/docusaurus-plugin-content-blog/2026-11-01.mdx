@@ -115,6 +115,7 @@ The old configuration is converted automatically and the change is **one-way**: 
 - **History of games in the Cloud Library stays in ZIP format.** "Upgrade older backups" does not convert it and it keeps syncing normally; new backups use 7z.
 - **The tray's auto-backup interval menu** (5/10/30/60 minutes and off) is gone; intervals are set per game in its backup settings.
 - **Installation locations that cannot be matched to one game** stay under **Settings → Auto scan → Unmatched installation directories** for you to confirm.
+- **The old configuration file**: after the upgrade the data directory keeps only `GameSaveManager.config.json.bak` (the configuration from before the upgrade). To go back to an older version, rename it back to `GameSaveManager.config.json`. If you used a 1.9 test build, the old configuration file is renamed to `.bak` at the first start as well. See [Backing up and moving your data](/docs/extras/json) for what each file does.
 - **Configuration from 1.9 test builds** is not guaranteed to upgrade; upgrading an existing 1.9 Cloud Library is handled separately, see [Upgrading to 1.9](/docs/help/upgrade).
 - **The portable build here is the slim variant** without the bundled Ludusavi database; update it from Settings when needed.
 
