@@ -10,6 +10,7 @@ use crate::backup::Game;
 use crate::config::owner_store::OwnerStore;
 use crate::config::{
     CloudNamespaceGeneration, Config, DeviceProfile, LocalState, SharedGame, SharedLibrary, backup,
+    legacy_file,
 };
 use crate::preclude::*;
 use crate::updater::update_config;
@@ -491,13 +492,15 @@ pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
         let config_migrated = owner_store.upgrade_local_installations()?;
         let config = owner_store.load_effective()?;
         rust_i18n::set_locale(&config.settings.locale);
+        legacy_file::retire_legacy_config(&resolve_app_path("GameSaveManager.config.json"), true);
         return Ok(ConfigCheckOutcome { config_migrated });
     }
 
     let config_path = resolve_app_path("GameSaveManager.config.json");
     info!("Config file path: {}", config_path.display());
 
-    if !config_path.is_file() || !config_path.exists() {
+    let is_fresh_install = !config_path.is_file();
+    if is_fresh_install {
         init_config()?;
     }
     // 执行配置迁移与升级
@@ -509,6 +512,7 @@ pub fn config_check() -> Result<ConfigCheckOutcome, ConfigError> {
     let config = owner_store.load_effective()?;
     // 应用本地化语言
     rust_i18n::set_locale(&config.settings.locale);
+    legacy_file::retire_legacy_config(&config_path, !is_fresh_install);
     Ok(ConfigCheckOutcome { config_migrated })
 }
 
@@ -560,6 +564,49 @@ mod tests {
         let loaded = get_config_from_data_dir(root.path()).unwrap();
 
         assert_eq!(loaded.backup_path, "owner-backups");
+    }
+
+    fn startup_with_legacy_config(version: Option<&str>) -> (Vec<u8>, bool, PathBuf, PathBuf) {
+        let config_path = resolve_app_path("GameSaveManager.config.json");
+        let backup_path = config_path.with_extension("json.bak");
+        let _ = fs::remove_file(&backup_path);
+        let mut legacy = serde_json::to_value(Config::default()).unwrap();
+        if let Some(version) = version {
+            legacy["version"] = version.into();
+        }
+        let original = serde_json::to_vec_pretty(&legacy).unwrap();
+        fs::write(&config_path, &original).unwrap();
+
+        let outcome = config_check().unwrap();
+
+        (original, outcome.config_migrated, config_path, backup_path)
+    }
+
+    #[test]
+    fn upgrading_from_released_config_leaves_only_the_original_backup() {
+        let _lock = lock_config_test_file();
+        let _guard = ConfigTestStateGuard::replace_with(&Config::default()).unwrap();
+
+        let (original, migrated, config_path, backup_path) =
+            startup_with_legacy_config(Some("1.8.0"));
+
+        assert!(migrated);
+        assert!(!config_path.exists());
+        assert_eq!(fs::read(&backup_path).unwrap(), original);
+        let _ = fs::remove_file(backup_path);
+    }
+
+    #[test]
+    fn upgrading_from_current_schema_config_renames_it_to_backup() {
+        let _lock = lock_config_test_file();
+        let _guard = ConfigTestStateGuard::replace_with(&Config::default()).unwrap();
+
+        let (original, migrated, config_path, backup_path) = startup_with_legacy_config(None);
+
+        assert!(!migrated);
+        assert!(!config_path.exists());
+        assert_eq!(fs::read(&backup_path).unwrap(), original);
+        let _ = fs::remove_file(backup_path);
     }
 
     #[test]
