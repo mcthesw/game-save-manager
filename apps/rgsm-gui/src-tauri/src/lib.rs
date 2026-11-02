@@ -132,7 +132,9 @@ pub fn run() -> anyhow::Result<()> {
                 .targets([tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::LogDir { file_name: None },
                 )])
-                .max_file_size(500_000 /* 5 KB */)
+                .max_file_size(500_000 /* 500 KB */)
+                // Keeps the active file plus nine rotated `.log` files. The plugin only
+                // counts and prunes `*.log`, so a `.log.bak` file is never removed.
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
