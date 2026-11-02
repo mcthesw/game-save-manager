@@ -205,6 +205,13 @@ test('1.8 dynamic and concrete save paths keep their V2 zip usable after the 1.9
     });
     const migrated = await getMigratedConfig(host, scene.gameRoot);
     expect(migrated.version).toBe('1.9.0');
+    await expect(
+      readFile(join(scene.appDataDir, 'GameSaveManager.config.json'), 'utf8')
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    const originalConfig = JSON.parse(
+      await readFile(join(scene.appDataDir, 'GameSaveManager.config.json.bak'), 'utf8')
+    ) as { version: string };
+    expect(originalConfig.version).toBe('1.8.0');
     expect(migrated.games[0].save_paths).toEqual([
       expect.objectContaining({
         id: 11,
