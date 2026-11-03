@@ -1210,6 +1210,7 @@
         "legacy_cloud_operation_unavailable": "Legacy cloud operations are unavailable. Open Cloud Sync to upgrade or join the current Cloud Library.",
         "local_upgrade_environment_failed": "Could not write the upgraded archive, so the upgrade stopped. Free up disk space or check folder permissions, then resume. Details: %{error}",
         "cloud_unreachable": "Cannot reach cloud storage. Check your network and the storage settings in Cloud Sync, then try again. Your local saves are not affected.",
+        "cloud_rate_limited": "The cloud storage temporarily limited requests because there were too many. Wait about 10 minutes and try again. Your local saves are not affected.",
         "cloud_access_denied": "Cloud storage refused access. Check the account, keys, and permissions in Cloud Sync.",
         "cloud_settings_invalid": "The cloud storage settings are not valid. Check them in Cloud Sync.",
         "cloud_library_damaged": "The Cloud Library is incomplete or damaged. Open Cloud Sync and choose \"Rebuild from this device\".",

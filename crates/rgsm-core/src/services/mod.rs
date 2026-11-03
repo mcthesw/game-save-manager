@@ -1,7 +1,7 @@
 mod cloud_archive;
 mod cloud_connection;
 mod cloud_error_message;
-pub use cloud_error_message::cloud_error_message;
+pub use cloud_error_message::{cloud_error_message, cloud_rate_limit_message};
 mod cloud_join_code;
 pub use cloud_join_code::{CloudJoinError, CloudJoinPreview};
 mod cloud_library_metadata;

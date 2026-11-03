@@ -4,6 +4,7 @@ mod cloud_settings;
 pub mod conflict;
 mod facade;
 pub(crate) mod join_code;
+pub mod rate_limit;
 mod recovery;
 pub mod sync_state;
 mod task_manager;
