@@ -31,6 +31,7 @@ mod quick_actions;
 mod remote_progress;
 mod snapshot_sync;
 mod sound;
+mod transfer_job;
 
 /// Tauri adapter for SyncEventEmitter — bridges core events to Tauri's event system.
 struct TauriSyncEmitter {

@@ -394,6 +394,7 @@ export type CloudSyncJobInfo = {
   description: string;
   error?: string | null;
   id: number;
+  progress?: null | TransferProgress;
   status: CloudSyncJobStatus;
 };
 
@@ -1652,6 +1653,16 @@ export type SyncMode = 'manual' | 'cloud_backup' | 'multi_device_sync';
 export type ToggleQuickActionSoundPreviewRequest = {
   effect: QuickActionSoundEffect;
   preferences: QuickActionSoundPreferences;
+};
+
+export type TransferProgress = {
+  bytes_done: number;
+  bytes_total: number;
+  items_done: number;
+  /**
+   * Grows as a round discovers more Archives to upload.
+   */
+  items_total: number;
 };
 
 export type UpdateAction = 'install' | 'download';

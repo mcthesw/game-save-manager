@@ -8,11 +8,13 @@ use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
+use super::progress;
 use crate::preclude::*;
 
 static TEMP_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const TEMP_FILE_CREATE_RETRY_LIMIT: usize = 16;
 const UPLOAD_STREAM_CHUNK_SIZE: usize = 8 * 1024 * 1024;
+const COPY_BUFFER_SIZE: usize = 256 * 1024;
 
 pub trait TransferHook: Send + Sync {
     fn on_upload_start(&self, _local_path: &Path, _remote_path: &str) {}
@@ -179,6 +181,24 @@ pub(crate) async fn replace_path_preserving_existing(
     }
 }
 
+async fn copy_reporting_progress<R, W>(source: &mut R, target: &mut W) -> io::Result<u64>
+where
+    R: tokio::io::AsyncRead + Unpin,
+    W: tokio::io::AsyncWrite + Unpin,
+{
+    let mut buffer = vec![0u8; COPY_BUFFER_SIZE];
+    let mut copied = 0u64;
+    loop {
+        let read = source.read(&mut buffer).await?;
+        if read == 0 {
+            return Ok(copied);
+        }
+        target.write_all(&buffer[..read]).await?;
+        copied += read as u64;
+        progress::advance(read as u64);
+    }
+}
+
 /// Write stream data into a temp file and commit via atomic-ish rename semantics.
 ///
 /// If the stream fails midway, the destination file remains untouched.
@@ -192,7 +212,7 @@ async fn write_stream_atomically<R: tokio::io::AsyncRead + Unpin>(
 
     let (temp_path, mut target) = create_temp_file_with_retry(local_path, "download").await?;
 
-    let copy_result = tokio::io::copy(&mut source, &mut target).await;
+    let copy_result = copy_reporting_progress(&mut source, &mut target).await;
     if let Err(err) = copy_result {
         cleanup_temp_file(&temp_path, "stream copy failure").await;
         return Err(err.into());
@@ -230,11 +250,15 @@ impl<'a, H: TransferHook> CloudTransfer<'a, H> {
                 .into_futures_async_write()
                 .compat_write();
 
-            tokio::io::copy(&mut source, &mut target).await?;
+            copy_reporting_progress(&mut source, &mut target).await?;
             target.shutdown().await?;
         } else {
+            // One-shot backends (WebDAV) take the whole body in a single request,
+            // so progress can only advance once it was accepted.
             let data = fs::read(local_path).await?;
+            let size = data.len() as u64;
             self.op.write(remote_path, data).await?;
+            progress::advance(size);
         }
 
         self.hook.on_upload_done(local_path, remote_path);
@@ -449,6 +473,32 @@ mod tests {
             .cloned()
             .expect("uploaded object should exist");
         assert_eq!(remote, payload);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn uploads_report_every_byte_whether_or_not_the_backend_streams()
+    -> Result<(), BackendError> {
+        let temp_dir = temp_dir::TempDir::new().expect("temp dir should be created");
+        let local_path = temp_dir.path().join("snapshot.zip");
+        let payload = vec![5_u8; COPY_BUFFER_SIZE * 2 + 17];
+        fs::write(&local_path, &payload).await?;
+
+        let (one_shot, _) = build_one_shot_only_operator();
+        for op in [build_memory_operator(), one_shot] {
+            let reported = Arc::new(AtomicUsize::new(0));
+            let sink = Arc::clone(&reported);
+            let reporter = progress::TransferReporter::new(move |progress| {
+                sink.store(progress.bytes_done as usize, Ordering::SeqCst);
+            });
+            progress::with_transfer_reporter(reporter, async {
+                CloudTransfer::new(&op)
+                    .upload_file_streaming(&local_path, "save_data/demo/progress.zip")
+                    .await
+            })
+            .await?;
+            assert_eq!(reported.load(Ordering::SeqCst), payload.len());
+        }
         Ok(())
     }
 

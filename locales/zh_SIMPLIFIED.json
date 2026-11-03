@@ -1183,7 +1183,8 @@
         "status_failed": "失败",
         "status_cancelled": "已取消",
         "no_recent_jobs": "暂无近期同步活动",
-        "active_count": "{count} 个进行中"
+        "active_count": "{count} 个进行中",
+        "transfer_progress": "{done}/{total} · {bytes} / {bytesTotal}"
     },
     "error": {
         "hotkey_registration_failed": "无法应用快捷键：%{reason}",
@@ -1234,6 +1235,10 @@
             "finalize": "正在校验并收尾…"
         },
         "sync": {
+            "syncing": "正在与云库同步快照",
+            "uploading": "正在上传快照",
+            "downloading": "正在下载快照",
+            "downloading_all": "正在下载全部云端快照",
             "updating_mode": "正在更新 %{game} 的同步模式"
         },
         "config": {

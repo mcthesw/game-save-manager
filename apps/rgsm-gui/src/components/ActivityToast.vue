@@ -4,6 +4,7 @@ import { CheckCircle2, Info, LoaderCircle, TriangleAlert, X, XCircle } from '@lu
 import { useActivityCenter } from '../composables/useActivityCenter';
 import { useCloudSyncStatus } from '../composables/useCloudSyncStatus';
 import { LAYER } from '../ui/layers';
+import TransferProgress from './TransferProgress.vue';
 import { $t } from '../i18n';
 
 const { activities, activityAddSignal } = useActivityCenter();
@@ -19,7 +20,12 @@ const feedback = computed(() => {
   // The caller reports a finished job's outcome once; the toast only shows work in progress.
   const job = jobs.value.find((entry) => entry.status === 'Running');
   if (!job || !isSyncing.value) return undefined;
-  return { title: job.description, description: undefined, status: 'running' };
+  return {
+    title: job.description,
+    description: undefined,
+    status: 'running',
+    progress: job.progress,
+  };
 });
 const icon = computed(() => {
   switch (feedback.value?.status) {
@@ -101,6 +107,11 @@ onUnmounted(() => clearTimeout(timer));
       <div v-if="feedback.description" class="mt-1 text-xs text-text-dim">
         {{ feedback.description }}
       </div>
+      <TransferProgress
+        v-if="'progress' in feedback && feedback.progress"
+        :progress="feedback.progress"
+        :label="feedback.title"
+      />
     </div>
     <button
       type="button"

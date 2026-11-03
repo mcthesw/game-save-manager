@@ -8,7 +8,9 @@ import { createRunRoot } from './support/rgsm-instance';
 import { createSnapshotForGame, getLocalGame, updateSettings } from './support/local-gui';
 import { openGame, snapshotRow } from './support/gui';
 
-test('cloud completion feedback uses the newest history entry', async ({ browser }) => {
+test('cloud toast shows transfer progress while a job runs and nothing once it ends', async ({
+  browser,
+}) => {
   const runRoot = await createRunRoot('cloud-completion-feedback');
   const device = await seedLocalConfig(runRoot);
   const session = await startLocalSession(browser, {
@@ -24,11 +26,25 @@ test('cloud completion feedback uses the newest history entry', async ({ browser
       const path = '/src/composables/useCloudSyncStatus.ts';
       const { useCloudSyncStatus } = await import(path);
       const state = useCloudSyncStatus();
-      state.jobs.value = [{ id: 2, description: 'Current upload', status: 'Running' }];
+      state.jobs.value = [
+        {
+          id: 2,
+          description: 'Current upload',
+          status: 'Running',
+          progress: {
+            items_done: 1,
+            items_total: 3,
+            bytes_done: 3 * 1024 * 1024,
+            bytes_total: 12 * 1024 * 1024,
+          },
+        },
+      ];
       state.activeJobs.value = 1;
     });
     const toast = page.locator('.activity-toast');
     await expect(toast).toContainText('Current upload');
+    await expect(toast).toContainText('2/3 · 3.0 MB / 12.0 MB');
+    await expect(toast.getByRole('progressbar', { name: 'Current upload' })).toBeVisible();
     await page.evaluate(async () => {
       const path = '/src/composables/useCloudSyncStatus.ts';
       const { useCloudSyncStatus } = await import(path);
@@ -39,9 +55,8 @@ test('cloud completion feedback uses the newest history entry', async ({ browser
       ];
       state.activeJobs.value = 0;
     });
-    await expect(toast).toContainText('Current upload');
-    await expect(toast).not.toContainText('Old failure');
-    await expect(toast.locator('.text-success')).toBeVisible();
+    // The toast shows work in progress only; the caller reports a finished job's outcome.
+    await expect(toast).toHaveCount(0);
   } catch (error) {
     failed = true;
     throw error;

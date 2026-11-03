@@ -22,6 +22,7 @@ import {
   type ActivityStatus,
 } from '../composables/useActivityCenter';
 import { LAYER } from '../ui/layers';
+import TransferProgress from './TransferProgress.vue';
 import { overlayDepth } from '../ui/overlayDepth';
 
 const { isSyncing, isCancelling, jobs, cancelSync } = useCloudSyncStatus();
@@ -241,6 +242,11 @@ function canDismiss(entry: ActivityEntry) {
                 <span class="activity-item-title" :title="job.description">{{
                   job.description
                 }}</span>
+                <TransferProgress
+                  v-if="job.status === 'Running' && job.progress"
+                  :progress="job.progress"
+                  :label="job.description"
+                />
               </div>
               <span class="activity-item-badge">{{ syncStatusLabel(job.status) }}</span>
             </div>
