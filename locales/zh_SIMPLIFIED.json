@@ -737,7 +737,7 @@
             "status_failed": "失败",
             "steps": {
                 "prepare_backend": "准备后端",
-                "list_files": "列出已有文件",
+                "list_files": "读取云库",
                 "write_file": "写入测试文件",
                 "read_file": "读取测试文件",
                 "verify_content": "校验文件内容",
@@ -748,6 +748,7 @@
             "copied": "已复制",
             "error_category": {
                 "timeout": "连接超时",
+                "rate_limited": "服务商正在限制请求频率",
                 "auth": "认证失败",
                 "not_found": "资源未找到",
                 "network": "网络错误",
