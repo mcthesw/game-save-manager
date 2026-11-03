@@ -10,6 +10,8 @@ use specta::Type;
 use tokio::sync::{Mutex, Notify};
 use tokio_util::sync::CancellationToken;
 
+use super::progress::TransferProgress;
+
 /// Trait for emitting cloud sync events to the frontend.
 ///
 /// GUI implements this using Tauri's event system; CLI might log to stdout.
@@ -34,6 +36,8 @@ pub struct CloudSyncJobInfo {
     pub description: String,
     pub status: CloudSyncJobStatus,
     pub error: Option<String>,
+    /// Present once the job has started moving Archives.
+    pub progress: Option<TransferProgress>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
@@ -124,6 +128,7 @@ impl CloudSyncTaskManager {
                 description: description.clone(),
                 status: CloudSyncJobStatus::Running,
                 error: None,
+                progress: None,
             });
             (id, state.manual_cancel_token.child_token())
         };
@@ -143,6 +148,17 @@ impl CloudSyncTaskManager {
         self.finish_job(id, description, status, error).await;
         self.emit_full_status(None).await;
         self.notify.notify_waiters();
+    }
+
+    pub async fn report_progress(&self, id: u64, progress: TransferProgress) {
+        {
+            let mut state = self.state.lock().await;
+            let Some(job) = state.running_jobs.iter_mut().find(|job| job.id == id) else {
+                return;
+            };
+            job.progress = Some(progress);
+        }
+        self.emit_full_status(None).await;
     }
 
     async fn emit_full_status(&self, current_description: Option<String>) {
@@ -189,6 +205,7 @@ impl CloudSyncTaskManager {
             description: description.to_string(),
             status,
             error,
+            progress: None,
         });
         while state.history.len() > MAX_HISTORY_SIZE {
             state.history.pop_front();

@@ -731,10 +731,14 @@ pub async fn upload_cloud_archive(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     run_cloud_operation(&app_handle, async {
-        svc(&app_handle)
-            .upload_cloud_archive(&game_id, &snapshot_id)
-            .await
-            .map_err(|error| cloud_error_message(&error))
+        let result = crate::transfer_job::track(
+            &app_handle,
+            crate::transfer_job::Job::Lazy(rust_i18n::t!("backend.sync.uploading").to_string()),
+            Box::pin(svc(&app_handle).upload_cloud_archive(&game_id, &snapshot_id)),
+            |result| crate::transfer_job::outcome(result, || false),
+        )
+        .await;
+        result.map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -745,10 +749,14 @@ pub async fn download_cloud_archive(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     run_cloud_operation(&app_handle, async {
-        svc(&app_handle)
-            .download_cloud_archive(&game_id, &snapshot_id)
-            .await
-            .map_err(|error| cloud_error_message(&error))
+        let result = crate::transfer_job::track(
+            &app_handle,
+            crate::transfer_job::Job::Lazy(rust_i18n::t!("backend.sync.downloading").to_string()),
+            Box::pin(svc(&app_handle).download_cloud_archive(&game_id, &snapshot_id)),
+            |result| crate::transfer_job::outcome(result, || false),
+        )
+        .await;
+        result.map_err(|error| cloud_error_message(&error))
     })
     .await
 }
@@ -945,12 +953,15 @@ pub async fn materialize_all_cloud_archives(
 ) -> Result<MaterializationOutcome, String> {
     run_cloud_operation(&app_handle, async {
         let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
-        let (job_id, token) = manager
-            .begin_manual_job("Downloading all Cloud Snapshots".into())
-            .await;
-        let result = svc(&app_handle)
-            .materialize_all_cloud_archives(&token)
-            .await;
+        let description = rust_i18n::t!("backend.sync.downloading_all").to_string();
+        let (job_id, token) = manager.begin_manual_job(description.clone()).await;
+        let result = crate::transfer_job::track(
+            &app_handle,
+            crate::transfer_job::Job::Attached(job_id),
+            Box::pin(svc(&app_handle).materialize_all_cloud_archives(&token)),
+            |_| (cloud_sync::CloudSyncJobStatus::Completed, None),
+        )
+        .await;
         let status = if result.is_ok() {
             cloud_sync::CloudSyncJobStatus::Completed
         } else if token.is_cancelled() {
@@ -963,7 +974,7 @@ pub async fn materialize_all_cloud_archives(
             .err()
             .map(|error| cloud_error_message(error));
         manager
-            .finish_manual_job(job_id, "Downloading all Cloud Snapshots", status, error)
+            .finish_manual_job(job_id, &description, status, error)
             .await;
         result.map_err(|error| cloud_error_message(&error))
     })

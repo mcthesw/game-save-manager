@@ -818,6 +818,7 @@ export type {
   ToggleQuickActionSoundPreviewErrors,
   ToggleQuickActionSoundPreviewRequest,
   ToggleQuickActionSoundPreviewResponses,
+  TransferProgress,
   U32,
   UpdateAction,
   UpdateCheck,

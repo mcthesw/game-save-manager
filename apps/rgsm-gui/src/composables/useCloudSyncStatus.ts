@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef } from 'vue';
 
+import type { TransferProgress } from '../api/generated';
 import { commands, events } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifyInfo } from './useActivityCenter';
@@ -11,6 +12,7 @@ export interface CloudSyncJobInfo {
   description: string;
   status: CloudSyncJobStatus;
   error?: string | null;
+  progress?: TransferProgress | null;
 }
 
 type CloudSyncStatusPayload = {

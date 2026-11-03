@@ -14,6 +14,7 @@ use super::{
     SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotState, cloud_archive_path,
 };
 use crate::backup::{ArchiveFormat, CreatedBy, Snapshot, archive_path};
+use crate::cloud_sync::progress;
 use crate::cloud_sync::transfer::{CloudTransfer, replace_path_preserving_existing};
 use crate::config::SyncMode;
 use crate::device::DeviceId;
@@ -386,9 +387,11 @@ impl CloudArchiveMaterializer {
             item.archive_format,
             item.archive_name.as_deref(),
         )?;
+        progress::plan(1, item.integrity.size);
         CloudTransfer::new(&self.operator)
             .upload_file_streaming(&local_path, &remote_path)
             .await?;
+        progress::finish_item();
         let current_device = self.current_device_id.clone();
         let final_game_id = game_id.to_string();
         let manifest_game_id = final_game_id.clone();
@@ -448,6 +451,7 @@ impl CloudArchiveMaterializer {
         self.converge_local_tombstones().await?;
         let manifest = self.repository().load().await?;
         let item = manifest_item(&manifest, game_id, snapshot_id, true)?;
+        progress::plan(1, item.integrity.size);
         self.download_item(&item).await?;
         self.imported_lineage(&manifest, game_id, snapshot_id)
     }
@@ -645,6 +649,10 @@ impl CloudArchiveMaterializer {
             )
             .await?;
         let initial = plan.remaining.len();
+        progress::plan(
+            u32::try_from(initial).unwrap_or(u32::MAX),
+            plan.remaining.iter().map(|item| item.integrity.size).sum(),
+        );
         while let Some(item) = plan.remaining.first().cloned() {
             if cancellation.is_cancelled() {
                 return Err(MaterializationError::Cancelled);
@@ -695,6 +703,7 @@ impl CloudArchiveMaterializer {
             remove_file_if_exists(&staging_path).await?;
             return Err(error.into());
         }
+        progress::finish_item();
         let current_device = self.current_device_id.clone();
         let game_id = item.game_id.clone();
         let snapshot_id = item.snapshot_id.clone();

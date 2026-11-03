@@ -26,7 +26,17 @@ pub async fn refresh(
         .run_sync(|cancellation| async move {
             rgsm_core::cloud_sync::v2::with_read_round(async {
                 let before = ConfigFingerprint::capture();
-                let synced = rgsm_core::services::run_v2_snapshot_sync_once(&cancellation).await;
+                let synced = crate::transfer_job::track(
+                    app,
+                    crate::transfer_job::Job::Lazy(
+                        rust_i18n::t!("backend.sync.syncing").to_string(),
+                    ),
+                    Box::pin(rgsm_core::services::run_v2_snapshot_sync_once(
+                        &cancellation,
+                    )),
+                    |result| crate::transfer_job::outcome(result, || cancellation.is_cancelled()),
+                )
+                .await;
                 before.reload_if_changed(app).await;
                 if let Err(error) = &synced {
                     crate::cloud_library_cache::record_failure(error);
@@ -201,13 +211,22 @@ async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken, p
 }
 
 async fn reconcile_once(app: &AppHandle, cancellation: &CancellationToken, poll: bool) -> bool {
-    let result = if poll {
-        rgsm_core::services::run_v2_snapshot_sync_if_changed(cancellation).await
-    } else {
-        rgsm_core::services::run_v2_snapshot_sync_once(cancellation)
-            .await
-            .map(Some)
-    };
+    let round = Box::pin(async {
+        if poll {
+            rgsm_core::services::run_v2_snapshot_sync_if_changed(cancellation).await
+        } else {
+            rgsm_core::services::run_v2_snapshot_sync_once(cancellation)
+                .await
+                .map(Some)
+        }
+    });
+    let result = crate::transfer_job::track(
+        app,
+        crate::transfer_job::Job::Lazy(rust_i18n::t!("backend.sync.syncing").to_string()),
+        round,
+        |result| crate::transfer_job::outcome(result, || cancellation.is_cancelled()),
+    )
+    .await;
     let outcome = match result {
         Ok(Some(outcome)) => outcome,
         Ok(None) => {

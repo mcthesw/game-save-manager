@@ -1183,7 +1183,8 @@
         "status_failed": "Failed",
         "status_cancelled": "Cancelled",
         "no_recent_jobs": "No recent sync activity",
-        "active_count": "{count} active"
+        "active_count": "{count} active",
+        "transfer_progress": "{done}/{total} · {bytes} / {bytesTotal}"
     },
     "error": {
         "hotkey_registration_failed": "Could not apply hotkeys: %{reason}",
@@ -1234,6 +1235,10 @@
             "finalize": "Verifying and finishing…"
         },
         "sync": {
+            "syncing": "Syncing snapshots with the cloud",
+            "uploading": "Uploading snapshot",
+            "downloading": "Downloading snapshot",
+            "downloading_all": "Downloading all cloud snapshots",
             "updating_mode": "Updating sync mode for %{game}"
         },
         "config": {

@@ -1,6 +1,7 @@
 mod backend;
 mod cloud_settings;
 pub(crate) mod join_code;
+pub mod progress;
 pub mod rate_limit;
 mod task_manager;
 pub mod transfer;
