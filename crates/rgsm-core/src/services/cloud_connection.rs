@@ -49,16 +49,16 @@ impl ServiceContext {
     ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
         let (library, profile, state) = cloud_bootstrap_inputs()?;
         let operator = CloudSyncSessionConfig::from(&state.cloud_settings).get_op()?;
-        let classification = CloudLibraryBootstrap::new(operator.clone(), 3)
+        let inspected = CloudLibraryBootstrap::new(operator.clone(), 3)
             .inspect()
-            .await?;
-        let CloudNamespaceClassification::SupportedV2 {
+            .await;
+        let Ok(CloudNamespaceClassification::SupportedV2 {
             descriptor,
             shared_library,
             ..
-        } = classification
+        }) = inspected
         else {
-            return self.inspect_cloud_library().await;
+            return self.library_status_from(inspected).await;
         };
         if state.cloud_namespace_generation == CloudNamespaceGeneration::V2 {
             // A different namespace still needs explicit reconnect confirmation.

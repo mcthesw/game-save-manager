@@ -7,9 +7,8 @@ use rgsm_core::cloud_sync::v2::{
     MaterializationOutcome, MaterializationPreview,
 };
 use rgsm_core::cloud_sync::{
-    self, BatchSyncItemStatus, BatchSyncReport, CancelCloudSyncResult, CloudBackendCheckReport,
-    CloudSyncSessionConfig, CloudSyncTaskManager, ConflictResolution, ConflictResolutionOutcome,
-    SyncGameOutcome,
+    self, CancelCloudSyncResult, CloudBackendCheckReport, CloudSyncSessionConfig,
+    CloudSyncTaskManager,
 };
 use rgsm_core::config::{
     CloudNamespaceGeneration, Config, GameAutomationSettingsDraft, InitialCatchUpPolicy,
@@ -144,41 +143,6 @@ async fn reload_pipeline_and_fire_config_saved(
     Ok(())
 }
 
-fn batch_report_failed_item(report: &BatchSyncReport) -> Option<String> {
-    let mut items = Vec::with_capacity(report.games.len() + 1);
-    items.push(&report.config.status);
-    items.extend(report.games.iter().map(|item| &item.status));
-    items.into_iter().find_map(|status| match status {
-        BatchSyncItemStatus::Failed(message) => Some(message.clone()),
-        _ => None,
-    })
-}
-
-fn summarize_batch_result(
-    result: &Result<BatchSyncReport, BackendError>,
-) -> (cloud_sync::CloudSyncJobStatus, Option<String>) {
-    match result {
-        Ok(report) => {
-            if let Some(message) = batch_report_failed_item(report) {
-                (cloud_sync::CloudSyncJobStatus::Failed, Some(message))
-            } else if matches!(report.config.status, BatchSyncItemStatus::Cancelled)
-                || report
-                    .games
-                    .iter()
-                    .any(|item| matches!(item.status, BatchSyncItemStatus::Cancelled))
-            {
-                (cloud_sync::CloudSyncJobStatus::Cancelled, None)
-            } else {
-                (cloud_sync::CloudSyncJobStatus::Completed, None)
-            }
-        }
-        Err(err) => (
-            cloud_sync::CloudSyncJobStatus::Failed,
-            Some(err.to_string()),
-        ),
-    }
-}
-
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub enum NotificationLevel {
@@ -199,13 +163,6 @@ pub struct CloudSyncStatusEvent {
     pub active_jobs: usize,
     pub current_description: Option<String>,
     pub jobs: Vec<cloud_sync::CloudSyncJobInfo>,
-}
-
-/// Transport payload for a cloud synchronization failure
-#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
-pub struct CloudSyncErrorEvent {
-    pub game_name: Option<String>,
-    pub error: String,
 }
 
 /// Whether the storage provider is throttling us, so automatic reads must wait.
@@ -432,6 +389,10 @@ pub async fn batch_delete_snapshots(
 
 pub fn get_cloud_namespace_generation() -> Result<CloudNamespaceGeneration, String> {
     rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())
+}
+
+pub fn get_cached_cloud_library() -> crate::cloud_library_cache::CachedCloudLibrary {
+    crate::cloud_library_cache::get()
 }
 
 pub fn get_cloud_rate_limit() -> CloudRateLimitStatus {
@@ -1029,77 +990,6 @@ pub async fn set_game_sync_mode(
     .map_err(|error| cloud_error_message(&error))
 }
 
-pub async fn cloud_upload_all(
-    session: CloudSyncSessionConfig,
-    app_handle: AppHandle,
-) -> Result<BatchSyncReport, String> {
-    crate::cloud_operation::run_after_cancelling(&app_handle, async {
-        let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
-        let description = format!(
-            "Overwrite upload ({:?})",
-            session.backend.clone().sanitize()
-        );
-        let (job_id, token) = manager.begin_manual_job(description.clone()).await;
-        let result = svc(&app_handle)
-            .upload_all_from_session(&session, Some(token))
-            .await;
-        let (status, error) = summarize_batch_result(&result);
-        manager
-            .finish_manual_job(job_id, &description, status, error.clone())
-            .await;
-        result.map_err(|e| e.to_string())
-    })
-    .await
-}
-
-pub async fn cloud_download_all(
-    session: CloudSyncSessionConfig,
-    app_handle: AppHandle,
-) -> Result<BatchSyncReport, String> {
-    crate::cloud_operation::run_after_cancelling(&app_handle, async {
-        let manager = Arc::clone(app_handle.state::<Arc<CloudSyncTaskManager>>().inner());
-        let description = format!(
-            "Overwrite download ({:?})",
-            session.backend.clone().sanitize()
-        );
-        let (job_id, token) = manager.begin_manual_job(description.clone()).await;
-        let result = svc(&app_handle)
-            .download_all_from_session(&session, Some(token))
-            .await;
-
-        // After a successful download, the config may contain new games or updated
-        // auto-backup settings. Rebuild the hook pipeline so the scheduler syncs.
-        if matches!(
-            summarize_batch_result(&result).0,
-            cloud_sync::CloudSyncJobStatus::Completed
-        ) {
-            match get_config() {
-                Ok(config) => {
-                    rebuild_pipeline_and_fire_config_saved(
-                        &app_handle,
-                        config,
-                        HookSource::CloudSync,
-                    )
-                    .await;
-                }
-                Err(err) => {
-                    warn!(
-                        target: "rgsm::commands",
-                        "Failed to reload config after cloud download: {err:?}"
-                    );
-                }
-            }
-        }
-
-        let (status, error) = summarize_batch_result(&result);
-        manager
-            .finish_manual_job(job_id, &description, status, error.clone())
-            .await;
-        result.map_err(|e| e.to_string())
-    })
-    .await
-}
-
 pub async fn set_snapshot_description(
     game: Game,
     date: String,
@@ -1606,12 +1496,6 @@ pub fn get_system_fonts() -> Vec<String> {
     system_fonts::get_system_fonts()
 }
 
-/// Get the local sync state (device-specific, never uploaded).
-pub fn get_sync_state() -> Result<cloud_sync::SyncState, String> {
-    info!(target:"rgsm::commands", "Getting sync state");
-    cloud_sync::sync_state::load_sync_state().map_err(|e| e.to_string())
-}
-
 /// Scan given directories for visual novels (e.g. Kirikiri2) and return them as GameDrafts.
 pub fn scan_vns(dirs: Vec<String>) -> Result<Vec<GameDraft>, String> {
     info!(target:"rgsm::commands", "Scanning directories for visual novels: {:?}", dirs);
@@ -1634,40 +1518,6 @@ pub async fn restore_config_backup(index: usize, app_handle: AppHandle) -> Resul
         .map_err(|e| e.to_string())?;
     rebuild_pipeline_and_fire_config_saved(&app_handle, config, HookSource::UserManual).await;
     Ok(())
-}
-
-/// Sync one game by comparing local and remote snapshots.
-pub async fn sync_game(
-    game_name: String,
-    app_handle: AppHandle,
-) -> Result<SyncGameOutcome, String> {
-    info!(target:"rgsm::commands", "Syncing game: {}", game_name);
-    svc(&app_handle)
-        .sync_game(&game_name)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Resolve a user-visible cloud sync conflict for one game.
-pub async fn resolve_game_sync_conflict(
-    game_name: String,
-    resolution: ConflictResolution,
-    app_handle: AppHandle,
-) -> Result<ConflictResolutionOutcome, String> {
-    info!(target:"rgsm::commands", "Resolving cloud sync conflict for game: {}", game_name);
-    svc(&app_handle)
-        .resolve_game_conflict(&game_name, resolution)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Retry syncing the shared configuration to the configured cloud backend.
-pub async fn sync_config(app_handle: AppHandle) -> Result<(), String> {
-    info!(target:"rgsm::commands", "Syncing cloud config");
-    svc(&app_handle)
-        .sync_config()
-        .await
-        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

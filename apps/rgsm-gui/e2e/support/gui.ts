@@ -2,8 +2,8 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { localArchivePath } from './cloud-assertions';
 import type { RgsmHost } from './rgsm-instance';
-import { fsSession, hostPost } from './rgsm-instance';
-import { GAME_NAME, V2_ACTIVE_ERROR } from './constants';
+import { hostPost } from './rgsm-instance';
+import { GAME_NAME } from './constants';
 import { reportTiming } from './timing';
 
 export async function expectActivity(page: Page, pattern: string | RegExp): Promise<void> {
@@ -138,6 +138,14 @@ export function snapshotRow(page: Page, snapshotId: string): Locator {
   return page.locator(`[role="row"][data-snapshot-id=${JSON.stringify(snapshotId)}]`);
 }
 
+/** The explicit refresh a user triggers; pages otherwise show the last cached cloud read. */
+export async function refreshCloudView(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const path = '/src/composables/useCloudLibrary.ts';
+    await (await import(path)).refreshCloudLibrary(true);
+  });
+}
+
 export async function uploadSnapshot(page: Page, snapshotId: string): Promise<void> {
   const row = snapshotRow(page, snapshotId);
   const upload = row.getByRole('button', { name: 'Upload to cloud' });
@@ -151,6 +159,7 @@ export async function uploadSnapshot(page: Page, snapshotId: string): Promise<vo
 }
 
 export async function downloadSnapshot(page: Page, snapshotId: string): Promise<void> {
+  await refreshCloudView(page);
   const row = snapshotRow(page, snapshotId);
   const download = row.getByRole('button', { name: 'Download to this device' });
   const remove = row.getByRole('button', { name: 'Remove from this device' });
@@ -235,14 +244,6 @@ export async function toggleCloudEnabled(
       { timeout: 15_000 }
     )
     .toBe(enabled);
-}
-
-export async function expectLegacyUploadBlocked(host: RgsmHost, cloudRoot: string): Promise<void> {
-  const result = await hostPost<{ message?: string }>(host, '/api/v1/cloud-upload-all', {
-    session: fsSession(cloudRoot),
-  });
-  expect(result.ok).toBe(false);
-  expect(`${result.data.message ?? ''} ${result.raw}`).toContain(V2_ACTIVE_ERROR);
 }
 
 export async function inspectLibrary(host: RgsmHost) {
@@ -496,6 +497,7 @@ export async function openDeviceSettings(page: Page): Promise<void> {
 
 export async function removeLibraryDevice(page: Page, deviceName: string): Promise<void> {
   await openDeviceSettings(page);
+  await refreshCloudView(page);
   const section = libraryDevices(page);
   await expect(section.getByText(deviceName)).toBeVisible();
   // Only non-current, non-removed devices offer the action, so it is unique.

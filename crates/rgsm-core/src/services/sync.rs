@@ -20,10 +20,7 @@ use crate::cloud_sync::v2::{
     SharedLibraryRepositoryError, SnapshotDeletionLifecycleError, SnapshotReconcilePolicy,
     SnapshotSyncCoordinator, SnapshotSyncError, V2ConflictReview,
 };
-use crate::cloud_sync::{
-    BatchSyncReport, CloudBackendCheckReport, CloudSyncSessionConfig, ConflictResolution,
-    ConflictResolutionOutcome, SyncGameOutcome, download_all_from_session, upload_all_from_session,
-};
+use crate::cloud_sync::{CloudBackendCheckReport, CloudSyncSessionConfig};
 use crate::config::{
     CloudNamespaceGeneration, InitialCatchUpPolicy, SyncMode, activate_cloud_namespace_v2,
     activate_cutover_cloud_library, activate_joined_cloud_library, cloud_bootstrap_inputs,
@@ -174,48 +171,26 @@ impl ServiceContext {
         Ok(session.check_report().await)
     }
 
-    pub async fn upload_all_from_session(
-        &self,
-        session: &CloudSyncSessionConfig,
-        token: Option<CancellationToken>,
-    ) -> Result<BatchSyncReport, BackendError> {
-        upload_all_from_session(session, token).await
-    }
-
-    pub async fn download_all_from_session(
-        &self,
-        session: &CloudSyncSessionConfig,
-        token: Option<CancellationToken>,
-    ) -> Result<BatchSyncReport, BackendError> {
-        download_all_from_session(session, token).await
-    }
-
-    pub async fn sync_game(&self, _game_name: &str) -> Result<SyncGameOutcome, BackendError> {
-        Err(BackendError::LegacyCloudOperationUnavailable)
-    }
-
-    pub async fn resolve_game_conflict(
-        &self,
-        _game_name: &str,
-        _resolution: ConflictResolution,
-    ) -> Result<ConflictResolutionOutcome, BackendError> {
-        Err(BackendError::LegacyCloudOperationUnavailable)
-    }
-
-    pub async fn sync_config(&self) -> Result<(), BackendError> {
-        Err(BackendError::LegacyCloudOperationUnavailable)
-    }
-
     pub async fn inspect_cloud_library(
         &self,
     ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
         let (_, _, local_state) = cloud_bootstrap_inputs()?;
+        let operator = CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?;
+        let inspected = CloudLibraryBootstrap::new(operator, 3).inspect().await;
+        self.library_status_from(inspected).await
+    }
+
+    /// Turn an already-read classification into a status without reading the
+    /// cloud again, so callers that inspected first never inspect twice.
+    pub(super) async fn library_status_from(
+        &self,
+        inspected: Result<CloudNamespaceClassification, CloudLibraryBootstrapError>,
+    ) -> Result<CloudLibraryStatus, CloudLibraryServiceError> {
+        let (_, _, local_state) = cloud_bootstrap_inputs()?;
         let generation = local_state.cloud_namespace_generation;
-        let session = CloudSyncSessionConfig::from(&local_state.cloud_settings);
-        let operator = session.get_op()?;
-        let bootstrap = CloudLibraryBootstrap::new(operator.clone(), 3);
+        let operator = CloudSyncSessionConfig::from(&local_state.cloud_settings).get_op()?;
         let resumable_cutover = cutover_progress_path(&local_state.cloud_settings).is_file();
-        match bootstrap.inspect().await {
+        match inspected {
             Ok(classification) => {
                 if generation == CloudNamespaceGeneration::V2
                     && let CloudNamespaceClassification::SupportedV2 {
@@ -239,11 +214,10 @@ impl ServiceContext {
                             game_count: shared_library.games.len(),
                         });
                     }
-                    let profile_missing = !DeviceProfileRepository::new(operator, 3)
-                        .list()
+                    let profile_missing = DeviceProfileRepository::new(operator, 3)
+                        .get(&local_state.current_device_id)
                         .await?
-                        .iter()
-                        .any(|profile| profile.device.id == local_state.current_device_id);
+                        .is_none();
                     if profile_missing {
                         return Ok(CloudLibraryStatus::ReconnectRequired {
                             game_count: shared_library.games.len(),
@@ -623,25 +597,6 @@ impl ServiceContext {
         let convergence = self.converge_local_tombstone_metadata(&materializer).await;
         deletion?;
         convergence
-    }
-
-    pub async fn set_game_sync_mode(
-        &self,
-        game_id: &str,
-        mode: SyncMode,
-        initial_catch_up: InitialCatchUpPolicy,
-        live_save: Option<LiveSaveSyncOptions>,
-        cancellation: &CancellationToken,
-    ) -> Result<GameSyncModeOutcome, CloudLibraryServiceError> {
-        self.set_game_cloud_policy(
-            game_id,
-            true,
-            mode,
-            initial_catch_up,
-            live_save,
-            cancellation,
-        )
-        .await
     }
 
     pub async fn set_game_cloud_policy(
@@ -1323,7 +1278,6 @@ mod tests {
         let first = cutover_progress_file_name(&settings);
 
         // Credentials, tuning knobs and a trailing slash do not move the library.
-        settings.max_concurrency += 1;
         settings.auto_sync_interval += 1;
         if let Backend::S3 {
             endpoint,

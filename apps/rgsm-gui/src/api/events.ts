@@ -2,7 +2,6 @@ import './client';
 import { streamEvents } from './generated/sdk.gen';
 import { createEventDispatcher } from './eventDispatcher';
 import type {
-  CloudSyncErrorEvent,
   CloudSyncStatusEvent,
   HostEvent,
   HostNotification,
@@ -11,10 +10,9 @@ import type {
   UpdateProgress,
 } from './generated/types.gen';
 
-export type { CloudSyncErrorEvent, CloudSyncStatusEvent, HostNotification, QuickActionCompleted };
+export type { CloudSyncStatusEvent, HostNotification, QuickActionCompleted };
 
 type HostEventMap = {
-  'cloud-sync-error': CloudSyncErrorEvent;
   'cloud-metadata-changed': boolean;
   'cloud-sync-status': CloudSyncStatusEvent;
   notification: HostNotification;
@@ -72,9 +70,6 @@ export const events = {
   },
   remoteProgressPending: {
     listen: (listener: Listener<PendingProgress>) => listen('remote-progress-pending', listener),
-  },
-  cloudSyncErrorEvent: {
-    listen: (listener: Listener<CloudSyncErrorEvent>) => listen('cloud-sync-error', listener),
   },
   cloudSyncStatusEvent: {
     listen: (listener: Listener<CloudSyncStatusEvent>) => listen('cloud-sync-status', listener),

@@ -152,7 +152,6 @@ pub enum Backend {
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct CloudSyncSessionConfig {
     pub root_path: String,
-    pub max_concurrency: usize,
     pub backend: Backend,
 }
 
@@ -366,10 +365,6 @@ impl CloudSyncSessionConfig {
         self.backend.get_op_with_root(&self.root_path)
     }
 
-    pub fn normalized_max_concurrency(&self) -> usize {
-        self.max_concurrency.max(1)
-    }
-
     pub async fn check(&self) -> Result<(), BackendError> {
         let report = self.check_report().await;
         if let Some(message) = report.blocking_error_message() {
@@ -497,21 +492,12 @@ impl CloudSyncSessionConfig {
 
         CloudBackendCheckReport::from_items(items)
     }
-
-    pub fn fingerprint(&self) -> String {
-        format!(
-            "{}|{}",
-            self.root_path,
-            serde_json::to_string(&self.backend.clone().sanitize()).unwrap_or_default()
-        )
-    }
 }
 
 impl From<&CloudSettings> for CloudSyncSessionConfig {
     fn from(value: &CloudSettings) -> Self {
         Self {
             root_path: value.root_path.clone(),
-            max_concurrency: value.max_concurrency.max(1),
             backend: value.backend.clone(),
         }
     }
@@ -655,7 +641,6 @@ mod tests {
         let root_path = root.path().to_string_lossy().into_owned();
         let session = CloudSyncSessionConfig {
             root_path,
-            max_concurrency: 2,
             backend: Backend::Fs,
         };
 
@@ -764,7 +749,6 @@ mod tests {
         let root = temp_dir::TempDir::new().unwrap();
         let session = CloudSyncSessionConfig {
             root_path: root.path().to_string_lossy().into_owned(),
-            max_concurrency: 1,
             backend: Backend::Fs,
         };
 
@@ -781,7 +765,6 @@ mod tests {
         std::fs::write(root.path().join("GameSaveManager.config.json"), &config).unwrap();
         let session = CloudSyncSessionConfig {
             root_path: root.path().to_string_lossy().into_owned(),
-            max_concurrency: 1,
             backend: Backend::Fs,
         };
         let report = session.check_report().await;
@@ -797,26 +780,6 @@ mod tests {
             config
         );
         assert_eq!(visible_root_entries(root.path()).len(), 1);
-    }
-
-    #[test]
-    fn fs_backend_fingerprint_distinguishes_roots_and_backend_types() {
-        let fs = CloudSyncSessionConfig {
-            root_path: r"C:\sync-one".to_string(),
-            max_concurrency: 1,
-            backend: Backend::Fs,
-        };
-        let another_root = CloudSyncSessionConfig {
-            root_path: r"C:\sync-two".to_string(),
-            ..fs.clone()
-        };
-        let disabled = CloudSyncSessionConfig {
-            backend: Backend::Disabled,
-            ..fs.clone()
-        };
-
-        assert_ne!(fs.fingerprint(), another_root.fingerprint());
-        assert_ne!(fs.fingerprint(), disabled.fingerprint());
     }
 
     #[test]

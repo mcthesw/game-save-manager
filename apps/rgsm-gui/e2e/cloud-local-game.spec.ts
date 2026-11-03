@@ -2,7 +2,13 @@ import { test, expect } from '@playwright/test';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { seedEmptyCloudWithLocalGame, readSave } from './support/cloud-fixture';
-import { createLibrary, connectLibrary, uploadSnapshot, downloadSnapshot } from './support/gui';
+import {
+  createLibrary,
+  connectLibrary,
+  uploadSnapshot,
+  downloadSnapshot,
+  refreshCloudView,
+} from './support/gui';
 import { createSnapshotForGame } from './support/local-gui';
 import { createRunRoot, hostPost } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
@@ -60,6 +66,7 @@ test('a retained local game can enable cloud sync and send a snapshot to the oth
     await session.pageB.goto('/Management/Private%20game?gameId=private-game');
     await uploadSnapshot(session.pageB, snapshot);
     await session.pageA.goto('/SyncSettings');
+    await refreshCloudView(session.pageA);
     await expect(session.pageA.locator('[data-game-id="private-game"]')).toBeVisible();
     await session.pageA
       .locator('[data-game-id="private-game"]')

@@ -51,7 +51,8 @@ async function readConfig(libraryOnly: boolean, isCurrent = () => true): Promise
   } catch (e) {
     if (!isCurrent()) return false;
     error(`Failed to load config: ${e}`);
-    notifyError($t('error.config_load_failed'));
+    // Background library refreshes report through the cloud status instead.
+    if (!libraryOnly) notifyError($t('error.config_load_failed'));
     return false;
   } finally {
     if (sequence === readSequence) isLoading.value = false;

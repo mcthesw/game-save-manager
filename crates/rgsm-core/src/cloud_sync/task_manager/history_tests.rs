@@ -7,8 +7,6 @@ impl SyncEventEmitter for StatusEmitter {
     fn emit_status(&self, status: &CloudSyncStatus) {
         self.0.send_replace(status.clone());
     }
-
-    fn emit_error(&self, _error: &CloudSyncError) {}
 }
 
 #[tokio::test]

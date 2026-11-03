@@ -2,19 +2,16 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { commands } from '../api/commands';
-import {
-  cloudReadsPaused,
-  refreshCloudLibraryIfStale,
-  useCloudLibrary,
-} from '../composables/useCloudLibrary';
+import { loadCachedCloudLibrary, useCloudLibrary } from '../composables/useCloudLibrary';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 import { KAlert } from '../ui/kit';
 import { formatCloudArchiveBytes as formatBytes } from '../utils/cloudArchivePresentation';
 
 const feedback = useFeedback();
-const { library, lastError, refresh } = useCloudLibrary();
+const { library, lastError, lastCheckedAt, refresh } = useCloudLibrary();
 const materializing = ref(false);
+const refreshing = ref(false);
 
 const allSnapshots = computed(() => library.value?.games.flatMap((game) => game.snapshots) ?? []);
 const localSnapshots = computed(
@@ -26,12 +23,14 @@ const cloudSnapshots = computed(
 const totalSnapshots = computed(() => allSnapshots.value.length);
 
 async function load(options: { silent?: boolean } = {}) {
-  if (!options.silent) await refresh(true);
-  // Without a loaded library there is nothing to keep, so opening the page retries.
-  else if (library.value) await refreshCloudLibraryIfStale();
-  else if (!(await cloudReadsPaused())) await refresh(false);
-  if (lastError.value && !options.silent)
-    notifyError($t('sync_settings.archives.load_failed'), lastError.value);
+  if (options.silent) return loadCachedCloudLibrary();
+  refreshing.value = true;
+  try {
+    await refresh(true);
+  } finally {
+    refreshing.value = false;
+  }
+  if (lastError.value) notifyError($t('sync_settings.archives.load_failed'), lastError.value);
 }
 
 async function materializeAll() {
@@ -96,9 +95,12 @@ onMounted(() => {
       :cloud-snapshots="cloudSnapshots"
       :total-snapshots="totalSnapshots"
       :loaded="library !== null"
+      :checked-at="lastCheckedAt"
+      :refreshing="refreshing"
       :materializing="materializing"
       :pending-materialization="library?.pending_materialization ?? false"
       @download-all="materializeAll"
+      @refresh="load()"
     />
     <KAlert v-if="library?.pending_materialization" tone="info">
       {{ $t('sync_settings.archives.resume_hint') }}

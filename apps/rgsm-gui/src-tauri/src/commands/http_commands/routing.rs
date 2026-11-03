@@ -34,6 +34,10 @@ pub fn router() -> Router<HttpHostState> {
             post(http_get_cloud_namespace_generation),
         )
         .route(
+            "/api/v1/get-cached-cloud-library",
+            post(http_get_cached_cloud_library),
+        )
+        .route(
             "/api/v1/get-cloud-rate-limit",
             post(http_get_cloud_rate_limit),
         )
@@ -198,8 +202,6 @@ pub fn router() -> Router<HttpHostState> {
             post(http_materialize_all_cloud_archives),
         )
         .route("/api/v1/set-game-sync-mode", post(http_set_game_sync_mode))
-        .route("/api/v1/cloud-upload-all", post(http_cloud_upload_all))
-        .route("/api/v1/cloud-download-all", post(http_cloud_download_all))
         .route("/api/v1/cancel-cloud-sync", post(http_cancel_cloud_sync))
         .route(
             "/api/v1/set-snapshot-description",
@@ -314,7 +316,6 @@ pub fn router() -> Router<HttpHostState> {
             post(http_detect_store_user_ids),
         )
         .route("/api/v1/get-system-fonts", post(http_get_system_fonts))
-        .route("/api/v1/get-sync-state", post(http_get_sync_state))
         .route("/api/v1/scan-vns", post(http_scan_vns))
         .route(
             "/api/v1/list-config-backups",
@@ -324,12 +325,6 @@ pub fn router() -> Router<HttpHostState> {
             "/api/v1/restore-config-backup",
             post(http_restore_config_backup),
         )
-        .route("/api/v1/sync-game", post(http_sync_game))
-        .route(
-            "/api/v1/resolve-game-sync-conflict",
-            post(http_resolve_game_sync_conflict),
-        )
-        .route("/api/v1/sync-config", post(http_sync_config))
 }
 
 #[derive(OpenApi)]
@@ -353,6 +348,7 @@ pub fn router() -> Router<HttpHostState> {
         http_delete_snapshot,
         http_batch_delete_snapshots,
         http_get_cloud_namespace_generation,
+        http_get_cached_cloud_library,
         http_get_cloud_rate_limit,
         http_delete_game,
         http_get_local_copy_removal_preview,
@@ -403,8 +399,6 @@ pub fn router() -> Router<HttpHostState> {
         http_permanently_delete_cloud_game,
         http_materialize_all_cloud_archives,
         http_set_game_sync_mode,
-        http_cloud_upload_all,
-        http_cloud_download_all,
         http_cancel_cloud_sync,
         http_set_snapshot_description,
         http_backup_all,
@@ -441,13 +435,9 @@ pub fn router() -> Router<HttpHostState> {
         http_detect_game_roots,
         http_detect_store_user_ids,
         http_get_system_fonts,
-        http_get_sync_state,
         http_scan_vns,
         http_list_config_backups,
         http_restore_config_backup,
-        http_sync_game,
-        http_resolve_game_sync_conflict,
-        http_sync_config,
         http_get_http_host_info,
         http_regenerate_http_api_token,
         crate::http::stream_events,
@@ -464,7 +454,6 @@ pub fn router() -> Router<HttpHostState> {
         crate::http::HostEvent,
         crate::commands::HostNotification,
         crate::commands::CloudSyncStatusEvent,
-        crate::commands::CloudSyncErrorEvent,
         crate::quick_actions::QuickActionCompleted,
         OpenUrlRequest,
         OpenFileOrFolderRequest,
@@ -503,8 +492,6 @@ pub fn router() -> Router<HttpHostState> {
         RemoveCloudDeviceProfileRequest,
         PermanentlyDeleteCloudGameRequest,
         SetGameSyncModeRequest,
-        CloudUploadAllRequest,
-        CloudDownloadAllRequest,
         SetSnapshotDescriptionRequest,
         SetQuickBackupGameRequest,
         SetGameAutoBackupRequest,
@@ -523,8 +510,6 @@ pub fn router() -> Router<HttpHostState> {
         CheckPathsRequest,
         ScanVnsRequest,
         RestoreConfigBackupRequest,
-        SyncGameRequest,
-        ResolveGameSyncConflictRequest,
         RestoreError,
     ))
 )]

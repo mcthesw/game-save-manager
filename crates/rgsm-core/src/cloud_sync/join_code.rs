@@ -185,7 +185,6 @@ mod tests {
                 backend: backend.clone(),
                 root_path: "/games/游戏".into(),
                 auto_sync_interval: 99,
-                max_concurrency: 8,
             };
             let encoded = CloudJoinCode::new(&source, LIBRARY)
                 .unwrap()
@@ -194,14 +193,12 @@ mod tests {
             let decoded = CloudJoinCode::decode(&encoded).unwrap();
             let local = CloudSettings {
                 auto_sync_interval: 3,
-                max_concurrency: 1,
                 ..Default::default()
             };
             let recovered = decoded.settings(&local);
             assert_eq!(recovered.backend, backend);
             assert_eq!(recovered.root_path, source.root_path);
             assert_eq!(recovered.auto_sync_interval, 3);
-            assert_eq!(recovered.max_concurrency, 1);
             assert!(!format!("{decoded:?}").contains("secret"));
         }
     }

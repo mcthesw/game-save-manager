@@ -1,7 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { seedEmptyCloudWithLocalGame } from './support/cloud-fixture';
 import { GAME_NAME } from './support/constants';
-import { createLibrary, createPublishedSnapshot, snapshotRow } from './support/gui';
+import {
+  createLibrary,
+  createPublishedSnapshot,
+  refreshCloudView as refresh,
+  snapshotRow,
+} from './support/gui';
 import { addGameViaApi } from './support/local-gui';
 import { startLocalSession } from './support/local-session';
 import { createRunRoot } from './support/rgsm-instance';
@@ -9,13 +14,6 @@ import { createRunRoot } from './support/rgsm-instance';
 const SECOND_GAME = 'Glass Harbor';
 const cloudPath = '/api/v1/refresh-cloud-archive-library';
 const localPath = '/api/v1/get-game-snapshots-info';
-
-async function refresh(page: Page) {
-  await page.evaluate(async () => {
-    const path = '/src/composables/useCloudLibrary.ts';
-    await (await import(path)).refreshCloudLibrary(true);
-  });
-}
 
 async function switchGame(page: Page, name: string) {
   const response = page.waitForResponse(
@@ -41,7 +39,6 @@ test('game navigation reuses cloud metadata and background refresh preserves the
   let delayedRefresh: Promise<void> | undefined;
   let failed = false;
   try {
-    await page.clock.install();
     await createLibrary(page);
     const snapshot = await createPublishedSnapshot(page, host, 'Keep selected');
     await addGameViaApi(host, SECOND_GAME, [{ type: 'File', path: seeded.deviceA.savePath }]);
@@ -76,33 +73,13 @@ test('game navigation reuses cloud metadata and background refresh preserves the
     expect(cloudReads).toBe(2);
     expect(localReads).toBe(readsBeforeRefresh);
     await expect(snapshotRow(page, snapshot).getByRole('checkbox')).toBeChecked();
-    await page.evaluate(async () => {
+    // Focusing the window shows the cached read and never contacts the provider.
+    await page.evaluate(() => {
       window.dispatchEvent(new Event('focus'));
       document.dispatchEvent(new Event('visibilitychange'));
-      const path = '/src/composables/useCloudLibrary.ts';
-      await (await import(path)).refreshCloudLibraryIfStale();
     });
+    await page.waitForTimeout(500);
     expect(cloudReads).toBe(2);
-
-    // The periodic check is scheduled from the last completed read, not navigation.
-    await page.clock.fastForward(5 * 60_000 + 1000);
-    await page.evaluate(async () => {
-      const path = '/src/composables/useCloudLibrary.ts';
-      await (await import(path)).refreshCloudLibraryIfStale();
-    });
-    expect(cloudReads).toBe(3);
-    expect(localReads).toBe(readsBeforeRefresh);
-
-    // Passing the configured refresh interval allows one shared foreground read.
-    const expiredTime = await page.evaluate(() => Date.now() + 6 * 60_000);
-    await page.clock.setSystemTime(new Date(expiredTime));
-    await page.evaluate(async () => {
-      window.dispatchEvent(new Event('focus'));
-      document.dispatchEvent(new Event('visibilitychange'));
-      const path = '/src/composables/useCloudLibrary.ts';
-      await (await import(path)).refreshCloudLibraryIfStale();
-    });
-    expect(cloudReads).toBe(4);
     expect(localReads).toBe(readsBeforeRefresh);
 
     // A slow cloud response must not block local navigation or snapshot actions.

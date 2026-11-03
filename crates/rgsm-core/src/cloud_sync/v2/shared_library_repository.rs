@@ -4,6 +4,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use super::metadata_read::read_complete_json;
+use super::read_round::{cached_read, invalidate};
 use super::{
     DeletionRegistryError, DeletionRegistryRepository, ManifestTransport, OpenDalManifestTransport,
     SHARED_LIBRARY_PATH,
@@ -39,18 +40,31 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
         }
     }
 
+    /// Reuses the answer already fetched in this reconciliation round; writes
+    /// compare against [`Self::load_fresh`].
     pub async fn load(&self) -> Result<SharedLibrary, SharedLibraryRepositoryError> {
-        let bytes = read_complete_json(|| self.transport.read(), self.max_attempts)
-            .await?
-            .ok_or(SharedLibraryRepositoryError::Missing)?;
+        let bytes = cached_read(self.transport.cache_key(), || self.read_complete()).await?;
+        Self::decode(bytes)
+    }
+
+    pub async fn load_fresh(&self) -> Result<SharedLibrary, SharedLibraryRepositoryError> {
+        Self::decode(self.read_complete().await?)
+    }
+
+    async fn read_complete(&self) -> Result<Option<Vec<u8>>, opendal::Error> {
+        read_complete_json(|| self.transport.read(), self.max_attempts).await
+    }
+
+    fn decode(bytes: Option<Vec<u8>>) -> Result<SharedLibrary, SharedLibraryRepositoryError> {
+        let bytes = bytes.ok_or(SharedLibraryRepositoryError::Missing)?;
         let library: SharedLibrary = serde_json::from_slice(&bytes)?;
         library.validate()?;
         Ok(library)
     }
 
-    /// Compare-and-replace one complete Shared Library and verify provider
-    /// visibility. A changed remote value fails closed instead of merging or
-    /// overwriting unrelated Game definitions.
+    /// Compare-and-replace one complete Shared Library. A changed remote value
+    /// fails closed instead of merging or overwriting unrelated Game
+    /// definitions. A successful provider write is trusted without a read-back.
     pub async fn compare_replace(
         &self,
         expected: &SharedLibrary,
@@ -59,24 +73,23 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
         expected.validate()?;
         accepted.validate()?;
         let _guard = self.writer_lock.lock().await;
-        let accepted_bytes = serde_json::to_vec_pretty(accepted)?;
-        for _ in 0..self.max_attempts {
-            let current = self.load().await?;
-            if current == *accepted {
-                return Ok(current);
-            }
-            if current != *expected {
-                return Err(SharedLibraryRepositoryError::Stale);
-            }
-            self.reject_deleted_game_changes(&current, accepted).await?;
-            self.transport.write(&accepted_bytes).await?;
-            if self.transport.read().await?.as_deref() == Some(accepted_bytes.as_slice()) {
-                return Ok(accepted.clone());
-            }
+        let current = self.load_fresh().await?;
+        if current == *accepted {
+            return Ok(current);
         }
-        Err(SharedLibraryRepositoryError::RetryExhausted {
-            attempts: self.max_attempts,
-        })
+        if current != *expected {
+            return Err(SharedLibraryRepositoryError::Stale);
+        }
+        self.reject_deleted_game_changes(&current, accepted).await?;
+        let written = self
+            .transport
+            .write(&serde_json::to_vec_pretty(accepted)?)
+            .await;
+        if let Some(key) = self.transport.cache_key() {
+            invalidate(key);
+        }
+        written?;
+        Ok(accepted.clone())
     }
 
     async fn reject_deleted_game_changes(
@@ -88,7 +101,7 @@ impl<T: ManifestTransport> SharedLibraryRepository<T> {
             return Ok(());
         };
         let registry = DeletionRegistryRepository::new(operator.clone(), self.max_attempts)
-            .load()
+            .load_fresh()
             .await?;
         for game_id in registry.deleted_games.keys() {
             let previous = expected
@@ -119,8 +132,6 @@ pub enum SharedLibraryRepositoryError {
     Missing,
     #[error("{}", rust_i18n::t!("error.cloud_library_changed"))]
     Stale,
-    #[error("{}", rust_i18n::t!("error.cloud_library_changed"))]
-    RetryExhausted { attempts: usize },
     #[error("Shared Library transport error: {0}")]
     Transport(#[from] opendal::Error),
     #[error("Shared Library serialization error: {0}")]

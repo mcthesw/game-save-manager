@@ -45,30 +45,6 @@ function initListeners() {
     .catch((err) => {
       notifyError($t('cloud_sync.listen_failed'), String(err));
     });
-
-  events.cloudSyncErrorEvent
-    .listen((event) => {
-      const payload = event.payload;
-      const gameName = payload.game_name?.trim();
-      if (gameName) {
-        notifyError(
-          $t('cloud_sync.failed_with_game', {
-            game: gameName,
-            error: payload.error,
-          })
-        );
-        return;
-      }
-
-      notifyError(
-        $t('cloud_sync.failed', {
-          error: payload.error,
-        })
-      );
-    })
-    .catch((err) => {
-      notifyError($t('cloud_sync.listen_failed'), String(err));
-    });
 }
 
 export function useCloudSyncStatus() {

@@ -3,14 +3,16 @@ import { computed, ref, watch } from 'vue';
 import { commands, type CloudLibraryStatus } from '~/api/commands';
 import { $t } from '~/i18n';
 import { KButton } from '../ui/kit';
-import { connectSavedCloudLibrary } from '../composables/useCloudConnection';
-import { cloudReadsPaused, refreshCloudLibrary } from '../composables/useCloudLibrary';
+import {
+  connectSavedCloudLibrary,
+  rememberCloudLibraryStatus,
+  rememberedCloudLibraryStatus,
+} from '../composables/useCloudConnection';
+import { refreshCloudLibrary, useCloudLibrary } from '../composables/useCloudLibrary';
 import { cloudLibraryNotice } from '../utils/cloudLibraryNotice';
 
 interface InspectOptions {
   createWhenEmpty?: boolean;
-  /** Started by the page rather than the user; waits out a provider rate limit. */
-  automatic?: boolean;
 }
 
 const props = defineProps<{
@@ -41,8 +43,37 @@ watch(busy, (busy) => emit('busy', busy), { immediate: true });
 
 function updateStatus(value: CloudLibraryStatus | null) {
   status.value = value;
+  rememberCloudLibraryStatus(value);
   emit('status', value);
 }
+
+// Opening the page reuses the startup check; only a user action contacts the cloud again.
+watch(
+  rememberedCloudLibraryStatus,
+  (remembered) => {
+    if (remembered && props.enabled && remembered !== status.value) {
+      status.value = remembered;
+      emit('status', remembered);
+    }
+  },
+  { immediate: true }
+);
+
+const { cloudFailure } = useCloudLibrary();
+// A failed round that found this device removed or the library damaged is the
+// earliest evidence; no extra check is needed to offer the way out.
+watch(
+  () => cloudFailure.value?.kind,
+  (kind) => {
+    if (!props.enabled) return;
+    if (kind === 'reconnect_required' && status.value?.kind !== kind) {
+      updateStatus({ kind, game_count: 0 });
+    } else if (kind === 'library_damaged' && status.value?.kind !== 'rebuild_required') {
+      updateStatus({ kind: 'rebuild_required' });
+    }
+  },
+  { immediate: true }
+);
 
 let inspectionGeneration = 0;
 let activeInspection: Promise<CloudLibraryStatus | null> | null = null;
@@ -127,7 +158,6 @@ async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus
   const previousInspection = activeInspection;
   if (previousInspection) await previousInspection;
   if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
-  if (options.automatic && (await cloudReadsPaused())) return null;
 
   const inspection = performInspection(requestGeneration, options);
   activeInspection = inspection;

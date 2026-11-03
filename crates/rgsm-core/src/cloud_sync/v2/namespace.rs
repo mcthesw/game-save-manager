@@ -12,6 +12,7 @@ use super::super::V1_CONFIG_PATH;
 use super::super::V1_SAVE_DATA_PREFIX;
 use super::super::backend::FS_ATOMIC_WRITE_DIR;
 use super::metadata_read::read_complete_json;
+use super::read_round::cached_read;
 use super::{CloudManifest, ManifestError};
 use crate::config::{Config, OwnershipError, SharedLibrary};
 use crate::device::encode_device_id;
@@ -103,10 +104,12 @@ impl CloudLibraryTarget {
 
     pub(crate) async fn verify(&self) -> Result<Operator, CloudNamespaceError> {
         let transport = OpenDalNamespaceTransport::new(self.operator.clone());
-        let bytes = read_complete_json(
-            || transport.read(V2_NAMESPACE_DESCRIPTOR_PATH),
-            NAMESPACE_READ_ATTEMPTS,
-        )
+        let bytes = cached_read(Some(V2_NAMESPACE_DESCRIPTOR_PATH), || {
+            read_complete_json(
+                || transport.read(V2_NAMESPACE_DESCRIPTOR_PATH),
+                NAMESPACE_READ_ATTEMPTS,
+            )
+        })
         .await?
         .ok_or(CloudNamespaceError::MissingRequiredObject(
             V2_NAMESPACE_DESCRIPTOR_PATH,
@@ -232,6 +235,24 @@ impl<T: NamespaceTransport> CloudNamespaceClassifier<T> {
         } else {
             Err(CloudNamespaceError::UnrecognizedRoot(root_entries))
         }
+    }
+
+    /// Identify a V2 library from its descriptor and Shared Library alone, for
+    /// callers that only need to know which library this is and how many Games
+    /// it lists. `None` means no V2 descriptor exists.
+    pub async fn identify_v2(
+        &self,
+    ) -> Result<Option<(CloudNamespaceDescriptor, SharedLibrary)>, CloudNamespaceError> {
+        let Some(bytes) = self.read_object(V2_NAMESPACE_DESCRIPTOR_PATH).await? else {
+            return Ok(None);
+        };
+        let descriptor: CloudNamespaceDescriptor =
+            parse_json(V2_NAMESPACE_DESCRIPTOR_PATH, &bytes)?;
+        descriptor.validate()?;
+        let shared_bytes = self.required_object(SHARED_LIBRARY_PATH).await?;
+        let shared_library: SharedLibrary = parse_json(SHARED_LIBRARY_PATH, &shared_bytes)?;
+        shared_library.validate()?;
+        Ok(Some((descriptor, shared_library)))
     }
 
     /// The legacy configuration is read-only input for an upgrade; it is never

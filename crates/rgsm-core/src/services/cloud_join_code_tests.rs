@@ -1,5 +1,7 @@
 use super::*;
-use crate::cloud_sync::v2::{CloudNamespaceDescriptor, V2_NAMESPACE_DESCRIPTOR_PATH};
+use crate::cloud_sync::v2::{
+    CloudLibraryBootstrap, CloudNamespaceDescriptor, V2_NAMESPACE_DESCRIPTOR_PATH,
+};
 use crate::config::{
     CloudNamespaceGeneration, Config, ConfigTestStateGuard, ConfigurationOwners, get_config,
 };

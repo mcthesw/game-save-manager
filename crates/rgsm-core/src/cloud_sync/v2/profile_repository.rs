@@ -3,12 +3,15 @@ use opendal::Operator;
 use thiserror::Error;
 
 use super::metadata_read::read_complete_json;
+use super::read_round::{cached_read, invalidate};
 use super::{
     DeletionRegistry, DeletionRegistryError, DeletionRegistryRepository, V2_DEVICE_PROFILES_PREFIX,
     device_profile_path,
 };
 use crate::config::{DeviceProfile, V2_CONFIG_SCHEMA_VERSION};
 use crate::device::DeviceId;
+
+const PROFILE_LIST_KEY: &str = V2_DEVICE_PROFILES_PREFIX;
 
 pub struct DeviceProfileRepository {
     operator: Operator,
@@ -23,7 +26,7 @@ impl DeviceProfileRepository {
         }
     }
 
-    /// Publish the current Device's complete Profile and verify provider-visible bytes.
+    /// Publish the current Device's complete Profile.
     ///
     /// Only the Device named by `profile.device.id` may call this operation.
     /// Provider locks are intentionally outside the V2 contract.
@@ -89,24 +92,28 @@ impl DeviceProfileRepository {
         profile: &DeviceProfile,
     ) -> Result<(), DeviceProfileRepositoryError> {
         let path = device_profile_path(acting_device_id);
-        let expected = serde_json::to_vec_pretty(profile)?;
-        for _ in 0..self.max_attempts {
-            self.operator.write(&path, expected.clone()).await?;
-            if self
-                .operator
-                .read(&path)
-                .await
-                .is_ok_and(|stored| stored.to_vec() == expected)
-            {
-                return Ok(());
-            }
-        }
-        Err(DeviceProfileRepositoryError::RetryExhausted {
-            attempts: self.max_attempts,
-        })
+        let written = self
+            .operator
+            .write(&path, serde_json::to_vec_pretty(profile)?)
+            .await;
+        invalidate(PROFILE_LIST_KEY);
+        written?;
+        Ok(())
     }
 
+    /// Every Device Profile; repeated calls within one reconciliation round
+    /// share a single listing.
     pub async fn list(&self) -> Result<Vec<DeviceProfile>, DeviceProfileRepositoryError> {
+        let bytes = cached_read(Some(PROFILE_LIST_KEY), || async {
+            let profiles = self.list_uncached().await?;
+            Ok::<_, DeviceProfileRepositoryError>(Some(serde_json::to_vec(&profiles)?))
+        })
+        .await?
+        .expect("a profile listing always produces bytes");
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+
+    async fn list_uncached(&self) -> Result<Vec<DeviceProfile>, DeviceProfileRepositoryError> {
         let mut lister = self.operator.lister(V2_DEVICE_PROFILES_PREFIX).await?;
         let mut profiles = Vec::new();
         while let Some(entry) = lister.try_next().await? {
@@ -114,22 +121,48 @@ impl DeviceProfileRepository {
             if !path.ends_with(".json") {
                 continue;
             }
-            let profile = self.read_profile(path).await?;
-            if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
-                return Err(DeviceProfileRepositoryError::UnsupportedSchema(
-                    profile.schema_version,
-                ));
-            }
-            if device_profile_path(&profile.device.id) != path {
-                return Err(DeviceProfileRepositoryError::PathIdentityMismatch {
-                    path: path.to_string(),
-                    device_id: profile.device.id,
-                });
-            }
-            profiles.push(profile);
+            profiles.push(self.read_checked_profile(path).await?);
         }
         profiles.sort_by(|left, right| left.device.id.cmp(&right.device.id));
         Ok(profiles)
+    }
+
+    /// One Device's Profile, read directly instead of listing every Device.
+    pub async fn get(
+        &self,
+        device_id: &str,
+    ) -> Result<Option<DeviceProfile>, DeviceProfileRepositoryError> {
+        match self
+            .read_checked_profile(&device_profile_path(device_id))
+            .await
+        {
+            Ok(profile) => Ok(Some(profile)),
+            Err(DeviceProfileRepositoryError::Transport(error))
+                if error.kind() == opendal::ErrorKind::NotFound =>
+            {
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn read_checked_profile(
+        &self,
+        path: &str,
+    ) -> Result<DeviceProfile, DeviceProfileRepositoryError> {
+        let profile = self.read_profile(path).await?;
+        if profile.schema_version != V2_CONFIG_SCHEMA_VERSION {
+            return Err(DeviceProfileRepositoryError::UnsupportedSchema(
+                profile.schema_version,
+            ));
+        }
+        if device_profile_path(&profile.device.id) != path {
+            return Err(DeviceProfileRepositoryError::PathIdentityMismatch {
+                path: path.to_string(),
+                device_id: profile.device.id,
+            });
+        }
+        Ok(profile)
     }
 
     async fn read_profile(
@@ -152,6 +185,7 @@ impl DeviceProfileRepository {
 
     pub async fn delete(&self, device_id: &str) -> Result<(), DeviceProfileRepositoryError> {
         let path = device_profile_path(device_id);
+        invalidate(PROFILE_LIST_KEY);
         for _ in 0..self.max_attempts {
             self.operator.delete(&path).await?;
             if !self.operator.exists(&path).await? {
@@ -204,8 +238,6 @@ pub enum DeviceProfileRepositoryError {
     DeletedGame(String),
     #[error("Device Profile path {path} does not match embedded Device ID {device_id}")]
     PathIdentityMismatch { path: String, device_id: DeviceId },
-    #[error("Device Profile read-back verification failed after {attempts} attempts")]
-    RetryExhausted { attempts: usize },
     #[error("Device Profile {device_id} remained visible after {attempts} delete attempts")]
     DeleteRetryExhausted {
         device_id: DeviceId,
@@ -273,6 +305,19 @@ mod tests {
         assert!(operator.read(&device_profile_path("deck")).await.is_ok());
         assert_eq!(
             repository.list().await.unwrap()[0].device.name,
+            "Steam Deck"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_reads_one_profile_and_reports_a_missing_one_as_absent() {
+        let operator = crate::cloud_sync::v2::test_support::seeded_memory_operator().await;
+        let repository = DeviceProfileRepository::new(operator, 2);
+
+        assert!(repository.get("deck").await.unwrap().is_none());
+        repository.publish("deck", &profile()).await.unwrap();
+        assert_eq!(
+            repository.get("deck").await.unwrap().unwrap().device.name,
             "Steam Deck"
         );
     }

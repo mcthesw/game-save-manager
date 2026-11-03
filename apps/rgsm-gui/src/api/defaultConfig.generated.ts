@@ -21,7 +21,6 @@ export const DEFAULT_CONFIG: Config = {
       backend: {
         type: 'Disabled',
       },
-      max_concurrency: 1,
     },
     locale: 'zh_SIMPLIFIED',
     default_delete_before_apply: false,

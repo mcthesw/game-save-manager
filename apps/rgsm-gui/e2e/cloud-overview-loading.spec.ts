@@ -14,14 +14,6 @@ test('cloud overview does not show setup actions while inspection is pending', a
     device: seeded.deviceA,
     label: 'overview-loading',
   });
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let received!: () => void;
-  const responseReady = new Promise<void>((resolve) => {
-    received = resolve;
-  });
   let failed = false;
   try {
     const cutover = await hostPost(session.host, '/api/v1/cutover-cloud-library', {
@@ -29,21 +21,26 @@ test('cloud overview does not show setup actions while inspection is pending', a
     });
     expect(cutover.ok, cutover.raw).toBe(true);
     await session.page.reload();
-    await session.page.route('**/api/v1/inspect-cloud-library', async (route) => {
-      const response = await route.fetch();
-      received();
-      await gate;
-      await route.fulfill({ response });
+    let cloudReads = 0;
+    session.page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (
+        path === '/api/v1/inspect-cloud-library' ||
+        path === '/api/v1/refresh-cloud-archive-library'
+      ) {
+        cloudReads += 1;
+      }
     });
     await openSyncSettings(session.page);
-    await responseReady;
     await expect(
       session.page.getByRole('button', { name: 'Check library', exact: true })
     ).toHaveCount(0);
     await expect(
       session.page.getByText('Cloud connection not configured', { exact: true })
     ).toHaveCount(0);
-    release();
+    await session.page.waitForTimeout(1000);
+    // Opening the page shows what is already known and never contacts the provider.
+    expect(cloudReads).toBe(0);
     const tutorial = session.page.getByRole('button', { name: 'Tutorial', exact: true });
     await tutorial.hover();
     await expect(
@@ -57,7 +54,6 @@ test('cloud overview does not show setup actions while inspection is pending', a
     failed = true;
     throw error;
   } finally {
-    release();
     await session.close(failed);
   }
 });

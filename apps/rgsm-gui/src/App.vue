@@ -18,7 +18,10 @@ import {
 } from './composables/useActivityCenter';
 import { useConfig } from './composables/useConfig';
 import { useAppUpdates } from './composables/useAppUpdates';
-import { connectSavedCloudLibrary } from './composables/useCloudConnection';
+import {
+  connectSavedCloudLibrary,
+  isCloudLibraryUnconnected,
+} from './composables/useCloudConnection';
 import { cloudReadsPaused, useCloudLibraryRefresh } from './composables/useCloudLibrary';
 import { useGlobalLoading } from './composables/useGlobalLoading';
 import { useHostNotificationCollector } from './composables/useHostNotificationCollector';
@@ -192,8 +195,11 @@ async function initializeApp() {
 
     // 在应用启动时检查设备设置
     await checkDeviceSetup();
+    // An active library is checked by the background worker's startup round; only a
+    // library that is not connected yet needs the connection flow.
     if (
       (config.value.settings.cloud_settings?.backend?.type ?? 'Disabled') !== 'Disabled' &&
+      (await isCloudLibraryUnconnected()) &&
       !(await cloudReadsPaused())
     ) {
       void connectSavedCloudLibrary()

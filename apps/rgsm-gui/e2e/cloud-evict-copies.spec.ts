@@ -12,6 +12,7 @@ import {
   evictCloudCopy,
   evictLocalCopy,
   openGame,
+  refreshCloudView,
   snapshotRow,
   uploadSnapshot,
 } from './support/gui';
@@ -77,6 +78,7 @@ test('evict local or cloud copy without deleting snapshot', async ({ browser }) 
     expect(existsSync(cloudCopy)).toBe(false);
 
     await openGame(session.pageB);
+    await refreshCloudView(session.pageB);
     const download = snapshotRow(session.pageB, snapshotId).getByRole('button', {
       name: 'Download to this device',
     });

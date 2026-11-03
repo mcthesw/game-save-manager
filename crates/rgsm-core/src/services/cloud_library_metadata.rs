@@ -16,12 +16,9 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
         return Ok(());
     }
     let operator = bound_v2_operator(&local_state).await?;
-    let profiles = DeviceProfileRepository::new(operator.clone(), 3)
-        .list()
-        .await?;
-    let Some(published) = profiles
-        .iter()
-        .find(|profile| profile.device.id == local_state.current_device_id)
+    let Some(published) = DeviceProfileRepository::new(operator.clone(), 3)
+        .get(&local_state.current_device_id)
+        .await?
     else {
         return Err(CloudLibraryServiceError::DeviceReconnectRequired);
     };
@@ -83,7 +80,7 @@ pub(super) async fn refresh_shared_library() -> Result<(), CloudLibraryServiceEr
             desired.games.remove(id);
         }
     }
-    if *published != desired {
+    if published != desired {
         DeviceProfileRepository::new(operator, 3)
             .publish(&state.current_device_id, &desired)
             .await?;

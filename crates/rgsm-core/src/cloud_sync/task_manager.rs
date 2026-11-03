@@ -15,7 +15,6 @@ use tokio_util::sync::CancellationToken;
 /// GUI implements this using Tauri's event system; CLI might log to stdout.
 pub trait SyncEventEmitter: Send + Sync {
     fn emit_status(&self, status: &CloudSyncStatus);
-    fn emit_error(&self, error: &CloudSyncError);
 }
 
 const MAX_HISTORY_SIZE: usize = 20;
@@ -42,12 +41,6 @@ pub struct CloudSyncStatus {
     pub active_jobs: usize,
     pub current_description: Option<String>,
     pub jobs: Vec<CloudSyncJobInfo>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
-pub struct CloudSyncError {
-    pub game_name: Option<String>,
-    pub error: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
@@ -234,7 +227,6 @@ mod tests {
 
     impl SyncEventEmitter for NoopEmitter {
         fn emit_status(&self, _status: &CloudSyncStatus) {}
-        fn emit_error(&self, _error: &CloudSyncError) {}
     }
 
     fn manager() -> Arc<CloudSyncTaskManager> {

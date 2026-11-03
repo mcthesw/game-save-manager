@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { LoaderCircle, RefreshCw } from '@lucide/vue';
+import { RefreshCw } from '@lucide/vue';
 
 import { commands, type DeletedCloudGameView } from '../api/commands';
-import { cloudReadsPaused } from '../composables/useCloudLibrary';
+import { useCloudLibrary } from '../composables/useCloudLibrary';
 import { $t } from '../i18n';
 import { KButton, KTag } from '../ui/kit';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
@@ -11,23 +11,8 @@ const emit = defineEmits<{
   updated: [];
 }>();
 
-const games = ref<DeletedCloudGameView[]>([]);
-const loading = ref(false);
+const { deletedGames: games } = useCloudLibrary();
 const retrying = ref('');
-
-async function load() {
-  loading.value = true;
-  try {
-    const result = await commands.getDeletedCloudGames();
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.games.load_deleted_failed'), result.error);
-      return;
-    }
-    games.value = result.data;
-  } finally {
-    loading.value = false;
-  }
-}
 
 async function retry(game: DeletedCloudGameView) {
   retrying.value = game.game_id;
@@ -42,27 +27,19 @@ async function retry(game: DeletedCloudGameView) {
         })
       );
     }
-    await load();
     emit('updated');
   } finally {
     retrying.value = '';
   }
 }
-
-onMounted(async () => {
-  if (!(await cloudReadsPaused())) await load();
-});
 </script>
 
 <template>
-  <section v-if="loading || games.length > 0" class="flex flex-col gap-2">
+  <section v-if="games.length > 0" class="flex flex-col gap-2">
     <div>
       <strong class="text-sm font-medium text-text">{{
         $t('sync_settings.archives.games.deleted_title')
       }}</strong>
-    </div>
-    <div v-if="loading" class="flex justify-center py-2 text-text-dim">
-      <LoaderCircle :size="16" class="animate-spin" aria-hidden="true" />
     </div>
     <div
       v-for="game in games"

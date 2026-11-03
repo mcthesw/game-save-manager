@@ -365,6 +365,8 @@
         "batch_evict_confirm": "要从本机移除选中的 {count} 个快照副本吗，云端仍会保留",
         "batch_evict_confirm_mixed": "从此设备移除 {count} 个选中的快照副本？其中 {unverified} 个没有已验证的云端副本",
         "batch_evict_success": "已从本机移除 {count} 个快照副本",
+        "batch_upload_success": "已上传 {count} 个快照到云库",
+        "batch_download_success": "已从云库下载 {count} 个快照",
         "batch_evict_partial": "从本机移除了 {succeeded} 个快照，{failed} 个失败",
         "location_local": "本机",
         "location_cloud": "云端",
@@ -687,8 +689,6 @@
         "submit_success": "保存修改成功",
         "last_sync": "上次同步时间：",
         "manual_link": "教程",
-        "max_concurrency": "最大并发数",
-        "max_concurrency_hint": "云同步最大并行传输数量，降低此值可减轻服务器负载（需重启应用生效）",
         "manual_sync": "手动同步",
         "save_button": "保存设置",
         "abort_button": "放弃更改",
@@ -843,7 +843,8 @@
             "title": "云库快照历史",
             "summary": "云端可下载副本已到本机 {local}/{total}",
             "game_summary": "本机 {local} · 云端 {cloud} · 共 {total}",
-            "game_summary_pending": "正在检查云端",
+            "game_summary_pending": "尚未读取云库",
+            "last_checked": "上次检查 {time}",
             "mode": "同步模式",
             "mode_manual": "手动",
             "mode_snapshot": "云备份",
@@ -944,8 +945,7 @@
                 "deleted_title": "已永久删除的游戏",
                 "removed": "已删除",
                 "incomplete": "清理未完成",
-                "retry": "重试清理",
-                "load_deleted_failed": "无法读取已删除游戏"
+                "retry": "重试清理"
             },
             "evict": {
                 "action": "移除本地副本",
@@ -1018,25 +1018,6 @@
                 "resolve_failed": "无法解决进度冲突",
                 "load_failed": "无法比较设备进度"
             }
-        },
-        "conflict": {
-            "title": "解决云同步冲突",
-            "summary": "{game} 的本地进度和云端进度不同，请选择保留哪一边。",
-            "local_title": "本地进度",
-            "cloud_title": "云端进度",
-            "snapshot": "快照",
-            "device": "设备",
-            "current_device": "当前设备",
-            "cloud_device": "云端",
-            "last_checked": "上次检查",
-            "not_synced": "尚未检查",
-            "no_snapshot": "没有记录快照",
-            "keep_local": "保留本地",
-            "accept_remote": "使用云端",
-            "decide_later": "稍后决定",
-            "resolve": "解决",
-            "resolve_success": "冲突已解决",
-            "resolve_failed": "解决冲突失败"
         },
         "backend_tab": {
             "tab": "后端配置"
@@ -1195,8 +1176,6 @@
         "cancel": "取消",
         "cancelled": "已取消云同步任务",
         "listen_failed": "监听云同步状态失败",
-        "failed": "云同步失败：{error}（可在同步设置中重试）",
-        "failed_with_game": "{game} 的云同步失败：{error}（可在同步设置中重试）",
         "status_running": "运行中",
         "status_queued": "排队中",
         "status_completed": "已完成",
@@ -1211,6 +1190,9 @@
         "local_upgrade_environment_failed": "无法写入升级后的备份，升级已暂停。请释放磁盘空间或检查文件夹权限后继续。详情：%{error}",
         "cloud_unreachable": "无法连接云存储。请检查网络和云同步中的存储设置后重试，本地存档不受影响。",
         "cloud_rate_limited": "云存储因请求过于频繁，暂时限制了访问。请等待约 10 分钟后重试，本地存档不受影响。",
+        "cloud_not_found": "云存储里找不到需要的文件。请检查云同步中的存储位置后重试，本地存档不受影响。",
+        "cloud_unsupported": "当前云存储不支持云同步需要的功能，请换一个存储服务。本地存档不受影响。",
+        "cloud_request_failed": "云存储拒绝了请求：%{reason}。本地存档不受影响。",
         "cloud_access_denied": "云存储拒绝了访问。请在云同步中检查账号、密钥和权限。",
         "cloud_settings_invalid": "云存储设置无效，请在云同步中检查。",
         "cloud_library_damaged": "云库不完整或已损坏。请打开云同步并选择“从此设备重建”。",

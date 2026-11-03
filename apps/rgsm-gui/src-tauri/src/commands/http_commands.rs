@@ -287,6 +287,17 @@ pub async fn http_get_cloud_namespace_generation()
 
 #[utoipa::path(
     post,
+    path = "/api/v1/get-cached-cloud-library",
+    operation_id = "getCachedCloudLibrary",
+    responses((status = 200, body = crate::cloud_library_cache::CachedCloudLibrary), (status = 401, body = ApiError))
+)]
+pub async fn http_get_cached_cloud_library() -> Json<crate::cloud_library_cache::CachedCloudLibrary>
+{
+    Json(commands::get_cached_cloud_library())
+}
+
+#[utoipa::path(
+    post,
     path = "/api/v1/get-cloud-rate-limit",
     operation_id = "getCloudRateLimit",
     responses((status = 200, body = commands::CloudRateLimitStatus), (status = 401, body = ApiError))
@@ -1308,52 +1319,6 @@ pub async fn http_set_game_sync_mode(
     .map_err(ApiError::from_command)
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CloudUploadAllRequest {
-    pub session: CloudSyncSessionConfig,
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/cloud-upload-all",
-    operation_id = "cloudUploadAll",
-    request_body = CloudUploadAllRequest,
-    responses((status = 200, body = BatchSyncReport), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_cloud_upload_all(
-    State(state): State<HttpHostState>,
-    Json(request): Json<CloudUploadAllRequest>,
-) -> Result<Json<BatchSyncReport>, ApiError> {
-    commands::cloud_upload_all(request.session, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CloudDownloadAllRequest {
-    pub session: CloudSyncSessionConfig,
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/cloud-download-all",
-    operation_id = "cloudDownloadAll",
-    request_body = CloudDownloadAllRequest,
-    responses((status = 200, body = BatchSyncReport), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_cloud_download_all(
-    State(state): State<HttpHostState>,
-    Json(request): Json<CloudDownloadAllRequest>,
-) -> Result<Json<BatchSyncReport>, ApiError> {
-    commands::cloud_download_all(request.session, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
-}
-
 #[utoipa::path(
     post,
     path = "/api/v1/cancel-cloud-sync",
@@ -2017,18 +1982,6 @@ pub async fn http_get_system_fonts() -> Result<Json<Vec<String>>, ApiError> {
     Ok(Json(commands::get_system_fonts()))
 }
 
-#[utoipa::path(
-    post,
-    path = "/api/v1/get-sync-state",
-    operation_id = "getSyncState",
-    responses((status = 200, body = cloud_sync::SyncState), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_get_sync_state() -> Result<Json<cloud_sync::SyncState>, ApiError> {
-    commands::get_sync_state()
-        .map(Json)
-        .map_err(ApiError::from_command)
-}
-
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanVnsRequest {
@@ -2078,66 +2031,6 @@ pub async fn http_restore_config_backup(
     Json(request): Json<RestoreConfigBackupRequest>,
 ) -> Result<Json<()>, ApiError> {
     commands::restore_config_backup(request.index, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncGameRequest {
-    pub game_name: String,
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/sync-game",
-    operation_id = "syncGame",
-    request_body = SyncGameRequest,
-    responses((status = 200, body = SyncGameOutcome), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_sync_game(
-    State(state): State<HttpHostState>,
-    Json(request): Json<SyncGameRequest>,
-) -> Result<Json<SyncGameOutcome>, ApiError> {
-    commands::sync_game(request.game_name, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResolveGameSyncConflictRequest {
-    pub game_name: String,
-    pub resolution: ConflictResolution,
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/resolve-game-sync-conflict",
-    operation_id = "resolveGameSyncConflict",
-    request_body = ResolveGameSyncConflictRequest,
-    responses((status = 200, body = ConflictResolutionOutcome), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_resolve_game_sync_conflict(
-    State(state): State<HttpHostState>,
-    Json(request): Json<ResolveGameSyncConflictRequest>,
-) -> Result<Json<ConflictResolutionOutcome>, ApiError> {
-    commands::resolve_game_sync_conflict(request.game_name, request.resolution, state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
-}
-
-#[utoipa::path(
-    post,
-    path = "/api/v1/sync-config",
-    operation_id = "syncConfig",
-    responses((status = 200, body = ()), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
-)]
-pub async fn http_sync_config(State(state): State<HttpHostState>) -> Result<Json<()>, ApiError> {
-    commands::sync_config(state.app().clone())
         .await
         .map(Json)
         .map_err(ApiError::from_command)

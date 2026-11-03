@@ -8,13 +8,13 @@ import { KButton, KTag } from '../ui/kit';
 import { useConfig } from '../composables/useConfig';
 import {
   clearCloudLibrary,
-  cloudReadsPaused,
   refreshCloudLibrary,
+  useCloudLibrary,
 } from '../composables/useCloudLibrary';
 
 const feedback = useFeedback();
 const emit = defineEmits<{ reused: [] }>();
-const profiles = ref<CloudDeviceProfileView[]>([]);
+const { deviceProfiles: profiles, lastError } = useCloudLibrary();
 const loading = ref(false);
 const removing = ref('');
 const reusing = ref('');
@@ -55,12 +55,10 @@ async function reuse(profile: CloudDeviceProfileView) {
 async function load() {
   loading.value = true;
   try {
-    const result = await commands.getCloudDeviceProfiles();
-    if (result.status === 'error') {
-      notifyError($t('sync_settings.archives.profiles.load_failed'), result.error);
-      return;
+    await refreshCloudLibrary(true);
+    if (lastError.value) {
+      notifyError($t('sync_settings.archives.profiles.load_failed'), lastError.value);
     }
-    profiles.value = result.data;
   } finally {
     loading.value = false;
   }
@@ -100,10 +98,6 @@ async function remove(profile: CloudDeviceProfileView) {
     removing.value = '';
   }
 }
-
-onMounted(async () => {
-  if (!(await cloudReadsPaused())) await load();
-});
 </script>
 
 <template>

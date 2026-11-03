@@ -19,7 +19,7 @@ test('cloud metadata adds an accessible icon without moving snapshot controls', 
       releaseResponse = resolve;
     });
     let held = false;
-    await page.route('**/api/v1/refresh-cloud-archive-library', async (route) => {
+    await page.route('**/api/v1/get-cached-cloud-library', async (route) => {
       if (route.request().method() !== 'POST') return route.continue();
       const response = await route.fetch();
       held = true;

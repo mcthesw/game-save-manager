@@ -1,6 +1,7 @@
 import { computed, type Ref } from 'vue';
 import { commands, type CloudArchiveGameView, type Game, type Snapshot } from '../../api/commands';
 import { $t } from '../../i18n';
+import { refreshCloudLibrary } from '../../composables/useCloudLibrary';
 import {
   canDownloadSnapshot,
   canEvictSnapshot,
@@ -62,7 +63,13 @@ export function useSnapshotTransfers(deps: {
     return game.value.storage_key || game.value.name;
   }
 
-  async function transferSnapshot(date: string, upload: boolean) {
+  /** Cloud-side changes need the cloud view reconciled; local-only edits do not. */
+  async function refreshAfterCloudChange() {
+    await refresh();
+    void refreshCloudLibrary(true);
+  }
+
+  async function transferOne(date: string, upload: boolean): Promise<boolean> {
     activeTransfer.value = date;
     try {
       const result = upload
@@ -70,17 +77,22 @@ export function useSnapshotTransfers(deps: {
         : await commands.downloadCloudArchive(gameId(), date);
       if (result.status === 'error') {
         notifyError($t('sync_settings.archives.transfer_failed'), result.error);
-        return;
+        return false;
       }
-      notifySuccess(
-        upload
-          ? $t('sync_settings.archives.upload_success')
-          : $t('sync_settings.archives.download_success')
-      );
-      await refresh();
+      return true;
     } finally {
       activeTransfer.value = '';
     }
+  }
+
+  async function transferSnapshot(date: string, upload: boolean) {
+    if (!(await transferOne(date, upload))) return;
+    notifySuccess(
+      upload
+        ? $t('sync_settings.archives.upload_success')
+        : $t('sync_settings.archives.download_success')
+    );
+    await refreshAfterCloudChange();
   }
 
   async function retryPendingDeletion(snapshotId: string, retryable: boolean) {
@@ -93,7 +105,7 @@ export function useSnapshotTransfers(deps: {
         return;
       }
       notifySuccess($t('sync_settings.archives.delete_success'));
-      await refresh();
+      await refreshAfterCloudChange();
     } finally {
       activeTransfer.value = '';
     }
@@ -133,7 +145,7 @@ export function useSnapshotTransfers(deps: {
         return;
       }
       notifySuccess($t('sync_settings.archives.evict.success'));
-      await refresh();
+      await refreshAfterCloudChange();
     } finally {
       activeTransfer.value = '';
     }
@@ -161,7 +173,7 @@ export function useSnapshotTransfers(deps: {
         return;
       }
       notifySuccess($t('sync_settings.archives.evict_cloud.success'));
-      await refresh();
+      await refreshAfterCloudChange();
     } finally {
       activeTransfer.value = '';
     }
@@ -169,9 +181,20 @@ export function useSnapshotTransfers(deps: {
 
   async function batchTransfer(upload: boolean) {
     const rows = upload ? selectedUploadable.value : selectedDownloadable.value;
+    let succeeded = 0;
+    // A failure is already reported; carrying on would repeat it for every row.
     for (const snapshot of rows) {
-      await transferSnapshot(snapshot.date, upload);
+      if (!(await transferOne(snapshot.date, upload))) break;
+      succeeded += 1;
     }
+    if (succeeded > 0) {
+      notifySuccess(
+        $t(upload ? 'manage.batch_upload_success' : 'manage.batch_download_success', {
+          count: succeeded,
+        })
+      );
+    }
+    await refreshAfterCloudChange();
   }
 
   async function batchEvict() {
@@ -268,7 +291,7 @@ export function useSnapshotTransfers(deps: {
             ? $t('manage.protect_from_retention_success')
             : $t('sync_settings.archives.retention.unprotected')
         );
-        await refresh();
+        await refreshAfterCloudChange();
         return;
       }
       const snapshot = allSnapshots().find((x) => x.date === snapshotDate);

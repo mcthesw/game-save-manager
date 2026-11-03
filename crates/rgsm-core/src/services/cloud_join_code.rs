@@ -2,9 +2,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 use super::{CloudLibraryStatus, ServiceContext};
-use crate::cloud_sync::v2::{
-    CloudLibraryBootstrap, CloudNamespaceClassification, DeviceProfileRepository,
-};
+use crate::cloud_sync::v2::{CloudNamespaceClassifier, DeviceProfileRepository};
 use crate::cloud_sync::{
     Backend, CloudSettings, CloudSyncSessionConfig,
     join_code::{CloudJoinCode, JoinCodeError},
@@ -128,16 +126,14 @@ async fn inspect_target(
     let operator = CloudSyncSessionConfig::from(settings)
         .get_op()
         .map_err(|_| CloudJoinError::Unavailable)?;
-    match CloudLibraryBootstrap::new(operator.clone(), 3)
-        .inspect()
+    match CloudNamespaceClassifier::new(operator.clone())
+        .identify_v2()
         .await
         .map_err(|_| CloudJoinError::Unavailable)?
     {
-        CloudNamespaceClassification::SupportedV2 {
-            shared_library,
-            descriptor,
-            ..
-        } if descriptor.library_id == id => Ok((operator, shared_library)),
+        Some((descriptor, shared_library)) if descriptor.library_id == id => {
+            Ok((operator, shared_library))
+        }
         _ => Err(CloudJoinError::InvalidLibrary),
     }
 }

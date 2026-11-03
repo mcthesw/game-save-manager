@@ -353,7 +353,18 @@ impl CloudArchiveMaterializer {
         Ok(self.repository().load().await?.revision)
     }
 
+    /// Upload one verified local Archive and publish it. A successful upload
+    /// is trusted: the Archive's integrity is recorded in the Manifest and
+    /// checked when it is downloaded, so it is not fetched back to compare.
     pub async fn upload(
+        &self,
+        game_id: &str,
+        snapshot_id: &str,
+    ) -> Result<(), MaterializationError> {
+        super::with_read_round(self.upload_in_round(game_id, snapshot_id)).await
+    }
+
+    async fn upload_in_round(
         &self,
         game_id: &str,
         snapshot_id: &str,
@@ -375,48 +386,15 @@ impl CloudArchiveMaterializer {
             item.archive_format,
             item.archive_name.as_deref(),
         )?;
-        let verify_path = self.staging_path(&item, "upload-verify");
-        let transfer = CloudTransfer::new(&self.operator);
-        let mut verified = false;
-        for _ in 0..self.max_attempts {
-            transfer
-                .upload_file_streaming(&local_path, &remote_path)
-                .await?;
-            transfer
-                .download_file_streaming(&remote_path, &verify_path)
-                .await?;
-            if verify_file(item.integrity.clone(), verify_path.clone())
-                .await
-                .is_ok()
-            {
-                verified = true;
-                break;
-            }
-        }
-        remove_file_if_exists(&verify_path).await?;
-        if !verified {
-            return Err(MaterializationError::CloudVerificationFailed {
-                game_id: game_id.to_string(),
-                snapshot_id: snapshot_id.to_string(),
-            });
-        }
-        if let Err(error) = self.ensure_active(game_id).await {
-            if matches!(
-                &error,
-                MaterializationError::DeletionRegistry(DeletionRegistryError::GameDeleted(_))
-            ) {
-                self.operator
-                    .delete(&remote_path)
-                    .await
-                    .map_err(BackendError::from)?;
-            }
-            return Err(error);
-        }
+        CloudTransfer::new(&self.operator)
+            .upload_file_streaming(&local_path, &remote_path)
+            .await?;
         let current_device = self.current_device_id.clone();
         let final_game_id = game_id.to_string();
         let manifest_game_id = final_game_id.clone();
         let snapshot_id = snapshot_id.to_string();
-        self.repository()
+        let published = self
+            .repository()
             .mutate(move |manifest| {
                 let game = manifest
                     .games
@@ -437,8 +415,17 @@ impl CloudArchiveMaterializer {
                 game.report_local_archive(current_device.clone(), snapshot_id.clone(), true);
                 Ok(())
             })
-            .await?;
-        if let Err(error) = self.ensure_active(&final_game_id).await {
+            .await;
+        // A deletion can land while the Archive uploads; either guard below
+        // must remove the orphan the deletion's purge could no longer see.
+        let outcome = match published {
+            Ok(_) => self.ensure_active_fresh(&final_game_id).await,
+            Err(ManifestRepositoryError::DeletedGame(game)) => Err(
+                MaterializationError::DeletionRegistry(DeletionRegistryError::GameDeleted(game)),
+            ),
+            Err(error) => return Err(error.into()),
+        };
+        if let Err(error) = outcome {
             if matches!(
                 &error,
                 MaterializationError::DeletionRegistry(DeletionRegistryError::GameDeleted(_))
@@ -877,6 +864,16 @@ impl CloudArchiveMaterializer {
         self.ensure_game_allowed(game_id)?;
         DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
             .ensure_active(&self.current_device_id, game_id)
+            .await?;
+        Ok(())
+    }
+
+    /// For the guard after a long transfer, where a round's cached answer
+    /// could predate a deletion.
+    async fn ensure_active_fresh(&self, game_id: &str) -> Result<(), MaterializationError> {
+        self.ensure_game_allowed(game_id)?;
+        DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts)
+            .ensure_active_fresh(&self.current_device_id, game_id)
             .await?;
         Ok(())
     }

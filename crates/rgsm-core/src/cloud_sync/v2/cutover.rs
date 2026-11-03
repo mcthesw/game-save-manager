@@ -419,9 +419,7 @@ impl CloudLibraryCutover {
             encode_device_id(&snapshot.date)
         );
         let source_staging = staging_root.join(format!("{stem}.source"));
-        let verify_staging = staging_root.join(format!("{stem}.verify"));
         remove_path_if_exists(&source_staging).await?;
-        remove_path_if_exists(&verify_staging).await?;
         let local_path = snapshot_archive_path(&self.local_archive_root.join(game_id), snapshot);
         let (source, integrity, local_present) =
             if let Some(integrity) = accepted_legacy_archive(&local_path, snapshot) {
@@ -441,27 +439,12 @@ impl CloudLibraryCutover {
             snapshot.archive_format,
             snapshot.archive_name.as_deref(),
         )?;
-        let transfer = CloudTransfer::new(&self.operator);
-        let mut verified = false;
-        for _ in 0..self.max_attempts {
-            transfer.upload_file_streaming(&source, &v2_path).await?;
-            transfer
-                .download_file_streaming(&v2_path, &verify_staging)
-                .await?;
-            if integrity.verify_file(&verify_staging).is_ok() {
-                verified = true;
-                break;
-            }
-        }
+        // The source was verified against its recorded integrity above, and a
+        // completed upload is trusted: the published library is checked once at the end.
+        CloudTransfer::new(&self.operator)
+            .upload_file_streaming(&source, &v2_path)
+            .await?;
         remove_path_if_exists(&source_staging).await?;
-        remove_path_if_exists(&verify_staging).await?;
-        if !verified {
-            return Err(CloudLibraryCutoverError::ArchiveVerificationFailed {
-                game_id: game_id.to_string(),
-                snapshot_id: snapshot.date.clone(),
-                attempts: self.max_attempts,
-            });
-        }
         Ok(CutoverArchiveResult::Verified {
             integrity,
             local_present,
@@ -545,14 +528,14 @@ impl CloudLibraryCutover {
         plan: &CutoverPlan,
         manifest: &CloudManifest,
     ) -> Result<(), CloudLibraryCutoverError> {
-        self.write_verified(
+        self.write(
             SHARED_LIBRARY_PATH,
             &serde_json::to_vec_pretty(&plan.shared_library)?,
         )
         .await?;
-        self.write_verified(CLOUD_MANIFEST_PATH, &serde_json::to_vec_pretty(manifest)?)
+        self.write(CLOUD_MANIFEST_PATH, &serde_json::to_vec_pretty(manifest)?)
             .await?;
-        self.write_verified(
+        self.write(
             DELETION_REGISTRY_PATH,
             &serde_json::to_vec_pretty(&DeletionRegistry::default())?,
         )
@@ -560,13 +543,13 @@ impl CloudLibraryCutover {
         let mut profiles = plan.device_profiles.iter().collect::<Vec<_>>();
         profiles.sort_by_key(|(device_id, _)| *device_id);
         for (device_id, profile) in profiles {
-            self.write_verified(
+            self.write(
                 &device_profile_path(device_id),
                 &serde_json::to_vec_pretty(profile)?,
             )
             .await?;
         }
-        self.write_verified(
+        self.write(
             V2_NAMESPACE_DESCRIPTOR_PATH,
             &serde_json::to_vec_pretty(&CloudNamespaceDescriptor::with_library_id(
                 &plan.library_id,
@@ -574,24 +557,9 @@ impl CloudLibraryCutover {
         )
         .await
     }
-    async fn write_verified(
-        &self,
-        path: &str,
-        bytes: &[u8],
-    ) -> Result<(), CloudLibraryCutoverError> {
-        for _ in 0..self.max_attempts {
-            self.operator.write(path, bytes.to_vec()).await?;
-            match self.operator.read(path).await {
-                Ok(stored) if stored.to_vec().as_slice() == bytes => return Ok(()),
-                Ok(_) => {}
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
-                Err(error) => return Err(error.into()),
-            }
-        }
-        Err(CloudLibraryCutoverError::WriteVerificationFailed {
-            path: path.to_string(),
-            attempts: self.max_attempts,
-        })
+    async fn write(&self, path: &str, bytes: &[u8]) -> Result<(), CloudLibraryCutoverError> {
+        self.operator.write(path, bytes.to_vec()).await?;
+        Ok(())
     }
     async fn verify_published(
         &self,
@@ -753,14 +721,6 @@ pub enum CloudLibraryCutoverError {
     MissingProgressResult(String),
     #[error("A namespace descriptor exists before the frozen Cutover is complete")]
     UnexpectedPublishedNamespace,
-    #[error("V2 Archive verification failed for {game_id}/{snapshot_id} after {attempts} attempts")]
-    ArchiveVerificationFailed {
-        game_id: String,
-        snapshot_id: String,
-        attempts: usize,
-    },
-    #[error("Cloud object {path} did not match after {attempts} write attempts")]
-    WriteVerificationFailed { path: String, attempts: usize },
     #[error("Published V2 Cloud Library does not match the frozen Cutover")]
     FinalVerificationMismatch,
     #[error("injected Cloud Cutover interruption after {0} archive(s)")]
