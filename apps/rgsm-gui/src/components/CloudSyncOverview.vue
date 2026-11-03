@@ -10,6 +10,10 @@ import { $t } from '../i18n';
 import { Archive, ChevronDown, Hand, Trash2, Zap } from '@lucide/vue';
 import { KInput, KMenu, KSwitch, KTag, type KMenuEntry } from '../ui/kit';
 
+/** Name takes the leftover width; the other columns keep a fixed footprint. */
+const ROW_GRID =
+  'grid grid-cols-[minmax(10rem,1fr)_5.5rem_8rem_minmax(0,9rem)_4rem_2.25rem] items-center gap-3';
+
 const router = useRouter();
 const gameDeletion = useGameDeletion();
 const { library, lastError, refresh: refreshLibrary } = useCloudLibrary();
@@ -264,131 +268,136 @@ function openGame(game: CloudArchiveGameView) {
       :aria-label="$t('sync_settings.overview.search')"
     />
 
-    <div class="rounded-md border border-border">
-      <div
-        class="grid grid-cols-[minmax(0,1fr)_5.5rem_8.5rem_16rem_4.5rem_2.25rem] items-center gap-3 border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
-      >
-        <span>{{ $t('sync_settings.overview.game_name') }}</span>
-        <span class="text-center">{{ $t('sync_settings.overview.status') }}</span>
-        <span>{{ $t('sync_settings.overview.mode') }}</span>
-        <span>{{ $t('sync_settings.overview.distribution') }}</span>
-        <span class="text-center">{{ $t('sync_settings.overview.local_sync') }}</span>
-        <span class="sr-only">{{ $t('sync_settings.overview.delete_game') }}</span>
-      </div>
-
-      <div v-if="games.length === 0" class="px-3 py-8 text-center text-sm text-text-dim">
-        {{
-          !search.trim()
-            ? $t('sync_settings.overview.no_games')
-            : $t('sync_settings.overview.no_matches')
-        }}
-      </div>
-
-      <div
-        v-for="game in games"
-        :key="game.game_id"
-        :data-game-id="game.game_id"
-        class="grid grid-cols-[minmax(0,1fr)_5.5rem_8.5rem_16rem_4.5rem_2.25rem] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
-      >
-        <div class="min-w-0">
-          <button
-            type="button"
-            class="block max-w-full cursor-pointer truncate border-none bg-transparent p-0 text-left text-sm font-medium text-text transition-colors hover:text-accent"
-            @click="openGame(game)"
-          >
-            {{ game.name }}
-          </button>
-          <button
-            v-if="game.definition_conflict"
-            type="button"
-            class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs text-warning"
-            @click="
-              publishingGame = false;
-              definitionGameId = game.game_id;
-            "
-          >
-            {{ $t('sync_settings.library.definitions.action') }}
-          </button>
-          <button
-            v-if="needsProgressChoice(game)"
-            type="button"
-            class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs transition-colors hover:brightness-110"
-            :class="game.requires_choice ? 'text-warning' : 'text-accent'"
-            @click="progressGame = game"
-          >
-            {{
-              $t(
-                game.requires_choice
-                  ? 'sync_settings.overview.progress_needed'
-                  : 'sync_settings.archives.progress.pending_compare'
-              )
-            }}
-          </button>
-        </div>
-
-        <div class="flex justify-center">
-          <KTag :tone="statusTone(syncStatus(game))">{{ statusLabel(syncStatus(game)) }}</KTag>
-        </div>
-
-        <KMenu
-          :entries="modeEntries(game)"
-          :aria-label="$t('sync_settings.overview.mode')"
-          @select="(key: string) => changeMode(game, key)"
+    <div class="overflow-x-auto rounded-md border border-border">
+      <div class="min-w-[44rem]">
+        <div
+          :class="ROW_GRID"
+          class="border-b border-border px-3 py-2 text-xs font-medium text-text-dim"
         >
-          <button
-            type="button"
-            class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 text-xs text-text transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!cloudReady || !game.managed || !game.cloud_sync_enabled"
-            :aria-label="$t('sync_settings.overview.mode')"
-          >
-            <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
-            <span>{{ modeLabel(game.sync_mode) }}</span>
-            <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
-          </button>
-        </KMenu>
-
-        <div class="truncate text-xs text-text-dim">
-          {{ distribution(game) }}
+          <span>{{ $t('sync_settings.overview.game_name') }}</span>
+          <span class="text-center">{{ $t('sync_settings.overview.status') }}</span>
+          <span>{{ $t('sync_settings.overview.mode') }}</span>
+          <span>{{ $t('sync_settings.overview.distribution') }}</span>
+          <span class="text-center">{{ $t('sync_settings.overview.local_sync') }}</span>
+          <span class="sr-only">{{ $t('sync_settings.overview.delete_game') }}</span>
         </div>
 
-        <div class="flex justify-center">
-          <KSwitch
-            :model-value="game.managed && game.cloud_sync_enabled"
-            :disabled="
-              !cloudReady ||
-              game.definition_conflict ||
-              game.metadata_sync_pending ||
-              !game.managed ||
-              busyGameId === game.game_id
-            "
-            :aria-label="$t('sync_settings.overview.local_sync')"
-            @update:model-value="setCloudEnabled(game, Boolean($event))"
-          />
+        <div v-if="games.length === 0" class="px-3 py-8 text-center text-sm text-text-dim">
+          {{
+            !search.trim()
+              ? $t('sync_settings.overview.no_games')
+              : $t('sync_settings.overview.no_matches')
+          }}
         </div>
 
-        <div class="flex items-center gap-1">
-          <button
-            v-if="cloudReady && !game.managed && !game.local_only && !game.definition_conflict"
-            type="button"
-            class="text-xs text-accent"
-            @click="manageHere(game)"
-          >
-            {{ $t('manage.add_to_device') }}
-          </button>
+        <div
+          v-for="game in games"
+          :key="game.game_id"
+          :data-game-id="game.game_id"
+          :class="ROW_GRID"
+          class="border-b border-border px-3 py-2.5 last:border-b-0"
+        >
+          <div class="min-w-0">
+            <button
+              type="button"
+              class="block max-w-full cursor-pointer truncate border-none bg-transparent p-0 text-left text-sm font-medium text-text transition-colors hover:text-accent"
+              :title="game.name"
+              @click="openGame(game)"
+            >
+              {{ game.name }}
+            </button>
+            <button
+              v-if="game.definition_conflict"
+              type="button"
+              class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs text-warning"
+              @click="
+                publishingGame = false;
+                definitionGameId = game.game_id;
+              "
+            >
+              {{ $t('sync_settings.library.definitions.action') }}
+            </button>
+            <button
+              v-if="needsProgressChoice(game)"
+              type="button"
+              class="mt-0.5 block cursor-pointer border-none bg-transparent p-0 text-left text-xs transition-colors hover:brightness-110"
+              :class="game.requires_choice ? 'text-warning' : 'text-accent'"
+              @click="progressGame = game"
+            >
+              {{
+                $t(
+                  game.requires_choice
+                    ? 'sync_settings.overview.progress_needed'
+                    : 'sync_settings.archives.progress.pending_compare'
+                )
+              }}
+            </button>
+          </div>
+
+          <div class="flex justify-center">
+            <KTag :tone="statusTone(syncStatus(game))">{{ statusLabel(syncStatus(game)) }}</KTag>
+          </div>
+
           <KMenu
-            v-if="cloudReady"
-            :entries="gameDeletion.entries(deletionTarget(game))"
-            :aria-label="$t('manage.delete_actions')"
-            @select="(key: string) => deleteGame(game, key)"
+            :entries="modeEntries(game)"
+            :aria-label="$t('sync_settings.overview.mode')"
+            @select="(key: string) => changeMode(game, key)"
           >
             <button
               type="button"
-              class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-dim hover:border-danger hover:text-danger"
-              :aria-label="$t('manage.delete_actions')"
+              class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 text-xs text-text transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="!cloudReady || !game.managed || !game.cloud_sync_enabled"
+              :aria-label="$t('sync_settings.overview.mode')"
             >
-              <Trash2 :size="14" aria-hidden="true" />
+              <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
+              <span>{{ modeLabel(game.sync_mode) }}</span>
+              <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
             </button>
           </KMenu>
+
+          <div class="truncate text-xs text-text-dim" :title="distribution(game)">
+            {{ distribution(game) }}
+          </div>
+
+          <div class="flex justify-center">
+            <KSwitch
+              :model-value="game.managed && game.cloud_sync_enabled"
+              :disabled="
+                !cloudReady ||
+                game.definition_conflict ||
+                game.metadata_sync_pending ||
+                !game.managed ||
+                busyGameId === game.game_id
+              "
+              :aria-label="$t('sync_settings.overview.local_sync')"
+              @update:model-value="setCloudEnabled(game, Boolean($event))"
+            />
+          </div>
+
+          <div class="flex items-center gap-1">
+            <button
+              v-if="cloudReady && !game.managed && !game.local_only && !game.definition_conflict"
+              type="button"
+              class="text-xs text-accent"
+              @click="manageHere(game)"
+            >
+              {{ $t('manage.add_to_device') }}
+            </button>
+            <KMenu
+              v-if="cloudReady"
+              :entries="gameDeletion.entries(deletionTarget(game))"
+              :aria-label="$t('manage.delete_actions')"
+              @select="(key: string) => deleteGame(game, key)"
+            >
+              <button
+                type="button"
+                class="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-dim hover:border-danger hover:text-danger"
+                :aria-label="$t('manage.delete_actions')"
+              >
+                <Trash2 :size="14" aria-hidden="true" />
+              </button>
+            </KMenu>
+          </div>
         </div>
       </div>
     </div>

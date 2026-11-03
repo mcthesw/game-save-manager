@@ -737,7 +737,7 @@
             "status_failed": "Failed",
             "steps": {
                 "prepare_backend": "Prepare backend",
-                "list_files": "List existing files",
+                "list_files": "Read the Cloud Library",
                 "write_file": "Write test file",
                 "read_file": "Read test file",
                 "verify_content": "Verify file content",
@@ -748,6 +748,7 @@
             "copied": "Copied",
             "error_category": {
                 "timeout": "Connection timed out",
+                "rate_limited": "The provider is limiting requests",
                 "auth": "Authentication failed",
                 "not_found": "Resource not found",
                 "network": "Network error",

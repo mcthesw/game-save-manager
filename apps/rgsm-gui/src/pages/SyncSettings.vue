@@ -450,9 +450,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto">
-    <div class="mx-auto flex max-w-[1080px] gap-10 px-6 py-6">
-      <aside class="sticky top-6 w-44 shrink-0 self-start">
+  <div class="@container h-full overflow-y-auto">
+    <div class="mx-auto flex max-w-[1200px] flex-col gap-5 px-6 py-6 @4xl:flex-row @4xl:gap-10">
+      <aside class="w-full @4xl:sticky @4xl:top-6 @4xl:w-44 @4xl:shrink-0 @4xl:self-start">
         <div class="mb-4 flex items-center justify-between px-2">
           <h1 class="text-lg font-semibold text-text">{{ $t('sync_settings.title') }}</h1>
           <KTooltip :content="$t('sync_settings.manual_link')">
@@ -466,7 +466,10 @@ onMounted(async () => {
             </KButton>
           </KTooltip>
         </div>
-        <nav class="flex flex-col gap-0.5" :aria-label="$t('sync_settings.title')">
+        <nav
+          class="flex flex-row flex-wrap gap-1 @4xl:flex-col @4xl:gap-0.5"
+          :aria-label="$t('sync_settings.title')"
+        >
           <button
             v-for="item in navItems"
             :key="item.key"
@@ -496,7 +499,10 @@ onMounted(async () => {
         />
       </aside>
 
-      <div class="min-w-0 max-w-[820px] flex-1 pb-16">
+      <div
+        class="min-w-0 flex-1 pb-16"
+        :class="activeTab === 'overview' ? 'max-w-[960px]' : 'max-w-[820px]'"
+      >
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="flex flex-col gap-4">
           <CloudSyncOverview

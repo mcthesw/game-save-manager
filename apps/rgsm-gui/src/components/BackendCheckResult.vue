@@ -118,6 +118,8 @@ const descriptionKey = computed(() => {
 
 function categorizeError(msg: string | null): string {
   if (!msg) return '';
+  if (/429|rate.?limit|too many requests|throttl/i.test(msg))
+    return $t('sync_settings.check_result.error_category.rate_limited');
   if (/timeout|timed out/i.test(msg))
     return $t('sync_settings.check_result.error_category.timeout');
   if (/401|403|unauthorized|forbidden/i.test(msg))
@@ -177,16 +179,14 @@ async function copyError(message: string, key: string) {
           aria-hidden="true"
         />
         <TriangleAlert v-else :size="14" class="shrink-0 text-warning" aria-hidden="true" />
-        <span
-          class="min-w-0 flex-1 text-xs"
-          :class="item.status === 'pending' ? 'text-text-dim/70' : 'text-text'"
-        >
-          {{ $t(STEP_LABELS[item.step]) }}
-        </span>
         <KPopover v-if="item.message" side="bottom" align="start" :width="360">
-          <KButton variant="ghost" size="sm">
-            {{ $t('sync_settings.check_result.view_error') }}
-          </KButton>
+          <button
+            type="button"
+            class="min-w-0 flex-1 cursor-pointer truncate rounded-sm border-none bg-transparent p-0 text-left text-xs text-text underline decoration-dotted underline-offset-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            :title="$t('sync_settings.check_result.view_error')"
+          >
+            {{ $t(STEP_LABELS[item.step]) }}
+          </button>
           <template #content>
             <p class="mb-2 text-[13px] font-semibold text-danger">
               {{ categorizeError(item.message) }}
@@ -204,6 +204,13 @@ async function copyError(message: string, key: string) {
             </KButton>
           </template>
         </KPopover>
+        <span
+          v-else
+          class="min-w-0 flex-1 text-xs"
+          :class="item.status === 'pending' ? 'text-text-dim/70' : 'text-text'"
+        >
+          {{ $t(STEP_LABELS[item.step]) }}
+        </span>
       </div>
     </div>
 
