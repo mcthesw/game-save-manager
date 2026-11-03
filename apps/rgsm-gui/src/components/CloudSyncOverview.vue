@@ -23,7 +23,7 @@ const definitionGameId = ref('');
 const publishingGame = ref(false);
 const { config, deviceGameStatuses, refreshConfig } = useConfig();
 
-// Until the cloud answers, list the games this device already knows so the page never looks emptied.
+// Until the cloud answers, list what this device already knows so the page never looks emptied.
 const localRows = computed<CloudArchiveGameView[]>(() =>
   config.value.games.flatMap((game) => {
     const id = game.storage_key || game.name;
@@ -40,7 +40,7 @@ const localRows = computed<CloudArchiveGameView[]>(() =>
       game_id: id,
       has_update: false,
       live_save_snapshot_on_exit: false,
-      local_count: 0,
+      local_count: status.local_snapshots,
       local_only: !status.shared && !status.definition_conflict,
       local_only_count: 0,
       managed: status.managed,
@@ -51,7 +51,7 @@ const localRows = computed<CloudArchiveGameView[]>(() =>
       requires_choice: false,
       retention_limit: status.retention_limit,
       snapshots: [],
-      sync_mode: 'manual',
+      sync_mode: status.sync_mode,
       unavailable_count: 0,
       visible: status.visible,
     } satisfies CloudArchiveGameView;
@@ -114,8 +114,7 @@ function needsProgressChoice(game: CloudArchiveGameView) {
 function syncStatus(game: CloudArchiveGameView) {
   if (game.definition_conflict) return 'conflict';
   if (game.metadata_sync_pending) return 'metadata_pending';
-  if (lastError.value) return 'unavailable';
-  if (!cloudReady.value) return 'loading';
+  if (!cloudReady.value) return lastError.value ? 'unavailable' : 'loading';
   if (game.local_only) return 'local_only';
   if (!game.managed || !game.cloud_sync_enabled) return 'disabled';
   if (game.requires_choice) return 'conflict';
@@ -226,6 +225,11 @@ async function manageHere(game: CloudArchiveGameView) {
 }
 
 function distribution(game: CloudArchiveGameView) {
+  if (!cloudReady.value) {
+    return game.local_count > 0
+      ? $t('sync_settings.overview.dist_local', { count: game.local_count })
+      : '';
+  }
   const localOnly = game.local_only_count ?? 0;
   const cloudOnly = game.cloud_only_count ?? 0;
   const both = game.both_available_count ?? 0;
@@ -337,17 +341,14 @@ function openGame(game: CloudArchiveGameView) {
             :disabled="!cloudReady || !game.managed || !game.cloud_sync_enabled"
             :aria-label="$t('sync_settings.overview.mode')"
           >
-            <template v-if="cloudReady">
-              <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
-              <span>{{ modeLabel(game.sync_mode) }}</span>
-              <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
-            </template>
-            <span v-else class="text-text-dim">—</span>
+            <component :is="modeIcon(game.sync_mode)" :size="13" aria-hidden="true" />
+            <span>{{ modeLabel(game.sync_mode) }}</span>
+            <ChevronDown :size="11" class="text-text-dim" aria-hidden="true" />
           </button>
         </KMenu>
 
         <div class="truncate text-xs text-text-dim">
-          {{ cloudReady ? distribution(game) : '' }}
+          {{ distribution(game) }}
         </div>
 
         <div class="flex justify-center">
