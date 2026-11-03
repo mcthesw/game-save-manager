@@ -122,8 +122,8 @@ test('manual refresh finishes pending archive synchronization after an offline f
       const { events } = await import(eventPath);
       const state = window as Window & { syncFailed?: boolean };
       state.syncFailed = false;
-      await events.cloudSyncErrorEvent.listen(() => {
-        state.syncFailed = true;
+      await events.cloudMetadataChanged.listen(({ payload: succeeded }: { payload: boolean }) => {
+        if (!succeeded) state.syncFailed = true;
       });
     });
     saved = await readFile(manifestPath);

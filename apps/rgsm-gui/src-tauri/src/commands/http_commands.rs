@@ -285,6 +285,16 @@ pub async fn http_get_cloud_namespace_generation()
         .map_err(ApiError::from_command)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/get-cloud-rate-limit",
+    operation_id = "getCloudRateLimit",
+    responses((status = 200, body = commands::CloudRateLimitStatus), (status = 401, body = ApiError))
+)]
+pub async fn http_get_cloud_rate_limit() -> Json<commands::CloudRateLimitStatus> {
+    Json(commands::get_cloud_rate_limit())
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteGameRequest {

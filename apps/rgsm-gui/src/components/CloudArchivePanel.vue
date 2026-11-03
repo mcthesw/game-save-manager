@@ -2,7 +2,11 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { commands } from '../api/commands';
-import { useCloudLibrary } from '../composables/useCloudLibrary';
+import {
+  cloudReadsPaused,
+  refreshCloudLibraryIfStale,
+  useCloudLibrary,
+} from '../composables/useCloudLibrary';
 import { notifyError, notifyInfo, notifySuccess } from '../composables/useActivityCenter';
 import { $t } from '../i18n';
 import { KAlert } from '../ui/kit';
@@ -22,7 +26,10 @@ const cloudSnapshots = computed(
 const totalSnapshots = computed(() => allSnapshots.value.length);
 
 async function load(options: { silent?: boolean } = {}) {
-  await refresh(!options.silent);
+  if (!options.silent) await refresh(true);
+  // Without a loaded library there is nothing to keep, so opening the page retries.
+  else if (library.value) await refreshCloudLibraryIfStale();
+  else if (!(await cloudReadsPaused())) await refresh(false);
   if (lastError.value && !options.silent)
     notifyError($t('sync_settings.archives.load_failed'), lastError.value);
 }

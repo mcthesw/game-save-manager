@@ -6,7 +6,11 @@ import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
 import { KButton, KTag } from '../ui/kit';
 import { useConfig } from '../composables/useConfig';
-import { clearCloudLibrary, refreshCloudLibrary } from '../composables/useCloudLibrary';
+import {
+  clearCloudLibrary,
+  cloudReadsPaused,
+  refreshCloudLibrary,
+} from '../composables/useCloudLibrary';
 
 const feedback = useFeedback();
 const emit = defineEmits<{ reused: [] }>();
@@ -97,7 +101,9 @@ async function remove(profile: CloudDeviceProfileView) {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  if (!(await cloudReadsPaused())) await load();
+});
 </script>
 
 <template>

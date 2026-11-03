@@ -4,12 +4,13 @@ import { commands, type CloudLibraryStatus } from '~/api/commands';
 import { $t } from '~/i18n';
 import { KButton } from '../ui/kit';
 import { connectSavedCloudLibrary } from '../composables/useCloudConnection';
-import { refreshCloudLibrary } from '../composables/useCloudLibrary';
+import { cloudReadsPaused, refreshCloudLibrary } from '../composables/useCloudLibrary';
 import { cloudLibraryNotice } from '../utils/cloudLibraryNotice';
 
 interface InspectOptions {
   createWhenEmpty?: boolean;
-  silent?: boolean;
+  /** Started by the page rather than the user; waits out a provider rate limit. */
+  automatic?: boolean;
 }
 
 const props = defineProps<{
@@ -126,6 +127,7 @@ async function inspect(options: InspectOptions = {}): Promise<CloudLibraryStatus
   const previousInspection = activeInspection;
   if (previousInspection) await previousInspection;
   if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
+  if (options.automatic && (await cloudReadsPaused())) return null;
 
   const inspection = performInspection(requestGeneration, options);
   activeInspection = inspection;

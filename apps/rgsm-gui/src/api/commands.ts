@@ -167,6 +167,9 @@ export const commands = {
       await sdk.getCloudNamespaceGeneration()
     );
   },
+  async getCloudRateLimit() {
+    return unwrap<types.GetCloudRateLimitResponses[200]>(await sdk.getCloudRateLimit());
+  },
   async deleteGame(game: types.DeleteGameRequest['game']) {
     return unwrap<types.DeleteGameResponses[200]>(await sdk.deleteGame({ body: { game } }));
   },

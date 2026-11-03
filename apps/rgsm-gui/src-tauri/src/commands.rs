@@ -208,6 +208,13 @@ pub struct CloudSyncErrorEvent {
     pub error: String,
 }
 
+/// Whether the storage provider is throttling us, so automatic reads must wait.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
+pub struct CloudRateLimitStatus {
+    pub retry_after_secs: Option<u64>,
+    pub message: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 pub struct BuildInfo {
     pub version: String,
@@ -425,6 +432,14 @@ pub async fn batch_delete_snapshots(
 
 pub fn get_cloud_namespace_generation() -> Result<CloudNamespaceGeneration, String> {
     rgsm_core::config::cloud_namespace_generation().map_err(|error| error.to_string())
+}
+
+pub fn get_cloud_rate_limit() -> CloudRateLimitStatus {
+    let remaining = rgsm_core::cloud_sync::rate_limit::rate_limit_remaining();
+    CloudRateLimitStatus {
+        retry_after_secs: remaining.map(|remaining| remaining.as_secs().max(1)),
+        message: remaining.map(|_| rgsm_core::services::cloud_rate_limit_message()),
+    }
 }
 
 pub async fn delete_game(game: Game, app_handle: AppHandle) -> Result<(), String> {

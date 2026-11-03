@@ -140,6 +140,9 @@ import type {
   GetCloudNamespaceGenerationData,
   GetCloudNamespaceGenerationErrors,
   GetCloudNamespaceGenerationResponses,
+  GetCloudRateLimitData,
+  GetCloudRateLimitErrors,
+  GetCloudRateLimitResponses,
   GetCurrentDeviceGameStatusesData,
   GetCurrentDeviceGameStatusesErrors,
   GetCurrentDeviceGameStatusesResponses,
@@ -902,6 +905,15 @@ export const getCloudNamespaceGeneration = <ThrowOnError extends boolean = false
     GetCloudNamespaceGenerationErrors,
     ThrowOnError
   >({ url: '/api/v1/get-cloud-namespace-generation', ...options });
+
+export const getCloudRateLimit = <ThrowOnError extends boolean = false>(
+  options?: Options<GetCloudRateLimitData, ThrowOnError>
+): RequestResult<GetCloudRateLimitResponses, GetCloudRateLimitErrors, ThrowOnError> =>
+  (options?.client ?? client).post<
+    GetCloudRateLimitResponses,
+    GetCloudRateLimitErrors,
+    ThrowOnError
+  >({ url: '/api/v1/get-cloud-rate-limit', ...options });
 
 export const getCurrentDeviceGameStatuses = <ThrowOnError extends boolean = false>(
   options?: Options<GetCurrentDeviceGameStatusesData, ThrowOnError>

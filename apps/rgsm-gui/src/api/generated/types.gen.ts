@@ -348,6 +348,14 @@ export type CloudLibraryStatus =
 
 export type CloudNamespaceGeneration = 'legacy_v1' | 'v2';
 
+/**
+ * Whether the storage provider is throttling us, so automatic reads must wait.
+ */
+export type CloudRateLimitStatus = {
+  message?: string | null;
+  retry_after_secs?: number | null;
+};
+
 export type CloudSettings = {
   /**
    * 同步间隔，单位分钟，为0则不自动同步
@@ -2717,6 +2725,26 @@ export type GetCloudNamespaceGenerationResponses = {
 
 export type GetCloudNamespaceGenerationResponse =
   GetCloudNamespaceGenerationResponses[keyof GetCloudNamespaceGenerationResponses];
+
+export type GetCloudRateLimitData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/get-cloud-rate-limit';
+};
+
+export type GetCloudRateLimitErrors = {
+  401: ApiError;
+};
+
+export type GetCloudRateLimitError = GetCloudRateLimitErrors[keyof GetCloudRateLimitErrors];
+
+export type GetCloudRateLimitResponses = {
+  200: CloudRateLimitStatus;
+};
+
+export type GetCloudRateLimitResponse =
+  GetCloudRateLimitResponses[keyof GetCloudRateLimitResponses];
 
 export type GetCurrentDeviceGameStatusesData = {
   body?: never;

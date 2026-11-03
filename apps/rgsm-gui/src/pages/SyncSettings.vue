@@ -45,6 +45,7 @@ interface CloudSyncSessionConfig {
 
 interface CloudLibraryInspectOptions {
   createWhenEmpty?: boolean;
+  automatic?: boolean;
 }
 
 interface CloudLibrarySetupHandle {
@@ -450,7 +451,7 @@ async function loadCloudNamespaceGeneration() {
 }
 
 watch(savedBackendEnabled, (enabled) => {
-  if (enabled) void cloudLibrarySetup.value?.inspect();
+  if (enabled) void cloudLibrarySetup.value?.inspect({ automatic: true });
 });
 
 onMounted(async () => {
@@ -458,7 +459,7 @@ onMounted(async () => {
     await load_config();
     await loadCloudNamespaceGeneration();
     updatingCloudSettings.value = false;
-    void cloudLibrarySetup.value?.inspect();
+    void cloudLibrarySetup.value?.inspect({ automatic: true });
   } catch {
     updatingCloudSettings.value = false;
   }
