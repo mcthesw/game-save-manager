@@ -72,7 +72,6 @@ export async function seedLocalConfig(
         auto_sync_interval: 0,
         root_path: '',
         backend: { type: 'Disabled' },
-        max_concurrency: 1,
       },
       locale: 'en_US',
       default_delete_before_apply: false,

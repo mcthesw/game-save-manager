@@ -193,12 +193,11 @@ async fn set_game_sync_mode_inner(
 #[cfg(test)]
 mod connection_tests {
     use super::*;
-    use rgsm_core::cloud_sync::{CloudSyncError, CloudSyncStatus, SyncEventEmitter};
+    use rgsm_core::cloud_sync::{CloudSyncStatus, SyncEventEmitter};
 
     struct NoopEmitter;
     impl SyncEventEmitter for NoopEmitter {
         fn emit_status(&self, _: &CloudSyncStatus) {}
-        fn emit_error(&self, _: &CloudSyncError) {}
     }
 
     #[tokio::test]

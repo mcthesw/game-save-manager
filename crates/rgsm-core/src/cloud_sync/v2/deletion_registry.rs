@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::metadata_read::read_complete_json;
+use super::read_round::{cached_read, invalidate};
 use super::{CLOUD_ARCHIVES_PREFIX, DELETION_REGISTRY_PATH};
 use crate::device::DeviceId;
 
@@ -54,8 +55,20 @@ impl DeletionRegistryRepository {
         }
     }
 
+    /// Read the registry, reusing the answer already fetched in this
+    /// reconciliation round. Guards that run right before a write use
+    /// [`Self::load_fresh`].
     pub async fn load(&self) -> Result<DeletionRegistry, DeletionRegistryError> {
-        let bytes = read_complete_json(
+        let bytes = cached_read(Some(DELETION_REGISTRY_PATH), || self.read_complete()).await?;
+        Self::decode(bytes)
+    }
+
+    pub async fn load_fresh(&self) -> Result<DeletionRegistry, DeletionRegistryError> {
+        Self::decode(self.read_complete().await?)
+    }
+
+    async fn read_complete(&self) -> Result<Option<Vec<u8>>, opendal::Error> {
+        read_complete_json(
             || async {
                 match self.operator.read(DELETION_REGISTRY_PATH).await {
                     Ok(bytes) => Ok(Some(bytes.to_vec())),
@@ -65,7 +78,10 @@ impl DeletionRegistryRepository {
             },
             self.max_attempts,
         )
-        .await?;
+        .await
+    }
+
+    fn decode(bytes: Option<Vec<u8>>) -> Result<DeletionRegistry, DeletionRegistryError> {
         // Absence must not read as "nothing was ever deleted": that would let
         // permanently deleted Games and removed Devices come back.
         let Some(bytes) = bytes else {
@@ -85,7 +101,22 @@ impl DeletionRegistryRepository {
         device_id: &str,
         game_id: &str,
     ) -> Result<(), DeletionRegistryError> {
-        let registry = self.load().await?;
+        Self::check_active(&self.load().await?, device_id, game_id)
+    }
+
+    pub async fn ensure_active_fresh(
+        &self,
+        device_id: &str,
+        game_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
+        Self::check_active(&self.load_fresh().await?, device_id, game_id)
+    }
+
+    fn check_active(
+        registry: &DeletionRegistry,
+        device_id: &str,
+        game_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
         if registry.deleted_profiles.contains_key(device_id) {
             return Err(DeletionRegistryError::ProfileDeleted(device_id.to_string()));
         }
@@ -103,6 +134,28 @@ impl DeletionRegistryRepository {
         game_id: &str,
     ) -> Result<(), DeletionRegistryError> {
         let registry = self.load().await?;
+        self.converge_if_deleted(&registry, device_id, game_id)
+            .await
+    }
+
+    /// Same check for the guard right after a write, which must see a deletion
+    /// that raced with it rather than a cached answer.
+    pub async fn ensure_active_and_converge_game_archives_fresh(
+        &self,
+        device_id: &str,
+        game_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
+        let registry = self.load_fresh().await?;
+        self.converge_if_deleted(&registry, device_id, game_id)
+            .await
+    }
+
+    async fn converge_if_deleted(
+        &self,
+        registry: &DeletionRegistry,
+        device_id: &str,
+        game_id: &str,
+    ) -> Result<(), DeletionRegistryError> {
         if registry.deleted_profiles.contains_key(device_id) {
             return Err(DeletionRegistryError::ProfileDeleted(device_id.to_string()));
         }
@@ -166,7 +219,7 @@ impl DeletionRegistryRepository {
         mut change: impl FnMut(&mut DeletionRegistry),
     ) -> Result<DeletionRegistry, DeletionRegistryError> {
         for _ in 0..self.max_attempts {
-            let mut accepted = self.load().await?;
+            let mut accepted = self.load_fresh().await?;
             let previous = accepted.clone();
             change(&mut accepted);
             if accepted == previous {
@@ -174,8 +227,10 @@ impl DeletionRegistryRepository {
             }
             accepted.revision = accepted.revision.saturating_add(1);
             let bytes = serde_json::to_vec_pretty(&accepted)?;
-            self.operator.write(DELETION_REGISTRY_PATH, bytes).await?;
-            if self.load().await? == accepted {
+            let written = self.operator.write(DELETION_REGISTRY_PATH, bytes).await;
+            invalidate(DELETION_REGISTRY_PATH);
+            written?;
+            if self.load_fresh().await? == accepted {
                 return Ok(accepted);
             }
         }

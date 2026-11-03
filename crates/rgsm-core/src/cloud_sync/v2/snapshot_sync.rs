@@ -328,7 +328,7 @@ impl SnapshotSyncCoordinator {
                 Ok(())
             })
             .await?;
-        self.ensure_active_or_converge_deleted_game(&cleanup_game_id)
+        self.ensure_active_or_converge_deleted_game_after_write(&cleanup_game_id)
             .await?;
         Ok(())
     }
@@ -429,7 +429,7 @@ impl SnapshotSyncCoordinator {
                 Ok(())
             })
             .await?;
-        self.ensure_active_or_converge_deleted_game(&cleanup_game_id)
+        self.ensure_active_or_converge_deleted_game_after_write(&cleanup_game_id)
             .await?;
         Ok(())
     }
@@ -438,12 +438,33 @@ impl SnapshotSyncCoordinator {
         &self,
         game_id: &str,
     ) -> Result<(), SnapshotSyncError> {
+        self.check_game_deletion(game_id, false).await
+    }
+
+    async fn ensure_active_or_converge_deleted_game_after_write(
+        &self,
+        game_id: &str,
+    ) -> Result<(), SnapshotSyncError> {
+        self.check_game_deletion(game_id, true).await
+    }
+
+    async fn check_game_deletion(
+        &self,
+        game_id: &str,
+        fresh: bool,
+    ) -> Result<(), SnapshotSyncError> {
         self.materializer.ensure_game_allowed(game_id)?;
         let registry = DeletionRegistryRepository::new(self.operator.clone(), self.max_attempts);
-        match registry
-            .ensure_active_and_converge_game_archives(&self.current_device_id, game_id)
-            .await
-        {
+        let checked = if fresh {
+            registry
+                .ensure_active_and_converge_game_archives_fresh(&self.current_device_id, game_id)
+                .await
+        } else {
+            registry
+                .ensure_active_and_converge_game_archives(&self.current_device_id, game_id)
+                .await
+        };
+        match checked {
             Ok(()) => Ok(()),
             Err(DeletionRegistryError::GameDeleted(_)) => {
                 let deleted_game_id = game_id.to_string();

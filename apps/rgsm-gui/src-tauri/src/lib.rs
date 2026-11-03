@@ -19,6 +19,7 @@ use rgsm_core::config::config_check;
 mod app_operations;
 mod app_updates;
 mod cloud_library;
+mod cloud_library_cache;
 mod cloud_operation;
 mod commands;
 mod hooks;
@@ -44,14 +45,6 @@ impl SyncEventEmitter for TauriSyncEmitter {
             jobs: status.jobs.clone(),
         };
         http::emit(&self.app, "cloud-sync-status", &event);
-    }
-
-    fn emit_error(&self, error: &rgsm_core::cloud_sync::CloudSyncError) {
-        let event = commands::CloudSyncErrorEvent {
-            game_name: error.game_name.clone(),
-            error: error.error.clone(),
-        };
-        http::emit(&self.app, "cloud-sync-error", &event);
     }
 }
 
@@ -92,9 +85,23 @@ pub fn openapi_json() -> anyhow::Result<String> {
     )?)
 }
 
+/// Unoptimised builds keep large futures on the stack, and a cloud round nests
+/// deeply enough to overflow the default 2 MiB worker stack there.
+fn use_roomy_async_runtime() -> anyhow::Result<()> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(8 * 1024 * 1024)
+        .build()?;
+    tauri::async_runtime::set(runtime.handle().clone());
+    // Tauri only holds a handle, so the runtime must outlive the process.
+    std::mem::forget(runtime);
+    Ok(())
+}
+
 pub fn run() -> anyhow::Result<()> {
     let http_host_only = std::env::var_os("RGSM_HTTP_HOST_ONLY").is_some();
     configure_development_data_dir()?;
+    use_roomy_async_runtime()?;
 
     // 将 panic 信息记录到日志中
     std::panic::set_hook(Box::new(|panic_info| {

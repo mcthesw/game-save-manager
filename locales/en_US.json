@@ -365,6 +365,8 @@
         "batch_evict_confirm": "Remove {count} selected snapshot copies from this device? Cloud copies stay",
         "batch_evict_confirm_mixed": "Remove {count} selected snapshot copies from this device? {unverified} of them have no verified cloud copy",
         "batch_evict_success": "Removed {count} snapshot copies from this device",
+        "batch_upload_success": "Uploaded {count} snapshots to the Cloud Library",
+        "batch_download_success": "Downloaded {count} snapshots from the Cloud Library",
         "batch_evict_partial": "Removed {succeeded} snapshot copies from this device, {failed} failed",
         "location_local": "This device",
         "location_cloud": "Cloud",
@@ -687,8 +689,6 @@
         "submit_success": "Successfully saved modifications",
         "last_sync": "Last sync time:",
         "manual_link": "Tutorial",
-        "max_concurrency": "Max concurrency",
-        "max_concurrency_hint": "Maximum number of parallel cloud transfers. Lower values reduce server load. (Requires app restart)",
         "manual_sync": "Manual sync",
         "save_button": "Save",
         "abort_button": "Discard changes",
@@ -843,7 +843,8 @@
             "title": "Cloud Library snapshot history",
             "summary": "{local} of {total} cloud copies are on this device",
             "game_summary": "{local} local · {cloud} in cloud · {total} total",
-            "game_summary_pending": "Checking the cloud",
+            "game_summary_pending": "Cloud Library not read yet",
+            "last_checked": "Last checked {time}",
             "mode": "Sync mode",
             "mode_manual": "Manual",
             "mode_snapshot": "Cloud Backup",
@@ -944,8 +945,7 @@
                 "deleted_title": "Permanently deleted Games",
                 "removed": "Deleted",
                 "incomplete": "Cleanup incomplete",
-                "retry": "Retry cleanup",
-                "load_deleted_failed": "Could not load deleted Games"
+                "retry": "Retry cleanup"
             },
             "evict": {
                 "action": "Remove local copy",
@@ -1018,25 +1018,6 @@
                 "resolve_failed": "Could not resolve progress",
                 "load_failed": "Could not compare Device progress"
             }
-        },
-        "conflict": {
-            "title": "Resolve cloud sync conflict",
-            "summary": "{game} has different local and cloud progress. Choose which progress should be kept.",
-            "local_title": "Local progress",
-            "cloud_title": "Cloud progress",
-            "snapshot": "Snapshot",
-            "device": "Device",
-            "current_device": "Current device",
-            "cloud_device": "Cloud",
-            "last_checked": "Last checked",
-            "not_synced": "Not checked yet",
-            "no_snapshot": "No snapshot recorded",
-            "keep_local": "Keep local",
-            "accept_remote": "Use cloud",
-            "decide_later": "Decide later",
-            "resolve": "Resolve",
-            "resolve_success": "Conflict resolved",
-            "resolve_failed": "Conflict resolution failed"
         },
         "backend_tab": {
             "tab": "Backend"
@@ -1195,8 +1176,6 @@
         "cancel": "Cancel",
         "cancelled": "Cloud sync has been cancelled",
         "listen_failed": "Failed to listen for cloud sync updates",
-        "failed": "Cloud sync failed: {error} (you can retry from Sync Settings)",
-        "failed_with_game": "Cloud sync failed for {game}: {error} (you can retry from Sync Settings)",
         "status_running": "Running",
         "status_queued": "Queued",
         "status_completed": "Completed",
@@ -1211,6 +1190,9 @@
         "local_upgrade_environment_failed": "Could not write the upgraded archive, so the upgrade stopped. Free up disk space or check folder permissions, then resume. Details: %{error}",
         "cloud_unreachable": "Cannot reach cloud storage. Check your network and the storage settings in Cloud Sync, then try again. Your local saves are not affected.",
         "cloud_rate_limited": "The cloud storage temporarily limited requests because there were too many. Wait about 10 minutes and try again. Your local saves are not affected.",
+        "cloud_not_found": "Cloud storage could not find the file it needs. Check the storage location in Cloud Sync, then try again. Your local saves are not affected.",
+        "cloud_unsupported": "This cloud storage does not support a feature Cloud Sync needs. Try another storage provider. Your local saves are not affected.",
+        "cloud_request_failed": "Cloud storage refused the request: %{reason}. Your local saves are not affected.",
         "cloud_access_denied": "Cloud storage refused access. Check the account, keys, and permissions in Cloud Sync.",
         "cloud_settings_invalid": "The cloud storage settings are not valid. Check them in Cloud Sync.",
         "cloud_library_damaged": "The Cloud Library is incomplete or damaged. Open Cloud Sync and choose \"Rebuild from this device\".",

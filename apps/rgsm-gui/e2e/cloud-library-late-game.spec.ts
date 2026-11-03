@@ -16,6 +16,7 @@ import {
   expectLibraryKind,
   openGame,
   openSyncSettings,
+  refreshCloudView,
 } from './support/gui';
 import { addGameViaApi } from './support/local-gui';
 import { createRunRoot, hostPost } from './support/rgsm-instance';
@@ -55,6 +56,7 @@ test('game added after empty V2 creation is published for the second device', as
 
     await session.pageB.reload();
     await openSyncSettings(session.pageB);
+    await refreshCloudView(session.pageB);
     await expect
       .poll(async () => {
         const config = await hostPost<{ games: Array<{ name: string }> }>(

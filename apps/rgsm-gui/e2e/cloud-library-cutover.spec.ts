@@ -22,7 +22,6 @@ import {
   confirmCutover,
   expectCutoverError,
   expectCutoverSuccess,
-  expectLegacyUploadBlocked,
   expectLibraryKind,
   getGeneration,
   inspectLibrary,
@@ -64,18 +63,6 @@ test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ brow
     await openApp(page);
     await openSyncSettings(page);
     await expectLibraryKind(page, 'cutover');
-    const session = { backend: { type: 'Fs' }, root_path: seeded.cloudRoot, max_concurrency: 1 };
-    for (const [endpoint, body] of [
-      ['cloud-upload-all', { session }],
-      ['cloud-download-all', { session }],
-      ['sync-game', { gameName: 'Echo Keep' }],
-      ['resolve-game-sync-conflict', { gameName: 'Echo Keep', resolution: 'keep_local' }],
-      ['sync-config', {}],
-    ] as const) {
-      const result = await hostPost(host, `/api/v1/${endpoint}`, body);
-      expect(result.ok, result.raw).toBe(false);
-      expect(result.raw).toContain('Legacy cloud operations are unavailable');
-    }
     await expectV1ObjectsUnchanged(seeded.cloudRoot, v1Bytes);
 
     await confirmCutover(page);
@@ -123,13 +110,6 @@ test('V1 to V2 cutover interrupts, resumes, and stays idempotent', async ({ brow
       child: seeded.childArchiveBytes,
     });
     await expectV1ObjectsUnchanged(seeded.cloudRoot, v1Bytes);
-
-    await expectLegacyUploadBlocked(host, seeded.cloudRoot);
-    const afterLegacy = await readJson(paths.manifest);
-    expect(afterLegacy.revision).toBe(manifest.revision);
-    expect(
-      Object.keys((afterLegacy.games as Record<string, unknown>)['Echo Keep'] as object)
-    ).toEqual(Object.keys((manifest.games as Record<string, unknown>)['Echo Keep'] as object));
 
     await host.stop();
     await context.close();

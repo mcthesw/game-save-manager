@@ -392,7 +392,6 @@ fn device_keyed_config_upgrades_and_preserves_multi_device_save_units()
     );
     assert!(config.settings.save_list_last_expanded);
     assert_eq!(config.settings.max_auto_backup_count, 7);
-    assert_eq!(config.settings.cloud_settings.max_concurrency, 1);
     Ok(())
 }
 

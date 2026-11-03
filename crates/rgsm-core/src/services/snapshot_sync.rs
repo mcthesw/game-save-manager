@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
+use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -9,6 +11,7 @@ use crate::app_dirs::resolve_app_path;
 use crate::backup::GameSnapshots;
 use crate::cloud_sync::v2::{
     CloudLibraryTarget, SnapshotReconciliationOutcome, SnapshotSyncCoordinator, SnapshotSyncError,
+    with_read_round,
 };
 use crate::config::{
     CloudNamespaceGeneration, Config, DeviceProfile, cloud_bootstrap_inputs, get_config,
@@ -17,6 +20,7 @@ use crate::hooks::{SnapshotSyncTarget, V2SnapshotSyncHook};
 use crate::preclude::{BackendError, BackupError, ConfigError};
 
 use super::cloud_library_target::cloud_library_target;
+use super::snapshot_sync_freshness::{FreshnessProbe, forget_last_round};
 
 pub const DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES: u64 = 5;
 
@@ -45,7 +49,51 @@ pub fn build_v2_snapshot_sync_hook(
     )
 }
 
+/// A full round, for requests the user or a local change made.
 pub async fn run_v2_snapshot_sync_once(
+    cancellation: &CancellationToken,
+) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError> {
+    Ok(run_round(cancellation, false).await?.unwrap_or_default())
+}
+
+/// A timer-driven round: `None` means one listing showed that neither the
+/// cloud library nor the local inputs changed since the last successful round.
+pub async fn run_v2_snapshot_sync_if_changed(
+    cancellation: &CancellationToken,
+) -> Result<Option<SnapshotReconciliationOutcome>, SnapshotSyncServiceError> {
+    run_round(cancellation, true).await
+}
+
+async fn run_round(
+    cancellation: &CancellationToken,
+    skip_when_unchanged: bool,
+) -> Result<Option<SnapshotReconciliationOutcome>, SnapshotSyncServiceError> {
+    with_read_round(async {
+        let probe = FreshnessProbe::begin().await;
+        if skip_when_unchanged
+            && probe
+                .as_ref()
+                .is_some_and(FreshnessProbe::matches_last_round)
+        {
+            return Ok(None);
+        }
+        match run_full_round(cancellation).await {
+            Ok(outcome) => {
+                if let Some(probe) = probe {
+                    probe.record().await;
+                }
+                Ok(Some(outcome))
+            }
+            Err(error) => {
+                forget_last_round();
+                Err(error)
+            }
+        }
+    })
+    .await
+}
+
+async fn run_full_round(
     cancellation: &CancellationToken,
 ) -> Result<SnapshotReconciliationOutcome, SnapshotSyncServiceError> {
     super::game_deletion::converge_local_deleted_games().await?;
@@ -174,6 +222,12 @@ where
 pub async fn resume_v2_snapshot_sync(
     cancellation: &CancellationToken,
 ) -> Result<usize, SnapshotSyncServiceError> {
+    with_read_round(resume_pending_downloads(cancellation)).await
+}
+
+async fn resume_pending_downloads(
+    cancellation: &CancellationToken,
+) -> Result<usize, SnapshotSyncServiceError> {
     super::game_deletion::converge_local_deleted_games().await?;
     let Some(runtime) = load_runtime()? else {
         return Ok(0);
@@ -233,6 +287,33 @@ pub fn v2_live_save_sync_targets() -> Result<Vec<LiveSaveSyncTarget>, SnapshotSy
             })
         })
         .collect())
+}
+
+/// Everything local that decides what a round does; unchanged inputs plus an
+/// unchanged cloud library make a round a no-op.
+pub(super) fn local_fingerprint() -> Option<u64> {
+    let (_, _, state) = cloud_bootstrap_inputs().ok()?;
+    let runtime = load_runtime().ok()??;
+    let mut hasher = DefaultHasher::new();
+    format!("{:?}", state.pending_game_metadata).hash(&mut hasher);
+    format!("{:?}", runtime.targets).hash(&mut hasher);
+    format!("{:?}", runtime.game_names).hash(&mut hasher);
+    format!("{:?}", runtime.config.games).hash(&mut hasher);
+    for game_id in runtime.targets.keys() {
+        let Some(game) = runtime
+            .config
+            .games
+            .iter()
+            .find(|game| game.storage_key == *game_id)
+        else {
+            continue;
+        };
+        match game.get_game_snapshots_info() {
+            Ok(snapshots) => format!("{snapshots:?}").hash(&mut hasher),
+            Err(error) => format!("{error:?}").hash(&mut hasher),
+        }
+    }
+    Some(hasher.finish())
 }
 
 fn load_runtime() -> Result<Option<SnapshotSyncRuntime>, SnapshotSyncServiceError> {

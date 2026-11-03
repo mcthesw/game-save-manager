@@ -18,6 +18,7 @@ import {
   latestSnapshotId,
   reviewProgress,
   changeGameMode,
+  refreshCloudView,
 } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
 import { startDualSession } from './support/session';
@@ -72,6 +73,7 @@ for (const mode of ['Manual', 'Multi-device Sync'] as const) {
       });
       if (mode === 'Manual') {
         await session.pageA.reload();
+        await refreshCloudView(session.pageA);
         await session.pageA
           .getByRole('button', { name: /^(Compare|Progress diverged, compare)$/ })
           .click();

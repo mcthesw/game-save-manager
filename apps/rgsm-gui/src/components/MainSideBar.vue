@@ -9,7 +9,7 @@ import { resolveManagementGame } from '../utils/appRoutes';
 import { initialGameListView } from '../utils/sidebarView';
 import { useAddGameDrawer } from '../composables/useAddGameDrawer';
 import { useSidebarResize } from '../composables/useSidebarResize';
-import { refreshCloudLibraryIfStale } from '../composables/useCloudLibrary';
+import { loadCachedCloudLibrary } from '../composables/useCloudLibrary';
 import KButton from '../ui/kit/KButton.vue';
 import KInput from '../ui/kit/KInput.vue';
 import KSegmented from '../ui/kit/KSegmented.vue';
@@ -125,7 +125,7 @@ function goGame(game: Game) {
 
 function navigatePage(path: string) {
   void router.push(path);
-  if (path === '/SyncSettings') void refreshCloudLibraryIfStale();
+  if (path === '/SyncSettings') void loadCachedCloudLibrary();
 }
 </script>
 

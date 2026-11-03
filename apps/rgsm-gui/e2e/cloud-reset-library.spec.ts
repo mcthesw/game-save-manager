@@ -22,6 +22,7 @@ import {
   openSyncSettings,
   rebuildCloudLibrary,
   reconnectCloudLibrary,
+  refreshCloudView,
 } from './support/gui';
 import { DEVICE_A_ID, DEVICE_B_ID } from './support/constants';
 import { createRunRoot } from './support/rgsm-instance';
@@ -48,6 +49,7 @@ test('one device rebuilds a deleted library and the other reconnects without del
 
     await rm(cloudPaths(seeded.cloudRoot).sharedLibrary);
     await openSyncSettings(session.pageA);
+    await refreshCloudView(session.pageA);
     await expect(
       session.pageA.getByRole('button', { name: 'Rebuild from this device' })
     ).toBeVisible();
@@ -62,6 +64,7 @@ test('one device rebuilds a deleted library and the other reconnects without del
 
     await session.pageB.reload();
     await openSyncSettings(session.pageB);
+    await refreshCloudView(session.pageB);
     await expect(
       session.pageB.getByRole('button', { name: 'Reconnect this device' })
     ).toBeVisible();

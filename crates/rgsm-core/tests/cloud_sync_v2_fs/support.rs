@@ -40,7 +40,6 @@ impl FsCloudFixture {
     pub fn new_operator(&self) -> Operator {
         CloudSyncSessionConfig {
             root_path: self.root.path().to_string_lossy().into_owned(),
-            max_concurrency: 2,
             backend: Backend::Fs,
         }
         .get_op()

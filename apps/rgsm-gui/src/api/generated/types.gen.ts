@@ -107,26 +107,19 @@ export type BatchDeleteSnapshotsRequest = {
   game: Game;
 };
 
-export type BatchSyncItemReport = {
-  name: string;
-  status: BatchSyncItemStatus;
-};
-
-export type BatchSyncItemStatus =
-  | 'success'
-  | 'cancelled'
-  | {
-      failed: string;
-    };
-
-export type BatchSyncReport = {
-  config: BatchSyncItemReport;
-  games: Array<BatchSyncItemReport>;
-};
-
 export type BuildInfo = {
   git_hash: string;
   version: string;
+};
+
+export type CachedCloudLibrary = {
+  /**
+   * Unix milliseconds of the last successful check, including checks that
+   * found nothing new.
+   */
+  checked_at?: number | null;
+  failure?: null | CloudFailure;
+  snapshot?: null | CloudLibrarySnapshot;
 };
 
 export type CancelCloudSyncResult = 'cancelled' | 'no_active_operations';
@@ -254,9 +247,25 @@ export type CloudDeviceProfileView = {
   name: string;
 };
 
-export type CloudDownloadAllRequest = {
-  session: CloudSyncSessionConfig;
+/**
+ * Why the latest round could not read the cloud.
+ */
+export type CloudFailure = {
+  kind: CloudFailureKind;
+  message: string;
 };
+
+/**
+ * Why a cloud read failed, so one place can tell the player what to do next.
+ */
+export type CloudFailureKind =
+  | 'rate_limited'
+  | 'unreachable'
+  | 'auth'
+  | 'path'
+  | 'reconnect_required'
+  | 'library_damaged'
+  | 'other';
 
 export type CloudJoinPreview = {
   backend: string;
@@ -321,6 +330,16 @@ export type CloudLibraryJoinReview = {
   items: Array<CloudLibraryJoinItem>;
 };
 
+/**
+ * Everything the sync pages show about the cloud library. One reconciliation
+ * round produces it, so opening a page never needs its own cloud requests.
+ */
+export type CloudLibrarySnapshot = {
+  deleted_games: Array<DeletedCloudGameView>;
+  device_profiles: Array<CloudDeviceProfileView>;
+  library: CloudArchiveLibraryView;
+};
+
 export type CloudLibraryStatus =
   | {
       kind: 'empty';
@@ -366,21 +385,9 @@ export type CloudSettings = {
    */
   backend?: Backend;
   /**
-   * 最大并发数
-   */
-  max_concurrency?: number;
-  /**
    * 云同步根目录
    */
   root_path?: string;
-};
-
-/**
- * Transport payload for a cloud synchronization failure
- */
-export type CloudSyncErrorEvent = {
-  error: string;
-  game_name?: string | null;
 };
 
 export type CloudSyncJobInfo = {
@@ -394,7 +401,6 @@ export type CloudSyncJobStatus = 'Queued' | 'Running' | 'Completed' | 'Failed' |
 
 export type CloudSyncSessionConfig = {
   backend: Backend;
-  max_concurrency: number;
   root_path: string;
 };
 
@@ -405,10 +411,6 @@ export type CloudSyncStatusEvent = {
   active_jobs: number;
   current_description?: string | null;
   jobs: Array<CloudSyncJobInfo>;
-};
-
-export type CloudUploadAllRequest = {
-  session: CloudSyncSessionConfig;
 };
 
 /**
@@ -438,13 +440,6 @@ export type Config = {
   settings: Settings;
   version: string;
 };
-
-/**
- * What the user chose to do when a conflict is detected.
- */
-export type ConflictResolution = 'keep_local' | 'accept_remote';
-
-export type ConflictResolutionOutcome = 'kept_local' | 'accepted_remote';
 
 export type CreateCloudLibraryRequest = {
   confirmed: boolean;
@@ -811,14 +806,6 @@ export type GameSyncModeOutcome = {
   published: number;
 };
 
-export type GameSyncState = {
-  last_known_local_head?: string | null;
-  last_known_remote_head?: string | null;
-  last_sync_at?: string | null;
-  last_sync_result?: null | SyncResult;
-  pending_action?: PendingAction;
-};
-
 export type GetGameExtraBackupsRequest = {
   game: Game;
 };
@@ -1143,8 +1130,6 @@ export type PathPlaceholderDescriptor = {
   windowsApplicable: boolean;
 };
 
-export type PendingAction = 'none' | 'retry_required' | 'user_decision_required';
-
 export type PendingDescription = {
   description: string;
   library_id: string;
@@ -1298,11 +1283,6 @@ export type ResolutionSelectionState =
       selected_resource_ids: Array<String>;
       status: 'staleSelection';
     };
-
-export type ResolveGameSyncConflictRequest = {
-  gameName: string;
-  resolution: ConflictResolution;
-};
 
 export type ResolvePathRequest = {
   path: string;
@@ -1662,31 +1642,7 @@ export type StoreUserIdCandidate = {
 
 export type String = string;
 
-export type SyncGameOutcome = 'already_in_sync' | 'uploaded' | 'downloaded' | 'merged' | 'conflict';
-
-export type SyncGameRequest = {
-  gameName: string;
-};
-
 export type SyncMode = 'manual' | 'cloud_backup' | 'multi_device_sync';
-
-export type SyncResult =
-  | 'success'
-  | {
-      error: string;
-    }
-  | 'conflict'
-  | 'cancelled';
-
-export type SyncState = {
-  backend_fingerprint?: string;
-  config_state?: GameSyncState;
-  current_device_id?: String;
-  games?: {
-    [key: string]: GameSyncState;
-  };
-  schema_version: number;
-};
 
 export type ToggleQuickActionSoundPreviewRequest = {
   effect: QuickActionSoundEffect;
@@ -2084,48 +2040,6 @@ export type ClearQuickBackupGameError =
 export type ClearQuickBackupGameResponses = {
   200: unknown;
 };
-
-export type CloudDownloadAllData = {
-  body: CloudDownloadAllRequest;
-  path?: never;
-  query?: never;
-  url: '/api/v1/cloud-download-all';
-};
-
-export type CloudDownloadAllErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type CloudDownloadAllError = CloudDownloadAllErrors[keyof CloudDownloadAllErrors];
-
-export type CloudDownloadAllResponses = {
-  200: BatchSyncReport;
-};
-
-export type CloudDownloadAllResponse = CloudDownloadAllResponses[keyof CloudDownloadAllResponses];
-
-export type CloudUploadAllData = {
-  body: CloudUploadAllRequest;
-  path?: never;
-  query?: never;
-  url: '/api/v1/cloud-upload-all';
-};
-
-export type CloudUploadAllErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type CloudUploadAllError = CloudUploadAllErrors[keyof CloudUploadAllErrors];
-
-export type CloudUploadAllResponses = {
-  200: BatchSyncReport;
-};
-
-export type CloudUploadAllResponse = CloudUploadAllResponses[keyof CloudUploadAllResponses];
 
 export type ConnectCloudLibraryData = {
   body?: never;
@@ -2657,6 +2571,27 @@ export type GetBuildInfoResponses = {
 
 export type GetBuildInfoResponse = GetBuildInfoResponses[keyof GetBuildInfoResponses];
 
+export type GetCachedCloudLibraryData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/v1/get-cached-cloud-library';
+};
+
+export type GetCachedCloudLibraryErrors = {
+  401: ApiError;
+};
+
+export type GetCachedCloudLibraryError =
+  GetCachedCloudLibraryErrors[keyof GetCachedCloudLibraryErrors];
+
+export type GetCachedCloudLibraryResponses = {
+  200: CachedCloudLibrary;
+};
+
+export type GetCachedCloudLibraryResponse =
+  GetCachedCloudLibraryResponses[keyof GetCachedCloudLibraryResponses];
+
 export type GetCloudArchiveLibraryData = {
   body?: never;
   path?: never;
@@ -2989,27 +2924,6 @@ export type GetPathPlaceholderCatalogResponses = {
 
 export type GetPathPlaceholderCatalogResponse =
   GetPathPlaceholderCatalogResponses[keyof GetPathPlaceholderCatalogResponses];
-
-export type GetSyncStateData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: '/api/v1/get-sync-state';
-};
-
-export type GetSyncStateErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type GetSyncStateError = GetSyncStateErrors[keyof GetSyncStateErrors];
-
-export type GetSyncStateResponses = {
-  200: SyncState;
-};
-
-export type GetSyncStateResponse = GetSyncStateResponses[keyof GetSyncStateResponses];
 
 export type GetSystemFontsData = {
   body?: never;
@@ -3576,29 +3490,6 @@ export type ResetSettingsResponses = {
   200: unknown;
 };
 
-export type ResolveGameSyncConflictData = {
-  body: ResolveGameSyncConflictRequest;
-  path?: never;
-  query?: never;
-  url: '/api/v1/resolve-game-sync-conflict';
-};
-
-export type ResolveGameSyncConflictErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type ResolveGameSyncConflictError =
-  ResolveGameSyncConflictErrors[keyof ResolveGameSyncConflictErrors];
-
-export type ResolveGameSyncConflictResponses = {
-  200: ConflictResolutionOutcome;
-};
-
-export type ResolveGameSyncConflictResponse =
-  ResolveGameSyncConflictResponses[keyof ResolveGameSyncConflictResponses];
-
 export type ResolvePathData = {
   body: ResolvePathRequest;
   path?: never;
@@ -4100,46 +3991,6 @@ export type StopSoundPlaybackError = StopSoundPlaybackErrors[keyof StopSoundPlay
 export type StopSoundPlaybackResponses = {
   200: unknown;
 };
-
-export type SyncConfigData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: '/api/v1/sync-config';
-};
-
-export type SyncConfigErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type SyncConfigError = SyncConfigErrors[keyof SyncConfigErrors];
-
-export type SyncConfigResponses = {
-  200: unknown;
-};
-
-export type SyncGameData = {
-  body: SyncGameRequest;
-  path?: never;
-  query?: never;
-  url: '/api/v1/sync-game';
-};
-
-export type SyncGameErrors = {
-  400: ApiError;
-  401: ApiError;
-  500: ApiError;
-};
-
-export type SyncGameError = SyncGameErrors[keyof SyncGameErrors];
-
-export type SyncGameResponses = {
-  200: SyncGameOutcome;
-};
-
-export type SyncGameResponse = SyncGameResponses[keyof SyncGameResponses];
 
 export type ToggleQuickActionSoundPreviewData = {
   body: ToggleQuickActionSoundPreviewRequest;

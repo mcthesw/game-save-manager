@@ -6,6 +6,7 @@ import {
   createPublishedSnapshot,
   openGame,
   openSyncSettings,
+  refreshCloudView,
   snapshotRow,
 } from './support/gui';
 import { createRunRoot, hostPost } from './support/rgsm-instance';
@@ -157,7 +158,7 @@ for (const editor of ['managed files', 'auto-save settings'] as const) {
   });
 }
 
-test('returning to an open game refreshes cloud snapshots without clearing known data on failure', async ({
+test('focus shows the cached cloud read; an explicit refresh keeps known data when it fails', async ({
   browser,
 }) => {
   const runRoot = await createRunRoot('cloud-refresh');
@@ -169,27 +170,30 @@ test('returning to an open game refreshes cloud snapshots without clearing known
     const first = await createPublishedSnapshot(session.pageA, session.hostA, 'First');
     await connectLibrary(session.pageB);
     await openGame(session.pageB);
+    await refreshCloudView(session.pageB);
     await expect(snapshotRow(session.pageB, first)).toBeVisible();
     const next = await createPublishedSnapshot(session.pageA, session.hostA, 'New on A');
-    await session.pageB.clock.setSystemTime(new Date(Date.now() + 10 * 60_000));
-    await session.pageB.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(snapshotRow(session.pageB, next)).toBeVisible({ timeout: 10_000 });
-    // Finish the focus refresh before counting a separate set of coalesced reads.
-    await session.pageB.evaluate(async () => {
-      const modulePath = '/src/composables/useCloudLibrary.ts';
-      await (await import(modulePath)).refreshCloudLibrary();
-    });
     let reads = 0;
     await session.pageB.route('**/api/v1/refresh-cloud-archive-library', async (route) => {
       reads += 1;
       await route.continue();
     });
+    await session.pageB.evaluate(() => {
+      window.dispatchEvent(new Event('focus'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await session.pageB.waitForTimeout(500);
+    expect(reads).toBe(0);
+    await expect(snapshotRow(session.pageB, next)).toHaveCount(0);
+
     await session.pageB.evaluate(async () => {
       const modulePath = '/src/composables/useCloudLibrary.ts';
       const { refreshCloudLibrary } = await import(modulePath);
       await Promise.all([refreshCloudLibrary(), refreshCloudLibrary(), refreshCloudLibrary()]);
     });
     expect(reads).toBe(1);
+    await expect(snapshotRow(session.pageB, next)).toBeVisible({ timeout: 10_000 });
+
     await session.pageB.unroute('**/api/v1/refresh-cloud-archive-library');
     await session.pageB.route('**/api/v1/refresh-cloud-archive-library', (route) =>
       route.fulfill({
@@ -198,39 +202,10 @@ test('returning to an open game refreshes cloud snapshots without clearing known
         body: JSON.stringify({ code: 'unavailable', message: 'Cloud unavailable' }),
       })
     );
-    const failedRefresh = session.pageB.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === '/api/v1/refresh-cloud-archive-library' &&
-        response.status() === 503
-    );
-    await session.pageB.clock.setSystemTime(new Date(Date.now() + 20 * 60_000));
-    await session.pageB.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await failedRefresh;
+    await refreshCloudView(session.pageB);
     await expect(snapshotRow(session.pageB, first)).toBeVisible();
     await expect(snapshotRow(session.pageB, next)).toBeVisible();
     await openSyncSettings(session.pageB);
-    await expect(
-      session.pageB.getByText('Could not refresh cloud data, showing the last known information', {
-        exact: true,
-      })
-    ).toBeVisible();
-    await expect(session.pageB.getByText('Synced', { exact: true })).toHaveCount(0);
-
-    // An unavailable inspection is not evidence that this device was removed.
-    await session.pageB.route('**/api/v1/inspect-cloud-library', (route) => route.abort('failed'));
-    await session.pageB.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(
-      session.pageB.getByRole('heading', { name: 'Preferences', exact: true })
-    ).toBeVisible();
-    await openSyncSettings(session.pageB);
-    await expect(
-      session.pageB
-        .getByRole('main')
-        .getByText('Could not check the Cloud Library', { exact: true })
-    ).toBeVisible();
-    await expect(session.pageB.getByRole('textbox', { name: 'Search games' })).toBeVisible({
-      timeout: 5000,
-    });
     await expect(
       session.pageB.getByText('Could not refresh cloud data, showing the last known information', {
         exact: true,

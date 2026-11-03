@@ -268,14 +268,6 @@ export async function hostPost<T>(
   return { ok: response.ok, status: response.status, data, raw };
 }
 
-export function fsSession(cloudRoot: string) {
-  return {
-    root_path: cloudRoot,
-    max_concurrency: 1,
-    backend: { type: 'Fs' as const },
-  };
-}
-
 export async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');

@@ -16,19 +16,10 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 const feedback = computed(() => {
   if (source.value === 'activity')
     return activities.value.find((entry) => entry.id === activityId.value);
-  const job = jobs.value.find((entry) => entry.status === 'Running') ?? jobs.value[0];
-  if (!job) return undefined;
-  return {
-    title: job.description,
-    description: job.error ?? undefined,
-    status: isSyncing.value
-      ? 'running'
-      : job.status === 'Failed'
-        ? 'error'
-        : job.status === 'Cancelled'
-          ? 'info'
-          : 'success',
-  };
+  // The caller reports a finished job's outcome once; the toast only shows work in progress.
+  const job = jobs.value.find((entry) => entry.status === 'Running');
+  if (!job || !isSyncing.value) return undefined;
+  return { title: job.description, description: undefined, status: 'running' };
 });
 const icon = computed(() => {
   switch (feedback.value?.status) {

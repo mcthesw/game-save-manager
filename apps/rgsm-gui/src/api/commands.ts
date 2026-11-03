@@ -4,12 +4,7 @@ import * as sdk from './generated/sdk.gen';
 import type * as types from './generated/types.gen';
 export { DEFAULT_CONFIG } from './defaultConfig.generated';
 export { events } from './events';
-export type {
-  CloudSyncErrorEvent,
-  CloudSyncStatusEvent,
-  HostNotification,
-  QuickActionCompleted,
-} from './events';
+export type { CloudSyncStatusEvent, HostNotification, QuickActionCompleted } from './events';
 
 type CommandResult<T> = { status: 'ok'; data: T } | { status: 'error'; error: string };
 
@@ -166,6 +161,9 @@ export const commands = {
     return unwrap<types.GetCloudNamespaceGenerationResponses[200]>(
       await sdk.getCloudNamespaceGeneration()
     );
+  },
+  async getCachedCloudLibrary() {
+    return unwrap<types.GetCachedCloudLibraryResponses[200]>(await sdk.getCachedCloudLibrary());
   },
   async getCloudRateLimit() {
     return unwrap<types.GetCloudRateLimitResponses[200]>(await sdk.getCloudRateLimit());
@@ -454,16 +452,6 @@ export const commands = {
       await sdk.setGameSyncMode({ body: { gameId, mode, initialCatchUp, liveSave, enabled } })
     );
   },
-  async cloudUploadAll(session: types.CloudUploadAllRequest['session']) {
-    return unwrap<types.CloudUploadAllResponses[200]>(
-      await sdk.cloudUploadAll({ body: { session } })
-    );
-  },
-  async cloudDownloadAll(session: types.CloudDownloadAllRequest['session']) {
-    return unwrap<types.CloudDownloadAllResponses[200]>(
-      await sdk.cloudDownloadAll({ body: { session } })
-    );
-  },
   async cancelCloudSync() {
     return unwrap<types.CancelCloudSyncResponses[200]>(await sdk.cancelCloudSync());
   },
@@ -665,9 +653,6 @@ export const commands = {
   async getSystemFonts() {
     return unwrapDirect<types.GetSystemFontsResponses[200]>(await sdk.getSystemFonts());
   },
-  async getSyncState() {
-    return unwrap<types.GetSyncStateResponses[200]>(await sdk.getSyncState());
-  },
   async scanVns(dirs: types.ScanVnsRequest['dirs']) {
     return unwrap<types.ScanVnsResponses[200]>(await sdk.scanVns({ body: { dirs } }));
   },
@@ -678,20 +663,6 @@ export const commands = {
     return unwrap<types.RestoreConfigBackupResponses[200]>(
       await sdk.restoreConfigBackup({ body: { index } })
     );
-  },
-  async syncGame(gameName: types.SyncGameRequest['gameName']) {
-    return unwrap<types.SyncGameResponses[200]>(await sdk.syncGame({ body: { gameName } }));
-  },
-  async resolveGameSyncConflict(
-    gameName: types.ResolveGameSyncConflictRequest['gameName'],
-    resolution: types.ResolveGameSyncConflictRequest['resolution']
-  ) {
-    return unwrap<types.ResolveGameSyncConflictResponses[200]>(
-      await sdk.resolveGameSyncConflict({ body: { gameName, resolution } })
-    );
-  },
-  async syncConfig() {
-    return unwrap<types.SyncConfigResponses[200]>(await sdk.syncConfig());
   },
 };
 

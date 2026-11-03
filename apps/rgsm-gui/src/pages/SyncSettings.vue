@@ -39,7 +39,6 @@ interface S3 {
 
 interface CloudSyncSessionConfig {
   root_path: string;
-  max_concurrency: number;
   backend: Backend;
 }
 
@@ -57,18 +56,10 @@ interface EditableCloudSettings {
   auto_sync_interval: number;
   root_path: string;
   backend: Backend;
-  max_concurrency: number;
 }
 
 const showWebdavPassword = ref(false);
 const showS3Secret = ref(false);
-
-const maxConcurrency = computed({
-  get: () => cloud_settings.value.max_concurrency,
-  set: (value: number | undefined) => {
-    cloud_settings.value.max_concurrency = Math.max(1, value ?? 1);
-  },
-});
 
 const navItems = computed(() => [
   { key: 'overview' as const, icon: Layers, label: $t('sync_settings.overview.tab') },
@@ -138,7 +129,6 @@ function toEditableCloudSettings(
     auto_sync_interval: value?.auto_sync_interval ?? 0,
     root_path: value?.root_path ?? '/game-save-manager',
     backend: cloneValue(value?.backend ?? ({ type: 'Disabled' } as Backend)),
-    max_concurrency: value?.max_concurrency ?? 1,
   };
 }
 
@@ -312,7 +302,6 @@ function currentSessionConfig(): CloudSyncSessionConfig | null {
   if (!backend) return null;
   return {
     root_path: cloud_settings.value.root_path,
-    max_concurrency: cloud_settings.value.max_concurrency,
     backend,
   };
 }
@@ -450,16 +439,11 @@ async function loadCloudNamespaceGeneration() {
   cloudNamespaceGeneration.value = result.data;
 }
 
-watch(savedBackendEnabled, (enabled) => {
-  if (enabled) void cloudLibrarySetup.value?.inspect({ automatic: true });
-});
-
 onMounted(async () => {
   try {
     await load_config();
     await loadCloudNamespaceGeneration();
     updatingCloudSettings.value = false;
-    void cloudLibrarySetup.value?.inspect({ automatic: true });
   } catch {
     updatingCloudSettings.value = false;
   }
@@ -721,17 +705,6 @@ onMounted(async () => {
                 <KInput v-model="cloud_settings!.root_path" class="w-full" mono />
                 <p class="mt-1 text-xs text-text-dim">
                   {{ $t('sync_settings.cloud_root_hint') }}
-                </p>
-              </div>
-            </div>
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="w-40 shrink-0 text-sm text-text">{{
-                $t('sync_settings.max_concurrency')
-              }}</span>
-              <div class="min-w-0 flex-1">
-                <KNumberInput v-model="maxConcurrency" :min="1" :max="32" class="w-28" />
-                <p class="mt-1 text-xs text-text-dim">
-                  {{ $t('sync_settings.max_concurrency_hint') }}
                 </p>
               </div>
             </div>

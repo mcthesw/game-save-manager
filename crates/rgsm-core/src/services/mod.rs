@@ -1,7 +1,11 @@
 mod cloud_archive;
+mod cloud_library_snapshot;
+pub use cloud_library_snapshot::CloudLibrarySnapshot;
 mod cloud_connection;
 mod cloud_error_message;
-pub use cloud_error_message::{cloud_error_message, cloud_rate_limit_message};
+pub use cloud_error_message::{
+    CloudFailureKind, cloud_error_message, cloud_failure_kind, cloud_rate_limit_message,
+};
 mod cloud_join_code;
 pub use cloud_join_code::{CloudJoinError, CloudJoinPreview};
 mod cloud_library_metadata;
@@ -37,6 +41,7 @@ mod snapshot;
 mod snapshot_description;
 pub use snapshot_description::SnapshotDescriptionOutcome;
 mod snapshot_sync;
+mod snapshot_sync_freshness;
 mod sync;
 
 use std::sync::Arc;
@@ -50,8 +55,8 @@ pub use profile_management::CloudDeviceProfileView;
 pub use retention::SnapshotRetentionOutcome;
 pub use snapshot_sync::{
     DEFAULT_SNAPSHOT_SYNC_POLL_MINUTES, LiveSaveSyncTarget, SnapshotSyncServiceError,
-    build_v2_snapshot_sync_hook, resume_v2_snapshot_sync, run_v2_snapshot_sync_once,
-    v2_live_save_sync_targets, v2_snapshot_sync_poll_minutes,
+    build_v2_snapshot_sync_hook, resume_v2_snapshot_sync, run_v2_snapshot_sync_if_changed,
+    run_v2_snapshot_sync_once, v2_live_save_sync_targets, v2_snapshot_sync_poll_minutes,
 };
 pub use sync::{
     CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryServiceError,

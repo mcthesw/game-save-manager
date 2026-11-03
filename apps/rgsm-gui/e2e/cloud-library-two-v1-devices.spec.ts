@@ -28,7 +28,6 @@ import {
   deleteCurrentHead,
   downloadSnapshot,
   expectCutoverSuccess,
-  expectLegacyUploadBlocked,
   expectLibraryKind,
   getArchiveLibrary,
   getGeneration,
@@ -38,6 +37,7 @@ import {
   openProgressReview,
   openSyncSettings,
   reviewProgress,
+  refreshCloudView,
   toggleCloudEnabled,
 } from './support/gui';
 import {
@@ -118,8 +118,6 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
     expect(await getGeneration(hostA)).toBe('v2');
     expect(await getGeneration(hostB)).toBe('v2');
     await expectDeviceProfiles(seeded.cloudRoot);
-    await expectLegacyUploadBlocked(hostA, seeded.cloudRoot);
-    await expectLegacyUploadBlocked(hostB, seeded.cloudRoot);
 
     await writeSave(seeded.deviceA, 'a-forward-save\n');
     const aForward = await createAndUploadSnapshot(hostA, 'A forward');
@@ -177,15 +175,8 @@ test('two V1 devices cut over, join, and keep V2 device boundaries', async ({ br
 
     const review = await reviewProgress(hostA);
     expect(review.requires_choice).toBe(true);
-    // Direct host writes bypass the UI's mutation refresh. Returning after the
-    // passive refresh interval must discover both devices' new progress.
-    const expiredTime = await pageA.evaluate(() => Date.now() + 10 * 60_000);
-    await pageA.clock.setSystemTime(new Date(expiredTime));
-    const refreshed = pageA.waitForResponse((response) =>
-      response.url().endsWith('/api/v1/refresh-cloud-archive-library')
-    );
-    await pageA.evaluate(() => window.dispatchEvent(new Event('focus')));
-    expect((await refreshed).ok()).toBe(true);
+    // Direct host writes bypass the UI; an explicit refresh discovers both devices' new progress.
+    await refreshCloudView(pageA);
     await openProgressReview(pageA);
     await acceptRemoteProgress(pageA, bBranch);
     const afterAccept = await readJson(paths.manifest);

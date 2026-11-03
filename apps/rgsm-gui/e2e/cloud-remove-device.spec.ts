@@ -20,6 +20,7 @@ import {
   openGame,
   openSyncSettings,
   reconnectCloudLibrary,
+  refreshCloudView,
   removeLibraryDevice,
 } from './support/gui';
 import { createRunRoot } from './support/rgsm-instance';
@@ -50,6 +51,7 @@ test('a removed device reconnects only after confirmation and keeps existing bac
     expectDeviceHasNoHead(await readJson(cloudPaths(seeded.cloudRoot).manifest), DEVICE_B_ID);
 
     await openSyncSettings(session.pageB);
+    await refreshCloudView(session.pageB);
     await expect(
       session.pageB.getByRole('button', { name: 'Reconnect this device' })
     ).toBeVisible();

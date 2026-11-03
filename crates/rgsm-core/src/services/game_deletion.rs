@@ -335,7 +335,6 @@ mod tests {
             config.settings.cloud_settings = CloudSettings {
                 backend: Backend::Fs,
                 root_path: cloud_root.path().to_string_lossy().into_owned(),
-                max_concurrency: 2,
                 ..CloudSettings::default()
             };
             let _config_state =

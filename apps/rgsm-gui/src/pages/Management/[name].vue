@@ -234,6 +234,7 @@ async function batch_delete() {
           }
         }
         await refresh_backups_info();
+        void refreshCloudLibrary(true);
         if (succeeded === dates.length) {
           notifySuccess($t('manage.batch_delete_success', { count: succeeded }));
         } else {
@@ -293,13 +294,11 @@ watch(
   { immediate: true }
 );
 
-async function refresh_backups_info(refreshCloud = true) {
+/** Reads local state only; operations that change the cloud refresh the cloud view themselves. */
+async function refresh_backups_info(resetSelection = true) {
   const request = ++backupRead;
   const target = game.value;
   if (!target?.name) return;
-  // Local snapshots must not wait for the cloud; the watcher on cloudLibrary
-  // re-renders once the refreshed cloud view differs.
-  if (refreshCloud) void refreshCloudLibrary(true);
   const result = await commands.getGameSnapshotsInfo(target);
   if (request !== backupRead || target.storage_key !== game.value?.storage_key) return;
   if (result.status === 'error') {
@@ -315,7 +314,7 @@ async function refresh_backups_info(refreshCloud = true) {
     table_data.value = merged;
     table_data_desc.value = [...merged].reverse();
   }
-  selectedDates.value = refreshCloud
+  selectedDates.value = resetSelection
     ? new Set()
     : new Set(
         [...selectedDates.value].filter((id) => merged.some((snapshot) => snapshot.date === id))
@@ -625,11 +624,10 @@ async function del_save(date: string) {
       return;
     }
     let result;
-    if (
-      ownership.data.some(
-        (status) => status.game_id === (game.value.storage_key || game.value.name) && status.shared
-      )
-    ) {
+    const sharedDeletion = ownership.data.some(
+      (status) => status.game_id === (game.value.storage_key || game.value.name) && status.shared
+    );
+    if (sharedDeletion) {
       const gameId = game.value.storage_key || game.value.name;
       const isHead = currentHead.value === date;
       await feedback.confirm(
@@ -667,6 +665,7 @@ async function del_save(date: string) {
       return;
     }
     await refresh_backups_info();
+    if (sharedDeletion) void refreshCloudLibrary(true);
     notifySuccess($t('manage.delete_success'));
   } catch (e) {
     info(`Snapshot deletion cancelled or interrupted: ${e}`);

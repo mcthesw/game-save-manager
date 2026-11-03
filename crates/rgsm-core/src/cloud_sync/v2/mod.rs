@@ -6,6 +6,7 @@ mod deletion;
 mod deletion_registry;
 mod descriptions;
 pub(crate) use descriptions::sync_descriptions;
+mod freshness;
 mod game_comparison;
 pub(crate) mod game_deletion;
 mod integrity;
@@ -24,6 +25,7 @@ mod metadata_read;
 mod namespace;
 mod profile_removal;
 mod profile_repository;
+mod read_round;
 mod remote_resolution;
 mod repository;
 mod retention;
@@ -58,6 +60,7 @@ pub use deletion_registry::{
     DELETION_REGISTRY_SCHEMA_VERSION, DeletionRegistry, DeletionRegistryError,
     DeletionRegistryRepository, GameDeletion, ProfileDeletion,
 };
+pub(crate) use freshness::library_signature;
 pub use game_comparison::{
     GameJoinCandidate, GameJoinClassification, GameJoinComparisonError, compare_join_libraries,
 };
@@ -94,6 +97,7 @@ pub use profile_removal::{
     DeviceProfileRemoval, DeviceProfileRemovalError, DeviceProfileRemovalOutcome,
 };
 pub use profile_repository::{DeviceProfileRepository, DeviceProfileRepositoryError};
+pub use read_round::with_read_round;
 pub use remote_resolution::{
     AcceptRemoteProgressError, PreparedRemoteProgress, V2RemoteProgressResolver,
 };

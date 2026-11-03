@@ -51,12 +51,6 @@ import type {
   ClearQuickBackupGameData,
   ClearQuickBackupGameErrors,
   ClearQuickBackupGameResponses,
-  CloudDownloadAllData,
-  CloudDownloadAllErrors,
-  CloudDownloadAllResponses,
-  CloudUploadAllData,
-  CloudUploadAllErrors,
-  CloudUploadAllResponses,
   ConnectCloudLibraryData,
   ConnectCloudLibraryErrors,
   ConnectCloudLibraryResponses,
@@ -131,6 +125,9 @@ import type {
   GetBuildInfoData,
   GetBuildInfoErrors,
   GetBuildInfoResponses,
+  GetCachedCloudLibraryData,
+  GetCachedCloudLibraryErrors,
+  GetCachedCloudLibraryResponses,
   GetCloudArchiveLibraryData,
   GetCloudArchiveLibraryErrors,
   GetCloudArchiveLibraryResponses,
@@ -176,9 +173,6 @@ import type {
   GetPathPlaceholderCatalogData,
   GetPathPlaceholderCatalogErrors,
   GetPathPlaceholderCatalogResponses,
-  GetSyncStateData,
-  GetSyncStateErrors,
-  GetSyncStateResponses,
   GetSystemFontsData,
   GetSystemFontsErrors,
   GetSystemFontsResponses,
@@ -257,9 +251,6 @@ import type {
   ResetSettingsData,
   ResetSettingsErrors,
   ResetSettingsResponses,
-  ResolveGameSyncConflictData,
-  ResolveGameSyncConflictErrors,
-  ResolveGameSyncConflictResponses,
   ResolvePathData,
   ResolvePathErrors,
   ResolvePathResponses,
@@ -336,12 +327,6 @@ import type {
   StreamEventsErrors,
   StreamEventsResponse,
   StreamEventsResponses,
-  SyncConfigData,
-  SyncConfigErrors,
-  SyncConfigResponses,
-  SyncGameData,
-  SyncGameErrors,
-  SyncGameResponses,
   ToggleQuickActionSoundPreviewData,
   ToggleQuickActionSoundPreviewErrors,
   ToggleQuickActionSoundPreviewResponses,
@@ -526,30 +511,6 @@ export const clearQuickBackupGame = <ThrowOnError extends boolean = false>(
     ClearQuickBackupGameErrors,
     ThrowOnError
   >({ url: '/api/v1/clear-quick-backup-game', ...options });
-
-export const cloudDownloadAll = <ThrowOnError extends boolean = false>(
-  options: Options<CloudDownloadAllData, ThrowOnError>
-): RequestResult<CloudDownloadAllResponses, CloudDownloadAllErrors, ThrowOnError> =>
-  (options.client ?? client).post<CloudDownloadAllResponses, CloudDownloadAllErrors, ThrowOnError>({
-    url: '/api/v1/cloud-download-all',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-
-export const cloudUploadAll = <ThrowOnError extends boolean = false>(
-  options: Options<CloudUploadAllData, ThrowOnError>
-): RequestResult<CloudUploadAllResponses, CloudUploadAllErrors, ThrowOnError> =>
-  (options.client ?? client).post<CloudUploadAllResponses, CloudUploadAllErrors, ThrowOnError>({
-    url: '/api/v1/cloud-upload-all',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
 
 export const connectCloudLibrary = <ThrowOnError extends boolean = false>(
   options?: Options<ConnectCloudLibraryData, ThrowOnError>
@@ -875,6 +836,15 @@ export const getBuildInfo = <ThrowOnError extends boolean = false>(
     ...options,
   });
 
+export const getCachedCloudLibrary = <ThrowOnError extends boolean = false>(
+  options?: Options<GetCachedCloudLibraryData, ThrowOnError>
+): RequestResult<GetCachedCloudLibraryResponses, GetCachedCloudLibraryErrors, ThrowOnError> =>
+  (options?.client ?? client).post<
+    GetCachedCloudLibraryResponses,
+    GetCachedCloudLibraryErrors,
+    ThrowOnError
+  >({ url: '/api/v1/get-cached-cloud-library', ...options });
+
 export const getCloudArchiveLibrary = <ThrowOnError extends boolean = false>(
   options?: Options<GetCloudArchiveLibraryData, ThrowOnError>
 ): RequestResult<GetCloudArchiveLibraryResponses, GetCloudArchiveLibraryErrors, ThrowOnError> =>
@@ -1051,14 +1021,6 @@ export const getPathPlaceholderCatalog = <ThrowOnError extends boolean = false>(
     GetPathPlaceholderCatalogErrors,
     ThrowOnError
   >({ url: '/api/v1/get-path-placeholder-catalog', ...options });
-
-export const getSyncState = <ThrowOnError extends boolean = false>(
-  options?: Options<GetSyncStateData, ThrowOnError>
-): RequestResult<GetSyncStateResponses, GetSyncStateErrors, ThrowOnError> =>
-  (options?.client ?? client).post<GetSyncStateResponses, GetSyncStateErrors, ThrowOnError>({
-    url: '/api/v1/get-sync-state',
-    ...options,
-  });
 
 export const getSystemFonts = <ThrowOnError extends boolean = false>(
   options?: Options<GetSystemFontsData, ThrowOnError>
@@ -1406,22 +1368,6 @@ export const resetSettings = <ThrowOnError extends boolean = false>(
   (options?.client ?? client).post<ResetSettingsResponses, ResetSettingsErrors, ThrowOnError>({
     url: '/api/v1/reset-settings',
     ...options,
-  });
-
-export const resolveGameSyncConflict = <ThrowOnError extends boolean = false>(
-  options: Options<ResolveGameSyncConflictData, ThrowOnError>
-): RequestResult<ResolveGameSyncConflictResponses, ResolveGameSyncConflictErrors, ThrowOnError> =>
-  (options.client ?? client).post<
-    ResolveGameSyncConflictResponses,
-    ResolveGameSyncConflictErrors,
-    ThrowOnError
-  >({
-    url: '/api/v1/resolve-game-sync-conflict',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
   });
 
 export const resolvePath = <ThrowOnError extends boolean = false>(
@@ -1778,26 +1724,6 @@ export const stopSoundPlayback = <ThrowOnError extends boolean = false>(
     StopSoundPlaybackErrors,
     ThrowOnError
   >({ url: '/api/v1/stop-sound-playback', ...options });
-
-export const syncConfig = <ThrowOnError extends boolean = false>(
-  options?: Options<SyncConfigData, ThrowOnError>
-): RequestResult<SyncConfigResponses, SyncConfigErrors, ThrowOnError> =>
-  (options?.client ?? client).post<SyncConfigResponses, SyncConfigErrors, ThrowOnError>({
-    url: '/api/v1/sync-config',
-    ...options,
-  });
-
-export const syncGame = <ThrowOnError extends boolean = false>(
-  options: Options<SyncGameData, ThrowOnError>
-): RequestResult<SyncGameResponses, SyncGameErrors, ThrowOnError> =>
-  (options.client ?? client).post<SyncGameResponses, SyncGameErrors, ThrowOnError>({
-    url: '/api/v1/sync-game',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
 
 export const toggleQuickActionSoundPreview = <ThrowOnError extends boolean = false>(
   options: Options<ToggleQuickActionSoundPreviewData, ThrowOnError>

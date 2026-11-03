@@ -6,12 +6,18 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use super::metadata_read::read_complete_json;
+use super::read_round::{cached_read, invalidate};
 use super::{CloudManifest, DeletionRegistryError, DeletionRegistryRepository, ManifestError};
 
 #[async_trait]
 pub trait ManifestTransport: Send + Sync {
     async fn read(&self) -> Result<Option<Vec<u8>>, opendal::Error>;
     async fn write(&self, bytes: &[u8]) -> Result<(), opendal::Error>;
+
+    /// Identifies the object for the per-round read cache; `None` opts out.
+    fn cache_key(&self) -> Option<&str> {
+        None
+    }
 }
 
 pub struct OpenDalManifestTransport {
@@ -44,6 +50,10 @@ impl ManifestTransport for OpenDalManifestTransport {
             .await?;
         Ok(())
     }
+
+    fn cache_key(&self) -> Option<&str> {
+        Some(&self.object_key)
+    }
 }
 
 pub struct CloudManifestRepository<T: ManifestTransport> {
@@ -75,47 +85,61 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
         }
     }
 
+    /// Read the Manifest, reusing the answer already fetched in this
+    /// reconciliation round. Anything that decides a write must use
+    /// [`Self::load_fresh`].
     pub async fn load(&self) -> Result<CloudManifest, ManifestRepositoryError> {
-        let manifest: CloudManifest =
-            match read_complete_json(|| self.transport.read(), self.max_attempts).await? {
-                Some(bytes) => serde_json::from_slice(&bytes)?,
-                // A bound library always has its Manifest; treating absence as an
-                // empty one would let the next write erase every published Snapshot.
-                None => return Err(ManifestRepositoryError::Missing),
-            };
+        let bytes = cached_read(self.transport.cache_key(), || self.read_complete()).await?;
+        Self::decode(bytes)
+    }
+
+    pub async fn load_fresh(&self) -> Result<CloudManifest, ManifestRepositoryError> {
+        Self::decode(self.read_complete().await?)
+    }
+
+    async fn read_complete(&self) -> Result<Option<Vec<u8>>, opendal::Error> {
+        read_complete_json(|| self.transport.read(), self.max_attempts).await
+    }
+
+    fn decode(bytes: Option<Vec<u8>>) -> Result<CloudManifest, ManifestRepositoryError> {
+        let manifest: CloudManifest = match bytes {
+            Some(bytes) => serde_json::from_slice(&bytes)?,
+            // A bound library always has its Manifest; treating absence as an
+            // empty one would let the next write erase every published Snapshot.
+            None => return Err(ManifestRepositoryError::Missing),
+        };
         manifest.validate()?;
         Ok(manifest)
     }
 
     /// Apply one idempotent mutation to the latest remote Manifest.
     ///
-    /// Each retry re-reads and re-applies the mutation. In-process writers are
-    /// serialized; cross-process safety is bounded by read-back visibility.
+    /// In-process writers are serialized. A successful provider write is
+    /// trusted without reading the object back: a read-back only narrows the
+    /// window in which a concurrent device could overwrite the write unseen,
+    /// and costs one more request on every publish.
     pub async fn mutate<F>(&self, mutation: F) -> Result<CloudManifest, ManifestRepositoryError>
     where
         F: Fn(&mut CloudManifest) -> Result<(), ManifestError>,
     {
         let _guard = self.writer_lock.lock().await;
-        for _ in 0..self.max_attempts {
-            let mut manifest = self.load().await?;
-            let previous = manifest.clone();
-            mutation(&mut manifest)?;
-            self.reject_deleted_game_changes(&previous, &manifest)
-                .await?;
-            manifest.revision = manifest
-                .revision
-                .checked_add(1)
-                .ok_or(ManifestRepositoryError::RevisionOverflow)?;
-            manifest.validate()?;
-            let expected = serde_json::to_vec_pretty(&manifest)?;
-            self.transport.write(&expected).await?;
-            if self.transport.read().await?.as_deref() == Some(expected.as_slice()) {
-                return Ok(manifest);
-            }
+        let mut manifest = self.load_fresh().await?;
+        let previous = manifest.clone();
+        mutation(&mut manifest)?;
+        self.reject_deleted_game_changes(&previous, &manifest)
+            .await?;
+        manifest.revision = manifest
+            .revision
+            .checked_add(1)
+            .ok_or(ManifestRepositoryError::RevisionOverflow)?;
+        manifest.validate()?;
+        let bytes = serde_json::to_vec_pretty(&manifest)?;
+        let written = self.transport.write(&bytes).await;
+        if let Some(key) = self.transport.cache_key() {
+            invalidate(key);
         }
-        Err(ManifestRepositoryError::RetryExhausted {
-            attempts: self.max_attempts,
-        })
+        written?;
+        Ok(manifest)
     }
 
     async fn reject_deleted_game_changes(
@@ -127,7 +151,7 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
             return Ok(());
         };
         let registry = DeletionRegistryRepository::new(operator.clone(), self.max_attempts)
-            .load()
+            .load_fresh()
             .await?;
         for game_id in registry.deleted_games.keys() {
             match (previous.games.get(game_id), accepted.games.get(game_id)) {
@@ -156,8 +180,6 @@ pub enum ManifestRepositoryError {
     Missing,
     #[error("Cloud Manifest revision overflow")]
     RevisionOverflow,
-    #[error("Cloud Manifest read-back verification failed after {attempts} attempts")]
-    RetryExhausted { attempts: usize },
     #[error("Game {0} has been permanently deleted")]
     DeletedGame(String),
     #[error(transparent)]
@@ -167,25 +189,22 @@ pub enum ManifestRepositoryError {
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex as StdMutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
 
-    struct FakeState {
-        bytes: Option<Vec<u8>>,
-        overwrite_writes: usize,
-    }
-
     struct FakeTransport {
-        state: StdMutex<FakeState>,
+        bytes: StdMutex<Option<Vec<u8>>>,
+        reads: AtomicUsize,
     }
 
     impl FakeTransport {
-        fn new(overwrite_writes: usize) -> Self {
+        fn new() -> Self {
             Self {
-                state: StdMutex::new(FakeState {
-                    bytes: Some(serde_json::to_vec_pretty(&CloudManifest::default()).unwrap()),
-                    overwrite_writes,
-                }),
+                bytes: StdMutex::new(Some(
+                    serde_json::to_vec_pretty(&CloudManifest::default()).unwrap(),
+                )),
+                reads: AtomicUsize::new(0),
             }
         }
     }
@@ -193,28 +212,23 @@ mod tests {
     #[async_trait]
     impl ManifestTransport for FakeTransport {
         async fn read(&self) -> Result<Option<Vec<u8>>, opendal::Error> {
-            Ok(self.state.lock().unwrap().bytes.clone())
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            Ok(self.bytes.lock().unwrap().clone())
         }
 
         async fn write(&self, bytes: &[u8]) -> Result<(), opendal::Error> {
-            let mut state = self.state.lock().unwrap();
-            if state.overwrite_writes > 0 {
-                state.overwrite_writes -= 1;
-                let external = CloudManifest {
-                    revision: 100 + state.overwrite_writes as u64,
-                    ..CloudManifest::default()
-                };
-                state.bytes = Some(serde_json::to_vec_pretty(&external).unwrap());
-            } else {
-                state.bytes = Some(bytes.to_vec());
-            }
+            *self.bytes.lock().unwrap() = Some(bytes.to_vec());
             Ok(())
+        }
+
+        fn cache_key(&self) -> Option<&str> {
+            Some("manifest")
         }
     }
 
     #[tokio::test]
-    async fn mutation_reapplies_after_read_back_mismatch() {
-        let repository = CloudManifestRepository::with_transport(FakeTransport::new(1), 3);
+    async fn a_mutation_reads_the_manifest_once_and_trusts_the_write() {
+        let repository = CloudManifestRepository::with_transport(FakeTransport::new(), 3);
 
         let stored = repository
             .mutate(|manifest| {
@@ -225,19 +239,30 @@ mod tests {
             .unwrap();
 
         assert!(stored.games.contains_key("game"));
-        assert!(stored.revision > 100);
+        assert_eq!(repository.transport.reads.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
-    async fn bounded_mismatch_returns_typed_error() {
-        let repository = CloudManifestRepository::with_transport(FakeTransport::new(10), 2);
+    async fn a_round_reuses_loads_but_never_a_write_decision_or_a_stale_write() {
+        let repository = CloudManifestRepository::with_transport(FakeTransport::new(), 3);
+        super::super::with_read_round(async {
+            repository.load().await.unwrap();
+            repository.load().await.unwrap();
+            assert_eq!(repository.transport.reads.load(Ordering::SeqCst), 1);
 
-        let result = repository.mutate(|_| Ok(())).await;
+            repository.load_fresh().await.unwrap();
+            assert_eq!(repository.transport.reads.load(Ordering::SeqCst), 2);
 
-        assert!(matches!(
-            result,
-            Err(ManifestRepositoryError::RetryExhausted { attempts: 2 })
-        ));
+            let written = repository
+                .mutate(|manifest| {
+                    manifest.game_mut("game");
+                    Ok(())
+                })
+                .await
+                .unwrap();
+            assert_eq!(repository.load().await.unwrap(), written);
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -274,8 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn an_incomplete_manifest_is_not_treated_as_an_empty_library() {
-        let transport = FakeTransport::new(0);
-        transport.state.lock().unwrap().bytes = Some(Vec::new());
+        let transport = FakeTransport::new();
+        *transport.bytes.lock().unwrap() = Some(Vec::new());
         let repository = CloudManifestRepository::with_transport(transport, 2);
         assert!(matches!(
             repository.load().await,
@@ -285,8 +310,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_missing_manifest_is_reported_and_never_recreated_by_a_mutation() {
-        let transport = FakeTransport::new(0);
-        transport.state.lock().unwrap().bytes = None;
+        let transport = FakeTransport::new();
+        *transport.bytes.lock().unwrap() = None;
         let repository = CloudManifestRepository::with_transport(transport, 2);
 
         assert!(matches!(
@@ -302,8 +327,8 @@ mod tests {
 
     #[tokio::test]
     async fn malformed_remote_manifest_fails_closed() {
-        let transport = FakeTransport::new(0);
-        transport.state.lock().unwrap().bytes = Some(b"{broken".to_vec());
+        let transport = FakeTransport::new();
+        *transport.bytes.lock().unwrap() = Some(b"{broken".to_vec());
         let repository = CloudManifestRepository::with_transport(transport, 2);
 
         assert!(matches!(

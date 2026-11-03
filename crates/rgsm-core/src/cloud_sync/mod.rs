@@ -1,12 +1,7 @@
 mod backend;
 mod cloud_settings;
-#[allow(dead_code)]
-pub mod conflict;
-mod facade;
 pub(crate) mod join_code;
 pub mod rate_limit;
-mod recovery;
-pub mod sync_state;
 mod task_manager;
 pub mod transfer;
 mod utils;
@@ -23,17 +18,8 @@ pub use backend::{
     CloudBackendCheckReport, CloudBackendCheckStep, CloudSyncSessionConfig, S3AddressingStyle,
 };
 pub use cloud_settings::CloudSettings;
-#[allow(unused_imports)]
-pub use conflict::{ConflictResolution, SyncRelation};
-pub use facade::{
-    BatchSyncItemStatus, BatchSyncReport, SyncGameOutcome, download_all_from_session, sync_game,
-    upload_all_from_session,
-};
-pub use recovery::{ConflictResolutionOutcome, resolve_game_conflict, sync_config};
-#[allow(unused_imports)]
-pub use sync_state::{GameSyncState, PendingAction, SyncResult, SyncState};
 pub use task_manager::{
-    CancelCloudSyncResult, CloudSyncError, CloudSyncJobInfo, CloudSyncJobStatus, CloudSyncStatus,
+    CancelCloudSyncResult, CloudSyncJobInfo, CloudSyncJobStatus, CloudSyncStatus,
     CloudSyncTaskManager, SyncEventEmitter,
 };
 pub use utils::SyncOperationError;
