@@ -16,6 +16,11 @@ pub fn cloud_error_message(error: &(dyn Error + 'static)) -> String {
     t!(key).to_string()
 }
 
+/// Shown instead of a request when automatic reads are paused by the provider.
+pub fn cloud_rate_limit_message() -> String {
+    t!("error.cloud_rate_limited").to_string()
+}
+
 fn storage_failure(error: &(dyn Error + 'static)) -> Option<&'static str> {
     let mut current = Some(error);
     while let Some(error) = current {
@@ -28,6 +33,7 @@ fn storage_failure(error: &(dyn Error + 'static)) -> Option<&'static str> {
             return Some(match error.kind() {
                 ErrorKind::PermissionDenied => "error.cloud_access_denied",
                 ErrorKind::ConfigInvalid => "error.cloud_settings_invalid",
+                ErrorKind::RateLimited => "error.cloud_rate_limited",
                 _ => "error.cloud_unreachable",
             });
         }
@@ -65,6 +71,13 @@ mod tests {
         assert_eq!(
             cloud_error_message(&denied),
             t!("error.cloud_access_denied")
+        );
+
+        let limited =
+            SharedLibraryRepositoryError::Transport(storage_error(ErrorKind::RateLimited));
+        assert_eq!(
+            cloud_error_message(&limited),
+            t!("error.cloud_rate_limited")
         );
     }
 

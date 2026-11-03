@@ -1210,6 +1210,7 @@
         "legacy_cloud_operation_unavailable": "旧版云库操作已停用，请前往云同步页面升级或加入当前云库。",
         "local_upgrade_environment_failed": "无法写入升级后的备份，升级已暂停。请释放磁盘空间或检查文件夹权限后继续。详情：%{error}",
         "cloud_unreachable": "无法连接云存储。请检查网络和云同步中的存储设置后重试，本地存档不受影响。",
+        "cloud_rate_limited": "云存储因请求过于频繁，暂时限制了访问。请等待约 10 分钟后重试，本地存档不受影响。",
         "cloud_access_denied": "云存储拒绝了访问。请在云同步中检查账号、密钥和权限。",
         "cloud_settings_invalid": "云存储设置无效，请在云同步中检查。",
         "cloud_library_damaged": "云库不完整或已损坏。请打开云同步并选择“从此设备重建”。",

@@ -36,11 +36,11 @@ impl HttpFetch for Fetcher {
     }
 }
 
-async fn fetch(
+async fn try_fetch(
     method: &str,
     status: StatusCode,
     bytes: &[u8],
-) -> (Response<HttpBody>, Arc<AtomicUsize>) {
+) -> (opendal::Result<Response<HttpBody>>, Arc<AtomicUsize>) {
     let polls = Arc::new(AtomicUsize::new(0));
     let client = WebDavHttpClient {
         inner: HttpClient::with(Fetcher {
@@ -48,6 +48,7 @@ async fn fetch(
             bytes: bytes.to_vec(),
             polls: polls.clone(),
         }),
+        cooldown: Box::leak(Box::new(Cooldown::new())),
     };
     let request = Request::builder()
         .method(method)
@@ -55,7 +56,128 @@ async fn fetch(
         .header("authorization", "Basic unchanged")
         .body(Buffer::new())
         .unwrap();
-    (client.fetch(request).await.unwrap(), polls)
+    (client.fetch(request).await, polls)
+}
+
+async fn fetch(
+    method: &str,
+    status: StatusCode,
+    bytes: &[u8],
+) -> (Response<HttpBody>, Arc<AtomicUsize>) {
+    let (response, polls) = try_fetch(method, status, bytes).await;
+    (response.unwrap(), polls)
+}
+
+const BLOCKED: &str =
+    "<html><body>BlockedTemporarily: Too many requests are received recently</body></html>";
+
+#[tokio::test]
+async fn provider_rate_limits_become_non_retryable_rate_limited_errors() {
+    for (status, body) in [
+        (StatusCode::TOO_MANY_REQUESTS, ""),
+        (StatusCode::SERVICE_UNAVAILABLE, BLOCKED),
+    ] {
+        let (result, _) = try_fetch("GET", status, body.as_bytes()).await;
+        let Err(error) = result else {
+            panic!("{status} was not rejected");
+        };
+        assert_eq!(error.kind(), opendal::ErrorKind::RateLimited);
+        assert!(!error.is_temporary());
+    }
+}
+
+#[tokio::test]
+async fn throttling_starts_the_cooldown_until_the_provider_answers_normally() {
+    static COOLDOWN: Cooldown = Cooldown::new();
+    async fn fetch_with(status: StatusCode, body: &'static str) {
+        let client = WebDavHttpClient {
+            inner: HttpClient::with(CountingFetcher {
+                status,
+                body,
+                calls: Arc::default(),
+            }),
+            cooldown: &COOLDOWN,
+        };
+        let request = Request::builder()
+            .uri("http://localhost/x")
+            .body(Buffer::new())
+            .unwrap();
+        let _ = client.fetch(request).await;
+    }
+
+    fetch_with(StatusCode::SERVICE_UNAVAILABLE, "maintenance").await;
+    assert!(COOLDOWN.remaining(Instant::now()).is_none());
+    fetch_with(StatusCode::SERVICE_UNAVAILABLE, BLOCKED).await;
+    assert!(COOLDOWN.remaining(Instant::now()).is_some());
+    fetch_with(StatusCode::OK, "").await;
+    assert!(COOLDOWN.remaining(Instant::now()).is_none());
+}
+
+#[tokio::test]
+async fn plain_service_unavailable_keeps_its_status_and_body() {
+    let (mut response, _) = fetch("GET", StatusCode::SERVICE_UNAVAILABLE, b"maintenance").await;
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        response.body_mut().to_buffer().await.unwrap().to_vec(),
+        b"maintenance"
+    );
+}
+
+struct CountingFetcher {
+    status: StatusCode,
+    body: &'static str,
+    calls: Arc<AtomicUsize>,
+}
+
+impl HttpFetch for CountingFetcher {
+    async fn fetch(&self, _: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let bytes = Buffer::from(self.body.as_bytes().to_vec());
+        let size = bytes.len() as u64;
+        let body = HttpBody::new(futures_util::stream::iter([Ok(bytes)]), Some(size));
+        Ok(Response::builder().status(self.status).body(body).unwrap())
+    }
+}
+
+async fn requests_for_failed_read(
+    status: StatusCode,
+    body: &'static str,
+) -> (usize, opendal::Error) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let client = WebDavHttpClient {
+        inner: HttpClient::with(CountingFetcher {
+            status,
+            body,
+            calls: calls.clone(),
+        }),
+        cooldown: Box::leak(Box::new(Cooldown::new())),
+    };
+    let operator =
+        opendal::Operator::new(opendal::services::Webdav::default().endpoint("http://localhost"))
+            .unwrap()
+            .layer(HttpClientLayer::new(HttpClient::with(client)))
+            .layer(
+                opendal::layers::RetryLayer::new()
+                    .with_min_delay(std::time::Duration::from_millis(1))
+                    .with_max_times(3),
+            )
+            .finish();
+    let error = operator.read("namespace.json").await.unwrap_err();
+    (calls.load(Ordering::SeqCst), error)
+}
+
+#[tokio::test]
+async fn a_throttled_read_is_attempted_once_but_other_outages_are_retried() {
+    for (status, body) in [
+        (StatusCode::TOO_MANY_REQUESTS, ""),
+        (StatusCode::SERVICE_UNAVAILABLE, BLOCKED),
+    ] {
+        let (calls, error) = requests_for_failed_read(status, body).await;
+        assert_eq!(calls, 1);
+        assert_eq!(error.kind(), opendal::ErrorKind::RateLimited);
+    }
+    let (calls, _) = requests_for_failed_read(StatusCode::SERVICE_UNAVAILABLE, "maintenance").await;
+    assert!(calls > 1);
 }
 
 #[tokio::test]
@@ -85,7 +207,6 @@ async fn successful_archives_and_other_errors_are_not_buffered_or_rewritten() {
         StatusCode::UNAUTHORIZED,
         StatusCode::FORBIDDEN,
         StatusCode::NOT_FOUND,
-        StatusCode::TOO_MANY_REQUESTS,
         StatusCode::INTERNAL_SERVER_ERROR,
     ] {
         let (mut response, polls) = fetch("GET", status, MISSING.as_bytes()).await;
