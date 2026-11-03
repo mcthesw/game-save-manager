@@ -4,7 +4,7 @@ import { Copy, RefreshCw, Trash2 } from '@lucide/vue';
 import { commands, type CloudDeviceProfileView } from '../api/commands';
 import { $t } from '../i18n';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
-import { KButton, KTag } from '../ui/kit';
+import { KAlert, KButton, KTag } from '../ui/kit';
 import { useConfig } from '../composables/useConfig';
 import {
   clearCloudLibrary,
@@ -56,9 +56,6 @@ async function load() {
   loading.value = true;
   try {
     await refreshCloudLibrary(true);
-    if (lastError.value) {
-      notifyError($t('sync_settings.archives.profiles.load_failed'), lastError.value);
-    }
   } finally {
     loading.value = false;
   }
@@ -118,6 +115,10 @@ async function remove(profile: CloudDeviceProfileView) {
         <template #icon><RefreshCw :size="13" aria-hidden="true" /></template>
       </KButton>
     </div>
+    <KAlert v-if="lastError" tone="warning" class="mt-3">
+      <span class="block">{{ $t('sync_settings.archives.profiles.load_failed') }}</span>
+      <span class="mt-0.5 block text-xs text-text-dim">{{ lastError }}</span>
+    </KAlert>
     <div class="mt-3 flex flex-col">
       <div
         v-for="profile in profiles"

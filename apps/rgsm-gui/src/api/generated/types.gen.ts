@@ -552,10 +552,15 @@ export type Device = {
 export type DeviceGameStatus = {
   definition_conflict: boolean;
   game_id: string;
+  /**
+   * Snapshots recorded on this device, so the overview can list real content before the cloud answers.
+   */
+  local_snapshots: number;
   managed: boolean;
   metadata_sync_pending: boolean;
   retention_limit?: number | null;
   shared: boolean;
+  sync_mode: SyncMode;
   visible: boolean;
 };
 

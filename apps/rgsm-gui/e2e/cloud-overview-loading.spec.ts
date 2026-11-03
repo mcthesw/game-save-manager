@@ -38,6 +38,8 @@ test('cloud overview does not show setup actions while inspection is pending', a
     await expect(
       session.page.getByText('Cloud connection not configured', { exact: true })
     ).toHaveCount(0);
+    // The local game is listed at once, before any cloud answer exists.
+    await expect(session.page.locator('[data-game-id]').first()).toBeVisible();
     await session.page.waitForTimeout(1000);
     // Opening the page shows what is already known and never contacts the provider.
     expect(cloudReads).toBe(0);

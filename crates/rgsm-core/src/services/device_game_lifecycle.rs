@@ -4,7 +4,8 @@ use specta::Type;
 use crate::app_dirs::resolve_app_path;
 use crate::cloud_sync::v2::{CloudArchiveEviction, DeviceProfileRepository, LocalArchiveEviction};
 use crate::config::{
-    CloudNamespaceGeneration, cloud_bootstrap_inputs, get_config, replace_current_device_profile,
+    CloudNamespaceGeneration, SyncMode, cloud_bootstrap_inputs, get_config,
+    replace_current_device_profile,
 };
 
 use super::{CloudLibraryServiceError, ServiceContext, cloud_library_target::bound_v2_operator};
@@ -18,6 +19,9 @@ pub struct DeviceGameStatus {
     pub retention_limit: Option<u32>,
     pub managed: bool,
     pub visible: bool,
+    pub sync_mode: SyncMode,
+    /// Snapshots recorded on this device, so the overview can list real content before the cloud answers.
+    pub local_snapshots: usize,
 }
 
 impl ServiceContext {
@@ -47,9 +51,12 @@ impl ServiceContext {
                     retention_limit: None,
                     managed: true,
                     visible: true,
+                    sync_mode: SyncMode::Manual,
+                    local_snapshots: 0,
                 })
                 .collect());
         }
+        let config = get_config()?;
         let local_ids = local_state
             .local_games
             .iter()
@@ -82,9 +89,11 @@ impl ServiceContext {
                         .find(|shared| shared.storage_key == game.storage_key)
                         .and_then(|shared| shared.snapshot_retention)
                         .map(|policy| policy.automatic_snapshots_per_branch),
+                    local_snapshots: local_snapshot_count(&config, &game.storage_key),
                     game_id: game.storage_key,
                     managed: settings.is_some(),
                     visible: settings.is_some_and(|settings| settings.visible),
+                    sync_mode: settings.map_or(SyncMode::Manual, |settings| settings.sync_mode),
                 }
             })
             .collect())
@@ -109,16 +118,20 @@ impl ServiceContext {
             .ok_or_else(|| CloudLibraryServiceError::GameNotManaged(game_id.to_string()))?;
         settings.visible = visible;
         publish_profile(&local_state, &expected, &accepted).await?;
+        let current = self
+            .current_device_game_statuses()?
+            .into_iter()
+            .find(|game| game.game_id == game_id);
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
             shared: true,
             metadata_sync_pending: false,
             definition_conflict: false,
-            retention_limit: self
-                .current_device_game_statuses()?
-                .into_iter()
-                .find(|game| game.game_id == game_id)
-                .and_then(|game| game.retention_limit),
+            retention_limit: current.as_ref().and_then(|game| game.retention_limit),
+            sync_mode: current
+                .as_ref()
+                .map_or(SyncMode::Manual, |game| game.sync_mode),
+            local_snapshots: current.map_or(0, |game| game.local_snapshots),
             managed: true,
             visible,
         })
@@ -166,16 +179,20 @@ impl ServiceContext {
             }
         }
         publish_profile(&local_state, &expected, &accepted).await?;
+        let current = self
+            .current_device_game_statuses()?
+            .into_iter()
+            .find(|game| game.game_id == game_id);
         Ok(DeviceGameStatus {
             game_id: game_id.to_string(),
             shared: true,
             metadata_sync_pending: false,
             definition_conflict: false,
-            retention_limit: self
-                .current_device_game_statuses()?
-                .into_iter()
-                .find(|game| game.game_id == game_id)
-                .and_then(|game| game.retention_limit),
+            retention_limit: current.as_ref().and_then(|game| game.retention_limit),
+            sync_mode: current
+                .as_ref()
+                .map_or(SyncMode::Manual, |game| game.sync_mode),
+            local_snapshots: current.map_or(0, |game| game.local_snapshots),
             managed,
             visible: managed,
         })
@@ -256,6 +273,17 @@ async fn publish_profile(
         .await?;
     replace_current_device_profile(expected, accepted)?;
     Ok(())
+}
+
+fn local_snapshot_count(config: &crate::config::Config, game_id: &str) -> usize {
+    config
+        .games
+        .iter()
+        .find(|game| {
+            game.storage_key == game_id || (game.storage_key.is_empty() && game.name == game_id)
+        })
+        .and_then(|game| game.get_game_snapshots_info().ok())
+        .map_or(0, |snapshots| snapshots.backups.len())
 }
 
 #[cfg(test)]

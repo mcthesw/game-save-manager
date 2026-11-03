@@ -30,6 +30,8 @@ const inspecting = ref(false);
 const initializing = ref(false);
 const initializationFailed = ref(false);
 const inspectionFailed = ref(false);
+/** Why the latest check or creation failed, shown on the card instead of a second toast. */
+const failureDetail = ref('');
 const recovering = ref(false);
 const feedback = useFeedback();
 
@@ -82,6 +84,7 @@ async function create(requestGeneration?: number): Promise<CloudLibraryStatus | 
   if (initializing.value) return status.value;
   initializing.value = true;
   initializationFailed.value = false;
+  failureDetail.value = '';
   try {
     const result = await commands.createCloudLibrary(true);
     if (
@@ -92,7 +95,7 @@ async function create(requestGeneration?: number): Promise<CloudLibraryStatus | 
     }
     if (result.status === 'error') {
       initializationFailed.value = true;
-      notifyError(`${$t('sync_settings.library.create_failed')}: ${result.error}`);
+      failureDetail.value = result.error;
       return null;
     }
     updateStatus(result.data);
@@ -103,7 +106,7 @@ async function create(requestGeneration?: number): Promise<CloudLibraryStatus | 
       return null;
     }
     initializationFailed.value = true;
-    notifyError(`${$t('sync_settings.library.create_failed')}: ${String(reason)}`);
+    failureDetail.value = String(reason);
     return null;
   } finally {
     initializing.value = false;
@@ -117,6 +120,7 @@ async function performInspection(
   inspecting.value = true;
   inspectionFailed.value = false;
   initializationFailed.value = false;
+  failureDetail.value = '';
   try {
     let result = await commands.inspectCloudLibrary();
     if (result.status === 'ok' && result.data.kind === 'join_required') {
@@ -126,7 +130,7 @@ async function performInspection(
     if (result.status === 'error') {
       inspectionFailed.value = true;
       updateStatus(null);
-      notifyError(`${$t('sync_settings.library.inspect_failed')}: ${result.error}`);
+      failureDetail.value = result.error;
       return null;
     }
 
@@ -139,7 +143,7 @@ async function performInspection(
     if (requestGeneration !== inspectionGeneration || !props.enabled) return null;
     inspectionFailed.value = true;
     updateStatus(null);
-    notifyError(`${$t('sync_settings.library.inspect_failed')}: ${String(reason)}`);
+    failureDetail.value = String(reason);
     return null;
   } finally {
     inspecting.value = false;
@@ -248,6 +252,7 @@ defineExpose({ inspect, create, rebuild, reconnect });
         {{ $t('sync_settings.library.title') }}
       </p>
       <p class="text-sm font-medium leading-relaxed text-text">{{ $t(notice.messageKey) }}</p>
+      <p v-if="failureDetail" class="mt-1 break-words text-xs text-text-dim">{{ failureDetail }}</p>
     </div>
     <KButton variant="primary" size="sm" :loading="busy" @click="runAction">
       {{ $t(notice.actionKey) }}

@@ -322,7 +322,6 @@ async function check() {
     if (requestGeneration !== backendCheckGeneration.value) return;
     if (result.status === 'error') {
       backendCheckError.value = result.error;
-      notifyError($t('sync_settings.test_failed'));
       error(`${session.backend.type} test error: ${result.error}`);
       if (isVirtualHostStyleError(result.error)) {
         notifyWarning($t('sync_settings.s3.virtual_host_hint'));

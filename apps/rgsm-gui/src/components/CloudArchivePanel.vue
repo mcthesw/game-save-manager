@@ -30,7 +30,6 @@ async function load(options: { silent?: boolean } = {}) {
   } finally {
     refreshing.value = false;
   }
-  if (lastError.value) notifyError($t('sync_settings.archives.load_failed'), lastError.value);
 }
 
 async function materializeAll() {
@@ -83,13 +82,16 @@ onMounted(() => {
 
 <template>
   <section class="mb-4 flex flex-col gap-3">
-    <KAlert v-if="lastError" tone="warning">{{
-      $t(
-        library
-          ? 'sync_settings.archives.refresh_unavailable'
-          : 'sync_settings.archives.load_failed'
-      )
-    }}</KAlert>
+    <KAlert v-if="lastError" tone="warning">
+      <span class="block">{{
+        $t(
+          library
+            ? 'sync_settings.archives.refresh_unavailable'
+            : 'sync_settings.archives.load_failed'
+        )
+      }}</span>
+      <span class="mt-0.5 block text-xs text-text-dim">{{ lastError }}</span>
+    </KAlert>
     <CloudArchiveToolbar
       :local-snapshots="localSnapshots"
       :cloud-snapshots="cloudSnapshots"
