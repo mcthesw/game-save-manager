@@ -33,6 +33,10 @@ pub fn router() -> Router<HttpHostState> {
             "/api/v1/get-cloud-namespace-generation",
             post(http_get_cloud_namespace_generation),
         )
+        .route(
+            "/api/v1/get-cloud-rate-limit",
+            post(http_get_cloud_rate_limit),
+        )
         .route("/api/v1/delete-game", post(http_delete_game))
         .route(
             "/api/v1/get-local-copy-removal-preview",
@@ -349,6 +353,7 @@ pub fn router() -> Router<HttpHostState> {
         http_delete_snapshot,
         http_batch_delete_snapshots,
         http_get_cloud_namespace_generation,
+        http_get_cloud_rate_limit,
         http_delete_game,
         http_get_local_copy_removal_preview,
         http_get_game_snapshots_info,

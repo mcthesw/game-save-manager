@@ -86,13 +86,29 @@ export async function refreshCloudLibrary(
   return request;
 }
 
+/**
+ * Automatic reads must not keep asking a provider that is throttling requests:
+ * every extra request extends the block. Explicit user actions skip this check.
+ */
+export async function cloudReadsPaused(): Promise<boolean> {
+  const result = await commands.getCloudRateLimit();
+  if (result.status === 'error' || result.data.retry_after_secs === null) return false;
+  lastError.value = result.data.message ?? $t('sync_settings.overview.status_unavailable');
+  return true;
+}
+
 /** Passive checks share the configured interval, including after failed attempts. */
-export function refreshCloudLibraryIfStale(): Promise<CloudArchiveLibraryView | null> {
+export async function refreshCloudLibraryIfStale(): Promise<CloudArchiveLibraryView | null> {
   if (savedConnectionKey() !== connectionKey) clearCloudLibrary();
   const finishedAt = lastRefreshFinishedAt.value;
   const age = finishedAt === null ? Infinity : Date.now() - finishedAt;
   if (age >= 0 && age < refreshIntervalMs()) {
-    return Promise.resolve(library.value);
+    return library.value;
+  }
+  if (await cloudReadsPaused()) {
+    // Counts as an attempt so the passive timer waits a full interval.
+    lastRefreshFinishedAt.value = Date.now();
+    return library.value;
   }
   return refreshCloudLibrary();
 }
@@ -122,7 +138,7 @@ export function useCloudLibraryRefresh() {
       ) {
         lastRefreshFinishedAt.value = null;
       }
-    } else {
+    } else if (!(await cloudReadsPaused())) {
       lastError.value = $t('sync_settings.overview.status_unavailable');
     }
     library.value = {

@@ -1,6 +1,5 @@
 use std::future::Future;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use rgsm_core::cloud_sync::CloudSyncTaskManager;
 use tauri::{AppHandle, Manager};
@@ -11,7 +10,6 @@ use tokio_util::sync::CancellationToken;
 pub struct CloudOperationState {
     operation_lock: Arc<Mutex<()>>,
     wakeup: Arc<Notify>,
-    background_failed: Arc<AtomicBool>,
     sync_cancellation: Arc<std::sync::Mutex<CancellationToken>>,
 }
 
@@ -57,24 +55,6 @@ impl CloudOperationState {
             .expect("sync cancellation lock");
         token.cancel();
         *token = CancellationToken::new();
-    }
-
-    pub fn report_background_result(&self, app: &AppHandle, error: Option<String>) {
-        let was_failed = self
-            .background_failed
-            .swap(error.is_some(), Ordering::Relaxed);
-        if let Some(error) = error
-            && !was_failed
-        {
-            crate::http::emit(
-                app,
-                "cloud-sync-error",
-                &crate::commands::CloudSyncErrorEvent {
-                    game_name: None,
-                    error,
-                },
-            );
-        }
     }
 
     fn cancel_sync(&self) {

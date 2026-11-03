@@ -2,6 +2,7 @@
 import { LoaderCircle, RefreshCw } from '@lucide/vue';
 
 import { commands, type DeletedCloudGameView } from '../api/commands';
+import { cloudReadsPaused } from '../composables/useCloudLibrary';
 import { $t } from '../i18n';
 import { KButton, KTag } from '../ui/kit';
 import { notifyError, notifySuccess } from '../composables/useActivityCenter';
@@ -48,7 +49,9 @@ async function retry(game: DeletedCloudGameView) {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  if (!(await cloudReadsPaused())) await load();
+});
 </script>
 
 <template>

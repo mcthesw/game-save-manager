@@ -26,7 +26,7 @@ pub async fn refresh(
             let before = ConfigFingerprint::capture();
             let synced = rgsm_core::services::run_v2_snapshot_sync_once(&cancellation).await;
             before.reload_if_changed(app).await;
-            synced.map_err(|error| error.to_string())?;
+            synced.map_err(|error| rgsm_core::services::cloud_error_message(&error))?;
             crate::remote_progress::refresh(
                 app,
                 &rgsm_core::services::ServiceContext::new(
@@ -34,7 +34,7 @@ pub async fn refresh(
                 ),
             )
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| rgsm_core::services::cloud_error_message(&error))
         })
         .await
         .unwrap_or_else(
@@ -64,18 +64,20 @@ async fn run(app: AppHandle, state: CloudOperationState) {
         .await;
 
     let mut last_run = Instant::now();
+    let mut pending = false;
     let mut control_tick = tokio::time::interval(CONTROL_POLL_INTERVAL);
     control_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
     control_tick.tick().await;
     loop {
-        let requested = tokio::select! {
-            _ = state.requested() => true,
-            _ = control_tick.tick() => false,
-        };
+        tokio::select! {
+            _ = state.requested() => pending = true,
+            _ = control_tick.tick() => {}
+        }
         let poll_minutes = match rgsm_core::services::v2_snapshot_sync_poll_minutes() {
             Ok(Some(minutes)) => minutes,
             Ok(None) => {
                 last_run = Instant::now();
+                pending = false;
                 continue;
             }
             Err(error) => {
@@ -87,7 +89,12 @@ async fn run(app: AppHandle, state: CloudOperationState) {
             }
         };
         let poll_interval = Duration::from_secs(poll_minutes.saturating_mul(60));
-        if !requested && last_run.elapsed() < poll_interval {
+        if !should_reconcile(
+            pending,
+            last_run.elapsed(),
+            poll_interval,
+            rgsm_core::cloud_sync::rate_limit::rate_limit_remaining(),
+        ) {
             continue;
         }
         state
@@ -99,7 +106,19 @@ async fn run(app: AppHandle, state: CloudOperationState) {
             })
             .await;
         last_run = Instant::now();
+        pending = false;
     }
+}
+
+/// While the provider is throttling, a request that arrived meanwhile stays
+/// pending and runs once the cooldown ends instead of extending the block.
+fn should_reconcile(
+    pending: bool,
+    since_last_run: Duration,
+    poll_interval: Duration,
+    rate_limit_remaining: Option<Duration>,
+) -> bool {
+    rate_limit_remaining.is_none() && (pending || since_last_run >= poll_interval)
 }
 
 /// Reconciliation rewrites game definitions and removes deleted games straight
@@ -146,16 +165,8 @@ async fn run_reconciliation(app: &AppHandle, cancellation: &CancellationToken) {
 }
 
 async fn reconcile_once(app: &AppHandle, cancellation: &CancellationToken) {
-    let state = app.state::<CloudOperationState>();
     let result = rgsm_core::services::run_v2_snapshot_sync_once(cancellation).await;
     crate::http::emit(app, "cloud-metadata-changed", &result.is_ok());
-    state.report_background_result(
-        app,
-        result
-            .as_ref()
-            .err()
-            .map(|error| rgsm_core::services::cloud_error_message(error)),
-    );
     match result {
         Ok(outcome) if outcome != Default::default() => info!(
             target: "rgsm::cloud::v2_snapshot_sync",
@@ -176,5 +187,26 @@ async fn reconcile_once(app: &AppHandle, cancellation: &CancellationToken) {
         && let Err(error) = crate::remote_progress::refresh(app, &service).await
     {
         warn!("Remote progress refresh failed: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const POLL: Duration = Duration::from_secs(300);
+
+    #[test]
+    fn automatic_runs_wait_out_a_provider_rate_limit() {
+        let cooldown = Some(Duration::from_secs(60));
+        assert!(!should_reconcile(true, POLL * 2, POLL, cooldown));
+        assert!(!should_reconcile(false, POLL * 2, POLL, cooldown));
+    }
+
+    #[test]
+    fn requests_and_elapsed_polls_run_when_not_limited() {
+        assert!(should_reconcile(true, Duration::ZERO, POLL, None));
+        assert!(should_reconcile(false, POLL, POLL, None));
+        assert!(!should_reconcile(false, Duration::ZERO, POLL, None));
     }
 }

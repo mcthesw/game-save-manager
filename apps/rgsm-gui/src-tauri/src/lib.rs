@@ -132,6 +132,14 @@ pub fn run() -> anyhow::Result<()> {
                 .targets([tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::LogDir { file_name: None },
                 )])
+                // Dependencies log request traces and Debug-print their configuration,
+                // which includes the WebDAV account name. Release logs stay at INFO so
+                // they remain small and free of credentials.
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
                 .max_file_size(500_000 /* 500 KB */)
                 // Keeps the active file plus nine rotated `.log` files. The plugin only
                 // counts and prunes `*.log`, so a `.log.bak` file is never removed.
