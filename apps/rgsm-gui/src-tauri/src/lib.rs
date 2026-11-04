@@ -86,8 +86,11 @@ pub fn openapi_json() -> anyhow::Result<String> {
     )?)
 }
 
-/// Unoptimised builds keep large futures on the stack, and a cloud round nests
-/// deeply enough to overflow the default 2 MiB worker stack there.
+/// Unoptimised builds stack many deep calls with large frames, and a cloud round
+/// nests deeply enough to overflow the default 2 MiB worker stack there. Release
+/// builds do not need it, so they keep the default and do not reserve 8 MiB per
+/// worker thread.
+#[cfg(debug_assertions)]
 fn use_roomy_async_runtime() -> anyhow::Result<()> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -102,6 +105,7 @@ fn use_roomy_async_runtime() -> anyhow::Result<()> {
 pub fn run() -> anyhow::Result<()> {
     let http_host_only = std::env::var_os("RGSM_HTTP_HOST_ONLY").is_some();
     configure_development_data_dir()?;
+    #[cfg(debug_assertions)]
     use_roomy_async_runtime()?;
 
     // 将 panic 信息记录到日志中
