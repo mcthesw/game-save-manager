@@ -51,7 +51,6 @@
         "copied": "已复制加入码",
         "copy_failed": "复制失败，请手动选择并复制加入码",
         "failed": "无法访问此云库",
-        "connected": "已连接云库",
         "games": "{count} 个已加入云库的游戏",
         "confirm_hint": "连接后将替换当前云端设置，本机游戏和存档保留"
     },
@@ -678,8 +677,6 @@
     },
     "sync_settings": {
         "title": "同步设置",
-        "reset_success": "重置成功",
-        "submit_success": "保存修改成功",
         "last_sync": "上次同步时间：",
         "manual_link": "教程",
         "manual_sync": "手动同步",
@@ -859,7 +856,6 @@
             "download_existing": "下载到本机",
             "download_existing_description": "{count} 个快照 · {size}",
             "enable": "启用",
-            "mode_changed": "同步模式已更新",
             "mode_enabled_downloaded": "已启用自动同步快照，并下载 {count} 个已有快照",
             "mode_change_failed": "无法更新同步模式",
             "size_unknown": "大小未知",
@@ -1003,11 +999,9 @@
                 "keep_local": "保留本机进度",
                 "keep_local_title": "保留本机当前进度？",
                 "keep_local_confirm": "保留本机当前进度？此操作不会上传归档或应用存档，其他设备的进度保持不变",
-                "keep_local_success": "已保留本机进度",
                 "accept_remote": "使用此进度",
                 "accept_remote_title": "应用其他设备的进度？",
                 "accept_remote_confirm": "将用「{progress}」替换本机游戏存档，请先关闭游戏",
-                "accept_remote_success": "已恢复所选备份",
                 "accept_remote_success_with_backup": "已创建安全备份并应用所选进度。",
                 "resolve_failed": "无法解决进度冲突",
                 "load_failed": "无法比较设备进度"

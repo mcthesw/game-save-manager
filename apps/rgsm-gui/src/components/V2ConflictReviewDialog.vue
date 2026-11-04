@@ -126,7 +126,6 @@ async function keepLocal() {
       await load();
       return;
     }
-    notifySuccess($t('sync_settings.archives.progress.keep_local_success'));
     emit('resolved');
     visible.value = false;
   } finally {
@@ -165,11 +164,9 @@ async function acceptRemote(candidate: RemoteProgressCandidate) {
       await load();
       return;
     }
-    notifySuccess(
-      result.data.safety_backup_created
-        ? $t('sync_settings.archives.progress.accept_remote_success_with_backup')
-        : $t('sync_settings.archives.progress.accept_remote_success')
-    );
+    if (result.data.safety_backup_created) {
+      notifySuccess($t('sync_settings.archives.progress.accept_remote_success_with_backup'));
+    }
     emit('resolved');
     visible.value = false;
   } finally {
