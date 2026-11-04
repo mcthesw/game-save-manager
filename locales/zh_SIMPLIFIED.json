@@ -25,7 +25,12 @@
             "confirm": "使用「{device}」的存档和游戏路径？请先确认这些路径在本机可用，相关游戏将切换为手动同步并关闭自动备份",
             "success": "已复用 {count} 个游戏的位置，请检查路径后再使用",
             "confirm_required": "请确认后再复用其他设备的存档位置",
+            "own_device": "请选择其他设备的设置，不能复用本机自己的设置",
             "unavailable": "此设备已发布的设置不可用",
+            "local_settings": "无法读取本机设置：%{reason}",
+            "connection": "无法读取云库：%{reason}",
+            "publish_failed": "无法把复用的位置同步到云库：%{reason}",
+            "local_save_failed": "无法在本机保存复用的位置：%{reason}",
             "save_failed": "无法保存复用的位置，请刷新后重试"
         },
         "errors": {
@@ -34,11 +39,11 @@
             "backend": "云加入码支持 WebDAV 和 S3 连接",
             "size": "云加入码过长",
             "not_connected": "尚未连接可分享的云库",
-            "unavailable": "无法访问加入码中的云库，请检查连接和凭据",
+            "unavailable": "无法访问加入码中的云库：%{reason}",
             "library": "此加入码未指向现有且兼容的云库",
             "confirmation": "请确认云库后再连接",
-            "registration": "无法注册此设备，如已被移除，请重新连接设备",
-            "local_changed": "本机设置已变更或无法保存，请重新检查连接"
+            "registration": "无法注册此设备（如已被移除，请重新连接设备）：%{reason}",
+            "local_changed": "本机设置已变更或无法保存，请重新检查连接：%{reason}"
         },
         "import": "使用云加入码",
         "export": "获取云加入码",

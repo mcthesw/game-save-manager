@@ -106,6 +106,13 @@ pub fn cloud_error_message(error: &(dyn Error + 'static)) -> String {
     message
 }
 
+/// Like [`cloud_error_message`], but the cause is always logged, for callers
+/// that fold the failure into a variant that would otherwise drop it.
+pub(crate) fn logged_cloud_error_message(context: &str, error: &(dyn Error + 'static)) -> String {
+    log::warn!("{context}: {error:?}");
+    storage_failure(error).unwrap_or_else(|| error.to_string())
+}
+
 /// Shown instead of a request when automatic reads are paused by the provider.
 pub fn cloud_rate_limit_message() -> String {
     t!("error.cloud_rate_limited").to_string()

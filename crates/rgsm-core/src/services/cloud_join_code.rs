@@ -1,7 +1,7 @@
 use serde::Serialize;
 use thiserror::Error;
 
-use super::{CloudLibraryStatus, ServiceContext};
+use super::{CloudLibraryStatus, ServiceContext, cloud_error_message::logged_cloud_error_message};
 use crate::cloud_sync::v2::{CloudNamespaceClassifier, DeviceProfileRepository};
 use crate::cloud_sync::{
     Backend, CloudSettings, CloudSyncSessionConfig,
@@ -27,22 +27,48 @@ pub enum CloudJoinError {
     Code(#[from] JoinCodeError),
     #[error("{}", rust_i18n::t!("cloud_join.errors.not_connected"))]
     NotConnected,
-    #[error("{}", rust_i18n::t!("cloud_join.errors.unavailable"))]
-    Unavailable,
+    #[error("{}", rust_i18n::t!("cloud_join.errors.unavailable", reason = reason))]
+    Unavailable { reason: String },
     #[error("{}", rust_i18n::t!("cloud_join.errors.library"))]
     InvalidLibrary,
     #[error("{}", rust_i18n::t!("cloud_join.errors.confirmation"))]
     ConfirmationRequired,
-    #[error("{}", rust_i18n::t!("cloud_join.errors.registration"))]
-    RegistrationFailed,
-    #[error("{}", rust_i18n::t!("cloud_join.errors.local_changed"))]
-    LocalSettingsChanged,
+    #[error("{}", rust_i18n::t!("cloud_join.errors.registration", reason = reason))]
+    RegistrationFailed { reason: String },
+    #[error("{}", rust_i18n::t!("cloud_join.errors.local_changed", reason = reason))]
+    LocalSettingsChanged { reason: String },
+}
+
+impl CloudJoinError {
+    fn unavailable(error: impl std::error::Error + 'static) -> Self {
+        Self::Unavailable {
+            reason: logged_cloud_error_message(
+                "Inspecting the Cloud Library of a join code",
+                &error,
+            ),
+        }
+    }
+
+    fn registration_failed(error: impl std::error::Error + 'static) -> Self {
+        Self::RegistrationFailed {
+            reason: logged_cloud_error_message(
+                "Registering this device in the Cloud Library",
+                &error,
+            ),
+        }
+    }
+
+    fn local_settings_changed(error: impl std::error::Error + 'static) -> Self {
+        Self::LocalSettingsChanged {
+            reason: logged_cloud_error_message("Reading or saving local settings to join", &error),
+        }
+    }
 }
 
 impl ServiceContext {
     pub async fn export_cloud_join_code(&self) -> Result<String, CloudJoinError> {
         let (_, _, state) =
-            cloud_bootstrap_inputs().map_err(|_| CloudJoinError::LocalSettingsChanged)?;
+            cloud_bootstrap_inputs().map_err(CloudJoinError::local_settings_changed)?;
         let id = state
             .cloud_library_id
             .as_deref()
@@ -96,7 +122,7 @@ impl ServiceContext {
         library_id: &str,
     ) -> Result<CloudLibraryStatus, CloudJoinError> {
         let (library, profile, state) =
-            cloud_bootstrap_inputs().map_err(|_| CloudJoinError::LocalSettingsChanged)?;
+            cloud_bootstrap_inputs().map_err(CloudJoinError::local_settings_changed)?;
         let settings = CloudSettings {
             backend: backend.clone(),
             root_path: root_path.into(),
@@ -104,13 +130,13 @@ impl ServiceContext {
         };
         let (operator, remote) = inspect_target(&settings, library_id).await?;
         let published = connected_cloud_profile(&library, &profile, &state, &remote)
-            .map_err(|_| CloudJoinError::LocalSettingsChanged)?;
+            .map_err(CloudJoinError::local_settings_changed)?;
         DeviceProfileRepository::new(operator, 3)
             .publish(&state.current_device_id, &published)
             .await
-            .map_err(|_| CloudJoinError::RegistrationFailed)?;
+            .map_err(CloudJoinError::registration_failed)?;
         connect_cloud_library_local(&library, &profile, &state, &remote, library_id, &settings)
-            .map_err(|_| CloudJoinError::LocalSettingsChanged)?;
+            .map_err(CloudJoinError::local_settings_changed)?;
         Ok(CloudLibraryStatus::Active {
             game_count: remote.games.len(),
         })
@@ -125,11 +151,11 @@ async fn inspect_target(
 ) -> Result<(opendal::Operator, SharedLibrary), CloudJoinError> {
     let operator = CloudSyncSessionConfig::from(settings)
         .get_op()
-        .map_err(|_| CloudJoinError::Unavailable)?;
+        .map_err(CloudJoinError::unavailable)?;
     match CloudNamespaceClassifier::new(operator.clone())
         .identify_v2()
         .await
-        .map_err(|_| CloudJoinError::Unavailable)?
+        .map_err(CloudJoinError::unavailable)?
     {
         Some((descriptor, shared_library)) if descriptor.library_id == id => {
             Ok((operator, shared_library))
