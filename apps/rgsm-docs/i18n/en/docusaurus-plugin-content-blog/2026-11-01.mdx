@@ -33,7 +33,7 @@ The old configuration is converted automatically and the change is **one-way**: 
 - New snapshots are ordinary `.7z` files containing `RESTORE.txt`, so they can be **restored by hand without this app**
 - File timestamps and permissions are preserved, Windows hidden and read-only files are restored, and registry data is stored as standard `.reg`
 - Older ZIP snapshots still restore normally
-- **Upgrade older backups** (Settings → Backup settings) converts historical snapshots to the new format; it can be paused, and originals are kept until you clean them up
+- **Upgrade local snapshots** (Settings → Backup settings) converts historical snapshots to the new format; it can be paused, and originals are kept until you clean them up
 
 ### Per-device path variables
 
@@ -72,7 +72,7 @@ The old configuration is converted automatically and the change is **one-way**: 
 - Every new backup is checked for integrity and verified before a restore, and a damaged backup is rejected. The settings "Compute integrity hash (XXH3) when creating backups" and "Verify archive integrity before restoring" are removed.
 - Backing up and restoring the same game no longer run at the same time, and automatic backup skips a game that is being restored; snapshots are no longer lost when a backup and a deletion happen together.
 - A power loss no longer leaves an empty save, and temporary files left by interrupted runs are cleaned up.
-- Upgrade older backups: a full disk or a permission error is now reported with its cause and stops the upgrade, and you can resume after freeing space; retrying an interrupted upgrade replaces a damaged leftover file; upgrade items for deleted snapshots finish automatically; historical backups stay reachable after storage folder names are upgraded.
+- Upgrade local snapshots: a full disk or a permission error is now reported with its cause and stops the upgrade, and you can resume after freeing space; retrying an interrupted upgrade replaces a damaged leftover file; upgrade items for deleted snapshots finish automatically; historical backups stay reachable after storage folder names are upgraded.
 - Wildcard save paths resolve during snapshots, not only while editing.
 - "Delete then restore" undoes the deletion when the restore fails, and partial undo failures are reported accurately.
 - Writes retry when Windows briefly locks a file.
@@ -112,7 +112,7 @@ The old configuration is converted automatically and the change is **one-way**: 
 
 ### Upgrading this device
 
-- **History of games in the Cloud Library stays in ZIP format.** "Upgrade older backups" does not convert it and it keeps syncing normally; new backups use 7z.
+- **History of games in the Cloud Library stays in ZIP format.** "Upgrade local snapshots" does not convert it and it keeps syncing normally; new backups use 7z.
 - **The tray's auto-backup interval menu** (5/10/30/60 minutes and off) is gone; intervals are set per game in its backup settings.
 - **Installation locations that cannot be matched to one game** stay under **Settings → Auto scan → Unmatched installation directories** for you to confirm.
 - **The old configuration file**: after the upgrade the data directory keeps only `GameSaveManager.config.json.bak` (the configuration from before the upgrade). To go back to an older version, rename it back to `GameSaveManager.config.json`. If you used a 1.9 test build, the old configuration file is renamed to `.bak` at the first start as well. See [Backing up and moving your data](/docs/extras/json) for what each file does.

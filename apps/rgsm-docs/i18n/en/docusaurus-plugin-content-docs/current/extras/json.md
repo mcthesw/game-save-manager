@@ -32,7 +32,7 @@ The configuration directory contains cloud credentials. Store it securely.
 | `GameSaveManager.host.json` | The local API port and token | Yes. It is regenerated at the next start, with a new token |
 | `ludusavi_manifest.yaml`, `ludusavi_manifest.meta.json` | The game detection list you updated manually | Yes. The built-in list is used afterwards |
 | `log/`, `save_data/sync_state.json` | Left over by older versions | Yes |
-| `save_data/.rgsm-upgrade/` | Records and originals of the older-backup upgrade | Use **Clean up originals** in **Settings → Backup settings → Upgrade older backups**; do not delete it by hand |
+| `save_data/.rgsm-upgrade/` | Records and originals of the local snapshot upgrade | Use **Clean up originals** in **Settings → Backup settings → Upgrade local snapshots**; do not delete it by hand |
 
 Logs are in `%LOCALAPPDATA%\com.game-save-manager\logs`. You can also open them from **Settings → General → Open log**.
 

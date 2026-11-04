@@ -166,7 +166,6 @@ onBeforeUnmount(() => {
         :aria-label="$t('local_upgrade.title')"
         class="mt-3 h-1 w-full accent-accent"
       />
-      <p v-if="running" class="mt-2 text-xs text-text-dim">{{ $t('local_upgrade.pause_hint') }}</p>
       <div v-if="view.pending.length" class="mt-5">
         <h3 class="mb-1 text-sm font-medium text-text">
           {{ $t('local_upgrade.pending', { count: view.pending.length }) }}

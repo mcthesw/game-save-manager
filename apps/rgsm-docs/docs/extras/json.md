@@ -32,7 +32,7 @@ title: 数据备份与迁移
 | `GameSaveManager.host.json` | 本机 API 的端口和 Token | 可以，下次启动重新生成，Token 会变 |
 | `ludusavi_manifest.yaml`、`ludusavi_manifest.meta.json` | 手动更新的游戏识别清单 | 可以，之后使用程序内置清单 |
 | `log/`、`save_data/sync_state.json` | 旧版遗留 | 可以 |
-| `save_data/.rgsm-upgrade/` | 升级旧备份的记录和原件 | 请在 **设置 → 备份设置 → 升级旧备份** 中点击 **清理原件**，不要手动删除 |
+| `save_data/.rgsm-upgrade/` | 本地快照升级的记录和原件 | 请在 **设置 → 备份设置 → 本地快照升级** 中点击 **清理原件**，不要手动删除 |
 
 日志位于 `%LOCALAPPDATA%\com.game-save-manager\logs`，也可以在 **设置 → 通用 → 打开日志** 中打开。
 
