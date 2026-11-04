@@ -44,8 +44,8 @@ export type AppearanceSettings = {
  * Container format used by a Snapshot archive.
  */
 export type ArchiveFormat = 'zip' | 'seven_z';
-export type ArchiveIntegrity = 'verified' | 'missing' | 'mismatch';
 
+export type ArchiveIntegrity = 'verified' | 'missing' | 'mismatch';
 
 /**
  * Per-game auto-backup configuration.
@@ -1379,11 +1379,6 @@ export type RunningProcessOption = {
  */
 export type S3AddressingStyle = 'PathStyle' | 'VirtualHostedStyle' | 'Auto';
 
-/**
- * Settings that can be configured by user
- */
-export type SaveListExpandBehavior = 'always_open' | 'always_closed' | 'remember_last';
-
 export type SaveListSortMode = 'saved_order' | 'last_played' | 'name';
 
 /**
@@ -1531,11 +1526,6 @@ export type Settings = {
   auto_check_for_updates?: boolean;
   cloud_settings?: CloudSettings;
   compression_preset?: CompressionPreset;
-  /**
-   * Ignored: snapshots are always hashed. Kept because 1.9 test builds read
-   * it as a required field of the device profile stored in the cloud.
-   */
-  compute_archive_hash?: boolean;
   confirm_before_apply_latest?: boolean;
   confirm_before_apply_snapshot?: boolean;
   default_delete_before_apply?: boolean;
@@ -1544,7 +1534,6 @@ export type Settings = {
   extra_backup_when_apply?: boolean;
   home_page?: string;
   locale?: string;
-  log_to_file?: boolean;
   max_auto_backup_count?: number;
   /**
    * Maximum number of extra overwrite backups to keep per game.
@@ -1552,17 +1541,8 @@ export type Settings = {
    */
   max_extra_backup_count?: number;
   prompt_when_auto_backup?: boolean;
-  prompt_when_not_described?: boolean;
-  save_list_expand_behavior?: SaveListExpandBehavior;
-  save_list_last_expanded?: boolean;
   save_list_sort_direction?: SortDirection;
   save_list_sort_mode?: SaveListSortMode;
-  show_edit_button?: boolean;
-  /**
-   * Ignored: archives are always verified before restoring. Kept for the
-   * same compatibility reason as `compute_archive_hash`.
-   */
-  verify_archive_before_apply?: boolean;
   vn_scan_dirs?: Array<string>;
 };
 

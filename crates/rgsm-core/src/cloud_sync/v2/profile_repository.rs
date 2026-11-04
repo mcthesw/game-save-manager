@@ -275,7 +275,6 @@ mod tests {
             private_favorites: Vec::new(),
             quick_action: QuickActionsSettings::default(),
             behavior: DeviceBehaviorSettings {
-                prompt_when_not_described: false,
                 extra_backup_when_apply: true,
                 confirm_before_apply_latest: true,
                 confirm_before_apply_snapshot: true,
@@ -286,8 +285,6 @@ mod tests {
                 max_auto_backup_count: 0,
                 max_extra_backup_count: 0,
                 compression_preset: CompressionPreset::default(),
-                compute_archive_hash: true,
-                verify_archive_before_apply: true,
             },
         }
     }

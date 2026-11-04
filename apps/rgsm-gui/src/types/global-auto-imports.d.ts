@@ -42,7 +42,6 @@ declare global {
   const useGlobalLoading: (typeof import('../composables/useGlobalLoading'))['useGlobalLoading'];
   const useHostNotificationCollector: (typeof import('../composables/useHostNotificationCollector'))['useHostNotificationCollector'];
   const useNavigationLinks: (typeof import('../composables/useNavigationLinks'))['useNavigationLinks'];
-  const useSaveListExpandBehavior: (typeof import('../composables/useSaveListExpandBehavior'))['useSaveListExpandBehavior'];
   const useSaveListSort: (typeof import('../composables/useSaveListSort'))['useSaveListSort'];
   const useSidebarResize: (typeof import('../composables/useSidebarResize'))['useSidebarResize'];
 

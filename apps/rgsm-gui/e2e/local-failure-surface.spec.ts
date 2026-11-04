@@ -15,9 +15,7 @@ test('failure surface: missing archive, corrupted archive, missing save on creat
   browser,
 }) => {
   const runRoot = await createRunRoot('local-failure');
-  const device = await seedLocalConfig(runRoot, {
-    settings: { compute_archive_hash: true, verify_archive_before_apply: true },
-  });
+  const device = await seedLocalConfig(runRoot);
   await writeSaveText(device.savePath, 'v1\n');
   const session = await startLocalSession(browser, { runRoot, device, label: 'local-failure' });
   const { page, host } = session;

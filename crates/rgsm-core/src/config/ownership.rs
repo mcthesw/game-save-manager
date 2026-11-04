@@ -16,8 +16,8 @@ use crate::device::{Device, DeviceId};
 use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern};
 
 use super::{
-    AppearanceSettings, Config, FavoriteTreeNode, QuickActionsSettings, SaveListExpandBehavior,
-    SaveListSortMode, Settings, SortDirection,
+    AppearanceSettings, Config, FavoriteTreeNode, QuickActionsSettings, SaveListSortMode, Settings,
+    SortDirection,
 };
 
 pub const V2_CONFIG_SCHEMA_VERSION: u32 = 2;
@@ -267,7 +267,6 @@ pub enum CloudNamespaceGeneration {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Type, utoipa::ToSchema)]
 pub struct DeviceBehaviorSettings {
-    pub prompt_when_not_described: bool,
     pub extra_backup_when_apply: bool,
     pub confirm_before_apply_latest: bool,
     pub confirm_before_apply_snapshot: bool,
@@ -278,8 +277,6 @@ pub struct DeviceBehaviorSettings {
     pub max_auto_backup_count: u32,
     pub max_extra_backup_count: u32,
     pub compression_preset: CompressionPreset,
-    pub compute_archive_hash: bool,
-    pub verify_archive_before_apply: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
@@ -303,16 +300,12 @@ pub struct LocalState {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct LocalInterfaceSettings {
-    pub show_edit_button: bool,
     pub exit_to_tray: bool,
     #[serde(default = "crate::default_value::default_false")]
     pub auto_check_for_updates: bool,
     pub locale: String,
     pub default_expend_favorites_tree: bool,
     pub home_page: String,
-    pub log_to_file: bool,
-    pub save_list_expand_behavior: SaveListExpandBehavior,
-    pub save_list_last_expanded: bool,
     pub save_list_sort_mode: SaveListSortMode,
     pub save_list_sort_direction: SortDirection,
     pub appearance: AppearanceSettings,
@@ -842,7 +835,6 @@ impl DeviceGameProfile {
 impl From<&Settings> for DeviceBehaviorSettings {
     fn from(settings: &Settings) -> Self {
         Self {
-            prompt_when_not_described: settings.prompt_when_not_described,
             extra_backup_when_apply: settings.extra_backup_when_apply,
             confirm_before_apply_latest: settings.confirm_before_apply_latest,
             confirm_before_apply_snapshot: settings.confirm_before_apply_snapshot,
@@ -853,8 +845,6 @@ impl From<&Settings> for DeviceBehaviorSettings {
             max_auto_backup_count: settings.max_auto_backup_count,
             max_extra_backup_count: settings.max_extra_backup_count,
             compression_preset: settings.compression_preset,
-            compute_archive_hash: settings.compute_archive_hash,
-            verify_archive_before_apply: settings.verify_archive_before_apply,
         }
     }
 }
@@ -862,15 +852,11 @@ impl From<&Settings> for DeviceBehaviorSettings {
 impl From<&Settings> for LocalInterfaceSettings {
     fn from(settings: &Settings) -> Self {
         Self {
-            show_edit_button: settings.show_edit_button,
             exit_to_tray: settings.exit_to_tray,
             auto_check_for_updates: settings.auto_check_for_updates,
             locale: settings.locale.clone(),
             default_expend_favorites_tree: settings.default_expend_favorites_tree,
             home_page: settings.home_page.clone(),
-            log_to_file: settings.log_to_file,
-            save_list_expand_behavior: settings.save_list_expand_behavior.clone(),
-            save_list_last_expanded: settings.save_list_last_expanded,
             save_list_sort_mode: settings.save_list_sort_mode,
             save_list_sort_direction: settings.save_list_sort_direction,
             appearance: settings.appearance.clone(),
@@ -881,11 +867,9 @@ impl From<&Settings> for LocalInterfaceSettings {
 impl Settings {
     fn from_owners(behavior: &DeviceBehaviorSettings, local: &LocalState) -> Self {
         Self {
-            prompt_when_not_described: behavior.prompt_when_not_described,
             extra_backup_when_apply: behavior.extra_backup_when_apply,
             confirm_before_apply_latest: behavior.confirm_before_apply_latest,
             confirm_before_apply_snapshot: behavior.confirm_before_apply_snapshot,
-            show_edit_button: local.interface.show_edit_button,
             prompt_when_auto_backup: behavior.prompt_when_auto_backup,
             exit_to_tray: local.interface.exit_to_tray,
             auto_check_for_updates: local.interface.auto_check_for_updates,
@@ -894,19 +878,14 @@ impl Settings {
             default_delete_before_apply: behavior.default_delete_before_apply,
             default_expend_favorites_tree: local.interface.default_expend_favorites_tree,
             home_page: local.interface.home_page.clone(),
-            log_to_file: local.interface.log_to_file,
             add_new_to_favorites: behavior.add_new_to_favorites,
             vn_scan_dirs: behavior.vn_scan_dirs.clone(),
-            save_list_expand_behavior: local.interface.save_list_expand_behavior.clone(),
-            save_list_last_expanded: local.interface.save_list_last_expanded,
             save_list_sort_mode: local.interface.save_list_sort_mode,
             save_list_sort_direction: local.interface.save_list_sort_direction,
             max_auto_backup_count: behavior.max_auto_backup_count,
             max_extra_backup_count: behavior.max_extra_backup_count,
             appearance: local.interface.appearance.clone(),
             compression_preset: behavior.compression_preset,
-            compute_archive_hash: behavior.compute_archive_hash,
-            verify_archive_before_apply: behavior.verify_archive_before_apply,
         }
     }
 }

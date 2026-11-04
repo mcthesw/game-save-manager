@@ -296,7 +296,7 @@ fn normal_save_preserves_current_device_management_and_visibility() {
         .unwrap()
         .games
         .remove("example-game");
-    edited.settings.prompt_when_not_described = !edited.settings.prompt_when_not_described;
+    edited.settings.extra_backup_when_apply = !edited.settings.extra_backup_when_apply;
     owners.merge_effective(&edited).unwrap();
     assert!(
         !owners.device_profiles[&windows_id]

@@ -34,13 +34,8 @@
         "default_delete_before_apply": "Acquiescence pour supprimer le back-up (efficacité pour les nouveaux jeux)",
         "compression_preset": "Backup compression level",
         "default_expend_favorites_tree": "Vestes de collection Acquiesced",
-        "save_list_expand_behavior": "Comportement d'expansion de la liste des sauvegardes",
-        "save_list_expand_behavior_default_open": "Toujours déployé",
-        "save_list_expand_behavior_default_closed": "Toujours replié",
-        "save_list_expand_behavior_remember_last": "Se souvenir du dernier état",
         "homepage": "Page de lancement",
         "open_log_folder": "Ouverture du journal",
-        "log_to_file": "Production de registres de documents",
         "add_new_to_favorites": "Nouveaux jeux rejoignent automatiquement les collections",
         "quick_action_hotkeys": "Sauvegarde/restauration rapide des clés chaudes (réserves)",
         "hotkey": {
