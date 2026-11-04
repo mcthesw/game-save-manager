@@ -1982,16 +1982,14 @@ export type ChooseQuickActionSoundFileData = {
 };
 
 export type ChooseQuickActionSoundFileErrors = {
-  400: ApiError;
   401: ApiError;
-  500: ApiError;
 };
 
 export type ChooseQuickActionSoundFileError =
   ChooseQuickActionSoundFileErrors[keyof ChooseQuickActionSoundFileErrors];
 
 export type ChooseQuickActionSoundFileResponses = {
-  200: string;
+  200: string | null;
 };
 
 export type ChooseQuickActionSoundFileResponse =
@@ -2005,15 +2003,13 @@ export type ChooseSaveDirData = {
 };
 
 export type ChooseSaveDirErrors = {
-  400: ApiError;
   401: ApiError;
-  500: ApiError;
 };
 
 export type ChooseSaveDirError = ChooseSaveDirErrors[keyof ChooseSaveDirErrors];
 
 export type ChooseSaveDirResponses = {
-  200: string;
+  200: string | null;
 };
 
 export type ChooseSaveDirResponse = ChooseSaveDirResponses[keyof ChooseSaveDirResponses];
@@ -2026,15 +2022,13 @@ export type ChooseSaveFileData = {
 };
 
 export type ChooseSaveFileErrors = {
-  400: ApiError;
   401: ApiError;
-  500: ApiError;
 };
 
 export type ChooseSaveFileError = ChooseSaveFileErrors[keyof ChooseSaveFileErrors];
 
 export type ChooseSaveFileResponses = {
-  200: string;
+  200: string | null;
 };
 
 export type ChooseSaveFileResponse = ChooseSaveFileResponses[keyof ChooseSaveFileResponses];

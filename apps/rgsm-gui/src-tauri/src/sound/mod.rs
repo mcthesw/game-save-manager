@@ -336,13 +336,10 @@ pub fn play_quick_action_sound(
     }
 }
 
-pub fn choose_quick_action_sound_file(app: &AppHandle) -> Result<String, String> {
-    let _ = app;
-    match rfd::FileDialog::new()
+/// `None` means the dialog was cancelled.
+pub fn choose_quick_action_sound_file() -> Option<String> {
+    rfd::FileDialog::new()
         .add_filter("Audio", &["mp3", "wav", "flac", "ogg"])
         .pick_file()
-    {
-        Some(path) => Ok(path.to_string_lossy().into_owned()),
-        None => Err("Failed to open dialog.".to_string()),
-    }
+        .map(|path| path.to_string_lossy().into_owned())
 }

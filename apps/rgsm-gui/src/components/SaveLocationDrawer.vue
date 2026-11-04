@@ -426,7 +426,7 @@ async function addRegistryKey() {
 async function chooseLaunchPath() {
   try {
     const file = await commands.chooseSaveFile();
-    if (file.status === 'error') {
+    if (file.status === 'error' || !file.data) {
       return;
     }
 
@@ -454,7 +454,7 @@ async function chooseUnitPath(unit: SaveUnit) {
         ? await commands.chooseSaveDir()
         : await commands.chooseSaveFile();
 
-    if (result.status === 'error' || !checkSaveUnitUnique(result.data, unit)) {
+    if (result.status === 'error' || !result.data || !checkSaveUnitUnique(result.data, unit)) {
       return;
     }
 

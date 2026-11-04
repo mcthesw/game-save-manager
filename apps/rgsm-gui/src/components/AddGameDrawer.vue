@@ -285,7 +285,9 @@ async function chooseSavePath(row: SaveUnitDraft) {
     saveUnitType(row) === 'Folder'
       ? await commands.chooseSaveDir()
       : await commands.chooseSaveFile();
-  if (result.status === 'ok') updateSaveUnitPath(row, escapePathLiteral(result.data));
+  if (result.status === 'ok' && result.data) {
+    updateSaveUnitPath(row, escapePathLiteral(result.data));
+  }
 }
 
 async function add_registry_key() {
@@ -308,7 +310,7 @@ async function add_registry_key() {
 async function choose_executable_file() {
   try {
     const file = await commands.chooseSaveFile();
-    if (file.status == 'error') {
+    if (file.status === 'error' || !file.data) {
       return;
     }
     game_path.value = file.data;

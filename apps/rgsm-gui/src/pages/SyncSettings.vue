@@ -292,7 +292,7 @@ function draftCloudSettings(normalize = true): EditableCloudSettings | null {
 
 async function chooseFsRoot() {
   const result = await commands.chooseSaveDir();
-  if (result.status === 'ok') {
+  if (result.status === 'ok' && result.data) {
     cloud_settings.value.root_path = result.data;
   }
 }

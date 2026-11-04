@@ -782,7 +782,7 @@ async function chooseSoundFile(target: 'success' | 'failure') {
     const path = await commands.chooseQuickActionSoundFile();
     const slots = ensureSoundSlots();
     if (!slots) return;
-    if (path.status === 'ok') {
+    if (path.status === 'ok' && path.data) {
       const file_path = path.data;
       if (target === 'success') {
         slots.success = { kind: 'file', path: file_path };
@@ -864,7 +864,7 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
 async function addVnScanDir() {
   try {
     const dir = await commands.chooseSaveDir();
-    if (dir.status !== 'ok') {
+    if (dir.status !== 'ok' || !dir.data) {
       return;
     }
 

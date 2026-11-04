@@ -95,30 +95,20 @@ pub async fn http_get_app_log_dir(
     post,
     path = "/api/v1/choose-save-file",
     operation_id = "chooseSaveFile",
-    responses((status = 200, body = String), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+    responses((status = 200, body = Option<String>), (status = 401, body = ApiError))
 )]
-pub async fn http_choose_save_file(
-    State(state): State<HttpHostState>,
-) -> Result<Json<String>, ApiError> {
-    commands::choose_save_file(state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
+pub async fn http_choose_save_file() -> Json<Option<String>> {
+    Json(commands::choose_save_file().await)
 }
 
 #[utoipa::path(
     post,
     path = "/api/v1/choose-save-dir",
     operation_id = "chooseSaveDir",
-    responses((status = 200, body = String), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+    responses((status = 200, body = Option<String>), (status = 401, body = ApiError))
 )]
-pub async fn http_choose_save_dir(
-    State(state): State<HttpHostState>,
-) -> Result<Json<String>, ApiError> {
-    commands::choose_save_dir(state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
+pub async fn http_choose_save_dir() -> Json<Option<String>> {
+    Json(commands::choose_save_dir().await)
 }
 
 #[utoipa::path(
@@ -1650,15 +1640,10 @@ pub async fn http_stop_sound_playback(
     post,
     path = "/api/v1/choose-quick-action-sound-file",
     operation_id = "chooseQuickActionSoundFile",
-    responses((status = 200, body = String), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+    responses((status = 200, body = Option<String>), (status = 401, body = ApiError))
 )]
-pub async fn http_choose_quick_action_sound_file(
-    State(state): State<HttpHostState>,
-) -> Result<Json<String>, ApiError> {
-    commands::choose_quick_action_sound_file(state.app().clone())
-        .await
-        .map(Json)
-        .map_err(ApiError::from_command)
+pub async fn http_choose_quick_action_sound_file() -> Json<Option<String>> {
+    Json(commands::choose_quick_action_sound_file().await)
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
