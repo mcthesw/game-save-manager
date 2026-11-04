@@ -1,3 +1,4 @@
+use super::compute_file_hash;
 use super::{
     ArchiveFormat, CapturePlan, CreatedBy, Game, GameSnapshots, RestoreNotifier, Snapshot,
     SnapshotCatalog,
@@ -77,6 +78,18 @@ impl Game {
             ArchiveIdentity::for_snapshot(self, &snapshot, options.device_id),
             options.source_fingerprint,
         )?;
+        if let Some(notifier) = options.notifier {
+            notifier.notify(
+                crate::backup::RestoreNotificationLevel::Info,
+                rust_i18n::t!("backend.stage.title").as_ref(),
+                rust_i18n::t!("backend.stage.finalize").as_ref(),
+            );
+        }
+        // Cloud upload and restore verification rely on the hash, so a snapshot
+        // only enters the catalog once it has one.
+        snapshot.archive_hash = Some(compute_file_hash(&archive_path).inspect_err(|_| {
+            let _ = fs::remove_file(&archive_path);
+        })?);
         let infos = catalog.update::<BackupError>(|current| {
             current.backups.push(snapshot);
             current.set_head_for_device(options.device_id.clone(), Some(date.clone()));

@@ -109,6 +109,12 @@ fn capture_with_explicit_context(distinct_root: bool) -> TestResult {
             assert_eq!(snapshot.device_id.as_ref(), Some(&device));
             assert!(created.local_archive_path.starts_with(&target_root));
             assert!(created.local_archive_path.is_file());
+            assert_eq!(
+                snapshot.archive_hash,
+                Some(crate::backup::compute_file_hash(
+                    &created.local_archive_path
+                )?)
+            );
             let persisted: GameSnapshots = target_catalog.read()?;
             assert_eq!(persisted, created.snapshots);
             assert_eq!(persisted.head_for_device(&device), Some(&snapshot.date));
