@@ -38,6 +38,9 @@ dirs = "6.0.0"
 whoami = "1.6.1"
 machine-uid = "0.5.4"
 reqwest = "0.12"
+# Same major as OpenDAL's, so its `HttpFetch` implementation applies to a client
+# built here with a connect timeout.
+reqwest-opendal = { package = "reqwest", version = "0.13", default-features = false }
 lazy_static = "1.5"
 rust-embed = { version = "8.11.0", optional = true, features = ["compression", "debug-embed", "include-exclude"] }
 font-kit = "0.14"
