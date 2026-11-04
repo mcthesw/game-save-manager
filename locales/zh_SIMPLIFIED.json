@@ -1188,6 +1188,9 @@
     },
     "error": {
         "hotkey_registration_failed": "无法应用快捷键：%{reason}",
+        "registry_value_unreadable": "无法读取 %{key} 下的注册表值“%{value}”（%{reason}），因此没有创建快照。",
+        "registry_value_type_unsupported": "不支持它的类型 %{vtype}",
+        "registry_value_data_invalid": "它的数据比其类型要求的更短",
         "legacy_cloud_operation_unavailable": "旧版云库操作已停用，请前往云同步页面升级或加入当前云库。",
         "local_upgrade_environment_failed": "无法写入升级后的备份，升级已暂停。请释放磁盘空间或检查文件夹权限后继续。详情：%{error}",
         "cloud_unreachable": "无法连接云存储。请检查网络和云同步中的存储设置后重试，本地存档不受影响。",

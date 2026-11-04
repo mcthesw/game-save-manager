@@ -1188,6 +1188,9 @@
     },
     "error": {
         "hotkey_registration_failed": "Could not apply hotkeys: %{reason}",
+        "registry_value_unreadable": "The registry value \"%{value}\" under %{key} could not be read (%{reason}), so no Snapshot was created.",
+        "registry_value_type_unsupported": "its type %{vtype} is not supported",
+        "registry_value_data_invalid": "its data is shorter than its type requires",
         "legacy_cloud_operation_unavailable": "Legacy cloud operations are unavailable. Open Cloud Sync to upgrade or join the current Cloud Library.",
         "local_upgrade_environment_failed": "Could not write the upgraded archive, so the upgrade stopped. Free up disk space or check folder permissions, then resume. Details: %{error}",
         "cloud_unreachable": "Cannot reach cloud storage. Check your network and the storage settings in Cloud Sync, then try again. Your local saves are not affected.",
