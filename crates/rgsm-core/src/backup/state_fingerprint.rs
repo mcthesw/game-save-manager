@@ -338,8 +338,18 @@ pub(crate) fn fingerprint_zip_state(zip_path: &Path) -> Result<Option<String>, C
     Ok(Some(build_fingerprint(entries)))
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Lets tests assert that a large file is read once instead of once per check.
+    pub(crate) static HASHED_FILES: std::cell::RefCell<Vec<std::path::PathBuf>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
 /// Compute an XXH3 hash of a file's contents for integrity verification.
 pub fn compute_file_hash(path: &Path) -> Result<String, CompressError> {
+    #[cfg(test)]
+    HASHED_FILES.with(|files| files.borrow_mut().push(path.to_path_buf()));
     let mut file = File::open(path).map_err(|e| CompressError::Single(e.into()))?;
     let mut buffer = [0u8; 64 * 1024];
     let mut hasher = Xxh3::new();

@@ -68,6 +68,7 @@ fn convert(
         preset: CompressionPreset::Standard,
         associations,
     })
+    .map(|conversion| conversion.size)
 }
 
 #[test]

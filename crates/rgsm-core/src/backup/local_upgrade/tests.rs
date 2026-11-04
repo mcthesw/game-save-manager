@@ -130,7 +130,7 @@ fn upgrade_starts_explicitly_resumes_and_keeps_pending_history_and_originals() {
 
 #[test]
 fn interruptions_before_and_after_catalog_commit_resume_the_same_output() {
-    for point in ["written", "prepared", "committed"] {
+    for point in ["written", "prepared", "committed", "committed-unjournaled"] {
         let (root, game) = fixture();
         add_snapshot(root.path(), &game, "snapshot", None, true);
         let job = engine(root.path(), &game);
@@ -140,11 +140,11 @@ fn interruptions_before_and_after_catalog_commit_resume_the_same_output() {
         job.prepare(&mut prepared).unwrap();
         let output = job.destination(&prepared).unwrap();
         let bytes = fs::read(&output).unwrap();
-        if point != "written" {
+        if point == "prepared" || point == "committed" {
             journal.items[0] = prepared.clone();
             job.store(&journal).unwrap();
         }
-        if point == "committed" {
+        if point.starts_with("committed") {
             job.commit(&prepared).unwrap();
         }
         let resumed = engine(root.path(), &game);
@@ -160,6 +160,38 @@ fn interruptions_before_and_after_catalog_commit_resume_the_same_output() {
             Some("snapshot")
         );
     }
+}
+
+#[test]
+fn previews_estimate_from_file_sizes_and_starting_measures_the_contents() {
+    let (root, game) = fixture();
+    add_snapshot(root.path(), &game, "snapshot", None, true);
+    let job = engine(root.path(), &game);
+    let preview = job.inspect().unwrap();
+    assert_eq!(preview.unknown_sizes, 1);
+    assert!(preview.estimated_extra_bytes > 0);
+    assert_eq!(job.start().unwrap().unknown_sizes, 0);
+}
+
+#[test]
+fn an_original_archive_is_hashed_once_per_upgrade() {
+    let (root, game) = fixture();
+    add_snapshot(root.path(), &game, "snapshot", None, true);
+    let job = engine(root.path(), &game);
+    job.start().unwrap();
+    let original = root.path().join("traveller/snapshot.zip");
+    crate::backup::state_fingerprint::HASHED_FILES.with(|files| files.borrow_mut().clear());
+    assert_eq!(job.step().unwrap().completed, 1);
+    let hashed = crate::backup::state_fingerprint::HASHED_FILES.with(|files| {
+        files
+            .borrow()
+            .iter()
+            .filter(|path| **path == original)
+            .count()
+    });
+    assert_eq!(hashed, 1);
+    let journal = job.load().unwrap();
+    assert!(journal.items[0].original_hash.is_some());
 }
 
 #[test]
