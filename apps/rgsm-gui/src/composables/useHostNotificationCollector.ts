@@ -40,10 +40,6 @@ export function useHostNotificationCollector() {
     return result;
   }
 
-  function isCollecting(): boolean {
-    return collecting.value;
-  }
-
   function addIfCollecting(payload: HostNotificationPayload): boolean {
     if (collecting.value) {
       collected.value.push(payload);
@@ -53,7 +49,6 @@ export function useHostNotificationCollector() {
   }
 
   return {
-    isCollecting,
     startCollecting,
     stopCollecting,
     addIfCollecting,

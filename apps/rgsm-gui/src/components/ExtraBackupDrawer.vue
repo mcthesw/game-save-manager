@@ -82,7 +82,7 @@ async function refresh() {
     items.value = result.data;
   } catch (e) {
     logError(`Failed to refresh extra backups: ${e}`);
-    notifyError($t('settings.failed'));
+    notifyError($t('settings.failed'), String(e));
     items.value = [];
   } finally {
     loading.value = false;
@@ -92,12 +92,14 @@ async function refresh() {
 async function openFolder() {
   try {
     const result = await commands.openExtraBackupFolder(props.game);
-    if (result.status === 'error' || !result.data) {
+    if (result.status === 'error') {
+      notifyError($t('error.open_backup_folder_failed'), result.error);
+    } else if (!result.data) {
       notifyError($t('error.open_backup_folder_failed'));
     }
   } catch (e) {
     logError(`Failed to open extra backup folder: ${e}`);
-    notifyError($t('error.open_backup_folder_failed'));
+    notifyError($t('error.open_backup_folder_failed'), String(e));
   }
 }
 
@@ -110,7 +112,7 @@ async function restore(date: string) {
         async () => {
           const result = await commands.restoreExtraBackup(props.game, date);
           if (result.status === 'error') {
-            notifyError($t('manage.recover_failed'));
+            notifyError($t('manage.recover_failed'), result.error);
             return;
           }
           notifySuccess($t('manage.recover_success'));
@@ -121,7 +123,7 @@ async function restore(date: string) {
     });
   } catch (e) {
     logError(`Failed to restore extra backup: ${e}`);
-    notifyError($t('manage.recover_failed'));
+    notifyError($t('manage.recover_failed'), String(e));
   } finally {
     restoringDate.value = null;
   }
@@ -140,7 +142,7 @@ async function del(date: string) {
 
   const result = await commands.deleteExtraBackup(props.game, date);
   if (result.status === 'error') {
-    notifyError($t('error.delete_snapshot_failed'));
+    notifyError($t('error.delete_snapshot_failed'), result.error);
     return;
   }
   notifySuccess($t('manage.delete_success'));

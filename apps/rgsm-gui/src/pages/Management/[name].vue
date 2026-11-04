@@ -170,17 +170,13 @@ const undoTooltip = computed(() => {
 let stopQuickActionListener: (() => void) | null = null;
 
 onMounted(async () => {
-  try {
-    stopQuickActionListener = await events.quickActionCompleted.listen(async (event) => {
-      if (quickActionAffectsGame(event.payload, game.value)) {
-        // A quick-action Apply replaces the live saves, so the undo point of an earlier restore here is stale.
-        if (event.payload.operation === 'Apply') undoInfo.value = null;
-        await refresh_backups_info();
-      }
-    });
-  } catch (e) {
-    error(`Failed to listen quick action events: ${e}`);
-  }
+  stopQuickActionListener = await events.quickActionCompleted.listen(async (event) => {
+    if (quickActionAffectsGame(event.payload, game.value)) {
+      // A quick-action Apply replaces the live saves, so the undo point of an earlier restore here is stale.
+      if (event.payload.operation === 'Apply') undoInfo.value = null;
+      await refresh_backups_info();
+    }
+  });
 });
 
 onBeforeUnmount(() => {
@@ -254,11 +250,9 @@ async function batch_delete() {
       } else {
         notifyError(deleteResult.error);
       }
-    } else {
-      notifyInfo($t('manage.invalid_input_error'));
     }
-  } catch {
-    notifyError($t('manage.operation_canceled'));
+  } catch (cause) {
+    if (cause !== 'cancel') notifyError(String(cause));
   }
 }
 
@@ -797,8 +791,7 @@ async function apply_save(date: string) {
       updateActivity(activityId, {
         status: 'success',
         title: $t('manage.recover_success_with_warnings', { count: warnings.length }),
-        description: undefined,
-        autoDismissMs: 5000,
+        description: warnings.map((n) => n.msg).join('\n'),
       });
     } else {
       updateActivity(activityId, { status: 'success', title: $t('manage.recover_success') });
@@ -872,7 +865,7 @@ async function change_describe(date: string) {
     );
     const result = await commands.setSnapshotDescription(game.value, date, value);
     if (result.status === 'error') {
-      notifyError($t('manage.change_description_failed'));
+      notifyError($t('manage.change_description_failed'), result.error);
       return;
     }
     refresh_backups_info();
@@ -881,8 +874,8 @@ async function change_describe(date: string) {
     } else {
       notifySuccess($t('manage.change_description_success'));
     }
-  } catch {
-    notifyInfo($t('manage.operation_canceled'));
+  } catch (cause) {
+    if (cause !== 'cancel') notifyError(String(cause));
   }
 }
 
@@ -901,7 +894,7 @@ async function load_latest_save() {
 async function open_backup_folder() {
   const result = await commands.openBackupFolder(game.value);
   if (result.status === 'error') {
-    notifyError($t('error.open_backup_folder_failed'));
+    notifyError($t('error.open_backup_folder_failed'), result.error);
   }
 }
 
@@ -985,14 +978,12 @@ async function toggle_quick_backup() {
     : await commands.setQuickBackupGame(game.value);
   if (result.status === 'error') {
     notifyError(
-      $t(enabled ? 'manage.unset_quick_backup_failed' : 'manage.set_quick_backup_failed')
+      $t(enabled ? 'manage.unset_quick_backup_failed' : 'manage.set_quick_backup_failed'),
+      result.error
     );
     return;
   }
   await refreshConfig();
-  notifySuccess(
-    $t(enabled ? 'manage.unset_quick_backup_success' : 'manage.set_quick_backup_success')
-  );
 }
 
 // 处理抽屉组件保存游戏路径的事件
@@ -1233,15 +1224,10 @@ async function copyPathsFromDevice(sourceDeviceId: string) {
     const index = config.value.games.findIndex((g) => g.storage_key === game.value.storage_key);
     if (index !== -1) {
       config.value.games[index] = game.value;
-      try {
-        await saveConfig();
-        notifySuccess($t('manage.paths_copied_success'));
-        // 打开侧栏让用户查看和编辑复制的路径
-        drawer.value = true;
-      } catch (e) {
-        error(`Error saving config: ${e}`);
-        notifyError($t('error.save_config_failed'));
-      }
+      if (!(await saveConfig())) return;
+      notifySuccess($t('manage.paths_copied_success'));
+      // 打开侧栏让用户查看和编辑复制的路径
+      drawer.value = true;
     }
   }
 }
@@ -1251,9 +1237,8 @@ async function onSetHead(date: string) {
   try {
     const result = await commands.setSnapshotHead(game.value, date);
     if (result.status === 'error') {
-      notifyError($t('manage.set_head_failed'));
+      notifyError($t('manage.set_head_failed'), result.error);
     } else {
-      notifySuccess($t('manage.set_head_success'));
       await refresh_backups_info();
     }
   } catch (e) {
@@ -1266,9 +1251,8 @@ async function onDetach(date: string) {
   try {
     const result = await commands.detachSnapshot(game.value, date);
     if (result.status === 'error') {
-      notifyError($t('manage.detach_failed'));
+      notifyError($t('manage.detach_failed'), result.error);
     } else {
-      notifySuccess($t('manage.detach_success'));
       await refresh_backups_info();
     }
   } catch (e) {

@@ -2,7 +2,7 @@
 
 ## Structure and boundaries
 
-- `apps/rgsm-gui/src/`: frontend; reuse `src/ui/kit`, `useNotification()`, `useFeedback()`, and `src/ui/layers.ts` (`LAYER.*`).
+- `apps/rgsm-gui/src/`: frontend; reuse `src/ui/kit`, the `notify*()` helpers in `useActivityCenter`, `useFeedback()`, and `src/ui/layers.ts` (`LAYER.*`).
 - `apps/rgsm-gui/src-tauri/`: desktop host, GUI hooks, and quick actions. Keep command/HTTP adapters thin; delegate business logic to services.
 - `crates/rgsm-core/`: Tauri-independent business logic. Services assemble configuration, dependencies, and hooks; domain functions receive explicit inputs rather than reading global configuration.
 - `locales/`: shared translations; `apps/rgsm-docs/`: documentation; `scripts/`: workspace tooling.

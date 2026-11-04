@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { $t } from '../i18n';
 
 export type ActivityStatus = 'pending' | 'running' | 'info' | 'success' | 'warning' | 'error';
@@ -245,12 +245,9 @@ export function notifyInfo(
 }
 
 export function useActivityCenter() {
-  const hasActiveActivities = computed(() => activities.value.some((e) => isActive(e.status)));
-
   return {
     activities,
     activityAddSignal,
-    hasActiveActivities,
     addActivity,
     updateActivity,
     dismissActivity,

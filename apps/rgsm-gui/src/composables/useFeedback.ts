@@ -2,9 +2,8 @@ import { ref, type VNode } from 'vue';
 
 /**
  * Centralized confirm/prompt/alert façade on the kit dialog.
- * Call sites keep the ElMessageBox-era call shapes: options use
- * `type`/`confirmButtonText`/`inputPattern`/etc., prompt resolves `{ value }`,
- * and cancellation rejects with 'cancel'.
+ * Options use `type`/`confirmButtonText`/`inputPattern`/etc., prompt resolves
+ * `{ value }`, and cancellation rejects with 'cancel'.
  */
 export type FeedbackTone = 'info' | 'warning' | 'error';
 

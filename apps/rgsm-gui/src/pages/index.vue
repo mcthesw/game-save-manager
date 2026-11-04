@@ -241,7 +241,6 @@ async function chooseLanguage(code: string) {
   i18n.global.locale.value = code as typeof i18n.global.locale.value;
   config.value.settings.locale = code;
   await saveConfig();
-  notifyInfo($t('settings.locale_changed'));
 }
 
 // 与设置页同入口:引导到贡献指南
@@ -282,8 +281,7 @@ function goAbout() {
   display: flex;
   flex-direction: column;
   font-family: var(--font-sans-stack);
-  /* ElScrollbar__view 是自动高度,min-height:100% 会塌缩;
-     直接抵消 el-main 默认 20px padding 并占满视口高度 */
+  /* 抵消 .app-main 的 20px 内边距并占满视口高度 */
   height: 100vh;
   margin: -20px;
   overflow: hidden;

@@ -4,10 +4,9 @@ import { useDebounceFn } from '@vueuse/core';
 import { FolderPlus, Pencil, Plus } from '@lucide/vue';
 import { v4 as uuidv4 } from 'uuid';
 import { $t } from '../i18n';
-import { error } from '../utils/logger';
 import { type FavoriteTreeNode as FavNode, type Game } from '../api/commands';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
-import { notifySuccess, notifyWarning } from '../composables/useActivityCenter';
+import { notifyWarning } from '../composables/useActivityCenter';
 import KButton from '../ui/kit/KButton.vue';
 import KDialog from '../ui/kit/KDialog.vue';
 import KTooltip from '../ui/kit/KTooltip.vue';
@@ -50,13 +49,7 @@ const favoriteIds = computed(() =>
 );
 
 // ——— 持久化 ———
-const persist = useDebounceFn(async () => {
-  try {
-    await saveConfig();
-  } catch (e) {
-    error(`save favorites error: ${e}`);
-  }
-}, 500);
+const persist = useDebounceFn(saveConfig, 500);
 
 function commitTree() {
   if (!config.value) return;
@@ -124,7 +117,6 @@ async function removeNode(id: string) {
   }
   if (!removeById(rootNodes.value, id)) return;
   commitTree();
-  notifySuccess($t('favorite.remove_success'));
 }
 
 async function addFolder() {
@@ -150,23 +142,13 @@ function addGame(game: Game) {
   if (!config.value || favoriteIds.value.has(game.storage_key ?? '')) return;
   rootNodes.value.push(createGameFavorite(game));
   commitTree();
-  notifySuccess($t('favorite.add_success') + ': ' + game.name);
 }
 
 function gamePathsText(game: Game): string {
   return Object.values(game.game_paths ?? {}).join(' ; ');
 }
 
-async function addAllGames() {
-  try {
-    await feedback.confirm($t('favorite.confirm_add_all_games'), $t('home.hint'), {
-      type: 'warning',
-      confirmButtonText: $t('settings.confirm'),
-      cancelButtonText: $t('settings.cancel'),
-    });
-  } catch {
-    return;
-  }
+function addAllGames() {
   if (!config.value) return;
   const existing = favoriteIds.value;
   const fresh = config.value.games
@@ -178,7 +160,6 @@ async function addAllGames() {
   }
   config.value.favorites = [...rootNodes.value, ...fresh];
   persist();
-  notifySuccess($t('favorite.add_all_success', { count: fresh.length }));
 }
 
 // ——— 拖拽（仅编辑模式可拖，由节点上的 draggable 属性控制） ———

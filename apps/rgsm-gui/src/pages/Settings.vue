@@ -275,14 +275,7 @@ async function resetLudusaviManifest() {
 }
 
 // 使用debounce来合并多次保存操作
-const debouncedSaveConfig = useDebounceFn(async () => {
-  try {
-    await saveConfig();
-  } catch (e) {
-    error(`save config error: ${e}`);
-    notifyError($t('error.set_config_failed'));
-  }
-}, 500);
+const debouncedSaveConfig = useDebounceFn(saveConfig, 500);
 
 async function load_config() {
   suppressConfigChangeTracking = true;
@@ -334,23 +327,23 @@ async function backup_all() {
       inputPattern: /yes/,
       inputErrorMessage: $t('settings.invalid_input_error'),
     });
-
-    try {
-      await withLoading(async () => {
-        await commands.backupAll();
-      }, $t('settings.backup_all_in_progress'));
-      notifySuccess(
-        config.value.settings.cloud_settings?.backend?.type !== 'Disabled' &&
-          config.value.games.some((game) => game.cloud_sync_enabled !== false)
-          ? $t('settings.backup_all_success_with_sync')
-          : $t('settings.success')
-      );
-    } catch (e) {
-      error(`backup all error: ${e}`);
-      notifyError($t('settings.failed'));
-    }
   } catch {
-    notifyInfo($t('settings.operation_canceled'));
+    return;
+  }
+
+  try {
+    await withLoading(async () => {
+      await commands.backupAll();
+    }, $t('settings.backup_all_in_progress'));
+    notifySuccess(
+      config.value.settings.cloud_settings?.backend?.type !== 'Disabled' &&
+        config.value.games.some((game) => game.cloud_sync_enabled !== false)
+        ? $t('settings.backup_all_success_with_sync')
+        : $t('settings.success')
+    );
+  } catch (e) {
+    error(`backup all error: ${e}`);
+    notifyError($t('settings.failed'));
   }
 }
 
@@ -368,8 +361,6 @@ async function apply_all() {
   } catch (e) {
     if (e instanceof Error) {
       error(`apply all error: ${e}`);
-    } else {
-      notifyInfo($t('settings.operation_canceled'));
     }
   }
 }
@@ -478,7 +469,7 @@ async function persistDeviceInfo(showSuccessMessage: boolean = true) {
     config.value.devices[currentDevice.value.id] = { ...currentDevice.value };
 
     // 保存配置
-    await saveConfig();
+    if (!(await saveConfig())) return;
     if (showSuccessMessage) {
       notifySuccess($t('settings.device_updated'));
     }
@@ -648,15 +639,12 @@ async function importFromDevice(deviceId: string) {
     }
 
     // 保存配置
-    await saveConfig();
+    if (!(await saveConfig())) return;
     notifySuccess($t('settings.import_paths_success'));
   } catch (e) {
     if (e instanceof Error) {
       error(`Error importing paths: ${e}`);
       notifyError($t('error.import_paths_failed'));
-    } else {
-      // 用户取消操作
-      notifyInfo($t('settings.operation_canceled'));
     }
   }
 }
@@ -839,7 +827,6 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
       }
     );
   } catch {
-    notifyInfo($t('settings.operation_canceled'));
     return;
   }
 
@@ -861,7 +848,10 @@ ${$t('settings.device_name')}: ${targetDevice.name || deviceId}`,
       }
     }
 
-    await saveConfig();
+    if (!(await saveConfig())) {
+      await refreshConfig();
+      return;
+    }
     notifySuccess($t('settings.delete_device_success'));
     await fetchDeviceInfo();
   } catch (e) {
@@ -940,7 +930,6 @@ watch(
     if (new_locale) {
       i18n.global.locale.value = new_locale as typeof i18n.global.locale.value;
     }
-    notifyInfo($t('settings.locale_changed'));
   }
 );
 
