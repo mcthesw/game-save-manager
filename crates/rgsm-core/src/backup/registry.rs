@@ -115,13 +115,16 @@ pub enum RegistryError {
     #[error("Unsupported registry file value type: {0}")]
     UnsupportedRegValueType(String),
     #[cfg(target_os = "windows")]
-    #[error(
-        "Invalid registry value data length for '{name}': expected at least {expected} bytes, got {actual}"
-    )]
-    InvalidValueDataLength {
-        name: String,
-        expected: usize,
-        actual: usize,
+    #[error("{}", rust_i18n::t!(
+        "error.registry_value_unreadable",
+        key = .key,
+        value = .value,
+        reason = .reason
+    ))]
+    UnreadableValue {
+        key: String,
+        value: String,
+        reason: String,
     },
     #[cfg(target_os = "windows")]
     #[error("Registry access error: {0}")]
@@ -164,10 +167,9 @@ mod platform {
     }
 
     /// Read a single registry value and convert it to `RegistryValue`.
-    fn read_value(key: &RegKey, name: &str) -> Result<RegistryValue, RegistryError> {
-        let value = key
-            .get_raw_value(name)
-            .map_err(|e| RegistryError::WinReg(e.to_string()))?;
+    /// The error is the player-facing reason the value cannot be backed up.
+    fn read_value(key: &RegKey, name: &str) -> Result<RegistryValue, String> {
+        let value = key.get_raw_value(name).map_err(|e| e.to_string())?;
 
         let val_name = name.to_string();
         match value.vtype {
@@ -221,11 +223,7 @@ mod platform {
             }
             REG_DWORD => {
                 if value.bytes.len() < 4 {
-                    return Err(RegistryError::InvalidValueDataLength {
-                        name: val_name,
-                        expected: 4,
-                        actual: value.bytes.len(),
-                    });
+                    return Err(rust_i18n::t!("error.registry_value_data_invalid").to_string());
                 }
                 let data = u32::from_le_bytes([
                     value.bytes[0],
@@ -240,11 +238,7 @@ mod platform {
             }
             REG_QWORD => {
                 if value.bytes.len() < 8 {
-                    return Err(RegistryError::InvalidValueDataLength {
-                        name: val_name,
-                        expected: 8,
-                        actual: value.bytes.len(),
-                    });
+                    return Err(rust_i18n::t!("error.registry_value_data_invalid").to_string());
                 }
                 let data = u64::from_le_bytes([
                     value.bytes[0],
@@ -268,10 +262,11 @@ mod platform {
                     data,
                 })
             }
-            _ => Err(RegistryError::WinReg(format!(
-                "Unsupported registry value type for '{}': {:?}",
-                val_name, value.vtype
-            ))),
+            other => Err(rust_i18n::t!(
+                "error.registry_value_type_unsupported",
+                vtype = format!("{other:?}")
+            )
+            .to_string()),
         }
     }
 
@@ -353,6 +348,7 @@ mod platform {
     /// Recursively collect all values and subkeys under `key`.
     fn collect_key_tree(
         key: &RegKey,
+        root_path: &str,
         rel_subkey: &str,
         entries: &mut Vec<RegistryKeyEntry>,
     ) -> Result<(), RegistryError> {
@@ -367,12 +363,21 @@ mod platform {
             .collect::<Result<_, _>>()?;
         value_names.sort();
         for name in &value_names {
-            match read_value(key, name) {
-                Ok(val) => values.push(val),
-                Err(e) => {
-                    log::warn!(target: "rgsm::backup::registry", "Skipping value '{name}': {e}");
-                }
-            }
+            // A value that cannot be exported would be missing after a restore, so the backup fails.
+            let value = read_value(key, name).map_err(|reason| RegistryError::UnreadableValue {
+                key: if rel_subkey.is_empty() {
+                    root_path.to_string()
+                } else {
+                    format!("{root_path}\\{rel_subkey}")
+                },
+                value: if name.is_empty() {
+                    "(Default)".to_string()
+                } else {
+                    name.clone()
+                },
+                reason,
+            })?;
+            values.push(value);
         }
 
         entries.push(RegistryKeyEntry {
@@ -395,7 +400,7 @@ mod platform {
             } else {
                 format!("{rel_subkey}\\{subkey_name}")
             };
-            collect_key_tree(&child, &child_rel, entries)?;
+            collect_key_tree(&child, root_path, &child_rel, entries)?;
         }
 
         Ok(())
@@ -410,7 +415,7 @@ mod platform {
             .map_err(|e| RegistryError::WinReg(e.to_string()))?;
 
         let mut entries = Vec::new();
-        collect_key_tree(&key, "", &mut entries)?;
+        collect_key_tree(&key, path, "", &mut entries)?;
 
         Ok(RegistryData {
             format_version: 1,
@@ -620,6 +625,33 @@ mod tests {
                 uuid::Uuid::new_v4()
             ));
             assert!(result.is_err());
+        }
+
+        #[test]
+        fn export_fails_naming_the_key_and_value_that_cannot_be_read() {
+            let owned = setup_test_key();
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let child = hkcu
+                .open_subkey_with_flags(format!("{}\\Child", owned.0), KEY_WRITE)
+                .unwrap();
+            child
+                .set_raw_value(
+                    "OddValue",
+                    &winreg::RegValue {
+                        vtype: REG_RESOURCE_LIST,
+                        bytes: vec![1, 2, 3],
+                    },
+                )
+                .unwrap();
+
+            let error = export_registry_key(&owned.path()).unwrap_err().to_string();
+
+            assert!(
+                error.contains(&format!("{}\\Child", owned.path())),
+                "{error}"
+            );
+            assert!(error.contains("OddValue"), "{error}");
+            assert!(error.contains("REG_RESOURCE_LIST"), "{error}");
         }
 
         #[test]
