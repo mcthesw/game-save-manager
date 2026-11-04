@@ -673,7 +673,7 @@ function ensureQuickActionDefaults() {
     settings.enable_notification = true;
   }
   if (settings.notify_when_unchanged === undefined) {
-    settings.notify_when_unchanged = true;
+    settings.notify_when_unchanged = false;
   }
   if (!settings.sounds) {
     settings.sounds = {
