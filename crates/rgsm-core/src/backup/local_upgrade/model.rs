@@ -107,4 +107,7 @@ pub(super) struct UpgradeJournal {
     pub schema_version: u32,
     pub started: bool,
     pub items: Vec<UpgradeItem>,
+    /// Set when inventory queued archives that the stored journal does not know yet.
+    #[serde(skip)]
+    pub discovered: bool,
 }

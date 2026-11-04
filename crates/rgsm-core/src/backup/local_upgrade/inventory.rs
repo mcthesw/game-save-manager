@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fs, path::Path};
 use crate::{
     backup::{
         ArchiveBackend, ArchiveFormat, SevenZBackend, Snapshot, catalog::SnapshotCatalog,
-        inspect_archive_size, new_archive_name, snapshot_archive_path,
+        new_archive_name, snapshot_archive_path,
     },
     preclude::BackupError,
 };
@@ -80,17 +80,17 @@ impl LocalUpgrade {
                 else {
                     continue;
                 };
-                if format == ArchiveFormat::SevenZ
-                    && SevenZBackend.archive_version(&path).ok()
-                        == Some(crate::backup::ArchiveVersion::V6)
-                {
-                    continue;
-                }
                 if journal.items.iter().any(|item| {
                     item.extra_backup
                         && item.game_id == game.backup_dir_name().as_ref()
                         && item.snapshot.date == id
                 }) {
+                    continue;
+                }
+                if format == ArchiveFormat::SevenZ
+                    && SevenZBackend.archive_version(&path).ok()
+                        == Some(crate::backup::ArchiveVersion::V6)
+                {
                     continue;
                 }
                 let snapshot: Snapshot = serde_json::from_value(
@@ -152,8 +152,9 @@ impl LocalUpgrade {
         } else {
             self.root.join(game.backup_dir_name().as_ref())
         };
+        // Opening the page lists every archive; reading each one's index here made it
+        // slow, so only file sizes are used until the upgrade starts.
         let original_size = fs::metadata(&source).map_or(snapshot.size, |metadata| metadata.len());
-        let unpacked_size = inspect_archive_size(&source, snapshot.archive_format).ok();
         let name = new_archive_name(&snapshot, &directory)?;
         let output_name = Some(if extra_backup {
             format!("Overwrite_{name}")
@@ -182,7 +183,7 @@ impl LocalUpgrade {
             replacement_path: None,
             output_name,
             original_size,
-            unpacked_size,
+            unpacked_size: None,
             original_hash: None,
             output_hash: None,
             output_size: 0,
@@ -190,6 +191,7 @@ impl LocalUpgrade {
             issue: None,
             associations: BTreeMap::new(),
         });
+        journal.discovered = true;
         Ok(())
     }
 

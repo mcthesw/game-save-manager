@@ -13,7 +13,7 @@ use crate::{
     backup::{
         ArchiveFormat, ArchiveMigrationError, ArchiveMigrationInput, CompressionPreset, Game,
         catalog::SnapshotCatalog, compute_file_hash, convert_snapshot_archive,
-        snapshot_archive_path,
+        inspect_archive_size, snapshot_archive_path,
     },
     device::DeviceId,
     preclude::{BackupError, BackupFileError, CompressError},
@@ -63,6 +63,15 @@ impl LocalUpgrade {
             .unwrap_or_else(|error| error.into_inner());
         let (mut journal, problems) = self.inventory()?;
         journal.started = true;
+        for item in &mut journal.items {
+            if item.state == UpgradeItemState::Queued && item.unpacked_size.is_none() {
+                item.unpacked_size = inspect_archive_size(
+                    Path::new(&item.source_path),
+                    item.snapshot.archive_format,
+                )
+                .ok();
+            }
+        }
         self.store(&journal)?;
         Ok(self.view(&journal, problems))
     }
@@ -87,14 +96,16 @@ impl LocalUpgrade {
         };
         // Persist the output identity before touching an archive discovered
         // since the previous step, so an interrupted conversion can resume it.
-        self.store(&journal)?;
+        if journal.discovered {
+            self.store(&journal)?;
+        }
         let mut item = journal.items[index].clone();
         let result = self.prepare(&mut item);
+        let mut retain = false;
         if result.is_ok() {
-            // A crash before catalog replacement resumes with a verified file;
-            // a crash after replacement recognizes the same immutable filename.
-            journal.items[index] = item.clone();
-            self.store(&journal)?;
+            // An interrupted attempt resumes from the same immutable output filename:
+            // the converted file is reused once it verifies, and a catalog row that
+            // already names it is accepted as committed.
             if let Err(error) = self.commit(&item) {
                 log::warn!("Local archive upgrade catalog commit failed: {error}");
                 item.state = UpgradeItemState::Pending;
@@ -102,7 +113,7 @@ impl LocalUpgrade {
             } else {
                 item.state = UpgradeItemState::Completed;
                 item.issue = None;
-                self.retain_original(&item);
+                retain = true;
             }
         } else if let Err(error) = result {
             // A full disk or a refused write says nothing about the archive, and every
@@ -139,6 +150,11 @@ impl LocalUpgrade {
         }
         journal.items[index] = item;
         self.store(&journal)?;
+        if retain {
+            // Moved only after the journal says Completed; an interruption before the
+            // move leaves the original in place, where cleanup still finds it.
+            self.retain_original(&journal.items[index]);
+        }
         Ok(self.view(&journal, problems))
     }
 
@@ -167,7 +183,7 @@ impl LocalUpgrade {
         if let (Some(entry), Some(unit)) = (request.archive_entry, request.save_unit_id) {
             item.associations.insert(entry, unit);
         }
-        item.unpacked_size = crate::backup::inspect_archive_size(
+        item.unpacked_size = inspect_archive_size(
             Path::new(
                 item.replacement_path
                     .as_deref()
@@ -243,13 +259,8 @@ impl LocalUpgrade {
                 .unwrap_or(&item.source_path),
         );
         fs::metadata(source)?;
-        item.original_hash = if Path::new(&item.source_path).is_file() {
-            Some(compute_file_hash(Path::new(&item.source_path))?)
-        } else {
-            None
-        };
         fs::create_dir_all(destination.parent().expect("game directory"))?;
-        item.output_size = convert_snapshot_archive(ArchiveMigrationInput {
+        let conversion = convert_snapshot_archive(ArchiveMigrationInput {
             game,
             snapshot: &item.snapshot,
             device_id: &self.device_id,
@@ -258,6 +269,16 @@ impl LocalUpgrade {
             preset: self.preset,
             associations: &item.associations,
         })?;
+        item.output_size = conversion.size;
+        // The conversion already hashed its source; only a separate replacement
+        // copy leaves the original at `source_path` still to be hashed.
+        item.original_hash = if item.replacement_path.is_none() {
+            Some(conversion.source_hash)
+        } else if Path::new(&item.source_path).is_file() {
+            Some(compute_file_hash(Path::new(&item.source_path))?)
+        } else {
+            None
+        };
         item.output_hash = Some(compute_file_hash(&destination)?);
         item.state = UpgradeItemState::Prepared;
         Ok(())
@@ -404,9 +425,6 @@ impl LocalUpgrade {
         let source = Path::new(&item.source_path);
         let retained = Path::new(&item.retained_path);
         if !source.exists() || retained.exists() {
-            return;
-        }
-        if compute_file_hash(source).ok().as_deref() != item.original_hash.as_deref() {
             return;
         }
         if let Some(parent) = retained.parent() {

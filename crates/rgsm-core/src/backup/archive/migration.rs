@@ -47,10 +47,16 @@ pub struct ArchiveMigrationInput<'a> {
     pub associations: &'a BTreeMap<String, u32>,
 }
 
+pub struct ArchiveConversion {
+    pub size: u64,
+    pub source_hash: String,
+}
+
 /// No live save paths, configuration writes, registry imports or cloud I/O.
 pub fn convert_snapshot_archive(
     input: ArchiveMigrationInput<'_>,
-) -> Result<u64, ArchiveMigrationError> {
+) -> Result<ArchiveConversion, ArchiveMigrationError> {
+    let source_stamp = file_stamp(input.source)?;
     let original_hash = compute_file_hash(input.source)?;
     if input
         .snapshot
@@ -225,7 +231,9 @@ pub fn convert_snapshot_archive(
             )?
         };
         super::migration_verify::verify_payloads(&payloads, input.destination, &manifest)?;
-        if compute_file_hash(input.source)? != original_hash {
+        // The source was already hashed once; hashing it again would read a possibly
+        // multi-gigabyte archive twice more per conversion.
+        if file_stamp(input.source)? != source_stamp {
             return Err(ArchiveMigrationError::Invalid(
                 "source changed during conversion".into(),
             ));
@@ -235,7 +243,15 @@ pub fn convert_snapshot_archive(
     if result.is_err() && !existed {
         let _ = fs::remove_file(input.destination);
     }
-    result
+    result.map(|size| ArchiveConversion {
+        size,
+        source_hash: original_hash,
+    })
+}
+
+fn file_stamp(path: &Path) -> std::io::Result<(u64, Option<std::time::SystemTime>)> {
+    let metadata = fs::metadata(path)?;
+    Ok((metadata.len(), metadata.modified().ok()))
 }
 
 pub fn inspect_archive_size(
