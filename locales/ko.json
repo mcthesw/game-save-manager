@@ -170,8 +170,6 @@
         "abort_button": "관련 상품",
         "test_button": "시험의 가용성",
         "title": "사업영역",
-        "reset_success": "성공의 이유",
-        "submit_success": "자주 묻는 질문",
         "last_sync": "마지막 동기화:",
         "manual_link": "교육 배경",
         "manual_sync": "기타",
@@ -268,8 +266,6 @@
         "delete_before_apply": "삭제하기 전에 신청"
     },
     "backend": {
-        "config": {
-        },
         "tray": {
             "no_game_selected": "놀이의 선택 없음",
             "quick_backup": "빠른 백업",

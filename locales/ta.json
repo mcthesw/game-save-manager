@@ -51,8 +51,6 @@
     "sync_settings": {
         "cloud_root": "முகில் ரூட் அடைவு",
         "title": "ஒத்திசைவான அமைப்புகள்",
-        "reset_success": "மீட்டமை",
-        "submit_success": "வெற்றிகரமாக சேமித்து மாற்றவும்",
         "last_sync": "கடைசி ஒத்திசைவு நேரம்:",
         "manual_link": "பயிற்சி முகவரி",
         "manual_sync": "கையேடு ஒத்திசைவு",
@@ -271,8 +269,6 @@
         "open_log_folder_failed": "பதிவு கோப்புறையைத் திறக்க முடியாது"
     },
     "backend": {
-        "config": {
-        },
         "tray": {
             "no_game_selected": "தேர்வு விளையாட்டு இல்லை",
             "quick_backup": "வேகமான காப்புப்பிரதி",
