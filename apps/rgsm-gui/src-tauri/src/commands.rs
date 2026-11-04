@@ -248,26 +248,20 @@ pub async fn get_app_log_dir(app: AppHandle) -> Result<String, String> {
     Ok(log_dir.to_string_lossy().to_string())
 }
 
-pub async fn choose_save_file(_app: AppHandle) -> Result<String, String> {
+/// `None` means the dialog was cancelled.
+pub async fn choose_save_file() -> Option<String> {
     info!(target:"rgsm::commands", "Opening file dialog.");
-    if let Some(path) = rfd::FileDialog::new().pick_file() {
-        info!(target:"rgsm::commands","Successfully picked file: {:#?}",path);
-        Ok(path.to_string_lossy().into_owned())
-    } else {
-        warn!(target:"rgsm::commands", "Failed to open dialog or user close the dialog.");
-        Err("Failed to open dialog.".to_string())
-    }
+    let path = rfd::FileDialog::new().pick_file()?;
+    info!(target:"rgsm::commands","Successfully picked file: {:#?}",path);
+    Some(path.to_string_lossy().into_owned())
 }
 
-pub async fn choose_save_dir(_app: AppHandle) -> Result<String, String> {
+/// `None` means the dialog was cancelled.
+pub async fn choose_save_dir() -> Option<String> {
     info!(target:"rgsm::commands","Opening folder dialog.");
-    if let Some(path) = rfd::FileDialog::new().pick_folder() {
-        info!(target:"rgsm::commands","Successfully picked folder: {:#?}",path);
-        Ok(path.to_string_lossy().into_owned())
-    } else {
-        warn!(target:"rgsm::commands", "Failed to open dialog or user close the dialog.");
-        Err("Failed to open dialog.".to_string())
-    }
+    let path = rfd::FileDialog::new().pick_folder()?;
+    info!(target:"rgsm::commands","Successfully picked folder: {:#?}",path);
+    Some(path.to_string_lossy().into_owned())
 }
 
 pub async fn get_local_config() -> Result<Config, String> {
@@ -1221,8 +1215,8 @@ pub async fn stop_sound_playback(app: AppHandle) -> Result<(), String> {
     })
 }
 
-pub async fn choose_quick_action_sound_file(app: AppHandle) -> Result<String, String> {
-    sound::choose_quick_action_sound_file(&app)
+pub async fn choose_quick_action_sound_file() -> Option<String> {
+    sound::choose_quick_action_sound_file()
 }
 
 /// Resolves a path string containing variables to an actual filesystem path
