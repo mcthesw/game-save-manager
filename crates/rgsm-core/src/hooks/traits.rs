@@ -17,9 +17,6 @@ pub trait LifecycleHook: Send + Sync {
         100
     }
 
-    async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
-        Ok(())
-    }
     /// Runs after the finalized local catalog is persisted.
     async fn on_snapshot_committed(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
         Ok(())

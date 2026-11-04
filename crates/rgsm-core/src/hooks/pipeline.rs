@@ -67,9 +67,6 @@ macro_rules! gate {
 }
 
 impl HookPipeline {
-    pub async fn fire_snapshot_created(&self, ctx: &mut SnapshotCreatedCtx) {
-        fire!(self, on_snapshot_created, ctx);
-    }
     pub async fn fire_snapshot_committed(&self, ctx: &SnapshotCreatedCtx) {
         fire!(self, on_snapshot_committed, ctx);
     }
@@ -133,7 +130,7 @@ mod tests {
         fn priority(&self) -> u32 {
             self.prio
         }
-        async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
+        async fn on_snapshot_committed(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
             self.log
                 .lock()
                 .unwrap()
@@ -184,7 +181,7 @@ mod tests {
         fn priority(&self) -> u32 {
             self.prio
         }
-        async fn on_snapshot_created(&self, _ctx: &mut SnapshotCreatedCtx) -> HookResult<()> {
+        async fn on_snapshot_committed(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
             self.log.lock().unwrap().push("failing:created".to_string());
             anyhow::bail!("intentional test failure")
         }
@@ -305,8 +302,8 @@ mod tests {
             }),
         ]);
 
-        let mut ctx = make_snapshot_created_ctx();
-        pipeline.fire_snapshot_created(&mut ctx).await;
+        let ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_committed(&ctx).await;
 
         let entries = log.lock().unwrap();
         assert_eq!(*entries, vec!["A:created", "B:created", "C:created"]);
@@ -332,8 +329,8 @@ mod tests {
             }),
         ]);
 
-        let mut ctx = make_snapshot_created_ctx();
-        pipeline.fire_snapshot_created(&mut ctx).await;
+        let ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_committed(&ctx).await;
 
         let entries = log.lock().unwrap();
         assert_eq!(
@@ -345,8 +342,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_with_no_hooks_does_not_panic() {
         let pipeline = HookPipeline::new(vec![]);
-        let mut ctx = make_snapshot_created_ctx();
-        pipeline.fire_snapshot_created(&mut ctx).await;
+        let ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_committed(&ctx).await;
         pipeline.fire_game_added(&make_game_added_ctx()).await;
     }
 
@@ -359,8 +356,8 @@ mod tests {
             log: log.clone(),
         })]);
 
-        let mut ctx = make_snapshot_created_ctx();
-        pipeline.fire_snapshot_created(&mut ctx).await;
+        let ctx = make_snapshot_created_ctx();
+        pipeline.fire_snapshot_committed(&ctx).await;
         pipeline.fire_game_added(&make_game_added_ctx()).await;
         pipeline.fire_game_updated(&make_game_updated_ctx()).await;
 

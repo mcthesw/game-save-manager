@@ -80,7 +80,6 @@ impl ServiceContext {
         let plan = self.capture_plan(&config, game)?;
         let backup_base = resolve_backup_path(&config.backup_path);
         let device_id = crate::device::get_current_device_id();
-        let catalog = SnapshotCatalog::new(&backup_base, game, device_id);
         let created = game
             .create_snapshot_from_capture_plan(
                 &plan,
@@ -98,58 +97,31 @@ impl ServiceContext {
             .await?;
         drop(capture_guard);
 
-        self.finish_created_snapshot(game, &catalog, created, config, source, notifier)
-            .await?;
+        self.announce_created_snapshot(game, created, config, source)
+            .await;
 
         Ok(())
     }
 
-    /// Every snapshot carries an archive hash before hooks see it, so cloud
-    /// upload and restore verification never depend on an optional setting.
-    async fn finish_created_snapshot(
+    async fn announce_created_snapshot(
         &self,
         game: &Game,
-        catalog: &SnapshotCatalog,
         created: SnapshotCreated,
         config: crate::config::Config,
         source: HookSource,
-        notifier: Option<&dyn RestoreNotifier>,
-    ) -> Result<(), BackupError> {
-        let Some(mut snapshot) = created.snapshots.backups.last().cloned() else {
-            return Ok(());
+    ) {
+        let Some(snapshot) = created.snapshots.backups.last().cloned() else {
+            return;
         };
-        notify_stage(notifier, rust_i18n::t!("backend.stage.finalize").as_ref());
-        let hash = compute_file_hash(&created.local_archive_path)?;
-        snapshot.archive_hash = Some(hash.clone());
-        let mut snapshots = created.snapshots;
-        if let Some(entry) = snapshots
-            .backups
-            .iter_mut()
-            .find(|entry| entry.date == snapshot.date)
-        {
-            entry.archive_hash = Some(hash);
-        }
-        let mut ctx = crate::hooks::SnapshotCreatedCtx {
+        let ctx = crate::hooks::SnapshotCreatedCtx {
             config,
             source,
             game: game.clone(),
             snapshot,
-            snapshots,
+            snapshots: created.snapshots,
             local_archive_path: created.local_archive_path,
         };
-        self.pipeline().fire_snapshot_created(&mut ctx).await;
-        ctx.snapshots = catalog.update::<BackupError>(|current| {
-            if let Some(snapshot) = current
-                .backups
-                .iter_mut()
-                .find(|s| s.date == ctx.snapshot.date)
-            {
-                snapshot.archive_hash.clone_from(&ctx.snapshot.archive_hash);
-            }
-            Ok(())
-        })?;
         self.pipeline().fire_snapshot_committed(&ctx).await;
-        Ok(())
     }
 
     pub async fn create_snapshot_if_changed(
@@ -206,8 +178,8 @@ impl ServiceContext {
             )
             .await?;
         drop(capture_guard);
-        self.finish_created_snapshot(game, &catalog, created, config, source, notifier)
-            .await?;
+        self.announce_created_snapshot(game, created, config, source)
+            .await;
         Ok(TimerSnapshotDecision::Created)
     }
 
