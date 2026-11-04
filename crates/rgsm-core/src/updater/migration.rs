@@ -111,7 +111,7 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
 
     // Backfill storage_key for all games if upgrading from before 1.9.0
     if version < version_1_9_0 {
-        new_cfg = migrate_storage_keys(new_cfg, &backup_path);
+        new_cfg = migrate_storage_keys(new_cfg, &backup_path)?;
     }
 
     write_config_transactionally(path, serde_json::to_string_pretty(&new_cfg)?.as_bytes())?;
@@ -458,27 +458,16 @@ fn migrate_snapshot_created_by_in_backup_root(backup_path: &Path) -> Result<(), 
         }
 
         super::preserve_original(&backups_json_path, content.as_bytes())?;
-        match crate::atomic_file::write_bytes_atomically(
+        crate::atomic_file::write_bytes_atomically(
             &backups_json_path,
             &serde_json::to_vec_pretty(&raw)?,
-        ) {
-            Ok(_) => {
-                info!(
-                    target: "rgsm::updater",
-                    "Migrated {} snapshot source entries in {:?}",
-                    migrated_count,
-                    backups_json_path
-                );
-            }
-            Err(err) => {
-                error!(
-                    target: "rgsm::updater",
-                    "Failed to write {:?}: {}",
-                    backups_json_path,
-                    err
-                );
-            }
-        }
+        )?;
+        info!(
+            target: "rgsm::updater",
+            "Migrated {} snapshot source entries in {:?}",
+            migrated_count,
+            backups_json_path
+        );
     }
 
     Ok(())
@@ -598,17 +587,11 @@ fn migrate_game_snapshots_to_chain(backup_path: &Path) -> Result<(), UpdaterErro
 
         // Write updated Backups.json
         super::preserve_original(&backups_json_path, content.as_bytes())?;
-        match crate::atomic_file::write_bytes_atomically(
+        crate::atomic_file::write_bytes_atomically(
             &backups_json_path,
             &serde_json::to_vec_pretty(&game_snapshots)?,
-        ) {
-            Ok(_) => {
-                info!(target: "rgsm::updater", "Migrated snapshots to chain structure: {:?}", backups_json_path);
-            }
-            Err(e) => {
-                error!(target: "rgsm::updater", "Failed to write {:?}: {}", backups_json_path, e);
-            }
-        }
+        )?;
+        info!(target: "rgsm::updater", "Migrated snapshots to chain structure: {:?}", backups_json_path);
     }
 
     info!(target: "rgsm::updater", "Game snapshots migration completed");
@@ -659,7 +642,7 @@ fn migrate_save_unit_ids(mut config: Config) -> Config {
 ///
 /// Also replaces a legacy quick-action display-name reference with the storage
 /// key assigned to that game.
-fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
+fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Result<Config, UpdaterError> {
     // Resolve the old reference before newly generated keys can shadow names.
     let quick_action_index = config
         .quick_action
@@ -702,7 +685,7 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
             key, game.name
         );
         if key != game.name {
-            move_legacy_backup_directory(backup_path, &game.name, &key);
+            move_legacy_backup_directory(backup_path, &game.name, &key)?;
         }
         game.storage_key = key.clone();
         assigned.insert(key);
@@ -712,36 +695,34 @@ fn migrate_storage_keys(mut config: Config, backup_path: &Path) -> Config {
         quick_action_index.map(|index| config.games[index].storage_key.clone());
     config.bind_legacy_game_references();
 
-    config
+    Ok(config)
 }
 
 /// A legacy display name that cannot be a storage key (for example `a/b`)
 /// still names the directory holding that game's history. Move it under the
 /// new key so the history stays visible; names that could leave the backup
 /// root (.., absolute paths) are never touched.
-fn move_legacy_backup_directory(backup_path: &Path, legacy_name: &str, key: &str) {
+fn move_legacy_backup_directory(
+    backup_path: &Path,
+    legacy_name: &str,
+    key: &str,
+) -> std::io::Result<()> {
     let legacy_dir = backup_path.join(legacy_name);
     let target = backup_path.join(key);
     let stays_inside = Path::new(legacy_name)
         .components()
         .all(|component| matches!(component, std::path::Component::Normal(_)));
     if !stays_inside || !legacy_dir.is_dir() || target.exists() {
-        return;
+        return Ok(());
     }
-    match fs::rename(&legacy_dir, &target) {
-        Ok(()) => info!(
-            target: "rgsm::updater",
-            "Moved backup directory '{}' to '{}'",
-            legacy_dir.display(),
-            target.display()
-        ),
-        Err(error) => warn!(
-            target: "rgsm::updater",
-            "Could not move backup directory '{}' to '{}': {error}",
-            legacy_dir.display(),
-            target.display()
-        ),
-    }
+    fs::rename(&legacy_dir, &target)?;
+    info!(
+        target: "rgsm::updater",
+        "Moved backup directory '{}' to '{}'",
+        legacy_dir.display(),
+        target.display()
+    );
+    Ok(())
 }
 #[cfg(test)]
 mod tests {
@@ -1355,7 +1336,7 @@ mod tests {
             device_bindings: std::collections::HashMap::new(),
         });
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
         assert!(!migrated.games[0].storage_key.is_empty());
         assert!(!migrated.games[1].storage_key.is_empty());
     }
@@ -1380,7 +1361,7 @@ mod tests {
             device_bindings: std::collections::HashMap::new(),
         });
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
         assert_eq!(migrated.games[0].storage_key, "My Game");
     }
 
@@ -1410,7 +1391,7 @@ mod tests {
         config.games.push(legacy_game("a/b"));
         config.games.push(legacy_game(".."));
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
 
         assert_eq!(migrated.games[0].storage_key, "a_b");
         assert!(backup_path.join("a_b").join("Backups.json").is_file());
@@ -1427,7 +1408,7 @@ mod tests {
         let mut config = Config::default();
         config.games.push(legacy_game("My__Game"));
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
 
         assert_eq!(migrated.games[0].storage_key, "My__Game");
         assert!(backup_path.join("My__Game").is_dir());
@@ -1451,7 +1432,7 @@ mod tests {
             device_bindings: std::collections::HashMap::new(),
         });
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
         assert_eq!(migrated.games[0].storage_key, "existing_key");
     }
 
@@ -1486,7 +1467,7 @@ mod tests {
             device_bindings: std::collections::HashMap::new(),
         });
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
         let k0 = &migrated.games[0].storage_key;
         let k1 = &migrated.games[1].storage_key;
         assert_ne!(k0, k1);
@@ -1517,7 +1498,7 @@ mod tests {
         }))
         .unwrap();
 
-        let migrated = migrate_storage_keys(config, temp_dir.path());
+        let migrated = migrate_storage_keys(config, temp_dir.path()).unwrap();
 
         assert_eq!(migrated.games[0].storage_key, "A_B");
         assert_eq!(migrated.games[1].storage_key, "A_B_2");
@@ -1555,10 +1536,118 @@ mod tests {
         });
         config.quick_action.quick_action_game_id = Some("QA Game".to_string());
 
-        let migrated = migrate_storage_keys(config, &backup_path);
+        let migrated = migrate_storage_keys(config, &backup_path).unwrap();
         assert_eq!(
             migrated.quick_action.quick_action_game_id.as_deref(),
             Some(migrated.games[0].storage_key.as_str())
         );
+    }
+
+    /// Restores write access when dropped so the temp dir can be removed.
+    struct Locked(PathBuf);
+
+    impl Drop for Locked {
+        fn drop(&mut self) {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+            }
+            // Clearing the read-only attribute is Windows-only here; the Unix lint is about mode bits.
+            #[cfg(windows)]
+            #[allow(clippy::permissions_set_readonly_false)]
+            if let Ok(metadata) = fs::metadata(&self.0) {
+                let mut permissions = metadata.permissions();
+                permissions.set_readonly(false);
+                let _ = fs::set_permissions(&self.0, permissions);
+            }
+        }
+    }
+
+    /// Makes the next atomic rewrite of `json` fail: Windows refuses to replace
+    /// a read-only file, Unix refuses to create the temp file in a read-only directory.
+    fn block_rewrite(json: &Path) -> Locked {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = json.parent().unwrap();
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o555)).unwrap();
+            Locked(dir.to_path_buf())
+        }
+        #[cfg(windows)]
+        {
+            let mut permissions = fs::metadata(json).unwrap().permissions();
+            permissions.set_readonly(true);
+            fs::set_permissions(json, permissions).unwrap();
+            Locked(json.to_path_buf())
+        }
+    }
+
+    /// The `.bak` already holds these bytes, so only the rewrite itself can fail.
+    fn legacy_backups_json(game_dir: &Path, raw: &Value) -> PathBuf {
+        let json = game_dir.join("Backups.json");
+        let bytes = serde_json::to_string_pretty(raw).unwrap();
+        fs::create_dir_all(game_dir).unwrap();
+        fs::write(&json, &bytes).unwrap();
+        fs::write(game_dir.join("Backups.json.bak"), &bytes).unwrap();
+        json
+    }
+
+    #[test]
+    fn snapshot_created_by_migration_fails_when_backups_json_cannot_be_rewritten() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_root = temp_dir.path().join("backup");
+        let json = legacy_backups_json(
+            &backup_root.join("game"),
+            &serde_json::json!({
+                "name": "game",
+                "backups": [{ "date": "2025-01-01_00-00-00", "describe": "x", "path": "a.zip", "size": 1 }],
+                "device_heads": {}
+            }),
+        );
+        let _locked = block_rewrite(&json);
+
+        assert!(migrate_snapshot_created_by_in_backup_root(&backup_root).is_err());
+    }
+
+    #[test]
+    fn snapshot_chain_migration_fails_when_backups_json_cannot_be_rewritten() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_root = temp_dir.path().join("backup");
+        let json = legacy_backups_json(
+            &backup_root.join("game"),
+            &serde_json::json!({
+                "name": "game",
+                "backups": [
+                    { "date": "2025-01-01_00-00-00", "describe": "x", "path": "a.zip", "size": 1 },
+                    { "date": "2025-01-02_00-00-00", "describe": "x", "path": "b.zip", "size": 1 }
+                ],
+                "device_heads": {}
+            }),
+        );
+        let _locked = block_rewrite(&json);
+
+        assert!(migrate_game_snapshots_to_chain(&backup_root).is_err());
+    }
+
+    #[test]
+    fn migrate_storage_keys_fails_when_the_history_directory_cannot_be_moved() {
+        let temp_dir = temp_dir::TempDir::new().unwrap();
+        let backup_path = temp_dir.path().join("backups");
+        let history = backup_path.join("a").join("b");
+        fs::create_dir_all(&history).unwrap();
+        // Windows cannot rename a directory while a file inside it is open.
+        #[cfg(windows)]
+        let _held = fs::File::create(history.join("Backups.json")).unwrap();
+        #[cfg(unix)]
+        let _locked = {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&backup_path, fs::Permissions::from_mode(0o555)).unwrap();
+            Locked(backup_path.clone())
+        };
+        let mut config = Config::default();
+        config.games.push(legacy_game("a/b"));
+
+        assert!(migrate_storage_keys(config, &backup_path).is_err());
     }
 }
