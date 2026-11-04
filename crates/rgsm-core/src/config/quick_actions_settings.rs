@@ -174,12 +174,6 @@ impl QuickActionsSettings {
         }
     }
 
-    pub fn automation_for_game(&self, game: &Game) -> Option<&GameAutomationSettings> {
-        self.game_automations
-            .iter()
-            .find(|automation| automation.references_game(game))
-    }
-
     pub fn upsert_game_automation(&mut self, game: &Game, draft: GameAutomationSettingsDraft) {
         let automation = GameAutomationSettings {
             storage_key: game.storage_key.clone(),

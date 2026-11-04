@@ -116,14 +116,6 @@ pub struct ConfigCheckOutcome {
     pub config_migrated: bool,
 }
 
-/// Set settings to original state
-pub async fn reset_settings() -> Result<(), ConfigError> {
-    let settings = Config::default().settings;
-    let mut config = get_config()?;
-    config.settings = settings;
-    set_config(&config).await
-}
-
 /// Create a config file
 fn init_config() -> Result<(), ConfigError> {
     let config_path = resolve_app_path("GameSaveManager.config.json");

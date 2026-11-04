@@ -55,22 +55,6 @@ struct ManifestMeta {
     source_url: Option<String>,
 }
 
-/// Represents a single game entry in the ludusavi manifest
-/// Currently unused but kept for future expansions
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ManifestGame {
-    /// Game name (used as the key in the manifest)
-    pub name: String,
-    /// Steam ID if available
-    pub steam_id: Option<u32>,
-    /// Save file paths with platform conditions
-    pub files: Vec<SavePath>,
-    /// Registry paths (Windows only)
-    pub registry: Vec<String>,
-}
-
 /// Represents a save file path with its conditions
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -423,24 +407,6 @@ pub fn detect_local_games(
                         detected.insert(name.clone());
                         break;
                     }
-                }
-            }
-        }
-
-        // Also check registry paths on Windows
-        #[cfg(target_os = "windows")]
-        if let Some(registry) = value.get("registry").and_then(|r| r.as_mapping()) {
-            for (path_key, path_value) in registry {
-                if let Some(_path_str) = path_key.as_str() {
-                    // Check if this path applies to current OS
-                    let when_conditions = path_value.get("when");
-                    if !matches_current_system(when_conditions) {
-                        continue;
-                    }
-
-                    // For registry, we could check if the key exists
-                    // For now, skip registry detection as it's complex
-                    // TODO: Implement Windows registry checking
                 }
             }
         }
