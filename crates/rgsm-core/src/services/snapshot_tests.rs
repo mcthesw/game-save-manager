@@ -225,3 +225,70 @@ fn legacy_v2_typed_pattern_preserves_declared_folder_kind() {
     assert_eq!(groups[0].kind, CaptureSourceKind::Directory);
     assert!(groups[0].delete_before_apply);
 }
+
+mod archive_check {
+    use std::fs;
+
+    use crate::backup::{ArchiveFormat, Snapshot};
+    use crate::config::{Config, ConfigTestStateGuard, set_config_local};
+
+    use super::*;
+
+    #[test]
+    fn check_resolves_the_archive_from_the_backup_directory() {
+        let _lock = crate::config::lock_config_test_file();
+        let root = temp_dir::TempDir::new().unwrap();
+        let game: Game = serde_json::from_value(serde_json::json!({
+            "name": "Check game", "storage_key": "check-game", "save_paths": []
+        }))
+        .unwrap();
+        let config = Config {
+            backup_path: root.path().join("archives").to_string_lossy().into_owned(),
+            games: vec![game.clone()],
+            ..Config::default()
+        };
+        let _guard = ConfigTestStateGuard::replace_with(&config).unwrap();
+        set_config_local(&config).unwrap();
+        let directory = root.path().join("archives/check-game");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("a.7z"), "payload").unwrap();
+        let snapshot = |date: &str, hash: &str| Snapshot {
+            date: date.into(),
+            describe: String::new(),
+            // A path that no longer exists must not decide the outcome.
+            path: root
+                .path()
+                .join("moved/old.7z")
+                .to_string_lossy()
+                .into_owned(),
+            archive_name: None,
+            archive_format: ArchiveFormat::SevenZ,
+            size: 1,
+            parent: None,
+            archive_hash: Some(hash.into()),
+            created_at: None,
+            device_id: None,
+            created_by: CreatedBy::Manual,
+        };
+        let good_hash = compute_file_hash(&directory.join("a.7z")).unwrap();
+        fs::write(directory.join("c.7z"), "tampered").unwrap();
+        let mut snapshots = GameSnapshots::new("Check game");
+        for date in ["a", "b", "c"] {
+            snapshots.backups.push(snapshot(date, &good_hash));
+        }
+        game.set_game_snapshots_info(&snapshots).unwrap();
+
+        assert_eq!(
+            check_snapshot_archive(&game, "a").unwrap(),
+            ArchiveIntegrity::Verified
+        );
+        assert_eq!(
+            check_snapshot_archive(&game, "b").unwrap(),
+            ArchiveIntegrity::Missing
+        );
+        assert_eq!(
+            check_snapshot_archive(&game, "c").unwrap(),
+            ArchiveIntegrity::Mismatch
+        );
+    }
+}

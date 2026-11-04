@@ -377,8 +377,8 @@ pub async fn http_get_game_snapshots_info(
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VerifyArchiveIntegrityRequest {
-    pub archive_path: String,
-    pub expected_hash: Option<String>,
+    pub game: Game,
+    pub date: String,
 }
 
 #[utoipa::path(
@@ -386,12 +386,12 @@ pub struct VerifyArchiveIntegrityRequest {
     path = "/api/v1/verify-archive-integrity",
     operation_id = "verifyArchiveIntegrity",
     request_body = VerifyArchiveIntegrityRequest,
-    responses((status = 200, body = bool), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+    responses((status = 200, body = rgsm_core::services::ArchiveIntegrity), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
 )]
 pub async fn http_verify_archive_integrity(
     Json(request): Json<VerifyArchiveIntegrityRequest>,
-) -> Result<Json<bool>, ApiError> {
-    commands::verify_archive_integrity(request.archive_path, request.expected_hash)
+) -> Result<Json<rgsm_core::services::ArchiveIntegrity>, ApiError> {
+    commands::verify_archive_integrity(request.game, request.date)
         .await
         .map(Json)
         .map_err(ApiError::from_command)

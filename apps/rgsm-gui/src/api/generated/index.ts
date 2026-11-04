@@ -135,6 +135,7 @@ export type {
   ApplyAllError,
   ApplyAllErrors,
   ApplyAllResponses,
+  ArchiveIntegrity,
   ArchiveFormat,
   AutoBackupConfig,
   AutoBackupGameStatus,
