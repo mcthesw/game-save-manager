@@ -49,6 +49,7 @@ async fn try_fetch(
             polls: polls.clone(),
         }),
         cooldown: Box::leak(Box::new(Cooldown::new())),
+        limits: Limits::DEFAULT,
     };
     let request = Request::builder()
         .method(method)
@@ -97,6 +98,7 @@ async fn throttling_starts_the_cooldown_until_the_provider_answers_normally() {
                 calls: Arc::default(),
             }),
             cooldown: &COOLDOWN,
+            limits: Limits::DEFAULT,
         };
         let request = Request::builder()
             .uri("http://localhost/x")
@@ -151,6 +153,7 @@ async fn requests_for_failed_read(
             calls: calls.clone(),
         }),
         cooldown: Box::leak(Box::new(Cooldown::new())),
+        limits: Limits::DEFAULT,
     };
     let operator =
         opendal::Operator::new(opendal::services::Webdav::default().endpoint("http://localhost"))
@@ -261,4 +264,90 @@ fn exception_matching_is_namespace_aware_and_fails_closed() {
             "unexpected match: {xml}"
         );
     }
+}
+
+struct SlowFetcher {
+    answer_after: Duration,
+    body: fn() -> HttpBody,
+}
+
+impl HttpFetch for SlowFetcher {
+    async fn fetch(&self, _: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
+        tokio::time::sleep(self.answer_after).await;
+        Ok(Response::builder()
+            .status(StatusCode::CREATED)
+            .body((self.body)())
+            .unwrap())
+    }
+}
+
+fn client_with(limits: Limits, answer_after: Duration, body: fn() -> HttpBody) -> WebDavHttpClient {
+    WebDavHttpClient {
+        inner: HttpClient::with(SlowFetcher { answer_after, body }),
+        cooldown: Box::leak(Box::new(Cooldown::new())),
+        limits,
+    }
+}
+
+fn empty_body() -> HttpBody {
+    HttpBody::new(futures_util::stream::empty(), Some(0))
+}
+
+fn request_with_body(bytes: usize) -> Request<Buffer> {
+    Request::builder()
+        .method(Method::PUT)
+        .uri("http://localhost/archive.zip")
+        .body(Buffer::from(vec![0; bytes]))
+        .unwrap()
+}
+
+const SLOW_LINK: Limits = Limits {
+    request: Duration::from_millis(200),
+    upload_rate: 1024 * 1024,
+};
+
+#[tokio::test]
+async fn a_slow_upload_of_a_large_archive_is_not_cut_off() {
+    // The server answers only after the whole body arrived, which takes longer
+    // than a metadata request may, but fits the time the archive size allows.
+    let client = client_with(SLOW_LINK, Duration::from_millis(600), empty_body);
+
+    let response = client.fetch(request_with_body(1024 * 1024)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let Err(error) = client.fetch(request_with_body(0)).await else {
+        panic!("a request without a body must not get an archive's time");
+    };
+    assert!(error.is_temporary(), "a timed-out request is retried");
+}
+
+#[tokio::test]
+async fn a_download_is_judged_by_silence_not_by_total_time() {
+    fn steady() -> HttpBody {
+        let chunks = futures_util::stream::iter(0..5).then(|_| async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Ok(Buffer::from("x"))
+        });
+        HttpBody::new(Box::pin(chunks), None)
+    }
+    fn stalls() -> HttpBody {
+        let chunks = futures_util::stream::iter([Ok(Buffer::from("x"))])
+            .chain(futures_util::stream::pending());
+        HttpBody::new(chunks, None)
+    }
+
+    let started = Instant::now();
+    let mut response = client_with(SLOW_LINK, Duration::ZERO, steady)
+        .fetch(request_with_body(0))
+        .await
+        .unwrap();
+    assert_eq!(response.body_mut().to_buffer().await.unwrap().len(), 5);
+    assert!(started.elapsed() > SLOW_LINK.request * 2);
+
+    let mut response = client_with(SLOW_LINK, Duration::ZERO, stalls)
+        .fetch(request_with_body(0))
+        .await
+        .unwrap();
+    let error = response.body_mut().to_buffer().await.unwrap_err();
+    assert!(error.is_temporary());
 }

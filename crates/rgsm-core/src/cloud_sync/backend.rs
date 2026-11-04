@@ -271,7 +271,8 @@ fn check_failure_message(action: &str, err: impl std::fmt::Display) -> String {
 impl Backend {
     /// A stalled connection would otherwise hang a sync, and the exclusive cloud
     /// operation lock with it, until the OS drops the socket. The limits apply per
-    /// request or chunk, not per archive, and stay loose for slow links.
+    /// request or chunk, not per archive, and stay loose for slow links. WebDAV
+    /// sizes its own limits to each request and does not use this layer.
     fn timeout_layer() -> TimeoutLayer {
         TimeoutLayer::new()
             .with_timeout(Duration::from_secs(120))
@@ -280,19 +281,20 @@ impl Backend {
 
     /// Timeout must sit inside retry: it drops the timed-out future, which retry
     /// then replays.
-    fn harden<A: opendal::raw::Access>(
-        builder: opendal::OperatorBuilder<A>,
-        timeout: TimeoutLayer,
-    ) -> Operator {
-        builder.layer(timeout).layer(Self::retry_layer()).finish()
+    fn harden<A: opendal::raw::Access>(builder: opendal::OperatorBuilder<A>) -> Operator {
+        builder
+            .layer(Self::timeout_layer())
+            .layer(Self::retry_layer())
+            .finish()
     }
 
+    /// Three attempts in all.
     fn retry_layer() -> RetryLayer {
         RetryLayer::new()
             .with_jitter()
             .with_min_delay(Duration::from_millis(200))
             .with_max_delay(Duration::from_secs(2))
-            .with_max_times(3)
+            .with_max_times(2)
     }
 
     pub fn get_op_with_root(&self, root: &str) -> Result<Operator, BackendError> {
@@ -310,7 +312,7 @@ impl Backend {
                 let builder = services::Fs::default()
                     .root(root)
                     .atomic_write_dir(&Path::new(root).join(FS_ATOMIC_WRITE_DIR).to_string_lossy());
-                Ok(Self::harden(Operator::new(builder)?, Self::timeout_layer()))
+                Ok(Self::harden(Operator::new(builder)?))
             }
             Backend::WebDAV {
                 endpoint,
@@ -322,10 +324,10 @@ impl Backend {
                     .username(username)
                     .password(password)
                     .root(root);
-                Ok(Self::harden(
-                    Operator::new(builder)?.layer(super::webdav::compatibility_layer()?),
-                    Self::timeout_layer(),
-                ))
+                Ok(Operator::new(builder)?
+                    .layer(super::webdav::compatibility_layer()?)
+                    .layer(Self::retry_layer())
+                    .finish())
             }
             Backend::S3 {
                 endpoint,
@@ -349,7 +351,7 @@ impl Backend {
                 } else {
                     builder
                 };
-                Ok(Self::harden(Operator::new(builder)?, Self::timeout_layer()))
+                Ok(Self::harden(Operator::new(builder)?))
             }
         }
     }
@@ -681,16 +683,20 @@ mod tests {
                 held.push(stream);
             }
         });
-        let builder =
+        let operator =
             opendal::Operator::new(opendal::services::Webdav::default().endpoint(&endpoint))
                 .unwrap()
-                .layer(crate::cloud_sync::webdav::compatibility_layer().unwrap());
-        let operator = Backend::harden(
-            builder,
-            super::TimeoutLayer::new()
-                .with_timeout(std::time::Duration::from_millis(200))
-                .with_io_timeout(std::time::Duration::from_millis(200)),
-        );
+                .layer(
+                    crate::cloud_sync::webdav::compatibility_layer_with(
+                        crate::cloud_sync::webdav::Limits {
+                            request: std::time::Duration::from_millis(200),
+                            upload_rate: 1024,
+                        },
+                    )
+                    .unwrap(),
+                )
+                .layer(Backend::retry_layer())
+                .finish();
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(20),
