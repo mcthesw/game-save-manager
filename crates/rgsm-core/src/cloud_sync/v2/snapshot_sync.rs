@@ -8,9 +8,9 @@ use tokio_util::sync::CancellationToken;
 use super::{
     ArchiveIntegrity, ArchiveIntegrityError, CLOUD_MANIFEST_PATH, CloudArchiveMaterializer,
     CloudManifest, CloudManifestRepository, DeletionKind, DeletionRegistryError,
-    DeletionRegistryRepository, ManifestError, ManifestRepositoryError, SnapshotDeletionLifecycle,
-    SnapshotDeletionLifecycleError, SnapshotNode, SnapshotRetentionPlanner,
-    SnapshotRetentionPlannerError, SnapshotState,
+    DeletionRegistryRepository, GameManifest, ManifestError, ManifestRepositoryError,
+    SnapshotDeletionLifecycle, SnapshotDeletionLifecycleError, SnapshotNode,
+    SnapshotRetentionPlanner, SnapshotRetentionPlannerError, SnapshotState,
 };
 use crate::backup::{GameSnapshots, Snapshot, archive_path};
 use crate::device::DeviceId;
@@ -140,42 +140,44 @@ impl SnapshotSyncCoordinator {
         self.ensure_active_or_converge_deleted_game(game_id).await?;
         let mut manifest = self.repository().load().await?;
         let order = publication_order(&manifest, game_id, local)?;
-        let mut outcome = SnapshotReconciliationOutcome::default();
-
-        for snapshot in order {
-            if cancellation.is_cancelled() {
-                return Err(SnapshotSyncError::Cancelled);
-            }
-            let inherited_ancestor = local_baseline.contains(&snapshot.date);
-            self.publish_local_node(
-                game_id,
-                &snapshot,
-                inherited_ancestor.then_some(activation_revision),
-            )
-            .await?;
-            outcome.published += 1;
-        }
-
-        manifest = self.repository().load().await?;
         let locally_reported = manifest
             .games
             .get(game_id)
             .and_then(|game| game.local_archives.get(&self.current_device_id))
             .cloned()
             .unwrap_or_default();
+        let mut nodes: Vec<(&Snapshot, Option<u64>)> = order
+            .iter()
+            .map(|snapshot| {
+                let inherited_ancestor = local_baseline.contains(&snapshot.date);
+                (snapshot, inherited_ancestor.then_some(activation_revision))
+            })
+            .collect();
         for snapshot in &local.backups {
             if local_baseline.contains(&snapshot.date)
                 || locally_reported.contains(&snapshot.date)
+                || order.iter().any(|ordered| ordered.date == snapshot.date)
                 || !self.local_path(game_id, snapshot).is_file()
             {
                 continue;
             }
-            self.publish_local_node(game_id, snapshot, None).await?;
-            outcome.published += 1;
+            nodes.push((snapshot, None));
         }
-
-        self.publish_current_head(game_id, local).await?;
-        manifest = self.repository().load().await?;
+        if cancellation.is_cancelled() {
+            return Err(SnapshotSyncError::Cancelled);
+        }
+        let mut outcome = SnapshotReconciliationOutcome {
+            published: nodes.len(),
+            ..Default::default()
+        };
+        if nodes.is_empty() {
+            self.publish_current_head(game_id, local).await?;
+            manifest = self.repository().load().await?;
+        } else {
+            manifest = self
+                .publish_local_nodes(game_id, &nodes, Some(local))
+                .await?;
+        }
         if policy.upload_new_archives {
             let upload_ids = manifest
                 .games
@@ -300,37 +302,65 @@ impl SnapshotSyncCoordinator {
         snapshot: &Snapshot,
         inherited_revision: Option<u64>,
     ) -> Result<(), SnapshotSyncError> {
+        self.publish_local_nodes(game_id, &[(snapshot, inherited_revision)], None)
+            .await?;
+        Ok(())
+    }
+
+    /// Publish Snapshot nodes, and this Device's head when `head_of` is given,
+    /// in one Manifest write. Every write costs a fresh read of the Manifest
+    /// and the deletion registry, so a round writes once instead of per node.
+    pub(crate) async fn publish_local_nodes(
+        &self,
+        game_id: &str,
+        nodes: &[(&Snapshot, Option<u64>)],
+        head_of: Option<&GameSnapshots>,
+    ) -> Result<CloudManifest, SnapshotSyncError> {
         self.ensure_active_or_converge_deleted_game(game_id).await?;
-        let integrity = self.local_integrity(game_id, snapshot).await?;
+        let mut prepared = Vec::with_capacity(nodes.len());
+        for (snapshot, inherited_revision) in nodes {
+            let integrity = self.local_integrity(game_id, snapshot).await?;
+            prepared.push(((*snapshot).clone(), integrity, *inherited_revision));
+        }
+        let head = head_of.map(|local| local.head_for_device(&self.current_device_id).cloned());
         let game_id = game_id.to_string();
         let cleanup_game_id = game_id.clone();
-        let snapshot = snapshot.clone();
         let current_device_id = self.current_device_id.clone();
-        self.repository()
+        let manifest = self
+            .repository()
             .mutate(move |manifest| {
-                let catalog_revision =
-                    inherited_revision.unwrap_or(manifest.revision.checked_add(1).ok_or_else(
-                        || ManifestError::SnapshotContentConflict(snapshot.date.clone()),
-                    )?);
-                let game = manifest.game_mut(&game_id);
-                if let Some(existing) = game.snapshots.get_mut(&snapshot.date) {
-                    merge_local_snapshot(existing, &snapshot, integrity.clone())?;
-                } else {
-                    let mut node = SnapshotNode::from_snapshot(&snapshot, integrity.clone());
-                    node.catalog_revision = catalog_revision;
-                    game.upsert_live(node)?;
+                for (snapshot, integrity, inherited_revision) in &prepared {
+                    let catalog_revision =
+                        inherited_revision.unwrap_or(manifest.revision.checked_add(1).ok_or_else(
+                            || ManifestError::SnapshotContentConflict(snapshot.date.clone()),
+                        )?);
+                    let game = manifest.game_mut(&game_id);
+                    if let Some(existing) = game.snapshots.get_mut(&snapshot.date) {
+                        merge_local_snapshot(existing, snapshot, integrity.clone())?;
+                    } else {
+                        let mut node = SnapshotNode::from_snapshot(snapshot, integrity.clone());
+                        node.catalog_revision = catalog_revision;
+                        game.upsert_live(node)?;
+                    }
+                    game.report_local_archive(
+                        current_device_id.clone(),
+                        snapshot.date.clone(),
+                        integrity.is_some(),
+                    );
                 }
-                game.report_local_archive(
-                    current_device_id.clone(),
-                    snapshot.date.clone(),
-                    integrity.is_some(),
-                );
+                if let Some(head) = &head {
+                    advertise_head(
+                        manifest.game_mut(&game_id),
+                        &current_device_id,
+                        head.as_ref(),
+                    );
+                }
                 Ok(())
             })
             .await?;
         self.ensure_active_or_converge_deleted_game_after_write(&cleanup_game_id)
             .await?;
-        Ok(())
+        Ok(manifest)
     }
 
     pub async fn upload_local_snapshot(
@@ -381,10 +411,11 @@ impl SnapshotSyncCoordinator {
                 &mut emitted,
                 &mut order,
             )?;
-            for ancestor in order {
-                self.publish_local_node(game_id, &ancestor, None).await?;
-            }
+            let nodes: Vec<_> = order.iter().map(|ancestor| (ancestor, None)).collect();
+            self.publish_local_nodes(game_id, &nodes, Some(local))
+                .await?;
             self.materializer.upload(game_id, &snapshot.date).await?;
+            return Ok(());
         }
         self.publish_current_head(game_id, local).await?;
         Ok(())
@@ -514,6 +545,22 @@ impl SnapshotSyncCoordinator {
             snapshot.archive_format,
             snapshot.archive_name.as_deref(),
         )
+    }
+}
+
+/// A head that points at a Snapshot the Manifest does not hold yet is left
+/// alone: it is advertised once that Snapshot is published.
+fn advertise_head(game: &mut GameManifest, device_id: &DeviceId, head: Option<&String>) {
+    let advertised = game.device_heads.get(device_id);
+    match head {
+        Some(head) if game.snapshots.contains_key(head) => {
+            if advertised != Some(head) {
+                game.set_head(device_id.clone(), head.clone());
+            }
+        }
+        Some(_) => {}
+        None if advertised.is_some() => game.clear_head(device_id),
+        None => {}
     }
 }
 
@@ -1000,6 +1047,7 @@ mod tests {
         let child = snapshot("child", Some("root"));
         local.backups.push(root_snapshot);
         local.backups.push(child.clone());
+        local.set_head_for_device("pc".into(), Some("child".into()));
 
         coordinator
             .upload_local_snapshot("game", &child, &local)
@@ -1011,6 +1059,11 @@ mod tests {
         assert!(game.snapshots["root"].state.is_live());
         assert!(game.snapshots["child"].state.is_live());
         assert_eq!(game.snapshots["child"].parent.as_deref(), Some("root"));
+        assert_eq!(game.device_heads["pc"], "child");
+        assert_eq!(
+            stored.revision, 2,
+            "ancestors, nodes and head share one write; verifying the upload is the other"
+        );
         let SnapshotState::Live(child_live) = &game.snapshots["child"].state else {
             panic!("child should be live");
         };

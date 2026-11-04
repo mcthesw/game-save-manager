@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use super::metadata_read::read_complete_json;
-use super::read_round::{cached_read, invalidate};
+use super::read_round::{cached_read, invalidate, remember};
 use super::{CloudManifest, DeletionRegistryError, DeletionRegistryRepository, ManifestError};
 
 #[async_trait]
@@ -136,7 +136,10 @@ impl<T: ManifestTransport> CloudManifestRepository<T> {
         let bytes = serde_json::to_vec_pretty(&manifest)?;
         let written = self.transport.write(&bytes).await;
         if let Some(key) = self.transport.cache_key() {
-            invalidate(key);
+            match written {
+                Ok(()) => remember(key, bytes),
+                Err(_) => invalidate(key),
+            }
         }
         written?;
         Ok(manifest)
@@ -260,7 +263,13 @@ mod tests {
                 })
                 .await
                 .unwrap();
+            let reads_after_write = repository.transport.reads.load(Ordering::SeqCst);
             assert_eq!(repository.load().await.unwrap(), written);
+            assert_eq!(
+                repository.transport.reads.load(Ordering::SeqCst),
+                reads_after_write,
+                "a write is remembered, not read back"
+            );
         })
         .await;
     }

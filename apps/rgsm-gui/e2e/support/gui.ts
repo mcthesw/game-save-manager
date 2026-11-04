@@ -141,6 +141,17 @@ export function snapshotRow(page: Page, snapshotId: string): Locator {
 /** The explicit refresh a user triggers; pages otherwise show the last cached cloud read. */
 export async function refreshCloudView(page: Page): Promise<void> {
   await page.evaluate(async () => {
+    const configPath = '/src/composables/useConfig.ts';
+    const { config } = (await import(configPath)).useConfig();
+    // A freshly loaded page reads a Disabled default until its configuration
+    // arrives, and a refresh then does nothing.
+    const deadline = Date.now() + 15_000;
+    while (
+      (config.value.settings.cloud_settings?.backend?.type ?? 'Disabled') === 'Disabled' &&
+      Date.now() < deadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     const path = '/src/composables/useCloudLibrary.ts';
     await (await import(path)).refreshCloudLibrary(true);
   });
