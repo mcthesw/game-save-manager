@@ -91,7 +91,7 @@ pub struct QuickActionsSettings {
     pub enable_sound: bool,
     #[serde(default = "default_value::default_true")]
     pub enable_notification: bool,
-    #[serde(default = "default_value::default_true")]
+    #[serde(default = "default_value::default_false")]
     pub notify_when_unchanged: bool,
     #[serde(default)]
     pub sounds: QuickActionSoundSlots,
@@ -106,7 +106,7 @@ impl Default for QuickActionsSettings {
             hotkeys: QuickActionHotkeys::default(),
             enable_sound: default_value::default_true(),
             enable_notification: default_value::default_true(),
-            notify_when_unchanged: default_value::default_true(),
+            notify_when_unchanged: default_value::default_false(),
             sounds: QuickActionSoundSlots::default(),
             game_automations: default_value::empty_vec(),
         }
@@ -226,6 +226,14 @@ mod tests {
             ludusavi_meta: None,
             device_bindings: Default::default(),
         }
+    }
+
+    #[test]
+    fn unchanged_backup_notice_is_off_by_default() {
+        let settings: QuickActionsSettings = serde_json::from_value(serde_json::json!({})).unwrap();
+
+        assert!(!settings.notify_when_unchanged);
+        assert!(!QuickActionsSettings::default().notify_when_unchanged);
     }
 
     #[test]
