@@ -136,9 +136,9 @@ test('1.9 owned configuration and V4/V5 archives survive startup, local conversi
     await page.goto('/Settings');
     await page.getByRole('button', { name: 'Backup settings', exact: true }).click();
     const panel = page.getByTestId('local-upgrade');
-    await expect(panel.getByText('2 older backups', { exact: true })).toBeVisible();
+    await expect(panel.getByText('2 local snapshots to upgrade', { exact: true })).toBeVisible();
     await panel.getByRole('button', { name: 'Start upgrade', exact: true }).click();
-    await expect(panel.getByText('2 of 2 backups upgraded', { exact: true })).toBeVisible();
+    await expect(panel.getByText('2 of 2 snapshots upgraded', { exact: true })).toBeVisible();
     await expectLive(['new-progress', 'new-progress']);
     const retained = join(
       archiveRoot,

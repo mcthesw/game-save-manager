@@ -67,7 +67,7 @@ test('local upgrades pause, resume, repair pending entries and retain originals 
     await page.goto('/Settings');
     await page.getByRole('button', { name: 'Backup settings', exact: true }).click();
     const panel = page.getByTestId('local-upgrade');
-    await expect(panel.getByText('4 older backups', { exact: true })).toBeVisible();
+    await expect(panel.getByText('4 local snapshots to upgrade', { exact: true })).toBeVisible();
     await expect(access(join(device.archiveRoot, '.rgsm-upgrade'))).rejects.toThrow();
     await page.screenshot({
       path: testInfo.outputPath('upgrade-preview.png'),
@@ -97,7 +97,7 @@ test('local upgrades pause, resume, repair pending entries and retain originals 
     ).toBeVisible();
     await page.reload();
     await page.getByRole('button', { name: 'Backup settings', exact: true }).click();
-    await expect(panel.getByText('1 of 4 backups upgraded', { exact: true })).toBeVisible();
+    await expect(panel.getByText('1 of 4 snapshots upgraded', { exact: true })).toBeVisible();
     await panel.getByRole('button', { name: 'Continue upgrade', exact: true }).click();
     await expect(panel.getByText('3 items need attention', { exact: true })).toBeVisible();
     expect(await readFile(profile, 'utf8')).toBe('live-progress');
@@ -115,7 +115,7 @@ test('local upgrades pause, resume, repair pending entries and retain originals 
     await select.click();
     await page.getByRole('option', { name: /^2\./ }).click();
     await ambiguous.getByRole('button', { name: 'Retry', exact: true }).click();
-    await expect(panel.getByText('2 of 4 backups upgraded', { exact: true })).toBeVisible();
+    await expect(panel.getByText('2 of 4 snapshots upgraded', { exact: true })).toBeVisible();
     for (const id of ['missing', 'damaged']) {
       const pending = panel.locator('details').filter({ hasText: `${id}.zip` });
       await pending.locator('summary').click();
@@ -125,7 +125,7 @@ test('local upgrades pause, resume, repair pending entries and retain originals 
       await pending.getByRole('button', { name: 'Retry', exact: true }).click();
       await expect(pending).toHaveCount(0);
     }
-    await expect(panel.getByText('4 of 4 backups upgraded', { exact: true })).toBeVisible();
+    await expect(panel.getByText('4 of 4 snapshots upgraded', { exact: true })).toBeVisible();
     const catalog = JSON.parse(await readFile(catalogPath, 'utf8'));
     expect(catalog.backups.map((s: { date: string }) => s.date)).toEqual(ids);
     expect(catalog.backups.map((s: { parent?: string }) => s.parent ?? null)).toEqual([
