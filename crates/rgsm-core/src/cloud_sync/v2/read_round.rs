@@ -5,7 +5,8 @@
 //!
 //! The cache only exists inside [`with_read_round`], is dropped with it, and is
 //! bounded in age so a long upload cannot keep serving a stale answer. Writers
-//! call [`invalidate`], and write guards use fresh reads instead of the cache.
+//! call [`remember`] with what they wrote (or [`invalidate`] when the write
+//! failed), and write guards use fresh reads instead of the cache.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -59,6 +60,15 @@ where
             .insert(key.to_string(), (Instant::now(), bytes.clone()));
     });
     Ok(bytes)
+}
+
+/// Serve what this round just wrote to `key` instead of reading it back.
+pub(super) fn remember(key: &str, bytes: Vec<u8>) {
+    let _ = ROUND.try_with(|cache| {
+        cache
+            .borrow_mut()
+            .insert(key.to_string(), (Instant::now(), Some(bytes)));
+    });
 }
 
 pub(super) fn invalidate(key: &str) {
