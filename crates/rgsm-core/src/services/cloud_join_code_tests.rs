@@ -145,3 +145,17 @@ async fn empty_and_replaced_targets_are_rejected_without_creating_metadata() {
         replacement
     );
 }
+
+#[tokio::test]
+async fn an_unusable_target_reports_why_instead_of_a_generic_failure() {
+    let settings = CloudSettings {
+        backend: Backend::Fs,
+        root_path: "relative/root".into(),
+        ..Default::default()
+    };
+
+    let Err(CloudJoinError::Unavailable { reason }) = inspect_target(&settings, "id").await else {
+        panic!("a target that cannot be opened is unavailable");
+    };
+    assert!(reason.contains("absolute"), "{reason}");
+}

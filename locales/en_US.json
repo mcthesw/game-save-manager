@@ -25,7 +25,12 @@
             "confirm": "Use save and game paths from {device}? Check that they work on this computer first. Affected games will switch to manual sync with automatic backups off",
             "success": "Reused locations for {count} games; check the paths before use",
             "confirm_required": "Confirm before reusing another device's save locations",
+            "own_device": "Choose another device's settings to reuse, not this device's own",
             "unavailable": "This device's published settings are unavailable",
+            "local_settings": "Could not read this device's settings: %{reason}",
+            "connection": "Could not read the Cloud Library: %{reason}",
+            "publish_failed": "Could not share the reused locations with the Cloud Library: %{reason}",
+            "local_save_failed": "Could not save the reused locations on this device: %{reason}",
             "save_failed": "Could not save the reused locations; refresh and try again"
         },
         "errors": {
@@ -34,11 +39,11 @@
             "backend": "Cloud join codes support WebDAV and S3 connections",
             "size": "Cloud join code is too large",
             "not_connected": "No connected Cloud Library to share",
-            "unavailable": "Could not access the library in this code; check the connection and credentials",
+            "unavailable": "Could not access the library in this code: %{reason}",
             "library": "This code does not identify an existing compatible Cloud Library",
             "confirmation": "Confirm the Cloud Library before connecting",
-            "registration": "Could not register this device; reconnect it if it was removed from the library",
-            "local_changed": "Local settings changed or could not be saved; review the connection again"
+            "registration": "Could not register this device (reconnect it if it was removed from the library): %{reason}",
+            "local_changed": "Local settings changed or could not be saved, review the connection again: %{reason}"
         },
         "import": "Use cloud join code",
         "export": "Get cloud join code",
