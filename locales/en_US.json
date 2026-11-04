@@ -69,7 +69,6 @@
         "game_installation_add": "Add installation",
         "installation_requires_root": "Add a game library before adding an installation",
         "locale_name": "English",
-        "locale_changed": "You have changed the language and are currently in preview mode. You need to save it before it can take effect permanently",
         "reset_success": "Successfully reset",
         "customizable_settings": "Preferences",
         "submit_settings": "Save changes",
@@ -348,9 +347,7 @@
         "change_description_failed": "Modification failed",
         "set_quick_backup": "Enable quick backup",
         "unset_quick_backup": "Disable quick backup",
-        "unset_quick_backup_success": "Quick backup is off",
         "unset_quick_backup_failed": "Couldn't disable quick backup",
-        "set_quick_backup_success": "Settings saved. You can now use keyboard shortcuts or the tray icon for quick operations",
         "set_quick_backup_failed": "Setting failed",
         "batch_delete": "Batch delete",
         "local_remove": "Remove from this device",
@@ -399,10 +396,8 @@
         "branch_view": "Branch View",
         "head": "This device",
         "set_as_head": "Continue from here",
-        "set_head_success": "Current position updated",
         "set_head_failed": "Failed to update current position",
         "detach": "Detach",
-        "detach_success": "Snapshot detached as new root",
         "detach_failed": "Failed to detach snapshot",
         "create_branch": "Create branch",
         "root_node": "Root",
@@ -1172,11 +1167,9 @@
     },
     "cloud_sync": {
         "title": "Cloud Sync",
-        "default_description": "Syncing queued cloud tasks...",
         "queued_jobs": "Queued jobs: {count}",
         "cancel": "Cancel",
         "cancelled": "Cloud sync has been cancelled",
-        "listen_failed": "Failed to listen for cloud sync updates",
         "status_running": "Running",
         "status_queued": "Queued",
         "status_completed": "Completed",
@@ -1245,8 +1238,8 @@
             "updating_mode": "Updating sync mode for %{game}"
         },
         "config": {
-            "updating_config_title": "Updating config file",
-            "updating_config_body": "The config file has been updated, and the old one will be backed up as GameSaveManager.config.json.bak",
+            "config_upgraded_title": "Config file upgraded",
+            "config_upgraded_body": "The config file was upgraded to the current version. The previous version is kept next to it as a backup.",
             "startup_failed_title": "Game Save Manager could not start",
             "startup_failed_body": "Game Save Manager could not read or update its data and has closed. Check free disk space and folder permissions, then start it again. Details: %{error}"
         },
@@ -1266,7 +1259,8 @@
         },
         "backup": {
             "extra_backup_file_not_exist": "Since the file does not exist, the extra backup (pre-overwrite backup) cannot be completed. If you don't need this feature, turn it off in settings.",
-            "backup_file_not_exist": "File %{name} does not exist, cannot be backed up or restored"
+            "backup_file_not_exist": "File %{name} does not exist, cannot be backed up or restored",
+            "backup_all_description": "Backup all"
         },
         "archive": {
             "file_not_exist": "The path %{path} does not exist and has been automatically created.",
@@ -1291,15 +1285,11 @@
         "remove": "Remove from favorites",
         "choose_game_add": "Select games to add to favorites (can be repeated)",
         "add_to_favorite": "Add to Favorites",
-        "remove_success": "Node removed successfully",
         "confirm_remove_folder": "This folder contains {count} favorited game(s); removing the folder removes them from favorites too",
-        "add_success": "Node added successfully",
         "enable_edit": "Enable editing: You can drag and drop items directly to sort them",
         "game_not_found": "It is recommended to delete this collection as the game does not exist:",
         "add_all_games": "Add uncollected games",
         "no_new_games": "There are no uncollected games",
-        "add_all_success": "Added successfully",
-        "confirm_add_all_games": "Are you sure to add all uncollected games to your favorites?",
         "no_favorites": "No collection"
     },
     "setting": {
@@ -1351,7 +1341,12 @@
         "editor_badge_tooltip": "This field supports path variables. Type < to autocomplete",
         "placeholder": "Path, or type < for variables",
         "invalid_override": "Choose a file or folder for the device override",
-        "override_incompatible": "Snapshot location does not match the override for save entry %{unit}"
+        "override_incompatible": "Snapshot location does not match the override for save entry %{unit}",
+        "legacy_wildcard_target": "This older Snapshot cannot restore save entry %{unit} because its save location uses a wildcard",
+        "no_active_save_units": "This Snapshot has no save locations that are enabled for this game",
+        "bindings_unavailable": "The target save location cannot be matched to this Snapshot. Check this game’s save locations",
+        "not_configured_on_device": "This save location is not set for this device",
+        "location_unavailable": "The configured save location is unavailable"
     },
     "common": {
         "save_success": "save success",

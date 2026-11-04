@@ -296,10 +296,7 @@ impl ServiceContext {
             }
         };
         let Some(path) = path else {
-            return blocked_report(
-                "",
-                "this save location is not configured for the current device",
-            );
+            return blocked_report("", &rust_i18n::t!("path_variable.not_configured_on_device"));
         };
         if save_unit.unit_type() == Some(&SaveUnitType::WinRegistry) {
             return resolve_concrete(
@@ -343,7 +340,7 @@ impl ServiceContext {
             && (override_path.is_some()
                 || matches!(save_unit.source, SaveUnitSource::Concrete { .. }))
         {
-            return blocked_report(path, "the configured save location is unavailable");
+            return blocked_report(path, &rust_i18n::t!("path_variable.location_unavailable"));
         }
         report
     }
@@ -356,10 +353,7 @@ fn resolve_concrete(
     purpose: ResolutionPurpose,
 ) -> ResolutionReport {
     let Some(path) = path else {
-        return blocked_report(
-            "",
-            "this save location is not configured for the current device",
-        );
+        return blocked_report("", &rust_i18n::t!("path_variable.not_configured_on_device"));
     };
 
     #[cfg(not(target_os = "windows"))]
@@ -385,7 +379,7 @@ fn resolve_concrete(
             }
         };
         if !exists {
-            return blocked_report(path, "the configured save location is unavailable");
+            return blocked_report(path, &rust_i18n::t!("path_variable.location_unavailable"));
         }
     }
     let kind = match unit_type {

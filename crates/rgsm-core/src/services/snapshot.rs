@@ -391,7 +391,7 @@ impl ServiceContext {
             let result = self
                 .create_snapshot_at(
                     game,
-                    "Backup all",
+                    &rust_i18n::t!("backend.backup.backup_all_description"),
                     None,
                     CreatedBy::Manual,
                     source.clone(),

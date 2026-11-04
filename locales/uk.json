@@ -1,7 +1,6 @@
 {
     "settings": {
         "locale_name": "українська",
-        "locale_changed": "Ви змінили мову. Наразі вона перебуває в режимі попереднього перегляду та набуде чинності назавжди після збереження",
         "confirm": "Визначення",
         "reset_success": "Скидання успішне",
         "customizable_settings": "Персоналізація",
@@ -104,7 +103,6 @@
         "change_description_success": "Зміна успішна",
         "change_description_failed": "Не вдалося внести зміни",
         "set_quick_backup": "Увімкнути швидке резервне копіювання",
-        "set_quick_backup_success": "Налаштування виконано успішно. Для швидких операцій можна використовувати клавіші швидкого доступу або значки на панелі завдань",
         "set_quick_backup_failed": "Помилка налаштування",
         "batch_delete": "Пакетне видалення",
         "batch_delete_prompt": "Зауважте, що ця операція видалить усі вибрані знімки, введіть так для підтвердження",
@@ -138,13 +136,9 @@
         "save_favorite": "Зберегти конфігурацію",
         "abort_change": "Скасувати модифікацію",
         "choose_game_add": "Виберіть ігри, щоб додати до своєї колекції (можна повторити)",
-        "remove_success": "Вузол успішно видалено",
-        "add_success": "Вузол успішно додано",
         "game_not_found": "Рекомендується видалити цю колекцію, оскільки гра не існує:",
         "enable_edit": "Увімкнути редагування: ви можете перетягувати елементи безпосередньо, щоб сортувати їх",
         "add_all_games": "Додати незібрані ігри",
-        "confirm_add_all_games": "Ви впевнені, що хочете додати всі ігри, які не зібрані, до ваших улюблених",
-        "add_all_success": "Успішно додано",
         "no_new_games": "Незбірних ігор немає",
         "no_favorites": "Немає колекції"
     },
@@ -268,11 +262,9 @@
     },
     "cloud_sync": {
         "title": "Cloud Sync",
-        "default_description": "Syncing queued cloud tasks...",
         "queued_jobs": "Queued jobs: {count}",
         "cancel": "Cancel",
         "cancelled": "Cloud sync has been cancelled",
-        "listen_failed": "Failed to listen for cloud sync updates",
         "status_running": "Running",
         "status_queued": "Queued",
         "status_completed": "Completed",
@@ -301,8 +293,6 @@
     },
     "backend": {
         "config": {
-            "updating_config_title": "Оновіть файл конфігурації",
-            "updating_config_body": "Файл конфігурації оновлено, старий файл буде створено як GameSaveManager.config.json.bak"
         },
         "tray": {
             "no_game_selected": "Гра не вибрана",

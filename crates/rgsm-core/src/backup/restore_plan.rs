@@ -36,11 +36,9 @@ pub enum RestorePlanError {
     MultipleSourceInstances { save_unit_id: u32 },
     #[error("{}", rust_i18n::t!("path_variable.restore_overlap", path = path))]
     OverlappingTargets { path: String },
-    #[error(
-        "legacy archive cannot restore wildcard save location for save unit {save_unit_id}, capture group {group_id}"
-    )]
+    #[error("{}", rust_i18n::t!("path_variable.legacy_wildcard_target", unit = save_unit_id))]
     LegacyWildcardTarget { save_unit_id: u32, group_id: u32 },
-    #[error("archive has no active target save units: {save_unit_ids:?}")]
+    #[error("{}", rust_i18n::t!("path_variable.no_active_save_units"))]
     NoActiveTargetSaveUnits { save_unit_ids: Vec<u32> },
 }
 
@@ -82,7 +80,7 @@ impl RestorePlan {
                             .map(|p| &p.values)
                             .ok_or_else(|| {
                                 RestorePlanError::VariableExpression(
-                                    "target variable bindings are unavailable".into(),
+                                    rust_i18n::t!("path_variable.bindings_unavailable").into(),
                                 )
                             })?;
                         crate::path_variables::restore_relative_expression(expression, values)

@@ -1,7 +1,6 @@
 {
     "settings": {
         "locale_name": "Français",
-        "locale_changed": "Vous avez changé votre langue, qui est actuellement un modèle de pré-visualisation, avant d'entrer en vigueur de façon permanente",
         "customizable_settings": "Personnalisation",
         "submit_settings": "Réserves",
         "submit_success": "Succès dans la préservation des changements",
@@ -106,7 +105,6 @@
         "change_description_success": "Modification du succès",
         "change_description_failed": "Modification de l ' échec",
         "set_quick_backup": "Sauvegarde rapide",
-        "set_quick_backup_success": "Succès dans la mise en place de clés ou de dessins rapides",
         "set_quick_backup_failed": "Failure",
         "warning": "Attention",
         "input_description_search_prompt": "Entrée pour la description de recherche",
@@ -245,11 +243,9 @@
     },
     "cloud_sync": {
         "title": "Cloud Sync",
-        "default_description": "Syncing queued cloud tasks...",
         "queued_jobs": "Queued jobs: {count}",
         "cancel": "Cancel",
         "cancelled": "Cloud sync has been cancelled",
-        "listen_failed": "Failed to listen for cloud sync updates",
         "status_running": "Running",
         "status_queued": "Queued",
         "status_completed": "Completed",
@@ -277,8 +273,6 @@
     },
     "backend": {
         "config": {
-            "updating_config_title": "Document d ' effectifs actualisé",
-            "updating_config_body": "Le document configuré a été mis à jour et l'ancien sera disponible en Game, Save Manager.config.json.bak"
         },
         "tray": {
             "quick_backup": "Sauvegarde rapide",
@@ -310,12 +304,8 @@
         "remove": "Removal",
         "choose_game_add": "Retrait",
         "add_to_favorite": "Ajouté à la collection",
-        "remove_success": "Suppression réussie de nœuds",
-        "add_success": "Points d ' addition réussis",
         "game_not_found": "Il est recommandé que la collection soit supprimée parce que le jeu n'existe pas:",
         "enable_edit": "Lancement de l'éditeur: le classement du projet peut être directement retardé",
-        "confirm_add_all_games": "Confirmation de l'ajout de tous les jeux non recueillis aux collectionneurs",
-        "add_all_success": "Ajout de succès",
         "no_new_games": "Pas de jeu non recueilli",
         "add_all_games": "Ajout de jeux non recueillis",
         "no_favorites": "Pas de collection"
