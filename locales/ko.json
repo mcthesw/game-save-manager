@@ -1,7 +1,6 @@
 {
     "settings": {
         "locale_name": "한국어",
-        "locale_changed": "현재 미리 보기 모델인 언어가 변경되어 영구적으로 힘을 입력할 수 있습니다",
         "reset_success": "초기화 성공",
         "customizable_settings": "사용자 지정 설정",
         "submit_settings": "변경사항 저장",
@@ -109,7 +108,6 @@
         "change_description_success": "성공의 수정",
         "change_description_failed": "실패의 수정",
         "set_quick_backup": "빠른 백업",
-        "set_quick_backup_success": "빠른 키 또는 그림 설정에 성공",
         "set_quick_backup_failed": "실패",
         "batch_delete": "입력 deletion",
         "batch_delete_prompt": "작업이 모든 선택에서 빠르 트랙을 삭제하고 입력 intoyes에 대한 식별",
@@ -221,11 +219,9 @@
     },
     "cloud_sync": {
         "title": "Cloud Sync",
-        "default_description": "Syncing queued cloud tasks...",
         "queued_jobs": "Queued jobs: {count}",
         "cancel": "Cancel",
         "cancelled": "Cloud sync has been cancelled",
-        "listen_failed": "Failed to listen for cloud sync updates",
         "status_running": "Running",
         "status_queued": "Queued",
         "status_completed": "Completed",
@@ -278,8 +274,6 @@
     },
     "backend": {
         "config": {
-            "updating_config_title": "업데이트 된 직원 문서",
-            "updating_config_body": "설정된 문서가 업데이트되고 이전은 Game, Save Manager.config.json.bak로 사용할 수 있습니다"
         },
         "tray": {
             "no_game_selected": "놀이의 선택 없음",
@@ -311,12 +305,8 @@
         "remove": "제품 정보",
         "choose_game_add": "컬렉션에 참여하기 위해 게임 선택 (replicable)",
         "add_to_favorite": "자주 묻는 질문",
-        "remove_success": "노드의 성공적인 삭제",
-        "add_success": "성공적인 추가 포인트",
         "game_not_found": "게임이 존재하지 않기 때문에 컬렉션이 삭제 된 것이 좋습니다",
         "enable_edit": "편집자의 시작: 프로젝트의 순위는 직접 지연될 수 있습니다",
-        "confirm_add_all_games": "수집자에게 모든 uncollected 게임의 추가 확인",
-        "add_all_success": "성공 추가",
         "no_new_games": "분류되지 않음",
         "add_all_games": "uncollected 게임 추가",
         "no_favorites": "관련 상품"

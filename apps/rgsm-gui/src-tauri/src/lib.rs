@@ -194,8 +194,8 @@ pub fn run() -> anyhow::Result<()> {
         };
         if should_notify_config_update(http_host_only, config_outcome.config_migrated) {
             rgsm_core::preclude::show_notification(
-                t!("backend.config.updating_config_title"),
-                t!("backend.config.updating_config_body"),
+                t!("backend.config.config_upgraded_title"),
+                t!("backend.config.config_upgraded_body"),
             );
         }
         let http_host = tauri::async_runtime::block_on(http::start(app.handle().clone()))?;

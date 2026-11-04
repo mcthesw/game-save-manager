@@ -69,7 +69,6 @@
         "game_installation_add": "添加安装位置",
         "installation_requires_root": "请先添加游戏库，再添加安装位置",
         "locale_name": "简体中文",
-        "locale_changed": "您更换了语言，当前是预览模式，保存后才能永久生效",
         "reset_success": "重置成功",
         "customizable_settings": "个性化设置",
         "submit_settings": "保存修改",
@@ -348,9 +347,7 @@
         "change_description_failed": "修改失败",
         "set_quick_backup": "启用快捷备份",
         "unset_quick_backup": "关闭快捷备份",
-        "unset_quick_backup_success": "已关闭快捷备份",
         "unset_quick_backup_failed": "关闭快捷备份失败",
-        "set_quick_backup_success": "设置成功，可以用快捷键或托盘图标快捷操作",
         "set_quick_backup_failed": "设置失败",
         "batch_delete": "批量删除",
         "local_remove": "从本机移除",
@@ -399,10 +396,8 @@
         "branch_view": "分支视图",
         "head": "当前设备",
         "set_as_head": "从这里继续",
-        "set_head_success": "当前位置已更新",
         "set_head_failed": "更新当前位置失败",
         "detach": "分离",
-        "detach_success": "快照已分离为新根节点",
         "detach_failed": "分离快照失败",
         "create_branch": "创建分支",
         "root_node": "根节点",
@@ -1172,11 +1167,9 @@
     },
     "cloud_sync": {
         "title": "云同步",
-        "default_description": "正在处理云同步队列...",
         "queued_jobs": "排队任务：{count}",
         "cancel": "取消",
         "cancelled": "已取消云同步任务",
-        "listen_failed": "监听云同步状态失败",
         "status_running": "运行中",
         "status_queued": "排队中",
         "status_completed": "已完成",
@@ -1245,8 +1238,8 @@
             "updating_mode": "正在更新 %{game} 的同步模式"
         },
         "config": {
-            "updating_config_title": "更新配置文件",
-            "updating_config_body": "配置文件已更新，旧的将会备份为 GameSaveManager.config.json.bak",
+            "config_upgraded_title": "配置文件已升级",
+            "config_upgraded_body": "配置文件已升级到当前版本，旧版本已保存在旁边作为备份。",
             "startup_failed_title": "游戏存档管理器无法启动",
             "startup_failed_body": "无法读取或更新应用数据，应用已退出。请检查磁盘空间和文件夹权限后重新启动。详情：%{error}"
         },
@@ -1266,7 +1259,8 @@
         },
         "backup": {
             "extra_backup_file_not_exist": "由于文件不存在，没有完成额外备份(覆盖前备份)。如果不需要该功能，请在设置中关闭。",
-            "backup_file_not_exist": "文件 %{name} 不存在，无法进行备份或恢复"
+            "backup_file_not_exist": "文件 %{name} 不存在，无法进行备份或恢复",
+            "backup_all_description": "全部备份"
         },
         "archive": {
             "file_not_exist": "路径 %{path} 不存在，已经自动创建",
@@ -1291,13 +1285,9 @@
         "remove": "移出收藏夹",
         "choose_game_add": "选择加入收藏的游戏（可以重复）",
         "add_to_favorite": "添加到收藏",
-        "remove_success": "成功删除节点",
         "confirm_remove_folder": "文件夹内含 {count} 个收藏游戏，删除文件夹会将它们一并移出收藏夹",
-        "add_success": "成功添加节点",
         "game_not_found": "建议删除该收藏，因为游戏不存在：",
         "enable_edit": "启用编辑：可以直接拖拽项目进行排序",
-        "confirm_add_all_games": "是否确认添加所有未收藏游戏到收藏夹",
-        "add_all_success": "添加成功",
         "no_new_games": "没有未收藏的游戏",
         "add_all_games": "添加未收藏游戏",
         "no_favorites": "无收藏"
@@ -1351,7 +1341,12 @@
         "editor_badge_tooltip": "此字段支持路径变量，输入 < 可自动补全",
         "placeholder": "输入路径，或键入 < 插入变量",
         "invalid_override": "请为设备覆写选择文件或文件夹",
-        "override_incompatible": "快照中的存档位置与条目 %{unit} 的覆写不兼容"
+        "override_incompatible": "快照中的存档位置与条目 %{unit} 的覆写不兼容",
+        "legacy_wildcard_target": "这个旧快照无法恢复条目 %{unit}，因为它的存档位置使用了通配符",
+        "no_active_save_units": "这个快照里没有对该游戏已启用的存档位置",
+        "bindings_unavailable": "目标存档位置与这个快照对不上，请检查该游戏的存档位置",
+        "not_configured_on_device": "此存档位置尚未在本设备上设置",
+        "location_unavailable": "已配置的存档位置不可用"
     },
     "common": {
         "save": "保存",
