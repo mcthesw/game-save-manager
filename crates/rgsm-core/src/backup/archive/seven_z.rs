@@ -198,13 +198,13 @@ pub(super) fn append_path(
             let child_name = format!("{archive_name}/{name}");
             append_path(writer, &child, &child_name)?;
         }
-        apply_metadata(source, &captured).map_err(single)?;
+        restore_source_times(source, &captured);
     } else if metadata.is_file() {
         let file = open_without_atime(source).map_err(single)?;
         writer
             .push_archive_entry(entry, Some(file))
             .map_err(unexpected)?;
-        apply_metadata(source, &captured).map_err(single)?;
+        restore_source_times(source, &captured);
     } else {
         return Err(CompressError::Unexpected(anyhow::anyhow!(
             "unsupported source type: {}",
@@ -587,6 +587,19 @@ fn apply_windows_attributes(
     _entry: &ArchiveEntry,
 ) -> Result<(), sevenz_rust2::Error> {
     Ok(())
+}
+
+/// Reading a source can move its access time. Putting it back is best effort:
+/// saves on read-only media or owned by another account still belong in the snapshot.
+fn restore_source_times(source: &Path, metadata: &EntryMetadata) {
+    if let Err(error) = apply_metadata(source, metadata) {
+        log::warn!(
+            target: "rgsm::backup::archive",
+            "Could not restore the timestamps of {}: {}",
+            source.display(),
+            error
+        );
+    }
 }
 
 fn apply_metadata(path: &Path, metadata: &EntryMetadata) -> std::io::Result<()> {

@@ -120,6 +120,45 @@ fn v4_round_trip_preserves_file_content_mtime_and_manifest() {
     );
 }
 
+fn assert_capture_succeeds(source: &Path, temp: &Path) {
+    let archive = temp.join("snapshot.7z");
+    compress_capture_plan(
+        &capture_plan(source, CaptureSourceKind::File),
+        &archive,
+        CompressionPreset::Store,
+        None,
+    )
+    .unwrap();
+    assert!(read_manifest(&archive).is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn capture_succeeds_when_source_times_cannot_be_restored() {
+    // A root-owned file: its owner is someone else, so resetting its times is refused.
+    let temp = temp_dir::TempDir::new().unwrap();
+    assert_capture_succeeds(Path::new("/etc/passwd"), temp.path());
+}
+
+#[cfg(windows)]
+#[test]
+fn capture_succeeds_when_source_times_cannot_be_restored() {
+    let temp = temp_dir::TempDir::new().unwrap();
+    let source = temp.path().join("source.dat");
+    fs::write(&source, b"save-data").unwrap();
+    let icacls = |args: [&str; 3]| {
+        std::process::Command::new("icacls")
+            .arg(&source)
+            .args(args)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    };
+    assert!(icacls(["/deny", "*S-1-1-0:(WA)", "/q"]));
+    assert_capture_succeeds(&source, temp.path());
+    assert!(icacls(["/remove:d", "*S-1-1-0", "/q"]));
+}
 #[test]
 fn v4_round_trip_reapplies_nested_directory_times_after_children() {
     let temp = temp_dir::TempDir::new().unwrap();
