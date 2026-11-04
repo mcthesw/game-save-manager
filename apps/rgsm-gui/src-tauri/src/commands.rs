@@ -498,7 +498,6 @@ pub async fn create_snapshot(
         svc(&app_handle)
             .create_snapshot(&game, &describe, HookSource::UserManual, Some(&n))
             .await,
-        &app_handle,
     )?;
 
     info!(target:"rgsm::commands", "Successfully backed up save for game: {:?}", game);
@@ -1336,43 +1335,37 @@ pub async fn create_snapshot_at(
                 Some(&n),
             )
             .await,
-        &app_handle,
     )?;
     Ok(())
 }
 
-fn handle_backup_err<T>(res: Result<T, BackupError>, app_handle: &AppHandle) -> Result<T, String> {
-    match res {
-        Ok(value) => Ok(value),
-        Err(e) => {
-            match &e {
-                BackupError::Compress(CompressError::Multiple(files)) => {
-                    files.iter().for_each(|file| {
-                        error!(target:"rgsm::commands","{}",file);
-                        if let BackupFileError::NotExists(path) = file {
-                            crate::http::emit(
-                                app_handle,
-                                "notification",
-                                &HostNotification {
-                                    level: NotificationLevel::error,
-                                    title: "ERROR".to_string(),
-                                    msg: t!(
-                                        "backend.backup.backup_file_not_exist",
-                                        name = path.to_str().unwrap_or("Cannot get path")
-                                    )
-                                    .to_string(),
-                                },
-                            );
-                        }
-                    });
-                }
-                other => {
-                    error!(target:"rgsm::commands","{}",other);
-                }
-            }
-            Err(format!("{}", e))
-        }
-    }
+fn handle_backup_err<T>(res: Result<T, BackupError>) -> Result<T, String> {
+    res.map_err(|e| {
+        error!(target:"rgsm::commands","{}", e);
+        backup_error_message(&e)
+    })
+}
+
+/// Missing source files are reported once, per file, in the player's language
+/// instead of the nested `Debug` dump of the error list.
+fn backup_error_message(error: &BackupError) -> String {
+    let files: Vec<&BackupFileError> = match error {
+        BackupError::Compress(CompressError::Multiple(files)) => files.iter().collect(),
+        BackupError::Compress(CompressError::Single(file)) => vec![file],
+        _ => return error.to_string(),
+    };
+    files
+        .into_iter()
+        .map(|file| match file {
+            BackupFileError::NotExists(path) => t!(
+                "backend.backup.backup_file_not_exist",
+                name = path.display().to_string()
+            )
+            .to_string(),
+            other => other.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub async fn cancel_cloud_sync(app_handle: AppHandle) -> Result<CancelCloudSyncResult, String> {
@@ -1543,5 +1536,22 @@ mod test {
             a,
             "{\"level\":\"error\",\"title\":\"title1\",\"msg\":\"msg1\"}"
         )
+    }
+
+    #[test]
+    fn backup_error_message_lists_every_missing_file_without_debug_dump() {
+        use rgsm_core::preclude::{BackupError, BackupFileError, CompressError};
+
+        let missing = BackupError::Compress(CompressError::Multiple(vec![
+            BackupFileError::NotExists("C:/saves/a.dat".into()),
+            BackupFileError::NotExists("C:/saves/b.dat".into()),
+        ]));
+        let message = super::backup_error_message(&missing);
+        assert_eq!(message.lines().count(), 2);
+        assert!(message.contains("a.dat") && message.contains("b.dat"));
+        assert!(!message.contains("Multiple errors"));
+
+        let other = BackupError::NoDataMatched;
+        assert_eq!(super::backup_error_message(&other), other.to_string());
     }
 }
