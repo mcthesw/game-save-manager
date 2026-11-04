@@ -899,27 +899,28 @@ async function open_backup_folder() {
 }
 
 async function verify_archive_hashes() {
-  const snapshots = table_data.value.filter((s) => s.archive_hash);
+  const snapshots = table_data.value.filter(
+    (s) => s.archive_hash && localCatalogDates.value.has(s.date)
+  );
   if (snapshots.length === 0) {
     notifyInfo($t('manage.verify_no_hashes'));
     return;
   }
 
   let passed = 0;
-  const failedSnapshots: string[] = [];
+  const failedSnapshots: { date: string; reason: 'missing' | 'mismatch' | 'unreadable' }[] = [];
 
   const activityId = addActivity({ title: $t('manage.verifying_archives'), status: 'running' });
   try {
     await withLoading(async () => {
       for (const snapshot of snapshots) {
-        const result = await commands.verifyArchiveIntegrity(
-          snapshot.path,
-          snapshot.archive_hash ?? null
-        );
-        if (result.status === 'ok' && result.data) {
+        const result = await commands.verifyArchiveIntegrity(game.value, snapshot.date);
+        if (result.status === 'error') {
+          failedSnapshots.push({ date: snapshot.date, reason: 'unreadable' });
+        } else if (result.data === 'verified') {
           passed++;
         } else {
-          failedSnapshots.push(snapshot.date);
+          failedSnapshots.push({ date: snapshot.date, reason: result.data });
         }
       }
     }, $t('manage.verifying_archives'));
@@ -941,7 +942,13 @@ async function verify_archive_hashes() {
       h(
         'ul',
         { style: 'max-height:200px;overflow-y:auto;padding-left:20px;margin:8px 0' },
-        failedSnapshots.map((d) => h('li', { style: 'font-family:monospace;margin:2px 0' }, d))
+        failedSnapshots.map(({ date, reason }) =>
+          h(
+            'li',
+            { style: 'font-family:monospace;margin:2px 0' },
+            `${date} (${$t(`manage.verify_${reason}`)})`
+          )
+        )
       ),
       h('p', { style: 'color:#909399;font-size:12px' }, $t('manage.verify_failed_hint')),
     ]);
@@ -951,7 +958,7 @@ async function verify_archive_hashes() {
         confirmButtonText: $t('manage.verify_select_corrupted'),
       });
       // User clicked "Select corrupted" — select those snapshots in the table
-      selectedDates.value = new Set(failedSnapshots);
+      selectedDates.value = new Set(failedSnapshots.map(({ date }) => date));
     } catch {
       // dialog dismissed via close button
     }

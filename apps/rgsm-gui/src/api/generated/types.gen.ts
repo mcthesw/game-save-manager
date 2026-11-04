@@ -44,6 +44,8 @@ export type AppearanceSettings = {
  * Container format used by a Snapshot archive.
  */
 export type ArchiveFormat = 'zip' | 'seven_z';
+export type ArchiveIntegrity = 'verified' | 'missing' | 'mismatch';
+
 
 /**
  * Per-game auto-backup configuration.
@@ -1767,8 +1769,8 @@ export type VariableSetupRequest = {
 };
 
 export type VerifyArchiveIntegrityRequest = {
-  archivePath: string;
-  expectedHash?: string | null;
+  date: string;
+  game: Game;
 };
 
 export type U32 = number;
@@ -4106,7 +4108,7 @@ export type VerifyArchiveIntegrityError =
   VerifyArchiveIntegrityErrors[keyof VerifyArchiveIntegrityErrors];
 
 export type VerifyArchiveIntegrityResponses = {
-  200: boolean;
+  200: ArchiveIntegrity;
 };
 
 export type VerifyArchiveIntegrityResponse =

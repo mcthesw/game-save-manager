@@ -39,6 +39,7 @@ mod progress_review;
 mod retention;
 mod snapshot;
 mod snapshot_description;
+pub use snapshot::{ArchiveIntegrity, check_snapshot_archive};
 pub use snapshot_description::SnapshotDescriptionOutcome;
 mod snapshot_sync;
 mod snapshot_sync_freshness;

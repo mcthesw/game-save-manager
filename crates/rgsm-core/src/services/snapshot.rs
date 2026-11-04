@@ -534,6 +534,38 @@ impl ServiceContext {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveIntegrity {
+    Verified,
+    Missing,
+    Mismatch,
+}
+
+/// Checks the archive a restore would read, resolved the same way as a restore
+/// does, so a moved backup directory is not reported as a damaged file.
+pub fn check_snapshot_archive(game: &Game, date: &str) -> Result<ArchiveIntegrity, BackupError> {
+    let snapshot = game
+        .get_game_snapshots_info()?
+        .backups
+        .into_iter()
+        .find(|snapshot| snapshot.date == date)
+        .ok_or_else(|| BackupError::BackupNotExist {
+            name: game.name.clone(),
+            date: date.to_string(),
+        })?;
+    let game_dir = get_backup_path()?.join(game.backup_dir_name().as_ref());
+    let archive_path = snapshot_archive_path(&game_dir, &snapshot);
+    if !archive_path.is_file() {
+        return Ok(ArchiveIntegrity::Missing);
+    }
+    Ok(match verify_archive_integrity(&snapshot, &archive_path) {
+        Ok(()) => ArchiveIntegrity::Verified,
+        Err(BackupError::IntegrityCheckFailed { .. }) => ArchiveIntegrity::Mismatch,
+        Err(error) => return Err(error),
+    })
+}
+
 /// Snapshots made before archive hashing became mandatory have no stored hash.
 fn verify_archive_integrity(
     snapshot: &Snapshot,

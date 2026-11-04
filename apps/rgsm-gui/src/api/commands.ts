@@ -182,11 +182,11 @@ export const commands = {
     );
   },
   async verifyArchiveIntegrity(
-    archivePath: types.VerifyArchiveIntegrityRequest['archivePath'],
-    expectedHash: types.VerifyArchiveIntegrityRequest['expectedHash']
+    game: types.VerifyArchiveIntegrityRequest['game'],
+    date: types.VerifyArchiveIntegrityRequest['date']
   ) {
     return unwrap<types.VerifyArchiveIntegrityResponses[200]>(
-      await sdk.verifyArchiveIntegrity({ body: { archivePath, expectedHash } })
+      await sdk.verifyArchiveIntegrity({ body: { game, date } })
     );
   },
   async setConfig(config: types.SetConfigRequest['config']) {

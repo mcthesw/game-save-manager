@@ -437,22 +437,14 @@ pub async fn get_game_snapshots_info(game: Game) -> Result<GameSnapshots, String
     }
 }
 
-/// Verify archive integrity by comparing the stored hash against a freshly computed one.
-/// Returns `true` if the hash matches (or no stored hash exists), `false` if mismatched.
 pub async fn verify_archive_integrity(
-    archive_path: String,
-    expected_hash: Option<String>,
-) -> Result<bool, String> {
-    use rgsm_core::backup::compute_file_hash;
-
-    let Some(expected) = expected_hash else {
-        return Ok(true);
-    };
-    let actual = compute_file_hash(std::path::Path::new(&archive_path)).map_err(|e| {
-        error!(target:"rgsm::commands", "Failed to compute archive hash: {:?}", e);
+    game: Game,
+    date: String,
+) -> Result<rgsm_core::services::ArchiveIntegrity, String> {
+    rgsm_core::services::check_snapshot_archive(&game, &date).map_err(|e| {
+        error!(target:"rgsm::commands", "Failed to check archive integrity: {:?}", e);
         e.to_string()
-    })?;
-    Ok(actual == expected)
+    })
 }
 
 pub async fn set_config(app_handle: AppHandle, config: Config) -> Result<(), String> {
