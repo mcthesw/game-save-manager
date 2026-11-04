@@ -4,14 +4,14 @@ use crate::path_pattern::{
 use crate::{app_dirs, config::Config, embedded_resources};
 use anyhow::{Context, Result};
 use chrono::Utc;
-use log::{debug, info, warn};
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// URL to the ludusavi manifest raw YAML file (used only for user-triggered updates).
 const MANIFEST_URL: &str =
@@ -21,19 +21,12 @@ const MANIFEST_URL: &str =
 const LOCAL_MANIFEST_FILENAME: &str = "ludusavi_manifest.yaml";
 const LOCAL_MANIFEST_META_FILENAME: &str = "ludusavi_manifest.meta.json";
 
-/// Cache duration for the manifest (1 hour)
-const CACHE_DURATION: Duration = Duration::from_secs(3600);
+type Manifest = HashMap<String, serde_yaml::Value>;
 
-/// Cached manifest data with timestamp
-struct ManifestCache {
-    data: HashMap<String, serde_yaml::Value>,
-    fetched_at: Instant,
-}
-
-// Global cache for the manifest
-lazy_static::lazy_static! {
-    static ref MANIFEST_CACHE: Arc<Mutex<Option<ManifestCache>>> = Arc::new(Mutex::new(None));
-}
+/// The manifest only changes through `update_manifest_from_remote` and
+/// `reset_manifest_to_bundled`, which clear this cache. It is held in an `Arc`
+/// because the parsed manifest is large and every caller shares it.
+static MANIFEST_CACHE: Mutex<Option<Arc<Manifest>>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -106,37 +99,26 @@ pub struct ImportableGame {
     pub save_paths_count: usize,
 }
 
-/// Downloads and parses the ludusavi manifest with caching
+/// Parses the ludusavi manifest once and shares it.
 /// Note: Manifest is loaded from local cache if present, otherwise from the bundled snapshot.
-pub async fn fetch_manifest() -> Result<HashMap<String, serde_yaml::Value>> {
-    // Check cache first
-    {
-        let cache = MANIFEST_CACHE.lock().unwrap();
-        if let Some(cached) = cache.as_ref()
-            && cached.fetched_at.elapsed() < CACHE_DURATION
-        {
-            debug!(target: "rgsm::ludusavi", "Using cached manifest with {} games", cached.data.len());
-            return Ok(cached.data.clone());
-        }
+pub async fn fetch_manifest() -> Result<Arc<Manifest>> {
+    // The lock is held while parsing so concurrent callers wait for one parse
+    // instead of each building their own copy.
+    let mut cache = MANIFEST_CACHE.lock().unwrap();
+    if let Some(manifest) = cache.as_ref() {
+        return Ok(manifest.clone());
     }
 
     // Load manifest YAML (offline-first)
     let text = load_manifest_yaml().context("Failed to load Ludusavi manifest YAML")?;
 
-    let manifest: HashMap<String, serde_yaml::Value> =
+    let manifest: Manifest =
         serde_yaml::from_str(&text).context("Failed to parse manifest YAML")?;
 
     info!(target: "rgsm::ludusavi", "Successfully parsed manifest with {} games", manifest.len());
 
-    // Update cache
-    {
-        let mut cache = MANIFEST_CACHE.lock().unwrap();
-        *cache = Some(ManifestCache {
-            data: manifest.clone(),
-            fetched_at: Instant::now(),
-        });
-    }
-
+    let manifest = Arc::new(manifest);
+    *cache = Some(manifest.clone());
     Ok(manifest)
 }
 
@@ -251,11 +233,7 @@ pub async fn update_manifest_from_remote() -> Result<LudusaviManifestStatus> {
         );
     }
 
-    // Invalidate in-memory cache so future calls re-load.
-    {
-        let mut cache = MANIFEST_CACHE.lock().unwrap();
-        *cache = None;
-    }
+    *MANIFEST_CACHE.lock().unwrap() = None;
 
     Ok(get_manifest_status())
 }
@@ -281,10 +259,7 @@ pub fn reset_manifest_to_bundled() -> Result<LudusaviManifestStatus> {
         })?;
     }
 
-    {
-        let mut cache = MANIFEST_CACHE.lock().unwrap();
-        *cache = None;
-    }
+    *MANIFEST_CACHE.lock().unwrap() = None;
 
     Ok(get_manifest_status())
 }
