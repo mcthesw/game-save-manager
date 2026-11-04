@@ -103,6 +103,15 @@ impl Config {
         super::game_identity::position_game_by_identity(&self.games, identity)
     }
 
+    pub(crate) fn normalize_local_fields(&mut self) {
+        for game in &mut self.games {
+            game.normalize_save_unit_ids();
+        }
+        // Every config write retires the old installation records the player has
+        // just resolved; waiting for the next startup would keep listing them.
+        crate::updater::nightly::installations::migrate(self);
+    }
+
     pub(crate) fn bind_legacy_game_references(&mut self) {
         FavoriteTreeNode::bind_legacy_games(&mut self.favorites, &self.games);
         if let Some(game) = self.quick_action.selected_game(&self.games)

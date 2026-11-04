@@ -140,7 +140,7 @@ fn owned_local_profiles_upgrade_once_and_keep_a_recoverable_original() {
             .as_deref(),
         Some("D:/Game")
     );
-    let original: super::super::ConfigurationOwners = serde_json::from_slice(
+    let original: crate::config::ConfigurationOwners = serde_json::from_slice(
         &std::fs::read(
             directory
                 .path()

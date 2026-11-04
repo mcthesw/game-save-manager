@@ -10,6 +10,7 @@ mod backup;
 mod cloud_config;
 pub(crate) use backup::preserve_original;
 pub mod migration;
+pub(crate) mod nightly;
 pub mod probe;
 
 #[allow(dead_code)]
