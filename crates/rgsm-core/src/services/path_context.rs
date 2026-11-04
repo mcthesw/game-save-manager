@@ -13,7 +13,7 @@ use crate::{
 
 /// Scan once per operation; callers reuse this snapshot for every Save Unit.
 pub(crate) fn device_path_environment(device: Option<&Device>) -> ResolutionContext {
-    device_path_environment_with_discovery(device, true)
+    with_installations(device_path_environment_with_discovery(device, true))
 }
 
 fn device_path_environment_with_discovery(
@@ -73,6 +73,12 @@ fn device_path_environment_with_discovery(
             });
         }
     }
+    environment
+}
+
+/// Reads every Steam library's app manifests, so only callers that match games
+/// to installations pay for it.
+fn with_installations(mut environment: ResolutionContext) -> ResolutionContext {
     for root in environment
         .roots
         .iter()
@@ -100,8 +106,7 @@ fn device_path_environment_with_discovery(
 }
 
 pub fn device_path_context(device: Option<&Device>) -> crate::path_resolver::PathContext {
-    let mut context = device_path_environment(device);
-    context.installations.clear();
+    let mut context = device_path_environment_with_discovery(device, true);
     context.variables = device.map(|d| d.path_variables.clone()).unwrap_or_default();
     context
 }
@@ -167,6 +172,11 @@ pub fn game_location_options(
     discover: bool,
 ) -> GameLocationOptions {
     let environment = device_path_environment_with_discovery(device, discover);
+    let environment = if discover {
+        with_installations(environment)
+    } else {
+        environment
+    };
     let mut draft = game.clone();
     for binding in draft.device_bindings.values_mut() {
         binding.installation_path = None;

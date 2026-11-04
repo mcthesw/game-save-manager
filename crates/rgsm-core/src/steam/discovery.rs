@@ -40,40 +40,6 @@ fn get_steam_path_from_registry() -> Option<String> {
     None
 }
 
-/// Get potential Steam paths from all available drives on Windows
-#[cfg(target_os = "windows")]
-fn get_steam_paths_from_all_drives() -> Vec<String> {
-    let mut paths = Vec::new();
-
-    // Check drives A-Z
-    for letter in b'A'..=b'Z' {
-        let drive = format!("{}:", letter as char);
-        let drive_path = std::path::Path::new(&drive);
-
-        // Skip if drive doesn't exist
-        if !drive_path.exists() {
-            continue;
-        }
-
-        // Common Steam installation paths on each drive
-        let potential_paths = [
-            format!("{}\\Program Files (x86)\\Steam", drive),
-            format!("{}\\Program Files\\Steam", drive),
-            format!("{}\\Steam", drive),
-            format!("{}\\SteamLibrary", drive),
-        ];
-
-        for path in potential_paths {
-            // Only add paths that we haven't checked yet via other methods
-            if !paths.contains(&path) {
-                paths.push(path);
-            }
-        }
-    }
-
-    paths
-}
-
 /// Helper function to get Steam root directory
 pub(super) fn steam_root() -> Result<PathBuf, super::SteamError> {
     let mut steam_roots: Vec<String> = Vec::new();
@@ -99,9 +65,6 @@ pub(super) fn steam_root() -> Result<PathBuf, super::SteamError> {
         if let Ok(pf) = env::var("PROGRAMFILES") {
             steam_roots.push(format!("{}\\Steam", pf.trim_end_matches('\\')));
         }
-
-        // Check all available drives for Steam installation
-        steam_roots.extend(get_steam_paths_from_all_drives());
     }
 
     #[cfg(target_os = "linux")]
