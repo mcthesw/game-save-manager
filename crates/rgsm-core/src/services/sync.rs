@@ -558,9 +558,7 @@ impl ServiceContext {
                 .ok_or_else(|| {
                     CloudLibraryServiceError::GameProfileNotFound(game_id.to_string())
                 })?;
-            return Ok(self
-                .delete_snapshot(&game, snapshot_id, HookSource::UserManual)
-                .await?);
+            return Ok(self.delete_snapshot(&game, snapshot_id).await?);
         }
         // Only execute the Current Position decision when the caller has
         // confirmed deletion. Unconfirmed requests must not have destructive
@@ -590,9 +588,7 @@ impl ServiceContext {
                 .ok_or_else(|| {
                     CloudLibraryServiceError::GameProfileNotFound(game_id.to_string())
                 })?;
-            return Ok(self
-                .delete_snapshot(&game, snapshot_id, HookSource::UserManual)
-                .await?);
+            return Ok(self.delete_snapshot(&game, snapshot_id).await?);
         }
         let convergence = self.converge_local_tombstone_metadata(&materializer).await;
         deletion?;

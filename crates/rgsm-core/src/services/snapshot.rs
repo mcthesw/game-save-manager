@@ -5,9 +5,7 @@ use crate::backup::{
     TimerSnapshotDecision, ZipBackend, archive_file_name, compute_file_hash, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
-use crate::hooks::{
-    BeforeRestoreCtx, HookSource, MetadataChangedCtx, SnapshotAppliedCtx, SnapshotDeletedCtx,
-};
+use crate::hooks::{BeforeRestoreCtx, HookSource, SnapshotAppliedCtx};
 use crate::preclude::BackupError;
 
 use super::{
@@ -423,25 +421,8 @@ impl ServiceContext {
         Ok(())
     }
 
-    pub async fn delete_snapshot(
-        &self,
-        game: &Game,
-        date: &str,
-        source: HookSource,
-    ) -> Result<(), BackupError> {
-        let deleted = game.delete_snapshot(date).await?;
-        let config = get_config()?;
-
-        self.pipeline()
-            .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshots: deleted.snapshots,
-                deleted_remote_paths: vec![deleted.remote_archive_path],
-            })
-            .await;
-
+    pub async fn delete_snapshot(&self, game: &Game, date: &str) -> Result<(), BackupError> {
+        game.delete_snapshot(date).await?;
         Ok(())
     }
 
@@ -449,21 +430,8 @@ impl ServiceContext {
         &self,
         game: &Game,
         dates: &[String],
-        source: HookSource,
     ) -> Result<(), BackupError> {
-        let deleted = game.batch_delete_snapshots(dates).await?;
-        let config = get_config()?;
-
-        self.pipeline()
-            .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshots: deleted.snapshots,
-                deleted_remote_paths: deleted.deleted_remote_paths,
-            })
-            .await;
-
+        game.batch_delete_snapshots(dates).await?;
         Ok(())
     }
 
@@ -476,7 +444,6 @@ impl ServiceContext {
         &self,
         game: &Game,
         max_count: u32,
-        source: HookSource,
     ) -> Result<(), BackupError> {
         if self
             .is_shared_game(game.backup_dir_name().as_ref())
@@ -484,29 +451,16 @@ impl ServiceContext {
         {
             return Ok(());
         }
-        let cleanup = game.cleanup_old_auto_backups(max_count).await?;
-        if cleanup.deleted_remote_paths.is_empty() {
-            return Ok(());
-        }
-        self.pipeline()
-            .fire_snapshot_deleted(&SnapshotDeletedCtx {
-                config: get_config()?,
-                source,
-                game: game.clone(),
-                snapshots: cleanup.snapshots,
-                deleted_remote_paths: cleanup.deleted_remote_paths,
-            })
-            .await;
+        game.cleanup_old_auto_backups(max_count).await?;
         Ok(())
     }
 
-    pub async fn set_snapshot_created_by(
+    pub fn set_snapshot_created_by(
         &self,
         game_name: &str,
         game_id: Option<&str>,
         snapshot_date: &str,
         created_by: CreatedBy,
-        source: HookSource,
     ) -> Result<GameSnapshots, BackupError> {
         let config = get_config()?;
         let mut matches = config.games.iter().filter(|game| match game_id {
@@ -531,7 +485,7 @@ impl ServiceContext {
             return Err(BackupError::SharedSnapshotProvenance);
         }
 
-        let snapshots = game.update_game_snapshots_info::<BackupError>(|snapshots| {
+        game.update_game_snapshots_info::<BackupError>(|snapshots| {
             let snapshot = snapshots
                 .backups
                 .iter_mut()
@@ -542,27 +496,11 @@ impl ServiceContext {
                 })?;
             snapshot.created_by = created_by;
             Ok(())
-        })?;
-
-        self.pipeline()
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshots: snapshots.clone(),
-            })
-            .await;
-
-        Ok(snapshots)
+        })
     }
 
-    pub async fn set_snapshot_head(
-        &self,
-        game: &Game,
-        date: &str,
-        source: HookSource,
-    ) -> Result<(), BackupError> {
-        let snapshots = game.update_game_snapshots_info::<BackupError>(|snapshots| {
+    pub fn set_snapshot_head(&self, game: &Game, date: &str) -> Result<(), BackupError> {
+        game.update_game_snapshots_info::<BackupError>(|snapshots| {
             if !snapshots
                 .backups
                 .iter()
@@ -576,27 +514,11 @@ impl ServiceContext {
             snapshots.set_current_device_head(Some(date.to_string()));
             Ok(())
         })?;
-
-        let config = get_config()?;
-        self.pipeline()
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshots,
-            })
-            .await;
-
         Ok(())
     }
 
-    pub async fn detach_snapshot(
-        &self,
-        game: &Game,
-        date: &str,
-        source: HookSource,
-    ) -> Result<(), BackupError> {
-        let snapshots = game.update_game_snapshots_info::<BackupError>(|snapshots| {
+    pub fn detach_snapshot(&self, game: &Game, date: &str) -> Result<(), BackupError> {
+        game.update_game_snapshots_info::<BackupError>(|snapshots| {
             let snapshot = snapshots
                 .backups
                 .iter_mut()
@@ -608,17 +530,6 @@ impl ServiceContext {
             snapshot.parent = None;
             Ok(())
         })?;
-
-        let config = get_config()?;
-        self.pipeline()
-            .fire_metadata_changed(&MetadataChangedCtx {
-                config,
-                source,
-                game: game.clone(),
-                snapshots,
-            })
-            .await;
-
         Ok(())
     }
 }

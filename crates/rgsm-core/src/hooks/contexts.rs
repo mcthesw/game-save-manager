@@ -31,14 +31,6 @@ pub struct SnapshotCreatedCtx {
     pub local_archive_path: PathBuf,
 }
 
-pub struct SnapshotDeletedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshots: GameSnapshots,
-    pub deleted_remote_paths: Vec<String>,
-}
-
 #[allow(dead_code)]
 pub struct SnapshotAppliedCtx {
     pub config: Config,
@@ -62,13 +54,6 @@ pub struct BeforeRestoreCtx {
     pub capture_plan: Option<crate::backup::CapturePlan>,
 }
 
-pub struct MetadataChangedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game: Game,
-    pub snapshots: GameSnapshots,
-}
-
 pub struct GameAddedCtx {
     pub config: Config,
     pub source: HookSource,
@@ -80,7 +65,6 @@ pub struct GameAddedCtx {
 pub struct GameUpdatedCtx {
     pub config: Config,
     pub source: HookSource,
-    pub previous_game: Game,
     pub game: Game,
 }
 
@@ -94,22 +78,4 @@ pub struct GameDeletedCtx {
 pub struct ConfigSavedCtx {
     pub config: Config,
     pub source: HookSource,
-}
-
-#[allow(dead_code)]
-pub struct SyncCompletedCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game_name: String,
-    pub success: bool,
-    pub message: Option<String>,
-}
-
-#[allow(dead_code)]
-pub struct SyncConflictCtx {
-    pub config: Config,
-    pub source: HookSource,
-    pub game_name: String,
-    pub local_head: Option<String>,
-    pub remote_head: Option<String>,
 }

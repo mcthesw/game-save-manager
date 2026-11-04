@@ -60,11 +60,8 @@ mod auto_cleanup {
             .build()
             .unwrap()
             .block_on(
-                ServiceContext::new(Arc::new(HookPipeline::new(vec![]))).cleanup_old_auto_backups(
-                    game,
-                    1,
-                    HookSource::TimerAutoBackup,
-                ),
+                ServiceContext::new(Arc::new(HookPipeline::new(vec![])))
+                    .cleanup_old_auto_backups(game, 1),
             )
     }
 

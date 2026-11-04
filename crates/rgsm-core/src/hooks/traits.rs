@@ -2,8 +2,7 @@ use async_trait::async_trait;
 
 use super::contexts::{
     BeforeRestoreCtx, ConfigSavedCtx, GameAddedCtx, GameDeletedCtx, GameUpdatedCtx,
-    MetadataChangedCtx, SnapshotAppliedCtx, SnapshotCreatedCtx, SnapshotDeletedCtx,
-    SyncCompletedCtx, SyncConflictCtx,
+    SnapshotAppliedCtx, SnapshotCreatedCtx,
 };
 use crate::preclude::BackupError;
 
@@ -21,16 +20,10 @@ pub trait LifecycleHook: Send + Sync {
     async fn on_snapshot_committed(&self, _ctx: &SnapshotCreatedCtx) -> HookResult<()> {
         Ok(())
     }
-    async fn on_snapshot_deleted(&self, _ctx: &SnapshotDeletedCtx) -> HookResult<()> {
-        Ok(())
-    }
     async fn on_before_restore(&self, _ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
         Ok(())
     }
     async fn on_snapshot_applied(&self, _ctx: &SnapshotAppliedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_metadata_changed(&self, _ctx: &MetadataChangedCtx) -> HookResult<()> {
         Ok(())
     }
     async fn on_game_added(&self, _ctx: &GameAddedCtx) -> HookResult<()> {
@@ -45,12 +38,4 @@ pub trait LifecycleHook: Send + Sync {
     async fn on_config_saved(&self, _ctx: &ConfigSavedCtx) -> HookResult<()> {
         Ok(())
     }
-    async fn on_sync_completed(&self, _ctx: &SyncCompletedCtx) -> HookResult<()> {
-        Ok(())
-    }
-    async fn on_sync_conflict(&self, _ctx: &SyncConflictCtx) -> HookResult<()> {
-        Ok(())
-    }
 }
-
-pub use LifecycleHook as SnapshotHook;

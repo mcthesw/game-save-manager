@@ -127,10 +127,7 @@ pub async fn perform_changed_auto_backup(
         return;
     }
 
-    if let Err(err) = service
-        .cleanup_old_auto_backups(game, effective_max, trigger.to_hook_source())
-        .await
-    {
+    if let Err(err) = service.cleanup_old_auto_backups(game, effective_max).await {
         warn!(
             target: "rgsm::quick_action::auto_backup",
             "Automatic backup cleanup failed for '{}': {err:?}",
