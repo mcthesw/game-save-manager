@@ -1688,7 +1688,6 @@ export type UpdateGameRequest = {
 
 export type UpdateProgress = {
   downloadedBytes: number;
-  error?: string | null;
   stage: UpdateStage;
   totalBytes?: number | null;
   update?: null | UpdateCheck;

@@ -27,7 +27,6 @@ pub struct UpdateProgress {
     pub stage: UpdateStage,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
-    pub error: Option<String>,
     pub update: Option<UpdateCheck>,
 }
 
@@ -87,7 +86,6 @@ fn fail(app: &AppHandle, error: String) {
     let state = app.state::<InstallState>();
     let mut session = state.0.lock().unwrap();
     session.progress.stage = UpdateStage::Failed;
-    session.progress.error = Some(error);
     drop(session);
     publish(app);
 }
@@ -169,7 +167,6 @@ pub async fn install(app: AppHandle, expected_version: String) -> Result<(), Str
         }
         session.cancel = CancellationToken::new();
         session.progress.stage = UpdateStage::Waiting;
-        session.progress.error = None;
         (prepared, session.cancel.clone())
     };
     publish(&app);
