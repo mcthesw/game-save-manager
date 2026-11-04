@@ -6,8 +6,7 @@ use specta::Type;
 use crate::backup::{CompressionPreset, Game};
 use crate::cloud_sync::CloudSettings;
 use crate::config::{
-    AppearanceSettings, QuickActionsSettings, SaveListExpandBehavior, SaveListSortMode, Settings,
-    SortDirection,
+    AppearanceSettings, QuickActionsSettings, SaveListSortMode, Settings, SortDirection,
 };
 use crate::default_value;
 use crate::device::{Device, DeviceId};
@@ -47,11 +46,9 @@ impl Default for Config {
             backup_path: String::from("save_data"),
             games: Vec::new(),
             settings: Settings {
-                prompt_when_not_described: false,
                 extra_backup_when_apply: true,
                 confirm_before_apply_latest: true,
                 confirm_before_apply_snapshot: true,
-                show_edit_button: false,
                 prompt_when_auto_backup: true,
                 cloud_settings: CloudSettings::default(),
                 exit_to_tray: true,
@@ -60,19 +57,14 @@ impl Default for Config {
                 default_delete_before_apply: false,
                 default_expend_favorites_tree: false,
                 home_page: default_value::default_home_page(),
-                log_to_file: true,
                 add_new_to_favorites: false,
                 vn_scan_dirs: default_value::empty_vec(),
-                save_list_expand_behavior: SaveListExpandBehavior::default(),
-                save_list_last_expanded: false,
                 save_list_sort_mode: SaveListSortMode::default(),
                 save_list_sort_direction: SortDirection::default(),
                 max_auto_backup_count: 0,
                 max_extra_backup_count: 5,
                 appearance: AppearanceSettings::default(),
                 compression_preset: CompressionPreset::default(),
-                compute_archive_hash: false,
-                verify_archive_before_apply: false,
             },
             favorites: vec![],
             quick_action: QuickActionsSettings::default(),

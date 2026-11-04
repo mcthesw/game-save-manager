@@ -390,7 +390,6 @@ fn device_keyed_config_upgrades_and_preserves_multi_device_save_units()
         false,
         true,
     );
-    assert!(config.settings.save_list_last_expanded);
     assert_eq!(config.settings.max_auto_backup_count, 7);
     Ok(())
 }
@@ -508,8 +507,6 @@ fn stable_id_config_preserves_ids_and_non_default_settings()
         true,
     );
     assert_eq!(config.settings.max_extra_backup_count, 9);
-    assert!(config.settings.compute_archive_hash);
-    assert!(config.settings.verify_archive_before_apply);
     assert_eq!(config.settings.appearance.ui_font_family, "Noto Sans");
     Ok(())
 }

@@ -7,11 +7,9 @@ export const DEFAULT_CONFIG: Config = {
   backup_path: 'save_data',
   games: [],
   settings: {
-    prompt_when_not_described: false,
     extra_backup_when_apply: true,
     confirm_before_apply_latest: true,
     confirm_before_apply_snapshot: true,
-    show_edit_button: false,
     prompt_when_auto_backup: true,
     exit_to_tray: true,
     auto_check_for_updates: false,
@@ -26,11 +24,8 @@ export const DEFAULT_CONFIG: Config = {
     default_delete_before_apply: false,
     default_expend_favorites_tree: false,
     home_page: '/',
-    log_to_file: true,
     add_new_to_favorites: false,
     vn_scan_dirs: [],
-    save_list_expand_behavior: 'always_closed',
-    save_list_last_expanded: false,
     save_list_sort_mode: 'saved_order',
     save_list_sort_direction: 'asc',
     max_auto_backup_count: 0,
@@ -42,8 +37,6 @@ export const DEFAULT_CONFIG: Config = {
       default_game_list: null,
     },
     compression_preset: 'Standard',
-    compute_archive_hash: false,
-    verify_archive_before_apply: false,
   },
   favorites: [],
   quick_action: {
@@ -54,7 +47,7 @@ export const DEFAULT_CONFIG: Config = {
     },
     enable_sound: true,
     enable_notification: true,
-    notify_when_unchanged: true,
+    notify_when_unchanged: false,
     sounds: {
       success: {
         kind: 'default',

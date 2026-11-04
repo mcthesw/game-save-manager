@@ -975,11 +975,6 @@ const compressionOptions = computed(() => [
   { label: $t('settings.compression_standard'), value: 'Standard' },
   { label: $t('settings.compression_best'), value: 'Best' },
 ]);
-const expandBehaviorOptions = computed(() => [
-  { label: $t('settings.save_list_expand_behavior_default_open'), value: 'always_open' },
-  { label: $t('settings.save_list_expand_behavior_default_closed'), value: 'always_closed' },
-  { label: $t('settings.save_list_expand_behavior_remember_last'), value: 'remember_last' },
-]);
 const sortModeOptions = computed(() => [
   { label: $t('settings.save_list_sort_saved_order'), value: 'saved_order' },
   { label: $t('settings.save_list_sort_last_played'), value: 'last_played' },
@@ -1098,10 +1093,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
               <KSwitch v-model="config.settings.auto_check_for_updates" />
             </div>
             <AppUpdatePanel />
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="min-w-0 text-sm text-text">{{ $t('settings.log_to_file') }}</span>
-              <KSwitch v-model="config.settings.log_to_file" />
-            </div>
             <div class="mt-3 flex items-center gap-2 border-t border-border pt-4">
               <KButton size="sm" @click="open_log_folder()">
                 <template #icon><FolderOpen :size="13" aria-hidden="true" /></template>
@@ -1514,17 +1505,6 @@ const { linksWithGames: router_list } = useNavigationLinks();
                 :options="gameListOptions"
                 :aria-label="$t('settings.default_game_list')"
                 @update:model-value="defaultGameList = $event === 'all' ? 'all' : 'favorites'"
-              />
-            </div>
-            <div class="flex items-center justify-between gap-4 py-1.5">
-              <span class="min-w-0 text-sm text-text">{{
-                $t('settings.save_list_expand_behavior')
-              }}</span>
-              <KSelect
-                v-model="config.settings.save_list_expand_behavior"
-                class="w-56"
-                :options="expandBehaviorOptions"
-                :aria-label="$t('settings.save_list_expand_behavior')"
               />
             </div>
             <div class="flex items-center justify-between gap-4 py-1.5">

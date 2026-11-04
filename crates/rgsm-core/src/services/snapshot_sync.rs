@@ -485,7 +485,6 @@ mod tests {
             private_favorites: Vec::new(),
             quick_action: Default::default(),
             behavior: serde_json::from_value(serde_json::json!({
-                "prompt_when_not_described": false,
                 "extra_backup_when_apply": false,
                 "confirm_before_apply_latest": true,
                 "confirm_before_apply_snapshot": true,
@@ -495,9 +494,7 @@ mod tests {
                 "vn_scan_dirs": [],
                 "max_auto_backup_count": 0,
                 "max_extra_backup_count": 0,
-                "compression_preset": "Fast",
-                "compute_archive_hash": false,
-                "verify_archive_before_apply": false
+                "compression_preset": "Fast"
             }))
             .unwrap(),
         };
