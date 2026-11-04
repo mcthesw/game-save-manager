@@ -158,12 +158,12 @@ async function handleDeviceSetup(deviceName: string, importFromDeviceId?: string
           game.game_paths[currentDeviceId] = game.game_paths[importFromDeviceId];
         }
       }
-
-      notifySuccess($t('device_setup.import_success'));
     }
 
-    // 保存配置
-    await saveConfig();
+    if (!(await saveConfig())) return;
+    if (importFromDeviceId && config.value.games) {
+      notifySuccess($t('device_setup.import_success'));
+    }
   } catch (e) {
     console.error('Error saving device setup:', e);
     notifyError($t('error.update_device_failed'));
@@ -251,22 +251,6 @@ events.ipcNotification.listen((event) => {
 if (typeof window !== 'undefined') {
   watch(uiFontStack, (stack) => applyUiFont(stack), { immediate: true });
 }
-
-// 下方代码由于 tauri-specta 的bug导致无法正常运行，因此使用上方方式替代
-// events.ipcNotification.listen((event) => {
-//   let ev = event.payload;
-//   switch (ev.level) {
-//     case "info":
-//       showInfo({ message: ev.msg, title: ev.title });
-//       break;
-//     case "warning":
-//       showWarning({ message: ev.msg, title: ev.title });
-//       break;
-//     case "error":
-//       showError({ message: ev.msg, title: ev.title });
-//       break;
-//   }
-// });
 </script>
 
 <template>
@@ -345,8 +329,7 @@ body {
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  /* 与旧 el-main 默认内边距保持一致:未迁移页面仍按 20px 布局;
-     主页等整页画面用负 margin 抵消 */
+  /* 页面按 20px 内边距布局;主页等整页画面用负 margin 抵消 */
   padding: 20px;
 }
 
@@ -355,23 +338,7 @@ body,
 button,
 input,
 select,
-textarea,
-.el-button,
-.el-input__inner,
-.el-select,
-.el-menu,
-.el-menu-item,
-.el-tabs__item,
-.el-dialog,
-.el-message-box,
-.el-notification,
-.el-table,
-.el-form-item__label,
-.el-checkbox__label,
-.el-radio__label,
-.el-alert,
-.el-tag,
-[class^='el-'] {
+textarea {
   font-family: var(--rgsm-ui-font-family, var(--font-sans-stack)) !important;
 }
 

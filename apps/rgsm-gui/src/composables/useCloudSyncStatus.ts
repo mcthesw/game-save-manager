@@ -22,14 +22,12 @@ type CloudSyncStatusPayload = {
 };
 
 const activeJobs = ref(0);
-const currentDescription = ref('');
 const jobs = shallowRef<CloudSyncJobInfo[]>([]);
 const isCancelling = ref(false);
 const initialized = ref(false);
 
 function applyStatus(payload: CloudSyncStatusPayload) {
   activeJobs.value = Math.max(0, payload.active_jobs ?? 0);
-  currentDescription.value = payload.current_description?.trim() || '';
   jobs.value = payload.jobs ?? [];
 }
 
@@ -40,22 +38,15 @@ function initListeners() {
 
   initialized.value = true;
 
-  events.cloudSyncStatusEvent
-    .listen((event) => {
-      applyStatus(event.payload);
-    })
-    .catch((err) => {
-      notifyError($t('cloud_sync.listen_failed'), String(err));
-    });
+  void events.cloudSyncStatusEvent.listen((event) => {
+    applyStatus(event.payload);
+  });
 }
 
 export function useCloudSyncStatus() {
   initListeners();
 
   const isSyncing = computed(() => activeJobs.value > 0);
-  const displayDescription = computed(
-    () => currentDescription.value || $t('cloud_sync.default_description')
-  );
 
   async function cancelSync() {
     if (isCancelling.value) {
@@ -79,8 +70,6 @@ export function useCloudSyncStatus() {
 
   return {
     activeJobs,
-    currentDescription,
-    displayDescription,
     isSyncing,
     isCancelling,
     jobs,

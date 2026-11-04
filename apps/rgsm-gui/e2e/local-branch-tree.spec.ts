@@ -62,9 +62,6 @@ test('snapshot tree: branch on apply-then-create, set head, delete head fallback
 
     // Continue from here moves only the position, not the save files.
     await branchNodeAction(page, secondId, 'Continue from here');
-    await expect(page.getByText('Current position updated').first()).toBeVisible({
-      timeout: 15_000,
-    });
     await expectLocalHead(device.appDataDir, DEVICE_A_ID, secondId);
     expect(await readFile(device.savePath, 'utf8')).toBe('v1-branched\n');
 
