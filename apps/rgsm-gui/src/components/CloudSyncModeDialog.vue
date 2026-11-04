@@ -86,13 +86,13 @@ async function confirm() {
       return;
     }
     emit('update:game', null);
-    notifySuccess(
-      result.data.downloaded > 0
-        ? $t('sync_settings.archives.mode_enabled_downloaded', {
-            count: result.data.downloaded,
-          })
-        : $t('sync_settings.archives.mode_changed')
-    );
+    if (result.data.downloaded > 0) {
+      notifySuccess(
+        $t('sync_settings.archives.mode_enabled_downloaded', {
+          count: result.data.downloaded,
+        })
+      );
+    }
     emit('updated');
   } finally {
     changingMode.value = false;

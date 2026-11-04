@@ -3,7 +3,7 @@ import { useGameDeletion } from '../composables/useGameDeletion';
 import { computed, ref, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import { commands, type CloudArchiveGameView, type SyncMode } from '../api/commands';
-import { notifyError, notifySuccess } from '../composables/useActivityCenter';
+import { notifyError } from '../composables/useActivityCenter';
 import { getGameManagementPath } from '../composables/useGameManagementRoute';
 import { useCloudLibrary } from '../composables/useCloudLibrary';
 import { $t } from '../i18n';
@@ -163,7 +163,6 @@ async function changeMode(game: CloudArchiveGameView, mode: string | number | bo
     await reload();
     return;
   }
-  notifySuccess($t('sync_settings.archives.mode_changed'));
   await reload();
 }
 
@@ -188,7 +187,6 @@ async function setCloudEnabled(game: CloudArchiveGameView, enabled: boolean) {
       await reload();
       return;
     }
-    notifySuccess($t('sync_settings.archives.mode_changed'));
     await reload();
   } finally {
     busyGameId.value = '';

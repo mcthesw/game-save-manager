@@ -402,7 +402,6 @@ async function submit_settings(): Promise<boolean> {
     return false;
   }
   await load_config();
-  notifySuccess($t('sync_settings.submit_success'));
   return true;
 }
 
@@ -412,7 +411,6 @@ async function abort_change() {
   try {
     const loaded = await load_config();
     if (loaded) {
-      notifySuccess($t('sync_settings.reset_success'));
       await cloudLibrarySetup.value?.inspect();
     }
   } finally {

@@ -70,7 +70,6 @@ async function connect() {
     await useConfig().refreshConfig();
     clearCloudLibrary();
     await refreshCloudLibrary();
-    notifySuccess($t('cloud_join.connected'));
     open.value = false;
     emit('connected');
   } catch {

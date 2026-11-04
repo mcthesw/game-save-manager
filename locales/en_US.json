@@ -51,7 +51,6 @@
         "copied": "Join code copied",
         "copy_failed": "Could not copy; select and copy the code manually",
         "failed": "Could not access this Cloud Library",
-        "connected": "Cloud Library connected",
         "games": "{count} games in the Cloud Library",
         "confirm_hint": "Connecting replaces the current cloud settings. Local games and saves are kept"
     },
@@ -678,8 +677,6 @@
     },
     "sync_settings": {
         "title": "Sync settings",
-        "reset_success": "Successfully reset",
-        "submit_success": "Successfully saved modifications",
         "last_sync": "Last sync time:",
         "manual_link": "Tutorial",
         "manual_sync": "Manual sync",
@@ -859,7 +856,6 @@
             "download_existing": "Download to this device",
             "download_existing_description": "{count} snapshots · {size}",
             "enable": "Enable",
-            "mode_changed": "Sync mode updated",
             "mode_enabled_downloaded": "Snapshot Sync enabled and {count} existing snapshots downloaded",
             "mode_change_failed": "Could not update Sync mode",
             "size_unknown": "Size unknown",
@@ -1003,11 +999,9 @@
                 "keep_local": "Keep this device",
                 "keep_local_title": "Keep this device's progress?",
                 "keep_local_confirm": "Keep this device's current progress without uploading archives or applying a save? Other devices' progress stays unchanged",
-                "keep_local_success": "Kept this device's progress",
                 "accept_remote": "Use this progress",
                 "accept_remote_title": "Apply another device's progress?",
                 "accept_remote_confirm": "Replace this device's game saves with “{progress}”? Close the game first",
-                "accept_remote_success": "Selected backup restored",
                 "accept_remote_success_with_backup": "The selected progress was applied after creating a safety backup.",
                 "resolve_failed": "Could not resolve progress",
                 "load_failed": "Could not compare Device progress"
