@@ -85,7 +85,6 @@ impl ServiceContext {
             .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
 
         let game = &mut config.games[index];
-        let previous_game = game.clone();
         game.auto_backup = auto_backup;
         let updated_game = game.clone();
 
@@ -95,7 +94,6 @@ impl ServiceContext {
             .fire_game_updated(&GameUpdatedCtx {
                 config,
                 source,
-                previous_game,
                 game: updated_game,
             })
             .await;
@@ -116,7 +114,6 @@ impl ServiceContext {
             .position_game_by_identity(storage_key)
             .ok_or_else(|| anyhow!("Game with storage_key '{}' not found", storage_key))?;
         let game = config.games[index].clone();
-        let previous_game = game.clone();
 
         match automation {
             Some(automation) => config
@@ -133,7 +130,6 @@ impl ServiceContext {
             .fire_game_updated(&GameUpdatedCtx {
                 config,
                 source,
-                previous_game,
                 game,
             })
             .await;
@@ -157,7 +153,6 @@ impl ServiceContext {
             .position_game_by_identity(identity)
             .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
 
-        let previous_game = config.games[index].clone();
         config.games[index].auto_backup = auto_backup.map(|mut timer| {
             timer.max_backup_count = None;
             timer
@@ -180,7 +175,6 @@ impl ServiceContext {
             .fire_game_updated(&GameUpdatedCtx {
                 config,
                 source,
-                previous_game,
                 game: updated_game,
             })
             .await;
@@ -194,22 +188,20 @@ impl ServiceContext {
         binding: GameDeviceBinding,
         source: HookSource,
     ) -> Result<()> {
-        let ((index, previous_game), config) = crate::config::edit_config(|config| {
+        let (index, config) = crate::config::edit_config(|config| {
             let index = config
                 .position_game_by_identity(identity)
                 .ok_or_else(|| anyhow!("Game '{}' not found", identity))?;
-            let previous = config.games[index].clone();
             config.games[index]
                 .device_bindings
                 .insert(crate::device::get_current_device_id().clone(), binding);
-            Ok((index, previous))
+            Ok(index)
         })?;
         let game = config.games[index].clone();
         self.pipeline()
             .fire_game_updated(&GameUpdatedCtx {
                 config,
                 source,
-                previous_game,
                 game,
             })
             .await;

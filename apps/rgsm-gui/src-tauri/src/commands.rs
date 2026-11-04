@@ -352,7 +352,7 @@ pub async fn delete_snapshot(
     }
     info!(target:"rgsm::commands", "Deleting backup: {:?} for game: {:?}", date, game);
     svc(&app_handle)
-        .delete_snapshot(&game, &date, HookSource::UserManual)
+        .delete_snapshot(&game, &date)
         .await
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to delete backup: {:?}", e);
@@ -376,7 +376,7 @@ pub async fn batch_delete_snapshots(
     }
     info!(target:"rgsm::commands", "Batch deleting {} snapshots for game: {:?}", dates.len(), game.name);
     svc(&app_handle)
-        .batch_delete_snapshots(&game, &dates, HookSource::UserManual)
+        .batch_delete_snapshots(&game, &dates)
         .await
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to batch delete snapshots: {:?}", e);
@@ -1183,9 +1183,7 @@ pub async fn set_snapshot_created_by(
             game_id.as_deref(),
             &snapshot_date,
             created_by,
-            HookSource::UserManual,
         )
-        .await
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to save snapshots after setting created_by: {:?}", e);
             e.to_string()
@@ -1290,8 +1288,7 @@ pub async fn set_snapshot_head(
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Setting HEAD to snapshot: {:?} for game: {:?}", date, game);
     svc(&app_handle)
-        .set_snapshot_head(&game, &date, HookSource::UserManual)
-        .await
+        .set_snapshot_head(&game, &date)
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to set game snapshots info: {:?}", e);
             e.to_string()
@@ -1309,8 +1306,7 @@ pub async fn detach_snapshot(
 ) -> Result<(), String> {
     info!(target:"rgsm::commands", "Detaching snapshot: {:?} for game: {:?}", date, game);
     svc(&app_handle)
-        .detach_snapshot(&game, &date, HookSource::UserManual)
-        .await
+        .detach_snapshot(&game, &date)
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to detach snapshot: {:?}", e);
             e.to_string()

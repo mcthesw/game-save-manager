@@ -4,7 +4,7 @@
 //! priority-sorted dispatcher.
 
 pub use super::contexts::*;
-pub use super::traits::{HookResult, LifecycleHook, SnapshotHook};
+pub use super::traits::{HookResult, LifecycleHook};
 use crate::preclude::BackupError;
 use log::{error, info};
 
@@ -70,18 +70,12 @@ impl HookPipeline {
     pub async fn fire_snapshot_committed(&self, ctx: &SnapshotCreatedCtx) {
         fire!(self, on_snapshot_committed, ctx);
     }
-    pub async fn fire_snapshot_deleted(&self, ctx: &SnapshotDeletedCtx) {
-        fire!(self, on_snapshot_deleted, ctx);
-    }
     /// Gate: aborts on first hook error, returning it to the caller.
     pub async fn fire_before_restore(&self, ctx: &BeforeRestoreCtx) -> Result<(), BackupError> {
         gate!(self, on_before_restore, ctx)
     }
     pub async fn fire_snapshot_applied(&self, ctx: &SnapshotAppliedCtx) {
         fire!(self, on_snapshot_applied, ctx);
-    }
-    pub async fn fire_metadata_changed(&self, ctx: &MetadataChangedCtx) {
-        fire!(self, on_metadata_changed, ctx);
     }
     pub async fn fire_game_added(&self, ctx: &GameAddedCtx) {
         fire!(self, on_game_added, ctx);
@@ -94,14 +88,6 @@ impl HookPipeline {
     }
     pub async fn fire_config_saved(&self, ctx: &ConfigSavedCtx) {
         fire!(self, on_config_saved, ctx);
-    }
-    #[allow(dead_code)]
-    pub async fn fire_sync_completed(&self, ctx: &SyncCompletedCtx) {
-        fire!(self, on_sync_completed, ctx);
-    }
-    #[allow(dead_code)]
-    pub async fn fire_sync_conflict(&self, ctx: &SyncConflictCtx) {
-        fire!(self, on_sync_conflict, ctx);
     }
 }
 
@@ -123,7 +109,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl SnapshotHook for RecorderHook {
+    impl LifecycleHook for RecorderHook {
         fn name(&self) -> &str {
             &self.name
         }
@@ -135,13 +121,6 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push(format!("{}:created", self.name));
-            Ok(())
-        }
-        async fn on_snapshot_deleted(&self, _ctx: &SnapshotDeletedCtx) -> HookResult<()> {
-            self.log
-                .lock()
-                .unwrap()
-                .push(format!("{}:deleted", self.name));
             Ok(())
         }
         async fn on_game_added(&self, _ctx: &GameAddedCtx) -> HookResult<()> {
@@ -174,7 +153,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl SnapshotHook for FailingHook {
+    impl LifecycleHook for FailingHook {
         fn name(&self) -> &str {
             "failing"
         }
@@ -254,18 +233,6 @@ mod tests {
         GameUpdatedCtx {
             config: Config::default(),
             source: HookSource::UserManual,
-            previous_game: Game {
-                name: "ExistingGame".into(),
-                storage_key: String::new(),
-                save_paths: vec![],
-                game_paths: Default::default(),
-                cloud_sync_enabled: false,
-                auto_backup: None,
-                auto_backup_limit: None,
-                next_save_unit_id: 0,
-                ludusavi_meta: None,
-                device_bindings: std::collections::HashMap::new(),
-            },
             game: Game {
                 name: "ExistingGame".into(),
                 storage_key: String::new(),

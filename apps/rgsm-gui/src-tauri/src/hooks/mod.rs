@@ -1,13 +1,10 @@
 //! Hook pipeline composition and built-in side-effect registration.
 //!
 //! Core hooks (pipeline, checksum, cloud_sync, pre_restore) live in rgsm_core.
-//! GUI-specific hooks (notification, quick_action_sync, scheduler_sync) live here.
+//! GUI-specific hooks (notification, runtime_sync) live here.
 
 pub mod notification_hook;
-mod process_monitor_sync_hook;
-mod quick_action_sync_hook;
-mod runtime_config_sync;
-mod scheduler_sync_hook;
+mod runtime_sync_hook;
 
 // Re-export everything from core hooks so the rest of the GUI can `use crate::hooks::*`
 pub use rgsm_core::hooks::*;
@@ -53,22 +50,8 @@ pub fn build_builtin_pipeline(app: &AppHandle, config: &Config) -> HookPipeline 
             rgsm_core::hooks::pre_restore_backup_hook::PreRestoreBackupHook,
         ));
     }
-    let scheduler_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> =
-        Arc::new(scheduler_sync_hook::TauriSchedulerSync::new(app.clone()));
-    hooks.push(Box::new(scheduler_sync_hook::SchedulerSyncHook::new(
-        scheduler_sync,
-    )));
-    let process_monitor_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> = Arc::new(
-        process_monitor_sync_hook::TauriProcessMonitorSync::new(app.clone()),
-    );
-    hooks.push(Box::new(
-        process_monitor_sync_hook::ProcessMonitorSyncHook::new(process_monitor_sync),
-    ));
-    let quick_action_sync: Arc<dyn runtime_config_sync::ConfigRuntimeSync> = Arc::new(
-        quick_action_sync_hook::TauriQuickActionRuntimeSync::new(app.clone()),
-    );
-    hooks.push(Box::new(quick_action_sync_hook::QuickActionSyncHook::new(
-        quick_action_sync,
+    hooks.push(Box::new(runtime_sync_hook::RuntimeSyncHook::new(
+        app.clone(),
     )));
     if !matches!(config.settings.cloud_settings.backend, Backend::Disabled) {
         match cloud_namespace_generation() {

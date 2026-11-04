@@ -395,9 +395,7 @@ mod tests {
                         None,
                         "2026-09-05_12-00-00",
                         crate::backup::CreatedBy::Manual,
-                        crate::hooks::HookSource::UserManual,
                     )
-                    .await
                     .is_err()
             );
             service
@@ -406,9 +404,7 @@ mod tests {
                     None,
                     "2026-09-05_12-00-00",
                     crate::backup::CreatedBy::Manual,
-                    crate::hooks::HookSource::UserManual,
                 )
-                .await
                 .unwrap();
         });
         assert_eq!(

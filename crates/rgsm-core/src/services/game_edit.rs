@@ -55,7 +55,7 @@ impl ServiceContext {
         variables: &DeviceVariableEdits,
         source: HookSource,
     ) -> Result<Game> {
-        let ((previous, game), config) = crate::config::edit_config(|config| {
+        let ((existed, game), config) = crate::config::edit_config(|config| {
             apply_device_variables(config, variables)?;
             let index = storage_key
                 .map(|key| {
@@ -94,14 +94,13 @@ impl ServiceContext {
             } else {
                 crate::backup::create_game_backup(draft, config)?
             };
-            Ok((previous, saved))
+            Ok((previous.is_some(), saved))
         })?;
-        if let Some(previous_game) = previous {
+        if existed {
             self.pipeline()
                 .fire_game_updated(&GameUpdatedCtx {
                     config,
                     source,
-                    previous_game,
                     game: game.clone(),
                 })
                 .await;
