@@ -1,7 +1,6 @@
 mod app_config;
 pub mod backup;
 mod game_identity;
-pub(crate) mod installation_upgrade;
 mod legacy_file;
 mod local_games;
 mod pending_game_metadata;

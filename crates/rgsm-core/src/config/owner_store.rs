@@ -16,8 +16,6 @@ use super::{
 
 #[path = "cloud_connection.rs"]
 mod cloud_connection;
-#[path = "installation_owner_upgrade.rs"]
-mod installation_upgrade;
 #[path = "metadata_reconciliation.rs"]
 mod metadata_reconciliation;
 
@@ -56,7 +54,7 @@ pub enum OwnerStoreError {
 }
 
 pub(crate) struct OwnerStore {
-    root: PathBuf,
+    pub(crate) root: PathBuf,
 }
 
 impl OwnerStore {
@@ -332,7 +330,7 @@ impl OwnerStore {
         Ok(())
     }
 
-    fn write(&self, owners: &ConfigurationOwners) -> Result<(), OwnerStoreError> {
+    pub(crate) fn write(&self, owners: &ConfigurationOwners) -> Result<(), OwnerStoreError> {
         owners.validate()?;
         let staging = self.staging_path();
         let active = self.active_path();

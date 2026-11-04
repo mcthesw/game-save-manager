@@ -5,11 +5,13 @@ use std::{collections::BTreeSet, path::Path};
 
 use crate::{
     backup::Game,
+    config::{
+        Config,
+        owner_store::{OwnerStore, OwnerStoreError},
+    },
     device::{Device, DeviceResource, DeviceResourceKind},
     path_resolution::context::same_path,
 };
-
-use super::Config;
 
 pub(crate) fn legacy_choices<'a>(game: &Game, device: &'a Device) -> Vec<&'a DeviceResource> {
     let binding = game.device_bindings.get(&device.id);
@@ -120,15 +122,43 @@ pub(crate) fn migrate(config: &mut Config) -> bool {
     changed
 }
 
-impl Config {
-    pub(crate) fn normalize_local_fields(&mut self) {
-        for game in &mut self.games {
-            game.normalize_save_unit_ids();
+impl OwnerStore {
+    /// Upgrade already-owned local profiles as well as the monolithic legacy
+    /// import. No profile publication or other cloud operation occurs here.
+    pub(crate) fn upgrade_local_installations(&self) -> Result<bool, OwnerStoreError> {
+        let mut owners = self.load()?;
+        if !owners
+            .device_profiles
+            .values()
+            .any(|profile| profile.device.game_installations().next().is_some())
+        {
+            return Ok(false);
         }
-        migrate(self);
+        let mut config = owners.assemble_effective()?;
+        if !migrate(&mut config) {
+            return Ok(false);
+        }
+        crate::updater::preserve_original(
+            &self
+                .root
+                .join("GameSaveManager.installations-before-upgrade.json"),
+            &serde_json::to_vec_pretty(&owners)?,
+        )?;
+        for (device_id, profile) in &mut owners.device_profiles {
+            if let Some(device) = config.devices.get(device_id) {
+                profile.device = device.clone();
+            }
+            for game in &config.games {
+                if let Some(settings) = profile.games.get_mut(game.backup_dir_name().as_ref()) {
+                    settings.binding = game.device_bindings.get(device_id).cloned();
+                }
+            }
+        }
+        self.write(&owners)?;
+        Ok(true)
     }
 }
 
 #[cfg(test)]
-#[path = "installation_upgrade_tests.rs"]
+#[path = "installations_tests.rs"]
 mod tests;

@@ -6,16 +6,13 @@ use semver::Version;
 use serde_json::Value;
 
 use crate::backup::storage_key::generate_unique_storage_key;
-use crate::backup::{
-    GameDeviceBinding, GameSnapshots, SaveUnitSource, StoreGameId, TIMER_AUTO_BACKUP_DESCRIPTION,
-};
+use crate::backup::{GameSnapshots, SaveUnitSource, TIMER_AUTO_BACKUP_DESCRIPTION};
 use crate::config::{Config, resolve_backup_path};
-use crate::device::{DeviceResourceKind, DeviceResourceSource, get_current_device_id};
-use crate::path_pattern::{
-    ManifestPathConstraints, ManifestPathPattern, StoreKind, is_dynamic_manifest_path,
-};
+use crate::device::get_current_device_id;
+use crate::path_pattern::{ManifestPathConstraints, ManifestPathPattern, is_dynamic_manifest_path};
 use crate::preclude::UpdaterError;
 use crate::updater::{
+    nightly,
     probe::probe_config_version,
     versions::{
         CURRENT_VERSION, Config1_4_0, MIN_SUPPORTED_VERSION, VERSION_1_4_0, VERSION_1_6_0,
@@ -42,7 +39,9 @@ use crate::updater::{
 pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     let path: &Path = path.as_ref();
     let content = fs::read_to_string(path)?;
-    let needs_path_migration = has_legacy_path_schema(&content)?;
+    let raw: Value = serde_json::from_str(&content)?;
+    let nightly = nightly::detect(&raw);
+    let needs_path_migration = nightly || has_units_without_source(&raw);
     let version = probe_config_version(path)?;
     let current = Version::parse(CURRENT_VERSION)?;
     let min_supported = Version::parse(MIN_SUPPORTED_VERSION)?;
@@ -88,7 +87,11 @@ pub fn update_config<P: AsRef<Path>>(path: P) -> Result<bool, UpdaterError> {
     backup_config(path)?;
 
     // Migrate based on version
-    let detected_steam_roots = crate::steam::detect_game_roots().unwrap_or_default();
+    let detected_steam_roots = if nightly {
+        crate::steam::detect_game_roots().unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let mut new_cfg = migrate_config_schema(
         &content,
         &version,
@@ -128,237 +131,68 @@ pub(super) fn migrate_config_schema(
     detected_steam_roots: &[String],
 ) -> Result<Config, UpdaterError> {
     let mut config = migrate_legacy_cloud_sync(content, migrate_config(content, version)?)?;
-    migrate_path_resource_schema(
-        content,
-        &mut config,
-        current_device_id,
-        detected_steam_roots,
-    )?;
+    let raw: Value = serde_json::from_str(content)?;
+    convert_units_without_source(&raw, &mut config);
+    if nightly::detect(&raw) {
+        nightly::apply(&raw, &mut config, current_device_id, detected_steam_roots);
+    }
     if version < &Version::parse(VERSION_1_7_5)? {
         config = migrate_save_unit_ids(config);
     }
     Ok(config)
 }
 
-fn has_legacy_path_schema(content: &str) -> Result<bool, UpdaterError> {
-    let raw: Value = serde_json::from_str(content)?;
-    let legacy_device = raw
-        .get("devices")
-        .and_then(Value::as_object)
-        .is_some_and(|devices| {
-            devices.values().any(|device| {
-                device
-                    .as_object()
-                    .is_some_and(|device| device.contains_key("game_roots"))
-            })
-        });
-    let legacy_game = raw
-        .get("games")
+fn has_units_without_source(raw: &Value) -> bool {
+    raw.get("games")
         .and_then(Value::as_array)
         .is_some_and(|games| {
             games.iter().any(|game| {
-                game.as_object().is_some_and(|game| {
-                    game.contains_key("store_user_ids")
-                        || game
-                            .get("ludusavi_meta")
-                            .and_then(Value::as_object)
-                            .is_some_and(|meta| {
-                                meta.contains_key("steamId") || meta.contains_key("steam_id")
-                            })
-                        || game
-                            .get("save_paths")
-                            .and_then(Value::as_array)
-                            .is_some_and(|units| {
-                                units.iter().any(|unit| {
-                                    unit.as_object()
-                                        .is_some_and(|unit| !unit.contains_key("source"))
-                                })
-                            })
-                })
-            })
-        });
-    Ok(legacy_device || legacy_game)
-}
-
-fn migrate_path_resource_schema(
-    content: &str,
-    config: &mut Config,
-    current_device_id: Option<&str>,
-    detected_steam_roots: &[String],
-) -> Result<(), UpdaterError> {
-    let raw: Value = serde_json::from_str(content)?;
-    let detected_steam_roots = detected_steam_roots
-        .iter()
-        .map(|path| normalized_path_identity(path))
-        .collect::<Vec<_>>();
-
-    if let Some(raw_devices) = raw.get("devices").and_then(Value::as_object) {
-        for (device_id, raw_device) in raw_devices {
-            let Some(game_roots) = raw_device.get("game_roots").and_then(Value::as_array) else {
-                continue;
-            };
-            let Some(device) = config.devices.get_mut(device_id) else {
-                continue;
-            };
-            for path in game_roots.iter().filter_map(Value::as_str) {
-                if device
-                    .game_root_paths()
-                    .any(|existing| existing.eq_ignore_ascii_case(path))
-                {
-                    continue;
-                }
-                let store = if Some(device_id.as_str()) == current_device_id
-                    && detected_steam_roots.contains(&normalized_path_identity(path))
-                {
-                    StoreKind::Steam
-                } else {
-                    StoreKind::Other
-                };
-                device.add_resource(
-                    DeviceResourceSource::Manual,
-                    DeviceResourceKind::GameRoot {
-                        store,
-                        path: path.to_string(),
-                    },
-                );
-            }
-        }
-    }
-
-    if let Some(raw_games) = raw.get("games").and_then(Value::as_array) {
-        let (games, devices) = (&mut config.games, &mut config.devices);
-        for (game, raw_game) in games.iter_mut().zip(raw_games.iter()) {
-            if let Some(raw_units) = raw_game.get("save_paths").and_then(Value::as_array) {
-                for (unit, raw_unit) in game.save_paths.iter_mut().zip(raw_units.iter()) {
-                    if raw_unit
-                        .as_object()
-                        .is_some_and(|unit| unit.contains_key("source"))
-                    {
-                        continue;
-                    }
-                    let SaveUnitSource::Concrete { unit_type, paths } = &unit.source else {
-                        continue;
-                    };
-                    let expected_type = unit_type.clone();
-                    let unique_paths = paths.values().collect::<std::collections::BTreeSet<_>>();
-                    let patterns = unique_paths.into_iter().collect::<Vec<_>>();
-                    if let [raw_pattern] = patterns.as_slice()
-                        && is_dynamic_manifest_path(raw_pattern)
-                    {
-                        unit.source = SaveUnitSource::ManifestPattern {
-                            expected_type: Some(expected_type),
-                            pattern: ManifestPathPattern::new((*raw_pattern).clone()),
-                            constraints: ManifestPathConstraints::default(),
-                        };
-                    }
-                }
-
-                let root_devices = raw_units
-                    .iter()
-                    .filter_map(|unit| unit.get("paths").and_then(Value::as_object))
-                    .flat_map(|paths| paths.iter())
-                    .filter(|(_, path)| {
-                        path.as_str()
-                            .is_some_and(|path| path.to_ascii_lowercase().contains("<root>"))
-                    })
-                    .map(|(device_id, _)| device_id)
-                    .collect::<std::collections::BTreeSet<_>>();
-                for device_id in root_devices {
-                    let unique_legacy_root = raw
-                        .get("devices")
-                        .and_then(Value::as_object)
-                        .and_then(|devices| devices.get(device_id))
-                        .and_then(|device| device.get("game_roots"))
-                        .and_then(Value::as_array)
-                        .and_then(|roots| match roots.as_slice() {
-                            [root] => root.as_str(),
-                            _ => None,
-                        });
-                    let Some(root_id) = unique_legacy_root.and_then(|legacy_root| {
-                        devices.get(device_id).and_then(|device| {
-                            device
-                                .resources
-                                .iter()
-                                .find_map(|resource| match &resource.kind {
-                                    DeviceResourceKind::GameRoot { path, .. }
-                                        if normalized_path_identity(path)
-                                            == normalized_path_identity(legacy_root) =>
-                                    {
-                                        Some(resource.id)
-                                    }
-                                    _ => None,
-                                })
+                game.get("save_paths")
+                    .and_then(Value::as_array)
+                    .is_some_and(|units| {
+                        units.iter().any(|unit| {
+                            unit.as_object()
+                                .is_some_and(|unit| !unit.contains_key("source"))
                         })
-                    }) else {
-                        continue;
-                    };
-                    let binding = game
-                        .device_bindings
-                        .entry(device_id.clone())
-                        .or_insert_with(GameDeviceBinding::default);
-                    binding
-                        .root_ids
-                        .get_or_insert_with(|| vec![format!("resource:{root_id}")]);
-                }
-            }
+                    })
+            })
+        })
+}
 
-            if let Some(steam_id) = raw_game
-                .get("ludusavi_meta")
-                .and_then(|meta| meta.get("steamId").or_else(|| meta.get("steam_id")))
-                .and_then(Value::as_u64)
-                && let Some(meta) = game.ludusavi_meta.as_mut()
-                && meta.store_game_id(StoreKind::Steam).is_none()
+/// Units written before `source` existed carry a plain per-device path map; a
+/// single dynamic pattern shared by every device becomes a manifest pattern.
+fn convert_units_without_source(raw: &Value, config: &mut Config) {
+    let Some(raw_games) = raw.get("games").and_then(Value::as_array) else {
+        return;
+    };
+    for (game, raw_game) in config.games.iter_mut().zip(raw_games.iter()) {
+        let Some(raw_units) = raw_game.get("save_paths").and_then(Value::as_array) else {
+            continue;
+        };
+        for (unit, raw_unit) in game.save_paths.iter_mut().zip(raw_units.iter()) {
+            if raw_unit
+                .as_object()
+                .is_some_and(|unit| unit.contains_key("source"))
             {
-                meta.store_game_ids.push(StoreGameId {
-                    store: StoreKind::Steam,
-                    id: steam_id.to_string(),
-                });
+                continue;
             }
-
-            let Some(store_user_ids) = raw_game.get("store_user_ids").and_then(Value::as_object)
-            else {
+            let SaveUnitSource::Concrete { unit_type, paths } = &unit.source else {
                 continue;
             };
-            for (device_id, user_id) in store_user_ids {
-                let Some(user_id) = user_id.as_str() else {
-                    continue;
+            let expected_type = unit_type.clone();
+            let unique_paths = paths.values().collect::<std::collections::BTreeSet<_>>();
+            let patterns = unique_paths.into_iter().collect::<Vec<_>>();
+            if let [raw_pattern] = patterns.as_slice()
+                && is_dynamic_manifest_path(raw_pattern)
+            {
+                unit.source = SaveUnitSource::ManifestPattern {
+                    expected_type: Some(expected_type),
+                    pattern: ManifestPathPattern::new((*raw_pattern).clone()),
+                    constraints: ManifestPathConstraints::default(),
                 };
-                let Some(device) = devices.get_mut(device_id) else {
-                    continue;
-                };
-                let existing_account_id =
-                    device
-                        .store_accounts()
-                        .find_map(|resource| match &resource.kind {
-                            DeviceResourceKind::StoreAccount {
-                                store: StoreKind::Steam,
-                                user_id: existing,
-                            } if existing == user_id => Some(resource.id),
-                            _ => None,
-                        });
-                let account_id = match existing_account_id {
-                    Some(id) => id,
-                    None => device.add_resource(
-                        DeviceResourceSource::Manual,
-                        DeviceResourceKind::StoreAccount {
-                            store: StoreKind::Steam,
-                            user_id: user_id.to_string(),
-                        },
-                    ),
-                };
-                game.device_bindings
-                    .entry(device_id.clone())
-                    .or_insert_with(GameDeviceBinding::default)
-                    .account_ids = Some(vec![format!("resource:{account_id}")]);
             }
         }
     }
-
-    Ok(())
-}
-
-fn normalized_path_identity(path: &str) -> String {
-    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
 }
 
 fn write_config_transactionally(path: &Path, content: &[u8]) -> Result<(), UpdaterError> {
@@ -729,6 +563,7 @@ mod tests {
     use super::*;
     use crate::backup::{LudusaviMeta, SaveUnit, SaveUnitType, TIMER_AUTO_BACKUP_DESCRIPTION};
     use crate::device::Device;
+    use crate::path_pattern::StoreKind;
 
     #[test]
     fn migrate_legacy_cloud_sync_inherits_true_and_preserves_explicit_false() {
@@ -1185,102 +1020,6 @@ mod tests {
         assert_eq!(migrated.games[0].next_save_unit_id, 7);
         assert!(!update_config(&config_path)?);
         Ok(())
-    }
-
-    #[test]
-    fn verified_current_device_root_migrates_as_steam() {
-        let mut config = Config::default();
-        config.devices.insert(
-            "device".to_string(),
-            Device {
-                id: "device".to_string(),
-                name: "Test".to_string(),
-                resources: Vec::new(),
-                path_variables: Default::default(),
-                next_resource_id: 0,
-            },
-        );
-        let raw = serde_json::json!({
-            "devices": {
-                "device": {
-                    "game_roots": ["D:\\SteamLibrary"]
-                }
-            },
-            "games": []
-        });
-
-        migrate_path_resource_schema(
-            &raw.to_string(),
-            &mut config,
-            Some("device"),
-            &["d:/steamlibrary/".to_string()],
-        )
-        .unwrap();
-
-        assert!(matches!(
-            config.devices["device"].resources[0].kind,
-            DeviceResourceKind::GameRoot {
-                store: StoreKind::Steam,
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn multiple_legacy_roots_remain_unbound_for_explicit_player_selection() {
-        let device_id = "device".to_string();
-        let mut config = Config::default();
-        config.devices.insert(
-            device_id.clone(),
-            Device {
-                id: device_id.clone(),
-                name: "Test".to_string(),
-                resources: Vec::new(),
-                path_variables: Default::default(),
-                next_resource_id: 0,
-            },
-        );
-        config.games.push(crate::backup::Game {
-            name: "Legacy".to_string(),
-            storage_key: "legacy".to_string(),
-            save_paths: vec![SaveUnit::concrete(
-                7,
-                SaveUnitType::Folder,
-                std::collections::HashMap::from([(device_id.clone(), "<root>/Saved".to_string())]),
-                false,
-                true,
-            )],
-            game_paths: Default::default(),
-            next_save_unit_id: 8,
-            cloud_sync_enabled: false,
-            auto_backup: None,
-            auto_backup_limit: None,
-            ludusavi_meta: None,
-            device_bindings: Default::default(),
-        });
-        let raw = serde_json::json!({
-            "devices": {
-                "device": { "game_roots": ["D:/Games", "E:/Games"] }
-            },
-            "games": [{
-                "save_paths": [{
-                    "id": 7,
-                    "unit_type": "Folder",
-                    "paths": { "device": "<root>/Saved" }
-                }]
-            }]
-        });
-
-        migrate_path_resource_schema(&raw.to_string(), &mut config, Some(&device_id), &[]).unwrap();
-
-        assert!(!config.games[0].device_bindings.contains_key(&device_id));
-        assert!(matches!(
-            config.games[0].save_paths[0].source,
-            SaveUnitSource::ManifestPattern {
-                expected_type: Some(SaveUnitType::Folder),
-                ..
-            }
-        ));
     }
 
     #[test]

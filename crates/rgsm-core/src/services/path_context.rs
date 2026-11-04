@@ -180,7 +180,7 @@ pub fn game_location_options(
         .collect::<Vec<_>>();
     for resource in device
         .into_iter()
-        .flat_map(|device| crate::config::installation_upgrade::legacy_choices(game, device))
+        .flat_map(|device| crate::updater::nightly::installations::legacy_choices(game, device))
     {
         if let DeviceResourceKind::GameInstallation { path, .. } = &resource.kind
             && !installations.iter().any(|existing| {
