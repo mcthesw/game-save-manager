@@ -192,8 +192,6 @@
     },
     "sync_settings": {
         "title": "Simultaneization",
-        "reset_success": "Reprise du succès",
-        "submit_success": "Succès dans la préservation des changements",
         "last_sync": "Dernière synchronisation:",
         "manual_link": "Formation",
         "test_button": "Disponibilité des essais",
@@ -267,8 +265,6 @@
         "open_log_folder_failed": "Pas d'ouverture du journal"
     },
     "backend": {
-        "config": {
-        },
         "tray": {
             "quick_backup": "Sauvegarde rapide",
             "quick_apply": "Lecture rapide",
