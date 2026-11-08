@@ -1193,6 +1193,7 @@
         "cloud_library_damaged": "The Cloud Library is incomplete or damaged. Open Cloud Sync and choose \"Rebuild from this device\".",
         "cloud_library_changed": "The Cloud Library was changed on another device. Refresh and try again.",
         "cloud_reconnect_required": "This device needs to reconnect to the Cloud Library. Open Cloud Sync and choose \"Reconnect this device\".",
+        "cloud_snapshot_history_differs": "Snapshot %{id} has a different history on this device and in the Cloud Library, so nothing was changed. To keep the Cloud Library's copy, delete the snapshot on this device and download it again.",
         "open_url_failed": "Unable to open url",
         "open_path_failed": "Unable to open path",
         "update_device_failed": "Failed to update device information",
