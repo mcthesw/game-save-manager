@@ -1193,6 +1193,7 @@
         "cloud_library_damaged": "云库不完整或已损坏。请打开云同步并选择“从此设备重建”。",
         "cloud_library_changed": "云库已在另一台设备上更改，请刷新后重试。",
         "cloud_reconnect_required": "此设备需要重新连接云库。请打开云同步并选择“重新连接此设备”。",
+        "cloud_snapshot_history_differs": "快照 %{id} 在本机和云库里的来历不一致，为避免覆盖已停止处理，没有改动任何数据。如果要保留云库里的这份，请先在本机删除该快照，再重新下载。",
         "open_url_failed": "无法打开链接",
         "open_path_failed": "无法打开路径",
         "config_load_failed": "配置文件加载失败，可能是因为配置文件损坏或者不存在",

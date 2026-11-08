@@ -99,6 +99,11 @@ fn library_state(error: &(dyn Error + 'static)) -> Option<CloudFailureKind> {
 /// localized message with a next step and the raw error is only logged. Other
 /// errors keep their own message.
 pub fn cloud_error_message(error: &(dyn Error + 'static)) -> String {
+    if let Some(CloudLibraryServiceError::RemoteSnapshotIdentityConflict(id)) =
+        error.downcast_ref::<CloudLibraryServiceError>()
+    {
+        return t!("error.cloud_snapshot_history_differs", id = id).to_string();
+    }
     let Some(message) = storage_failure(error) else {
         return error.to_string();
     };
@@ -263,6 +268,19 @@ mod tests {
             cloud_failure_kind(&CloudLibraryServiceError::ConfirmationRequired),
             CloudFailureKind::Other
         );
+    }
+
+    #[test]
+    fn snapshot_history_conflict_is_localized_with_the_next_step() {
+        let message = cloud_error_message(
+            &CloudLibraryServiceError::RemoteSnapshotIdentityConflict("2024-06-24".into()),
+        );
+        assert_eq!(
+            message,
+            t!("error.cloud_snapshot_history_differs", id = "2024-06-24")
+        );
+        assert!(message.contains("2024-06-24"), "{message}");
+        assert!(!message.contains("identity"), "{message}");
     }
 
     #[test]
