@@ -183,3 +183,97 @@ fn connected_library_games_stay_zip_and_keep_syncing_after_local_upgrade() {
         assert_eq!(snapshot_of("shared").archive_format, ArchiveFormat::Zip);
     });
 }
+
+#[test]
+fn recompressed_local_archives_of_shared_games_are_restored_by_download() {
+    let _lock = crate::config::lock_config_test_file();
+    let cloud = temp_dir::TempDir::new().unwrap();
+    let archives = temp_dir::TempDir::new().unwrap();
+    let mut config = Config {
+        backup_path: archives.path().to_string_lossy().into_owned(),
+        games: serde_json::from_value(serde_json::json!([
+            {"name": "Shared", "storage_key": "shared", "save_paths": [save_unit()]}
+        ]))
+        .unwrap(),
+        ..Config::default()
+    };
+    config.settings.cloud_settings = CloudSettings {
+        backend: Backend::Fs,
+        root_path: cloud.path().to_string_lossy().into_owned(),
+        ..CloudSettings::default()
+    };
+    let _guard = ConfigTestStateGuard::replace_with(&config).unwrap();
+    set_config_local(&config).unwrap();
+    runtime().block_on(async {
+        let (library, profile, _) = cloud_bootstrap_inputs().unwrap();
+        let operator = CloudSyncSessionConfig::from(&config.settings.cloud_settings)
+            .get_op()
+            .unwrap();
+        CloudLibraryBootstrap::new(operator, 2)
+            .create_empty(&CloudNamespaceDescriptor::default(), &library, &profile)
+            .await
+            .unwrap();
+        let service = ServiceContext::new(Arc::new(HookPipeline::new(vec![])));
+        service.connect_cloud_library().await.unwrap();
+
+        let game = get_config().unwrap().games.remove(0);
+        let dir = archives.path().join("shared");
+        let ids = ["first", "second"];
+        let mut catalog = GameSnapshots::new(&game.name);
+        let mut originals = Vec::new();
+        for (index, id) in ids.iter().enumerate() {
+            let path = dir.join(format!("{id}.zip"));
+            originals.push(write_zip(&path));
+            catalog.backups.push(
+                serde_json::from_value(serde_json::json!({
+                    "date": id, "describe": "", "path": path,
+                    "parent": index.checked_sub(1).map(|previous| ids[previous]),
+                }))
+                .unwrap(),
+            );
+        }
+        game.set_game_snapshots_info(&catalog).unwrap();
+        for id in ids {
+            service.upload_cloud_archive("shared", id).await.unwrap();
+        }
+
+        // A local format upgrade that predates the Cloud Library protection:
+        // same snapshots, repacked as hashed 7z archives the Cloud never saw.
+        let mut upgraded = catalog.clone();
+        for snapshot in &mut upgraded.backups {
+            let name = format!("{}_aabbccddeeff.7z", snapshot.date);
+            std::fs::remove_file(&snapshot.path).unwrap();
+            std::fs::write(dir.join(&name), b"repacked").unwrap();
+            snapshot.archive_format = ArchiveFormat::SevenZ;
+            snapshot.path = dir.join(&name).to_string_lossy().into_owned();
+            snapshot.archive_name = Some(name);
+            snapshot.size = 8;
+            snapshot.archive_hash = Some("1111111111111111".into());
+        }
+        game.set_game_snapshots_info(&upgraded).unwrap();
+
+        service
+            .download_cloud_archive("shared", "first")
+            .await
+            .unwrap();
+        let rows = game.get_game_snapshots_info().unwrap().backups;
+        assert_eq!(rows[0].archive_format, ArchiveFormat::Zip);
+        assert_eq!(rows[0].archive_name, None);
+        assert_eq!(std::fs::read(dir.join("first.zip")).unwrap(), originals[0]);
+        assert!(!dir.join("first_aabbccddeeff.7z").exists());
+        assert_eq!(rows[1].archive_format, ArchiveFormat::SevenZ);
+        assert!(dir.join("second_aabbccddeeff.7z").exists());
+
+        service
+            .materialize_all_cloud_archives(&tokio_util::sync::CancellationToken::new())
+            .await
+            .unwrap();
+        let rows = game.get_game_snapshots_info().unwrap().backups;
+        assert!(
+            rows.iter()
+                .all(|row| row.archive_format == ArchiveFormat::Zip)
+        );
+        assert_eq!(std::fs::read(dir.join("second.zip")).unwrap(), originals[1]);
+        assert!(!dir.join("second_aabbccddeeff.7z").exists());
+    });
+}

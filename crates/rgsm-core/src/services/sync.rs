@@ -1055,9 +1055,12 @@ fn import_downloaded_lineage(
         .into_iter()
         .find(|game| game.storage_key == game_id)
         .ok_or_else(|| CloudLibraryServiceError::GameProfileNotFound(game_id.to_string()))?;
+    let mut superseded = Vec::new();
     game.update_game_snapshots_info::<CloudLibraryServiceError>(|local| {
-        super::conflict_resolution::merge_remote_lineage(local, lineage)
+        superseded = super::conflict_resolution::merge_remote_lineage(local, lineage)?;
+        Ok(())
     })?;
+    super::conflict_resolution::remove_superseded_archives(&superseded);
     Ok(())
 }
 
